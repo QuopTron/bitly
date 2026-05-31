@@ -247,7 +247,7 @@ class StoreNotifier extends Notifier<StoreState> {
   }
 
   static const _defaultRegistryUrl =
-      'https://raw.githubusercontent.com/spotiflacapp/SpotiFLAC-Extension/main/registry.json';
+      'https://raw.githubusercontent.com/QuopTron/bitly-extensions/main/registry.json';
 
   Future<void> initialize(String cacheDir) async {
     if (state.isInitialized) return;
