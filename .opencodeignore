@@ -1,0 +1,52 @@
+Flutter
+build/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+
+# Generated
+*.g.dart
+*.freezed.dart
+
+# Android
+android/.gradle/
+android/build/
+
+# iOS
+ios/Pods/
+ios/build/
+
+# Desktop
+linux/build/
+macos/build/
+windows/build/
+
+# Web
+web/build/
+
+# Python
+__pycache__/
+*.pyc
+
+# Go
+
+# IDE
+.idea/
+.vscode/
+
+# Git
+.git/
+
+# Cache
+.ruff_cache/
+
+# Media
+*.png
+*.jpg
+*.jpeg
+*.mp4
+*.zip
+*.apk
+*.aab

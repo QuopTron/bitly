@@ -1,0 +1,23 @@
+import 'package:flutter/foundation.dart';
+
+class AppInfo {
+  static const String version = '4.5.1';
+  static const String buildNumber = '128';
+  static const String fullVersion = '$version+$buildNumber';
+
+  static String get displayVersion => kDebugMode ? 'Internal' : version;
+  static const String appName = 'Bitly';
+
+  static const String copyright = '© 2026 Bitly';
+
+  static const String mobileAuthor = 'zarzet';
+  static const String originalAuthor = 'afkarxyz';
+
+  static const String githubRepo = 'zarzet/Bitly';
+  static const String githubUrl = 'https://github.com/$githubRepo';
+  static const String originalGithubUrl =
+      'https://github.com/afkarxyz/Bitly';
+
+  static const String kofiUrl = 'https://ko-fi.com/zarzet';
+  static const String githubSponsorsUrl = 'https://github.com/sponsors/zarzet/';
+}

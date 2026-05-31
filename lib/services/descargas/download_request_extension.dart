@@ -1,0 +1,62 @@
+library;
+
+import 'package:bitly/services/descargas/download_request_payload.dart';
+
+extension DownloadRequestPayloadStrategy on DownloadRequestPayload {
+  DownloadRequestPayload withStrategy({
+    bool? useExtensions,
+    bool? useFallback,
+  }) {
+    return DownloadRequestPayload(
+      contractVersion: contractVersion,
+      isrc: isrc,
+      service: service,
+      spotifyId: spotifyId,
+      trackName: trackName,
+      artistName: artistName,
+      albumName: albumName,
+      albumArtist: albumArtist,
+      coverUrl: coverUrl,
+      outputDir: outputDir,
+      filenameFormat: filenameFormat,
+      quality: quality,
+      embedMetadata: embedMetadata,
+      artistTagMode: artistTagMode,
+      embedLyrics: embedLyrics,
+      embedMaxQualityCover: embedMaxQualityCover,
+      embedReplayGain: embedReplayGain,
+      postProcessingEnabled: postProcessingEnabled,
+      tidalHighFormat: tidalHighFormat,
+      trackNumber: trackNumber,
+      discNumber: discNumber,
+      totalTracks: totalTracks,
+      totalDiscs: totalDiscs,
+      releaseDate: releaseDate,
+      itemId: itemId,
+      durationMs: durationMs,
+      source: source,
+      genre: genre,
+      label: label,
+      copyright: copyright,
+      composer: composer,
+      tidalId: tidalId,
+      qobuzId: qobuzId,
+      deezerId: deezerId,
+      lyricsMode: lyricsMode,
+      useExtensions: useExtensions ?? this.useExtensions,
+      useFallback: useFallback ?? this.useFallback,
+      storageMode: storageMode,
+      safTreeUri: safTreeUri,
+      safRelativeDir: safRelativeDir,
+      safFileName: safFileName,
+      safOutputExt: safOutputExt,
+      outputExt: outputExt,
+      stageSafOutput: stageSafOutput,
+      deferSafPublish: deferSafPublish,
+      requiresContainerConversion: requiresContainerConversion,
+      songLinkRegion: songLinkRegion,
+      isPremium: isPremium,
+      premiumUntil: premiumUntil,
+    );
+  }
+}
