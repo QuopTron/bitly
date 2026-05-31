@@ -10,7 +10,7 @@ class ApiConstants {
   static const String songstatsBaseUrl = 'https://api.songstats.com/v1';
 
   static const String defaultExtensionRegistry =
-      'https://raw.githubusercontent.com/spotiflacapp/SpotiFLAC-Extension/main/registry.json';
+      'https://raw.githubusercontent.com/QuopTron/bitly-extensions/main/registry.json';
 
   static const int maxSearchResults = 50;
   static const int defaultSearchLimit = 20;

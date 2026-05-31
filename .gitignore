@@ -45,8 +45,8 @@ node_modules/
 
 # temp
 temp_aar_check/
-temp_aar_verify/
 temp_apk_check/
+temp_ext_repo/
 
 # logs
 *.log

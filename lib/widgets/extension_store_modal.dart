@@ -529,7 +529,7 @@ class _StoreTabState extends ConsumerState<_StoreTab> {
 
   void _setDefaultRepo() {
     ref.read(storeProvider.notifier).setRegistryUrl(
-      'https://raw.githubusercontent.com/spotiflacapp/SpotiFLAC-Extension/main/registry.json',
+      'https://raw.githubusercontent.com/QuopTron/bitly-extensions/main/registry.json',
     );
   }
 
