@@ -46,7 +46,7 @@ class ApkDownloader {
         return null;
       }
 
-      final filePath = '${dir.path}/Bitly-$version.apk';
+      final filePath = '${dir.path}/bitly-$version.apk';
       final file = File(filePath);
       
       if (await file.exists()) file.deleteSync();
