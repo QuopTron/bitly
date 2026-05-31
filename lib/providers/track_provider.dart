@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:bitly/models/track.dart';
-import 'package:bitly/services/núcleo/platform_service.dart';
+import 'package:bitly/core/platform/platform_service.dart';
 import 'package:bitly/utils/logger.dart';
 import 'package:bitly/utils/string_utils.dart';
 import 'package:bitly/providers/settings_provider.dart';

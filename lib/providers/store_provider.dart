@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:bitly/constants/app_info.dart';
-import 'package:bitly/services/núcleo/platform_bridge.dart';
+import 'package:bitly/core/bridge/bridge_client.dart';
 import 'package:bitly/utils/logger.dart';
 import 'package:bitly/providers/extension_provider.dart';
 
@@ -247,7 +247,7 @@ class StoreNotifier extends Notifier<StoreState> {
   }
 
   static const _defaultRegistryUrl =
-      'https://raw.githubusercontent.com/BitlyApp/Bitly-Extension/main/registry.json';
+      'https://raw.githubusercontent.com/spotiflacapp/SpotiFLAC-Extension/main/registry.json';
 
   Future<void> initialize(String cacheDir) async {
     if (state.isInitialized) return;

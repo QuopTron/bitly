@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:bitly/models/lyrics.dart';
 import 'package:bitly/providers/audio_player_provider.dart';
-import 'package:bitly/services/núcleo/platform_bridge.dart';
+import 'package:bitly/core/bridge/bridge_client.dart';
 import 'package:bitly/utils/logger.dart';
 
 final _log = AppLogger('LyricsProvider');

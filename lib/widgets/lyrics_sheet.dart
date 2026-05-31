@@ -7,8 +7,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:bitly/models/lyrics.dart';
 import 'package:bitly/providers/audio_player_provider.dart';
 import 'package:bitly/providers/lyrics_provider.dart';
-import 'package:bitly/services/biblioteca/portadas/cover_cache_manager.dart';
-import 'package:bitly/services/núcleo/platform_bridge.dart';
+import 'package:bitly/services/library/covers/cover_cache_manager.dart';
+import 'package:bitly/core/bridge/bridge_client.dart';
 
 class LyricsSheet extends ConsumerStatefulWidget {
   const LyricsSheet({super.key});

@@ -143,7 +143,7 @@ const (
 	cacheTTL      = 30 * time.Minute
 	cacheFileName = "store_cache.json"
 	// Default registry URL - used if not explicitly set via SetStoreRegistryURLJSON
-	defaultRegistryURL = "https://raw.githubusercontent.com/QuopTron/bitly-extensions/main/registry.json"
+	defaultRegistryURL = "https://raw.githubusercontent.com/spotiflacapp/SpotiFLAC-Extension/main/registry.json"
 )
 
 func initExtensionStore(cacheDir string) *extensionStore {

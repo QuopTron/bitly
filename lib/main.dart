@@ -12,12 +12,12 @@ import 'package:bitly/providers/extension_provider.dart';
 import 'package:bitly/providers/library_collections_provider.dart';
 import 'package:bitly/providers/local_library_provider.dart';
 import 'package:bitly/providers/settings_provider.dart';
-import 'package:bitly/services/notificaciones/notification_service.dart';
-import 'package:bitly/services/núcleo/platform_bridge.dart';
-import 'package:bitly/services/núcleo/platform_service.dart';
-import 'package:bitly/services/núcleo/service_locator.dart';
-import 'package:bitly/services/navegación/share_intent_service.dart';
-import 'package:bitly/services/biblioteca/portadas/cover_cache_manager.dart';
+import 'package:bitly/services/notifications/notification_service.dart';
+import 'package:bitly/core/bridge/bridge_client.dart';
+import 'package:bitly/core/platform/platform_service.dart';
+import 'package:bitly/core/di/service_locator.dart';
+import 'package:bitly/services/navigation/share_intent_service.dart';
+import 'package:bitly/services/library/covers/cover_cache_manager.dart';
 import 'package:bitly/utils/local_library_scan_prefs.dart';
 
 void main() async {

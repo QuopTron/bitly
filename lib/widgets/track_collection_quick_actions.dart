@@ -9,7 +9,7 @@ import 'package:bitly/providers/audio_player_provider.dart';
 import 'package:bitly/providers/lyrics_provider.dart';
 import 'package:bitly/providers/download_queue_provider.dart';
 import 'package:bitly/providers/library_collections_provider.dart';
-import 'package:bitly/services/biblioteca/portadas/cover_cache_manager.dart';
+import 'package:bitly/services/library/covers/cover_cache_manager.dart';
 import 'package:bitly/widgets/playlist_picker_sheet.dart';
 import 'package:bitly/utils/clickable_metadata.dart';
 import 'package:bitly/screens/queue_tab.dart';

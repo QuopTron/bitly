@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:bitly/services/utilidades/estado_app/acceso_reciente.dart';
+import 'package:bitly/services/utilities/app_state/recent_access.dart';
 
 const _maxRecentItems = 20;
 

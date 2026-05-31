@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:bitly/services/núcleo/app_reset_service.dart';
+import 'package:bitly/core/services/app_reset_service.dart';
 import 'package:bitly/l10n/l10n.dart';
 
 class FactoryResetDialog extends StatefulWidget {

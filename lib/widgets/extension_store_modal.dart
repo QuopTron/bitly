@@ -9,7 +9,7 @@ import 'package:bitly/l10n/l10n.dart';
 import 'package:bitly/providers/extension_provider.dart';
 import 'package:bitly/providers/playback_queue_provider.dart';
 import 'package:bitly/providers/store_provider.dart';
-import 'package:bitly/services/biblioteca/portadas/cover_cache_manager.dart';
+import 'package:bitly/services/library/covers/cover_cache_manager.dart';
 import 'package:bitly/theme/app_theme.dart';
 import 'package:bitly/widgets/animation_utils.dart';
 import 'package:bitly/widgets/glass_container.dart';
@@ -529,7 +529,7 @@ class _StoreTabState extends ConsumerState<_StoreTab> {
 
   void _setDefaultRepo() {
     ref.read(storeProvider.notifier).setRegistryUrl(
-      'https://raw.githubusercontent.com/BitlyApp/Bitly-Extension/main/registry.json',
+      'https://raw.githubusercontent.com/spotiflacapp/SpotiFLAC-Extension/main/registry.json',
     );
   }
 

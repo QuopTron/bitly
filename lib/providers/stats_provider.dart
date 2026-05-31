@@ -1,5 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:bitly/services/estadísticas/stats_database.dart';
+import 'package:bitly/services/statistics/stats_database.dart';
 
 final statsProvider = Provider<StatsDatabase>((ref) {
   return StatsDatabase.instance;

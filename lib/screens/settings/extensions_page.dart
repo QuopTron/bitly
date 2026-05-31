@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:bitly/l10n/l10n.dart';
-import 'package:bitly/models/settings.dart';
+import 'package:bitly/models/settings/app_settings.dart';
 import 'package:bitly/providers/extension_provider.dart';
 import 'package:bitly/providers/explore_provider.dart';
 import 'package:bitly/providers/settings_provider.dart';

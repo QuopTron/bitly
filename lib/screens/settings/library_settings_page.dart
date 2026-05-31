@@ -7,7 +7,7 @@ import 'package:device_info_plus/device_info_plus.dart';
 import 'package:bitly/l10n/l10n.dart';
 import 'package:bitly/providers/settings_provider.dart';
 import 'package:bitly/providers/local_library_provider.dart';
-import 'package:bitly/services/núcleo/platform_bridge.dart';
+import 'package:bitly/core/bridge/bridge_client.dart';
 import 'package:bitly/utils/app_bar_layout.dart';
 import 'package:bitly/widgets/settings_group.dart';
 

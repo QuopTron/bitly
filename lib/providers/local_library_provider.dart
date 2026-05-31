@@ -4,8 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:bitly/services/biblioteca/library_database.dart';
-import 'package:bitly/services/núcleo/platform_bridge.dart';
+import 'package:bitly/services/library/library_database.dart';
+import 'package:bitly/core/bridge/bridge_client.dart';
 import 'package:bitly/utils/local_library_scan_prefs.dart';
 import 'package:bitly/utils/logger.dart';
 
