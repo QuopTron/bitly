@@ -1,0 +1,51 @@
+// Funciones que faltan - copiar y pegar antes de "// --- SAF & Storage Utils ---"
+
+                // --- Playback Control ---
+                "playbackPlayTrack" -> { val trackJson = call.argument<String>("track_json") ?: ""; executeJsonMethod({ Gobackend.playbackPlayTrack(trackJson); "ok" }, result) }
+                "playbackPause" -> { executeJsonMethod({ Gobackend.playbackPause(); "ok" }, result) }
+                "playbackResume" -> { executeJsonMethod({ Gobackend.playbackResume(); "ok" }, result) }
+                "playbackStop" -> { executeJsonMethod({ Gobackend.playbackStop(); "ok" }, result) }
+                "playbackNext" -> { executeJsonMethod({ Gobackend.playbackNext(); "ok" }, result) }
+                "playbackPrevious" -> { executeJsonMethod({ Gobackend.playbackPrevious(); "ok" }, result) }
+                "playbackSeek" -> { val positionMs = (call.argument<Int>("position_ms") ?: 0).toLong(); executeJsonMethod({ Gobackend.playbackSeek(positionMs); "ok" }, result) }
+                "playbackUpdatePosition" -> { val positionMs = (call.argument<Int>("position_ms") ?: 0).toLong(); executeJsonMethod({ Gobackend.playbackUpdatePosition(positionMs); "ok" }, result) }
+                "playbackTrackCompleted" -> { val trackJson = call.argument<String>("track_json") ?: ""; executeJsonMethod({ Gobackend.playbackTrackCompleted(trackJson); "ok" }, result) }
+                "playbackSetQueue" -> { val queueJson = call.argument<String>("queue_json") ?: ""; executeJsonMethod({ Gobackend.playbackSetQueue(queueJson); "ok" }, result) }
+                "playbackGetQueue" -> { executeJsonMethod({ Gobackend.playbackGetQueue() }, result) }
+                "playbackAddToQueue" -> { val trackJson = call.argument<String>("track_json") ?: ""; executeJsonMethod({ Gobackend.playbackAddToQueue(trackJson); "ok" }, result) }
+                "playbackRemoveFromQueue" -> { val trackId = call.argument<String>("track_id") ?: ""; executeJsonMethod({ Gobackend.playbackRemoveFromQueue(trackId); "ok" }, result) }
+                "playbackClearQueue" -> { executeJsonMethod({ Gobackend.playbackClearQueue(); "ok" }, result) }
+                "playbackGetHistory" -> { executeJsonMethod({ Gobackend.playbackGetHistory() }, result) }
+                "playbackSetShuffle" -> { val enabled = call.argument<Boolean>("enabled") ?: false; executeJsonMethod({ Gobackend.playbackSetShuffle(enabled); "ok" }, result) }
+                "playbackSetRepeat" -> { val mode = call.argument<Int>("mode") ?: 0; executeJsonMethod({ Gobackend.playbackSetRepeat(mode); "ok" }, result) }
+                "playbackGetState" -> { executeJsonMethod({ Gobackend.playbackGetState() }, result) }
+
+                // --- SAF Operations ---
+                "scanSafTree" -> { val treeUri = call.arguments as? String ?: ""; executeJsonMethod({ Gobackend.scanSafTree(treeUri); "ok" }, result) }
+                "scanSafTreeIncremental" -> { val treeUri = call.arguments as? String ?: ""; executeJsonMethod({ Gobackend.scanSafTreeIncremental(treeUri); "ok" }, result) }
+                "scanSafTreeIncrementalFromSnapshot" -> { val treeUri = call.argument<String>("tree_uri") ?: ""; val snapshotJson = call.argument<String>("snapshot") ?: ""; executeJsonMethod({ Gobackend.scanSafTreeIncrementalFromSnapshot(treeUri, snapshotJson); "ok" }, result) }
+                "safStat" -> { val fileUri = call.arguments as? String ?: ""; executeJsonMethod({ Gobackend.safStat(fileUri) }, result) }
+                "safExists" -> { val fileUri = call.arguments as? String ?: ""; executeJsonMethod({ Gobackend.safExists(fileUri) }, result) }
+                "safCopyToTemp" -> { val fileUri = call.argument<String>("file_uri") ?: ""; val tempPath = call.argument<String>("temp_path") ?: ""; executeJsonMethod({ Gobackend.safCopyToTemp(fileUri, tempPath) }, result) }
+                "safCreateFromPath" -> { val contentUri = call.argument<String>("content_uri") ?: ""; val destPath = call.argument<String>("dest_path") ?: ""; executeJsonMethod({ Gobackend.safCreateFromPath(contentUri, destPath) }, result) }
+                "safReplaceFromPath" -> { val contentUri = call.argument<String>("content_uri") ?: ""; val srcPath = call.argument<String>("src_path") ?: ""; executeJsonMethod({ Gobackend.safReplaceFromPath(contentUri, srcPath); "ok" }, result) }
+                "safDelete" -> { val fileUri = call.arguments as? String ?: ""; executeJsonMethod({ Gobackend.safDelete(fileUri); "ok" }, result) }
+                "resolveSafFile" -> { val fileUri = call.argument<String>("file_uri") ?: ""; executeJsonMethod({ Gobackend.resolveSafFile(fileUri) }, result) }
+                "openContentUri" -> { val contentUri = call.arguments as? String ?: ""; executeJsonMethod({ Gobackend.openContentUri(contentUri) }, result) }
+                "shareContentUri" -> { val contentUri = call.argument<String>("content_uri") ?: ""; val mimeType = call.argument<String>("mime_type") ?: "application/octet-stream"; executeJsonMethod({ Gobackend.shareContentUri(contentUri, mimeType); "ok" }, result) }
+                "shareMultipleContentUris" -> { val urisJson = call.argument<String>("uris") ?: "[]"; val mimeType = call.argument<String>("mime_type") ?: "application/octet-stream"; executeJsonMethod({ Gobackend.shareMultipleContentUris(urisJson, mimeType); "ok" }, result) }
+                "getSafFileModTimes" -> { val urisJson = call.argument<String>("uris") ?: "[]"; executeJsonMethod({ Gobackend.getSafFileModTimes(urisJson) }, result) }
+
+                // --- Post Processing ---
+                "runPostProcessing" -> { val configJson = call.arguments as? String ?: ""; executeJsonMethod({ Gobackend.runPostProcessing(configJson); "ok" }, result) }
+                "runPostProcessingV2" -> { val configJson = call.arguments as? String ?: ""; executeJsonMethod({ Gobackend.runPostProcessingV2(configJson); "ok" }, result) }
+                "getPostProcessingProviders" -> { executeJsonMethod({ Gobackend.getPostProcessingProviders() }, result) }
+
+                // --- iOS Bookmark (No-op en Android) ---
+                "createIosBookmarkFromPath" -> { result.success("not_supported_on_android") }
+                "startAccessingIosBookmark" -> { result.success("not_supported_on_android") }
+                "stopAccessingIosBookmark" -> { result.success("not_supported_on_android") }
+
+                // --- Misc ---
+                "exitApp" -> { executeJsonMethod({ android.os.Process.killProcess(android.os.Process.myPid()); "ok" }, result) }
+                "getProviderMetadata" -> { val providerId = call.arguments as? String ?: ""; executeJsonMethod({ Gobackend.getProviderMetadata(providerId) }, result) }

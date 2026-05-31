@@ -1,0 +1,51 @@
+# Flutter
+build/
+.dart_tool/
+.packages
+.pub/
+.pub-cache/
+.flutter-plugins
+.flutter-plugins-dependencies
+*.iml
+.idea/
+.metadata
+
+# Android
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/gradle/wrapper/gradle-wrapper.jar
+android/app/libs/spotiflac.aar
+android/app/libs/spotiflac-sources.jar
+
+# Go
+go_backend_bitly/bitly-backend.exe
+go_backend_bitly/bitly-backend-linux
+go_backend_bitly/bitly-backend-macos
+go_backend_bitly/bitly-backend-macos-arm64
+
+# Python
+__pycache__/
+*.pyc
+.ruff_cache/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+
+# Node
+node_modules/
+
+# temp
+temp_aar_check/
+temp_aar_verify/
+temp_apk_check/
+
+# logs
+*.log
+build_error.txt
+error_log.txt

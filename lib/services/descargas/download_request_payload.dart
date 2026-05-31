@@ -1,0 +1,165 @@
+/// Payload de solicitud de descarga para el worker nativo.
+/// Contiene toda la metadata del track, configuración de salida,
+/// opciones de formato, almacenamiento y premium necesarias para
+/// que el backend Go procese una descarga.
+library;
+
+class DownloadRequestPayload {
+  static const int nativeWorkerContractVersion = 1;
+
+  final int contractVersion;
+  final String isrc;
+  final String service;
+  final String spotifyId;
+  final String trackName;
+  final String artistName;
+  final String albumName;
+  final String albumArtist;
+  final String coverUrl;
+  final String outputDir;
+  final String filenameFormat;
+  final String quality;
+  final bool embedMetadata;
+  final String artistTagMode;
+  final bool embedLyrics;
+  final bool embedMaxQualityCover;
+  final bool embedReplayGain;
+  final bool postProcessingEnabled;
+  final String tidalHighFormat;
+  final int trackNumber;
+  final int discNumber;
+  final int totalTracks;
+  final int totalDiscs;
+  final String releaseDate;
+  final String itemId;
+  final int durationMs;
+  final String source;
+  final String genre;
+  final String label;
+  final String copyright;
+  final String composer;
+  final String tidalId;
+  final String qobuzId;
+  final String deezerId;
+  final String lyricsMode;
+  final bool useExtensions;
+  final bool useFallback;
+  final String storageMode;
+  final String safTreeUri;
+  final String safRelativeDir;
+  final String safFileName;
+  final String safOutputExt;
+  final String outputExt;
+  final bool stageSafOutput;
+  final bool deferSafPublish;
+  final bool requiresContainerConversion;
+  final String songLinkRegion;
+  final bool isPremium;
+  final int premiumUntil;
+
+  const DownloadRequestPayload({
+    this.contractVersion = nativeWorkerContractVersion,
+    this.isrc = '',
+    this.service = '',
+    this.spotifyId = '',
+    required this.trackName,
+    required this.artistName,
+    required this.albumName,
+    this.albumArtist = '',
+    this.coverUrl = '',
+    required this.outputDir,
+    required this.filenameFormat,
+    this.quality = 'LOSSLESS',
+    this.embedMetadata = true,
+    this.artistTagMode = 'joined',
+    this.embedLyrics = true,
+    this.embedMaxQualityCover = true,
+    this.embedReplayGain = false,
+    this.postProcessingEnabled = false,
+    this.tidalHighFormat = 'mp3_320',
+    this.trackNumber = 0,
+    this.discNumber = 0,
+    this.totalTracks = 1,
+    this.totalDiscs = 0,
+    this.releaseDate = '',
+    this.itemId = '',
+    this.durationMs = 0,
+    this.source = '',
+    this.genre = '',
+    this.label = '',
+    this.copyright = '',
+    this.composer = '',
+    this.tidalId = '',
+    this.qobuzId = '',
+    this.deezerId = '',
+    this.lyricsMode = 'embed',
+    this.useExtensions = false,
+    this.useFallback = false,
+    this.storageMode = 'app',
+    this.safTreeUri = '',
+    this.safRelativeDir = '',
+    this.safFileName = '',
+    this.safOutputExt = '',
+    this.outputExt = '',
+    this.stageSafOutput = false,
+    this.deferSafPublish = false,
+    this.requiresContainerConversion = false,
+    this.songLinkRegion = 'US',
+    this.isPremium = false,
+    this.premiumUntil = 0,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'contract_version': contractVersion,
+      'isrc': isrc,
+      'service': service,
+      'spotify_id': spotifyId,
+      'track_name': trackName,
+      'artist_name': artistName,
+      'album_name': albumName,
+      'album_artist': albumArtist,
+      'cover_url': coverUrl,
+      'output_dir': outputDir,
+      'filename_format': filenameFormat,
+      'quality': quality,
+      'embed_metadata': embedMetadata,
+      'artist_tag_mode': artistTagMode,
+      'embed_lyrics': embedLyrics,
+      'embed_max_quality_cover': embedMaxQualityCover,
+      'embed_replaygain': embedReplayGain,
+      'post_processing_enabled': postProcessingEnabled,
+      'tidal_high_format': tidalHighFormat,
+      'track_number': trackNumber,
+      'disc_number': discNumber,
+      'total_tracks': totalTracks,
+      'total_discs': totalDiscs,
+      'release_date': releaseDate,
+      'item_id': itemId,
+      'duration_ms': durationMs,
+      'source': source,
+      'genre': genre,
+      'label': label,
+      'copyright': copyright,
+      'composer': composer,
+      'tidal_id': tidalId,
+      'qobuz_id': qobuzId,
+      'deezer_id': deezerId,
+      'lyrics_mode': lyricsMode,
+      'use_extensions': useExtensions,
+      'use_fallback': useFallback,
+      'storage_mode': storageMode,
+      'saf_tree_uri': safTreeUri,
+      'saf_relative_dir': safRelativeDir,
+      'saf_file_name': safFileName,
+      'saf_output_ext': safOutputExt,
+      'output_ext': outputExt,
+      'stage_saf_output': stageSafOutput,
+      'defer_saf_publish': deferSafPublish,
+      'requires_container_conversion': requiresContainerConversion,
+      'songlink_region': songLinkRegion,
+      'is_premium': isPremium,
+      'premium_until': premiumUntil,
+    };
+  }
+}
