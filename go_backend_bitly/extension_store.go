@@ -143,7 +143,7 @@ const (
 	cacheTTL      = 30 * time.Minute
 	cacheFileName = "store_cache.json"
 	// Default registry URL - used if not explicitly set via SetStoreRegistryURLJSON
-	defaultRegistryURL = "https://raw.githubusercontent.com/Bitlyapp.bitly-extension/main/registry.json"
+	defaultRegistryURL = "https://raw.githubusercontent.com/QuopTron/bitly-extensions/main/registry.json"
 )
 
 func initExtensionStore(cacheDir string) *extensionStore {
@@ -390,7 +390,7 @@ func (s *extensionStore) downloadExtension(extensionID string, destPath string) 
 	req.Header.Set("Cache-Control", "no-cache")
 	req.Header.Set("Pragma", "no-cache")
 	// Some servers may reject empty/unknown User-Agent headers; set a conservative UA
-	req.Header.Set("User-Agent", "Bitly-Android/1.0 (+https://Bitly.zarz.moe)")
+	req.Header.Set("User-Agent", "Bitly-Android/1.0 (+https://github.com/QuopTron/bitly)")
 	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to download: %w", err)
