@@ -83,9 +83,9 @@ type UpdateCheckResult struct {
 const (
 	GitHubAPIBase = "https://api.github.com/repos"
 	// Repo principal - se puede configurar vía argumento
-	DefaultGitHubRepo = "zarzet/Bitly"
+	DefaultGitHubRepo = "Quoptron/bitly"
 	// User-Agent requerido por GitHub API
-	GitHubUserAgent = "Bitly-Backend"
+	GitHubUserAgent = "Bitly-Android/1.0 (+https://github.com/Quoptron/bitly)"
 )
 
 // GitHubClient cliente para la API de GitHub
