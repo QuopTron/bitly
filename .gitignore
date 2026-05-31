@@ -44,9 +44,7 @@ Thumbs.db
 node_modules/
 
 # temp
-temp_aar_check/
-temp_apk_check/
-temp_ext_repo/
+temp_*/
 
 # logs
 *.log
