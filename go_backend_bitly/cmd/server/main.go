@@ -289,7 +289,7 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"servicio": "bitly-backend",
-		"version":  "0.5.0",
+		"version":  "1.2.0",
 		"status":   "ok",
 	})
 }
