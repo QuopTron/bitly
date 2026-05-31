@@ -20,6 +20,7 @@ android/app/libs/bitly.aar
 android/app/libs/bitly-sources.jar
 android/app/libs/spotiflac.aar
 android/app/libs/spotiflac-sources.jar
+android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java
 
 # Go
 go_backend_bitly/bitly-backend.exe

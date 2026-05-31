@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:bitly/services/biblioteca/portadas/cover_cache_manager.dart';
+import 'package:bitly/services/library/covers/cover_cache_manager.dart';
 import 'package:bitly/constants/app_info.dart';
 import 'package:bitly/l10n/l10n.dart';
 import 'package:bitly/utils/app_bar_layout.dart';

@@ -3,7 +3,7 @@ import 'package:bitly/models/track.dart';
 import 'package:bitly/providers/audio_player_provider.dart';
 import 'package:bitly/providers/download_queue_provider.dart';
 import 'package:bitly/providers/local_library_provider.dart';
-import 'package:bitly/services/biblioteca/library_database.dart';
+import 'package:bitly/services/library/library_database.dart';
 import 'package:bitly/utils/file_access.dart';
 import 'package:bitly/utils/logger.dart';
 

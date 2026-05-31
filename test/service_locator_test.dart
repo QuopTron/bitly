@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:bitly/services/núcleo/service_locator.dart';
-import 'package:bitly/services/núcleo/base_service.dart';
+import 'package:bitly/core/di/service_locator.dart';
+import 'package:bitly/core/base/base_service.dart';
 
 // Mock service for testing
 class MockService extends BaseService {

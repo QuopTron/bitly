@@ -14,11 +14,11 @@ import 'package:bitly/providers/settings_provider.dart';
 import 'package:bitly/providers/track_provider.dart';
 import 'package:bitly/screens/home_tab.dart';
 import 'package:bitly/screens/queue_tab.dart';
-import 'package:bitly/services/núcleo/platform_bridge.dart';
+import 'package:bitly/core/bridge/bridge_client.dart';
 
-import 'package:bitly/services/navegación/share_intent_service.dart';
-import 'package:bitly/services/notificaciones/notification_service.dart';
-import 'package:bitly/services/actualizaciones/update_checker.dart';
+import 'package:bitly/services/navigation/share_intent_service.dart';
+import 'package:bitly/services/notifications/notification_service.dart';
+import 'package:bitly/services/updates/update_checker.dart';
 import 'package:bitly/widgets/update_dialog.dart';
 import 'package:bitly/widgets/animation_utils.dart';
 import 'package:bitly/utils/logger.dart';

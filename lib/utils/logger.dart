@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:logger/logger.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:bitly/constants/app_info.dart';
-import 'package:bitly/services/núcleo/platform_bridge.dart';
+import 'package:bitly/core/bridge/bridge_client.dart';
 
 const int _maxLogMessageLength = 500;
 const String _redactedValue = '[REDACTED]';

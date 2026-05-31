@@ -15,7 +15,7 @@ import 'package:bitly/screens/settings/files_settings_page.dart';
 import 'package:bitly/screens/settings/log_screen.dart';
 import 'package:bitly/screens/settings/lyrics_settings_page.dart';
 import 'package:bitly/screens/settings/metadata_settings_page.dart';
-import 'package:bitly/services/biblioteca/portadas/cover_cache_manager.dart';
+import 'package:bitly/services/library/covers/cover_cache_manager.dart';
 import 'package:bitly/theme/app_theme.dart';
 import 'package:bitly/widgets/animation_utils.dart';
 import 'package:bitly/widgets/glass_container.dart';

@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:bitly/services/núcleo/platform_bridge.dart';
+import 'package:bitly/core/bridge/bridge_client.dart';
 import 'package:bitly/utils/file_access.dart';
 
 bool hasEmbeddedLyricsMetadata(Map<String, String> metadata) {

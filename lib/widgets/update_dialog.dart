@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:bitly/constants/app_info.dart';
-import 'package:bitly/services/actualizaciones/update_checker.dart';
-import 'package:bitly/services/actualizaciones/apk_downloader.dart';
-import 'package:bitly/services/actualizaciones/modelos_actualizacion.dart';
-import 'package:bitly/services/notificaciones/notificacion_actualizacion.dart';
+import 'package:bitly/services/updates/update_checker.dart';
+import 'package:bitly/services/updates/apk_downloader.dart';
+import 'package:bitly/services/updates/update_models.dart';
+import 'package:bitly/services/notifications/update_notification.dart';
 import 'package:bitly/l10n/l10n.dart';
 
 class UpdateDialog extends StatefulWidget {

@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:bitly/models/track.dart';
-import 'package:bitly/services/núcleo/platform_bridge.dart';
+import 'package:bitly/core/bridge/bridge_client.dart';
 import 'package:bitly/utils/logger.dart';
 
 enum QueueRepeatMode { none, all, one }
