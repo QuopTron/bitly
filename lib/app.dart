@@ -6,7 +6,7 @@ import 'package:bitly/constants/app_info.dart';
 import 'package:bitly/screens/main_shell.dart';
 import 'package:bitly/screens/setup_screen.dart';
 import 'package:bitly/screens/tutorial_screen.dart';
-import 'package:bitly/providers/settings_provider.dart';
+import 'package:bitly/providers/settings/settings_provider.dart';
 import 'package:bitly/theme/dynamic_color_wrapper.dart';
 import 'package:bitly/l10n/app_localizations.dart';
 

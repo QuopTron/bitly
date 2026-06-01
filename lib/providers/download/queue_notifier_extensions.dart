@@ -1,0 +1,5657 @@
+part of 'package:bitly/providers/download/download_queue_provider.dart';
+
+final _isrcRegex = RegExp(r'^[A-Z]{2}[A-Z0-9]{3}\d{2}\d{5}$');
+final _deezerSizeRegex = RegExp(r'/(\d+)x(\d+)-\d+-\d+-\d+-\d+\.jpg$');
+
+extension DownloadQueueNotifierRest on DownloadQueueNotifier {
+  String? _extensionPreferredOutputExt(String service) {
+    final normalizedService = service.trim().toLowerCase();
+    if (normalizedService.isEmpty) return null;
+
+    final extensionState = ref.read(extensionProvider);
+    for (final ext in extensionState.extensions) {
+      if (!ext.enabled || !ext.hasDownloadProvider) continue;
+      if (ext.id.toLowerCase() != normalizedService) continue;
+
+      final preferred = ext.preferredDownloadOutputExtension;
+      if (preferred == null) return null;
+
+      final normalized = preferred.startsWith('.')
+          ? preferred.toLowerCase()
+          : '.${preferred.toLowerCase()}';
+      if (normalized == '.mp4') {
+        return '.m4a';
+      }
+      const allowed = <String>{'.flac', '.m4a', '.mp3', '.opus'};
+      if (allowed.contains(normalized)) {
+        return normalized;
+      }
+      return null;
+    }
+
+    return null;
+  }
+
+  bool _extensionPreservesNativeOutputExt(String service, String ext) {
+    final normalizedService = service.trim().toLowerCase();
+    final normalizedExt = ext.trim().toLowerCase();
+    if (normalizedService.isEmpty || normalizedExt.isEmpty) return false;
+
+    final extensionState = ref.read(extensionProvider);
+    return extensionState.extensions.any(
+      (ext) =>
+          ext.enabled &&
+          ext.hasDownloadProvider &&
+          ext.id.toLowerCase() == normalizedService &&
+          ext.preservedNativeOutputExtensions.contains(normalizedExt),
+    );
+  }
+
+  bool _extensionRequiresNativeContainerConversion(String service) {
+    final normalizedService = service.trim().toLowerCase();
+    if (normalizedService.isEmpty) return false;
+
+    final extensionState = ref.read(extensionProvider);
+    return extensionState.extensions.any(
+      (ext) =>
+          ext.enabled &&
+          ext.hasDownloadProvider &&
+          (ext.id.toLowerCase() == normalizedService ||
+              ext.replacesBuiltInProviders.contains(normalizedService)) &&
+          ext.requiresNativeContainerConversion,
+    );
+  }
+
+  String _determineOutputExt(String quality, String service) {
+    final extensionPreferred = _extensionPreferredOutputExt(service);
+    if (extensionPreferred != null) {
+      return extensionPreferred;
+    }
+    if (_usesBuiltInCompatibleDownloadProvider(service, 'tidal') &&
+        quality == 'HIGH') {
+      return '.m4a';
+    }
+    final q = quality.toLowerCase();
+    if (q == 'alac' || q.startsWith('aac')) return '.m4a';
+    if (q.startsWith('opus')) return '.opus';
+    if (q.startsWith('mp3')) return '.mp3';
+    return '.flac';
+  }
+
+  bool _usesBuiltInCompatibleDownloadProvider(
+    String service,
+    String builtInProviderId,
+  ) {
+    return ref
+        .read(extensionProvider.notifier)
+        .downloadProviderMatchesBuiltIn(service, builtInProviderId);
+  }
+
+  String _normalizeQueuedService(String service) {
+    final normalized = service.trim();
+    if (normalized.isEmpty) {
+      return normalized;
+    }
+
+    final replacement = ref
+        .read(extensionProvider.notifier)
+        .replacedBuiltInDownloadProviderFor(normalized);
+    if (replacement != null && replacement.isNotEmpty) {
+      return replacement;
+    }
+
+    return normalized;
+  }
+
+  bool _hasActiveDownloadProvider(String service) {
+    final normalized = service.trim();
+    if (normalized.isEmpty) {
+      return false;
+    }
+
+    final extensionState = ref.read(extensionProvider);
+    return extensionState.extensions.any(
+      (ext) =>
+          ext.enabled &&
+          ext.hasDownloadProvider &&
+          ext.id.toLowerCase() == normalized.toLowerCase(),
+    );
+  }
+
+  String _mimeTypeForExt(String ext) {
+    switch (ext.toLowerCase()) {
+      case '.m4a':
+      case '.mp4':
+        return 'audio/mp4';
+      case '.mp3':
+        return 'audio/mpeg';
+      case '.opus':
+        return 'audio/ogg';
+      case '.flac':
+        return 'audio/flac';
+      case '.lrc':
+        return 'application/octet-stream';
+      default:
+        return 'application/octet-stream';
+    }
+  }
+
+  Future<String?> _getSafMimeType(String uri) async {
+    try {
+      final stat = await PlatformBridge.safStat(uri);
+      return stat['mime_type'] as String?;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  String? _extractYear(String? releaseDate) {
+    if (releaseDate == null || releaseDate.isEmpty) return null;
+    final match = _yearRegex.firstMatch(releaseDate);
+    return match?.group(1);
+  }
+
+
+  bool _isValidISRC(String value) {
+    return _isrcRegex.hasMatch(value.toUpperCase());
+  }
+
+  /// Returns true if any enabled extension matching [source] or [service]
+  /// declares `skipLyrics: true` in its manifest.
+  bool _shouldSkipLyrics(
+    ExtensionState extensionState,
+    String? source,
+    String? service,
+  ) {
+    final candidates = <String>{};
+    if (source != null && source.isNotEmpty) {
+      candidates.add(source.trim().toLowerCase());
+    }
+    if (service != null && service.isNotEmpty) {
+      candidates.add(service.trim().toLowerCase());
+    }
+    if (candidates.isEmpty) return false;
+    return extensionState.extensions.any(
+      (e) =>
+          e.enabled && e.skipLyrics && candidates.contains(e.id.toLowerCase()),
+    );
+  }
+
+  String? _extractKnownDeezerTrackId(Track track) {
+    final deezerId = track.deezerId?.trim();
+    if (deezerId != null && deezerId.isNotEmpty) {
+      return deezerId;
+    }
+
+    if (track.id.startsWith('deezer:')) {
+      final rawId = track.id.substring('deezer:'.length).trim();
+      if (rawId.isNotEmpty) {
+        return rawId;
+      }
+    }
+
+    final availabilityDeezerId = track.availability?.deezerId?.trim();
+    if (availabilityDeezerId != null && availabilityDeezerId.isNotEmpty) {
+      return availabilityDeezerId;
+    }
+
+    return null;
+  }
+
+  Future<String?> _searchDeezerTrackIdByIsrc(
+    String? isrc, {
+    required String lookupContext,
+    String? itemId,
+  }) async {
+    final normalizedIsrc = normalizeOptionalString(isrc);
+    if (normalizedIsrc == null || !_isValidISRC(normalizedIsrc)) {
+      return null;
+    }
+
+    try {
+      _log.d('No Deezer ID, searching by $lookupContext: $normalizedIsrc');
+      final deezerResult = await PlatformBridge.searchDeezerByISRC(
+        normalizedIsrc,
+        itemId: itemId,
+      );
+      if (deezerResult['success'] == true && deezerResult['track_id'] != null) {
+        final deezerTrackId = deezerResult['track_id'].toString();
+        _log.d('Found Deezer track ID via $lookupContext: $deezerTrackId');
+        return deezerTrackId;
+      }
+    } catch (e) {
+      _log.w('Failed to search Deezer by $lookupContext: $e');
+    }
+
+    return null;
+  }
+
+  Track _copyTrackWithResolvedMetadata(
+    Track track, {
+    String? resolvedIsrc,
+    int? trackNumber,
+    int? totalTracks,
+    int? discNumber,
+    int? totalDiscs,
+    String? releaseDate,
+    String? deezerId,
+    String? composer,
+  }) {
+    final normalizedIsrc = normalizeOptionalString(resolvedIsrc);
+    final normalizedComposer = normalizeOptionalString(composer);
+
+    return Track(
+      id: track.id,
+      name: track.name,
+      artistName: track.artistName,
+      albumName: track.albumName,
+      albumArtist: track.albumArtist,
+      artistId: track.artistId,
+      albumId: track.albumId,
+      coverUrl: normalizeCoverReference(track.coverUrl),
+      duration: track.duration,
+      isrc: (normalizedIsrc != null && _isValidISRC(normalizedIsrc))
+          ? normalizedIsrc
+          : track.isrc,
+      trackNumber: (track.trackNumber != null && track.trackNumber! > 0)
+          ? track.trackNumber
+          : trackNumber,
+      discNumber: (track.discNumber != null && track.discNumber! > 0)
+          ? track.discNumber
+          : discNumber,
+      totalDiscs: (track.totalDiscs != null && track.totalDiscs! > 0)
+          ? track.totalDiscs
+          : totalDiscs,
+      releaseDate: track.releaseDate ?? normalizeOptionalString(releaseDate),
+      deezerId: deezerId ?? track.deezerId,
+      availability: track.availability,
+      source: track.source,
+      albumType: track.albumType,
+      totalTracks: (track.totalTracks != null && track.totalTracks! > 0)
+          ? track.totalTracks
+          : totalTracks,
+      composer: (track.composer != null && track.composer!.isNotEmpty)
+          ? track.composer
+          : normalizedComposer,
+      itemType: track.itemType,
+    );
+  }
+
+  Future<_DeezerLookupPreparation> _resolveProviderTrackForDeezerLookup(
+    Track track,
+    String itemId,
+  ) async {
+    try {
+      final colonIdx = track.id.indexOf(':');
+      final provider = track.id.substring(0, colonIdx);
+      final effectiveProvider = resolveEffectiveMetadataProvider(
+        provider,
+        ref.read(extensionProvider),
+      );
+      final providerTrackId = track.id.substring(colonIdx + 1);
+
+      _log.d(
+        'No ISRC, fetching from ${effectiveProvider.isEmpty ? provider : effectiveProvider} API: $providerTrackId',
+      );
+      final providerData = await PlatformBridge.getProviderMetadata(
+        effectiveProvider.isEmpty ? provider : effectiveProvider,
+        'track',
+        providerTrackId,
+      );
+
+      final trackData = providerData['track'] as Map<String, dynamic>?;
+      if (trackData == null) {
+        return _DeezerLookupPreparation(
+          track: track,
+          deezerTrackId: _extractKnownDeezerTrackId(track),
+        );
+      }
+
+      final resolvedIsrc = normalizeOptionalString(
+        trackData['isrc'] as String?,
+      );
+      if (resolvedIsrc == null || !_isValidISRC(resolvedIsrc)) {
+        return _DeezerLookupPreparation(
+          track: track,
+          deezerTrackId: _extractKnownDeezerTrackId(track),
+        );
+      }
+
+      _log.d(
+        'Resolved ISRC from ${effectiveProvider.isEmpty ? provider : effectiveProvider}: $resolvedIsrc',
+      );
+
+      final updatedTrack = _copyTrackWithResolvedMetadata(
+        track,
+        resolvedIsrc: resolvedIsrc,
+        releaseDate: trackData['release_date'] as String?,
+        trackNumber: trackData['track_number'] as int?,
+        totalTracks: trackData['total_tracks'] as int?,
+        discNumber: trackData['disc_number'] as int?,
+        totalDiscs: trackData['total_discs'] as int?,
+        composer: trackData['composer'] as String?,
+      );
+      final deezerTrackId = await _searchDeezerTrackIdByIsrc(
+        resolvedIsrc,
+        lookupContext:
+            '${effectiveProvider.isEmpty ? provider : effectiveProvider} ISRC',
+        itemId: itemId,
+      );
+
+      return _DeezerLookupPreparation(
+        track: deezerTrackId == null
+            ? updatedTrack
+            : _copyTrackWithResolvedMetadata(
+                updatedTrack,
+                deezerId: deezerTrackId,
+              ),
+        deezerTrackId:
+            deezerTrackId ?? _extractKnownDeezerTrackId(updatedTrack),
+      );
+    } catch (e) {
+      _log.w('Failed to resolve ISRC from provider: $e');
+      return _DeezerLookupPreparation(
+        track: track,
+        deezerTrackId: _extractKnownDeezerTrackId(track),
+      );
+    }
+  }
+
+  Future<_DeezerLookupPreparation> _resolveSpotifyTrackViaDeezer(
+    Track track,
+  ) async {
+    try {
+      var spotifyId = track.id;
+      if (spotifyId.startsWith('spotify:track:')) {
+        spotifyId = spotifyId.split(':').last;
+      }
+      _log.d('No Deezer ID, converting from Spotify via SongLink: $spotifyId');
+
+      final deezerData = await PlatformBridge.convertSpotifyToDeezer(
+        'track',
+        spotifyId,
+      );
+      final trackData = deezerData['track'];
+
+      String? deezerTrackId;
+      if (trackData is Map<String, dynamic>) {
+        final rawId = trackData['spotify_id'] as String?;
+        if (rawId != null && rawId.startsWith('deezer:')) {
+          deezerTrackId = rawId.substring('deezer:'.length);
+          _log.d('Found Deezer track ID via SongLink: $deezerTrackId');
+        } else if (deezerData['id'] != null) {
+          deezerTrackId = deezerData['id'].toString();
+          _log.d('Found Deezer track ID via SongLink (legacy): $deezerTrackId');
+        }
+
+        final deezerIsrc = normalizeOptionalString(
+          trackData['isrc'] as String?,
+        );
+        final needsEnrich =
+            (track.releaseDate == null &&
+                normalizeOptionalString(trackData['release_date'] as String?) !=
+                    null) ||
+            (track.isrc == null && deezerIsrc != null) ||
+            (!_isValidISRC(track.isrc ?? '') && deezerIsrc != null) ||
+            ((track.trackNumber == null || track.trackNumber! <= 0) &&
+                (trackData['track_number'] as int?) != null &&
+                (trackData['track_number'] as int?)! > 0) ||
+            ((track.totalTracks == null || track.totalTracks! <= 0) &&
+                (trackData['total_tracks'] as int?) != null &&
+                (trackData['total_tracks'] as int?)! > 0) ||
+            ((track.discNumber == null || track.discNumber! <= 0) &&
+                (trackData['disc_number'] as int?) != null &&
+                (trackData['disc_number'] as int?)! > 0) ||
+            ((track.totalDiscs == null || track.totalDiscs! <= 0) &&
+                (trackData['total_discs'] as int?) != null &&
+                (trackData['total_discs'] as int?)! > 0) ||
+            ((track.composer == null || track.composer!.isEmpty) &&
+                normalizeOptionalString(trackData['composer'] as String?) !=
+                    null) ||
+            deezerTrackId != null;
+
+        final updatedTrack = needsEnrich
+            ? _copyTrackWithResolvedMetadata(
+                track,
+                resolvedIsrc: deezerIsrc,
+                releaseDate: trackData['release_date'] as String?,
+                trackNumber: trackData['track_number'] as int?,
+                totalTracks: trackData['total_tracks'] as int?,
+                discNumber: trackData['disc_number'] as int?,
+                totalDiscs: trackData['total_discs'] as int?,
+                composer: trackData['composer'] as String?,
+                deezerId: deezerTrackId,
+              )
+            : track;
+
+        if (needsEnrich) {
+          _log.d(
+            'Enriched track from Deezer - date: ${updatedTrack.releaseDate}, ISRC: ${updatedTrack.isrc}, track: ${updatedTrack.trackNumber}, disc: ${updatedTrack.discNumber}',
+          );
+        }
+
+        return _DeezerLookupPreparation(
+          track: updatedTrack,
+          deezerTrackId:
+              deezerTrackId ?? _extractKnownDeezerTrackId(updatedTrack),
+        );
+      }
+
+      if (deezerData['id'] != null) {
+        deezerTrackId = deezerData['id'].toString();
+        _log.d('Found Deezer track ID via SongLink (flat): $deezerTrackId');
+        return _DeezerLookupPreparation(
+          track: _copyTrackWithResolvedMetadata(track, deezerId: deezerTrackId),
+          deezerTrackId: deezerTrackId,
+        );
+      }
+    } catch (e) {
+      _log.w('Failed to convert Spotify to Deezer via SongLink: $e');
+    }
+
+    return _DeezerLookupPreparation(
+      track: track,
+      deezerTrackId: _extractKnownDeezerTrackId(track),
+    );
+  }
+
+  Future<_DeezerExtendedMetadataFields> _loadDeezerExtendedMetadata(
+    String deezerTrackId,
+  ) async {
+    try {
+      final extendedMetadata = await PlatformBridge.getDeezerExtendedMetadata(
+        deezerTrackId,
+      );
+      if (extendedMetadata == null) {
+        return const _DeezerExtendedMetadataFields();
+      }
+
+      final metadata = _DeezerExtendedMetadataFields(
+        genre: normalizeOptionalString(extendedMetadata['genre']),
+        label: normalizeOptionalString(extendedMetadata['label']),
+        copyright: normalizeOptionalString(extendedMetadata['copyright']),
+      );
+      if (metadata.hasAnyValue) {
+        _log.d(
+          'Extended metadata - Genre: ${metadata.genre}, Label: ${metadata.label}, Copyright: ${metadata.copyright}',
+        );
+      }
+      return metadata;
+    } catch (e) {
+      _log.w('Failed to fetch extended metadata from Deezer: $e');
+      return const _DeezerExtendedMetadataFields();
+    }
+  }
+
+  String _newQueueItemId(Track track, {Set<String>? takenIds}) {
+    final trimmedIsrc = track.isrc?.trim();
+    final trimmedTrackId = track.id.trim();
+    final base = (trimmedIsrc != null && trimmedIsrc.isNotEmpty)
+        ? trimmedIsrc
+        : (trimmedTrackId.isNotEmpty ? trimmedTrackId : 'track');
+
+    while (true) {
+      _queueItemSequence++;
+      final candidate =
+          '$base-${DateTime.now().microsecondsSinceEpoch}-$_queueItemSequence';
+      if (takenIds == null || !takenIds.contains(candidate)) {
+        return candidate;
+      }
+    }
+  }
+
+  List<DownloadItem> _normalizeRestoredQueueIds(List<DownloadItem> items) {
+    if (items.isEmpty) return items;
+
+    final seen = <String>{};
+    var regeneratedCount = 0;
+    final normalized = <DownloadItem>[];
+
+    for (final item in items) {
+      final trimmedId = item.id.trim();
+      final shouldRegenerate = trimmedId.isEmpty || seen.contains(trimmedId);
+      if (shouldRegenerate) {
+        final newId = _newQueueItemId(item.track, takenIds: seen);
+        seen.add(newId);
+        normalized.add(item.copyWith(id: newId));
+        regeneratedCount++;
+      } else {
+        seen.add(trimmedId);
+        normalized.add(item);
+      }
+    }
+
+    if (regeneratedCount > 0) {
+      _log.w(
+        'Regenerated $regeneratedCount duplicate/empty queue item IDs during restore',
+      );
+    }
+
+    return normalized;
+  }
+
+  void updateSettings(AppSettings settings) {
+    final concurrentDownloads = settings.concurrentDownloads.clamp(1, 5);
+    state = state.copyWith(
+      outputDir: settings.downloadDirectory.isNotEmpty
+          ? settings.downloadDirectory
+          : state.outputDir,
+      filenameFormat: settings.filenameFormat,
+      audioQuality: settings.audioQuality,
+      autoFallback: settings.autoFallback,
+      concurrentDownloads: concurrentDownloads,
+    );
+  }
+
+  void setItemDownloadFlags(String id, {bool? downloadVideo, bool? downloadLyrics}) {
+    final index = state.items.indexWhere((item) => item.id == id);
+    if (index == -1) return;
+    final item = state.items[index];
+    final updatedItem = item.copyWith(
+      downloadVideo: downloadVideo ?? item.downloadVideo,
+      downloadLyrics: downloadLyrics ?? item.downloadLyrics,
+    );
+    state = state.copyWith(items: [
+      ...state.items.sublist(0, index),
+      updatedItem,
+      ...state.items.sublist(index + 1),
+    ]);
+    _saveQueueToStorage();
+  }
+
+  String addToQueue(
+    Track track,
+    String service, {
+    String? qualityOverride,
+    String? playlistName,
+    bool? downloadVideo,
+    bool? downloadLyrics,
+  }) {
+    final settings = ref.read(settingsProvider);
+    updateSettings(settings);
+
+    if (!settings.isPremium && settings.premiumUntil == 0) {
+      return '';
+    }
+
+    final takenIds = state.items.map((item) => item.id).toSet();
+    final id = _newQueueItemId(track, takenIds: takenIds);
+    final item = DownloadItem(
+      id: id,
+      track: track,
+      service: _normalizeQueuedService(service),
+      createdAt: DateTime.now(),
+      qualityOverride: qualityOverride,
+      playlistName: playlistName,
+      downloadVideo: downloadVideo,
+      downloadLyrics: downloadLyrics,
+    );
+
+    state = state.copyWith(items: [...state.items, item]);
+    _saveQueueToStorage();
+
+    if (!state.isProcessing) {
+      Future.microtask(() => _processQueue());
+    }
+
+    return id;
+  }
+
+  void addMultipleToQueue(
+    List<Track> tracks,
+    String service, {
+    String? qualityOverride,
+    String? playlistName,
+    bool? downloadVideo,
+    bool? downloadLyrics,
+  }) {
+    final settings = ref.read(settingsProvider);
+    updateSettings(settings);
+
+    if (!settings.isPremium && settings.premiumUntil == 0) return;
+
+    final takenIds = state.items.map((item) => item.id).toSet();
+    final newItems = tracks.map((track) {
+      final id = _newQueueItemId(track, takenIds: takenIds);
+      takenIds.add(id);
+      return DownloadItem(
+        id: id,
+        track: track,
+        service: _normalizeQueuedService(service),
+        createdAt: DateTime.now(),
+        qualityOverride: qualityOverride,
+        playlistName: playlistName,
+        downloadVideo: downloadVideo,
+        downloadLyrics: downloadLyrics,
+      );
+    }).toList();
+
+    if (newItems.isEmpty) return;
+
+    state = state.copyWith(items: [...state.items, ...newItems]);
+    _saveQueueToStorage();
+
+    if (!state.isProcessing) {
+      Future.microtask(() => _processQueue());
+    }
+  }
+
+  void updateItemStatus(
+    String id,
+    DownloadStatus status, {
+    double? progress,
+    double? speedMBps,
+    String? filePath,
+    String? error,
+    DownloadErrorType? errorType,
+  }) {
+    final items = state.items;
+    final index = state.lookup.indexByItemId[id] ?? -1;
+    if (index == -1) return;
+
+    final current = items[index];
+    final next = current.copyWith(
+      status: status,
+      progress: progress ?? current.progress,
+      speedMBps: speedMBps ?? current.speedMBps,
+      filePath: filePath,
+      error: error,
+      errorType: errorType,
+    );
+
+    if (current.status == next.status &&
+        current.progress == next.progress &&
+        current.speedMBps == next.speedMBps &&
+        current.filePath == next.filePath &&
+        current.error == next.error &&
+        current.errorType == next.errorType) {
+      return;
+    }
+
+    final updatedItems = List<DownloadItem>.from(items);
+    updatedItems[index] = next;
+    state = state.copyWith(items: updatedItems);
+
+    if (Platform.isAndroid && status == DownloadStatus.finalizing) {
+      PlatformBridge.clearItemProgress(id).catchError((e) {});
+      final queueCount = updatedItems
+          .where(
+            (entry) =>
+                entry.status == DownloadStatus.queued ||
+                entry.status == DownloadStatus.downloading ||
+                entry.status == DownloadStatus.finalizing,
+          )
+          .length;
+      _maybeUpdateAndroidDownloadService(
+        trackName: next.track.name,
+        artistName: NotificationService().embeddingMetadataLabel,
+        progress: 100,
+        total: 100,
+        queueCount: queueCount,
+        status: 'finalizing',
+      );
+    }
+
+    if (status == DownloadStatus.completed ||
+        status == DownloadStatus.failed ||
+        status == DownloadStatus.skipped) {
+      _saveQueueToStorage();
+    }
+  }
+
+  void updateProgress(String id, double progress, {double? speedMBps}) {
+    final item = state.lookup.byItemId[id];
+    if (item == null) return;
+    if (item.status == DownloadStatus.skipped ||
+        item.status == DownloadStatus.completed ||
+        item.status == DownloadStatus.failed) {
+      return;
+    }
+    updateItemStatus(
+      id,
+      DownloadStatus.downloading,
+      progress: progress,
+      speedMBps: speedMBps,
+    );
+  }
+
+  DownloadItem? _findItemById(String id) {
+    return state.lookup.byItemId[id];
+  }
+
+  bool _isLocallyCancelled(String id, {DownloadItem? item}) {
+    if (_locallyCancelledItemIds.contains(id)) return true;
+    final resolved = item ?? _findItemById(id);
+    return resolved?.status == DownloadStatus.skipped;
+  }
+
+  bool _isPausePending(String id) => _pausePendingItemIds.contains(id);
+
+  void _requeueItemForPause(String id) {
+    final updatedItems = state.items
+        .map((item) {
+          if (item.id != id) return item;
+          if (item.status == DownloadStatus.completed ||
+              item.status == DownloadStatus.failed ||
+              item.status == DownloadStatus.skipped) {
+            return item;
+          }
+          return item.copyWith(
+            status: DownloadStatus.queued,
+            progress: 0,
+            speedMBps: 0,
+            bytesReceived: 0,
+            bytesTotal: 0,
+          );
+        })
+        .toList(growable: false);
+
+    final currentDownload = state.currentDownload?.id == id
+        ? null
+        : state.currentDownload;
+    state = state.copyWith(
+      items: updatedItems,
+      currentDownload: currentDownload,
+    );
+  }
+
+  void _requestNativeCancel(String id) {
+    PlatformBridge.cancelDownload(id).catchError((e) {});
+    PlatformBridge.clearItemProgress(id).catchError((e) {});
+  }
+
+  void cancelItem(String id) {
+    _pausePendingItemIds.remove(id);
+    _locallyCancelledItemIds.add(id);
+    updateItemStatus(id, DownloadStatus.skipped);
+    _requestNativeCancel(id);
+  }
+
+  void dismissItem(String id) {
+    final item = _findItemById(id);
+    if (item == null) return;
+
+    final isActive =
+        item.status == DownloadStatus.queued ||
+        item.status == DownloadStatus.downloading ||
+        item.status == DownloadStatus.finalizing;
+    final wasFailed =
+        item.status == DownloadStatus.failed ||
+        item.status == DownloadStatus.skipped;
+
+    if (isActive) {
+      _pausePendingItemIds.remove(id);
+      _locallyCancelledItemIds.add(id);
+      _requestNativeCancel(id);
+    } else {
+      _locallyCancelledItemIds.remove(id);
+    }
+
+    if (item.status != DownloadStatus.completed) {
+      final key = _albumRgKey(item.track);
+      final accumulator = _albumRgData[key];
+      if (accumulator != null) {
+        accumulator.entries.removeWhere((e) => e.trackId == item.track.id);
+        if (accumulator.entries.isEmpty) {
+          _albumRgData.remove(key);
+        }
+      }
+    }
+
+    final items = state.items.where((entry) => entry.id != id).toList();
+    final currentDownload = state.currentDownload?.id == id
+        ? null
+        : state.currentDownload;
+    state = state.copyWith(items: items, currentDownload: currentDownload);
+    _saveQueueToStorage();
+
+    // Dismissing a failed/skipped item may unblock album RG.
+    if (wasFailed) {
+      _retriggerAlbumRgChecks();
+    }
+  }
+
+  void clearCompleted() {
+    final removedItems = state.items.where(
+      (item) =>
+          item.status == DownloadStatus.completed ||
+          item.status == DownloadStatus.failed ||
+          item.status == DownloadStatus.skipped,
+    );
+    bool hadFailedOrSkipped = false;
+    for (final item in removedItems) {
+      if (item.status == DownloadStatus.failed ||
+          item.status == DownloadStatus.skipped) {
+        hadFailedOrSkipped = true;
+        final key = _albumRgKey(item.track);
+        final accumulator = _albumRgData[key];
+        if (accumulator != null) {
+          accumulator.entries.removeWhere((e) => e.trackId == item.track.id);
+          if (accumulator.entries.isEmpty) {
+            _albumRgData.remove(key);
+          }
+        }
+      }
+    }
+
+    final items = state.items
+        .where(
+          (item) =>
+              item.status != DownloadStatus.completed &&
+              item.status != DownloadStatus.failed &&
+              item.status != DownloadStatus.skipped,
+        )
+        .toList();
+
+    state = state.copyWith(items: items);
+    _saveQueueToStorage();
+
+    if (hadFailedOrSkipped) {
+      _retriggerAlbumRgChecks();
+    }
+  }
+
+  void clearAll() {
+    final wasProcessing = state.isProcessing;
+    final activeIds = state.items
+        .where(
+          (item) =>
+              item.status == DownloadStatus.queued ||
+              item.status == DownloadStatus.downloading ||
+              item.status == DownloadStatus.finalizing,
+        )
+        .map((item) => item.id)
+        .toList(growable: false);
+
+    if (activeIds.isNotEmpty) {
+      _pausePendingItemIds.addAll(activeIds);
+      _locallyCancelledItemIds.addAll(activeIds);
+      for (final id in activeIds) {
+        _requestNativeCancel(id);
+      }
+    }
+
+    state = state.copyWith(items: [], isPaused: false, currentDownload: null);
+    if (Platform.isAndroid &&
+        ref.read(settingsProvider).nativeDownloadWorkerEnabled) {
+      PlatformBridge.cancelNativeDownloadWorker().catchError((e) {});
+    }
+    NotificationDownload.cancelDownloadNotification();
+    _saveQueueToStorage();
+    _albumRgData.clear();
+    if (!wasProcessing) {
+      _locallyCancelledItemIds.clear();
+    }
+    _pausePendingItemIds.clear();
+  }
+
+  void pauseQueue() {
+    if (state.isProcessing && !state.isPaused) {
+      if (Platform.isAndroid &&
+          ref.read(settingsProvider).nativeDownloadWorkerEnabled) {
+        PlatformBridge.pauseNativeDownloadWorker().catchError((e) {});
+      }
+      final activeIds = state.items
+          .where(
+            (item) =>
+                item.status == DownloadStatus.downloading ||
+                item.status == DownloadStatus.finalizing,
+          )
+          .map((item) => item.id)
+          .toSet();
+
+      if (activeIds.isNotEmpty) {
+        _pausePendingItemIds.addAll(activeIds);
+        for (final id in activeIds) {
+          _requestNativeCancel(id);
+          _requeueItemForPause(id);
+        }
+      }
+
+      state = state.copyWith(isPaused: true, currentDownload: null);
+      NotificationDownload.cancelDownloadNotification();
+      _log.i('Queue paused');
+    }
+  }
+
+  void resumeQueue() {
+    if (state.isPaused) {
+      if (Platform.isAndroid &&
+          ref.read(settingsProvider).nativeDownloadWorkerEnabled) {
+        PlatformBridge.resumeNativeDownloadWorker().catchError((e) {});
+      }
+      state = state.copyWith(isPaused: false);
+      _log.i('Queue resumed');
+      if (state.queuedCount > 0 && !state.isProcessing) {
+        Future.microtask(() => _processQueue());
+      }
+    }
+  }
+
+  void togglePause() {
+    if (state.isPaused) {
+      resumeQueue();
+    } else {
+      pauseQueue();
+    }
+  }
+
+  void retryItem(String id) {
+    final item = state.items.where((i) => i.id == id).firstOrNull;
+    if (item == null) {
+      _log.w('retryItem: Item not found: $id');
+      return;
+    }
+
+    if (item.status != DownloadStatus.failed &&
+        item.status != DownloadStatus.skipped) {
+      _log.w('retryItem: Item status is ${item.status}, not retrying');
+      return;
+    }
+
+    _log.i('Retrying item: ${item.track.name} (id: $id)');
+    _locallyCancelledItemIds.remove(id);
+
+    // Purge stale ReplayGain entry for this track so a re-scan doesn't
+    // produce duplicate entries that bias album gain.
+    final rgKey = _albumRgKey(item.track);
+    final rgAcc = _albumRgData[rgKey];
+    if (rgAcc != null) {
+      rgAcc.entries.removeWhere((e) => e.trackId == item.track.id);
+      if (rgAcc.entries.isEmpty) {
+        _albumRgData.remove(rgKey);
+      }
+    }
+
+    final items = state.items.map((i) {
+      if (i.id == id) {
+        return i.copyWith(
+          status: DownloadStatus.queued,
+          progress: 0,
+          error: null,
+        );
+      }
+      return i;
+    }).toList();
+    state = state.copyWith(items: items);
+    _saveQueueToStorage();
+
+    if (!state.isProcessing) {
+      _log.d('Starting queue processing for retry');
+      Future.microtask(() => _processQueue());
+    } else {
+      _log.d('Queue already processing, item will be picked up');
+    }
+  }
+
+  void removeItem(String id) {
+    final removedItem = state.items.where((item) => item.id == id).firstOrNull;
+    _locallyCancelledItemIds.remove(id);
+    final items = state.items.where((item) => item.id != id).toList();
+    state = state.copyWith(items: items);
+    _saveQueueToStorage();
+
+    // Clean stale album RG entries when a track is removed from the queue.
+    // Only purge for items that were NOT completed — completed items' RG data
+    // must survive removal because album gain is computed after the last track
+    // finishes, by which time earlier completed tracks have been removed.
+    if (removedItem != null && removedItem.status != DownloadStatus.completed) {
+      final key = _albumRgKey(removedItem.track);
+      final accumulator = _albumRgData[key];
+      if (accumulator != null) {
+        accumulator.entries.removeWhere(
+          (e) => e.trackId == removedItem.track.id,
+        );
+        if (accumulator.entries.isEmpty) {
+          _albumRgData.remove(key);
+        }
+      }
+      // Removing a failed/skipped item may unblock album RG for the album.
+      _retriggerAlbumRgChecks();
+    }
+  }
+
+  Future<String?> exportFailedDownloads() async {
+    final failedItems = state.items
+        .where((item) => item.status == DownloadStatus.failed)
+        .toList();
+
+    if (failedItems.isEmpty) {
+      _log.d('No failed downloads to export');
+      return null;
+    }
+
+    try {
+      String baseDir = state.outputDir;
+      if (baseDir.isEmpty) {
+        final dir = await getApplicationDocumentsDirectory();
+        baseDir = dir.path;
+      }
+
+      final failedDownloadsDir = '$baseDir/failed_downloads';
+      final failedDir = Directory(failedDownloadsDir);
+      if (!await failedDir.exists()) {
+        await failedDir.create(recursive: true);
+      }
+
+      // Use date-only format for daily grouping (YYYY-MM-DD)
+      final now = DateTime.now();
+      final dateStr =
+          '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+      final fileName = 'failed_downloads_$dateStr.txt';
+      final filePath = '$failedDownloadsDir/$fileName';
+
+      final file = File(filePath);
+      final bool fileExists = await file.exists();
+
+      final buffer = StringBuffer();
+
+      if (!fileExists) {
+        buffer.writeln('# Bitly Failed Downloads');
+        buffer.writeln('# Date: $dateStr');
+        buffer.writeln('#');
+        buffer.writeln('# Format: [Time] Track - Artist | URL | Error');
+        buffer.writeln('');
+      }
+
+      final timeStr =
+          '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}';
+
+      for (final item in failedItems) {
+        final track = item.track;
+        final spotifyUrl = track.id.startsWith('deezer:')
+            ? 'https://www.deezer.com/track/${track.id.substring(7)}'
+            : 'https://open.spotify.com/track/${track.id}';
+        final error = item.error ?? 'Unknown error';
+        buffer.writeln(
+          '[$timeStr] ${track.name} - ${track.artistName} | $spotifyUrl | $error',
+        );
+      }
+
+      if (fileExists) {
+        await file.writeAsString(buffer.toString(), mode: FileMode.append);
+        _log.i('Appended ${failedItems.length} failed downloads to: $filePath');
+      } else {
+        await file.writeAsString(buffer.toString());
+        _log.i('Created new failed downloads file: $filePath');
+      }
+
+      return filePath;
+    } catch (e) {
+      _log.e('Failed to export failed downloads: $e');
+      return null;
+    }
+  }
+
+  void clearFailedDownloads() {
+    final failedItems = state.items
+        .where((item) => item.status == DownloadStatus.failed)
+        .toList();
+    for (final item in failedItems) {
+      final key = _albumRgKey(item.track);
+      final accumulator = _albumRgData[key];
+      if (accumulator != null) {
+        accumulator.entries.removeWhere((e) => e.trackId == item.track.id);
+        if (accumulator.entries.isEmpty) {
+          _albumRgData.remove(key);
+        }
+      }
+    }
+
+    final items = state.items
+        .where((item) => item.status != DownloadStatus.failed)
+        .toList();
+    state = state.copyWith(items: items);
+    _saveQueueToStorage();
+    _log.d('Cleared failed downloads from queue');
+
+    // Removing failed items may unblock album RG for affected albums.
+    if (failedItems.isNotEmpty) {
+      _retriggerAlbumRgChecks();
+    }
+  }
+
+  Future<String?> _runPostProcessingHooks(String filePath, Track track) async {
+    try {
+      final settings = ref.read(settingsProvider);
+      final extensionState = ref.read(extensionProvider);
+      final resolvedAlbumArtist = _resolveAlbumArtistForMetadata(
+        track,
+        settings,
+      );
+
+      if (!settings.useExtensionProviders) return null;
+
+      final hasPostProcessing = extensionState.extensions.any(
+        (e) => e.enabled && e.hasPostProcessing,
+      );
+      if (!hasPostProcessing) return null;
+
+      _log.d('Running post-processing hooks on: $filePath');
+
+      final metadata = <String, dynamic>{
+        'title': track.name,
+        'artist': track.artistName,
+        'album': track.albumName,
+        'track_number': track.trackNumber ?? 0,
+        'disc_number': track.discNumber ?? 0,
+        'isrc': track.isrc ?? '',
+        'release_date': track.releaseDate ?? '',
+        'duration_ms': track.duration * 1000,
+        'cover_url': track.coverUrl ?? '',
+      };
+      if (resolvedAlbumArtist != null) {
+        metadata['album_artist'] = resolvedAlbumArtist;
+      }
+
+      final result = await PlatformBridge.runPostProcessingV2(
+        filePath,
+        metadata: metadata,
+      );
+
+      if (result['success'] == true) {
+        final hooksRun = result['hooks_run'] as int? ?? 0;
+        final newPath = result['file_path'] as String?;
+        _log.i('Post-processing completed: $hooksRun hook(s) executed');
+
+        if (newPath != null && newPath != filePath) {
+          _log.d('File path changed by post-processing: $newPath');
+          return newPath;
+        }
+        return filePath;
+      } else {
+        final error = result['error'] as String? ?? 'Unknown error';
+        _log.w('Post-processing failed: $error');
+      }
+    } catch (e) {
+      _log.w('Post-processing error: $e');
+    }
+    return null;
+  }
+
+  String _albumRgKey(Track track) {
+    if (track.albumId != null && track.albumId!.isNotEmpty) {
+      return 'id:${track.albumId}';
+    }
+    return 'name:${track.albumName}|${track.albumArtist ?? ''}';
+  }
+
+  /// Store a track's ReplayGain scan result for later album gain computation.
+  void _storeTrackReplayGainForAlbum(
+    Track track,
+    String filePath,
+    ReplayGainResult rg,
+  ) {
+    final key = _albumRgKey(track);
+    _albumRgData.putIfAbsent(key, () => _AlbumRgAccumulator());
+    // Remove any stale entry for this track (e.g. from a previous failed
+    // attempt that was retried).  Without this, the same track can accumulate
+    // multiple entries and bias the album loudness calculation.
+    _albumRgData[key]!.entries.removeWhere((e) => e.trackId == track.id);
+    _albumRgData[key]!.entries.add(
+      _AlbumRgTrackEntry(
+        filePath: filePath,
+        trackId: track.id,
+        integratedLufs: rg.integratedLufs,
+        truePeakLinear: rg.truePeakLinear,
+        durationSecs: track.duration.toDouble(),
+      ),
+    );
+  }
+
+  /// Replace the temp path stored in the accumulator with the final output
+  /// path.  For SAF downloads the embed happens on a temp file which is later
+  /// deleted — this ensures the album-gain writer targets the real file.
+  void _updateAlbumRgFilePath(Track track, String finalPath) {
+    final key = _albumRgKey(track);
+    final accumulator = _albumRgData[key];
+    if (accumulator == null) return;
+    for (final entry in accumulator.entries) {
+      if (entry.trackId == track.id) {
+        entry.filePath = finalPath;
+        break;
+      }
+    }
+  }
+
+  /// After a track completes, check whether all tracks from the same album
+  /// in the current queue are done.  If so, compute album gain and write it
+  /// to every track's file.
+  Future<void> _checkAndWriteAlbumReplayGain(Track track) async {
+    final settings = ref.read(settingsProvider);
+    if (!settings.embedReplayGain) return;
+
+    final key = _albumRgKey(track);
+    final accumulator = _albumRgData[key];
+    if (accumulator == null || accumulator.entries.isEmpty) return;
+
+    // Find queue items for this album that are STILL in the queue.
+    // Completed tracks may have already been removed by removeItem(), so
+    // their absence means they finished successfully (not that they're
+    // still pending).
+    final albumItemsInQueue = state.items
+        .where((item) => _albumRgKey(item.track) == key)
+        .toList();
+
+    // If any item is still in-flight, the album isn't complete yet.
+    final pending = albumItemsInQueue.where(
+      (item) =>
+          item.status == DownloadStatus.queued ||
+          item.status == DownloadStatus.downloading ||
+          item.status == DownloadStatus.finalizing,
+    );
+    if (pending.isNotEmpty) return; // still in progress
+
+    // If any item is failed/skipped, the user might retry it later.
+    // Don't finalize album RG with partial data — wait until all album
+    // tracks are either completed (and possibly removed) or retried.
+    final retryable = albumItemsInQueue.where(
+      (item) =>
+          item.status == DownloadStatus.failed ||
+          item.status == DownloadStatus.skipped,
+    );
+    if (retryable.isNotEmpty) return; // still retryable
+
+    // The accumulator entries represent successfully scanned tracks.  Entries
+    // are only added after a successful ReplayGain scan, removed on retry or
+    // when a non-completed item is removed from the queue, so every entry
+    // here corresponds to a track that completed (or is about to complete)
+    // its download.
+    final validEntries = accumulator.entries.toList();
+
+    // Single-track albums: album gain == track gain, no extra write needed.
+    if (validEntries.length <= 1) {
+      _albumRgData.remove(key);
+      return;
+    }
+
+    // Compute album gain using duration-weighted power-mean of LUFS values.
+    // album_loudness = 10 * log10( Σ(10^(Li/10) * di) / Σ(di) )
+    // This weights longer tracks more, matching "whole program" loudness.
+    double sumWeightedPower = 0;
+    double sumDuration = 0;
+    double maxPeak = 0;
+    for (final entry in validEntries) {
+      final weight = entry.durationSecs > 0 ? entry.durationSecs : 1.0;
+      sumWeightedPower += pow(10, entry.integratedLufs / 10.0) * weight;
+      sumDuration += weight;
+      if (entry.truePeakLinear > maxPeak) {
+        maxPeak = entry.truePeakLinear;
+      }
+    }
+    final albumLufs = 10.0 * _log10(sumWeightedPower / sumDuration);
+    const replayGainReferenceLufs = -18.0;
+    final albumGainDb = replayGainReferenceLufs - albumLufs;
+
+    final albumGain =
+        '${albumGainDb >= 0 ? "+" : ""}${albumGainDb.toStringAsFixed(2)} dB';
+    final albumPeak = maxPeak.toStringAsFixed(6);
+
+    _log.i(
+      'Album ReplayGain for "$key": gain=$albumGain, peak=$albumPeak (${validEntries.length} tracks, album LUFS=${albumLufs.toStringAsFixed(1)})',
+    );
+
+    for (final entry in validEntries) {
+      try {
+        await _writeAlbumReplayGain(entry.filePath, albumGain, albumPeak);
+      } catch (e) {
+        _log.w('Failed to write album ReplayGain to ${entry.filePath}: $e');
+      }
+    }
+
+    _albumRgData.remove(key);
+  }
+
+  /// Write album ReplayGain tags to a single file.
+  Future<void> _writeAlbumReplayGain(
+    String filePath,
+    String albumGain,
+    String albumPeak,
+  ) async {
+    final lower = filePath.toLowerCase();
+    if (lower.endsWith('.flac') ||
+        lower.endsWith('.ape') ||
+        lower.endsWith('.wv') ||
+        lower.endsWith('.mpc')) {
+      // Native writer — only touches the provided fields, preserves the rest.
+      await PlatformBridge.editFileMetadata(filePath, {
+        'replaygain_album_gain': albumGain,
+        'replaygain_album_peak': albumPeak,
+      });
+    } else if (isContentUri(filePath)) {
+      // SAF content:// URI — FFmpeg can read it but can't write back directly.
+      // Get the temp output from FFmpeg, then copy it to the SAF URI.
+      String? tempPath;
+      final ok = await FFmpegService.writeAlbumReplayGainTags(
+        filePath,
+        albumGain,
+        albumPeak,
+        returnTempPath: true,
+        onTempReady: (path) => tempPath = path,
+      );
+      if (ok && tempPath != null) {
+        try {
+          final safOk = await PlatformBridge.writeTempToSaf(
+            tempPath!,
+            filePath,
+          );
+          if (!safOk) {
+            _log.w('SAF write-back failed for album RG: $filePath');
+          }
+        } finally {
+          try {
+            final tmp = File(tempPath!);
+            if (await tmp.exists()) await tmp.delete();
+          } catch (e) {}
+        }
+      } else {
+        _log.w('FFmpeg album ReplayGain write failed for SAF: $filePath');
+      }
+    } else {
+      // Local MP3 / Opus — use FFmpeg copy-with-metadata approach.
+      final ok = await FFmpegService.writeAlbumReplayGainTags(
+        filePath,
+        albumGain,
+        albumPeak,
+      );
+      if (!ok) {
+        _log.w('FFmpeg album ReplayGain write failed for: $filePath');
+      }
+    }
+  }
+
+  /// Re-check album ReplayGain for all albums that still have accumulator data.
+  /// Called after removing/dismissing a failed or skipped item, which may
+  /// unblock an album that was waiting for retryable items to be resolved.
+  void _retriggerAlbumRgChecks() {
+    if (_albumRgData.isEmpty) return;
+    final settings = ref.read(settingsProvider);
+    if (!settings.embedReplayGain) return;
+
+    // Snapshot the keys — _checkAndWriteAlbumReplayGain may mutate the map.
+    final keys = _albumRgData.keys.toList();
+    for (final key in keys) {
+      final acc = _albumRgData[key];
+      if (acc == null || acc.entries.isEmpty) continue;
+      // Use the first entry's trackId to find a representative track.
+      // _checkAndWriteAlbumReplayGain only needs it for _albumRgKey(), so any
+      // track from the album works.
+      final albumItems = state.items
+          .where((item) => _albumRgKey(item.track) == key)
+          .toList();
+      // If there are no items left in queue for this album but we have
+      // accumulator data, all items were completed and removed.  Use a
+      // synthetic call — we need a Track to call the check, but the items
+      // are gone.  For this case, directly check conditions inline.
+      if (albumItems.isEmpty) {
+        // All items removed → no pending/retryable.  Trigger computation.
+        if (acc.entries.length > 1) {
+          _computeAndWriteAlbumRg(key, acc);
+        }
+        continue;
+      }
+      // If any representative item is available, use its track.
+      final representative = albumItems.first;
+      _checkAndWriteAlbumReplayGain(representative.track);
+    }
+  }
+
+  /// Compute album RG and write it — extracted from _checkAndWriteAlbumReplayGain
+  /// for use when no queue items remain (all completed and removed).
+  Future<void> _computeAndWriteAlbumRg(
+    String key,
+    _AlbumRgAccumulator accumulator,
+  ) async {
+    final validEntries = accumulator.entries.toList();
+    if (validEntries.length <= 1) {
+      _albumRgData.remove(key);
+      return;
+    }
+
+    double sumWeightedPower = 0;
+    double sumDuration = 0;
+    double maxPeak = 0;
+    for (final entry in validEntries) {
+      final weight = entry.durationSecs > 0 ? entry.durationSecs : 1.0;
+      sumWeightedPower += pow(10, entry.integratedLufs / 10.0) * weight;
+      sumDuration += weight;
+      if (entry.truePeakLinear > maxPeak) {
+        maxPeak = entry.truePeakLinear;
+      }
+    }
+    final albumLufs = 10.0 * _log10(sumWeightedPower / sumDuration);
+    const replayGainReferenceLufs = -18.0;
+    final albumGainDb = replayGainReferenceLufs - albumLufs;
+
+    final albumGain =
+        '${albumGainDb >= 0 ? "+" : ""}${albumGainDb.toStringAsFixed(2)} dB';
+    final albumPeak = maxPeak.toStringAsFixed(6);
+
+    _log.i(
+      'Album ReplayGain for "$key": gain=$albumGain, peak=$albumPeak (${validEntries.length} tracks, album LUFS=${albumLufs.toStringAsFixed(1)})',
+    );
+
+    for (final entry in validEntries) {
+      try {
+        await _writeAlbumReplayGain(entry.filePath, albumGain, albumPeak);
+      } catch (e) {
+        _log.w('Failed to write album ReplayGain to ${entry.filePath}: $e');
+      }
+    }
+
+    _albumRgData.remove(key);
+  }
+
+  /// Deezer CDN cover size pattern: /WxH-0-0-0-0.jpg
+
+  String _upgradeToMaxQualityCover(String coverUrl) {
+    const spotifySize300 = 'ab67616d00001e02';
+    const spotifySize640 = 'ab67616d0000b273';
+    const spotifySizeMax = 'ab67616d000082c1';
+
+    var result = coverUrl;
+    if (result.contains(spotifySize300)) {
+      result = result.replaceFirst(spotifySize300, spotifySize640);
+    }
+    if (result.contains(spotifySize640)) {
+      result = result.replaceFirst(spotifySize640, spotifySizeMax);
+    }
+
+    if (result.contains('cdn-images.dzcdn.net')) {
+      final upgraded = result.replaceFirst(
+        _deezerSizeRegex,
+        '/1800x1800-000000-80-0-0.jpg',
+      );
+      if (upgraded != result) {
+        _log.d('Cover URL upgraded (Deezer): 1800x1800');
+        result = upgraded;
+      }
+    }
+
+    // Tidal CDN upgrade (1280x1280 → origin)
+    if (result.contains('resources.tidal.com') &&
+        result.contains('/1280x1280.jpg')) {
+      result = result.replaceFirst('/1280x1280.jpg', '/origin.jpg');
+      _log.d('Cover URL upgraded (Tidal): origin');
+    }
+
+    return result;
+  }
+
+  int? _parsePositiveInt(dynamic value) {
+    if (value is int && value > 0) return value;
+    if (value is String) {
+      final parsed = int.tryParse(value);
+      if (parsed != null && parsed > 0) return parsed;
+    }
+    return null;
+  }
+
+  bool _isUsableIndex(int? number, int? total) {
+    if (number == null || number <= 0) return false;
+    return total == null || total <= 0 || number <= total;
+  }
+
+  int? _resolvePositiveMetadataInt(int? sourceValue, int? backendValue) {
+    if (sourceValue != null && sourceValue > 0) return sourceValue;
+    return backendValue;
+  }
+
+  int? _resolveMetadataIndex({
+    required int? sourceValue,
+    required int? backendValue,
+    required int? total,
+  }) {
+    if (_isUsableIndex(sourceValue, total)) return sourceValue;
+    if (_isUsableIndex(backendValue, total)) return backendValue;
+    return sourceValue != null && sourceValue > 0 ? sourceValue : backendValue;
+  }
+
+  String? _resolveMetadataText(String? sourceValue, String? backendValue) {
+    return normalizeOptionalString(sourceValue) ??
+        normalizeOptionalString(backendValue);
+  }
+
+  Track _buildTrackForMetadataEmbedding(
+    Track baseTrack,
+    Map<String, dynamic> backendResult,
+    String? resolvedAlbumArtist,
+  ) {
+    final backendTrackNum = _parsePositiveInt(backendResult['track_number']);
+    final backendDiscNum = _parsePositiveInt(backendResult['disc_number']);
+    final backendTotalTracks = _parsePositiveInt(backendResult['total_tracks']);
+    final backendTotalDiscs = _parsePositiveInt(backendResult['total_discs']);
+    final backendYear = normalizeOptionalString(
+      backendResult['release_date'] as String?,
+    );
+    final backendAlbum = normalizeOptionalString(
+      backendResult['album'] as String?,
+    );
+    final backendIsrc = normalizeOptionalString(
+      backendResult['isrc'] as String?,
+    );
+    final backendCoverUrl = normalizeCoverReference(
+      backendResult['cover_url']?.toString(),
+    );
+    final baseCoverUrl = normalizeCoverReference(baseTrack.coverUrl);
+    final resolvedCoverUrl = baseCoverUrl ?? backendCoverUrl;
+    final backendAlbumArtist = normalizeOptionalString(
+      backendResult['album_artist'] as String?,
+    );
+    final backendComposer = normalizeOptionalString(
+      backendResult['composer']?.toString(),
+    );
+    final sourceAlbumName = normalizeOptionalString(baseTrack.albumName);
+    final sourceAlbumArtist = normalizeOptionalString(baseTrack.albumArtist);
+    final sourceIsrc = normalizeOptionalString(baseTrack.isrc);
+    final sourceReleaseDate = normalizeOptionalString(baseTrack.releaseDate);
+    final sourceComposer = normalizeOptionalString(baseTrack.composer);
+    final resolvedTotalTracks = _resolvePositiveMetadataInt(
+      baseTrack.totalTracks,
+      backendTotalTracks,
+    );
+    final resolvedTotalDiscs = _resolvePositiveMetadataInt(
+      baseTrack.totalDiscs,
+      backendTotalDiscs,
+    );
+    final resolvedTrackNumber = _resolveMetadataIndex(
+      sourceValue: baseTrack.trackNumber,
+      backendValue: backendTrackNum,
+      total: resolvedTotalTracks,
+    );
+    final resolvedDiscNumber = _resolveMetadataIndex(
+      sourceValue: baseTrack.discNumber,
+      backendValue: backendDiscNum,
+      total: resolvedTotalDiscs,
+    );
+
+    final hasOverrides =
+        resolvedTrackNumber != baseTrack.trackNumber ||
+        resolvedDiscNumber != baseTrack.discNumber ||
+        resolvedTotalTracks != baseTrack.totalTracks ||
+        resolvedTotalDiscs != baseTrack.totalDiscs ||
+        resolvedAlbumArtist != sourceAlbumArtist ||
+        (sourceReleaseDate == null && backendYear != null) ||
+        (sourceAlbumName == null && backendAlbum != null) ||
+        (sourceIsrc == null && backendIsrc != null) ||
+        (baseCoverUrl == null && backendCoverUrl != null) ||
+        (sourceAlbumArtist == null &&
+            resolvedAlbumArtist == null &&
+            backendAlbumArtist != null) ||
+        (sourceComposer == null && backendComposer != null);
+
+    if (!hasOverrides) {
+      return baseTrack;
+    }
+
+    return Track(
+      id: baseTrack.id,
+      name: baseTrack.name,
+      artistName: baseTrack.artistName,
+      albumName: sourceAlbumName ?? backendAlbum ?? baseTrack.albumName,
+      albumArtist:
+          resolvedAlbumArtist ?? sourceAlbumArtist ?? backendAlbumArtist,
+      artistId: baseTrack.artistId,
+      albumId: baseTrack.albumId,
+      coverUrl: resolvedCoverUrl,
+      duration: baseTrack.duration,
+      isrc: sourceIsrc ?? backendIsrc,
+      trackNumber: resolvedTrackNumber,
+      discNumber: resolvedDiscNumber,
+      totalDiscs: resolvedTotalDiscs,
+      releaseDate: sourceReleaseDate ?? backendYear,
+      deezerId: baseTrack.deezerId,
+      availability: baseTrack.availability,
+      albumType: baseTrack.albumType,
+      totalTracks: resolvedTotalTracks,
+      composer: sourceComposer ?? backendComposer,
+      source: baseTrack.source,
+    );
+  }
+
+  /// Unified metadata, cover, lyrics, and ReplayGain embedding for all formats.
+  ///
+  /// [format] must be one of `'flac'`, `'m4a'`, `'mp3'`, or `'opus'`.
+  /// [writeExternalLrc] only applies to FLAC and M4A (non-SAF paths handle LRC separately).
+  Future<void> _embedMetadataToFile(
+    String filePath,
+    Track track, {
+    required String format,
+    String? genre,
+    String? label,
+    String? copyright,
+    String? downloadService,
+    bool writeExternalLrc = true,
+    bool? downloadLyrics,
+  }) async {
+    final settings = ref.read(settingsProvider);
+    if (!settings.embedMetadata) {
+      _log.d(
+        'Metadata embedding disabled, skipping $format metadata/cover embed',
+      );
+      return;
+    }
+
+    final isFlac = format == 'flac';
+    final isM4a = format == 'm4a';
+    final isMp3 = format == 'mp3';
+
+    String? coverPath;
+    var coverUrl = normalizeRemoteHttpUrl(track.coverUrl);
+    if (coverUrl != null && coverUrl.isNotEmpty) {
+      try {
+        if (settings.maxQualityCover) {
+          coverUrl = _upgradeToMaxQualityCover(coverUrl);
+          _log.d('Cover URL upgraded to max quality for $format: $coverUrl');
+        }
+
+        final tempDir = await getTemporaryDirectory();
+        final uniqueId =
+            '${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(10000)}';
+        coverPath = '${tempDir.path}/cover_${format}_$uniqueId.jpg';
+
+        final httpClient = HttpClient();
+        final request = await httpClient.getUrl(Uri.parse(coverUrl));
+        final response = await request.close();
+        if (response.statusCode == 200) {
+          final file = File(coverPath);
+          final sink = file.openWrite();
+          await response.pipe(sink);
+          await sink.close();
+          _log.d('Cover downloaded for $format: $coverPath');
+        } else {
+          _log.w(
+            'Failed to download cover for $format: HTTP ${response.statusCode}',
+          );
+          coverPath = null;
+        }
+        httpClient.close();
+      } catch (e) {
+        _log.e('Failed to download cover for $format: $e');
+        coverPath = null;
+      }
+    }
+
+    try {
+      final metadata = <String, String>{
+        'TITLE': track.name,
+        'ARTIST': track.artistName,
+        'ALBUM': track.albumName,
+      };
+      String formatIndexTag(int number, int? total) {
+        if (total != null && total > 0) {
+          return '$number/$total';
+        }
+        return number.toString();
+      }
+
+      final albumArtist = _resolveAlbumArtistForMetadata(track, settings);
+      if (albumArtist != null) {
+        metadata['ALBUMARTIST'] = albumArtist;
+      }
+
+      if (track.trackNumber != null && track.trackNumber! > 0) {
+        final trackTag = formatIndexTag(track.trackNumber!, track.totalTracks);
+        metadata['TRACKNUMBER'] = trackTag;
+        if (isFlac || isMp3) metadata['TRACK'] = trackTag;
+      }
+      if (track.discNumber != null && track.discNumber! > 0) {
+        final discTag = formatIndexTag(track.discNumber!, track.totalDiscs);
+        metadata['DISCNUMBER'] = discTag;
+        if (isFlac || isMp3) metadata['DISC'] = discTag;
+      }
+      if (track.releaseDate != null) {
+        metadata['DATE'] = track.releaseDate!;
+        if (isFlac || isMp3) {
+          metadata['YEAR'] = track.releaseDate!.split('-').first;
+        }
+      }
+      if (track.isrc != null) metadata['ISRC'] = track.isrc!;
+      if (genre != null && genre.isNotEmpty) metadata['GENRE'] = genre;
+      if (label != null && label.isNotEmpty) metadata['ORGANIZATION'] = label;
+      if (copyright != null && copyright.isNotEmpty) {
+        metadata['COPYRIGHT'] = copyright;
+      }
+      if (track.composer != null && track.composer!.isNotEmpty) {
+        metadata['COMPOSER'] = track.composer!;
+      }
+
+      final lyricsMode = settings.lyricsMode;
+      final extensionState = ref.read(extensionProvider);
+      final skipLyrics = _shouldSkipLyrics(
+        extensionState,
+        track.source,
+        downloadService,
+      );
+      final effectiveEmbedLyrics = downloadLyrics ?? settings.embedLyrics;
+      final shouldEmbedLyrics =
+          effectiveEmbedLyrics &&
+          !skipLyrics &&
+          (lyricsMode == 'embed' || lyricsMode == 'both');
+      final shouldSaveExternalLyrics =
+          effectiveEmbedLyrics &&
+          !skipLyrics &&
+          (lyricsMode == 'external' || lyricsMode == 'both');
+      String? lrcContent;
+
+      if (shouldEmbedLyrics || shouldSaveExternalLyrics) {
+        try {
+          final fetchedLrc = await PlatformBridge.getLyricsLRC(
+            track.id,
+            track.name,
+            track.artistName,
+            filePath: '',
+            durationMs: track.duration * 1000,
+          );
+          if (fetchedLrc.isNotEmpty && fetchedLrc != '[instrumental:true]') {
+            lrcContent = fetchedLrc;
+            _log.d('Lyrics fetched for $format (${fetchedLrc.length} chars)');
+          } else if (fetchedLrc == '[instrumental:true]') {
+            _log.d('Track is instrumental, skipping lyrics handling');
+          }
+        } catch (e) {
+          _log.w('Failed to fetch lyrics for $format: $e');
+        }
+      }
+
+      if (shouldEmbedLyrics && lrcContent != null) {
+        metadata['LYRICS'] = lrcContent;
+        if (isFlac || isMp3) metadata['UNSYNCEDLYRICS'] = lrcContent;
+      } else if ((isFlac || isM4a) && !shouldEmbedLyrics) {
+        metadata['LYRICS'] = '';
+        if (isFlac) {
+          metadata['UNSYNCEDLYRICS'] = '';
+        }
+      }
+
+      if (writeExternalLrc && shouldSaveExternalLyrics && lrcContent != null) {
+        try {
+          final lrcPath = filePath.replaceAll(RegExp(r'\.[^.]+$'), '.lrc');
+          final safeLrcPath = lrcPath == filePath ? '$filePath.lrc' : lrcPath;
+          await File(safeLrcPath).writeAsString(lrcContent);
+          _log.d('External LRC file saved: $safeLrcPath');
+        } catch (e) {
+          _log.w('Failed to save external LRC file for $format: $e');
+        }
+      }
+
+      ReplayGainResult? scannedReplayGain;
+
+      if (settings.embedReplayGain && !isFlac) {
+        try {
+          final rgResult = await FFmpegService.scanReplayGain(filePath);
+          if (rgResult != null) {
+            scannedReplayGain = rgResult;
+            metadata['REPLAYGAIN_TRACK_GAIN'] = rgResult.trackGain;
+            metadata['REPLAYGAIN_TRACK_PEAK'] = rgResult.trackPeak;
+            _log.d(
+              'ReplayGain for $format: gain=${rgResult.trackGain}, peak=${rgResult.trackPeak}',
+            );
+            _storeTrackReplayGainForAlbum(track, filePath, rgResult);
+          }
+        } catch (e) {
+          _log.w('Failed to scan ReplayGain for $format: $e');
+        }
+      }
+
+      final validCover = coverPath != null && await File(coverPath).exists()
+          ? coverPath
+          : null;
+
+      String? ffmpegResult;
+      if (isFlac) {
+        ffmpegResult = await FFmpegService.embedMetadata(
+          flacPath: filePath,
+          coverPath: validCover,
+          metadata: metadata,
+          artistTagMode: settings.artistTagMode,
+        );
+      } else if (isM4a) {
+        ffmpegResult = await FFmpegService.embedMetadataToM4a(
+          m4aPath: filePath,
+          coverPath: validCover,
+          metadata: metadata,
+        );
+      } else if (isMp3) {
+        ffmpegResult = await FFmpegService.embedMetadataToMp3(
+          mp3Path: filePath,
+          coverPath: validCover,
+          metadata: metadata,
+        );
+      } else {
+        ffmpegResult = await FFmpegService.embedMetadataToOpus(
+          opusPath: filePath,
+          coverPath: validCover,
+          metadata: metadata,
+          artistTagMode: settings.artistTagMode,
+        );
+      }
+
+      if (ffmpegResult != null) {
+        _log.d('Metadata embedded to $format via FFmpeg');
+      } else {
+        _log.w('FFmpeg $format metadata embed failed');
+      }
+
+      if (isM4a && settings.embedReplayGain && scannedReplayGain != null) {
+        try {
+          await PlatformBridge.editFileMetadata(filePath, {
+            'replaygain_track_gain': scannedReplayGain.trackGain,
+            'replaygain_track_peak': scannedReplayGain.trackPeak,
+          });
+          _log.d(
+            'ReplayGain compatibility tags written for $format: gain=${scannedReplayGain.trackGain}, peak=${scannedReplayGain.trackPeak}',
+          );
+        } catch (e) {
+          _log.w('Failed to write native ReplayGain tags for $format: $e');
+        }
+      }
+
+      if (isFlac) {
+        if (settings.artistTagMode == artistTagModeSplitVorbis) {
+          try {
+            await PlatformBridge.rewriteSplitArtistTags(
+              filePath,
+              track.artistName,
+              albumArtist ?? '',
+            );
+            _log.d('Split artist tags rewritten via native FLAC writer');
+          } catch (e) {
+            _log.w('Failed to rewrite split artist tags: $e');
+          }
+        }
+
+        if (settings.embedReplayGain) {
+          try {
+            final rgResult = await FFmpegService.scanReplayGain(filePath);
+            if (rgResult != null) {
+              await PlatformBridge.editFileMetadata(filePath, {
+                'replaygain_track_gain': rgResult.trackGain,
+                'replaygain_track_peak': rgResult.trackPeak,
+              });
+              _log.d(
+                'ReplayGain for $format: gain=${rgResult.trackGain}, peak=${rgResult.trackPeak}',
+              );
+              _storeTrackReplayGainForAlbum(track, filePath, rgResult);
+            }
+          } catch (e) {
+            _log.w('Failed to embed ReplayGain via native writer: $e');
+          }
+        }
+      }
+    } catch (e) {
+      _log.e('Failed to embed metadata to $format: $e');
+    } finally {
+      if (coverPath != null) {
+        try {
+          final coverFile = File(coverPath);
+          if (await coverFile.exists()) await coverFile.delete();
+        } catch (e) {
+          _log.w('Failed to cleanup $format cover file: $e');
+        }
+      }
+    }
+  }
+
+  Future<String?> _copySafToTemp(String uri) async {
+    try {
+      return await PlatformBridge.copyContentUriToTemp(uri);
+    } catch (e) {
+      _log.w('Failed to copy SAF uri to temp: $e');
+      return null;
+    }
+  }
+
+  Future<String?> _writeTempToSaf({
+    required String treeUri,
+    required String relativeDir,
+    required String fileName,
+    required String mimeType,
+    required String srcPath,
+  }) async {
+    try {
+      return await PlatformBridge.createSafFileFromPath(
+        treeUri: treeUri,
+        relativeDir: relativeDir,
+        fileName: fileName,
+        mimeType: mimeType,
+        srcPath: srcPath,
+      );
+    } catch (e) {
+      _log.w('Failed to write temp file to SAF: $e');
+      return null;
+    }
+  }
+
+  Future<void> _writeLrcToSaf({
+    required String treeUri,
+    required String relativeDir,
+    required String baseName,
+    required String lrcContent,
+  }) async {
+    try {
+      if (lrcContent.isEmpty) return;
+      final tempDir = await getTemporaryDirectory();
+      final tempPath = '${tempDir.path}/$baseName.lrc';
+      await File(tempPath).writeAsString(lrcContent);
+      final lrcName = '$baseName.lrc';
+      final uri = await _writeTempToSaf(
+        treeUri: treeUri,
+        relativeDir: relativeDir,
+        fileName: lrcName,
+        mimeType: _mimeTypeForExt('.lrc'),
+        srcPath: tempPath,
+      );
+      if (uri != null) {
+        _log.d('External LRC saved to SAF: $lrcName');
+      } else {
+        _log.w('Failed to write external LRC to SAF');
+      }
+      try {
+        await File(tempPath).delete();
+      } catch (e) {}
+    } catch (e) {
+      _log.w('Failed to create external LRC in SAF: $e');
+    }
+  }
+
+  Future<void> _deleteSafFile(String uri) async {
+    try {
+      await PlatformBridge.safDelete(uri);
+    } catch (e) {
+      _log.w('Failed to delete SAF file: $e');
+    }
+  }
+
+  bool _hasWifiConnection(List<ConnectivityResult> results) {
+    return results.contains(ConnectivityResult.wifi);
+  }
+
+  void _startConnectivityMonitoring() {
+    _connectivitySub?.cancel();
+    _connectivitySub = Connectivity().onConnectivityChanged.listen(
+      _handleConnectivityResults,
+      onError: (Object error, StackTrace stackTrace) {
+        _log.w('Connectivity monitoring failed: $error');
+      },
+      cancelOnError: false,
+    );
+  }
+
+  void _stopConnectivityMonitoring({bool clearNetworkPause = true}) {
+    _connectivitySub?.cancel();
+    _connectivitySub = null;
+    if (clearNetworkPause) {
+      _networkPausedByWifiOnly = false;
+    }
+  }
+
+  void _handleDownloadNetworkModeChanged(String mode) {
+    if (mode == 'wifi_only') {
+      if (state.isProcessing || _networkPausedByWifiOnly) {
+        _startConnectivityMonitoring();
+      }
+      return;
+    }
+
+    final shouldResume = _networkPausedByWifiOnly && state.isPaused;
+    _stopConnectivityMonitoring();
+    if (shouldResume) {
+      resumeQueue();
+    }
+  }
+
+  void _handleConnectivityResults(List<ConnectivityResult> results) {
+    final settings = ref.read(settingsProvider);
+    if (settings.downloadNetworkMode != 'wifi_only') {
+      _handleDownloadNetworkModeChanged(settings.downloadNetworkMode);
+      return;
+    }
+
+    if (_hasWifiConnection(results)) {
+      if (_networkPausedByWifiOnly && state.isPaused) {
+        _networkPausedByWifiOnly = false;
+        _log.i('WiFi restored, resuming network-paused queue');
+        resumeQueue();
+      }
+      return;
+    }
+
+    if (state.isProcessing && !state.isPaused) {
+      _networkPausedByWifiOnly = true;
+      _log.w('WiFi connection lost, pausing active queue');
+      pauseQueue();
+    }
+  }
+
+  bool _canUseAndroidNativeWorker(AppSettings settings) {
+    if (!Platform.isAndroid || !settings.nativeDownloadWorkerEnabled) {
+      return false;
+    }
+    if (!settings.useExtensionProviders) {
+      return false;
+    }
+    if (_isSafMode(settings)) {
+      if (settings.downloadTreeUri.isEmpty) {
+        return false;
+      }
+    }
+    final extensionState = ref.read(extensionProvider);
+    final hasEnabledDownloadProvider = extensionState.extensions.any(
+      (extension) => extension.enabled && extension.hasDownloadProvider,
+    );
+    if (!hasEnabledDownloadProvider) {
+      return false;
+    }
+    return true;
+  }
+
+  String _newNativeWorkerRunId() =>
+      'native-${DateTime.now().microsecondsSinceEpoch}-${Random().nextInt(1 << 32)}';
+
+  String _snapshotRunId(Map<String, dynamic> snapshot) {
+    final direct = snapshot['run_id']?.toString() ?? '';
+    if (direct.isNotEmpty) return direct;
+
+    final settingsJson = snapshot['settings_json'];
+    if (settingsJson is String && settingsJson.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(settingsJson);
+        if (decoded is Map) {
+          return decoded['run_id']?.toString() ?? '';
+        }
+      } catch (e) {}
+    } else if (settingsJson is Map) {
+      return settingsJson['run_id']?.toString() ?? '';
+    }
+    return '';
+  }
+
+  bool _isNativeWorkerSnapshotContractCompatible(
+    Map<String, dynamic> snapshot,
+  ) {
+    final version = snapshot['contract_version'];
+    return version == DownloadRequestPayload.nativeWorkerContractVersion;
+  }
+
+  bool _isNativeWorkerSnapshotForRun(
+    Map<String, dynamic> snapshot,
+    String runId,
+  ) =>
+      runId.isNotEmpty &&
+      _snapshotRunId(snapshot) == runId &&
+      _isNativeWorkerSnapshotContractCompatible(snapshot);
+
+  Future<void> _persistNativeWorkerRunId(String runId) async {
+    _activeNativeWorkerRunId = runId;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_nativeWorkerRunIdPrefsKey, runId);
+  }
+
+  Future<String?> _loadNativeWorkerRunId() async {
+    if (_activeNativeWorkerRunId != null) return _activeNativeWorkerRunId;
+    final prefs = await SharedPreferences.getInstance();
+    final runId = prefs.getString(_nativeWorkerRunIdPrefsKey);
+    if (runId != null && runId.isNotEmpty) {
+      _activeNativeWorkerRunId = runId;
+      return runId;
+    }
+    return null;
+  }
+
+  Future<void> _clearNativeWorkerRunId(String runId) async {
+    if (_activeNativeWorkerRunId == runId) {
+      _activeNativeWorkerRunId = null;
+    }
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getString(_nativeWorkerRunIdPrefsKey) == runId) {
+      await prefs.remove(_nativeWorkerRunIdPrefsKey);
+    }
+  }
+
+  Future<bool> _tryAdoptAndroidNativeWorkerSnapshot(
+    List<DownloadItem> restoredItems,
+  ) async {
+    final settings = ref.read(settingsProvider);
+    if (!_canUseAndroidNativeWorker(settings)) {
+      return false;
+    }
+
+    Map<String, dynamic> snapshot;
+    try {
+      snapshot = await PlatformBridge.getNativeDownloadWorkerSnapshot();
+    } catch (e) {
+      return false;
+    }
+    final runId = await _loadNativeWorkerRunId();
+    if (runId == null ||
+        runId.isEmpty ||
+        !_isNativeWorkerSnapshotForRun(snapshot, runId)) {
+      return false;
+    }
+
+    final rawItems = snapshot['items'];
+    final rawItemIds = snapshot['item_ids'];
+    final snapshotIds = rawItems is List
+        ? rawItems
+              .whereType<Map<Object?, Object?>>()
+              .map((item) => item['item_id']?.toString() ?? '')
+              .where((id) => id.isNotEmpty)
+              .toSet()
+        : rawItemIds is List
+        ? rawItemIds
+              .map((id) => id?.toString() ?? '')
+              .where((id) => id.isNotEmpty)
+              .toSet()
+        : <String>{};
+    if (snapshotIds.isEmpty) {
+      return false;
+    }
+    if (!restoredItems.any((item) => snapshotIds.contains(item.id))) {
+      return false;
+    }
+
+    final contexts = <String, _NativeWorkerRequestContext>{};
+    for (final item in restoredItems) {
+      if (!snapshotIds.contains(item.id)) continue;
+      final context = await _buildAndroidNativeWorkerRequest(item, settings);
+      if (context != null) {
+        contexts[item.id] = context;
+      }
+    }
+    if (contexts.isEmpty) {
+      return false;
+    }
+
+    _log.i('Adopting Android native worker snapshot');
+    final reconciledIds = <String>{};
+    _totalQueuedAtStart = contexts.length;
+    _completedInSession = 0;
+    _failedInSession = 0;
+    state = state.copyWith(
+      isProcessing: snapshot['is_running'] == true,
+      isPaused: snapshot['is_paused'] == true,
+    );
+    await _applyAndroidNativeWorkerSnapshot(
+      snapshot,
+      contexts,
+      reconciledIds,
+      settings,
+    );
+
+    if (snapshot['is_running'] == true) {
+      unawaited(
+        _continueAndroidNativeWorkerAdoption(
+          contexts,
+          reconciledIds,
+          settings,
+          runId,
+        ),
+      );
+    } else if (state.items.any(
+      (item) => item.status == DownloadStatus.queued,
+    )) {
+      await _clearNativeWorkerRunId(runId);
+      Future.microtask(() => _processQueue());
+    } else {
+      await _clearNativeWorkerRunId(runId);
+    }
+
+    return true;
+  }
+
+  Future<void> _continueAndroidNativeWorkerAdoption(
+    Map<String, _NativeWorkerRequestContext> contexts,
+    Set<String> reconciledIds,
+    AppSettings settings,
+    String runId,
+  ) async {
+    try {
+      while (true) {
+        final snapshot = await PlatformBridge.getNativeDownloadWorkerSnapshot();
+        if (!_isNativeWorkerSnapshotForRun(snapshot, runId)) {
+          await Future<void>.delayed(const Duration(seconds: 1));
+          continue;
+        }
+        await _applyAndroidNativeWorkerSnapshot(
+          snapshot,
+          contexts,
+          reconciledIds,
+          settings,
+        );
+        if (snapshot['is_running'] != true) {
+          await _clearNativeWorkerRunId(runId);
+          break;
+        }
+        await Future<void>.delayed(const Duration(seconds: 1));
+      }
+    } catch (e) {
+      _log.w('Android native worker adoption stopped: $e');
+    } finally {
+      state = state.copyWith(isProcessing: false, currentDownload: null);
+    }
+  }
+
+  Future<bool> _tryProcessQueueWithAndroidNativeWorker(
+    AppSettings settings,
+  ) async {
+    if (!_canUseAndroidNativeWorker(settings)) {
+      return false;
+    }
+
+    final queuedItems = state.items
+        .where((item) => item.status == DownloadStatus.queued)
+        .toList(growable: false);
+    if (queuedItems.isEmpty) {
+      return false;
+    }
+
+    _log.i(
+      'Starting Android native download worker for ${queuedItems.length} items',
+    );
+
+    final isSafMode = _isSafMode(settings);
+    if (!isSafMode && state.outputDir.isEmpty) {
+      await _initOutputDir();
+    }
+    if (!isSafMode && state.outputDir.isEmpty) {
+      final musicDir = await _ensureDefaultDocumentsOutputDir();
+      state = state.copyWith(outputDir: musicDir.path);
+    }
+
+    final contexts = <String, _NativeWorkerRequestContext>{};
+    final requests = <Map<String, dynamic>>[];
+    for (final item in queuedItems) {
+      final context = await _buildAndroidNativeWorkerRequest(item, settings);
+      if (context == null) {
+        _log.w(
+          'Native worker gate rejected ${item.track.name}; falling back to Dart queue',
+        );
+        return false;
+      }
+      contexts[item.id] = context;
+      requests.add({
+        'contract_version': DownloadRequestPayload.nativeWorkerContractVersion,
+        'item_id': item.id,
+        'track_name': item.track.name,
+        'artist_name': item.track.artistName,
+        'item_json': jsonEncode(item.toJson()),
+        'request_json': context.requestJson,
+      });
+    }
+
+    state = state.copyWith(isProcessing: true, isPaused: false);
+    _totalQueuedAtStart = queuedItems.length;
+    _completedInSession = 0;
+    _failedInSession = 0;
+
+    final runId = _newNativeWorkerRunId();
+    await _persistNativeWorkerRunId(runId);
+    final reconciledIds = <String>{};
+    try {
+      await PlatformBridge.startNativeDownloadWorker(
+        requests: requests,
+        settings: {
+          'worker': 'android_native',
+          'version': 1,
+          'contract_version':
+              DownloadRequestPayload.nativeWorkerContractVersion,
+          'run_id': runId,
+          'created_at': DateTime.now().toIso8601String(),
+        },
+      );
+
+      final runStartWait = Stopwatch()..start();
+      while (true) {
+        final snapshot = await PlatformBridge.getNativeDownloadWorkerSnapshot();
+        if (!_isNativeWorkerSnapshotForRun(snapshot, runId)) {
+          if (runStartWait.elapsed > const Duration(seconds: 30)) {
+            throw _NativeWorkerStartupTimeout();
+          }
+          await Future<void>.delayed(const Duration(milliseconds: 250));
+          continue;
+        }
+        await _applyAndroidNativeWorkerSnapshot(
+          snapshot,
+          contexts,
+          reconciledIds,
+          settings,
+        );
+        if (snapshot['is_running'] != true) {
+          await _clearNativeWorkerRunId(runId);
+          break;
+        }
+        await Future<void>.delayed(const Duration(seconds: 1));
+      }
+    } catch (e, stack) {
+      if (e is _NativeWorkerStartupTimeout) {
+        _log.w(
+          'Android native worker did not publish a matching snapshot; cancelling native worker and falling back to Dart queue',
+        );
+        try {
+          await PlatformBridge.cancelNativeDownloadWorker();
+        } catch (cancelError) {
+          _log.w('Failed to cancel timed-out native worker: $cancelError');
+        }
+        await _clearNativeWorkerRunId(runId);
+        state = state.copyWith(isProcessing: false, currentDownload: null);
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+        return false;
+      }
+      _log.e('Android native worker failed: $e', e, stack);
+      for (final item in queuedItems) {
+        final current = _findItemById(item.id);
+        if (current == null ||
+            current.status == DownloadStatus.completed ||
+            current.status == DownloadStatus.failed ||
+            current.status == DownloadStatus.skipped) {
+          continue;
+        }
+        updateItemStatus(
+          item.id,
+          DownloadStatus.failed,
+          error: 'Native download worker failed: $e',
+          errorType: DownloadErrorType.unknown,
+        );
+        _failedInSession++;
+      }
+    } finally {
+      state = state.copyWith(isProcessing: false, currentDownload: null);
+      _stopConnectivityMonitoring();
+      try {
+        await PlatformBridge.cleanupConnections();
+      } catch (e) {
+        _log.e('Native worker cleanup failed: $e');
+      }
+    }
+
+    if (_totalQueuedAtStart > 0) {
+      await NotificationDownload.showQueueComplete(
+        completedCount: _completedInSession,
+        failedCount: _failedInSession,
+      );
+    }
+
+    final hasQueuedItems = state.items.any(
+      (item) => item.status == DownloadStatus.queued,
+    );
+    if (hasQueuedItems && !state.isPaused) {
+      _log.i(
+        'Found queued items after Android native worker finished, restarting queue...',
+      );
+      Future.microtask(() => _processQueue());
+    }
+
+    return true;
+  }
+
+  Future<_NativeWorkerRequestContext?> _buildAndroidNativeWorkerRequest(
+    DownloadItem item,
+    AppSettings settings,
+  ) async {
+    if (!_hasActiveDownloadProvider(item.service)) {
+      return null;
+    }
+
+    var quality = item.qualityOverride ?? state.audioQuality;
+    if (quality == 'DEFAULT') quality = state.audioQuality;
+
+    final isSafMode = _isSafMode(settings);
+    final rawOutputDir = isSafMode
+        ? await _buildRelativeOutputDir(item.track, playlistName: item.playlistName)
+        : await _buildOutputDir(item.track, playlistName: item.playlistName);
+    final outputDir = isSafMode
+        ? _sanitizeSafRelativeDir(rawOutputDir)
+        : rawOutputDir;
+    if (!isSafMode) {
+      await _ensureDirExists(outputDir, label: 'Output folder');
+    }
+
+    final outputExt = _determineOutputExt(quality, item.service);
+    if (settings.embedReplayGain &&
+        outputExt != '.flac' &&
+        outputExt != '.m4a') {
+      return null;
+    }
+
+    String? safFileName;
+    final safOutputExt = isSafMode ? outputExt : '';
+    if (isSafMode) {
+      final effectiveFormat = state.filenameFormat;
+      final baseName = await PlatformBridge.buildFilename(effectiveFormat, {
+        'title': item.track.name,
+        'artist': item.track.artistName,
+        'album': item.track.albumName,
+        'track': item.track.trackNumber ?? 0,
+        'disc': item.track.discNumber ?? 0,
+        'year': _extractYear(item.track.releaseDate) ?? '',
+        'date': item.track.releaseDate ?? '',
+      });
+      safFileName = await _buildSafFileName(baseName, safOutputExt);
+    }
+
+    var trackForPayload = item.track;
+    String? nativeDeezerTrackId = _extractKnownDeezerTrackId(trackForPayload);
+    String? nativeGenre;
+    String? nativeLabel;
+    String? nativeCopyright;
+
+    if (nativeDeezerTrackId == null &&
+        trackForPayload.isrc != null &&
+        trackForPayload.isrc!.isNotEmpty &&
+        _isValidISRC(trackForPayload.isrc!)) {
+      nativeDeezerTrackId = await _searchDeezerTrackIdByIsrc(
+        trackForPayload.isrc,
+        lookupContext: 'native worker ISRC',
+        itemId: item.id,
+      );
+    }
+
+    if (nativeDeezerTrackId == null &&
+        (trackForPayload.isrc == null ||
+            trackForPayload.isrc!.isEmpty ||
+            !_isValidISRC(trackForPayload.isrc!)) &&
+        (trackForPayload.id.startsWith('tidal:') ||
+            trackForPayload.id.startsWith('qobuz:'))) {
+      final providerLookup = await _resolveProviderTrackForDeezerLookup(
+        trackForPayload,
+        item.id,
+      );
+      trackForPayload = providerLookup.track;
+      nativeDeezerTrackId ??= providerLookup.deezerTrackId;
+    }
+
+    if (nativeDeezerTrackId != null && nativeDeezerTrackId.isNotEmpty) {
+      final extendedMetadata = await _loadDeezerExtendedMetadata(
+        nativeDeezerTrackId,
+      );
+      nativeGenre = extendedMetadata.genre;
+      nativeLabel = extendedMetadata.label;
+      nativeCopyright = extendedMetadata.copyright;
+    }
+
+    final resolvedAlbumArtist = _resolveAlbumArtistForMetadata(
+      trackForPayload,
+      settings,
+    );
+    final extensionState = ref.read(extensionProvider);
+    final postProcessingEnabled =
+        settings.useExtensionProviders &&
+        extensionState.extensions.any((e) => e.enabled && e.hasPostProcessing);
+    final normalizedTrackNumber =
+        (trackForPayload.trackNumber != null &&
+            trackForPayload.trackNumber! > 0)
+        ? trackForPayload.trackNumber!
+        : 0;
+    final normalizedDiscNumber =
+        (trackForPayload.discNumber != null && trackForPayload.discNumber! > 0)
+        ? trackForPayload.discNumber!
+        : 0;
+
+    String payloadSpotifyId = trackForPayload.id;
+    String payloadQobuzId = '';
+    String payloadTidalId = '';
+    if (trackForPayload.id.startsWith('qobuz:')) {
+      payloadQobuzId = trackForPayload.id.substring(6);
+      if (_usesBuiltInCompatibleDownloadProvider(item.service, 'qobuz')) {
+        payloadSpotifyId = '';
+      }
+    }
+    if (trackForPayload.id.startsWith('tidal:')) {
+      payloadTidalId = trackForPayload.id.substring(6);
+      if (_usesBuiltInCompatibleDownloadProvider(item.service, 'tidal')) {
+        payloadSpotifyId = '';
+      }
+    }
+
+    final payload = DownloadRequestPayload(
+      isrc: trackForPayload.isrc ?? '',
+      service: item.service,
+      spotifyId: payloadSpotifyId,
+      trackName: trackForPayload.name,
+      artistName: trackForPayload.artistName,
+      albumName: trackForPayload.albumName,
+      albumArtist: resolvedAlbumArtist ?? '',
+      coverUrl: settings.embedMetadata ? (trackForPayload.coverUrl ?? '') : '',
+      outputDir: outputDir,
+      filenameFormat: state.filenameFormat,
+      quality: quality,
+      embedMetadata: settings.embedMetadata,
+      artistTagMode: settings.artistTagMode,
+      embedLyrics:
+          settings.embedMetadata &&
+          (item.downloadLyrics ?? settings.embedLyrics) &&
+          !_shouldSkipLyrics(
+            extensionState,
+            trackForPayload.source,
+            item.service,
+          ),
+      embedMaxQualityCover: settings.embedMetadata && settings.maxQualityCover,
+      embedReplayGain: settings.embedReplayGain,
+      postProcessingEnabled: postProcessingEnabled,
+      tidalHighFormat: settings.tidalHighFormat,
+      trackNumber: normalizedTrackNumber,
+      discNumber: normalizedDiscNumber,
+      totalTracks: trackForPayload.totalTracks ?? 0,
+      totalDiscs: trackForPayload.totalDiscs ?? 0,
+      releaseDate: trackForPayload.releaseDate ?? '',
+      itemId: item.id,
+      durationMs: trackForPayload.duration * 1000,
+      source: trackForPayload.source ?? '',
+      genre: nativeGenre ?? '',
+      label: nativeLabel ?? '',
+      copyright: nativeCopyright ?? '',
+      composer: trackForPayload.composer ?? '',
+      qobuzId: payloadQobuzId,
+      tidalId: payloadTidalId,
+      deezerId: nativeDeezerTrackId ?? '',
+      lyricsMode: settings.lyricsMode,
+      storageMode: isSafMode ? 'saf' : 'app',
+      safTreeUri: isSafMode ? settings.downloadTreeUri : '',
+      safRelativeDir: isSafMode ? outputDir : '',
+      safFileName: safFileName ?? '',
+      safOutputExt: safOutputExt,
+      stageSafOutput: isSafMode,
+      deferSafPublish: isSafMode,
+      requiresContainerConversion:
+          outputExt == '.flac' &&
+          _extensionRequiresNativeContainerConversion(item.service),
+      songLinkRegion: settings.songLinkRegion,
+    ).withStrategy(useExtensions: true, useFallback: state.autoFallback);
+
+    return _NativeWorkerRequestContext(
+      item: item,
+      requestJson: jsonEncode(payload.toJson()),
+      outputDir: outputDir,
+      quality: quality,
+      storageMode: isSafMode ? 'saf' : 'app',
+      outputExt: outputExt,
+      downloadTreeUri: isSafMode ? settings.downloadTreeUri : null,
+      safRelativeDir: isSafMode ? outputDir : null,
+      safFileName: safFileName,
+    );
+  }
+
+  Future<void> _applyAndroidNativeWorkerSnapshot(
+    Map<String, dynamic> snapshot,
+    Map<String, _NativeWorkerRequestContext> contexts,
+    Set<String> reconciledIds,
+    AppSettings settings,
+  ) async {
+    final rawItems = snapshot['items'];
+    final rawDelta = snapshot['item_delta'];
+    final itemSnapshots = <Map<String, dynamic>>[];
+    if (rawItems is List) {
+      for (final rawItem in rawItems) {
+        if (rawItem is Map) {
+          itemSnapshots.add(Map<String, dynamic>.from(rawItem));
+        }
+      }
+    }
+    if (rawDelta is Map) {
+      itemSnapshots.add(Map<String, dynamic>.from(rawDelta));
+    }
+    if (itemSnapshots.isEmpty) {
+      return;
+    }
+
+    for (final itemSnapshot in itemSnapshots) {
+      final itemId = itemSnapshot['item_id']?.toString() ?? '';
+      if (itemId.isEmpty || reconciledIds.contains(itemId)) {
+        continue;
+      }
+      final context = contexts[itemId];
+      if (context == null) continue;
+
+      final status = itemSnapshot['status']?.toString() ?? 'queued';
+      final progress = ((itemSnapshot['progress'] as num?)?.toDouble() ?? 0.0)
+          .clamp(0.0, 1.0)
+          .toDouble();
+      final current = _findItemById(itemId);
+      if (current == null) {
+        reconciledIds.add(itemId);
+        continue;
+      }
+
+      if (status == 'queued') {
+        updateItemStatus(itemId, DownloadStatus.queued, progress: 0.0);
+        continue;
+      }
+
+      if (status == 'preparing') {
+        updateItemStatus(itemId, DownloadStatus.downloading, progress: 0.0);
+        continue;
+      }
+
+      if (status == 'downloading') {
+        updateItemStatus(
+          itemId,
+          DownloadStatus.downloading,
+          progress: progress,
+        );
+        continue;
+      }
+
+      if (status == 'finalizing') {
+        updateItemStatus(
+          itemId,
+          DownloadStatus.finalizing,
+          progress: progress <= 0 ? 0.95 : progress,
+        );
+        continue;
+      }
+
+      if (status == 'completed') {
+        final result = itemSnapshot['result'];
+        if (result is Map) {
+          reconciledIds.add(itemId);
+          await _completeAndroidNativeWorkerItem(
+            context,
+            Map<String, dynamic>.from(result),
+            settings,
+          );
+        }
+        continue;
+      }
+
+      if (status == 'failed' || status == 'skipped') {
+        reconciledIds.add(itemId);
+        final result = itemSnapshot['result'];
+        final error = itemSnapshot['error']?.toString();
+        if (status == 'skipped') {
+          updateItemStatus(itemId, DownloadStatus.skipped);
+        } else {
+          final errorType = result is Map
+              ? _downloadErrorTypeFromBackend(
+                  Map<String, dynamic>.from(result)['error_type']?.toString(),
+                )
+              : DownloadErrorType.unknown;
+          updateItemStatus(
+            itemId,
+            DownloadStatus.failed,
+            error: error == null || error.isEmpty ? 'Download failed' : error,
+            errorType: errorType,
+          );
+          _failedInSession++;
+        }
+      }
+    }
+  }
+
+  Future<void> _completeAndroidNativeWorkerItem(
+    _NativeWorkerRequestContext context,
+    Map<String, dynamic> result,
+    AppSettings settings,
+  ) async {
+    final item = context.item;
+    var filePath = result['file_path'] as String?;
+    if (filePath == null || filePath.isEmpty) {
+      updateItemStatus(
+        item.id,
+        DownloadStatus.failed,
+        error: 'Native worker completed without a file path',
+        errorType: DownloadErrorType.unknown,
+      );
+      _failedInSession++;
+      return;
+    }
+
+    if (result['native_finalized'] == true) {
+      updateItemStatus(
+        item.id,
+        DownloadStatus.completed,
+        progress: 1.0,
+        filePath: filePath,
+      );
+      final historyItem = result['history_item'];
+      if (historyItem is Map) {
+        try {
+          ref
+              .read(downloadHistoryProvider.notifier)
+              .adoptNativeHistoryItem(
+                DownloadHistoryItem.fromJson(
+                  Map<String, dynamic>.from(historyItem),
+                ),
+              );
+        } catch (e) {
+          _log.w('Failed to adopt native history item: $e');
+          await ref.read(downloadHistoryProvider.notifier).reloadFromStorage();
+        }
+      } else if (result['history_written'] == true) {
+        await ref.read(downloadHistoryProvider.notifier).reloadFromStorage();
+      }
+      _completedInSession++;
+      await NotificationDownload.showComplete(
+        trackName: item.track.name,
+        artistName: item.track.artistName,
+        completedCount: _completedInSession,
+        totalCount: _totalQueuedAtStart,
+        alreadyInLibrary: result['already_exists'] == true,
+      );
+      removeItem(item.id);
+      return;
+    }
+
+    final finalizedPath = await _finalizeNativeWorkerDecryption(
+      context: context,
+      result: result,
+      filePath: filePath,
+    );
+    if (finalizedPath == null) {
+      updateItemStatus(
+        item.id,
+        DownloadStatus.failed,
+        error: 'Failed to decrypt encrypted stream',
+        errorType: DownloadErrorType.unknown,
+      );
+      _failedInSession++;
+      return;
+    }
+    filePath = finalizedPath;
+
+    var actualQuality = context.quality;
+    final actualBitDepth = result['actual_bit_depth'] as int?;
+    final actualSampleRate = result['actual_sample_rate'] as int?;
+    final resolvedQuality = _resolveDisplayQuality(
+      filePath: filePath,
+      bitDepth: actualBitDepth,
+      sampleRate: actualSampleRate,
+      storedQuality: actualQuality,
+    );
+    if (resolvedQuality != null) {
+      actualQuality = resolvedQuality;
+    }
+
+    final resolvedAlbumArtist = _resolveAlbumArtistForMetadata(
+      item.track,
+      settings,
+    );
+    final trackToDownload = _buildTrackForMetadataEmbedding(
+      item.track,
+      result,
+      resolvedAlbumArtist,
+    );
+    final convertedHighPath = await _finalizeNativeWorkerHighConversion(
+      context: context,
+      result: result,
+      settings: settings,
+      track: trackToDownload,
+      filePath: filePath,
+    );
+    if (convertedHighPath == null) {
+      updateItemStatus(
+        item.id,
+        DownloadStatus.failed,
+        error: 'Failed to convert HIGH quality download',
+        errorType: DownloadErrorType.unknown,
+      );
+      _failedInSession++;
+      return;
+    }
+    filePath = convertedHighPath;
+    final nativeActualQuality = result['_native_actual_quality'] as String?;
+    if (nativeActualQuality != null && nativeActualQuality.isNotEmpty) {
+      actualQuality = nativeActualQuality;
+    }
+    final convertedContainerPath =
+        await _finalizeNativeWorkerContainerConversion(
+          context: context,
+          result: result,
+          settings: settings,
+          track: trackToDownload,
+          filePath: filePath,
+        );
+    if (convertedContainerPath == null) {
+      updateItemStatus(
+        item.id,
+        DownloadStatus.failed,
+        error: 'Failed to convert downloaded container',
+        errorType: DownloadErrorType.unknown,
+      );
+      _failedInSession++;
+      return;
+    }
+    filePath = convertedContainerPath;
+
+    updateItemStatus(
+      item.id,
+      DownloadStatus.completed,
+      progress: 1.0,
+      filePath: filePath,
+    );
+    await _saveNativeWorkerExternalLrc(
+      context: context,
+      result: result,
+      settings: settings,
+      track: trackToDownload,
+      filePath: filePath,
+    );
+    final postProcessedPath = await _runPostProcessingHooks(
+      filePath,
+      trackToDownload,
+    );
+    if (postProcessedPath != null && postProcessedPath.isNotEmpty) {
+      filePath = postProcessedPath;
+    }
+    await _writeNativeWorkerReplayGain(
+      context: context,
+      settings: settings,
+      track: trackToDownload,
+      filePath: filePath,
+    );
+    _completedInSession++;
+
+    await NotificationDownload.showComplete(
+      trackName: item.track.name,
+      artistName: item.track.artistName,
+      completedCount: _completedInSession,
+      totalCount: _totalQueuedAtStart,
+      alreadyInLibrary: result['already_exists'] == true,
+    );
+
+    final backendTitle = result['title'] as String?;
+    final backendArtist = result['artist'] as String?;
+    final backendAlbum = result['album'] as String?;
+    final backendYear = result['release_date'] as String?;
+    final backendTrackNum = _parsePositiveInt(result['track_number']);
+    final backendDiscNum = _parsePositiveInt(result['disc_number']);
+    final backendTotalTracks = _parsePositiveInt(result['total_tracks']);
+    final backendTotalDiscs = _parsePositiveInt(result['total_discs']);
+    final backendISRC = result['isrc'] as String?;
+    final backendGenre = result['genre'] as String?;
+    final backendLabel = result['label'] as String?;
+    final backendCopyright = result['copyright'] as String?;
+    final backendComposer = result['composer'] as String?;
+    final resultSafFileName = result['file_name'] as String?;
+    final lowerFilePath = filePath.toLowerCase();
+    final isLossyOutput =
+        lowerFilePath.endsWith('.mp3') ||
+        lowerFilePath.endsWith('.opus') ||
+        lowerFilePath.endsWith('.ogg');
+    final historyTotalTracks = _resolvePositiveMetadataInt(
+      trackToDownload.totalTracks,
+      backendTotalTracks,
+    );
+    final historyTotalDiscs = _resolvePositiveMetadataInt(
+      trackToDownload.totalDiscs,
+      backendTotalDiscs,
+    );
+    final historyTrackNumber = _resolveMetadataIndex(
+      sourceValue: trackToDownload.trackNumber,
+      backendValue: backendTrackNum,
+      total: historyTotalTracks,
+    );
+    final historyDiscNumber = _resolveMetadataIndex(
+      sourceValue: trackToDownload.discNumber,
+      backendValue: backendDiscNum,
+      total: historyTotalDiscs,
+    );
+    final historyTitle =
+        _resolveMetadataText(trackToDownload.name, backendTitle) ??
+        item.track.name;
+    final historyArtist =
+        _resolveMetadataText(trackToDownload.artistName, backendArtist) ??
+        item.track.artistName;
+    final historyAlbum =
+        _resolveMetadataText(trackToDownload.albumName, backendAlbum) ??
+        item.track.albumName;
+    final historyIsrc = _resolveMetadataText(trackToDownload.isrc, backendISRC);
+    final historyReleaseDate = _resolveMetadataText(
+      trackToDownload.releaseDate,
+      backendYear,
+    );
+    final historyComposer = _resolveMetadataText(
+      trackToDownload.composer,
+      backendComposer,
+    );
+
+    ref
+        .read(downloadHistoryProvider.notifier)
+        .addToHistory(
+          DownloadHistoryItem(
+            id: item.id,
+            trackName: historyTitle,
+            artistName: historyArtist,
+            albumName: historyAlbum,
+            albumArtist: normalizeOptionalString(trackToDownload.albumArtist),
+            coverUrl: normalizeCoverReference(trackToDownload.coverUrl),
+            filePath: filePath,
+            storageMode: context.storageMode,
+            downloadTreeUri: context.storageMode == 'saf'
+                ? context.downloadTreeUri
+                : null,
+            safRelativeDir: context.storageMode == 'saf'
+                ? context.safRelativeDir
+                : null,
+            safFileName: context.storageMode == 'saf'
+                ? ((resultSafFileName != null && resultSafFileName.isNotEmpty)
+                      ? resultSafFileName
+                      : context.safFileName)
+                : null,
+            safRepaired: false,
+            service: result['service'] as String? ?? item.service,
+            downloadedAt: DateTime.now(),
+            isrc: historyIsrc,
+            spotifyId: trackToDownload.id,
+            trackNumber: historyTrackNumber,
+            totalTracks: historyTotalTracks,
+            discNumber: historyDiscNumber,
+            totalDiscs: historyTotalDiscs,
+            duration: trackToDownload.duration,
+            releaseDate: historyReleaseDate,
+            quality: actualQuality,
+            bitDepth: isLossyOutput ? null : actualBitDepth,
+            sampleRate: isLossyOutput ? null : actualSampleRate,
+            genre: normalizeOptionalString(backendGenre),
+            composer: historyComposer,
+            label: normalizeOptionalString(backendLabel),
+            copyright: normalizeOptionalString(backendCopyright),
+          ),
+        );
+
+    removeItem(item.id);
+  }
+
+  Future<String?> _finalizeNativeWorkerDecryption({
+    required _NativeWorkerRequestContext context,
+    required Map<String, dynamic> result,
+    required String filePath,
+  }) async {
+    if (result['already_exists'] == true) {
+      return filePath;
+    }
+
+    final descriptor = DownloadDecryptionDescriptor.fromDownloadResult(result);
+    if (descriptor == null) {
+      return filePath;
+    }
+
+    _log.i(
+      'Native-worker encrypted stream detected, decrypting via ${descriptor.normalizedStrategy}...',
+    );
+
+    if (context.storageMode == 'saf' && isContentUri(filePath)) {
+      final treeUri = context.downloadTreeUri;
+      if (treeUri == null || treeUri.isEmpty) {
+        return null;
+      }
+      final tempPath = await _copySafToTemp(filePath);
+      if (tempPath == null) {
+        return null;
+      }
+
+      String? decryptedTempPath;
+      try {
+        decryptedTempPath = await FFmpegService.decryptWithDescriptor(
+          inputPath: tempPath,
+          descriptor: descriptor,
+          deleteOriginal: false,
+        );
+        if (decryptedTempPath == null) {
+          return null;
+        }
+
+        final dotIndex = decryptedTempPath.lastIndexOf('.');
+        final decryptedExt = dotIndex >= 0
+            ? decryptedTempPath.substring(dotIndex).toLowerCase()
+            : context.outputExt;
+        const allowedExt = <String>{'.flac', '.m4a', '.mp4', '.mp3', '.opus'};
+        final finalExt = allowedExt.contains(decryptedExt)
+            ? decryptedExt
+            : context.outputExt;
+        final rawFileName =
+            (result['file_name'] as String?) ?? context.safFileName ?? 'track';
+        final baseName = rawFileName.replaceFirst(RegExp(r'\.[^.]+$'), '');
+        final newFileName = '$baseName$finalExt';
+        final newUri = await _writeTempToSaf(
+          treeUri: treeUri,
+          relativeDir: context.safRelativeDir ?? '',
+          fileName: newFileName,
+          mimeType: _mimeTypeForExt(finalExt),
+          srcPath: decryptedTempPath,
+        );
+        if (newUri == null) {
+          return null;
+        }
+        if (newUri != filePath) {
+          await _deleteSafFile(filePath);
+        }
+        result['file_name'] = newFileName;
+        return newUri;
+      } finally {
+        try {
+          await File(tempPath).delete();
+        } catch (e) {
+          if (decryptedTempPath != null && decryptedTempPath != tempPath) {
+            try {
+              await File(decryptedTempPath).delete();
+            } catch (e) {}
+          }
+        }
+      }
+    }
+
+    final decryptedPath = await FFmpegService.decryptWithDescriptor(
+      inputPath: filePath,
+      descriptor: descriptor,
+      deleteOriginal: true,
+    );
+    return decryptedPath;
+  }
+
+  Future<String?> _finalizeNativeWorkerHighConversion({
+    required _NativeWorkerRequestContext context,
+    required Map<String, dynamic> result,
+    required AppSettings settings,
+    required Track track,
+    required String filePath,
+  }) async {
+    if (context.quality != 'HIGH') {
+      return filePath;
+    }
+
+    final lowerPath = filePath.toLowerCase();
+    final resultFileName = (result['file_name'] as String?)?.toLowerCase();
+    final looksLikeM4a =
+        lowerPath.endsWith('.m4a') ||
+        lowerPath.endsWith('.mp4') ||
+        (resultFileName != null &&
+            (resultFileName.endsWith('.m4a') ||
+                resultFileName.endsWith('.mp4')));
+    if (!looksLikeM4a) {
+      return filePath;
+    }
+
+    final tidalHighFormat = settings.tidalHighFormat;
+    final format = tidalHighFormat.startsWith('opus') ? 'opus' : 'mp3';
+    final newExt = format == 'opus' ? '.opus' : '.mp3';
+    final bitrateDisplay = tidalHighFormat.contains('_')
+        ? '${tidalHighFormat.split('_').last}kbps'
+        : '320kbps';
+
+    Future<void> embedConvertedMetadata(String convertedPath) async {
+      if (!settings.embedMetadata) return;
+      await _embedMetadataToFile(
+        convertedPath,
+        track,
+        format: format,
+        genre: result['genre'] as String?,
+        label: result['label'] as String?,
+        copyright: result['copyright'] as String?,
+        downloadService: context.item.service,
+        downloadLyrics: context.item.downloadLyrics,
+      );
+    }
+
+    if (context.storageMode == 'saf' && isContentUri(filePath)) {
+      final treeUri = context.downloadTreeUri;
+      if (treeUri == null || treeUri.isEmpty) {
+        return null;
+      }
+      final tempPath = await _copySafToTemp(filePath);
+      if (tempPath == null) {
+        return null;
+      }
+
+      String? convertedPath;
+      try {
+        convertedPath = await FFmpegService.convertM4aToLossy(
+          tempPath,
+          format: format,
+          bitrate: tidalHighFormat,
+          deleteOriginal: false,
+        );
+        if (convertedPath == null) {
+          return null;
+        }
+        await embedConvertedMetadata(convertedPath);
+        final rawFileName =
+            (result['file_name'] as String?) ?? context.safFileName ?? 'track';
+        final baseName = rawFileName.replaceFirst(RegExp(r'\.[^.]+$'), '');
+        final newFileName = '$baseName$newExt';
+        final newUri = await _writeTempToSaf(
+          treeUri: treeUri,
+          relativeDir: context.safRelativeDir ?? '',
+          fileName: newFileName,
+          mimeType: _mimeTypeForExt(newExt),
+          srcPath: convertedPath,
+        );
+        if (newUri == null) {
+          return null;
+        }
+        if (newUri != filePath) {
+          await _deleteSafFile(filePath);
+        }
+        result['file_name'] = newFileName;
+        result['_native_actual_quality'] =
+            '${format.toUpperCase()} $bitrateDisplay';
+        return newUri;
+      } finally {
+        try {
+          await File(tempPath).delete();
+        } catch (_) {}
+        if (convertedPath != null) {
+          try {
+            await File(convertedPath).delete();
+          } catch (_) {}
+        }
+      }
+    }
+
+    final convertedPath = await FFmpegService.convertM4aToLossy(
+      filePath,
+      format: format,
+      bitrate: tidalHighFormat,
+      deleteOriginal: true,
+    );
+    if (convertedPath == null) {
+      return null;
+    }
+    await embedConvertedMetadata(convertedPath);
+    result['_native_actual_quality'] =
+        '${format.toUpperCase()} $bitrateDisplay';
+    return convertedPath;
+  }
+
+  Future<String?> _finalizeNativeWorkerContainerConversion({
+    required _NativeWorkerRequestContext context,
+    required Map<String, dynamic> result,
+    required AppSettings settings,
+    required Track track,
+    required String filePath,
+  }) async {
+    if (context.quality == 'HIGH' || context.outputExt != '.flac') {
+      return filePath;
+    }
+    final lowerPath = filePath.toLowerCase();
+    final resultFileName = (result['file_name'] as String?)?.toLowerCase();
+    final looksLikeM4a =
+        lowerPath.endsWith('.m4a') ||
+        lowerPath.endsWith('.mp4') ||
+        (resultFileName != null &&
+            (resultFileName.endsWith('.m4a') ||
+                resultFileName.endsWith('.mp4')));
+    if (!looksLikeM4a && !isContentUri(filePath)) {
+      return filePath;
+    }
+
+    Future<void> embedFlacMetadata(String flacPath) async {
+      if (!settings.embedMetadata) return;
+      await _embedMetadataToFile(
+        flacPath,
+        track,
+        format: 'flac',
+        genre: result['genre'] as String?,
+        label: result['label'] as String?,
+        copyright: result['copyright'] as String?,
+        downloadService: context.item.service,
+        writeExternalLrc: context.storageMode != 'saf',
+        downloadLyrics: context.item.downloadLyrics,
+      );
+    }
+
+    if (context.storageMode == 'saf' && isContentUri(filePath)) {
+      final treeUri = context.downloadTreeUri;
+      if (treeUri == null || treeUri.isEmpty) {
+        return null;
+      }
+      final tempPath = await _copySafToTemp(filePath);
+      if (tempPath == null) {
+        return null;
+      }
+
+      String? flacPath;
+      try {
+        flacPath = await FFmpegService.convertM4aToFlac(tempPath);
+        if (flacPath == null) {
+          return null;
+        }
+        await embedFlacMetadata(flacPath);
+        final rawFileName =
+            (result['file_name'] as String?) ?? context.safFileName ?? 'track';
+        final baseName = rawFileName.replaceFirst(RegExp(r'\.[^.]+$'), '');
+        final newFileName = '$baseName.flac';
+        final newUri = await _writeTempToSaf(
+          treeUri: treeUri,
+          relativeDir: context.safRelativeDir ?? '',
+          fileName: newFileName,
+          mimeType: _mimeTypeForExt('.flac'),
+          srcPath: flacPath,
+        );
+        if (newUri == null) {
+          return null;
+        }
+        if (newUri != filePath) {
+          await _deleteSafFile(filePath);
+        }
+        result['file_name'] = newFileName;
+        return newUri;
+      } finally {
+        try {
+          await File(tempPath).delete();
+        } catch (e) {}
+        if (flacPath != null) {
+          try {
+            await File(flacPath).delete();
+          } catch (e) {}
+        }
+      }
+    }
+
+    final flacPath = await FFmpegService.convertM4aToFlac(filePath);
+    if (flacPath == null) {
+      return null;
+    }
+    await embedFlacMetadata(flacPath);
+    return flacPath;
+  }
+
+  Future<void> _writeNativeWorkerReplayGain({
+    required _NativeWorkerRequestContext context,
+    required AppSettings settings,
+    required Track track,
+    required String filePath,
+  }) async {
+    if (!settings.embedReplayGain) {
+      return;
+    }
+    if (context.outputExt != '.flac' && context.outputExt != '.m4a') {
+      return;
+    }
+
+    try {
+      final rgResult = await FFmpegService.scanReplayGain(filePath);
+      if (rgResult == null) {
+        return;
+      }
+      await PlatformBridge.editFileMetadata(filePath, {
+        'replaygain_track_gain': rgResult.trackGain,
+        'replaygain_track_peak': rgResult.trackPeak,
+      });
+      _storeTrackReplayGainForAlbum(track, filePath, rgResult);
+      _updateAlbumRgFilePath(track, filePath);
+      await _checkAndWriteAlbumReplayGain(track);
+      _log.d(
+        'Native-worker ReplayGain written: gain=${rgResult.trackGain}, peak=${rgResult.trackPeak}',
+      );
+    } catch (e) {
+      _log.w('Failed to write native-worker ReplayGain: $e');
+    }
+  }
+
+  Future<void> _saveNativeWorkerExternalLrc({
+    required _NativeWorkerRequestContext context,
+    required Map<String, dynamic> result,
+    required AppSettings settings,
+    required Track track,
+    required String filePath,
+  }) async {
+    final lyricsMode = settings.lyricsMode;
+    final shouldSaveExternalLrc =
+        settings.embedMetadata &&
+        settings.embedLyrics &&
+        !_shouldSkipLyrics(
+          ref.read(extensionProvider),
+          track.source,
+          context.item.service,
+        ) &&
+        (lyricsMode == 'external' || lyricsMode == 'both');
+    if (!shouldSaveExternalLrc) {
+      return;
+    }
+
+    String? lrcContent = result['lyrics_lrc'] as String?;
+    if (lrcContent == null || lrcContent.isEmpty) {
+      try {
+        lrcContent = await PlatformBridge.getLyricsLRC(
+          track.id,
+          track.name,
+          track.artistName,
+          durationMs: track.duration * 1000,
+        );
+      } catch (e) {
+        _log.w('Failed to fetch native-worker external LRC: $e');
+      }
+    }
+    if (lrcContent == null || lrcContent.isEmpty) {
+      return;
+    }
+
+    if (context.storageMode == 'saf' && isContentUri(filePath)) {
+      final treeUri = context.downloadTreeUri;
+      if (treeUri == null || treeUri.isEmpty) {
+        return;
+      }
+      final resultFileName = result['file_name'] as String?;
+      final fileName = (resultFileName != null && resultFileName.isNotEmpty)
+          ? resultFileName
+          : context.safFileName;
+      final baseName = fileName != null && fileName.isNotEmpty
+          ? fileName.replaceFirst(RegExp(r'\.[^.]+$'), '')
+          : await PlatformBridge.sanitizeFilename(
+              '${track.artistName} - ${track.name}',
+            );
+      await _writeLrcToSaf(
+        treeUri: treeUri,
+        relativeDir: context.safRelativeDir ?? '',
+        baseName: baseName,
+        lrcContent: lrcContent,
+      );
+      return;
+    }
+
+    try {
+      final lrcPath = filePath.replaceAll(RegExp(r'\.[^.]+$'), '.lrc');
+      final safeLrcPath = lrcPath == filePath ? '$filePath.lrc' : lrcPath;
+      await File(safeLrcPath).writeAsString(lrcContent);
+      _log.d('Native-worker external LRC saved: $safeLrcPath');
+    } catch (e) {
+      _log.w('Failed to save native-worker external LRC: $e');
+    }
+  }
+
+  DownloadErrorType _downloadErrorTypeFromBackend(String? errorType) {
+    switch (errorType) {
+      case 'not_found':
+        return DownloadErrorType.notFound;
+      case 'rate_limit':
+        return DownloadErrorType.rateLimit;
+      case 'network':
+        return DownloadErrorType.network;
+      case 'permission':
+        return DownloadErrorType.permission;
+      default:
+        return DownloadErrorType.unknown;
+    }
+  }
+
+  Future<void> _processQueue() async {
+    if (state.isProcessing) return;
+
+    final settings = ref.read(settingsProvider);
+    updateSettings(settings);
+    final isSafMode = _isSafMode(settings);
+    var iosDownloadBookmarkActive = false;
+    if (settings.downloadNetworkMode == 'wifi_only') {
+      final connectivityResult = await Connectivity().checkConnectivity();
+      final hasWifi = connectivityResult.contains(ConnectivityResult.wifi);
+      if (!hasWifi) {
+        _log.w('WiFi-only mode enabled but no WiFi connection. Queue paused.');
+        _networkPausedByWifiOnly = true;
+        _startConnectivityMonitoring();
+        state = state.copyWith(isProcessing: false, isPaused: true);
+        return;
+      }
+      _networkPausedByWifiOnly = false;
+      _startConnectivityMonitoring();
+    } else {
+      _stopConnectivityMonitoring();
+    }
+
+    if (await _tryProcessQueueWithAndroidNativeWorker(settings)) {
+      return;
+    }
+
+    state = state.copyWith(isProcessing: true);
+    _log.i('Starting queue processing...');
+
+    _totalQueuedAtStart = state.items
+        .where((i) => i.status == DownloadStatus.queued)
+        .length;
+    _completedInSession = 0;
+    _failedInSession = 0;
+
+    if (Platform.isAndroid && _totalQueuedAtStart > 0) {
+      final firstItem = state.items.firstWhere(
+        (item) => item.status == DownloadStatus.queued,
+        orElse: () => state.items.first,
+      );
+      try {
+        await NotificationDownload.cancelDownloadNotification();
+        await PlatformBridge.startDownloadService(
+          trackName: firstItem.track.name,
+          artistName: firstItem.track.artistName,
+          queueCount: _totalQueuedAtStart,
+        );
+        _log.d('Foreground service started');
+      } catch (e) {
+        _log.e('Failed to start foreground service: $e');
+      }
+    }
+
+    if (!isSafMode && state.outputDir.isEmpty) {
+      _log.d('Output dir empty, initializing...');
+      await _initOutputDir();
+    }
+
+    // iOS: Validate that outputDir is writable (not iCloud Drive which Go can't access)
+    if (!isSafMode && Platform.isIOS && state.outputDir.isNotEmpty) {
+      final isICloudPath =
+          state.outputDir.contains('Mobile Documents') ||
+          state.outputDir.contains('CloudDocs') ||
+          state.outputDir.contains('com~apple~CloudDocs');
+      if (isICloudPath) {
+        _log.w(
+          'iOS: iCloud Drive path detected, falling back to app Documents folder',
+        );
+        _log.w('Go backend cannot write to iCloud Drive due to iOS sandboxing');
+        final musicDir = await _ensureDefaultDocumentsOutputDir();
+        state = state.copyWith(outputDir: musicDir.path);
+        ref.read(settingsProvider.notifier).setDownloadDirectory(musicDir.path);
+      } else if (!isValidIosWritablePath(state.outputDir)) {
+        _log.w(
+          'iOS: Invalid output path detected (container root?), falling back to app Documents folder',
+        );
+        _log.w('Original path: ${state.outputDir}');
+        final correctedPath = await validateOrFixIosPath(state.outputDir);
+        _log.i('Corrected path: $correctedPath');
+        state = state.copyWith(outputDir: correctedPath);
+        ref.read(settingsProvider.notifier).setDownloadDirectory(correctedPath);
+      }
+    }
+
+    if (!isSafMode && state.outputDir.isEmpty) {
+      _log.d('Using fallback directory...');
+      final musicDir = await _ensureDefaultDocumentsOutputDir();
+      state = state.copyWith(outputDir: musicDir.path);
+    }
+
+    if (!isSafMode) {
+      _log.d('Output directory: ${state.outputDir}');
+    } else {
+      _log.d('Output directory: SAF (tree_uri=${settings.downloadTreeUri})');
+      try {
+        final testResult = await PlatformBridge.createSafFileFromPath(
+          treeUri: settings.downloadTreeUri,
+          relativeDir: '',
+          fileName: '.Bitly_test',
+          mimeType: 'application/octet-stream',
+          srcPath: '',
+        );
+        if (testResult != null) {
+          await PlatformBridge.safDelete(testResult);
+        }
+      } catch (e) {
+        _log.e('SAF permission validation failed: $e');
+        _log.w('SAF tree URI may be invalid or permission revoked');
+        for (final item in state.items) {
+          if (item.status == DownloadStatus.queued) {
+            updateItemStatus(
+              item.id,
+              DownloadStatus.failed,
+              error:
+                  'SAF permission invalid or revoked. Please reconfigure download location in Settings.',
+            );
+          }
+        }
+        state = state.copyWith(isProcessing: false);
+        return;
+      }
+    }
+
+    if (!isSafMode &&
+        Platform.isIOS &&
+        settings.downloadDirectoryBookmark.isNotEmpty) {
+      final resolvedPath = await PlatformBridge.startAccessingIosBookmark(
+        settings.downloadDirectoryBookmark,
+      );
+      if (resolvedPath != null && resolvedPath.isNotEmpty) {
+        iosDownloadBookmarkActive = true;
+        if (resolvedPath != state.outputDir) {
+          _log.i('Resolved iOS download bookmark path: $resolvedPath');
+          state = state.copyWith(outputDir: resolvedPath);
+        }
+      } else {
+        _log.w(
+          'Failed to access iOS download folder bookmark, falling back to app Documents folder',
+        );
+        final musicDir = await _ensureDefaultDocumentsOutputDir();
+        state = state.copyWith(outputDir: musicDir.path);
+        ref.read(settingsProvider.notifier).setDownloadDirectory(musicDir.path);
+      }
+    }
+
+    _log.d('Concurrent downloads: ${state.concurrentDownloads}');
+    try {
+      await _processQueueParallel();
+    } finally {
+      if (iosDownloadBookmarkActive) {
+        await PlatformBridge.stopAccessingIosBookmark();
+        iosDownloadBookmarkActive = false;
+      }
+    }
+    final stoppedWhilePaused = state.isPaused;
+    final keepConnectivityMonitoring =
+        stoppedWhilePaused && _networkPausedByWifiOnly;
+
+    _stopProgressPolling();
+    if (!keepConnectivityMonitoring) {
+      _stopConnectivityMonitoring();
+    }
+
+    if (Platform.isAndroid) {
+      try {
+        await PlatformBridge.stopDownloadService();
+        _log.d('Foreground service stopped');
+      } catch (e) {
+        _log.e('Failed to stop foreground service: $e');
+      }
+    }
+
+    if (_downloadCount > 0) {
+      _log.d('Final connection cleanup...');
+      try {
+        await PlatformBridge.cleanupConnections();
+      } catch (e) {
+        _log.e('Final cleanup failed: $e');
+      }
+      _downloadCount = 0;
+    }
+
+    _log.i(
+      'Queue stats - completed: $_completedInSession, failed: $_failedInSession, totalAtStart: $_totalQueuedAtStart',
+    );
+    final hasSessionResults = _completedInSession > 0 || _failedInSession > 0;
+    if (!stoppedWhilePaused && _totalQueuedAtStart > 0 && hasSessionResults) {
+      await NotificationDownload.showQueueComplete(
+        completedCount: _completedInSession,
+        failedCount: _failedInSession,
+      );
+
+      final settings = ref.read(settingsProvider);
+      if (settings.autoExportFailedDownloads && _failedInSession > 0) {
+        final exportPath = await exportFailedDownloads();
+        if (exportPath != null) {
+          _log.i('Auto-exported failed downloads to: $exportPath');
+        }
+      }
+    } else if (!stoppedWhilePaused && _totalQueuedAtStart > 0) {
+      await NotificationDownload.showQueueCanceled(
+        canceledCount: _totalQueuedAtStart,
+      );
+    }
+
+    if (stoppedWhilePaused) {
+      _log.i('Queue processing paused');
+    } else {
+      _log.i('Queue processing finished');
+    }
+    state = state.copyWith(isProcessing: false, currentDownload: null);
+
+    final hasQueuedItems = state.items.any(
+      (item) => item.status == DownloadStatus.queued,
+    );
+    if (hasQueuedItems && !state.isPaused) {
+      _log.i(
+        'Found queued items after processing finished, restarting queue...',
+      );
+      Future.microtask(() => _processQueue());
+    }
+  }
+
+  Future<void> _processQueueParallel() async {
+    final activeDownloads = <String, Future<void>>{};
+    var lastLoggedMaxConcurrent = -1;
+
+    _startMultiProgressPolling();
+
+    while (true) {
+      if (state.isPaused) {
+        if (activeDownloads.isEmpty) {
+          _log.d('Queue is paused and no active downloads remain');
+          break;
+        }
+        _log.d('Queue is paused, waiting for active downloads...');
+        await Future.any([
+          Future.wait(activeDownloads.values),
+          Future<void>.delayed(_queueSchedulingInterval),
+        ]);
+        continue;
+      }
+
+      // Force maxConcurrent to 1 as requested to ensure strictly sequential processing
+      const maxConcurrent = 1;
+      if (lastLoggedMaxConcurrent != maxConcurrent) {
+        _log.d('Queue worker max concurrency: $maxConcurrent (strictly sequential)');
+        lastLoggedMaxConcurrent = maxConcurrent;
+      }
+
+      final queuedItems = state.items
+          .where(
+            (item) =>
+                item.status == DownloadStatus.queued &&
+                !_pausePendingItemIds.contains(item.id),
+          )
+          .toList();
+
+      if (queuedItems.isEmpty && activeDownloads.isEmpty) {
+        _log.d('No more items to process');
+        break;
+      }
+
+      while (activeDownloads.length < maxConcurrent &&
+          queuedItems.isNotEmpty &&
+          !state.isPaused) {
+        final item = queuedItems.removeAt(0);
+
+        updateItemStatus(item.id, DownloadStatus.downloading);
+
+        final future = _downloadSingleItem(item).whenComplete(() {
+          activeDownloads.remove(item.id);
+          PlatformBridge.clearItemProgress(item.id).catchError((_) {});
+        });
+
+        activeDownloads[item.id] = future;
+        _log.d(
+          'Started download: ${item.track.name} (Sequential queue: ${activeDownloads.length}/$maxConcurrent active)',
+        );
+      }
+
+      if (activeDownloads.isNotEmpty) {
+        await Future.any([
+          Future.any(activeDownloads.values),
+          Future<void>.delayed(_queueSchedulingInterval),
+        ]);
+        
+        // Mandatory wait after ANY download activity to prevent "sobresaturación"
+        if (activeDownloads.isEmpty) {
+          _log.d('Track finished, waiting 1s before next one...');
+          await Future<void>.delayed(const Duration(seconds: 1));
+        }
+      } else {
+        await Future<void>.delayed(_queueSchedulingInterval);
+      }
+    }
+
+    if (activeDownloads.isNotEmpty) {
+      await Future.wait(activeDownloads.values);
+    }
+
+    _stopProgressPolling();
+    final remainingIds = state.items.map((item) => item.id).toSet();
+    _locallyCancelledItemIds.removeWhere((id) => !remainingIds.contains(id));
+    _pausePendingItemIds.removeWhere((id) => !remainingIds.contains(id));
+  }
+
+  Future<void> _downloadSingleItem(DownloadItem item) async {
+    final normalizedService = _normalizeQueuedService(item.service);
+    if (normalizedService != item.service) {
+      item = item.copyWith(service: normalizedService);
+      state = state.copyWith(
+        items: [
+          for (final existing in state.items)
+            if (existing.id == item.id) item else existing,
+        ],
+        currentDownload: state.currentDownload?.id == item.id
+            ? item
+            : state.currentDownload,
+      );
+      _saveQueueToStorage();
+    }
+
+    // 1. DUPLICATE DETECTION: Check if already in history/library
+    final historyState = ref.read(downloadHistoryProvider);
+    final existing = historyState.getBySpotifyId(item.track.id) ?? 
+                    (item.track.isrc != null && item.track.isrc!.isNotEmpty ? historyState.getByIsrc(item.track.isrc!) : null) ??
+                    historyState.findByTrackAndArtist(item.track.name, item.track.artistName);
+
+    if (existing != null) {
+      _log.i('Track already in library: ${item.track.name}. Skipping download.');
+      updateItemStatus(item.id, DownloadStatus.completed);
+      _completedInSession++;
+      // Breath after skipping to prevent saturation
+      await Future.delayed(const Duration(seconds: 1));
+      return;
+    }
+
+    // 2. DETAILED PREMIUM CHECK
+    final premiumStatus = await PremiumService.getDetailedStatus();
+    if (premiumStatus == PremiumStatus.none || premiumStatus == PremiumStatus.expired) {
+      final errorMsg = premiumStatus == PremiumStatus.expired 
+          ? 'Prueba gratuita vencida. Requiere Premium.' 
+          : 'Requiere Premium/Prueba para descargar';
+      
+      _log.w('Premium check failed for ${item.track.name}: ${premiumStatus.name}');
+      updateItemStatus(
+        item.id,
+        DownloadStatus.failed,
+        error: errorMsg,
+        errorType: DownloadErrorType.premium,
+      );
+      // Breath after error to prevent saturation
+      await Future.delayed(const Duration(seconds: 1));
+      return;
+    }
+    
+    // Log active status for clarity in logs
+    _log.i('Processing download with ${premiumStatus == PremiumStatus.freeTrial ? "FREE TRIAL" : "PREMIUM"} status');
+
+    if (!_hasActiveDownloadProvider(item.service)) {
+      updateItemStatus(
+        item.id,
+        DownloadStatus.failed,
+        error: 'Download provider is no longer available',
+        errorType: DownloadErrorType.notFound,
+      );
+      return;
+    }
+
+    _log.d('Processing: ${item.track.name} by ${item.track.artistName}');
+    _log.d('Cover URL: ${item.track.coverUrl}');
+    var pausedDuringThisRun = false;
+
+    final currentItem = _findItemById(item.id) ?? item;
+    if (_isLocallyCancelled(item.id, item: currentItem)) {
+      _log.i('Download was cancelled before start, skipping');
+      return;
+    }
+
+    if (_isPausePending(item.id)) {
+      pausedDuringThisRun = true;
+      _requeueItemForPause(item.id);
+      _log.i('Download is pause-pending before start, skipping');
+      return;
+    }
+
+    state = state.copyWith(currentDownload: item);
+
+    updateItemStatus(item.id, DownloadStatus.downloading);
+
+    try {
+      bool shouldAbortWork(String stage) {
+        final current = _findItemById(item.id);
+        if (_isLocallyCancelled(item.id, item: current)) {
+          _log.i('Download was cancelled $stage, skipping');
+          return true;
+        }
+        if (_isPausePending(item.id)) {
+          pausedDuringThisRun = true;
+          _requeueItemForPause(item.id);
+          _log.i('Download pause requested $stage, re-queueing');
+          return true;
+        }
+        return false;
+      }
+
+      final settings = ref.read(settingsProvider);
+      final metadataEmbeddingEnabled = settings.embedMetadata;
+
+      Track trackToDownload = item.track;
+      final needsEnrichment =
+          trackToDownload.id.startsWith('deezer:') &&
+          (trackToDownload.isrc == null ||
+              trackToDownload.isrc!.isEmpty ||
+              trackToDownload.trackNumber == null ||
+              trackToDownload.trackNumber == 0 ||
+              trackToDownload.totalTracks == null ||
+              trackToDownload.totalTracks == 0 ||
+              (trackToDownload.composer == null ||
+                  trackToDownload.composer!.isEmpty));
+
+      if (needsEnrichment) {
+        try {
+          _log.d(
+            'Enriching incomplete metadata for Deezer track: ${trackToDownload.name}',
+          );
+          _log.d(
+            'Current ISRC: ${trackToDownload.isrc}, TrackNumber: ${trackToDownload.trackNumber}',
+          );
+          final rawId = trackToDownload.id.startsWith('deezer:')
+              ? trackToDownload.id.substring('deezer:'.length)
+              : trackToDownload.id;
+          _log.d('Fetching full metadata for Deezer ID: $rawId');
+          final fullData = await PlatformBridge.getProviderMetadata(
+            'deezer',
+            'track',
+            rawId,
+          );
+          _log.d('Got response keys: ${fullData.keys.toList()}');
+
+          if (fullData.containsKey('track')) {
+            final trackData = fullData['track'];
+            _log.d('Track data type: ${trackData.runtimeType}');
+            if (trackData is Map<String, dynamic>) {
+              final data = trackData;
+              _log.d('Track data keys: ${data.keys.toList()}');
+              _log.d('ISRC from API: ${data['isrc']}');
+              _log.d('album_type from API: ${data['album_type']}');
+              final enrichedTotalTracks = _parsePositiveInt(
+                data['total_tracks'],
+              );
+              final enrichedTotalDiscs = _parsePositiveInt(data['total_discs']);
+              final enrichedComposer = normalizeOptionalString(
+                data['composer']?.toString(),
+              );
+              final enrichedName = normalizeOptionalString(data['name']?.toString());
+              final enrichedArtist = normalizeOptionalString(data['artists']?.toString());
+              final enrichedAlbum = normalizeOptionalString(data['album_name']?.toString());
+              final enrichedIsrc = normalizeOptionalString(data['isrc']?.toString());
+              final enrichedCover = normalizeOptionalString(data['images']?.toString());
+              final enrichedRelease = normalizeOptionalString(data['release_date']?.toString());
+              final enrichedAlbumType = normalizeOptionalString(data['album_type']?.toString());
+              trackToDownload = Track(
+                id: (data['spotify_id'] as String?) ?? trackToDownload.id,
+                name: enrichedName ?? trackToDownload.name,
+                artistName: enrichedArtist ?? trackToDownload.artistName,
+                albumName: enrichedAlbum ?? trackToDownload.albumName,
+                albumArtist: normalizeOptionalString(data['album_artist']?.toString()),
+                artistId:
+                    (data['artist_id'] ?? data['artistId'])?.toString() ??
+                    trackToDownload.artistId,
+                albumId:
+                    data['album_id']?.toString() ?? trackToDownload.albumId,
+                coverUrl: enrichedCover ?? trackToDownload.coverUrl,
+                duration:
+                    ((data['duration_ms'] as int?) ??
+                        (trackToDownload.duration * 1000)) ~/
+                    1000,
+                isrc: enrichedIsrc ?? trackToDownload.isrc,
+                trackNumber: data['track_number'] as int?,
+                discNumber: data['disc_number'] as int?,
+                totalDiscs: enrichedTotalDiscs ?? trackToDownload.totalDiscs,
+                releaseDate: enrichedRelease,
+                deezerId: rawId,
+                availability: trackToDownload.availability,
+                albumType: enrichedAlbumType ?? trackToDownload.albumType,
+                totalTracks: enrichedTotalTracks ?? trackToDownload.totalTracks,
+                composer: enrichedComposer ?? trackToDownload.composer,
+                source: trackToDownload.source,
+              );
+              _log.d(
+                'Metadata enriched: Track ${trackToDownload.trackNumber}, Disc ${trackToDownload.discNumber}, ISRC ${trackToDownload.isrc}, AlbumType ${trackToDownload.albumType}',
+              );
+            } else {
+              _log.w('Unexpected track data type: ${trackData.runtimeType}');
+            }
+          } else {
+            _log.w('Response does not contain track key');
+          }
+        } catch (e, stack) {
+          _log.w('Failed to enrich metadata: $e');
+          _log.w('Stack trace: $stack');
+        }
+
+        if (shouldAbortWork('during metadata enrichment')) {
+          return;
+        }
+      }
+
+      _log.d('Track coverUrl after enrichment: ${trackToDownload.coverUrl}');
+
+      final resolvedAlbumArtist = _resolveAlbumArtistForMetadata(
+        trackToDownload,
+        settings,
+      );
+
+      var quality = item.qualityOverride ?? state.audioQuality;
+      if (quality == 'DEFAULT') quality = state.audioQuality;
+      final isSafMode = _isSafMode(settings);
+      final relativeOutputDir = isSafMode
+          ? await _buildRelativeOutputDir(trackToDownload, playlistName: item.playlistName)
+          : '';
+      String? appOutputDir;
+      final initialOutputDir = isSafMode
+          ? relativeOutputDir
+          : await _buildOutputDir(trackToDownload, playlistName: item.playlistName);
+      var effectiveOutputDir = isSafMode
+          ? _sanitizeSafRelativeDir(initialOutputDir)
+          : initialOutputDir;
+      var effectiveSafMode = isSafMode;
+
+      String? safFileName;
+      String? safBaseName;
+      String safOutputExt = _determineOutputExt(quality, item.service);
+      if (isSafMode) {
+        final effectiveFormat = state.filenameFormat;
+        final baseName = await PlatformBridge.buildFilename(effectiveFormat, {
+          'title': trackToDownload.name,
+          'artist': trackToDownload.artistName,
+          'album': trackToDownload.albumName,
+          'track': trackToDownload.trackNumber ?? 0,
+          'disc': trackToDownload.discNumber ?? 0,
+          'year': _extractYear(trackToDownload.releaseDate) ?? '',
+          'date': trackToDownload.releaseDate ?? '',
+        });
+        safFileName = await _buildSafFileName(baseName, safOutputExt);
+        safBaseName = safFileName.replaceFirst(RegExp(r'\.[^.]+$'), '');
+      }
+      String? finalSafFileName = safFileName;
+
+      String? genre;
+      String? label;
+      String? copyright;
+      final extensionState = ref.read(extensionProvider);
+      final selectedExtensionDownloadProvider =
+          settings.useExtensionProviders &&
+          extensionState.extensions.any(
+            (e) =>
+                e.enabled &&
+                e.hasDownloadProvider &&
+                e.id.toLowerCase() == item.service.toLowerCase(),
+          );
+      final trackSource = (trackToDownload.source ?? '').trim().toLowerCase();
+      final shouldSkipExtensionSongLinkPrelookup =
+          trackSource.isNotEmpty &&
+          extensionState.extensions.any(
+            (e) =>
+                e.enabled &&
+                e.hasMetadataProvider &&
+                e.id.toLowerCase() == trackSource,
+          );
+
+      String? deezerTrackId = _extractKnownDeezerTrackId(trackToDownload);
+
+      if (deezerTrackId == null &&
+          trackToDownload.isrc != null &&
+          trackToDownload.isrc!.isNotEmpty &&
+          _isValidISRC(trackToDownload.isrc!)) {
+        deezerTrackId = await _searchDeezerTrackIdByIsrc(
+          trackToDownload.isrc,
+          lookupContext: 'ISRC',
+          itemId: item.id,
+        );
+
+        if (shouldAbortWork('during Deezer ISRC lookup')) {
+          return;
+        }
+      }
+
+      // For tidal:/qobuz: tracks without ISRC, resolve ISRC from provider
+      // API directly (faster than SongLink and avoids rate limits).
+      if (deezerTrackId == null &&
+          (trackToDownload.isrc == null ||
+              trackToDownload.isrc!.isEmpty ||
+              !_isValidISRC(trackToDownload.isrc!)) &&
+          (trackToDownload.id.startsWith('tidal:') ||
+              trackToDownload.id.startsWith('qobuz:'))) {
+        final providerLookup = await _resolveProviderTrackForDeezerLookup(
+          trackToDownload,
+          item.id,
+        );
+        trackToDownload = providerLookup.track;
+        deezerTrackId ??= providerLookup.deezerTrackId;
+
+        if (shouldAbortWork('during provider ISRC resolution')) {
+          return;
+        }
+      }
+
+      if (!selectedExtensionDownloadProvider &&
+          deezerTrackId == null &&
+          !shouldSkipExtensionSongLinkPrelookup &&
+          trackToDownload.id.isNotEmpty &&
+          !trackToDownload.id.startsWith('deezer:') &&
+          !trackToDownload.id.startsWith('extension:') &&
+          !trackToDownload.id.startsWith('tidal:') &&
+          !trackToDownload.id.startsWith('qobuz:')) {
+        final spotifyLookup = await _resolveSpotifyTrackViaDeezer(
+          trackToDownload,
+        );
+        trackToDownload = spotifyLookup.track;
+        deezerTrackId ??= spotifyLookup.deezerTrackId;
+
+        if (shouldAbortWork('during SongLink availability lookup')) {
+          return;
+        }
+      } else if (selectedExtensionDownloadProvider && deezerTrackId == null) {
+        _log.d(
+          'Skipping Flutter SongLink Deezer prelookup for extension provider: ${item.service}',
+        );
+      } else if (shouldSkipExtensionSongLinkPrelookup &&
+          deezerTrackId == null) {
+        _log.d(
+          'Skipping Flutter SongLink Deezer prelookup for extension-sourced track; backend metadata enrichment will resolve identifiers first',
+        );
+      }
+
+      if (deezerTrackId != null && deezerTrackId.isNotEmpty) {
+        final extendedMetadata = await _loadDeezerExtendedMetadata(
+          deezerTrackId,
+        );
+        genre = extendedMetadata.genre;
+        label = extendedMetadata.label;
+        copyright = extendedMetadata.copyright;
+
+        if (shouldAbortWork('during extended metadata lookup')) {
+          return;
+        }
+      }
+
+      Map<String, dynamic> result;
+
+      final hasActiveExtensions = extensionState.extensions.any(
+        (e) => e.enabled,
+      );
+      final postProcessingEnabled =
+          settings.useExtensionProviders &&
+          extensionState.extensions.any(
+            (e) => e.enabled && e.hasPostProcessing,
+          );
+      final useExtensions =
+          settings.useExtensionProviders && hasActiveExtensions;
+
+      Future<Map<String, dynamic>> runDownload({
+        required bool useSaf,
+        required String outputDir,
+      }) async {
+        final storageMode = useSaf ? 'saf' : 'app';
+        final treeUri = useSaf ? settings.downloadTreeUri : '';
+        final relativeDir = useSaf ? outputDir : '';
+        final fileName = useSaf ? (safFileName ?? '') : '';
+        final outputExt = useSaf ? safOutputExt : '';
+        final shouldUseExtensions = useExtensions;
+        final shouldUseFallback = state.autoFallback;
+
+        if (shouldUseExtensions) {
+          _log.d('Using extension providers for download');
+          _log.d(
+            'Quality: $quality${item.qualityOverride != null ? ' (override)' : ''}',
+          );
+        } else if (shouldUseFallback) {
+          _log.d('Using auto-fallback mode');
+          _log.d(
+            'Quality: $quality${item.qualityOverride != null ? ' (override)' : ''}',
+          );
+        }
+
+        if (!useSaf) {
+          await _ensureDirExists(outputDir, label: 'Output folder');
+        }
+
+        _log.d('Output dir: $outputDir');
+
+        final normalizedTrackNumber =
+            (trackToDownload.trackNumber != null &&
+                trackToDownload.trackNumber! > 0)
+            ? trackToDownload.trackNumber!
+            : 0;
+        final normalizedDiscNumber =
+            (trackToDownload.discNumber != null &&
+                trackToDownload.discNumber! > 0)
+            ? trackToDownload.discNumber!
+            : 0;
+
+        String payloadSpotifyId = trackToDownload.id;
+        String payloadQobuzId = '';
+        String payloadTidalId = '';
+        if (trackToDownload.id.startsWith('qobuz:')) {
+          payloadQobuzId = trackToDownload.id.substring(6);
+          if (_usesBuiltInCompatibleDownloadProvider(item.service, 'qobuz')) {
+            payloadSpotifyId = '';
+          }
+        }
+        if (trackToDownload.id.startsWith('tidal:')) {
+          payloadTidalId = trackToDownload.id.substring(6);
+          if (_usesBuiltInCompatibleDownloadProvider(item.service, 'tidal')) {
+            payloadSpotifyId = '';
+          }
+        }
+
+        final payload = DownloadRequestPayload(
+          isrc: trackToDownload.isrc ?? '',
+          service: item.service,
+          spotifyId: payloadSpotifyId,
+          trackName: trackToDownload.name,
+          artistName: trackToDownload.artistName,
+          albumName: trackToDownload.albumName,
+          albumArtist: resolvedAlbumArtist ?? '',
+          coverUrl: metadataEmbeddingEnabled
+              ? (trackToDownload.coverUrl ?? '')
+              : '',
+          outputDir: outputDir,
+          filenameFormat: state.filenameFormat,
+          quality: quality,
+          embedMetadata: metadataEmbeddingEnabled,
+          artistTagMode: settings.artistTagMode,
+          embedLyrics:
+              metadataEmbeddingEnabled &&
+              settings.embedLyrics &&
+              !_shouldSkipLyrics(
+                extensionState,
+                trackToDownload.source,
+                item.service,
+              ),
+          embedMaxQualityCover:
+              metadataEmbeddingEnabled && settings.maxQualityCover,
+          embedReplayGain: settings.embedReplayGain,
+          postProcessingEnabled: postProcessingEnabled,
+          tidalHighFormat: settings.tidalHighFormat,
+          trackNumber: normalizedTrackNumber,
+          discNumber: normalizedDiscNumber,
+          totalTracks: trackToDownload.totalTracks ?? 0,
+          totalDiscs: trackToDownload.totalDiscs ?? 0,
+          releaseDate: trackToDownload.releaseDate ?? '',
+          itemId: item.id,
+          durationMs: trackToDownload.duration * 1000,
+          source: trackToDownload.source ?? '',
+          genre: genre ?? '',
+          label: label ?? '',
+          copyright: copyright ?? '',
+          composer: trackToDownload.composer ?? '',
+          qobuzId: payloadQobuzId,
+          tidalId: payloadTidalId,
+          deezerId: deezerTrackId ?? '',
+          lyricsMode: settings.lyricsMode,
+          storageMode: storageMode,
+          safTreeUri: treeUri,
+          safRelativeDir: relativeDir,
+          safFileName: fileName,
+          safOutputExt: outputExt,
+          songLinkRegion: settings.songLinkRegion,
+          isPremium: settings.isPremium,
+          premiumUntil: settings.premiumUntil,
+        );
+
+        return PlatformBridge.downloadByStrategy(
+          payload: payload,
+          useExtensions: shouldUseExtensions,
+          useFallback: shouldUseFallback,
+        );
+      }
+
+      if (shouldAbortWork('before native download start')) {
+        return;
+      }
+
+      result = await runDownload(
+        useSaf: effectiveSafMode,
+        outputDir: effectiveOutputDir,
+      );
+
+      if (effectiveSafMode &&
+          result['success'] != true &&
+          _isSafWriteFailure(result)) {
+        if (_isLocallyCancelled(item.id)) {
+          _log.i('Download was cancelled before SAF fallback, skipping');
+          return;
+        }
+        _log.w('SAF write failed, retrying with app-private storage');
+        appOutputDir ??= await _buildOutputDir(
+          trackToDownload,
+          playlistName: item.playlistName,
+        );
+        final fallbackResult = await runDownload(
+          useSaf: false,
+          outputDir: appOutputDir,
+        );
+        if (fallbackResult['success'] == true) {
+          effectiveSafMode = false;
+          effectiveOutputDir = appOutputDir;
+          finalSafFileName = null;
+          result = fallbackResult;
+        }
+      }
+
+      _log.d('Result: $result');
+
+      final itemAfterResult = _findItemById(item.id);
+      if (itemAfterResult == null ||
+          _isLocallyCancelled(item.id, item: itemAfterResult)) {
+        _log.i('Download was cancelled, skipping result processing');
+        final filePath = result['file_path'] as String?;
+        if (filePath != null && result['success'] == true) {
+          await deleteFile(filePath);
+          _log.d('Deleted cancelled download file: $filePath');
+        }
+        return;
+      }
+
+      if (_isPausePending(item.id)) {
+        pausedDuringThisRun = true;
+        final filePath = result['file_path'] as String?;
+        if (filePath != null && result['success'] == true) {
+          await deleteFile(filePath);
+          _log.d('Deleted paused download file: $filePath');
+        }
+        _requeueItemForPause(item.id);
+        _log.i('Download pause requested after result, re-queueing');
+        return;
+      }
+
+      if (result['success'] == true) {
+        var filePath = result['file_path'] as String?;
+        final reportedFileName = result['file_name'] as String?;
+        if (effectiveSafMode &&
+            reportedFileName != null &&
+            reportedFileName.isNotEmpty) {
+          finalSafFileName = reportedFileName;
+        }
+
+        final wasExisting = result['already_exists'] == true;
+        if (wasExisting) {
+          _log.i('File already exists in library: $filePath');
+        }
+
+        _log.i('Download success, file: $filePath');
+
+        final actualBitDepth = result['actual_bit_depth'] as int?;
+        final actualSampleRate = result['actual_sample_rate'] as int?;
+        String actualQuality = quality;
+
+        if (actualBitDepth != null && actualBitDepth > 0) {
+          final sampleRateKHz = actualSampleRate != null && actualSampleRate > 0
+              ? (actualSampleRate / 1000).toStringAsFixed(
+                  actualSampleRate % 1000 == 0 ? 0 : 1,
+                )
+              : '?';
+          actualQuality = '$actualBitDepth-bit/${sampleRateKHz}kHz';
+          _log.i('Actual quality: $actualQuality');
+        }
+
+        final actualService =
+            ((result['service'] as String?)?.toLowerCase()) ??
+            item.service.toLowerCase();
+        final preferredOutputExt = _extensionPreferredOutputExt(actualService);
+        final shouldPreserveNativeM4a =
+            preferredOutputExt == '.m4a' ||
+            preferredOutputExt == '.mp4' ||
+            _extensionPreservesNativeOutputExt(actualService, '.m4a') ||
+            _extensionPreservesNativeOutputExt(actualService, '.mp4');
+        final decryptionDescriptor =
+            DownloadDecryptionDescriptor.fromDownloadResult(result);
+        trackToDownload = _buildTrackForMetadataEmbedding(
+          trackToDownload,
+          result,
+          resolvedAlbumArtist,
+        );
+        _log.d(
+          'Track coverUrl after download result: ${trackToDownload.coverUrl}',
+        );
+
+        if (!wasExisting && decryptionDescriptor != null && filePath != null) {
+          _log.i(
+            'Encrypted stream detected, decrypting via ${decryptionDescriptor.normalizedStrategy}...',
+          );
+          updateItemStatus(item.id, DownloadStatus.finalizing, progress: 0.9);
+
+          if (effectiveSafMode && isContentUri(filePath)) {
+            final currentFilePath = filePath;
+            final tempPath = await _copySafToTemp(currentFilePath);
+            if (tempPath == null) {
+              _log.e('Failed to copy encrypted SAF file to temp for decrypt');
+              updateItemStatus(
+                item.id,
+                DownloadStatus.failed,
+                error: 'Failed to access encrypted SAF file',
+                errorType: DownloadErrorType.unknown,
+              );
+              return;
+            }
+
+            String? decryptedTempPath;
+            try {
+              decryptedTempPath = await FFmpegService.decryptWithDescriptor(
+                inputPath: tempPath,
+                descriptor: decryptionDescriptor,
+                deleteOriginal: false,
+              );
+              if (decryptedTempPath == null) {
+                _log.e('FFmpeg decrypt failed for SAF file');
+                updateItemStatus(
+                  item.id,
+                  DownloadStatus.failed,
+                  error: 'Failed to decrypt encrypted stream',
+                  errorType: DownloadErrorType.unknown,
+                );
+                return;
+              }
+
+              final dotIndex = decryptedTempPath.lastIndexOf('.');
+              final decryptedExt = dotIndex >= 0
+                  ? decryptedTempPath.substring(dotIndex).toLowerCase()
+                  : '.flac';
+              final allowedExt = <String>{
+                '.flac',
+                '.m4a',
+                '.mp4',
+                '.mp3',
+                '.opus',
+              };
+              final finalExt = allowedExt.contains(decryptedExt)
+                  ? decryptedExt
+                  : '.flac';
+
+              final newFileName = '${safBaseName ?? 'track'}$finalExt';
+              final newUri = await _writeTempToSaf(
+                treeUri: settings.downloadTreeUri,
+                relativeDir: effectiveOutputDir,
+                fileName: newFileName,
+                mimeType: _mimeTypeForExt(finalExt),
+                srcPath: decryptedTempPath,
+              );
+
+              if (newUri == null) {
+                _log.e('Failed to write decrypted stream back to SAF');
+                updateItemStatus(
+                  item.id,
+                  DownloadStatus.failed,
+                  error: 'Failed to write decrypted file to storage',
+                  errorType: DownloadErrorType.unknown,
+                );
+                return;
+              }
+
+              if (newUri != currentFilePath) {
+                await _deleteSafFile(currentFilePath);
+              }
+              filePath = newUri;
+              finalSafFileName = newFileName;
+              _log.i('SAF decryption completed');
+            } finally {
+              try {
+                await File(tempPath).delete();
+              } catch (e) {}
+              if (decryptedTempPath != null && decryptedTempPath != tempPath) {
+                try {
+                  await File(decryptedTempPath).delete();
+                } catch (e) {}
+              }
+            }
+          } else {
+            final decryptedPath = await FFmpegService.decryptWithDescriptor(
+              inputPath: filePath,
+              descriptor: decryptionDescriptor,
+              deleteOriginal: true,
+            );
+            if (decryptedPath == null) {
+              _log.e('FFmpeg decrypt failed for local file');
+              updateItemStatus(
+                item.id,
+                DownloadStatus.failed,
+                error: 'Failed to decrypt encrypted stream',
+                errorType: DownloadErrorType.unknown,
+              );
+              try {
+                await deleteFile(filePath);
+              } catch (e) {}
+              return;
+            }
+            filePath = decryptedPath;
+            _log.i('Local decryption completed');
+          }
+        }
+
+        final isContentUriPath = filePath != null && isContentUri(filePath);
+        final mimeType = isContentUriPath
+            ? await _getSafMimeType(filePath)
+            : null;
+        final isM4aFile =
+            filePath != null &&
+            (filePath.endsWith('.m4a') ||
+                filePath.endsWith('.mp4') ||
+                (mimeType != null && mimeType.contains('mp4')));
+        final isFlacFile =
+            filePath != null &&
+            (filePath.endsWith('.flac') ||
+                (mimeType != null && mimeType.contains('flac')));
+        final shouldForceTidalSafM4aHandling =
+            !wasExisting &&
+            isContentUriPath &&
+            effectiveSafMode &&
+            _usesBuiltInCompatibleDownloadProvider(actualService, 'tidal') &&
+            filePath.endsWith('.flac') &&
+            (mimeType == null || mimeType.contains('flac'));
+
+        if (shouldForceTidalSafM4aHandling) {
+          _log.w(
+            'Tidal SAF file is labeled FLAC but backend returned DASH/M4A stream; converting it back to FLAC.',
+          );
+        }
+
+        if (isM4aFile || shouldForceTidalSafM4aHandling) {
+          final currentFilePath = filePath;
+
+          if (isContentUriPath && effectiveSafMode) {
+            if (quality == 'HIGH') {
+              final tidalHighFormat = settings.tidalHighFormat;
+              _log.i(
+                'Tidal HIGH quality (SAF), converting M4A to $tidalHighFormat...',
+              );
+
+              final tempPath = await _copySafToTemp(currentFilePath);
+              if (tempPath != null) {
+                String? convertedPath;
+                try {
+                  updateItemStatus(
+                    item.id,
+                    DownloadStatus.finalizing,
+                    progress: 0.95,
+                  );
+
+                  final format = tidalHighFormat.startsWith('opus')
+                      ? 'opus'
+                      : 'mp3';
+                  convertedPath = await FFmpegService.convertM4aToLossy(
+                    tempPath,
+                    format: format,
+                    bitrate: tidalHighFormat,
+                    deleteOriginal: false,
+                  );
+
+                  if (convertedPath != null) {
+                    _log.i(
+                      'Successfully converted M4A to $format (temp): $convertedPath',
+                    );
+                    _log.i('Embedding metadata to $format...');
+                    updateItemStatus(
+                      item.id,
+                      DownloadStatus.finalizing,
+                      progress: 0.99,
+                    );
+
+                    final backendGenre = result['genre'] as String?;
+                    final backendLabel = result['label'] as String?;
+                    final backendCopyright = result['copyright'] as String?;
+
+                    if (format == 'mp3') {
+                      await _embedMetadataToFile(
+                        convertedPath,
+                        trackToDownload,
+                        format: 'mp3',
+                        genre: backendGenre ?? genre,
+                        label: backendLabel ?? label,
+                        copyright: backendCopyright,
+                        downloadService: item.service,
+                      );
+                    } else {
+                      await _embedMetadataToFile(
+                        convertedPath,
+                        trackToDownload,
+                        format: 'opus',
+                        genre: backendGenre ?? genre,
+                        label: backendLabel ?? label,
+                        copyright: backendCopyright,
+                        downloadService: item.service,
+                      );
+                    }
+
+                    final newExt = format == 'opus' ? '.opus' : '.mp3';
+                    final newFileName = '${safBaseName ?? 'track'}$newExt';
+                    final newUri = await _writeTempToSaf(
+                      treeUri: settings.downloadTreeUri,
+                      relativeDir: effectiveOutputDir,
+                      fileName: newFileName,
+                      mimeType: _mimeTypeForExt(newExt),
+                      srcPath: convertedPath,
+                    );
+
+                    if (newUri != null) {
+                      if (newUri != currentFilePath) {
+                        await _deleteSafFile(currentFilePath);
+                      }
+                      filePath = newUri;
+                      finalSafFileName = newFileName;
+                      final bitrateDisplay = tidalHighFormat.contains('_')
+                          ? '${tidalHighFormat.split('_').last}kbps'
+                          : '320kbps';
+                      actualQuality = '${format.toUpperCase()} $bitrateDisplay';
+                    } else {
+                      _log.w(
+                        'Failed to write converted $format to SAF, keeping M4A',
+                      );
+                      actualQuality = 'AAC 320kbps';
+                    }
+                  } else {
+                    _log.w(
+                      'M4A to $format conversion failed, keeping M4A file',
+                    );
+                    actualQuality = 'AAC 320kbps';
+                  }
+                } catch (e) {
+                  _log.w('SAF M4A conversion failed: $e');
+                  actualQuality = 'AAC 320kbps';
+                } finally {
+                  try {
+                    await File(tempPath).delete();
+                  } catch (e) {}
+                  if (convertedPath != null) {
+                    try {
+                      await File(convertedPath).delete();
+                    } catch (e) {}
+                  }
+                }
+              }
+            } else if (shouldPreserveNativeM4a ||
+                currentFilePath.toLowerCase().endsWith('.mp4') ||
+                decryptionDescriptor != null) {
+              // Decrypted streams are already in their final format.
+              // Converting e.g. eac3 M4A to FLAC would produce fake upscaled output.
+              _log.d(
+                'M4A/MP4 file detected (SAF), preserving native container...',
+              );
+              final tempPath = await _copySafToTemp(currentFilePath);
+              if (tempPath != null) {
+                try {
+                  if (metadataEmbeddingEnabled) {
+                    updateItemStatus(
+                      item.id,
+                      DownloadStatus.finalizing,
+                      progress: 0.99,
+                    );
+                    final finalTrack = _buildTrackForMetadataEmbedding(
+                      trackToDownload,
+                      result,
+                      resolvedAlbumArtist,
+                    );
+                    final backendGenre = result['genre'] as String?;
+                    final backendLabel = result['label'] as String?;
+                    final backendCopyright = result['copyright'] as String?;
+
+                    await _embedMetadataToFile(
+                      tempPath,
+                      finalTrack,
+                      format: 'm4a',
+                      genre: backendGenre ?? genre,
+                      label: backendLabel ?? label,
+                      copyright: backendCopyright,
+                      downloadService: item.service,
+                      writeExternalLrc: false,
+                    );
+                  }
+
+                  final preserveExt =
+                      currentFilePath.toLowerCase().endsWith('.mp4')
+                      ? '.mp4'
+                      : '.m4a';
+                  final newFileName = '${safBaseName ?? 'track'}$preserveExt';
+                  final newUri = await _writeTempToSaf(
+                    treeUri: settings.downloadTreeUri,
+                    relativeDir: effectiveOutputDir,
+                    fileName: newFileName,
+                    mimeType: _mimeTypeForExt(preserveExt),
+                    srcPath: tempPath,
+                  );
+
+                  if (newUri != null) {
+                    if (newUri != currentFilePath) {
+                      await _deleteSafFile(currentFilePath);
+                    }
+                    filePath = newUri;
+                    finalSafFileName = newFileName;
+                  } else {
+                    _log.w('Failed to write M4A to SAF, keeping original');
+                  }
+                } catch (e) {
+                  _log.w('SAF native M4A handling failed: $e');
+                } finally {
+                  try {
+                    await File(tempPath).delete();
+                  } catch (e) {}
+                }
+              }
+            } else {
+              _log.d('M4A file detected (SAF), converting to FLAC...');
+              final tempPath = await _copySafToTemp(currentFilePath);
+              if (tempPath != null) {
+                String? flacPath;
+                try {
+                  final length = await File(tempPath).length();
+                  if (length < 1024) {
+                    _log.w('Temp M4A is too small (<1KB), skipping conversion');
+                  } else {
+                    updateItemStatus(
+                      item.id,
+                      DownloadStatus.finalizing,
+                      progress: 0.95,
+                    );
+                    flacPath = await FFmpegService.convertM4aToFlac(tempPath);
+                    if (flacPath != null) {
+                      _log.d('Converted to FLAC (temp): $flacPath');
+                      _log.d(
+                        'Embedding metadata and cover to converted FLAC...',
+                      );
+                      final finalTrack = _buildTrackForMetadataEmbedding(
+                        trackToDownload,
+                        result,
+                        resolvedAlbumArtist,
+                      );
+
+                      final backendGenre = result['genre'] as String?;
+                      final backendLabel = result['label'] as String?;
+                      final backendCopyright = result['copyright'] as String?;
+
+                      await _embedMetadataToFile(
+                        flacPath,
+                        finalTrack,
+                        format: 'flac',
+                        genre: backendGenre ?? genre,
+                        label: backendLabel ?? label,
+                        copyright: backendCopyright,
+                        downloadService: item.service,
+                        writeExternalLrc: false,
+                      );
+
+                      final newFileName = '${safBaseName ?? 'track'}.flac';
+                      final newUri = await _writeTempToSaf(
+                        treeUri: settings.downloadTreeUri,
+                        relativeDir: effectiveOutputDir,
+                        fileName: newFileName,
+                        mimeType: _mimeTypeForExt('.flac'),
+                        srcPath: flacPath,
+                      );
+
+                      if (newUri != null) {
+                        if (newUri != currentFilePath) {
+                          await _deleteSafFile(currentFilePath);
+                        }
+                        filePath = newUri;
+                        finalSafFileName = newFileName;
+                      } else {
+                        _log.w('Failed to write FLAC to SAF, keeping M4A');
+                      }
+                    } else {
+                      _log.w(
+                        'FFmpeg conversion returned null, keeping M4A file',
+                      );
+                    }
+                  }
+                } catch (e) {
+                  _log.w('SAF M4A->FLAC conversion failed: $e');
+                } finally {
+                  try {
+                    await File(tempPath).delete();
+                  } catch (e) {}
+                  if (flacPath != null) {
+                    try {
+                      await File(flacPath).delete();
+                    } catch (e) {}
+                  }
+                }
+              }
+            }
+          } else {
+            if (quality == 'HIGH') {
+              final tidalHighFormat = settings.tidalHighFormat;
+              _log.i(
+                'Tidal HIGH quality download, converting M4A to $tidalHighFormat...',
+              );
+
+              try {
+                updateItemStatus(
+                  item.id,
+                  DownloadStatus.finalizing,
+                  progress: 0.95,
+                );
+
+                final format = tidalHighFormat.startsWith('opus')
+                    ? 'opus'
+                    : 'mp3';
+                final convertedPath = await FFmpegService.convertM4aToLossy(
+                  currentFilePath,
+                  format: format,
+                  bitrate: tidalHighFormat,
+                  deleteOriginal: true,
+                );
+
+                if (convertedPath != null) {
+                  filePath = convertedPath;
+                  final bitrateDisplay = tidalHighFormat.contains('_')
+                      ? '${tidalHighFormat.split('_').last}kbps'
+                      : '320kbps';
+                  actualQuality = '${format.toUpperCase()} $bitrateDisplay';
+                  _log.i(
+                    'Successfully converted M4A to $format: $convertedPath',
+                  );
+
+                  _log.i('Embedding metadata to $format...');
+                  updateItemStatus(
+                    item.id,
+                    DownloadStatus.finalizing,
+                    progress: 0.99,
+                  );
+
+                  final backendGenre = result['genre'] as String?;
+                  final backendLabel = result['label'] as String?;
+                  final backendCopyright = result['copyright'] as String?;
+
+                  if (format == 'mp3') {
+                    await _embedMetadataToFile(
+                      convertedPath,
+                      trackToDownload,
+                      format: 'mp3',
+                      genre: backendGenre ?? genre,
+                      label: backendLabel ?? label,
+                      copyright: backendCopyright,
+                      downloadService: item.service,
+                    );
+                  } else {
+                    await _embedMetadataToFile(
+                      convertedPath,
+                      trackToDownload,
+                      format: 'opus',
+                      genre: backendGenre ?? genre,
+                      label: backendLabel ?? label,
+                      copyright: backendCopyright,
+                      downloadService: item.service,
+                    );
+                  }
+                  _log.d('Metadata embedded successfully');
+                } else {
+                  _log.w('M4A to $format conversion failed, keeping M4A file');
+                  actualQuality = 'AAC 320kbps';
+                }
+              } catch (e) {
+                _log.w('M4A conversion process failed: $e, keeping M4A file');
+                actualQuality = 'AAC 320kbps';
+              }
+            } else if (shouldPreserveNativeM4a ||
+                currentFilePath.toLowerCase().endsWith('.mp4') ||
+                decryptionDescriptor != null) {
+              _log.d('M4A/MP4 file detected, preserving native container...');
+
+              try {
+                var targetPath = currentFilePath;
+                final file = File(targetPath);
+                if (!await file.exists()) {
+                  _log.e('File does not exist at path: $filePath');
+                } else {
+                  if (!(targetPath.toLowerCase().endsWith('.m4a') ||
+                      targetPath.toLowerCase().endsWith('.mp4'))) {
+                    final renamedPath = targetPath.replaceAll(
+                      RegExp(r'\.[^.]+$'),
+                      '.m4a',
+                    );
+                    final finalRenamedPath = renamedPath == targetPath
+                        ? '$targetPath.m4a'
+                        : renamedPath;
+                    await file.rename(finalRenamedPath);
+                    targetPath = finalRenamedPath;
+                    filePath = finalRenamedPath;
+                  } else {
+                    filePath = targetPath;
+                  }
+
+                  if (metadataEmbeddingEnabled) {
+                    updateItemStatus(
+                      item.id,
+                      DownloadStatus.finalizing,
+                      progress: 0.99,
+                    );
+                    final finalTrack = _buildTrackForMetadataEmbedding(
+                      trackToDownload,
+                      result,
+                      resolvedAlbumArtist,
+                    );
+
+                    final backendGenre = result['genre'] as String?;
+                    final backendLabel = result['label'] as String?;
+                    final backendCopyright = result['copyright'] as String?;
+
+                    await _embedMetadataToFile(
+                      targetPath,
+                      finalTrack,
+                      format: 'm4a',
+                      genre: backendGenre ?? genre,
+                      label: backendLabel ?? label,
+                      copyright: backendCopyright,
+                      downloadService: item.service,
+                    );
+                  }
+                }
+              } catch (e) {
+                _log.w('Native M4A handling failed: $e');
+              }
+            } else {
+              _log.d(
+                'M4A file detected (Hi-Res DASH stream), attempting conversion to FLAC...',
+              );
+
+              try {
+                final file = File(currentFilePath);
+                if (!await file.exists()) {
+                  _log.e('File does not exist at path: $filePath');
+                } else {
+                  final length = await file.length();
+                  _log.i('File size before conversion: ${length / 1024} KB');
+
+                  if (length < 1024) {
+                    _log.w(
+                      'File is too small (<1KB), skipping conversion. Download might be corrupt.',
+                    );
+                  } else {
+                    updateItemStatus(
+                      item.id,
+                      DownloadStatus.finalizing,
+                      progress: 0.95,
+                    );
+                    final flacPath = await FFmpegService.convertM4aToFlac(
+                      currentFilePath,
+                    );
+
+                    if (flacPath != null) {
+                      filePath = flacPath;
+                      _log.d('Converted to FLAC: $flacPath');
+
+                      _log.d(
+                        'Embedding metadata and cover to converted FLAC...',
+                      );
+                      try {
+                        final finalTrack = _buildTrackForMetadataEmbedding(
+                          trackToDownload,
+                          result,
+                          resolvedAlbumArtist,
+                        );
+
+                        final backendGenre = result['genre'] as String?;
+                        final backendLabel = result['label'] as String?;
+                        final backendCopyright = result['copyright'] as String?;
+
+                        if (backendGenre != null ||
+                            backendLabel != null ||
+                            backendCopyright != null) {
+                          _log.d(
+                            'Extended metadata from backend - Genre: $backendGenre, Label: $backendLabel, Copyright: $backendCopyright',
+                          );
+                        }
+
+                        await _embedMetadataToFile(
+                          flacPath,
+                          finalTrack,
+                          format: 'flac',
+                          genre: backendGenre ?? genre,
+                          label: backendLabel ?? label,
+                          copyright: backendCopyright,
+                          downloadService: item.service,
+                        );
+                        _log.d('Metadata and cover embedded successfully');
+                      } catch (e) {
+                        _log.w('Warning: Failed to embed metadata/cover: $e');
+                      }
+                    } else {
+                      _log.w(
+                        'FFmpeg conversion returned null, keeping M4A file',
+                      );
+                    }
+                  }
+                }
+              } catch (e) {
+                _log.w(
+                  'FFmpeg conversion process failed: $e, keeping M4A file',
+                );
+              }
+            }
+          }
+        } else if (metadataEmbeddingEnabled &&
+            isContentUriPath &&
+            effectiveSafMode &&
+            !isM4aFile &&
+            !wasExisting) {
+          final currentFilePath = filePath;
+          final isOpusFile = filePath.endsWith('.opus');
+          final isMp3File = filePath.endsWith('.mp3');
+          final ext = isOpusFile
+              ? '.opus'
+              : isMp3File
+              ? '.mp3'
+              : '.flac';
+          final formatName = isOpusFile
+              ? 'Opus'
+              : isMp3File
+              ? 'MP3'
+              : 'FLAC';
+          _log.d(
+            'SAF $formatName detected, embedding metadata and cover via temp file...',
+          );
+          final tempPath = await _copySafToTemp(currentFilePath);
+          if (tempPath != null) {
+            try {
+              updateItemStatus(
+                item.id,
+                DownloadStatus.finalizing,
+                progress: 0.99,
+              );
+
+              final finalTrack = _buildTrackForMetadataEmbedding(
+                trackToDownload,
+                result,
+                resolvedAlbumArtist,
+              );
+              final backendGenre = result['genre'] as String?;
+              final backendLabel = result['label'] as String?;
+              final backendCopyright = result['copyright'] as String?;
+
+              if (isMp3File) {
+                await _embedMetadataToFile(
+                  tempPath,
+                  finalTrack,
+                  format: 'mp3',
+                  genre: backendGenre ?? genre,
+                  label: backendLabel ?? label,
+                  copyright: backendCopyright,
+                  downloadService: item.service,
+                );
+              } else if (isOpusFile) {
+                await _embedMetadataToFile(
+                  tempPath,
+                  finalTrack,
+                  format: 'opus',
+                  genre: backendGenre ?? genre,
+                  label: backendLabel ?? label,
+                  copyright: backendCopyright,
+                  downloadService: item.service,
+                );
+              } else {
+                await _embedMetadataToFile(
+                  tempPath,
+                  finalTrack,
+                  format: 'flac',
+                  genre: backendGenre ?? genre,
+                  label: backendLabel ?? label,
+                  copyright: backendCopyright,
+                  downloadService: item.service,
+                  writeExternalLrc: false,
+                );
+              }
+
+              final newFileName = '${safBaseName ?? 'track'}$ext';
+              final newUri = await _writeTempToSaf(
+                treeUri: settings.downloadTreeUri,
+                relativeDir: effectiveOutputDir,
+                fileName: newFileName,
+                mimeType: _mimeTypeForExt(ext),
+                srcPath: tempPath,
+              );
+
+              if (newUri != null) {
+                if (newUri != currentFilePath) {
+                  await _deleteSafFile(currentFilePath);
+                }
+                filePath = newUri;
+                finalSafFileName = newFileName;
+                _log.d('SAF $formatName metadata embedding completed');
+              } else {
+                _log.w(
+                  'Failed to write metadata-updated $formatName back to SAF',
+                );
+              }
+            } catch (e) {
+              _log.w('SAF $formatName metadata embedding failed: $e');
+            } finally {
+              try {
+                await File(tempPath).delete();
+              } catch (e) {}
+            }
+          }
+        } else if (metadataEmbeddingEnabled &&
+            !isContentUriPath &&
+            !effectiveSafMode &&
+            isFlacFile &&
+            !wasExisting &&
+            decryptionDescriptor != null) {
+          _log.d(
+            'Local FLAC after decrypt detected, embedding metadata and cover...',
+          );
+          try {
+            updateItemStatus(
+              item.id,
+              DownloadStatus.finalizing,
+              progress: 0.99,
+            );
+
+            final finalTrack = _buildTrackForMetadataEmbedding(
+              trackToDownload,
+              result,
+              resolvedAlbumArtist,
+            );
+            final backendGenre = result['genre'] as String?;
+            final backendLabel = result['label'] as String?;
+            final backendCopyright = result['copyright'] as String?;
+
+            await _embedMetadataToFile(
+              filePath,
+              finalTrack,
+              format: 'flac',
+              genre: backendGenre ?? genre,
+              label: backendLabel ?? label,
+              copyright: backendCopyright,
+              downloadService: item.service,
+            );
+            _log.d('Local FLAC metadata embedding completed');
+          } catch (e) {
+            _log.w('Local FLAC metadata embedding failed: $e');
+          }
+        }
+
+        final itemAfterDownload = _findItemById(item.id);
+        if (itemAfterDownload == null ||
+            _isLocallyCancelled(item.id, item: itemAfterDownload)) {
+          _log.i('Download was cancelled during finalization, cleaning up');
+          if (filePath != null) {
+            await deleteFile(filePath);
+            _log.d('Deleted cancelled download file: $filePath');
+          }
+          return;
+        }
+
+        if (_isPausePending(item.id)) {
+          pausedDuringThisRun = true;
+          if (filePath != null) {
+            await deleteFile(filePath);
+            _log.d(
+              'Deleted paused download file during finalization: $filePath',
+            );
+          }
+          _requeueItemForPause(item.id);
+          _log.i('Download pause requested during finalization, re-queueing');
+          return;
+        }
+
+        if (effectiveSafMode &&
+            filePath != null &&
+            filePath.isNotEmpty &&
+            !isContentUri(filePath) &&
+            settings.downloadTreeUri.isNotEmpty) {
+          final fallbackName = (finalSafFileName ?? safFileName ?? '').trim();
+          if (fallbackName.isNotEmpty) {
+            try {
+              final resolved = await PlatformBridge.resolveSafFile(
+                treeUri: settings.downloadTreeUri,
+                relativeDir: effectiveOutputDir,
+                fileName: fallbackName,
+              );
+              final resolvedUri = (resolved['uri'] as String? ?? '').trim();
+              final resolvedRelativeDir =
+                  (resolved['relative_dir'] as String? ?? '').trim();
+              if (resolvedUri.isNotEmpty && isContentUri(resolvedUri)) {
+                _log.w('Recovered SAF URI from transient path: $filePath');
+                filePath = resolvedUri;
+                finalSafFileName = fallbackName;
+                if (resolvedRelativeDir.isNotEmpty) {
+                  effectiveOutputDir = resolvedRelativeDir;
+                }
+              } else {
+                _log.w(
+                  'Failed to recover SAF URI (fileName=$fallbackName, dir=$effectiveOutputDir)',
+                );
+              }
+            } catch (e) {
+              _log.w('SAF URI recovery failed: $e');
+            }
+          } else {
+            _log.w(
+              'SAF download returned non-URI path without filename metadata: $filePath',
+            );
+          }
+        }
+
+        updateItemStatus(
+          item.id,
+          DownloadStatus.completed,
+          progress: 1.0,
+          filePath: filePath,
+        );
+
+        final lyricsMode = settings.lyricsMode;
+        final shouldSaveExternalLrc =
+            metadataEmbeddingEnabled &&
+            settings.embedLyrics &&
+            !_shouldSkipLyrics(
+              extensionState,
+              trackToDownload.source,
+              item.service,
+            ) &&
+            (lyricsMode == 'external' || lyricsMode == 'both');
+        if (shouldSaveExternalLrc &&
+            effectiveSafMode &&
+            filePath != null &&
+            isContentUri(filePath)) {
+          String? lrcContent = result['lyrics_lrc'] as String?;
+          if (lrcContent == null || lrcContent.isEmpty) {
+            try {
+              lrcContent = await PlatformBridge.getLyricsLRC(
+                trackToDownload.id,
+                trackToDownload.name,
+                trackToDownload.artistName,
+                durationMs: trackToDownload.duration * 1000,
+              );
+            } catch (e) {
+              _log.w('Failed to fetch lyrics for external LRC: $e');
+            }
+          }
+
+          if (lrcContent != null && lrcContent.isNotEmpty) {
+            final baseName = finalSafFileName != null
+                ? finalSafFileName.replaceFirst(RegExp(r'\.[^.]+$'), '')
+                : safBaseName ??
+                      await PlatformBridge.sanitizeFilename(
+                        '${trackToDownload.artistName} - ${trackToDownload.name}',
+                      );
+            await _writeLrcToSaf(
+              treeUri: settings.downloadTreeUri,
+              relativeDir: effectiveOutputDir,
+              baseName: baseName,
+              lrcContent: lrcContent,
+            );
+          }
+        }
+
+        if (filePath != null) {
+          await _runPostProcessingHooks(filePath, trackToDownload);
+        }
+
+        // Album ReplayGain: update the accumulator path to the final file
+        // location.  For SAF downloads the metadata was embedded on a temp
+        // copy, so the stored path still points there.  Replace it with the
+        // actual output path (SAF content URI or local path) so the later
+        // album-gain writer targets the correct file.
+        if (filePath != null) {
+          _updateAlbumRgFilePath(trackToDownload, filePath);
+        }
+
+        // Album ReplayGain: check if all album tracks are now complete and,
+        // if so, compute and write album gain/peak to every track file.
+        try {
+          await _checkAndWriteAlbumReplayGain(trackToDownload);
+        } catch (e) {
+          _log.w('Album ReplayGain check failed: $e');
+        }
+
+        _completedInSession++;
+
+        final historyNotifier = ref.read(downloadHistoryProvider.notifier);
+        final existingInHistory =
+            await historyNotifier.getBySpotifyIdAsync(trackToDownload.id) ??
+            (trackToDownload.isrc != null
+                ? await historyNotifier.getByIsrcAsync(trackToDownload.isrc!)
+                : null);
+
+        if (wasExisting && existingInHistory != null) {
+          _log.i('Track already in library, skipping history update');
+          await NotificationDownload.showComplete(
+            trackName: item.track.name,
+            artistName: item.track.artistName,
+            completedCount: _completedInSession,
+            totalCount: _totalQueuedAtStart,
+            alreadyInLibrary: true,
+          );
+          removeItem(item.id);
+          return;
+        }
+
+        await NotificationDownload.showComplete(
+          trackName: item.track.name,
+          artistName: item.track.artistName,
+          completedCount: _completedInSession,
+          totalCount: _totalQueuedAtStart,
+          alreadyInLibrary: wasExisting,
+        );
+
+        if (filePath != null) {
+          final backendTitle = result['title'] as String?;
+          final backendArtist = result['artist'] as String?;
+          final backendAlbum = result['album'] as String?;
+          final backendYear = result['release_date'] as String?;
+          final backendTrackNum = _parsePositiveInt(result['track_number']);
+          final backendDiscNum = _parsePositiveInt(result['disc_number']);
+          final backendTotalTracks = _parsePositiveInt(result['total_tracks']);
+          final backendTotalDiscs = _parsePositiveInt(result['total_discs']);
+          final backendBitDepth = result['actual_bit_depth'] as int?;
+          final backendSampleRate = result['actual_sample_rate'] as int?;
+          final backendBitrateKbps = _readPositiveBitrateKbps(
+            result['bitrate'] ?? result['actual_bitrate'],
+          );
+          final backendISRC = result['isrc'] as String?;
+          final backendGenre = result['genre'] as String?;
+          final backendLabel = result['label'] as String?;
+          final backendCopyright = result['copyright'] as String?;
+          final backendComposer = result['composer'] as String?;
+          final backendService = result['service'] as String?;
+          final backendId = result['id'] as String? ?? result['track_id'] as String?;
+
+          // If fallback occurred, update trackToDownload with the new source/id
+          if (backendId != null && backendService != null) {
+            final fullBackendId =
+                backendId.contains(':') ? backendId : '$backendService:$backendId';
+            if (fullBackendId != trackToDownload.id) {
+              _log.i(
+                'Updating track source/id after fallback: ${trackToDownload.id} -> $fullBackendId',
+              );
+              trackToDownload = trackToDownload.copyWith(
+                id: fullBackendId,
+                source: backendService,
+              );
+            }
+          }
+          final effectiveGenre =
+              normalizeOptionalString(backendGenre) ??
+              normalizeOptionalString(genre) ??
+              normalizeOptionalString(existingInHistory?.genre);
+          final effectiveLabel =
+              normalizeOptionalString(backendLabel) ??
+              normalizeOptionalString(label) ??
+              normalizeOptionalString(existingInHistory?.label);
+          final effectiveCopyright =
+              normalizeOptionalString(backendCopyright) ??
+              normalizeOptionalString(copyright) ??
+              normalizeOptionalString(existingInHistory?.copyright);
+
+          int? finalBitDepth = backendBitDepth;
+          int? finalSampleRate = backendSampleRate;
+          int? finalBitrateKbps = backendBitrateKbps;
+          final lowerFilePath = filePath.toLowerCase();
+          final canProbeFinalMetadata =
+              filePath.startsWith('content://') ||
+              lowerFilePath.endsWith('.flac') ||
+              lowerFilePath.endsWith('.m4a') ||
+              lowerFilePath.endsWith('.mp4') ||
+              lowerFilePath.endsWith('.aac') ||
+              lowerFilePath.endsWith('.mp3') ||
+              lowerFilePath.endsWith('.opus') ||
+              lowerFilePath.endsWith('.ogg');
+
+          if (canProbeFinalMetadata) {
+            try {
+              final metadata = await PlatformBridge.readFileMetadata(filePath);
+              if (metadata['error'] == null) {
+                final probedBitDepth = metadata['bit_depth'] is num
+                    ? (metadata['bit_depth'] as num).toInt()
+                    : int.tryParse(metadata['bit_depth']?.toString() ?? '');
+                final probedSampleRate = metadata['sample_rate'] is num
+                    ? (metadata['sample_rate'] as num).toInt()
+                    : int.tryParse(metadata['sample_rate']?.toString() ?? '');
+
+                if (probedBitDepth != null && probedBitDepth > 0) {
+                  finalBitDepth = probedBitDepth;
+                }
+                if (probedSampleRate != null && probedSampleRate > 0) {
+                  finalSampleRate = probedSampleRate;
+                }
+                final probedBitrateKbps = _readPositiveBitrateKbps(
+                  metadata['bitrate'] ?? metadata['bit_rate'],
+                );
+                if (probedBitrateKbps != null && probedBitrateKbps > 0) {
+                  finalBitrateKbps = probedBitrateKbps;
+                }
+
+                final resolvedQuality = _resolveDisplayQuality(
+                  filePath: filePath,
+                  fileName: finalSafFileName,
+                  bitDepth: finalBitDepth,
+                  sampleRate: finalSampleRate,
+                  bitrateKbps: finalBitrateKbps,
+                  storedQuality: actualQuality,
+                );
+                if (resolvedQuality != null) {
+                  actualQuality = resolvedQuality;
+                }
+              }
+            } catch (e) {
+              _log.d('Final audio metadata probe failed for $filePath: $e');
+            }
+          }
+
+          _log.d('Saving to history - coverUrl: ${trackToDownload.coverUrl}');
+
+          final historyAlbumArtist = normalizeOptionalString(
+            trackToDownload.albumArtist,
+          );
+
+          final isLossyOutput =
+              lowerFilePath.endsWith('.mp3') ||
+              lowerFilePath.endsWith('.opus') ||
+              lowerFilePath.endsWith('.ogg');
+          final historyBitDepth = isLossyOutput ? null : finalBitDepth;
+          final historySampleRate = isLossyOutput ? null : finalSampleRate;
+          final historyTotalTracks = _resolvePositiveMetadataInt(
+            trackToDownload.totalTracks,
+            backendTotalTracks,
+          );
+          final historyTotalDiscs = _resolvePositiveMetadataInt(
+            trackToDownload.totalDiscs,
+            backendTotalDiscs,
+          );
+          final historyTrackNumber = _resolveMetadataIndex(
+            sourceValue: trackToDownload.trackNumber,
+            backendValue: backendTrackNum,
+            total: historyTotalTracks,
+          );
+          final historyDiscNumber = _resolveMetadataIndex(
+            sourceValue: trackToDownload.discNumber,
+            backendValue: backendDiscNum,
+            total: historyTotalDiscs,
+          );
+          final historyTitle =
+              _resolveMetadataText(trackToDownload.name, backendTitle) ??
+              item.track.name;
+          final historyArtist =
+              _resolveMetadataText(trackToDownload.artistName, backendArtist) ??
+              item.track.artistName;
+          final historyAlbum =
+              _resolveMetadataText(trackToDownload.albumName, backendAlbum) ??
+              item.track.albumName;
+          final historyIsrc = _resolveMetadataText(
+            trackToDownload.isrc,
+            backendISRC,
+          );
+          final historyReleaseDate = _resolveMetadataText(
+            trackToDownload.releaseDate,
+            backendYear,
+          );
+          final historyComposer = _resolveMetadataText(
+            trackToDownload.composer,
+            backendComposer,
+          );
+
+          // Remove item from queue immediately so UI updates without delay
+          removeItem(item.id);
+
+          // Background: add to history, extract cover, update library
+          unawaited(_finalizeDownload(
+            item: item,
+            filePath: filePath,
+            trackToDownload: trackToDownload,
+            historyTitle: historyTitle,
+            historyArtist: historyArtist,
+            historyAlbum: historyAlbum,
+            historyAlbumArtist: historyAlbumArtist,
+            effectiveSafMode: effectiveSafMode,
+            settings: settings,
+            effectiveOutputDir: effectiveOutputDir,
+            finalSafFileName: finalSafFileName,
+            safFileName: safFileName,
+            historyIsrc: historyIsrc,
+            historyTrackNumber: historyTrackNumber,
+            historyTotalTracks: historyTotalTracks,
+            historyDiscNumber: historyDiscNumber,
+            historyTotalDiscs: historyTotalDiscs,
+            actualQuality: actualQuality,
+            historyBitDepth: historyBitDepth,
+            historySampleRate: historySampleRate,
+            effectiveGenre: effectiveGenre,
+            historyComposer: historyComposer,
+            effectiveLabel: effectiveLabel,
+            effectiveCopyright: effectiveCopyright,
+            historyReleaseDate: historyReleaseDate,
+          ));
+        }
+      } else {
+        final itemAfterFailure = _findItemById(item.id);
+        if (itemAfterFailure == null ||
+            _isLocallyCancelled(item.id, item: itemAfterFailure)) {
+          _log.i('Download was cancelled, skipping error handling');
+          return;
+        }
+
+        if (_isPausePending(item.id)) {
+          pausedDuringThisRun = true;
+          _requeueItemForPause(item.id);
+          _log.i('Download pause requested after backend failure, re-queueing');
+          return;
+        }
+
+        final errorMsg = result['error'] as String? ?? 'Download failed';
+        final errorTypeStr = result['error_type'] as String? ?? 'unknown';
+        if (errorTypeStr == 'cancelled') {
+          if (_isPausePending(item.id)) {
+            pausedDuringThisRun = true;
+            _requeueItemForPause(item.id);
+            _log.i('Download was paused by backend cancellation, re-queueing');
+          } else {
+            _log.i(
+              'Download was cancelled by backend, skipping error handling',
+            );
+            updateItemStatus(item.id, DownloadStatus.skipped);
+          }
+          return;
+        }
+
+        DownloadErrorType errorType;
+        switch (errorTypeStr) {
+          case 'not_found':
+            errorType = DownloadErrorType.notFound;
+            break;
+          case 'rate_limit':
+            errorType = DownloadErrorType.rateLimit;
+            break;
+          case 'network':
+            errorType = DownloadErrorType.network;
+            break;
+          case 'permission':
+            errorType = DownloadErrorType.permission;
+            break;
+          default:
+            errorType = DownloadErrorType.unknown;
+        }
+
+        _log.e('Download failed: $errorMsg (type: $errorTypeStr)');
+        updateItemStatus(
+          item.id,
+          DownloadStatus.failed,
+          error: errorMsg,
+          errorType: errorType,
+        );
+        _failedInSession++;
+
+        try {
+          await PlatformBridge.cleanupConnections();
+        } catch (e) {
+          _log.e('Post-failure connection cleanup failed: $e');
+        }
+      }
+
+      _downloadCount++;
+      if (_downloadCount % _cleanupInterval == 0) {
+        _log.d(
+          'Cleaning up idle connections (after $_downloadCount downloads)...',
+        );
+        try {
+          await PlatformBridge.cleanupConnections();
+        } catch (e) {
+          _log.e('Connection cleanup failed: $e');
+        }
+      }
+    } catch (e, stackTrace) {
+      final itemAfterError = _findItemById(item.id);
+      if (itemAfterError == null ||
+          _isLocallyCancelled(item.id, item: itemAfterError)) {
+        _log.i('Download was cancelled, skipping error handling');
+        return;
+      }
+
+      if (_isPausePending(item.id)) {
+        pausedDuringThisRun = true;
+        _requeueItemForPause(item.id);
+        _log.i('Download pause requested after exception, re-queueing');
+        return;
+      }
+
+      _log.e('Exception: $e', e, stackTrace);
+
+      String errorMsg = e.toString();
+      DownloadErrorType errorType = DownloadErrorType.unknown;
+
+      if (errorMsg.contains('could not find Deezer equivalent') ||
+          errorMsg.contains('track not found on Deezer')) {
+        errorMsg = 'Track not found on Deezer (Metadata Unavailable)';
+        errorType = DownloadErrorType.notFound;
+      }
+
+      updateItemStatus(
+        item.id,
+        DownloadStatus.failed,
+        error: errorMsg,
+        errorType: errorType,
+      );
+      _failedInSession++;
+
+      try {
+        await PlatformBridge.cleanupConnections();
+      } catch (cleanupErr) {
+        _log.e('Post-exception connection cleanup failed: $cleanupErr');
+      }
+    } finally {
+      if (pausedDuringThisRun) {
+        _pausePendingItemIds.remove(item.id);
+      }
+    }
+  }
+
+  Future<void> _finalizeDownload({
+    required DownloadItem item,
+    required String filePath,
+    required Track trackToDownload,
+    required String historyTitle,
+    required String historyArtist,
+    required String historyAlbum,
+    required String? historyAlbumArtist,
+    required bool effectiveSafMode,
+    required AppSettings settings,
+    required String? effectiveOutputDir,
+    required String? finalSafFileName,
+    required String? safFileName,
+    required String? historyIsrc,
+    required int? historyTrackNumber,
+    required int? historyTotalTracks,
+    required int? historyDiscNumber,
+    required int? historyTotalDiscs,
+    required String? actualQuality,
+    required int? historyBitDepth,
+    required int? historySampleRate,
+    required String? effectiveGenre,
+    required String? historyComposer,
+    required String? effectiveLabel,
+    required String? effectiveCopyright,
+    required String? historyReleaseDate,
+  }) async {
+    // 1. Add to history
+    try {
+      ref.read(downloadHistoryProvider.notifier).addToHistory(
+        DownloadHistoryItem(
+          id: item.id,
+          trackName: historyTitle,
+          artistName: historyArtist,
+          albumName: historyAlbum,
+          albumArtist: historyAlbumArtist,
+          coverUrl: normalizeCoverReference(trackToDownload.coverUrl),
+          filePath: filePath,
+          storageMode: effectiveSafMode ? 'saf' : 'app',
+          downloadTreeUri: effectiveSafMode
+              ? settings.downloadTreeUri
+              : null,
+          safRelativeDir: effectiveSafMode ? effectiveOutputDir : null,
+          safFileName: effectiveSafMode
+              ? (finalSafFileName ?? safFileName)
+              : null,
+          safRepaired: false,
+          service: item.service,
+          downloadedAt: DateTime.now(),
+          isrc: historyIsrc,
+          spotifyId: trackToDownload.id,
+          trackNumber: historyTrackNumber,
+          totalTracks: historyTotalTracks,
+          discNumber: historyDiscNumber,
+          totalDiscs: historyTotalDiscs,
+          duration: trackToDownload.duration,
+          releaseDate: historyReleaseDate,
+          quality: actualQuality,
+          bitDepth: historyBitDepth,
+          sampleRate: historySampleRate,
+          genre: effectiveGenre,
+          composer: historyComposer,
+          label: effectiveLabel,
+          copyright: effectiveCopyright,
+        ),
+      );
+    } catch (e) {
+      _log.w('Failed to add to history: $e');
+    }
+
+    // 2. Extract cover and update library
+    String? coverPath;
+    try {
+      final albumDir = filePath.substring(0, filePath.lastIndexOf(Platform.pathSeparator));
+      final coverOutput = '$albumDir${Platform.pathSeparator}cover.jpg';
+      final extractResult = await PlatformBridge.extractCoverToFile(filePath, coverOutput);
+      if (extractResult['success'] == true) {
+        coverPath = coverOutput;
+      }
+    } catch (e) {}
+    DownloadedEmbeddedCoverResolver.scheduleRefreshForPath(
+      filePath, force: true,
+    );
+
+    // 3. Upsert into local library  
+    try {
+      await LibraryDatabase.instance.upsert({
+        'id': item.id,
+        'trackName': historyTitle,
+        'artistName': historyArtist,
+        'albumName': historyAlbum,
+        'albumArtist': historyAlbumArtist ?? '',
+        'filePath': filePath,
+        'coverPath': coverPath ?? '',
+        'scannedAt': DateTime.now().toIso8601String(),
+        'fileModTime': DateTime.now().millisecondsSinceEpoch,
+        'isrc': historyIsrc ?? '',
+        'trackNumber': historyTrackNumber,
+        'totalTracks': historyTotalTracks,
+        'discNumber': historyDiscNumber,
+        'totalDiscs': historyTotalDiscs,
+        'duration': trackToDownload.duration,
+        'releaseDate': historyReleaseDate ?? '',
+        'bitDepth': historyBitDepth,
+        'sampleRate': historySampleRate,
+        'bitrate': null,
+        'genre': effectiveGenre ?? '',
+        'composer': historyComposer ?? '',
+        'label': effectiveLabel ?? '',
+        'copyright': effectiveCopyright ?? '',
+        'format': filePath.toLowerCase().endsWith('.flac')
+            ? 'FLAC' : filePath.toLowerCase().endsWith('.mp3')
+            ? 'MP3' : filePath.toLowerCase().endsWith('.m4a')
+            ? 'M4A' : filePath.toLowerCase().endsWith('.opus')
+            ? 'OPUS' : '',
+      });
+    } catch (e) {
+      _log.w('Failed to add to local library: $e');
+    }
+
+    // 4. Download video if enabled
+    final shouldDownloadVideo = item.downloadVideo ?? settings.downloadVideo;
+    if (shouldDownloadVideo) {
+      try {
+        final albumDir = filePath.substring(0, filePath.lastIndexOf(Platform.pathSeparator));
+        final baseName = filePath.substring(filePath.lastIndexOf(Platform.pathSeparator) + 1);
+        final nameWithoutExt = baseName.replaceFirst(RegExp(r'\.[^.]+$'), '');
+        final videoOutput = '$albumDir${Platform.pathSeparator}${nameWithoutExt}_video.mp4';
+        _log.i('Downloading video for: ${trackToDownload.name} (setting=$shouldDownloadVideo)');
+        final videoFilePath = await PlatformBridge.downloadYouTubeVideo(
+          trackName: trackToDownload.name,
+          artistName: trackToDownload.artistName,
+          outputPath: videoOutput,
+        );
+        if (videoFilePath.isNotEmpty) {
+          _log.i('Video downloaded: $videoFilePath');
+          unawaited(ref.read(downloadHistoryProvider.notifier).updateVideoPath(item.id, videoFilePath));
+        } else {
+          _log.w('Video download returned empty path for: ${trackToDownload.name}');
+        }
+      } catch (e) {
+        _log.w('Failed to download video: $e');
+      }
+    }
+
+    // 5. Notify collections
+    try {
+      ref.read(libraryCollectionsProvider.notifier).updateTrackPaths(
+        track: trackToDownload,
+        audioPath: filePath,
+        coverPath: coverPath,
+        codec: filePath.toLowerCase().endsWith('.flac')
+            ? 'FLAC' : filePath.toLowerCase().endsWith('.mp3')
+            ? 'MP3' : filePath.toLowerCase().endsWith('.m4a')
+            ? 'AAC' : filePath.toLowerCase().endsWith('.opus')
+            ? 'OPUS' : null,
+        bitDepth: historyBitDepth,
+        sampleRate: historySampleRate,
+      );
+    } catch (e) {
+      _log.w('Failed to update track paths in collections: $e');
+    }
+  }
+}
+
+final downloadQueueProvider =
+    NotifierProvider<DownloadQueueNotifier, DownloadQueueState>(
+      DownloadQueueNotifier.new,
+    );

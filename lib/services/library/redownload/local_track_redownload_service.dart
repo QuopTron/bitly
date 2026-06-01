@@ -6,7 +6,7 @@ library;
 
 import 'package:bitly/models/settings/app_settings.dart';
 import 'package:bitly/models/track.dart';
-import 'package:bitly/providers/extension_provider.dart';
+import 'package:bitly/providers/extension/extension_provider.dart';
 import 'package:bitly/services/library/library_database.dart';
 import 'package:bitly/services/library/redownload/local_track_comparator.dart';
 import 'package:bitly/core/bridge/bridge_client.dart';

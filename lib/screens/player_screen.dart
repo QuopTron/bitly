@@ -3,14 +3,14 @@ import 'dart:ui' as ui;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:bitly/providers/audio_player_provider.dart';
-import 'package:bitly/providers/playback_queue_provider.dart';
+import 'package:bitly/providers/audio/audio_player_provider.dart';
+import 'package:bitly/providers/playback/playback_queue_provider.dart';
 import 'package:media_kit_video/media_kit_video.dart' show Video, VideoController;
 import 'package:bitly/services/library/covers/cover_cache_manager.dart';
 import 'package:bitly/widgets/audio_visualizer.dart';
 import 'package:bitly/widgets/cached_cover_image.dart';
 import 'package:bitly/widgets/lyrics_sheet.dart';
-import 'package:bitly/providers/view_mode_provider.dart';
+import 'package:bitly/providers/view_mode/view_mode_provider.dart';
 import 'package:bitly/widgets/track_card.dart';
 
 class PlayerScreen extends ConsumerStatefulWidget {

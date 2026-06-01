@@ -2,9 +2,9 @@ import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:bitly/providers/audio_player_provider.dart';
-import 'package:bitly/providers/lyrics_provider.dart';
-import 'package:bitly/providers/playback_queue_provider.dart';
+import 'package:bitly/providers/audio/audio_player_provider.dart';
+import 'package:bitly/providers/lyrics/lyrics_provider.dart';
+import 'package:bitly/providers/playback/playback_queue_provider.dart';
 import 'package:bitly/screens/player_screen.dart';
 
 bool _isLocalCover(String url) =>

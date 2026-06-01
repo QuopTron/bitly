@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:bitly/l10n/l10n.dart';
 import 'package:bitly/core/bridge/bridge_client.dart';
-import 'package:bitly/providers/extension_provider.dart';
-import 'package:bitly/providers/settings_provider.dart';
+import 'package:bitly/providers/extension/extension_provider.dart';
+import 'package:bitly/providers/settings/settings_provider.dart';
 import 'package:bitly/screens/artist_screen.dart';
 import 'package:bitly/screens/album_screen.dart';
 import 'package:bitly/screens/home_tab.dart'

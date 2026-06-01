@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:bitly/models/track.dart';
-import 'package:bitly/providers/library_collections_provider.dart';
+import 'package:bitly/providers/library/library_collections_provider.dart';
 
 class TrackHeartButton extends ConsumerWidget {
   final Track track;

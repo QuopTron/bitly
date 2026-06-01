@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:bitly/l10n/l10n.dart';
-import 'package:bitly/providers/settings_provider.dart';
+import 'package:bitly/providers/settings/settings_provider.dart';
 import 'package:bitly/widgets/priority_settings_scaffold.dart';
 import 'package:bitly/widgets/settings_group.dart';
 

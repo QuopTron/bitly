@@ -3394,11 +3394,11 @@ func ClearStoreRegistryURLJSON() error {
 }
 
 func BootstrapEssentialExtensions() (string, error) {
-	essentialIDs := []string{
-		"deezer",
-		"amazon",
-		"ytmusic-Bitly",
-		"qobuz-web",
+  	essentialIDs := []string{
+  		"deezer",
+  		"amazon",
+  		"ytmusic-spotiflac",
+  		"qobuz-web",
 		"tidal-web",
 		"soundcloud",
 		"pandora",

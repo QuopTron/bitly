@@ -14,17 +14,17 @@ import 'package:bitly/utils/file_access.dart';
 import 'package:bitly/utils/image_cache_utils.dart';
 import 'package:bitly/utils/lyrics_metadata_helper.dart';
 import 'package:bitly/models/track.dart';
-import 'package:bitly/providers/download_queue_provider.dart';
-import 'package:bitly/providers/audio_player_provider.dart';
-import 'package:bitly/providers/lyrics_provider.dart';
+import 'package:bitly/providers/download/download_queue_provider.dart';
+import 'package:bitly/providers/audio/audio_player_provider.dart';
+import 'package:bitly/providers/lyrics/lyrics_provider.dart';
 import 'package:bitly/widgets/batch_progress_dialog.dart';
-import 'package:bitly/providers/playback_provider.dart';
-import 'package:bitly/providers/settings_provider.dart';
+import 'package:bitly/providers/playback/playback_provider.dart';
+import 'package:bitly/providers/settings/settings_provider.dart';
 import 'package:bitly/widgets/track_card.dart';
 import 'package:bitly/screens/track_metadata_screen.dart';
 import 'package:bitly/services/library/covers/downloaded_embedded_cover_resolver.dart';
 import 'package:bitly/widgets/animation_utils.dart';
-import 'package:bitly/providers/library_collections_provider.dart';
+import 'package:bitly/providers/library/library_collections_provider.dart';
 
 class DownloadedAlbumScreen extends ConsumerStatefulWidget {
   final String albumName;

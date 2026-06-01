@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:bitly/l10n/l10n.dart';
-import 'package:bitly/providers/extension_provider.dart';
+import 'package:bitly/providers/extension/extension_provider.dart';
 import 'package:bitly/widgets/priority_settings_scaffold.dart';
 
 class MetadataProviderPriorityPage extends ConsumerStatefulWidget {

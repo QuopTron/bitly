@@ -19,7 +19,7 @@ export 'package:bitly/core/bridge/decoder_bridge.dart';
 final _log = AppLogger('PlatformBridge');
 
 class PlatformBridge {
-  static const _mobileChannel = MethodChannel('com.zarz.spotiflac/backend');
+  static const _mobileChannel = MethodChannel('com.bitly/backend');
   static bool _useHttpBackend = false;
   static int _backendPort = 55009;
 
@@ -256,10 +256,10 @@ class PlatformBridge {
   static const _availabilityPersistentCacheKey =
       'bridge_availability_lookup_cache_v1';
   static const _downloadProgressEvents = EventChannel(
-    'com.zarz.spotiflac/download_progress_stream',
+    'com.bitly/download_progress_stream',
   );
   static const _libraryScanProgressEvents = EventChannel(
-    'com.zarz.spotiflac/library_scan_progress_stream',
+    'com.bitly/library_scan_progress_stream',
   );
   static final Map<String, BridgeCacheEntry> _metadataCache = {};
   static final Map<String, BridgeCacheEntry> _availabilityCache = {};

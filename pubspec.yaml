@@ -98,6 +98,7 @@ flutter:
 
   assets:
     - assets/images/
+    - assets/backend.exe
 
   fonts:
     - family: Google Sans Flex

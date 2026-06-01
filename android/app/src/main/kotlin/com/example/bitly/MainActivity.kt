@@ -14,7 +14,7 @@ import java.io.File
 import java.util.concurrent.Executors
 
 class MainActivity : FlutterActivity() {
-    private val CHANNEL = "com.zarz.Bitly/backend"
+    private val CHANNEL = "com.bitly/backend"
     private val executor = Executors.newSingleThreadExecutor()
     private val handler = Handler(Looper.getMainLooper())
 
@@ -47,9 +47,9 @@ class MainActivity : FlutterActivity() {
                             Gobackend.initMasterDatabaseJSON(dbPath)
                             android.util.Log.i("NativeBridge", "Go backend database initialized")
 
-                            // Ensure yt-dlp binary is available
-                            Gobackend.ensureYtDlp()
-                            android.util.Log.i("NativeBridge", "yt-dlp ensured")
+// Ensure yt-dlp binary is available (no-op on Android, but call for compatibility)
+                             Gobackend.ensureYtDlpJSON()
+                             android.util.Log.i("NativeBridge", "yt-dlp ensured")
 
                             handler.post { result.success("ok") }
                         } catch (e: Exception) {

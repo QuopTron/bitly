@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:bitly/providers/download_queue_provider.dart';
-import 'package:bitly/providers/stats_provider.dart';
+import 'package:bitly/providers/download/download_queue_provider.dart';
+import 'package:bitly/providers/stats/stats_provider.dart';
 import 'package:bitly/utils/logger.dart';
 
 final _log = AppLogger('StatsCard');

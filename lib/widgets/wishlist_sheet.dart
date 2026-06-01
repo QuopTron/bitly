@@ -3,9 +3,9 @@ import 'dart:ui' as ui;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:bitly/providers/audio_player_provider.dart';
-import 'package:bitly/providers/lyrics_provider.dart';
-import 'package:bitly/providers/library_collections_provider.dart';
+import 'package:bitly/providers/audio/audio_player_provider.dart';
+import 'package:bitly/providers/lyrics/lyrics_provider.dart';
+import 'package:bitly/providers/library/library_collections_provider.dart';
 import 'package:bitly/services/library/covers/cover_cache_manager.dart';
 
 class WishlistSheet extends ConsumerWidget {

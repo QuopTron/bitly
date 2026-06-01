@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:bitly/models/track.dart';
-import 'package:bitly/providers/library_collections_provider.dart';
-import 'package:bitly/providers/download_queue_provider.dart';
-import 'package:bitly/providers/local_library_provider.dart';
+import 'package:bitly/providers/library/library_collections_provider.dart';
+import 'package:bitly/providers/download/download_queue_provider.dart';
+import 'package:bitly/providers/local_library/local_library_provider.dart';
 import 'package:bitly/widgets/cached_cover_image.dart';
 
 class PlaylistCreatorSheet extends ConsumerStatefulWidget {

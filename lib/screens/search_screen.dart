@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:bitly/l10n/l10n.dart';
-import 'package:bitly/providers/audio_player_provider.dart';
-import 'package:bitly/providers/lyrics_provider.dart';
-import 'package:bitly/providers/download_queue_provider.dart';
-import 'package:bitly/providers/track_provider.dart';
+import 'package:bitly/providers/audio/audio_player_provider.dart';
+import 'package:bitly/providers/lyrics/lyrics_provider.dart';
+import 'package:bitly/providers/download/download_queue_provider.dart';
+import 'package:bitly/providers/track/track_search.dart';
 import 'package:bitly/models/track.dart';
 import 'package:bitly/theme/app_theme.dart';
 import 'package:bitly/widgets/animation_utils.dart';

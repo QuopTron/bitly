@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:bitly/l10n/l10n.dart';
-import 'package:bitly/providers/settings_provider.dart';
+import 'package:bitly/providers/settings/settings_provider.dart';
 import 'package:bitly/utils/app_bar_layout.dart';
 import 'package:bitly/utils/artist_utils.dart';
 import 'package:bitly/screens/settings/metadata_provider_priority_page.dart';

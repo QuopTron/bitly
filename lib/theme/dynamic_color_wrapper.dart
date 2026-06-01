@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dynamic_color/dynamic_color.dart';
-import 'package:bitly/providers/theme_provider.dart';
+import 'package:bitly/providers/theme/theme_provider.dart';
 import 'package:bitly/theme/app_theme.dart';
 
 class DynamicColorWrapper extends ConsumerWidget {
