@@ -1,6 +1,5 @@
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
-import 'package:bitly/constants/app_info.dart';
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -10,7 +9,7 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
-  String get appName => AppInfo.appName;
+  String get appName => 'Bitly Mobile';
 
   @override
   String get navHome => 'Home';
@@ -1893,15 +1892,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get libraryFilterAll => 'All';
 
   @override
-  String get libraryFilterAllQuality => 'All qualities';
-
-  @override
-  String get libraryFilterAllFormat => 'All formats';
-
-  @override
-  String get libraryFilterAllMetadata => 'All metadata';
-
-  @override
   String get libraryFilterDownloaded => 'Downloaded';
 
   @override
@@ -1978,24 +1968,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String timeMinutesAgo(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '$count minutes ago',
-      one: '1 minute ago',
-    );
-    return '$_temp0';
+    return '$count minutes ago';
   }
 
   @override
   String timeHoursAgo(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '$count hours ago',
-      one: '1 hour ago',
-    );
-    return '$_temp0';
+    return '$count hours ago';
   }
 
   @override
@@ -3334,7 +3312,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String notifDownloadingUpdate(String version) {
-    return 'Downloading Bitly v$version';
+    return 'Downloading Bitly Mobile v$version';
   }
 
   @override
@@ -3347,7 +3325,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String notifUpdateReadyBody(String version) {
-    return 'Bitly v$version downloaded. Tap to install.';
+    return 'Bitly Mobile v$version downloaded. Tap to install.';
   }
 
   @override
@@ -3620,4 +3598,647 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get downloadFallbackExtensionsSubtitle => 'Choose which extensions can be used as fallback';
+
+  @override
+  String get videoCacheTitle => 'Video Cache Settings';
+
+  @override
+  String get videoCacheStorage => 'Cache Storage';
+
+  @override
+  String get videoCacheMaxLimit => 'Maximum Cache Limit';
+
+  @override
+  String get videoCacheManageStorage => 'Manage Storage';
+
+  @override
+  String get videoCacheClearTitle => 'Clear Cache';
+
+  @override
+  String get videoCacheClearMessage => 'Are you sure you want to delete all cached videos?';
+
+  @override
+  String get videoCacheCleared => 'Cache cleared successfully';
+
+  @override
+  String get videoCacheClearAll => 'CLEAR ALL CACHE';
+
+  @override
+  String get videoCacheEmpty => 'No cached videos';
+
+  @override
+  String timeDaysAgo(int count) {
+    return '$count days ago';
+  }
+
+  @override
+  String videoCacheCachedListTitle(int count) {
+    return 'Cached Videos ($count)';
+  }
+
+  @override
+  String videoCacheCachedCount(int count) {
+    return 'Cached videos: $count';
+  }
+
+  @override
+  String get factoryResetTitle => 'Factory Reset';
+
+  @override
+  String get factoryResetDescription => 'This will permanently delete all your settings, download history, and saved collections.';
+
+  @override
+  String get factoryResetDeleteMusic => 'Also delete music files';
+
+  @override
+  String get factoryResetDeleteMusicSubtitle => 'Physically deletes downloaded songs from storage.';
+
+  @override
+  String get factoryResetCannotUndo => 'This action CANNOT be undone.';
+
+  @override
+  String get factoryResetResetting => 'Resetting app...';
+
+  @override
+  String get factoryResetPleaseWait => 'Please do not close the app.';
+
+  @override
+  String get factoryResetSuccess => 'App reset. Restarting...';
+
+  @override
+  String factoryResetError(String error) {
+    return 'Reset error: $error';
+  }
+
+  @override
+  String get factoryResetButton => 'Reset now';
+
+  @override
+  String get dialogResetSettings => 'Reset Settings';
+
+  @override
+  String get dialogResetSettingsMessage => 'Do you want to reset the app to the initial setup wizard?';
+
+  @override
+  String get dialogReset => 'Reset';
+
+  @override
+  String get playlistCreatorTitle => 'Create Playlist';
+
+  @override
+  String get playlistCreatorNameLabel => 'Playlist name';
+
+  @override
+  String get playlistCreatorNameHint => 'My awesome playlist';
+
+  @override
+  String get playlistCreatorSearchLabel => 'Search songs';
+
+  @override
+  String get playlistCreatorSearchHint => 'Type to filter...';
+
+  @override
+  String playlistCreatorSelectedCount(int count) {
+    return '$count selected';
+  }
+
+  @override
+  String get playlistCreatorSelectAll => 'Select all';
+
+  @override
+  String get playlistCreatorDeselectAll => 'Deselect all';
+
+  @override
+  String playlistCreatorCreateButton(int count) {
+    return 'Create ($count songs)';
+  }
+
+  @override
+  String get downloadPickerExtraOptions => 'Extra options';
+
+  @override
+  String get downloadPickerDownloadLyrics => 'Download Lyrics';
+
+  @override
+  String get downloadPickerDownloadVideo => 'Download Video';
+
+  @override
+  String get downloadPickerBest => 'Best';
+
+  @override
+  String get downloadPickerServiceOnline => 'Online';
+
+  @override
+  String get downloadPickerServiceDegraded => 'Degraded';
+
+  @override
+  String get downloadPickerServiceOffline => 'Offline';
+
+  @override
+  String get downloadPickerServiceOnlineTooltip => 'Service online';
+
+  @override
+  String get downloadPickerServiceDegradedTooltip => 'Service degraded';
+
+  @override
+  String get downloadPickerServiceOfflineTooltip => 'Service offline';
+
+  @override
+  String get downloadPickerServiceUnknownTooltip => 'Unknown status';
+
+  @override
+  String downloadPickerQualityCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count qualities',
+      one: '1 quality',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String downloadPickerEstimatedSize(String size) {
+    return '~$size MB';
+  }
+
+  @override
+  String get networkStatusOnline => 'Online';
+
+  @override
+  String get networkStatusOffline => 'Offline';
+
+  @override
+  String statsLevel(int level) {
+    return 'Level $level';
+  }
+
+  @override
+  String get statsFirstPlayPrompt => 'Play your first song to level up';
+
+  @override
+  String statsXpPlays(int count, String display) {
+    return '$count XP · $display plays';
+  }
+
+  @override
+  String statsLegendPlays(String display) {
+    return '🏆 Legend · $display plays';
+  }
+
+  @override
+  String statsXpToNextLevel(String current, String next, int level) {
+    return '$current / $next XP for level $level';
+  }
+
+  @override
+  String statsMostListenedArtist(String artist) {
+    return 'Most listened: $artist';
+  }
+
+  @override
+  String get statsAchievementsHeader => '🏅 Achievements';
+
+  @override
+  String get statsPlaysBadge => 'Plays';
+
+  @override
+  String get statsSongsBadge => 'Songs';
+
+  @override
+  String get statsAlbumsBadge => 'Albums';
+
+  @override
+  String get statsArtistsBadge => 'Artists';
+
+  @override
+  String get statsDownloadsBadge => 'Downloads';
+
+  @override
+  String statsAchPlays(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Plays',
+      one: 'First Listen',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String statsAchAlbums(int count) {
+    return '$count Albums';
+  }
+
+  @override
+  String statsAchArtists(int count) {
+    return '$count Artists';
+  }
+
+  @override
+  String statsAchSongs(int count) {
+    return '$count Songs';
+  }
+
+  @override
+  String statsAchSameSong(int count) {
+    return '${count}x Same Song';
+  }
+
+  @override
+  String statsAchDays(int count) {
+    return '$count Days';
+  }
+
+  @override
+  String statsAchDownloads(int count) {
+    return '$count Downloads';
+  }
+
+  @override
+  String get statsAchNightOwl => 'Night Owl';
+
+  @override
+  String get statsAchNightRider => 'Night Rider';
+
+  @override
+  String get statsAchAlbumMarathon5 => 'Album Marathon (5)';
+
+  @override
+  String get statsAchAlbumMarathon10 => 'Album Marathon (10)';
+
+  @override
+  String get downloadProgressTitle => 'Downloading';
+
+  @override
+  String get downloadProgressStopDownload => 'Stop Download';
+
+  @override
+  String downloadProgressPercent(int percent) {
+    return '$percent%';
+  }
+
+  @override
+  String downloadProgressSpeed(String speed) {
+    return '$speed MB/s';
+  }
+
+  @override
+  String get downloadProgressDetails => 'Download Details';
+
+  @override
+  String get downloadProgressSource => 'Source';
+
+  @override
+  String get downloadProgressQuality => 'Quality';
+
+  @override
+  String get downloadProgressDefaultQuality => 'Default';
+
+  @override
+  String get downloadProgressStatus => 'Status';
+
+  @override
+  String get downloadProgressStatusQueued => 'Queued';
+
+  @override
+  String get downloadProgressStatusDownloading => 'Downloading';
+
+  @override
+  String get downloadProgressStatusFinalizing => 'Finalizing';
+
+  @override
+  String get downloadProgressStatusComplete => 'Complete';
+
+  @override
+  String get downloadProgressStatusFailed => 'Failed';
+
+  @override
+  String get downloadProgressStatusSkipped => 'Skipped';
+
+  @override
+  String get trackCardLocal => 'Local';
+
+  @override
+  String get trackCardOnline => 'Online';
+
+  @override
+  String get deleteDownloadTitle => 'Delete download?';
+
+  @override
+  String deleteDownloadContent(String name) {
+    return '\"$name\" will be deleted from your device.';
+  }
+
+  @override
+  String get deleteDownloadCancel => 'Cancel';
+
+  @override
+  String get deleteDownloadConfirm => 'Delete';
+
+  @override
+  String playlistCreated(String name) {
+    return 'List \"$name\" created';
+  }
+
+  @override
+  String playlistCreatedWithCount(String name, int count) {
+    return 'List \"$name\" created with $count songs';
+  }
+
+  @override
+  String get extensionStoreTitle => 'Extensions & Store';
+
+  @override
+  String get extensionStoreTabStore => 'Store';
+
+  @override
+  String get extensionStoreTabExtensions => 'Extensions';
+
+  @override
+  String get extensionStoreSearchHint => 'Search extensions...';
+
+  @override
+  String get extensionStoreFilterAll => 'All';
+
+  @override
+  String get extensionStoreFilterDownload => 'Download';
+
+  @override
+  String get extensionStoreFilterMetadata => 'Metadata';
+
+  @override
+  String get extensionStoreFilterUtility => 'Utility';
+
+  @override
+  String get extensionStoreFilterLyrics => 'Lyrics';
+
+  @override
+  String extensionStoreCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count extensions',
+      one: '$count extension',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String extensionStoreUpdateAll(int count) {
+    return 'Update all ($count)';
+  }
+
+  @override
+  String get extensionStoreConfigureRepo => 'Configure Repository';
+
+  @override
+  String get extensionStoreRepoUrlHint => 'Registry.json URL';
+
+  @override
+  String get extensionStoreUseDefaultRepo => 'Use default repository';
+
+  @override
+  String get extensionStoreRetry => 'Retry';
+
+  @override
+  String get extensionStoreNoResults => 'No results';
+
+  @override
+  String get extensionStoreNoExtensions => 'No extensions';
+
+  @override
+  String extensionStoreInstalled(String name) {
+    return '$name installed';
+  }
+
+  @override
+  String extensionStoreInstallError(String name) {
+    return 'Error installing $name';
+  }
+
+  @override
+  String extensionStoreUpdated(String name, String version) {
+    return '$name updated to v$version';
+  }
+
+  @override
+  String extensionStoreUpdateError(String name) {
+    return 'Error updating $name';
+  }
+
+  @override
+  String extensionStoreBulkUpdated(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count extensions updated',
+      one: '$count extension updated',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get extensionStoreNoUpdates => 'No updates available';
+
+  @override
+  String get extensionStoreNoExtensionsInstalled => 'No extensions installed';
+
+  @override
+  String get extensionStoreGoToStore => 'Go to the store to install extensions';
+
+  @override
+  String extensionStoreInstalledCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count installed',
+      one: '$count installed',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get extensionStoreImportExtension => 'Import extension';
+
+  @override
+  String extensionStoreImported(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count extensions imported',
+      one: '$count extension imported',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get extensionStoreImportError => 'Error importing';
+
+  @override
+  String get extensionStoreUpdate => 'Update';
+
+  @override
+  String get extensionStoreInstall => 'Install';
+
+  @override
+  String get extensionStoreEnabled => 'Enabled';
+
+  @override
+  String get extensionStoreDisabled => 'Disabled';
+
+  @override
+  String batchProgressCount(int current, int total) {
+    return '$current / $total';
+  }
+
+  @override
+  String updatePercent(int percent) {
+    return '$percent%';
+  }
+
+  @override
+  String get updateSeeReleaseNotes => 'See release notes for details.';
+
+  @override
+  String updateVersion(String version) {
+    return 'v$version';
+  }
+
+  @override
+  String get trackInfoIsrc => 'ISRC';
+
+  @override
+  String get trackInfoDownloads => 'Downloads';
+
+  @override
+  String get trackInfoCodec => 'Codec';
+
+  @override
+  String get trackInfoSampleRate => 'Sample rate';
+
+  @override
+  String get trackInfoBitDepth => 'Bit depth';
+
+  @override
+  String get trackInfoBitrate => 'Bitrate';
+
+  @override
+  String get trackInfoLocation => 'Location';
+
+  @override
+  String get audioAnalysisRescan => 'Rescan';
+
+  @override
+  String get audioAnalysisStereo => 'Stereo';
+
+  @override
+  String get audioAnalysisMono => 'Mono';
+
+  @override
+  String get miniPlayerLoading => 'Loading...';
+
+  @override
+  String get wishlistTitle => 'Wishlist';
+
+  @override
+  String wishlistTrackCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count tracks',
+      one: '$count track',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get wishlistEmptyTitle => 'No tracks in Wishlist';
+
+  @override
+  String get wishlistEmptySubtitle => 'Add tracks from the track menu';
+
+  @override
+  String get settingsProfileNamePlaceholder => 'Unnamed';
+
+  @override
+  String get settingsPremiumBadge => 'Premium';
+
+  @override
+  String get settingsFreeBadge => 'Free';
+
+  @override
+  String get settingsTrialUsedBadge => 'Trial used';
+
+  @override
+  String get settingsNoTrialBadge => 'No trial';
+
+  @override
+  String get settingsProfileTitle => 'My Profile';
+
+  @override
+  String get settingsNameLabel => 'Name';
+
+  @override
+  String get settingsNameHint => 'Tap to add name';
+
+  @override
+  String get settingsNameDialogTitle => 'Your name';
+
+  @override
+  String get settingsNameDialogHint => 'Enter your name...';
+
+  @override
+  String get settingsSave => 'Save';
+
+  @override
+  String get settingsTrialUsedDate => 'Trial used on:';
+
+  @override
+  String settingsTimeRemaining(Object hours, Object minutes, Object seconds) {
+    return '${hours}h ${minutes}m ${seconds}s remaining';
+  }
+
+  @override
+  String albumCardSemantics(Object name, Object artist) {
+    return 'Open album $name by $artist';
+  }
+
+  @override
+  String get albumCardTypeEp => 'EP';
+
+  @override
+  String get albumCardTypeSingle => 'Single';
+
+  @override
+  String albumCardTrackCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count songs',
+      one: '$count song',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get albumCardFallbackName => 'Album';
+
+  @override
+  String get lyricsModeSynced => 'SYNC';
+
+  @override
+  String get lyricsModeText => 'LYRICS';
+
+  @override
+  String get lyricsLoading => 'Loading lyrics...';
+
+  @override
+  String get lyricsError => 'Could not load lyrics';
+
+  @override
+  String get lyricsUnavailable => 'No lyrics available';
+
+  @override
+  String get lyricsSelectLanguage => 'Select translation language';
 }

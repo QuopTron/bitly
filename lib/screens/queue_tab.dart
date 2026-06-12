@@ -18,6 +18,8 @@ import 'package:bitly/providers/audio/audio_player_provider.dart';
 import 'package:bitly/providers/download/download_queue_provider.dart';
 import 'package:bitly/providers/extension/extension_provider.dart';
 import 'package:bitly/providers/library/library_collections_provider.dart';
+import 'package:bitly/widgets/common/empty_state_widget.dart';
+import 'package:bitly/widgets/common/loading_indicator.dart';
 import 'package:bitly/providers/settings/settings_provider.dart';
 import 'package:bitly/providers/local_library/local_library_provider.dart';
 import 'package:bitly/providers/playback/playback_provider.dart';
@@ -3347,20 +3349,8 @@ _filterCacheSearchQuery == _searchQuery &&
               ),
             ),
           if (isPageLoading)
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Center(
-                  child: SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: colorScheme.primary,
-                    ),
-                  ),
-                ),
-              ),
+            const SliverToBoxAdapter(
+              child: LoadingIndicator(size: 22, strokeWidth: 2),
             ),
           SliverToBoxAdapter(
             child: SizedBox(height: _isSelectionMode ? 100 : 16),
@@ -3843,20 +3833,8 @@ _filterCacheSearchQuery == _searchQuery &&
             child: _buildEmptyState(context, colorScheme, filterMode),
           )
         else if (isPageLoading)
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-              child: Center(
-                child: SizedBox(
-                  width: 22,
-                  height: 22,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: colorScheme.primary,
-                  ),
-                ),
-              ),
-            ),
+          const SliverToBoxAdapter(
+            child: LoadingIndicator(size: 22, strokeWidth: 2),
           ),
 
         if (hasQueueItems ||
@@ -3994,28 +3972,7 @@ _filterCacheSearchQuery == _searchQuery &&
         icon = Icons.history;
     }
 
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: 64, color: colorScheme.onSurfaceVariant),
-          const SizedBox(height: 16),
-          Text(
-            message,
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              color: colorScheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            subtitle,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
-            ),
-          ),
-        ],
-      ),
-    );
+    return EmptyStateWidget(icon: icon, title: message, subtitle: subtitle);
   }
 
   Widget _buildAlbumGridItem(

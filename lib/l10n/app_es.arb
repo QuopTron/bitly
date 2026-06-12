@@ -2676,7 +2676,7 @@
   "@libraryFilterSortGenreDesc": {
     "description": "Sort option - genre descending"
   },
-  "timeJustNow": "Just now",
+  "timeJustNow": "Justo ahora",
   "@timeJustNow": {
     "description": "Relative time - less than a minute ago"
   },
@@ -4911,6 +4911,786 @@
   "extensionsInstallPartialSuccess": "Instaladas {installed} de {attempted} extensiones",
   "@extensionsInstallPartialSuccess": {
     "description": "Translated to Spanish"
+  },
+  "videoCacheTitle": "Configuración de Caché de Video",
+  "@videoCacheTitle": {
+    "description": "Screen title for video cache settings"
+  },
+  "videoCacheStorage": "Almacenamiento de Caché",
+  "@videoCacheStorage": {
+    "description": "Section header for cache storage info"
+  },
+  "videoCacheMaxLimit": "Límite Máximo de Caché",
+  "@videoCacheMaxLimit": {
+    "description": "Section header for max cache size"
+  },
+  "videoCacheManageStorage": "Administrar Almacenamiento",
+  "@videoCacheManageStorage": {
+    "description": "Button to open storage management"
+  },
+  "videoCacheClearTitle": "Limpiar caché",
+  "@videoCacheClearTitle": {
+    "description": "Dialog title - clear video cache"
+  },
+  "videoCacheClearMessage": "¿Estás seguro de que quieres eliminar todos los videos cacheados?",
+  "@videoCacheClearMessage": {
+    "description": "Dialog message - confirm cache clear"
+  },
+  "videoCacheCleared": "Caché limpiado correctamente",
+  "@videoCacheCleared": {
+    "description": "Snackbar after cache cleared"
+  },
+  "videoCacheClearAll": "LIMPIAR TODO EL CACHÉ",
+  "@videoCacheClearAll": {
+    "description": "Button - clear all cached videos"
+  },
+  "videoCacheEmpty": "No hay videos cacheados",
+  "@videoCacheEmpty": {
+    "description": "Empty state - no cached videos"
+  },
+  "timeDaysAgo": "Hace {count} días",
+  "@timeDaysAgo": {
+    "description": "Relative time - days ago",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "timeHoursAgo": "Hace {count} horas",
+  "@timeHoursAgo": {
+    "description": "Relative time - hours ago",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "timeMinutesAgo": "Hace {count} minutos",
+  "@timeMinutesAgo": {
+    "description": "Relative time - minutes ago",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "videoCacheCachedListTitle": "Videos Cacheados ({count})",
+  "@videoCacheCachedListTitle": {
+    "description": "Section header for cached videos list",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "videoCacheCachedCount": "Videos cacheados: {count}",
+  "@videoCacheCachedCount": {
+    "description": "Label showing number of cached videos",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "factoryResetTitle": "Restablecimiento de fábrica",
+  "@factoryResetTitle": {
+    "description": "Dialog title for factory reset"
+  },
+  "factoryResetDescription": "Esto eliminará permanentemente todas tus configuraciones, historial de descargas y colecciones guardadas.",
+  "@factoryResetDescription": {
+    "description": "Factory reset warning message"
+  },
+  "factoryResetDeleteMusic": "Eliminar también archivos de música",
+  "@factoryResetDeleteMusic": {
+    "description": "Checkbox label for deleting music files"
+  },
+  "factoryResetDeleteMusicSubtitle": "Borra físicamente las canciones descargadas del almacenamiento.",
+  "@factoryResetDeleteMusicSubtitle": {
+    "description": "Subtitle for music deletion checkbox"
+  },
+  "factoryResetCannotUndo": "Esta acción NO se puede deshacer.",
+  "@factoryResetCannotUndo": {
+    "description": "Warning text about irreversible action"
+  },
+  "factoryResetResetting": "Restableciendo aplicación...",
+  "@factoryResetResetting": {
+    "description": "In progress message during factory reset"
+  },
+  "factoryResetPleaseWait": "Por favor, no cierres la aplicación.",
+  "@factoryResetPleaseWait": {
+    "description": "Instruction during reset"
+  },
+  "factoryResetSuccess": "Aplicación restablecida. Reiniciando...",
+  "@factoryResetSuccess": {
+    "description": "Snackbar after successful reset"
+  },
+  "factoryResetError": "Error al restablecer: {error}",
+  "@factoryResetError": {
+    "description": "Snackbar on reset failure",
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "factoryResetButton": "Restablecer ahora",
+  "@factoryResetButton": {
+    "description": "Button to confirm factory reset"
+  },
+  "dialogResetSettings": "Reiniciar configuración",
+  "@dialogResetSettings": {
+    "description": "Button and dialog title - reset app settings"
+  },
+  "dialogResetSettingsMessage": "¿Deseas restablecer la app al asistente de configuración inicial?",
+  "@dialogResetSettingsMessage": {
+    "description": "Dialog message - reset to initial setup"
+  },
+  "dialogReset": "Reiniciar",
+  "@dialogReset": {
+    "description": "Dialog button - confirm reset"
+  },
+  "playlistCreatorTitle": "Crear Lista de Reproducción",
+  "@playlistCreatorTitle": {
+    "description": "Sheet title for creating a playlist"
+  },
+  "playlistCreatorNameLabel": "Nombre de la lista",
+  "@playlistCreatorNameLabel": {
+    "description": "Text field label for playlist name"
+  },
+  "playlistCreatorNameHint": "Mi lista increíble",
+  "@playlistCreatorNameHint": {
+    "description": "Hint text for playlist name field"
+  },
+  "playlistCreatorSearchLabel": "Buscar canciones",
+  "@playlistCreatorSearchLabel": {
+    "description": "Text field label for searching songs"
+  },
+  "playlistCreatorSearchHint": "Escribe para filtrar...",
+  "@playlistCreatorSearchHint": {
+    "description": "Hint text for song search field"
+  },
+  "playlistCreatorSelectedCount": "{count} seleccionadas",
+  "@playlistCreatorSelectedCount": {
+    "description": "Count of selected tracks",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "playlistCreatorSelectAll": "Seleccionar todo",
+  "@playlistCreatorSelectAll": {
+    "description": "Button to select all tracks"
+  },
+  "playlistCreatorDeselectAll": "Deseleccionar todo",
+  "@playlistCreatorDeselectAll": {
+    "description": "Button to deselect all tracks"
+  },
+  "playlistCreatorCreateButton": "Crear ({count} canciones)",
+  "@playlistCreatorCreateButton": {
+    "description": "Button to create playlist",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "downloadPickerExtraOptions": "Opciones extra",
+  "@downloadPickerExtraOptions": {
+    "description": "Section header for extra download options (lyrics, video)"
+  },
+  "downloadPickerDownloadLyrics": "Descargar Letra",
+  "@downloadPickerDownloadLyrics": {
+    "description": "Toggle label to also download lyrics"
+  },
+  "downloadPickerDownloadVideo": "Descargar Video",
+  "@downloadPickerDownloadVideo": {
+    "description": "Toggle label to also download video"
+  },
+  "downloadPickerBest": "Mejor",
+  "@downloadPickerBest": {
+    "description": "Badge text for recommended download provider"
+  },
+  "downloadPickerServiceOnline": "En línea",
+  "@downloadPickerServiceOnline": {
+    "description": "Health status label when service is online"
+  },
+  "downloadPickerServiceDegraded": "Degradado",
+  "@downloadPickerServiceDegraded": {
+    "description": "Health status label when service is degraded"
+  },
+  "downloadPickerServiceOffline": "Fuera de línea",
+  "@downloadPickerServiceOffline": {
+    "description": "Health status label when service is offline"
+  },
+  "downloadPickerServiceOnlineTooltip": "Servicio en línea",
+  "@downloadPickerServiceOnlineTooltip": {
+    "description": "Tooltip text for online health dot"
+  },
+  "downloadPickerServiceDegradedTooltip": "Servicio degradado",
+  "@downloadPickerServiceDegradedTooltip": {
+    "description": "Tooltip text for degraded health dot"
+  },
+  "downloadPickerServiceOfflineTooltip": "Servicio fuera de línea",
+  "@downloadPickerServiceOfflineTooltip": {
+    "description": "Tooltip text for offline health dot"
+  },
+  "downloadPickerServiceUnknownTooltip": "Estado desconocido",
+  "@downloadPickerServiceUnknownTooltip": {
+    "description": "Tooltip text for unknown health dot"
+  },
+  "downloadPickerQualityCount": "{count, plural, =1{1 cal} other{{count} cales}}",
+  "@downloadPickerQualityCount": {
+    "description": "Label showing quality count for a provider",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "downloadPickerEstimatedSize": "~{size} MB",
+  "@downloadPickerEstimatedSize": {
+    "description": "Estimated download size badge",
+    "placeholders": {
+      "size": { "type": "String" }
+    }
+  },
+  "networkStatusOnline": "En línea",
+  "@networkStatusOnline": {
+    "description": "Tooltip text when network is connected"
+  },
+  "networkStatusOffline": "Sin conexión",
+  "@networkStatusOffline": {
+    "description": "Tooltip text when network is disconnected"
+  },
+  "statsLevel": "Nivel {level}",
+  "@statsLevel": {
+    "description": "User level label in stats card",
+    "placeholders": { "level": { "type": "int" } }
+  },
+  "statsFirstPlayPrompt": "Reproduce tu primera canción para subir de nivel",
+  "@statsFirstPlayPrompt": {
+    "description": "Prompt shown when user has no plays yet"
+  },
+  "statsXpPlays": "{count} XP · {display} reproducciones",
+  "@statsXpPlays": {
+    "description": "XP and play count line below level",
+    "placeholders": {
+      "count": { "type": "int" },
+      "display": { "type": "String" }
+    }
+  },
+  "statsLegendPlays": "🏆 Leyenda · {display} reproducciones",
+  "@statsLegendPlays": {
+    "description": "Level 10 legend status with play count",
+    "placeholders": { "display": { "type": "String" } }
+  },
+  "statsXpToNextLevel": "{current} / {next} XP para nivel {level}",
+  "@statsXpToNextLevel": {
+    "description": "XP progress text toward next level",
+    "placeholders": {
+      "current": { "type": "String" },
+      "next": { "type": "String" },
+      "level": { "type": "int" }
+    }
+  },
+  "statsMostListenedArtist": "Artista + escuchado: {artist}",
+  "@statsMostListenedArtist": {
+    "description": "Label for most played artist",
+    "placeholders": { "artist": { "type": "String" } }
+  },
+  "statsAchievementsHeader": "🏅 Logros",
+  "@statsAchievementsHeader": {
+    "description": "Section header for achievements list"
+  },
+  "statsPlaysBadge": "Reproducciones",
+  "@statsPlaysBadge": {
+    "description": "Stat badge subtitle - total play count"
+  },
+  "statsSongsBadge": "Canciones",
+  "@statsSongsBadge": {
+    "description": "Stat badge subtitle - unique songs"
+  },
+  "statsAlbumsBadge": "Álbumes",
+  "@statsAlbumsBadge": {
+    "description": "Stat badge subtitle - unique albums"
+  },
+  "statsArtistsBadge": "Artistas",
+  "@statsArtistsBadge": {
+    "description": "Stat badge subtitle - unique artists"
+  },
+  "statsDownloadsBadge": "Descargas",
+  "@statsDownloadsBadge": {
+    "description": "Stat badge subtitle - download count"
+  },
+  "statsAchPlays": "{count, plural, =1{Primera Escucha} other{{count} Reproducciones}}",
+  "@statsAchPlays": {
+    "description": "Achievement name for play count milestones",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "statsAchAlbums": "{count} Álbumes",
+  "@statsAchAlbums": {
+    "description": "Achievement name for album count milestones",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "statsAchArtists": "{count} Artistas",
+  "@statsAchArtists": {
+    "description": "Achievement name for artist count milestones",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "statsAchSongs": "{count} Canciones",
+  "@statsAchSongs": {
+    "description": "Achievement name for unique song count milestones",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "statsAchSameSong": "{count}x Misma Canción",
+  "@statsAchSameSong": {
+    "description": "Achievement name for same song repeat milestones",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "statsAchDays": "{count} Días",
+  "@statsAchDays": {
+    "description": "Achievement name for active day milestones",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "statsAchDownloads": "{count} Descargas",
+  "@statsAchDownloads": {
+    "description": "Achievement name for download count milestones",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "statsAchNightOwl": "Búho Nocturno",
+  "@statsAchNightOwl": {
+    "description": "Secret achievement - late night listening"
+  },
+  "statsAchNightRider": "Jinete Nocturno",
+  "@statsAchNightRider": {
+    "description": "Secret achievement - very late night listening"
+  },
+  "statsAchAlbumMarathon5": "Maratón de Álbum (5)",
+  "@statsAchAlbumMarathon5": {
+    "description": "Secret achievement - 5 albums in a row"
+  },
+  "statsAchAlbumMarathon10": "Maratón de Álbum (10)",
+  "@statsAchAlbumMarathon10": {
+    "description": "Secret achievement - 10 albums in a row"
+  },
+  "downloadProgressTitle": "Descargando",
+  "@downloadProgressTitle": {
+    "description": "Title for the download progress modal sheet"
+  },
+  "downloadProgressStopDownload": "Detener Descarga",
+  "@downloadProgressStopDownload": {
+    "description": "Button to stop a download in progress"
+  },
+  "downloadProgressPercent": "{percent}%",
+  "@downloadProgressPercent": {
+    "description": "Download progress percentage text",
+    "placeholders": { "percent": { "type": "int" } }
+  },
+  "downloadProgressSpeed": "{speed} MB/s",
+  "@downloadProgressSpeed": {
+    "description": "Download speed display",
+    "placeholders": { "speed": { "type": "String" } }
+  },
+  "downloadProgressDetails": "Detalles de la Descarga",
+  "@downloadProgressDetails": {
+    "description": "Section header for download details"
+  },
+  "downloadProgressSource": "Fuente",
+  "@downloadProgressSource": {
+    "description": "Label for download source/service"
+  },
+  "downloadProgressQuality": "Calidad",
+  "@downloadProgressQuality": {
+    "description": "Label for download quality"
+  },
+  "downloadProgressDefaultQuality": "Default",
+  "@downloadProgressDefaultQuality": {
+    "description": "Download quality option - default/auto"
+  },
+  "downloadProgressStatus": "Estado",
+  "@downloadProgressStatus": {
+    "description": "Label for download status"
+  },
+  "downloadProgressStatusQueued": "En Cola",
+  "@downloadProgressStatusQueued": {
+    "description": "Download status - waiting in queue"
+  },
+  "downloadProgressStatusDownloading": "Bajando",
+  "@downloadProgressStatusDownloading": {
+    "description": "Download status - actively downloading"
+  },
+  "downloadProgressStatusFinalizing": "Finalizando",
+  "@downloadProgressStatusFinalizing": {
+    "description": "Download status - finalizing/processing"
+  },
+  "downloadProgressStatusComplete": "Listo",
+  "@downloadProgressStatusComplete": {
+    "description": "Download status - completed successfully"
+  },
+  "downloadProgressStatusFailed": "Falló",
+  "@downloadProgressStatusFailed": {
+    "description": "Download status - failed"
+  },
+  "downloadProgressStatusSkipped": "Saltado",
+  "@downloadProgressStatusSkipped": {
+    "description": "Download status - skipped"
+  },
+  "trackCardLocal": "Local",
+  "@trackCardLocal": {
+    "description": "Label indicating a track is downloaded locally"
+  },
+  "trackCardOnline": "En línea",
+  "@trackCardOnline": {
+    "description": "Label indicating a track is streaming online"
+  },
+  "deleteDownloadTitle": "¿Eliminar descarga?",
+  "@deleteDownloadTitle": {
+    "description": "Dialog title confirming download deletion"
+  },
+  "deleteDownloadContent": "Se borrará \"{name}\" de tu dispositivo.",
+  "@deleteDownloadContent": {
+    "description": "Dialog content confirming download deletion",
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "deleteDownloadCancel": "Cancelar",
+  "@deleteDownloadCancel": {
+    "description": "Cancel button in delete download confirmation dialog"
+  },
+  "deleteDownloadConfirm": "Eliminar",
+  "@deleteDownloadConfirm": {
+    "description": "Confirm button in delete download confirmation dialog"
+  },
+  "playlistCreated": "Lista \"{name}\" creada",
+  "@playlistCreated": {
+    "description": "Snackbar message when empty playlist is created",
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "playlistCreatedWithCount": "Lista \"{name}\" creada con {count} canciones",
+  "@playlistCreatedWithCount": {
+    "description": "Snackbar message when playlist is created with tracks",
+    "placeholders": {
+      "name": { "type": "String" },
+      "count": { "type": "int" }
+    }
+  },
+  "extensionStoreTitle": "Extensiones y Tienda",
+  "@extensionStoreTitle": {
+    "description": "Title for extensions and store modal"
+  },
+  "extensionStoreTabStore": "Tienda",
+  "@extensionStoreTabStore": {
+    "description": "Tab label for extension store"
+  },
+  "extensionStoreTabExtensions": "Extensiones",
+  "@extensionStoreTabExtensions": {
+    "description": "Tab label for installed extensions"
+  },
+  "extensionStoreSearchHint": "Buscar extensiones...",
+  "@extensionStoreSearchHint": {
+    "description": "Search field placeholder text"
+  },
+  "extensionStoreFilterAll": "Todas",
+  "@extensionStoreFilterAll": {
+    "description": "Category filter showing all extensions"
+  },
+  "extensionStoreFilterDownload": "Descarga",
+  "@extensionStoreFilterDownload": {
+    "description": "Category filter for download extensions"
+  },
+  "extensionStoreFilterMetadata": "Metadata",
+  "@extensionStoreFilterMetadata": {
+    "description": "Category filter for metadata extensions"
+  },
+  "extensionStoreFilterUtility": "Utilidad",
+  "@extensionStoreFilterUtility": {
+    "description": "Category filter for utility extensions"
+  },
+  "extensionStoreFilterLyrics": "Letras",
+  "@extensionStoreFilterLyrics": {
+    "description": "Category filter for lyrics extensions"
+  },
+  "extensionStoreCount": "{count,plural, one{{count} extensión} other{{count} extensiones}}",
+  "@extensionStoreCount": {
+    "description": "Count of extensions in the store",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "extensionStoreUpdateAll": "Actualizar todas ({count})",
+  "@extensionStoreUpdateAll": {
+    "description": "Button to update all extensions",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "extensionStoreConfigureRepo": "Configurar Repositorio",
+  "@extensionStoreConfigureRepo": {
+    "description": "Title for repository configuration section"
+  },
+  "extensionStoreRepoUrlHint": "URL del registry.json",
+  "@extensionStoreRepoUrlHint": {
+    "description": "Hint text for registry URL input field"
+  },
+  "extensionStoreUseDefaultRepo": "Usar repositorio por defecto",
+  "@extensionStoreUseDefaultRepo": {
+    "description": "Button to reset to default repository URL"
+  },
+  "extensionStoreRetry": "Reintentar",
+  "@extensionStoreRetry": {
+    "description": "Button to retry loading extensions"
+  },
+  "extensionStoreNoResults": "Sin resultados",
+  "@extensionStoreNoResults": {
+    "description": "Message when search/filter returns no results"
+  },
+  "extensionStoreNoExtensions": "No hay extensiones",
+  "@extensionStoreNoExtensionsStore": {
+    "description": "Message when store has no extensions"
+  },
+  "extensionStoreInstalled": "{name} instalada",
+  "@extensionStoreInstalled": {
+    "description": "Snackbar when extension is installed",
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "extensionStoreInstallError": "Error al instalar {name}",
+  "@extensionStoreInstallError": {
+    "description": "Snackbar when extension installation fails",
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "extensionStoreUpdated": "{name} actualizada a v{version}",
+  "@extensionStoreUpdated": {
+    "description": "Snackbar when extension is updated",
+    "placeholders": {
+      "name": { "type": "String" },
+      "version": { "type": "String" }
+    }
+  },
+  "extensionStoreUpdateError": "Error al actualizar {name}",
+  "@extensionStoreUpdateError": {
+    "description": "Snackbar when extension update fails",
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "extensionStoreBulkUpdated": "{count,plural, one{{count} extensión actualizada} other{{count} extensiones actualizadas}}",
+  "@extensionStoreBulkUpdated": {
+    "description": "Snackbar when multiple extensions are updated at once",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "extensionStoreNoUpdates": "No hay actualizaciones disponibles",
+  "@extensionStoreNoUpdates": {
+    "description": "Snackbar when there are no extensions to update"
+  },
+  "extensionStoreNoExtensionsInstalled": "No hay extensiones instaladas",
+  "@extensionStoreNoExtensionsInstalled": {
+    "description": "Message when no extensions are installed"
+  },
+  "extensionStoreGoToStore": "Ve a la tienda para instalar extensiones",
+  "@extensionStoreGoToStore": {
+    "description": "Hint telling user to visit store"
+  },
+  "extensionStoreInstalledCount": "{count,plural, one{{count} instalada} other{{count} instaladas}}",
+  "@extensionStoreInstalledCount": {
+    "description": "Count of installed extensions",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "extensionStoreImportExtension": "Importar extensión",
+  "@extensionStoreImportExtension": {
+    "description": "Button to import an extension file"
+  },
+  "extensionStoreImported": "{count,plural, one{{count} extensión importada} other{{count} extensiones importadas}}",
+  "@extensionStoreImported": {
+    "description": "Snackbar when extensions are imported",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "extensionStoreImportError": "Error al importar",
+  "@extensionStoreImportError": {
+    "description": "Snackbar when extension import fails"
+  },
+  "extensionStoreUpdate": "Actualizar",
+  "@extensionStoreUpdate": {
+    "description": "Button to update a single extension"
+  },
+  "extensionStoreInstall": "Instalar",
+  "@extensionStoreInstall": {
+    "description": "Button to install an extension"
+  },
+  "extensionStoreEnabled": "Activo",
+  "@extensionStoreEnabled": {
+    "description": "Label showing an extension is enabled"
+  },
+  "extensionStoreDisabled": "Desactivado",
+  "@extensionStoreDisabled": {
+    "description": "Label showing an extension is disabled"
+  },
+  "batchProgressCount": "{current} / {total}",
+  "@batchProgressCount": {
+    "description": "Batch progress counter",
+    "placeholders": {
+      "current": { "type": "int" },
+      "total": { "type": "int" }
+    }
+  },
+  "updatePercent": "{percent}%",
+  "@updatePercent": {
+    "description": "Update download progress percentage",
+    "placeholders": { "percent": { "type": "int" } }
+  },
+  "updateSeeReleaseNotes": "Ver notas de lanzamiento para más detalles.",
+  "@updateSeeReleaseNotes": {
+    "description": "Fallback text when release notes are empty"
+  },
+  "updateVersion": "v{version}",
+  "@updateVersion": {
+    "description": "Version label prefix in update dialog",
+    "placeholders": { "version": { "type": "String" } }
+  },
+  "trackInfoIsrc": "ISRC",
+  "@trackInfoIsrc": {
+    "description": "Label for ISRC identifier"
+  },
+  "trackInfoDownloads": "Descargas",
+  "@trackInfoDownloads": {
+    "description": "Section header for downloaded tracks"
+  },
+  "trackInfoCodec": "Códec",
+  "@trackInfoCodec": {
+    "description": "Label for audio codec"
+  },
+  "trackInfoSampleRate": "Sample rate",
+  "@trackInfoSampleRate": {
+    "description": "Label for audio sample rate"
+  },
+  "trackInfoBitDepth": "Bit depth",
+  "@trackInfoBitDepth": {
+    "description": "Label for audio bit depth"
+  },
+  "trackInfoBitrate": "Bitrate",
+  "@trackInfoBitrate": {
+    "description": "Label for audio bitrate"
+  },
+  "trackInfoLocation": "Ubicación",
+  "@trackInfoLocation": {
+    "description": "Label for file location path"
+  },
+  "audioAnalysisRescan": "Reescanear",
+  "@audioAnalysisRescan": {
+    "description": "Tooltip for rescan/refresh audio analysis button"
+  },
+  "audioAnalysisStereo": "Estéreo",
+  "@audioAnalysisStereo": {
+    "description": "Label for stereo audio channel configuration"
+  },
+  "audioAnalysisMono": "Mono",
+  "@audioAnalysisMono": {
+    "description": "Label for mono audio channel configuration"
+  },
+  "miniPlayerLoading": "Cargando...",
+  "@miniPlayerLoading": {
+    "description": "Loading text shown in the mini player when track is loading"
+  },
+  "wishlistTitle": "Wishlist",
+  "@wishlistTitle": {
+    "description": "Title for the wishlist sheet"
+  },
+  "wishlistTrackCount": "{count,plural, one{{count} track} other{{count} tracks}}",
+  "@wishlistTrackCount": {
+    "description": "Count of tracks in wishlist",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "wishlistEmptyTitle": "Sin tracks en Wishlist",
+  "@wishlistEmptyTitle": {
+    "description": "Empty state title when wishlist has no tracks"
+  },
+  "wishlistEmptySubtitle": "Agrega tracks desde el menú del track",
+  "@wishlistEmptySubtitle": {
+    "description": "Empty state subtitle telling user how to add tracks"
+  },
+  "settingsProfileNamePlaceholder": "Sin nombre",
+  "@settingsProfileNamePlaceholder": {
+    "description": "Placeholder name when user has not set their profile name"
+  },
+  "settingsPremiumBadge": "Premium",
+  "@settingsPremiumBadge": {
+    "description": "Badge label for premium users"
+  },
+  "settingsFreeBadge": "Gratis",
+  "@settingsFreeBadge": {
+    "description": "Badge label for free tier users"
+  },
+  "settingsTrialUsedBadge": "Prueba gratis usada",
+  "@settingsTrialUsedBadge": {
+    "description": "Label shown when user has already used their free trial"
+  },
+  "settingsNoTrialBadge": "Sin prueba gratis",
+  "@settingsNoTrialBadge": {
+    "description": "Label shown when no free trial is available"
+  },
+  "settingsProfileTitle": "Mi Perfil",
+  "@settingsProfileTitle": {
+    "description": "Title for the settings profile screen"
+  },
+  "settingsNameLabel": "Nombre",
+  "@settingsNameLabel": {
+    "description": "Label for the profile name field"
+  },
+  "settingsNameHint": "Toca para agregar nombre",
+  "@settingsNameHint": {
+    "description": "Hint text shown when profile name is empty"
+  },
+  "settingsNameDialogTitle": "Tu nombre",
+  "@settingsNameDialogTitle": {
+    "description": "Title of the dialog to edit profile name"
+  },
+  "settingsNameDialogHint": "Ingresa tu nombre...",
+  "@settingsNameDialogHint": {
+    "description": "Hint text inside the name editing dialog field"
+  },
+  "settingsSave": "Guardar",
+  "@settingsSave": {
+    "description": "Save button text"
+  },
+  "settingsTrialUsedDate": "Prueba usada el:",
+  "@settingsTrialUsedDate": {
+    "description": "Label shown before the date a trial was used"
+  },
+  "settingsTimeRemaining": "{hours}h {minutes}m {seconds}s restantes",
+  "@settingsTimeRemaining": {
+    "description": "Duration remaining for a premium trial",
+    "placeholders": {
+      "hours": {},
+      "minutes": {},
+      "seconds": {}
+    }
+  },
+  "albumCardSemantics": "Abrir álbum {name} de {artist}",
+  "@albumCardSemantics": {
+    "description": "Semantics label for album card",
+    "placeholders": {
+      "name": {},
+      "artist": {}
+    }
+  },
+  "albumCardTypeEp": "EP",
+  "@albumCardTypeEp": {
+    "description": "Label for EP album type badge"
+  },
+  "albumCardTypeSingle": "Single",
+  "@albumCardTypeSingle": {
+    "description": "Label for Single album type badge"
+  },
+  "albumCardTrackCount": "{count,plural, one{{count} canción} other{{count} canciones}}",
+  "@albumCardTrackCount": {
+    "description": "Track count for album/playlist cards",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "albumCardFallbackName": "Álbum",
+  "@albumCardFallbackName": {
+    "description": "Fallback name when album artist name is empty"
+  },
+  "lyricsModeSynced": "SINCRONIZADA",
+  "@lyricsModeSynced": {
+    "description": "Label for synced lyrics mode badge"
+  },
+  "lyricsModeText": "LETRA",
+  "@lyricsModeText": {
+    "description": "Label for text lyrics mode badge"
+  },
+  "lyricsLoading": "Cargando letras...",
+  "@lyricsLoading": {
+    "description": "Loading message while fetching lyrics"
+  },
+  "lyricsError": "No se pudieron cargar las letras",
+  "@lyricsError": {
+    "description": "Error message when lyrics fail to load"
+  },
+  "lyricsUnavailable": "Sin letras disponibles",
+  "@lyricsUnavailable": {
+    "description": "Message when no lyrics are available for the track"
+  },
+  "lyricsSelectLanguage": "Selecciona idioma de traducción",
+  "@lyricsSelectLanguage": {
+    "description": "Title for the translation language selector"
   }
 }
 

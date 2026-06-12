@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:bitly/l10n/l10n.dart';
 import 'package:bitly/providers/download/download_queue_provider.dart';
 import 'package:bitly/providers/stats/stats_provider.dart';
 import 'package:bitly/utils/logger.dart';
+import 'package:bitly/constants/layout_constants.dart';
 
 final _log = AppLogger('StatsCard');
 
@@ -56,7 +58,7 @@ class StatsCard extends ConsumerWidget {
     );
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: LayoutConstants.hMd,
       child: statsAsync.when(
         data: (stats) {
           final unlocked = unlockedAsync.asData?.value ?? <String>{};
@@ -107,13 +109,13 @@ class StatsCard extends ConsumerWidget {
     }
 
     final achievements = _calculateAchievements(
-      totalPlays, uniqueTracks, uniqueAlbums, uniqueArtists,
+      context, totalPlays, uniqueTracks, uniqueAlbums, uniqueArtists,
       maxTrackPlays, totalDays, downloadCount, unlockedSecrets,
     );
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(16),
+      padding: LayoutConstants.insetMd,
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerHighest.withAlpha(80),
         borderRadius: BorderRadius.circular(16),
@@ -125,9 +127,9 @@ class StatsCard extends ConsumerWidget {
             Row(
               children: [
                 Text('🎧', style: TextStyle(fontSize: 20)),
-                const SizedBox(width: 8),
+                const SizedBox(width: LayoutConstants.gapMd),
                 Text(
-                  'Nivel 1',
+                  context.l10n.statsLevel(1),
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
@@ -136,13 +138,13 @@ class StatsCard extends ConsumerWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            LayoutConstants.gapH12,
             Row(
               children: [
-                Icon(Icons.info_outline, size: 14, color: colorScheme.onSurfaceVariant),
+                Icon(Icons.info_outline, size: LayoutConstants.iconXs, color: colorScheme.onSurfaceVariant),
                 const SizedBox(width: 6),
                 Text(
-                  'Reproduce tu primera canción para subir de nivel',
+                  context.l10n.statsFirstPlayPrompt,
                   style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
                 ),
               ],
@@ -157,7 +159,7 @@ class StatsCard extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Nivel $level',
+                      context.l10n.statsLevel(level),
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -166,12 +168,12 @@ class StatsCard extends ConsumerWidget {
                     ),
                     if (level < 10)
                       Text(
-                        '$totalPlays XP · ${_formatNumber(totalPlays)} reproducciones',
+                        context.l10n.statsXpPlays(totalPlays, _formatNumber(totalPlays)),
                         style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
                       )
                     else
                       Text(
-                        '🏆 Leyenda · ${_formatNumber(totalPlays)} reproducciones',
+                        context.l10n.statsLegendPlays(_formatNumber(totalPlays)),
                         style: TextStyle(fontSize: 11, color: Colors.purple[200]),
                       ),
                   ],
@@ -190,9 +192,9 @@ class StatsCard extends ConsumerWidget {
                   minHeight: 6,
                 ),
               ),
-              const SizedBox(height: 4),
+              LayoutConstants.gapH4,
               Text(
-                '${_formatNumber(totalPlays)} / ${_formatNumber(nextXp)} XP para nivel ${level + 1}',
+                context.l10n.statsXpToNextLevel(_formatNumber(totalPlays), _formatNumber(nextXp), level + 1),
                 style: TextStyle(fontSize: 9, color: colorScheme.onSurfaceVariant),
               ),
             ],
@@ -200,11 +202,11 @@ class StatsCard extends ConsumerWidget {
             // Stats grid
             Row(
               children: [
-                _StatBadge(emoji: '▶️', label: _formatNumber(totalPlays), sub: 'Reproducciones'),
-                _StatBadge(emoji: '🎵', label: _formatNumber(uniqueTracks), sub: 'Canciones'),
-                _StatBadge(emoji: '💿', label: _formatNumber(uniqueAlbums), sub: 'Álbumes'),
-                _StatBadge(emoji: '🎤', label: _formatNumber(uniqueArtists), sub: 'Artistas'),
-                _StatBadge(emoji: '⬇️', label: _formatNumber(downloadCount), sub: 'Descargas'),
+                _StatBadge(emoji: '▶️', label: _formatNumber(totalPlays), sub: context.l10n.statsPlaysBadge),
+                _StatBadge(emoji: '🎵', label: _formatNumber(uniqueTracks), sub: context.l10n.statsSongsBadge),
+                _StatBadge(emoji: '💿', label: _formatNumber(uniqueAlbums), sub: context.l10n.statsAlbumsBadge),
+                _StatBadge(emoji: '🎤', label: _formatNumber(uniqueArtists), sub: context.l10n.statsArtistsBadge),
+                _StatBadge(emoji: '⬇️', label: _formatNumber(downloadCount), sub: context.l10n.statsDownloadsBadge),
               ],
             ),
             // Most played artist
@@ -223,7 +225,7 @@ class StatsCard extends ConsumerWidget {
                     const SizedBox(width: 6),
                     Flexible(
                       child: Text(
-                        'Artista + escuchado: $topArtistName',
+                        context.l10n.statsMostListenedArtist(topArtistName),
                         style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: colorScheme.onSurface),
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -241,16 +243,16 @@ class StatsCard extends ConsumerWidget {
             ],
             // Achievements
             if (achievements.isNotEmpty) ...[
-              const SizedBox(height: 12),
+              LayoutConstants.gapH12,
               Text(
-                '🏅 Logros',
+                context.l10n.statsAchievementsHeader,
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                   color: colorScheme.onSurface,
                 ),
               ),
-              const SizedBox(height: 8),
+              LayoutConstants.gapH8,
               Wrap(
                 spacing: 6,
                 runSpacing: 6,
@@ -270,6 +272,7 @@ class StatsCard extends ConsumerWidget {
   }
 
   List<_Achievement> _calculateAchievements(
+    BuildContext context,
     int totalPlays,
     int uniqueTracks,
     int uniqueAlbums,
@@ -281,47 +284,46 @@ class StatsCard extends ConsumerWidget {
   ) {
     final achievements = <_Achievement>[];
 
-    if (totalPlays >= 1) achievements.add(_Achievement('Primera Escucha', '🎧'));
-    if (totalPlays >= 10) achievements.add(_Achievement('10 Reproducciones', '💎'));
-    if (totalPlays >= 50) achievements.add(_Achievement('50 Reproducciones', '🌟'));
-    if (totalPlays >= 100) achievements.add(_Achievement('100 Reproducciones', '👑'));
-    if (totalPlays >= 250) achievements.add(_Achievement('250 Reproducciones', '🔥'));
-    if (totalPlays >= 500) achievements.add(_Achievement('500 Reproducciones', '🚀'));
-    if (totalPlays >= 1000) achievements.add(_Achievement('1,000 Reproducciones', '💫'));
-    if (totalPlays >= 2500) achievements.add(_Achievement('2,500 Reproducciones', '🌈'));
-    if (totalPlays >= 5000) achievements.add(_Achievement('5,000 Reproducciones', '⭐'));
-    if (totalPlays >= 10000) achievements.add(_Achievement('10,000 Reproducciones', '🏆'));
+    if (totalPlays >= 1) achievements.add(_Achievement(context.l10n.statsAchPlays(1), '🎧'));
+    if (totalPlays >= 10) achievements.add(_Achievement(context.l10n.statsAchPlays(10), '💎'));
+    if (totalPlays >= 50) achievements.add(_Achievement(context.l10n.statsAchPlays(50), '🌟'));
+    if (totalPlays >= 100) achievements.add(_Achievement(context.l10n.statsAchPlays(100), '👑'));
+    if (totalPlays >= 250) achievements.add(_Achievement(context.l10n.statsAchPlays(250), '🔥'));
+    if (totalPlays >= 500) achievements.add(_Achievement(context.l10n.statsAchPlays(500), '🚀'));
+    if (totalPlays >= 1000) achievements.add(_Achievement(context.l10n.statsAchPlays(1000), '💫'));
+    if (totalPlays >= 2500) achievements.add(_Achievement(context.l10n.statsAchPlays(2500), '🌈'));
+    if (totalPlays >= 5000) achievements.add(_Achievement(context.l10n.statsAchPlays(5000), '⭐'));
+    if (totalPlays >= 10000) achievements.add(_Achievement(context.l10n.statsAchPlays(10000), '🏆'));
 
-    if (uniqueAlbums >= 5) achievements.add(_Achievement('5 Álbumes', '📀'));
-    if (uniqueAlbums >= 25) achievements.add(_Achievement('25 Álbumes', '💿'));
-    if (uniqueAlbums >= 100) achievements.add(_Achievement('100 Álbumes', '🎵'));
+    if (uniqueAlbums >= 5) achievements.add(_Achievement(context.l10n.statsAchAlbums(5), '📀'));
+    if (uniqueAlbums >= 25) achievements.add(_Achievement(context.l10n.statsAchAlbums(25), '💿'));
+    if (uniqueAlbums >= 100) achievements.add(_Achievement(context.l10n.statsAchAlbums(100), '🎵'));
 
-    if (uniqueArtists >= 5) achievements.add(_Achievement('5 Artistas', '🎤'));
-    if (uniqueArtists >= 25) achievements.add(_Achievement('25 Artistas', '🎸'));
-    if (uniqueArtists >= 100) achievements.add(_Achievement('100 Artistas', '🎼'));
+    if (uniqueArtists >= 5) achievements.add(_Achievement(context.l10n.statsAchArtists(5), '🎤'));
+    if (uniqueArtists >= 25) achievements.add(_Achievement(context.l10n.statsAchArtists(25), '🎸'));
+    if (uniqueArtists >= 100) achievements.add(_Achievement(context.l10n.statsAchArtists(100), '🎼'));
 
-    if (uniqueTracks >= 10) achievements.add(_Achievement('10 Canciones', '📚'));
-    if (uniqueTracks >= 50) achievements.add(_Achievement('50 Canciones', '📖'));
-    if (uniqueTracks >= 200) achievements.add(_Achievement('200 Canciones', '📕'));
+    if (uniqueTracks >= 10) achievements.add(_Achievement(context.l10n.statsAchSongs(10), '📚'));
+    if (uniqueTracks >= 50) achievements.add(_Achievement(context.l10n.statsAchSongs(50), '📖'));
+    if (uniqueTracks >= 200) achievements.add(_Achievement(context.l10n.statsAchSongs(200), '📕'));
 
-    if (maxTrackPlays >= 5) achievements.add(_Achievement('5× Misma Canción', '❤️'));
-    if (maxTrackPlays >= 20) achievements.add(_Achievement('20× Misma Canción', '💕'));
-    if (maxTrackPlays >= 100) achievements.add(_Achievement('100× Misma Canción', '💖'));
+    if (maxTrackPlays >= 5) achievements.add(_Achievement(context.l10n.statsAchSameSong(5), '❤️'));
+    if (maxTrackPlays >= 20) achievements.add(_Achievement(context.l10n.statsAchSameSong(20), '💕'));
+    if (maxTrackPlays >= 100) achievements.add(_Achievement(context.l10n.statsAchSameSong(100), '💖'));
 
-    if (totalDays >= 3) achievements.add(_Achievement('3 Días', '📅'));
-    if (totalDays >= 15) achievements.add(_Achievement('15 Días', '📅'));
-    if (totalDays >= 60) achievements.add(_Achievement('60 Días', '📅'));
+    if (totalDays >= 3) achievements.add(_Achievement(context.l10n.statsAchDays(3), '📅'));
+    if (totalDays >= 15) achievements.add(_Achievement(context.l10n.statsAchDays(15), '📅'));
+    if (totalDays >= 60) achievements.add(_Achievement(context.l10n.statsAchDays(60), '📅'));
 
-    if (downloadCount >= 1) achievements.add(_Achievement('1 Descarga', '⬇️'));
-    if (downloadCount >= 10) achievements.add(_Achievement('10 Descargas', '⬇️'));
-    if (downloadCount >= 50) achievements.add(_Achievement('50 Descargas', '📦'));
-    if (downloadCount >= 100) achievements.add(_Achievement('100 Descargas', '📦'));
+    if (downloadCount >= 1) achievements.add(_Achievement(context.l10n.statsAchDownloads(1), '⬇️'));
+    if (downloadCount >= 10) achievements.add(_Achievement(context.l10n.statsAchDownloads(10), '⬇️'));
+    if (downloadCount >= 50) achievements.add(_Achievement(context.l10n.statsAchDownloads(50), '📦'));
+    if (downloadCount >= 100) achievements.add(_Achievement(context.l10n.statsAchDownloads(100), '📦'));
 
-    // Secret achievements (hidden until unlocked)
-    if (unlockedSecrets.contains('night_owl')) achievements.add(_Achievement('Búho Nocturno', '🦉'));
-    if (unlockedSecrets.contains('night_rider')) achievements.add(_Achievement('Jinete Nocturno', '🌙'));
-    if (unlockedSecrets.contains('album_marathon_5')) achievements.add(_Achievement('Maratón de Álbum (5)', '📀'));
-    if (unlockedSecrets.contains('album_marathon_10')) achievements.add(_Achievement('Maratón de Álbum (10)', '💿'));
+    if (unlockedSecrets.contains('night_owl')) achievements.add(_Achievement(context.l10n.statsAchNightOwl, '🦉'));
+    if (unlockedSecrets.contains('night_rider')) achievements.add(_Achievement(context.l10n.statsAchNightRider, '🌙'));
+    if (unlockedSecrets.contains('album_marathon_5')) achievements.add(_Achievement(context.l10n.statsAchAlbumMarathon5, '📀'));
+    if (unlockedSecrets.contains('album_marathon_10')) achievements.add(_Achievement(context.l10n.statsAchAlbumMarathon10, '💿'));
 
     return achievements;
   }
@@ -341,7 +343,7 @@ class _StatBadge extends StatelessWidget {
       child: Column(
         children: [
           Text(emoji, style: const TextStyle(fontSize: 16)),
-          const SizedBox(height: 2),
+          LayoutConstants.gapH2,
           Text(
             label,
             style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: cs.onSurface),
@@ -378,7 +380,7 @@ class _AchievementChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: cs.primary.withAlpha(20),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(LayoutConstants.radiusMd),
         border: Border.all(color: cs.primary.withAlpha(38)),
       ),
       child: Row(

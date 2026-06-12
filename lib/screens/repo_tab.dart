@@ -7,6 +7,8 @@ import 'package:bitly/widgets/settings_group.dart';
 import 'package:bitly/widgets/animation_utils.dart';
 import 'package:bitly/screens/store/extension_details_screen.dart';
 import 'package:bitly/utils/app_bar_layout.dart';
+import 'package:bitly/widgets/common/empty_state_widget.dart';
+import 'package:bitly/widgets/common/error_state_widget.dart';
 
 class RepoTab extends ConsumerStatefulWidget {
   const RepoTab({super.key});
@@ -527,36 +529,11 @@ class _RepoTabState extends ConsumerState<RepoTab> {
   }
 
   Widget _buildErrorState(String error, ColorScheme colorScheme) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.error_outline, size: 64, color: colorScheme.error),
-            const SizedBox(height: 16),
-            Text(
-              context.l10n.storeLoadError,
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              error,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            FilledButton.icon(
-              onPressed: () =>
-                  ref.read(storeProvider.notifier).refresh(forceRefresh: true),
-              icon: const Icon(Icons.refresh),
-              label: Text(context.l10n.dialogRetry),
-            ),
-          ],
-        ),
-      ),
+    return ErrorStateWidget(
+      title: context.l10n.storeLoadError,
+      message: error,
+      onRetry: () =>
+          ref.read(storeProvider.notifier).refresh(forceRefresh: true),
     );
   }
 
@@ -564,36 +541,20 @@ class _RepoTabState extends ConsumerState<RepoTab> {
     required bool hasFilters,
     required ColorScheme colorScheme,
   }) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            hasFilters ? Icons.search_off : Icons.extension_off,
-            size: 64,
-            color: colorScheme.onSurfaceVariant,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            hasFilters
-                ? context.l10n.storeEmptyNoResults
-                : context.l10n.storeEmptyNoExtensions,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: colorScheme.onSurfaceVariant,
-            ),
-          ),
-          if (hasFilters) ...[
-            const SizedBox(height: 8),
-            TextButton(
+    return EmptyStateWidget(
+      icon: hasFilters ? Icons.search_off : Icons.extension_off,
+      title: hasFilters
+          ? context.l10n.storeEmptyNoResults
+          : context.l10n.storeEmptyNoExtensions,
+      action: hasFilters
+          ? TextButton(
               onPressed: () {
                 _searchController.clear();
                 ref.read(storeProvider.notifier).clearSearch();
               },
               child: Text(context.l10n.storeClearFilters),
-            ),
-          ],
-        ],
-      ),
+            )
+          : null,
     );
   }
 

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:bitly/l10n/l10n.dart';
+import 'package:bitly/constants/layout_constants.dart';
 
 class _BatchProgress {
   final int current;
@@ -119,11 +120,11 @@ class _BatchProgressDialogState extends State<BatchProgressDialog> {
 
     return AlertDialog(
       backgroundColor: colorScheme.surfaceContainerHigh,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(LayoutConstants.radiusXl)),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const SizedBox(height: 8),
+          LayoutConstants.gapH8,
           SizedBox(
             width: 64,
             height: 64,
@@ -135,25 +136,25 @@ class _BatchProgressDialogState extends State<BatchProgressDialog> {
                   strokeWidth: 4,
                   backgroundColor: colorScheme.surfaceContainerHighest,
                 ),
-                Icon(widget.icon, color: colorScheme.primary, size: 24),
+                Icon(widget.icon, color: colorScheme.primary, size: LayoutConstants.iconMd),
               ],
             ),
           ),
           const SizedBox(height: 20),
-          Text(
+            Text(
             widget.title,
             style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 8),
+          LayoutConstants.gapH8,
           Text(
-            '$current / ${widget.total}',
+            context.l10n.batchProgressCount(current, widget.total),
             style: textTheme.bodyMedium?.copyWith(
               color: colorScheme.onSurfaceVariant,
             ),
           ),
           if (detail != null && detail.isNotEmpty) ...[
-            const SizedBox(height: 4),
+            LayoutConstants.gapH4,
             Text(
               detail,
               style: textTheme.bodySmall?.copyWith(
@@ -164,9 +165,9 @@ class _BatchProgressDialogState extends State<BatchProgressDialog> {
               textAlign: TextAlign.center,
             ),
           ],
-          const SizedBox(height: 12),
+          LayoutConstants.gapH12,
           ClipRRect(
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(LayoutConstants.radiusXs),
             child: LinearProgressIndicator(
               value: progress > 0 ? progress : null,
               backgroundColor: colorScheme.surfaceContainerHighest,

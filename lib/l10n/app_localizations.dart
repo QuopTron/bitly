@@ -98,7 +98,7 @@ abstract class AppLocalizations {
   /// App name - DO NOT TRANSLATE
   ///
   /// In en, this message translates to:
-  /// **'Bitly'**
+  /// **'Bitly Mobile'**
   String get appName;
 
   /// Bottom navigation - Home tab
@@ -3557,24 +3557,6 @@ abstract class AppLocalizations {
   /// **'All'**
   String get libraryFilterAll;
 
-  /// Filter chip - all quality levels
-  ///
-  /// In en, this message translates to:
-  /// **'All qualities'**
-  String get libraryFilterAllQuality;
-
-  /// Filter chip - all formats
-  ///
-  /// In en, this message translates to:
-  /// **'All formats'**
-  String get libraryFilterAllFormat;
-
-  /// Filter chip - all metadata states
-  ///
-  /// In en, this message translates to:
-  /// **'All metadata'**
-  String get libraryFilterAllMetadata;
-
   /// Filter chip - show only downloaded items
   ///
   /// In en, this message translates to:
@@ -3719,7 +3701,7 @@ abstract class AppLocalizations {
   /// **'Genre (Z-A)'**
   String get libraryFilterSortGenreDesc;
 
-  /// Relative time - less than a minute ago
+  /// Relative time - just now
   ///
   /// In en, this message translates to:
   /// **'Just now'**
@@ -3728,13 +3710,13 @@ abstract class AppLocalizations {
   /// Relative time - minutes ago
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, =1{1 minute ago} other{{count} minutes ago}}'**
+  /// **'{count} minutes ago'**
   String timeMinutesAgo(int count);
 
   /// Relative time - hours ago
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, =1{1 hour ago} other{{count} hours ago}}'**
+  /// **'{count} hours ago'**
   String timeHoursAgo(int count);
 
   /// Tutorial welcome page title
@@ -6418,6 +6400,1032 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Choose which extensions can be used as fallback'**
   String get downloadFallbackExtensionsSubtitle;
+
+  /// Screen title for video cache settings
+  ///
+  /// In en, this message translates to:
+  /// **'Video Cache Settings'**
+  String get videoCacheTitle;
+
+  /// Section header for cache storage info
+  ///
+  /// In en, this message translates to:
+  /// **'Cache Storage'**
+  String get videoCacheStorage;
+
+  /// Section header for max cache size
+  ///
+  /// In en, this message translates to:
+  /// **'Maximum Cache Limit'**
+  String get videoCacheMaxLimit;
+
+  /// Button to open storage management
+  ///
+  /// In en, this message translates to:
+  /// **'Manage Storage'**
+  String get videoCacheManageStorage;
+
+  /// Dialog title - clear video cache
+  ///
+  /// In en, this message translates to:
+  /// **'Clear Cache'**
+  String get videoCacheClearTitle;
+
+  /// Dialog message - confirm cache clear
+  ///
+  /// In en, this message translates to:
+  /// **'Are you sure you want to delete all cached videos?'**
+  String get videoCacheClearMessage;
+
+  /// Snackbar after cache cleared
+  ///
+  /// In en, this message translates to:
+  /// **'Cache cleared successfully'**
+  String get videoCacheCleared;
+
+  /// Button - clear all cached videos
+  ///
+  /// In en, this message translates to:
+  /// **'CLEAR ALL CACHE'**
+  String get videoCacheClearAll;
+
+  /// Empty state - no cached videos
+  ///
+  /// In en, this message translates to:
+  /// **'No cached videos'**
+  String get videoCacheEmpty;
+
+  /// Relative time - days ago
+  ///
+  /// In en, this message translates to:
+  /// **'{count} days ago'**
+  String timeDaysAgo(int count);
+
+  /// Section header for cached videos list
+  ///
+  /// In en, this message translates to:
+  /// **'Cached Videos ({count})'**
+  String videoCacheCachedListTitle(int count);
+
+  /// Label showing number of cached videos
+  ///
+  /// In en, this message translates to:
+  /// **'Cached videos: {count}'**
+  String videoCacheCachedCount(int count);
+
+  /// Dialog title for factory reset
+  ///
+  /// In en, this message translates to:
+  /// **'Factory Reset'**
+  String get factoryResetTitle;
+
+  /// Factory reset warning message
+  ///
+  /// In en, this message translates to:
+  /// **'This will permanently delete all your settings, download history, and saved collections.'**
+  String get factoryResetDescription;
+
+  /// Checkbox label for deleting music files
+  ///
+  /// In en, this message translates to:
+  /// **'Also delete music files'**
+  String get factoryResetDeleteMusic;
+
+  /// Subtitle for music deletion checkbox
+  ///
+  /// In en, this message translates to:
+  /// **'Physically deletes downloaded songs from storage.'**
+  String get factoryResetDeleteMusicSubtitle;
+
+  /// Warning text about irreversible action
+  ///
+  /// In en, this message translates to:
+  /// **'This action CANNOT be undone.'**
+  String get factoryResetCannotUndo;
+
+  /// In progress message during factory reset
+  ///
+  /// In en, this message translates to:
+  /// **'Resetting app...'**
+  String get factoryResetResetting;
+
+  /// Instruction during reset
+  ///
+  /// In en, this message translates to:
+  /// **'Please do not close the app.'**
+  String get factoryResetPleaseWait;
+
+  /// Snackbar after successful reset
+  ///
+  /// In en, this message translates to:
+  /// **'App reset. Restarting...'**
+  String get factoryResetSuccess;
+
+  /// Snackbar on reset failure
+  ///
+  /// In en, this message translates to:
+  /// **'Reset error: {error}'**
+  String factoryResetError(String error);
+
+  /// Button to confirm factory reset
+  ///
+  /// In en, this message translates to:
+  /// **'Reset now'**
+  String get factoryResetButton;
+
+  /// Button and dialog title - reset app settings
+  ///
+  /// In en, this message translates to:
+  /// **'Reset Settings'**
+  String get dialogResetSettings;
+
+  /// Dialog message - reset to initial setup
+  ///
+  /// In en, this message translates to:
+  /// **'Do you want to reset the app to the initial setup wizard?'**
+  String get dialogResetSettingsMessage;
+
+  /// Dialog button - confirm reset
+  ///
+  /// In en, this message translates to:
+  /// **'Reset'**
+  String get dialogReset;
+
+  /// Sheet title for creating a playlist
+  ///
+  /// In en, this message translates to:
+  /// **'Create Playlist'**
+  String get playlistCreatorTitle;
+
+  /// Text field label for playlist name
+  ///
+  /// In en, this message translates to:
+  /// **'Playlist name'**
+  String get playlistCreatorNameLabel;
+
+  /// Hint text for playlist name field
+  ///
+  /// In en, this message translates to:
+  /// **'My awesome playlist'**
+  String get playlistCreatorNameHint;
+
+  /// Text field label for searching songs
+  ///
+  /// In en, this message translates to:
+  /// **'Search songs'**
+  String get playlistCreatorSearchLabel;
+
+  /// Hint text for song search field
+  ///
+  /// In en, this message translates to:
+  /// **'Type to filter...'**
+  String get playlistCreatorSearchHint;
+
+  /// Count of selected tracks
+  ///
+  /// In en, this message translates to:
+  /// **'{count} selected'**
+  String playlistCreatorSelectedCount(int count);
+
+  /// Button to select all tracks
+  ///
+  /// In en, this message translates to:
+  /// **'Select all'**
+  String get playlistCreatorSelectAll;
+
+  /// Button to deselect all tracks
+  ///
+  /// In en, this message translates to:
+  /// **'Deselect all'**
+  String get playlistCreatorDeselectAll;
+
+  /// Button to create playlist
+  ///
+  /// In en, this message translates to:
+  /// **'Create ({count} songs)'**
+  String playlistCreatorCreateButton(int count);
+
+  /// Section header for extra download options (lyrics, video)
+  ///
+  /// In en, this message translates to:
+  /// **'Extra options'**
+  String get downloadPickerExtraOptions;
+
+  /// Toggle label to also download lyrics
+  ///
+  /// In en, this message translates to:
+  /// **'Download Lyrics'**
+  String get downloadPickerDownloadLyrics;
+
+  /// Toggle label to also download video
+  ///
+  /// In en, this message translates to:
+  /// **'Download Video'**
+  String get downloadPickerDownloadVideo;
+
+  /// Badge text for recommended download provider
+  ///
+  /// In en, this message translates to:
+  /// **'Best'**
+  String get downloadPickerBest;
+
+  /// Health status label when service is online
+  ///
+  /// In en, this message translates to:
+  /// **'Online'**
+  String get downloadPickerServiceOnline;
+
+  /// Health status label when service is degraded
+  ///
+  /// In en, this message translates to:
+  /// **'Degraded'**
+  String get downloadPickerServiceDegraded;
+
+  /// Health status label when service is offline
+  ///
+  /// In en, this message translates to:
+  /// **'Offline'**
+  String get downloadPickerServiceOffline;
+
+  /// Tooltip text for online health dot
+  ///
+  /// In en, this message translates to:
+  /// **'Service online'**
+  String get downloadPickerServiceOnlineTooltip;
+
+  /// Tooltip text for degraded health dot
+  ///
+  /// In en, this message translates to:
+  /// **'Service degraded'**
+  String get downloadPickerServiceDegradedTooltip;
+
+  /// Tooltip text for offline health dot
+  ///
+  /// In en, this message translates to:
+  /// **'Service offline'**
+  String get downloadPickerServiceOfflineTooltip;
+
+  /// Tooltip text for unknown health dot
+  ///
+  /// In en, this message translates to:
+  /// **'Unknown status'**
+  String get downloadPickerServiceUnknownTooltip;
+
+  /// Label showing quality count for a provider
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 quality} other{{count} qualities}}'**
+  String downloadPickerQualityCount(int count);
+
+  /// Estimated download size badge
+  ///
+  /// In en, this message translates to:
+  /// **'~{size} MB'**
+  String downloadPickerEstimatedSize(String size);
+
+  /// Tooltip text when network is connected
+  ///
+  /// In en, this message translates to:
+  /// **'Online'**
+  String get networkStatusOnline;
+
+  /// Tooltip text when network is disconnected
+  ///
+  /// In en, this message translates to:
+  /// **'Offline'**
+  String get networkStatusOffline;
+
+  /// User level label in stats card
+  ///
+  /// In en, this message translates to:
+  /// **'Level {level}'**
+  String statsLevel(int level);
+
+  /// Prompt shown when user has no plays yet
+  ///
+  /// In en, this message translates to:
+  /// **'Play your first song to level up'**
+  String get statsFirstPlayPrompt;
+
+  /// XP and play count line below level
+  ///
+  /// In en, this message translates to:
+  /// **'{count} XP · {display} plays'**
+  String statsXpPlays(int count, String display);
+
+  /// Level 10 legend status with play count
+  ///
+  /// In en, this message translates to:
+  /// **'🏆 Legend · {display} plays'**
+  String statsLegendPlays(String display);
+
+  /// XP progress text toward next level
+  ///
+  /// In en, this message translates to:
+  /// **'{current} / {next} XP for level {level}'**
+  String statsXpToNextLevel(String current, String next, int level);
+
+  /// Label for most played artist
+  ///
+  /// In en, this message translates to:
+  /// **'Most listened: {artist}'**
+  String statsMostListenedArtist(String artist);
+
+  /// Section header for achievements list
+  ///
+  /// In en, this message translates to:
+  /// **'🏅 Achievements'**
+  String get statsAchievementsHeader;
+
+  /// Stat badge subtitle - total play count
+  ///
+  /// In en, this message translates to:
+  /// **'Plays'**
+  String get statsPlaysBadge;
+
+  /// Stat badge subtitle - unique songs
+  ///
+  /// In en, this message translates to:
+  /// **'Songs'**
+  String get statsSongsBadge;
+
+  /// Stat badge subtitle - unique albums
+  ///
+  /// In en, this message translates to:
+  /// **'Albums'**
+  String get statsAlbumsBadge;
+
+  /// Stat badge subtitle - unique artists
+  ///
+  /// In en, this message translates to:
+  /// **'Artists'**
+  String get statsArtistsBadge;
+
+  /// Stat badge subtitle - download count
+  ///
+  /// In en, this message translates to:
+  /// **'Downloads'**
+  String get statsDownloadsBadge;
+
+  /// Achievement name for play count milestones
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{First Listen} other{{count} Plays}}'**
+  String statsAchPlays(int count);
+
+  /// Achievement name for album count milestones
+  ///
+  /// In en, this message translates to:
+  /// **'{count} Albums'**
+  String statsAchAlbums(int count);
+
+  /// Achievement name for artist count milestones
+  ///
+  /// In en, this message translates to:
+  /// **'{count} Artists'**
+  String statsAchArtists(int count);
+
+  /// Achievement name for unique song count milestones
+  ///
+  /// In en, this message translates to:
+  /// **'{count} Songs'**
+  String statsAchSongs(int count);
+
+  /// Achievement name for same song repeat milestones
+  ///
+  /// In en, this message translates to:
+  /// **'{count}x Same Song'**
+  String statsAchSameSong(int count);
+
+  /// Achievement name for active day milestones
+  ///
+  /// In en, this message translates to:
+  /// **'{count} Days'**
+  String statsAchDays(int count);
+
+  /// Achievement name for download count milestones
+  ///
+  /// In en, this message translates to:
+  /// **'{count} Downloads'**
+  String statsAchDownloads(int count);
+
+  /// Secret achievement - late night listening
+  ///
+  /// In en, this message translates to:
+  /// **'Night Owl'**
+  String get statsAchNightOwl;
+
+  /// Secret achievement - very late night listening
+  ///
+  /// In en, this message translates to:
+  /// **'Night Rider'**
+  String get statsAchNightRider;
+
+  /// Secret achievement - 5 albums in a row
+  ///
+  /// In en, this message translates to:
+  /// **'Album Marathon (5)'**
+  String get statsAchAlbumMarathon5;
+
+  /// Secret achievement - 10 albums in a row
+  ///
+  /// In en, this message translates to:
+  /// **'Album Marathon (10)'**
+  String get statsAchAlbumMarathon10;
+
+  /// Title for the download progress modal sheet
+  ///
+  /// In en, this message translates to:
+  /// **'Downloading'**
+  String get downloadProgressTitle;
+
+  /// Button to stop a download in progress
+  ///
+  /// In en, this message translates to:
+  /// **'Stop Download'**
+  String get downloadProgressStopDownload;
+
+  /// Download progress percentage text
+  ///
+  /// In en, this message translates to:
+  /// **'{percent}%'**
+  String downloadProgressPercent(int percent);
+
+  /// Download speed display
+  ///
+  /// In en, this message translates to:
+  /// **'{speed} MB/s'**
+  String downloadProgressSpeed(String speed);
+
+  /// Section header for download details
+  ///
+  /// In en, this message translates to:
+  /// **'Download Details'**
+  String get downloadProgressDetails;
+
+  /// Label for download source/service
+  ///
+  /// In en, this message translates to:
+  /// **'Source'**
+  String get downloadProgressSource;
+
+  /// Label for download quality
+  ///
+  /// In en, this message translates to:
+  /// **'Quality'**
+  String get downloadProgressQuality;
+
+  /// Download quality option - default/auto
+  ///
+  /// In en, this message translates to:
+  /// **'Default'**
+  String get downloadProgressDefaultQuality;
+
+  /// Label for download status
+  ///
+  /// In en, this message translates to:
+  /// **'Status'**
+  String get downloadProgressStatus;
+
+  /// Download status - waiting in queue
+  ///
+  /// In en, this message translates to:
+  /// **'Queued'**
+  String get downloadProgressStatusQueued;
+
+  /// Download status - actively downloading
+  ///
+  /// In en, this message translates to:
+  /// **'Downloading'**
+  String get downloadProgressStatusDownloading;
+
+  /// Download status - finalizing/processing
+  ///
+  /// In en, this message translates to:
+  /// **'Finalizing'**
+  String get downloadProgressStatusFinalizing;
+
+  /// Download status - completed successfully
+  ///
+  /// In en, this message translates to:
+  /// **'Complete'**
+  String get downloadProgressStatusComplete;
+
+  /// Download status - failed
+  ///
+  /// In en, this message translates to:
+  /// **'Failed'**
+  String get downloadProgressStatusFailed;
+
+  /// Download status - skipped
+  ///
+  /// In en, this message translates to:
+  /// **'Skipped'**
+  String get downloadProgressStatusSkipped;
+
+  /// Label indicating a track is downloaded locally
+  ///
+  /// In en, this message translates to:
+  /// **'Local'**
+  String get trackCardLocal;
+
+  /// Label indicating a track is streaming online
+  ///
+  /// In en, this message translates to:
+  /// **'Online'**
+  String get trackCardOnline;
+
+  /// Dialog title confirming download deletion
+  ///
+  /// In en, this message translates to:
+  /// **'Delete download?'**
+  String get deleteDownloadTitle;
+
+  /// Dialog content confirming download deletion
+  ///
+  /// In en, this message translates to:
+  /// **'\"{name}\" will be deleted from your device.'**
+  String deleteDownloadContent(String name);
+
+  /// Cancel button in delete download confirmation dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get deleteDownloadCancel;
+
+  /// Confirm button in delete download confirmation dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Delete'**
+  String get deleteDownloadConfirm;
+
+  /// Snackbar message when empty playlist is created
+  ///
+  /// In en, this message translates to:
+  /// **'List \"{name}\" created'**
+  String playlistCreated(String name);
+
+  /// Snackbar message when playlist is created with tracks
+  ///
+  /// In en, this message translates to:
+  /// **'List \"{name}\" created with {count} songs'**
+  String playlistCreatedWithCount(String name, int count);
+
+  /// Title for extensions and store modal
+  ///
+  /// In en, this message translates to:
+  /// **'Extensions & Store'**
+  String get extensionStoreTitle;
+
+  /// Tab label for extension store
+  ///
+  /// In en, this message translates to:
+  /// **'Store'**
+  String get extensionStoreTabStore;
+
+  /// Tab label for installed extensions
+  ///
+  /// In en, this message translates to:
+  /// **'Extensions'**
+  String get extensionStoreTabExtensions;
+
+  /// Search field placeholder text
+  ///
+  /// In en, this message translates to:
+  /// **'Search extensions...'**
+  String get extensionStoreSearchHint;
+
+  /// Category filter showing all extensions
+  ///
+  /// In en, this message translates to:
+  /// **'All'**
+  String get extensionStoreFilterAll;
+
+  /// Category filter for download extensions
+  ///
+  /// In en, this message translates to:
+  /// **'Download'**
+  String get extensionStoreFilterDownload;
+
+  /// Category filter for metadata extensions
+  ///
+  /// In en, this message translates to:
+  /// **'Metadata'**
+  String get extensionStoreFilterMetadata;
+
+  /// Category filter for utility extensions
+  ///
+  /// In en, this message translates to:
+  /// **'Utility'**
+  String get extensionStoreFilterUtility;
+
+  /// Category filter for lyrics extensions
+  ///
+  /// In en, this message translates to:
+  /// **'Lyrics'**
+  String get extensionStoreFilterLyrics;
+
+  /// Count of extensions in the store
+  ///
+  /// In en, this message translates to:
+  /// **'{count,plural, one{{count} extension} other{{count} extensions}}'**
+  String extensionStoreCount(int count);
+
+  /// Button to update all extensions
+  ///
+  /// In en, this message translates to:
+  /// **'Update all ({count})'**
+  String extensionStoreUpdateAll(int count);
+
+  /// Title for repository configuration section
+  ///
+  /// In en, this message translates to:
+  /// **'Configure Repository'**
+  String get extensionStoreConfigureRepo;
+
+  /// Hint text for registry URL input field
+  ///
+  /// In en, this message translates to:
+  /// **'Registry.json URL'**
+  String get extensionStoreRepoUrlHint;
+
+  /// Button to reset to default repository URL
+  ///
+  /// In en, this message translates to:
+  /// **'Use default repository'**
+  String get extensionStoreUseDefaultRepo;
+
+  /// Button to retry loading extensions
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get extensionStoreRetry;
+
+  /// Message when search/filter returns no results
+  ///
+  /// In en, this message translates to:
+  /// **'No results'**
+  String get extensionStoreNoResults;
+
+  /// Message when store has no extensions
+  ///
+  /// In en, this message translates to:
+  /// **'No extensions'**
+  String get extensionStoreNoExtensions;
+
+  /// Snackbar when extension is installed
+  ///
+  /// In en, this message translates to:
+  /// **'{name} installed'**
+  String extensionStoreInstalled(String name);
+
+  /// Snackbar when extension installation fails
+  ///
+  /// In en, this message translates to:
+  /// **'Error installing {name}'**
+  String extensionStoreInstallError(String name);
+
+  /// Snackbar when extension is updated
+  ///
+  /// In en, this message translates to:
+  /// **'{name} updated to v{version}'**
+  String extensionStoreUpdated(String name, String version);
+
+  /// Snackbar when extension update fails
+  ///
+  /// In en, this message translates to:
+  /// **'Error updating {name}'**
+  String extensionStoreUpdateError(String name);
+
+  /// Snackbar when multiple extensions are updated at once
+  ///
+  /// In en, this message translates to:
+  /// **'{count,plural, one{{count} extension updated} other{{count} extensions updated}}'**
+  String extensionStoreBulkUpdated(int count);
+
+  /// Snackbar when there are no extensions to update
+  ///
+  /// In en, this message translates to:
+  /// **'No updates available'**
+  String get extensionStoreNoUpdates;
+
+  /// Message when no extensions are installed
+  ///
+  /// In en, this message translates to:
+  /// **'No extensions installed'**
+  String get extensionStoreNoExtensionsInstalled;
+
+  /// Hint telling user to visit store
+  ///
+  /// In en, this message translates to:
+  /// **'Go to the store to install extensions'**
+  String get extensionStoreGoToStore;
+
+  /// Count of installed extensions
+  ///
+  /// In en, this message translates to:
+  /// **'{count,plural, one{{count} installed} other{{count} installed}}'**
+  String extensionStoreInstalledCount(int count);
+
+  /// Button to import an extension file
+  ///
+  /// In en, this message translates to:
+  /// **'Import extension'**
+  String get extensionStoreImportExtension;
+
+  /// Snackbar when extensions are imported
+  ///
+  /// In en, this message translates to:
+  /// **'{count,plural, one{{count} extension imported} other{{count} extensions imported}}'**
+  String extensionStoreImported(int count);
+
+  /// Snackbar when extension import fails
+  ///
+  /// In en, this message translates to:
+  /// **'Error importing'**
+  String get extensionStoreImportError;
+
+  /// Button to update a single extension
+  ///
+  /// In en, this message translates to:
+  /// **'Update'**
+  String get extensionStoreUpdate;
+
+  /// Button to install an extension
+  ///
+  /// In en, this message translates to:
+  /// **'Install'**
+  String get extensionStoreInstall;
+
+  /// Label showing an extension is enabled
+  ///
+  /// In en, this message translates to:
+  /// **'Enabled'**
+  String get extensionStoreEnabled;
+
+  /// Label showing an extension is disabled
+  ///
+  /// In en, this message translates to:
+  /// **'Disabled'**
+  String get extensionStoreDisabled;
+
+  /// Batch progress counter
+  ///
+  /// In en, this message translates to:
+  /// **'{current} / {total}'**
+  String batchProgressCount(int current, int total);
+
+  /// Update download progress percentage
+  ///
+  /// In en, this message translates to:
+  /// **'{percent}%'**
+  String updatePercent(int percent);
+
+  /// Fallback text when release notes are empty
+  ///
+  /// In en, this message translates to:
+  /// **'See release notes for details.'**
+  String get updateSeeReleaseNotes;
+
+  /// Version label prefix in update dialog
+  ///
+  /// In en, this message translates to:
+  /// **'v{version}'**
+  String updateVersion(String version);
+
+  /// Label for ISRC identifier
+  ///
+  /// In en, this message translates to:
+  /// **'ISRC'**
+  String get trackInfoIsrc;
+
+  /// Section header for downloaded tracks
+  ///
+  /// In en, this message translates to:
+  /// **'Downloads'**
+  String get trackInfoDownloads;
+
+  /// Label for audio codec
+  ///
+  /// In en, this message translates to:
+  /// **'Codec'**
+  String get trackInfoCodec;
+
+  /// Label for audio sample rate
+  ///
+  /// In en, this message translates to:
+  /// **'Sample rate'**
+  String get trackInfoSampleRate;
+
+  /// Label for audio bit depth
+  ///
+  /// In en, this message translates to:
+  /// **'Bit depth'**
+  String get trackInfoBitDepth;
+
+  /// Label for audio bitrate
+  ///
+  /// In en, this message translates to:
+  /// **'Bitrate'**
+  String get trackInfoBitrate;
+
+  /// Label for file location path
+  ///
+  /// In en, this message translates to:
+  /// **'Location'**
+  String get trackInfoLocation;
+
+  /// Tooltip for rescan/refresh audio analysis button
+  ///
+  /// In en, this message translates to:
+  /// **'Rescan'**
+  String get audioAnalysisRescan;
+
+  /// Label for stereo audio channel configuration
+  ///
+  /// In en, this message translates to:
+  /// **'Stereo'**
+  String get audioAnalysisStereo;
+
+  /// Label for mono audio channel configuration
+  ///
+  /// In en, this message translates to:
+  /// **'Mono'**
+  String get audioAnalysisMono;
+
+  /// Loading text shown in the mini player when track is loading
+  ///
+  /// In en, this message translates to:
+  /// **'Loading...'**
+  String get miniPlayerLoading;
+
+  /// Title for the wishlist sheet
+  ///
+  /// In en, this message translates to:
+  /// **'Wishlist'**
+  String get wishlistTitle;
+
+  /// Count of tracks in wishlist
+  ///
+  /// In en, this message translates to:
+  /// **'{count,plural, one{{count} track} other{{count} tracks}}'**
+  String wishlistTrackCount(int count);
+
+  /// Empty state title when wishlist has no tracks
+  ///
+  /// In en, this message translates to:
+  /// **'No tracks in Wishlist'**
+  String get wishlistEmptyTitle;
+
+  /// Empty state subtitle telling user how to add tracks
+  ///
+  /// In en, this message translates to:
+  /// **'Add tracks from the track menu'**
+  String get wishlistEmptySubtitle;
+
+  /// Placeholder name when user has not set their profile name
+  ///
+  /// In en, this message translates to:
+  /// **'Unnamed'**
+  String get settingsProfileNamePlaceholder;
+
+  /// Badge label for premium users
+  ///
+  /// In en, this message translates to:
+  /// **'Premium'**
+  String get settingsPremiumBadge;
+
+  /// Badge label for free tier users
+  ///
+  /// In en, this message translates to:
+  /// **'Free'**
+  String get settingsFreeBadge;
+
+  /// Label shown when user has already used their free trial
+  ///
+  /// In en, this message translates to:
+  /// **'Trial used'**
+  String get settingsTrialUsedBadge;
+
+  /// Label shown when no free trial is available
+  ///
+  /// In en, this message translates to:
+  /// **'No trial'**
+  String get settingsNoTrialBadge;
+
+  /// Title for the settings profile screen
+  ///
+  /// In en, this message translates to:
+  /// **'My Profile'**
+  String get settingsProfileTitle;
+
+  /// Label for the profile name field
+  ///
+  /// In en, this message translates to:
+  /// **'Name'**
+  String get settingsNameLabel;
+
+  /// Hint text shown when profile name is empty
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to add name'**
+  String get settingsNameHint;
+
+  /// Title of the dialog to edit profile name
+  ///
+  /// In en, this message translates to:
+  /// **'Your name'**
+  String get settingsNameDialogTitle;
+
+  /// Hint text inside the name editing dialog field
+  ///
+  /// In en, this message translates to:
+  /// **'Enter your name...'**
+  String get settingsNameDialogHint;
+
+  /// Save button text
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get settingsSave;
+
+  /// Label shown before the date a trial was used
+  ///
+  /// In en, this message translates to:
+  /// **'Trial used on:'**
+  String get settingsTrialUsedDate;
+
+  /// Duration remaining for a premium trial
+  ///
+  /// In en, this message translates to:
+  /// **'{hours}h {minutes}m {seconds}s remaining'**
+  String settingsTimeRemaining(Object hours, Object minutes, Object seconds);
+
+  /// Semantics label for album card
+  ///
+  /// In en, this message translates to:
+  /// **'Open album {name} by {artist}'**
+  String albumCardSemantics(Object name, Object artist);
+
+  /// Label for EP album type badge
+  ///
+  /// In en, this message translates to:
+  /// **'EP'**
+  String get albumCardTypeEp;
+
+  /// Label for Single album type badge
+  ///
+  /// In en, this message translates to:
+  /// **'Single'**
+  String get albumCardTypeSingle;
+
+  /// Track count for album/playlist cards
+  ///
+  /// In en, this message translates to:
+  /// **'{count,plural, one{{count} song} other{{count} songs}}'**
+  String albumCardTrackCount(int count);
+
+  /// Fallback name when album artist name is empty
+  ///
+  /// In en, this message translates to:
+  /// **'Album'**
+  String get albumCardFallbackName;
+
+  /// Label for synced lyrics mode badge
+  ///
+  /// In en, this message translates to:
+  /// **'SYNC'**
+  String get lyricsModeSynced;
+
+  /// Label for text lyrics mode badge
+  ///
+  /// In en, this message translates to:
+  /// **'LYRICS'**
+  String get lyricsModeText;
+
+  /// Loading message while fetching lyrics
+  ///
+  /// In en, this message translates to:
+  /// **'Loading lyrics...'**
+  String get lyricsLoading;
+
+  /// Error message when lyrics fail to load
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load lyrics'**
+  String get lyricsError;
+
+  /// Message when no lyrics are available for the track
+  ///
+  /// In en, this message translates to:
+  /// **'No lyrics available'**
+  String get lyricsUnavailable;
+
+  /// Title for the translation language selector
+  ///
+  /// In en, this message translates to:
+  /// **'Select translation language'**
+  String get lyricsSelectLanguage;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

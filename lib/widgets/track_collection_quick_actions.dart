@@ -308,17 +308,17 @@ class _TrackOptionsSheetState extends ConsumerState<_TrackOptionsSheet> {
                     final confirmed = await showDialog<bool>(
                       context: context,
                       builder: (ctx) => AlertDialog(
-                        title: const Text('¿Eliminar descarga?'),
-                        content: Text('Se borrará "$name" de tu dispositivo.'),
+                        title: Text(context.l10n.deleteDownloadTitle),
+                        content: Text(context.l10n.deleteDownloadContent(name)),
                         actions: [
                           TextButton(
                             onPressed: () => Navigator.pop(ctx, false),
-                            child: const Text('Cancelar'),
+                            child: Text(context.l10n.deleteDownloadCancel),
                           ),
                           TextButton(
                             style: TextButton.styleFrom(foregroundColor: colorScheme.error),
                             onPressed: () => Navigator.pop(ctx, true),
-                            child: const Text('Eliminar'),
+                            child: Text(context.l10n.deleteDownloadConfirm),
                           ),
                         ],
                       ),

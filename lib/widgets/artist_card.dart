@@ -95,9 +95,7 @@ class ArtistCard extends ConsumerWidget {
                       end: Alignment.bottomCenter,
                       colors: [
                         Colors.transparent,
-                        isDark 
-                            ? AppTheme.bgPrimaryDark.withOpacity(0.7)
-                            : AppTheme.bgPrimaryLight.withOpacity(0.7),
+                        colorScheme.background.withOpacity(0.7),
                       ],
                       stops: const [0.4, 1.0],
                     ),
@@ -144,7 +142,7 @@ class ArtistCard extends ConsumerWidget {
                       child: Text(
                         artistName,
                         style: TextStyle(
-                          color: isDark ? AppTheme.textPrimaryDark : AppTheme.textPrimaryLight,
+                          color: colorScheme.onSurface,
                           fontWeight: FontWeight.w600,
                           fontSize: 12,
                           shadows: [
@@ -167,7 +165,7 @@ class ArtistCard extends ConsumerWidget {
                         child: Text(
                           '${coverIndex + 1}/${_allCovers.length}',
                           style: TextStyle(
-                            color: isDark ? AppTheme.textSecondaryDark : AppTheme.textSecondaryLight,
+                            color: colorScheme.onSurfaceVariant,
                             fontSize: 10,
                           ),
                         ),
@@ -188,9 +186,7 @@ class ArtistCard extends ConsumerWidget {
                     child: Container(
                       padding: const EdgeInsets.all(5),
                       decoration: BoxDecoration(
-                        color: isDark 
-                            ? AppTheme.surfaceDark.withOpacity(0.7)
-                            : AppTheme.surfaceLight.withOpacity(0.7),
+                        color: colorScheme.surface.withOpacity(0.7),
                         shape: BoxShape.circle,
                         border: Border.all(
                           color: isDark ? AppTheme.glassBorderDark : AppTheme.glassBorderLight,
@@ -209,7 +205,7 @@ class ArtistCard extends ConsumerWidget {
                         size: 16,
                         color: isFavorite 
                             ? (isDark ? Colors.redAccent : Colors.red.shade700)
-                            : (isDark ? AppTheme.textPrimaryDark : AppTheme.textPrimaryLight).withOpacity(0.7),
+                            : (colorScheme.onSurface).withOpacity(0.7),
                       ),
                     ),
                   ),
@@ -250,7 +246,7 @@ class ArtistCard extends ConsumerWidget {
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: 15,
-                    color: isDark ? AppTheme.textPrimaryDark : AppTheme.textPrimaryLight,
+                    color: colorScheme.onSurface,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -298,7 +294,7 @@ class ArtistCard extends ConsumerWidget {
 
   Widget _artistPlaceholder(ColorScheme colorScheme, bool isDark) {
     return Container(
-      color: isDark ? AppTheme.surfaceDark : AppTheme.surfaceLight,
+      color: colorScheme.surface,
       child: Center(
         child: Icon(
           Icons.person, 

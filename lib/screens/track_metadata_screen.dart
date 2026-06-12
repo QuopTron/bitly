@@ -13,6 +13,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:bitly/providers/download/download_queue_provider.dart';
 import 'package:bitly/providers/local_library/local_library_provider.dart';
 import 'package:bitly/providers/playback/playback_provider.dart';
+import 'package:bitly/widgets/common/loading_indicator.dart';
 import 'package:bitly/providers/settings/settings_provider.dart';
 import 'package:bitly/core/bridge/bridge_client.dart';
 import 'package:bitly/services/downloads/ffmpeg_service.dart';
@@ -1894,12 +1895,7 @@ class _TrackMetadataScreenState extends ConsumerState<TrackMetadataScreen> {
             const SizedBox(height: 12),
 
             if (_lyricsLoading)
-              const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(20),
-                  child: CircularProgressIndicator(),
-                ),
-              )
+              const LoadingIndicator()
             else if (_lyricsError != null)
               Container(
                 padding: const EdgeInsets.all(16),

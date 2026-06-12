@@ -7,6 +7,8 @@ import 'package:bitly/providers/audio/audio_player_provider.dart';
 import 'package:bitly/providers/lyrics/lyrics_provider.dart';
 import 'package:bitly/providers/library/library_collections_provider.dart';
 import 'package:bitly/services/library/covers/cover_cache_manager.dart';
+import 'package:bitly/widgets/common/empty_state_widget.dart';
+import 'package:bitly/l10n/l10n.dart';
 
 class WishlistSheet extends ConsumerWidget {
   const WishlistSheet({super.key});
@@ -101,14 +103,14 @@ class WishlistSheet extends ConsumerWidget {
                       ),
                       const SizedBox(width: 10),
                       Text(
-                        'Wishlist',
+                        context.l10n.wishlistTitle,
                         style: Theme.of(context).textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                       const Spacer(),
                       Text(
-                        '${wishlist.length} ${wishlist.length == 1 ? 'track' : 'tracks'}',
+                        context.l10n.wishlistTrackCount(wishlist.length),
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: colorScheme.onSurfaceVariant,
                         ),
@@ -117,27 +119,10 @@ class WishlistSheet extends ConsumerWidget {
                   ),
                 ),
                 if (wishlist.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 48),
-                    child: Column(
-                      children: [
-                        Icon(Icons.star_outline, size: 48, color: colorScheme.onSurfaceVariant.withOpacity(0.5)),
-                        const SizedBox(height: 12),
-                        Text(
-                          'No tracks in Wishlist',
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Add tracks from the track menu',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: colorScheme.onSurfaceVariant.withOpacity(0.7),
-                          ),
-                        ),
-                      ],
-                    ),
+                  EmptyStateWidget(
+                    icon: Icons.star_outline,
+                    title: context.l10n.wishlistEmptyTitle,
+                    subtitle: context.l10n.wishlistEmptySubtitle,
                   )
                 else
                   Flexible(

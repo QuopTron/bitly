@@ -1,7 +1,11 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:bitly/l10n/l10n.dart';
 import 'package:bitly/services/cache/video_cache_manager.dart';
-import 'dart:io';
+import 'package:bitly/widgets/common/empty_state_widget.dart';
+import 'package:bitly/widgets/common/loading_indicator.dart';
+import 'package:bitly/constants/layout_constants.dart';
 
 class VideoCacheSettings extends ConsumerStatefulWidget {
   const VideoCacheSettings({super.key});
@@ -48,17 +52,17 @@ class _VideoCacheSettingsState extends ConsumerState<VideoCacheSettings> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Configuración de Caché de Video'),
+        title: Text(context.l10n.videoCacheTitle),
       ),
       body: _isLoading
-          ? Center(child: CircularProgressIndicator(color: colorScheme.primary))
+          ? const LoadingIndicator()
           : ListView(
-              padding: const EdgeInsets.all(16),
+              padding: LayoutConstants.insetMd,
               children: [
                 _buildCacheStats(colorScheme),
-                const SizedBox(height: 24),
+                LayoutConstants.gapH24,
                 _buildMaxSizeSlider(colorScheme),
-                const SizedBox(height: 24),
+                LayoutConstants.gapH24,
                 _buildClearCacheButton(colorScheme),
                  const SizedBox(height: 24),
                 _buildCachedVideosList(colorScheme),
@@ -78,7 +82,7 @@ class _VideoCacheSettingsState extends ConsumerState<VideoCacheSettings> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Almacenamiento de Caché', style: TextStyle(
+            Text(context.l10n.videoCacheStorage, style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
               color: colorScheme.onSurface,
@@ -92,7 +96,7 @@ class _VideoCacheSettingsState extends ConsumerState<VideoCacheSettings> {
               ),
               minHeight: 8,
             ),
-            const SizedBox(height: 8),
+            LayoutConstants.gapH8,
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -116,16 +120,16 @@ class _VideoCacheSettingsState extends ConsumerState<VideoCacheSettings> {
   Widget _buildMaxSizeSlider(ColorScheme colorScheme) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: LayoutConstants.insetMd,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Límite Máximo de Caché', style: TextStyle(
+            Text(context.l10n.videoCacheMaxLimit, style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
               color: colorScheme.onSurface,
             )),
-             const SizedBox(height: 8),
+             LayoutConstants.gapH8,
             Text('${(_maxSize / (1024 * 1024)).toStringAsFixed(0)} MB', style: TextStyle(
               color: colorScheme.onSurfaceVariant,
               fontSize: 14,
@@ -159,35 +163,35 @@ class _VideoCacheSettingsState extends ConsumerState<VideoCacheSettings> {
   Widget _buildClearCacheButton(ColorScheme colorScheme) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: LayoutConstants.insetMd,
         child: Column(
           children: [
-            Text('Administrar Almacenamiento', style: TextStyle(
+            Text(context.l10n.videoCacheManageStorage, style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
               color: colorScheme.onSurface,
             )),
             const SizedBox(height: 8),
-            Text('Videos cacheados: ${_cachedVideos.length}', style: TextStyle(
+            Text(context.l10n.videoCacheCachedCount(_cachedVideos.length), style: TextStyle(
               color: colorScheme.onSurfaceVariant,
               fontSize: 14,
             )),
-            const SizedBox(height: 12),
+            LayoutConstants.gapH12,
             FilledButton.tonal(
               onPressed: () async {
                 final confirm = await showDialog<bool>(
                   context: context,
                   builder: (context) => AlertDialog(
-                    title: const Text('Limpiar caché'),
-                    content: const Text('¿Estás seguro de que quieres eliminar todos los videos cacheados?'),
+                    title: Text(context.l10n.videoCacheClearTitle),
+                    content: Text(context.l10n.videoCacheClearMessage),
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.pop(context, false),
-                        child: const Text('Cancelar'),
+                        child: Text(context.l10n.dialogCancel),
                       ),
                       TextButton(
                         onPressed: () => Navigator.pop(context, true),
-                        child: const Text('Limpiar'),
+                        child: Text(context.l10n.dialogClear),
                       ),
                     ],
                   ),
@@ -197,7 +201,7 @@ class _VideoCacheSettingsState extends ConsumerState<VideoCacheSettings> {
                   await _cacheManager.clearCache();
                   await _loadCacheInfo();
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Caché limpiado correctamente')),
+                    SnackBar(content: Text(context.l10n.videoCacheCleared)),
                   );
                 }
               },
@@ -205,7 +209,7 @@ class _VideoCacheSettingsState extends ConsumerState<VideoCacheSettings> {
                 backgroundColor: Colors.red,
                 foregroundColor: Colors.white,
               ),
-              child: const Text('LIMPIAR TODO EL CACHÉ'),
+              child: Text(context.l10n.videoCacheClearAll),
             ),
           ],
         ),
@@ -215,42 +219,35 @@ class _VideoCacheSettingsState extends ConsumerState<VideoCacheSettings> {
 
   Widget _buildCachedVideosList(ColorScheme colorScheme) {
     if (_cachedVideos.isEmpty) {
-      return Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Center(
-            child: Text(
-              'No hay videos cacheados',
-              style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 16),
-            ),
-          ),
-        ),
+      return EmptyStateWidget(
+        icon: Icons.videocam_off_outlined,
+        title: context.l10n.videoCacheEmpty,
       );
     }
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: LayoutConstants.insetMd,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Videos Cacheados (${_cachedVideos.length})', style: TextStyle(
+            Text(context.l10n.videoCacheCachedListTitle(_cachedVideos.length), style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
               color: colorScheme.onSurface,
             )),
             const SizedBox(height: 8),
-            ..._cachedVideos.map((video) => _buildVideoListItem(video, colorScheme)),
+            ..._cachedVideos.map((video) => _buildVideoListItem(video, colorScheme, context.l10n)),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildVideoListItem(CachedVideoInfo video, ColorScheme colorScheme) {
+  Widget _buildVideoListItem(CachedVideoInfo video, ColorScheme colorScheme, AppLocalizations l10n) {
     return ListTile(
       title: Text(video.name, style: TextStyle(color: colorScheme.onSurface)),
-      subtitle: Text('${video.formattedSize} • ${_formatDate(video.lastAccessed)}', 
+      subtitle: Text('${video.formattedSize} • ${_formatDate(video.lastAccessed, l10n)}', 
         style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12)),
       trailing: IconButton(
         icon: Icon(Icons.delete_outline, color: colorScheme.onSurfaceVariant),
@@ -263,20 +260,20 @@ class _VideoCacheSettingsState extends ConsumerState<VideoCacheSettings> {
     );
   }
 
-  String _formatDate(DateTime date) {
+  String _formatDate(DateTime date, AppLocalizations l10n) {
     final now = DateTime.now();
     final difference = now.difference(date);
     
     if (difference.inDays > 30) {
       return '${date.day}/${date.month}/${date.year}';
     } else if (difference.inDays > 0) {
-      return '${difference.inDays} días atrás';
+      return l10n.timeDaysAgo(difference.inDays);
     } else if (difference.inHours > 0) {
-      return '${difference.inHours} horas atrás';
+      return l10n.timeHoursAgo(difference.inHours);
     } else if (difference.inMinutes > 0) {
-      return '${difference.inMinutes} minutos atrás';
+      return l10n.timeMinutesAgo(difference.inMinutes);
     } else {
-      return 'Justo ahora';
+      return l10n.timeJustNow;
     }
   }
 }

@@ -12,8 +12,10 @@ import 'package:bitly/providers/store/store_provider.dart';
 import 'package:bitly/services/library/covers/cover_cache_manager.dart';
 import 'package:bitly/theme/app_theme.dart';
 import 'package:bitly/widgets/animation_utils.dart';
+import 'package:bitly/widgets/common/loading_indicator.dart';
 import 'package:bitly/widgets/glass_container.dart';
 import 'package:bitly/widgets/settings_group.dart';
+import 'package:bitly/constants/layout_constants.dart';
 
 void showExtensionStoreModal(BuildContext context, WidgetRef ref) {
   showModalBottomSheet<void>(
@@ -103,7 +105,7 @@ class _ExtensionStoreGlassContentState extends State<_ExtensionStoreGlassContent
       margin: EdgeInsets.all(MediaQuery.of(context).size.width * 0.05),
       height: MediaQuery.of(context).size.height * 0.85,
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(LayoutConstants.radiusXl),
         child: BackdropFilter(
           filter: ui.ImageFilter.blur(
             sigmaX: AppTheme.modalBlurSigma,
@@ -116,16 +118,16 @@ class _ExtensionStoreGlassContentState extends State<_ExtensionStoreGlassContent
                 color: isDark ? AppTheme.modalBorderDark : AppTheme.modalBorderLight,
                 width: 1.5,
               ),
-              borderRadius: BorderRadius.circular(28),
+              borderRadius: BorderRadius.circular(LayoutConstants.radiusXl),
               boxShadow: [
                 BoxShadow(
-                  color: isDark ? AppTheme.primaryDark.withOpacity(0.3) : AppTheme.primaryLight.withOpacity(0.3),
+                  color: colorScheme.primary.withOpacity(0.3),
                   blurRadius: 40,
                   spreadRadius: 4,
                   offset: const Offset(0, 20),
                 ),
                 BoxShadow(
-                  color: isDark ? AppTheme.primaryDark.withOpacity(0.08) : AppTheme.primaryLight.withOpacity(0.08),
+                  color: colorScheme.primary.withOpacity(0.08),
                   blurRadius: 20,
                   offset: const Offset(0, 0),
                   spreadRadius: 2,
@@ -143,7 +145,7 @@ class _ExtensionStoreGlassContentState extends State<_ExtensionStoreGlassContent
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: [
-                        isDark ? AppTheme.primaryDark : AppTheme.primaryLight,
+                        colorScheme.primary,
                         isDark ? AppTheme.glowDark : AppTheme.glowLight,
                       ],
                     ),
@@ -161,7 +163,7 @@ class _ExtensionStoreGlassContentState extends State<_ExtensionStoreGlassContent
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
                   child: Text(
-                    'Extensiones y Tienda',
+                    context.l10n.extensionStoreTitle,
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: colorScheme.onSurface,
@@ -181,7 +183,7 @@ class _ExtensionStoreGlassContentState extends State<_ExtensionStoreGlassContent
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Container(
-                    padding: const EdgeInsets.all(4),
+                    padding: LayoutConstants.insetXs,
                     decoration: BoxDecoration(
                       color: colorScheme.surfaceContainerHighest.withOpacity(0.2),
                       borderRadius: BorderRadius.circular(16),
@@ -200,7 +202,7 @@ class _ExtensionStoreGlassContentState extends State<_ExtensionStoreGlassContent
                         borderRadius: BorderRadius.circular(12),
                       ),
                       indicatorSize: TabBarIndicatorSize.tab,
-                      splashBorderRadius: BorderRadius.circular(12),
+                      splashBorderRadius: BorderRadius.circular(LayoutConstants.radiusMd),
                       tabs: [
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
@@ -209,7 +211,7 @@ class _ExtensionStoreGlassContentState extends State<_ExtensionStoreGlassContent
                             children: [
                               Icon(Icons.store_outlined, size: 20),
                               const SizedBox(width: 8),
-                              Text('Tienda'),
+                              Text(context.l10n.extensionStoreTabStore),
                             ],
                           ),
                         ),
@@ -220,7 +222,7 @@ class _ExtensionStoreGlassContentState extends State<_ExtensionStoreGlassContent
                             children: [
                               Icon(Icons.extension_outlined, size: 20),
                               const SizedBox(width: 8),
-                              Text('Extensiones'),
+                              Text(context.l10n.extensionStoreTabExtensions),
                             ],
                           ),
                         ),
@@ -228,7 +230,7 @@ class _ExtensionStoreGlassContentState extends State<_ExtensionStoreGlassContent
                     ),
                   ),
                 ),
-                const SizedBox(height: 8),
+                LayoutConstants.gapH8,
                 // Tab content
                 Expanded(
                   child: TabBarView(
@@ -316,7 +318,7 @@ class _StoreTabState extends ConsumerState<_StoreTab> {
               child: TextField(
                 controller: _searchController,
                 decoration: InputDecoration(
-                  hintText: 'Buscar extensiones...',
+                  hintText: context.l10n.extensionStoreSearchHint,
                   prefixIcon: Icon(Icons.search, color: colorScheme.onSurfaceVariant),
                   suffixIcon: storeState.searchQuery.isNotEmpty
                       ? IconButton(
@@ -346,7 +348,7 @@ class _StoreTabState extends ConsumerState<_StoreTab> {
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 children: [
                   _StoreCategoryChip(
-                    label: 'Todas',
+                    label: context.l10n.extensionStoreFilterAll,
                     icon: Icons.apps,
                     isSelected: storeState.selectedCategory == null,
                     onTap: () => ref.read(storeProvider.notifier).setCategory(null),
@@ -354,7 +356,7 @@ class _StoreTabState extends ConsumerState<_StoreTab> {
                   ),
                   const SizedBox(width: 8),
                   _StoreCategoryChip(
-                    label: 'Descarga',
+                    label: context.l10n.extensionStoreFilterDownload,
                     icon: Icons.download_outlined,
                     isSelected: storeState.selectedCategory == 'download',
                     onTap: () => ref.read(storeProvider.notifier).setCategory('download'),
@@ -362,7 +364,7 @@ class _StoreTabState extends ConsumerState<_StoreTab> {
                   ),
                   const SizedBox(width: 8),
                   _StoreCategoryChip(
-                    label: 'Metadata',
+                    label: context.l10n.extensionStoreFilterMetadata,
                     icon: Icons.label_outline,
                     isSelected: storeState.selectedCategory == 'metadata',
                     onTap: () => ref.read(storeProvider.notifier).setCategory('metadata'),
@@ -370,7 +372,7 @@ class _StoreTabState extends ConsumerState<_StoreTab> {
                   ),
                   const SizedBox(width: 8),
                   _StoreCategoryChip(
-                    label: 'Utilidad',
+                    label: context.l10n.extensionStoreFilterUtility,
                     icon: Icons.build_outlined,
                     isSelected: storeState.selectedCategory == 'utility',
                     onTap: () => ref.read(storeProvider.notifier).setCategory('utility'),
@@ -378,7 +380,7 @@ class _StoreTabState extends ConsumerState<_StoreTab> {
                   ),
                   const SizedBox(width: 8),
                   _StoreCategoryChip(
-                    label: 'Letras',
+                    label: context.l10n.extensionStoreFilterLyrics,
                     icon: Icons.lyrics_outlined,
                     isSelected: storeState.selectedCategory == 'lyrics',
                     onTap: () => ref.read(storeProvider.notifier).setCategory('lyrics'),
@@ -396,10 +398,7 @@ class _StoreTabState extends ConsumerState<_StoreTab> {
           )
         else if (isLoading && extensions.isEmpty)
           const SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.all(32),
-              child: Center(child: CircularProgressIndicator()),
-            ),
+            child: LoadingIndicator(),
           )
         else if (error != null && extensions.isEmpty)
           SliverFillRemaining(
@@ -417,16 +416,16 @@ class _StoreTabState extends ConsumerState<_StoreTab> {
           // Count + Update All
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+              padding: LayoutConstants.inset12,
               child: NeonCard(
                 margin: EdgeInsets.zero,
-                padding: const EdgeInsets.all(12),
+                padding: LayoutConstants.inset12,
                 child: Row(
                   children: [
                     Icon(Icons.extension, size: 16, color: colorScheme.onSurfaceVariant),
                     const SizedBox(width: 6),
                     Text(
-                      '${filtered.length} ${filtered.length == 1 ? 'extensión' : 'extensiones'}',
+                      context.l10n.extensionStoreCount(filtered.length),
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: colorScheme.onSurfaceVariant,
                       ),
@@ -435,7 +434,7 @@ class _StoreTabState extends ConsumerState<_StoreTab> {
                     if (updatesCount > 0)
                       _GlassButton(
                         icon: Icons.update,
-                        label: 'Actualizar todas ($updatesCount)',
+                        label: context.l10n.extensionStoreUpdateAll(updatesCount),
                         onPressed: downloadingId != null ? null : () => _updateAll(context),
                         colorScheme: colorScheme,
                       ),
@@ -475,29 +474,28 @@ class _StoreTabState extends ConsumerState<_StoreTab> {
   Widget _buildSetupRepo(ColorScheme colorScheme, String? error, BuildContext context) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
+        padding: LayoutConstants.insetXl,
         child: NeonCard(
           margin: EdgeInsets.zero,
-          padding: const EdgeInsets.all(24),
+          padding: LayoutConstants.insetLg,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.dns_outlined, size: 64, color: colorScheme.onSurfaceVariant),
-              const SizedBox(height: 16),
+              Icon(Icons.dns_outlined, size: 64, color: colorScheme.onSurfaceVariant),                LayoutConstants.gapH16,
               Text(
-                'Configurar Repositorio',
+                context.l10n.extensionStoreConfigureRepo,
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: colorScheme.onSurface,
                 ),
               ),
-              const SizedBox(height: 24),
+              LayoutConstants.gapH24,
               TextField(
                 decoration: InputDecoration(
-                  hintText: 'URL del registry.json',
+                  hintText: context.l10n.extensionStoreRepoUrlHint,
                   prefixIcon: const Icon(Icons.link),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(LayoutConstants.radiusLg),
                   ),
                   filled: true,
                   fillColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
@@ -507,14 +505,14 @@ class _StoreTabState extends ConsumerState<_StoreTab> {
                 autocorrect: false,
               ),
               if (error != null) ...[
-                const SizedBox(height: 12),
+                LayoutConstants.gapH12,
                 Text(error, style: TextStyle(color: colorScheme.error)),
               ],
               const SizedBox(height: 20),
               FilledButton.icon(
                 onPressed: () => _setDefaultRepo(),
                 icon: const Icon(Icons.check),
-                label: const Text('Usar repositorio por defecto'),
+                label: Text(context.l10n.extensionStoreUseDefaultRepo),
                 style: FilledButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -536,10 +534,10 @@ class _StoreTabState extends ConsumerState<_StoreTab> {
   Widget _buildError(String error, ColorScheme colorScheme, BuildContext context) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
+        padding: LayoutConstants.insetXl,
         child: NeonCard(
           margin: EdgeInsets.zero,
-          padding: const EdgeInsets.all(24),
+          padding: LayoutConstants.insetLg,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -553,7 +551,7 @@ class _StoreTabState extends ConsumerState<_StoreTab> {
                   ref.read(storeProvider.notifier).refresh(forceRefresh: true);
                 },
                 icon: const Icon(Icons.refresh),
-                label: const Text('Reintentar'),
+                label: Text(context.l10n.extensionStoreRetry),
                 style: FilledButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -570,7 +568,7 @@ class _StoreTabState extends ConsumerState<_StoreTab> {
     return Center(
       child: NeonCard(
         margin: EdgeInsets.zero,
-        padding: const EdgeInsets.all(32),
+        padding: LayoutConstants.insetXl,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -581,7 +579,7 @@ class _StoreTabState extends ConsumerState<_StoreTab> {
             ),
             const SizedBox(height: 12),
             Text(
-              hasFilters ? 'Sin resultados' : 'No hay extensiones',
+              hasFilters ? context.l10n.extensionStoreNoResults : context.l10n.extensionStoreNoExtensions,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 color: colorScheme.onSurfaceVariant,
               ),
@@ -609,7 +607,7 @@ class _StoreTabState extends ConsumerState<_StoreTab> {
               Icon(success ? Icons.check_circle : Icons.error,
                 color: success ? Colors.green : widget.colorScheme.error),
               const SizedBox(width: 8),
-              Text(success ? '${ext.displayName} instalada' : 'Error al instalar ${ext.displayName}'),
+              Text(success ? context.l10n.extensionStoreInstalled(ext.displayName) : context.l10n.extensionStoreInstallError(ext.displayName)),
             ],
           ),
           behavior: SnackBarBehavior.floating,
@@ -636,8 +634,8 @@ class _StoreTabState extends ConsumerState<_StoreTab> {
                 color: success ? Colors.green : widget.colorScheme.error),
               const SizedBox(width: 8),
               Text(success
-                  ? '${ext.displayName} actualizada a v${ext.version}'
-                  : 'Error al actualizar ${ext.displayName}'),
+                  ? context.l10n.extensionStoreUpdated(ext.displayName, 'v${ext.version}')
+                  : context.l10n.extensionStoreUpdateError(ext.displayName)),
             ],
           ),
           behavior: SnackBarBehavior.floating,
@@ -664,8 +662,8 @@ class _StoreTabState extends ConsumerState<_StoreTab> {
                 color: count > 0 ? Colors.green : widget.colorScheme.onSurfaceVariant),
               const SizedBox(width: 8),
               Text(count > 0
-                  ? '$count extensión${count == 1 ? '' : 'es'} actualizada${count == 1 ? '' : 's'}'
-                  : 'No hay actualizaciones disponibles'),
+                  ? context.l10n.extensionStoreBulkUpdated(count)
+                  : context.l10n.extensionStoreNoUpdates),
             ],
           ),
           behavior: SnackBarBehavior.floating,
@@ -722,21 +720,21 @@ class _InstalledTabState extends ConsumerState<_InstalledTab> {
           SliverFillRemaining(
             child: Center(
               child: NeonCard(
-                margin: EdgeInsets.zero,
-                padding: const EdgeInsets.all(32),
+              margin: EdgeInsets.zero,
+              padding: LayoutConstants.insetXl,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(Icons.extension_off, size: 48,
                       color: colorScheme.onSurfaceVariant),
                     const SizedBox(height: 12),
-                    Text('No hay extensiones instaladas',
+                    Text(context.l10n.extensionStoreNoExtensionsInstalled,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         color: colorScheme.onSurfaceVariant,
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Text('Ve a la tienda para instalar extensiones',
+                    Text(context.l10n.extensionStoreGoToStore,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: colorScheme.onSurfaceVariant,
                       ),
@@ -759,7 +757,7 @@ class _InstalledTabState extends ConsumerState<_InstalledTab> {
                       color: colorScheme.onSurfaceVariant),
                     const SizedBox(width: 6),
                     Text(
-                      '${extState.extensions.length} instalada${extState.extensions.length == 1 ? '' : 's'}',
+                      context.l10n.extensionStoreInstalledCount(extState.extensions.length),
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: colorScheme.onSurfaceVariant,
                       ),
@@ -796,12 +794,11 @@ class _InstalledTabState extends ConsumerState<_InstalledTab> {
 
         // Import button
         SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+          child: Padding(              padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
             child: OutlinedButton.icon(
               onPressed: () => _importExtension(context),
               icon: const Icon(Icons.add),
-              label: const Text('Importar extensión'),
+              label: Text(context.l10n.extensionStoreImportExtension),
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
@@ -845,8 +842,8 @@ class _InstalledTabState extends ConsumerState<_InstalledTab> {
                 color: success ? Colors.green : widget.colorScheme.error),
               const SizedBox(width: 8),
               Text(success
-                  ? '${installResult.installed} extensión${installResult.installed == 1 ? '' : 'es'} importada${installResult.installed == 1 ? '' : 's'}'
-                  : 'Error al importar'),
+                  ? context.l10n.extensionStoreImported(installResult.installed)
+                  : context.l10n.extensionStoreImportError),
             ],
           ),
           behavior: SnackBarBehavior.floating,
@@ -1057,7 +1054,7 @@ class _StoreExtensionItem extends StatelessWidget {
                     backgroundColor: Colors.orange.withValues(alpha: 0.2),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
-                  child: Text('Actualizar',
+                  child: Text(context.l10n.extensionStoreUpdate,
                     style: TextStyle(fontSize: 12,
                       color: Colors.orange.shade300)),
                 )
@@ -1071,7 +1068,7 @@ class _StoreExtensionItem extends StatelessWidget {
                     minimumSize: const Size(0, 36),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
-                  child: const Text('Instalar'),
+                  child: Text(context.l10n.extensionStoreInstall),
                 ),
             ],
           ),
@@ -1144,7 +1141,7 @@ class _InstalledExtensionItem extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      isEnabled ? 'Activo' : 'Desactivado',
+                      isEnabled ? context.l10n.extensionStoreEnabled : context.l10n.extensionStoreDisabled,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: isEnabled ? colorScheme.primary : colorScheme.onSurfaceVariant,
                       ),

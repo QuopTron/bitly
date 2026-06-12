@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
 import 'package:bitly/theme/app_theme.dart';
+import 'package:bitly/constants/layout_constants.dart';
 
 /// Glassmorphism widget container with blur and transparency effects
 /// Updated with NEON design and 10% margin for modals
@@ -22,7 +23,7 @@ class GlassContainer extends StatelessWidget {
     required this.child,
     this.borderRadius = 24,
     this.blur = 20,
-    this.padding = const EdgeInsets.all(20),
+    this.padding = LayoutConstants.inset20,
     this.opacity = 0.08,
     this.borderColor,
     this.gradient,
@@ -34,7 +35,8 @@ class GlassContainer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = colorScheme.brightness == Brightness.dark;
     final effectiveBorderColor = borderColor ?? 
         (isDark ? AppTheme.modalBorderDark : AppTheme.modalBorderLight);
     
@@ -67,7 +69,7 @@ class GlassContainer extends StatelessWidget {
                     ),
                     // Inner glow for futuristic effect
                     BoxShadow(
-                      color: (isDark ? AppTheme.primaryDark : AppTheme.primaryLight).withOpacity(0.1),
+                      color: colorScheme.primary.withOpacity(0.1),
                       blurRadius: 10,
                       offset: const Offset(0, 0),
                       spreadRadius: 2,
@@ -106,7 +108,7 @@ class GlassCard extends StatelessWidget {
     super.key,
     required this.child,
     this.onTap,
-    this.padding = const EdgeInsets.all(16),
+    this.padding = LayoutConstants.insetMd,
     this.borderRadius = 20,
     this.blur = 15,
     this.selected = false,
@@ -129,14 +131,14 @@ class GlassCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(borderRadius),
         border: Border.all(
           color: selected
-              ? (isDark ? AppTheme.primaryDark : AppTheme.primaryLight)
+              ? (colorScheme.primary)
               : (isDark ? AppTheme.glassBorderDark : AppTheme.glassBorderLight),
           width: selected ? 2 : 1,
         ),
         boxShadow: selected
             ? [
                 BoxShadow(
-                  color: isDark ? AppTheme.primaryDark.withOpacity(0.3) : AppTheme.primaryLight.withOpacity(0.3),
+                  color: colorScheme.primary.withOpacity(0.3),
                   blurRadius: 15,
                   offset: const Offset(0, 4),
                   spreadRadius: 2,
@@ -159,8 +161,8 @@ class GlassCard extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(borderRadius),
-          splashColor: isDark ? AppTheme.primaryDark.withOpacity(0.2) : AppTheme.primaryLight.withOpacity(0.2),
-          highlightColor: isDark ? AppTheme.primaryDark.withOpacity(0.1) : AppTheme.primaryLight.withOpacity(0.1),
+          splashColor: colorScheme.primary.withOpacity(0.2),
+          highlightColor: colorScheme.primary.withOpacity(0.1),
           child: card,
         ),
       );
@@ -197,8 +199,8 @@ class GlassActionButton extends StatelessWidget {
       child: InkWell(
         onTap: onPressed,
         borderRadius: BorderRadius.circular(size / 2),
-        splashColor: isDark ? AppTheme.primaryDark.withOpacity(0.3) : AppTheme.primaryLight.withOpacity(0.3),
-        highlightColor: isDark ? AppTheme.primaryDark.withOpacity(0.2) : AppTheme.primaryLight.withOpacity(0.2),
+        splashColor: colorScheme.primary.withOpacity(0.3),
+        highlightColor: colorScheme.primary.withOpacity(0.2),
         child: Container(
           width: size,
           height: size,
@@ -206,13 +208,13 @@ class GlassActionButton extends StatelessWidget {
             shape: BoxShape.circle,
             border: Border.all(
               color: isSelected
-                  ? (isDark ? AppTheme.primaryDark : AppTheme.primaryLight)
+                  ? (colorScheme.primary)
                   : (isDark ? AppTheme.glassBorderDark : AppTheme.glassBorderLight),
               width: isSelected ? 2 : 1.5,
             ),
             boxShadow: [
               BoxShadow(
-                color: isDark ? AppTheme.primaryDark.withOpacity(0.2) : AppTheme.primaryLight.withOpacity(0.2),
+                color: colorScheme.primary.withOpacity(0.2),
                 blurRadius: blur,
                 offset: const Offset(0, 4),
               ),
@@ -336,14 +338,14 @@ class FuturisticModal extends StatelessWidget {
               borderRadius: BorderRadius.circular(28),
               boxShadow: [
                 BoxShadow(
-                  color: isDark ? AppTheme.primaryDark.withOpacity(0.3) : AppTheme.primaryLight.withOpacity(0.3),
+                  color: colorScheme.primary.withOpacity(0.3),
                   blurRadius: 40,
                   spreadRadius: 4,
                   offset: const Offset(0, 20),
                 ),
                 // Inner glow
                 BoxShadow(
-                  color: isDark ? AppTheme.primaryDark.withOpacity(0.1) : AppTheme.primaryLight.withOpacity(0.1),
+                  color: colorScheme.primary.withOpacity(0.1),
                   blurRadius: 20,
                   offset: const Offset(0, 0),
                   spreadRadius: 2,
@@ -363,7 +365,7 @@ class FuturisticModal extends StatelessWidget {
                       borderRadius: BorderRadius.circular(2),
                       boxShadow: [
                         BoxShadow(
-                          color: isDark ? AppTheme.primaryDark.withOpacity(0.3) : AppTheme.primaryLight.withOpacity(0.3),
+                          color: colorScheme.primary.withOpacity(0.3),
                           blurRadius: 8,
                           offset: const Offset(0, 2),
                         ),
@@ -419,8 +421,8 @@ class NeonCard extends StatelessWidget {
     this.onTap,
     this.elevation = 0,
     this.borderRadius = 20,
-    this.margin = const EdgeInsets.all(8),
-    this.padding = const EdgeInsets.all(16),
+    this.margin = LayoutConstants.insetSm,
+    this.padding = LayoutConstants.insetMd,
     this.glowColor,
   });
 
@@ -428,7 +430,7 @@ class NeonCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final colorScheme = Theme.of(context).colorScheme;
-    final effectiveGlow = glowColor ?? (isDark ? AppTheme.primaryDark : AppTheme.primaryLight);
+    final effectiveGlow = glowColor ?? (colorScheme.primary);
     
     final cardContent = Container(
       margin: margin,

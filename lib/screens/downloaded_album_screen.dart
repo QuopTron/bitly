@@ -23,6 +23,7 @@ import 'package:bitly/providers/settings/settings_provider.dart';
 import 'package:bitly/widgets/track_card.dart';
 import 'package:bitly/screens/track_metadata_screen.dart';
 import 'package:bitly/services/library/covers/downloaded_embedded_cover_resolver.dart';
+import 'package:bitly/widgets/common/loading_indicator.dart';
 import 'package:bitly/widgets/animation_utils.dart';
 import 'package:bitly/providers/library/library_collections_provider.dart';
 
@@ -395,7 +396,7 @@ class _DownloadedAlbumScreenState extends ConsumerState<DownloadedAlbumScreen> {
     if (tracks.isEmpty && tracksValue.isLoading) {
       return Scaffold(
         appBar: AppBar(title: Text(widget.albumName)),
-        body: const Center(child: CircularProgressIndicator()),
+        body: const LoadingIndicator(),
       );
     }
 

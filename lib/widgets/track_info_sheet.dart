@@ -207,7 +207,7 @@ void showTrackInfoSheet(BuildContext context, Track track) {
                                 track.isrc!.isNotEmpty)
                               _infoTile(
                                 icon: Icons.fingerprint_rounded,
-                                label: 'ISRC',
+                                label: context.l10n.trackInfoIsrc,
                                 value: track.isrc!,
                                 colorScheme: colorScheme,
                               ),
@@ -225,7 +225,7 @@ void showTrackInfoSheet(BuildContext context, Track track) {
                               const SizedBox(height: 16),
                               _sectionHeader(
                                 icon: Icons.folder_rounded,
-                                label: 'Descargas',
+                                label: context.l10n.trackInfoDownloads,
                                 count: downloaded.length,
                                 colorScheme: colorScheme,
                               ),
@@ -387,14 +387,14 @@ class _DownloadedSourceCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          _detailRow('Códec', item.format ?? '—', colorScheme),
+          _detailRow(context.l10n.trackInfoCodec, item.format ?? '—', colorScheme),
           if (item.sampleRate != null)
-            _detailRow('Sample rate', '${item.sampleRate} Hz', colorScheme),
+            _detailRow(context.l10n.trackInfoSampleRate, '${item.sampleRate} Hz', colorScheme),
           if (item.bitDepth != null)
-            _detailRow('Bit depth', '${item.bitDepth}-bit', colorScheme),
+            _detailRow(context.l10n.trackInfoBitDepth, '${item.bitDepth}-bit', colorScheme),
           if (item.bitrate != null)
-            _detailRow('Bitrate', '${item.bitrate} kbps', colorScheme),
-          _detailRow('Ubicación', item.filePath, colorScheme),
+            _detailRow(context.l10n.trackInfoBitrate, '${item.bitrate} kbps', colorScheme),
+          _detailRow(context.l10n.trackInfoLocation, item.filePath, colorScheme),
         ],
       ),
     );

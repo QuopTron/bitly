@@ -11,6 +11,7 @@ import 'package:bitly/widgets/audio_visualizer.dart';
 import 'package:bitly/widgets/cached_cover_image.dart';
 import 'package:bitly/widgets/lyrics_sheet.dart';
 import 'package:bitly/providers/view_mode/view_mode_provider.dart';
+import 'package:bitly/widgets/common/loading_indicator.dart';
 import 'package:bitly/widgets/track_card.dart';
 
 class PlayerScreen extends ConsumerStatefulWidget {
@@ -439,20 +440,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (_isVideoLoading) {
       return Container(
         color: colorScheme.surfaceContainerHighest,
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox(
-                width: 32, height: 32,
-                child: CircularProgressIndicator(strokeWidth: 3, color: colorScheme.primary),
-              ),
-              const SizedBox(height: 12),
-              Text('Buscando video...',
-                  style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13)),
-            ],
-          ),
-        ),
+        child: const LoadingIndicator(message: 'Buscando video...'),
       );
     }
 

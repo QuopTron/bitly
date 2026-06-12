@@ -25,6 +25,7 @@ import 'package:bitly/utils/file_access.dart';
 import 'package:bitly/utils/image_cache_utils.dart';
 import 'package:bitly/utils/string_utils.dart';
 import 'package:bitly/utils/logger.dart';
+import 'package:bitly/constants/layout_constants.dart';
 import 'package:bitly/widgets/network_status.dart';
 import 'package:bitly/widgets/download_service_picker.dart';
 import 'package:bitly/widgets/animation_utils.dart';
@@ -884,21 +885,21 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
               if (_isLoading)
                 const SliverToBoxAdapter(
                   child: Padding(
-                    padding: EdgeInsets.all(16),
+                    padding: LayoutConstants.insetMd,
                     child: AlbumTrackListSkeleton(itemCount: 10),
                   ),
                 ),
               if (_error != null)
                 SliverToBoxAdapter(
                   child: Padding(
-                    padding: const EdgeInsets.all(16),
+                    padding: LayoutConstants.insetMd,
                     child: _buildErrorWidget(_error!, colorScheme),
                   ),
                 ),
               if (!_isLoading && _error == null && tracks.isNotEmpty) ...[
                 _buildTrackList(context, colorScheme, tracks),
               ],
-              const SliverToBoxAdapter(child: SizedBox(height: 32)),
+              const SliverToBoxAdapter(child: LayoutConstants.gapH32),
             ],
           ),
         ],
@@ -1015,8 +1016,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                           maxLines: 3,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        if (artistName != null && artistName.isNotEmpty) ...[
-                          const SizedBox(height: 6),
+                        if (artistName != null && artistName.isNotEmpty) ...[                              LayoutConstants.gapH6,
                           ClickableArtistName(
                             artistName: artistName,
                             artistId: _artistId,
@@ -1033,7 +1033,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                           ),
                         ],
                         if (tracks.isNotEmpty) ...[
-                          const SizedBox(height: 12),
+                          LayoutConstants.gapH12,
                           Wrap(
                             alignment: WrapAlignment.center,
                             spacing: 8,
@@ -1046,7 +1046,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                                 ),
                                 decoration: BoxDecoration(
                                   color: Colors.white.withValues(alpha: 0.2),
-                                  borderRadius: BorderRadius.circular(20),
+                                  borderRadius: BorderRadius.circular(LayoutConstants.radiusLg),
                                 ),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
@@ -1100,9 +1100,9 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                                 ),
                             ],
                           ),
-                          const SizedBox(height: 12),
+                          LayoutConstants.gapH12,
                           _buildSourcePills(tracks, colorScheme),
-                          const SizedBox(height: 12),
+                          LayoutConstants.gapH12,
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
@@ -1143,8 +1143,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
       ],
       leading: IconButton(
         tooltip: MaterialLocalizations.of(context).backButtonTooltip,
-        icon: Container(
-          padding: const EdgeInsets.all(8),
+        icon: Container(                    padding: LayoutConstants.insetSm,
           decoration: BoxDecoration(
             color: Colors.black.withValues(alpha: 0.4),
             shape: BoxShape.circle,
@@ -1631,9 +1630,9 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
       return Card(
         elevation: 0,
         color: colorScheme.errorContainer,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(LayoutConstants.radiusLg)),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: LayoutConstants.insetMd,
           child: Row(
             children: [
               Icon(Icons.timer_off, color: colorScheme.onErrorContainer),
@@ -1669,7 +1668,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     return Card(
       elevation: 0,
       color: colorScheme.errorContainer.withValues(alpha: 0.5),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(LayoutConstants.radiusLg)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Row(

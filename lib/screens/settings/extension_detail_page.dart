@@ -10,6 +10,7 @@ import 'package:bitly/utils/app_bar_layout.dart';
 import 'package:bitly/utils/source_icons.dart';
 import 'package:bitly/widgets/settings_group.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:bitly/widgets/common/loading_indicator.dart';
 
 class ExtensionDetailPage extends ConsumerStatefulWidget {
   final String extensionId;
@@ -450,10 +451,7 @@ class _ExtensionDetailPageState extends ConsumerState<ExtensionDetailPage> {
               ),
               if (_isLoadingSettings)
                 const SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.all(32),
-                    child: Center(child: CircularProgressIndicator()),
-                  ),
+                  child: LoadingIndicator(),
                 )
               else
                 SliverToBoxAdapter(

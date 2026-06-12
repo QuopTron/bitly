@@ -21,6 +21,7 @@ import 'package:bitly/widgets/animation_utils.dart';
 import 'package:bitly/widgets/glass_container.dart';
 import 'package:bitly/widgets/settings_group.dart';
 import 'package:bitly/widgets/stats_card.dart';
+import 'package:bitly/constants/layout_constants.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:go_router/go_router.dart';
 
@@ -71,7 +72,7 @@ class _SettingsGlassContent extends StatelessWidget {
     return Container(
       margin: EdgeInsets.all(MediaQuery.of(context).size.width * 0.05),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(LayoutConstants.radiusXl),
         child: BackdropFilter(
           filter: ui.ImageFilter.blur(
             sigmaX: AppTheme.modalBlurSigma,
@@ -85,7 +86,7 @@ class _SettingsGlassContent extends StatelessWidget {
                 color: isDark ? AppTheme.modalBorderDark : AppTheme.modalBorderLight,
                 width: 1.5,
               ),
-              borderRadius: BorderRadius.circular(28),
+              borderRadius: BorderRadius.circular(LayoutConstants.radiusXl),
               boxShadow: [
                 BoxShadow(
                   color: isDark ? AppTheme.primaryDark.withOpacity(0.3) : AppTheme.primaryLight.withOpacity(0.3),
@@ -112,7 +113,7 @@ class _SettingsGlassContent extends StatelessWidget {
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: [
-                        isDark ? AppTheme.primaryDark : AppTheme.primaryLight,
+                        colorScheme.primary,
                         isDark ? AppTheme.glowDark : AppTheme.glowLight,
                       ],
                     ),
@@ -193,7 +194,7 @@ class _SettingsMenu extends StatelessWidget {
           SliverToBoxAdapter(
             child: NeonCard(
               margin: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-              padding: const EdgeInsets.all(12),
+              padding: LayoutConstants.inset12,
               child: SettingsGroup(
                 margin: EdgeInsets.zero,
                 children: [
@@ -210,7 +211,7 @@ class _SettingsMenu extends StatelessWidget {
           SliverToBoxAdapter(
             child: NeonCard(
               margin: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-              padding: const EdgeInsets.all(12),
+              padding: LayoutConstants.inset12,
               child: SettingsGroup(
                 margin: EdgeInsets.zero,
                 children: [
@@ -246,7 +247,7 @@ class _SettingsMenu extends StatelessWidget {
           SliverToBoxAdapter(
             child: NeonCard(
               margin: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-              padding: const EdgeInsets.all(12),
+              padding: LayoutConstants.inset12,
               child: SettingsGroup(
                 margin: EdgeInsets.zero,
                 children: [
@@ -301,13 +302,13 @@ class _ProfileCardModal extends ConsumerWidget {
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       child: NeonCard(
         margin: EdgeInsets.zero,
-        padding: const EdgeInsets.all(16),
+        padding: LayoutConstants.insetMd,
         glowColor: isPremium ? Colors.amber : null,
         onTap: () => _push(context, const _ProfilePage()),
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(8),
+              padding: LayoutConstants.insetSm,
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: isPremium
@@ -348,7 +349,9 @@ class _ProfileCardModal extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    username.isNotEmpty ? username : 'Sin nombre',
+                    username.isNotEmpty
+                        ? username
+                        : context.l10n.settingsProfileNamePlaceholder,
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -357,14 +360,14 @@ class _ProfileCardModal extends ConsumerWidget {
                           : (isDark ? colorScheme.onPrimaryContainer : colorScheme.onPrimary),
                       shadows: [
                         Shadow(
-                          color: (isDark ? AppTheme.primaryDark : AppTheme.primaryLight).withOpacity(0.3),
+                          color: (colorScheme.primary).withOpacity(0.3),
                           blurRadius: 8,
                           offset: const Offset(0, 2),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  LayoutConstants.gapH4,
                   if (trialActive)
                     _RemainingTimeModal(premiumUntil: premiumUntil)
                   else if (isPremium)
@@ -378,7 +381,7 @@ class _ProfileCardModal extends ConsumerWidget {
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          'Premium',
+                          context.l10n.settingsPremiumBadge,
                           style: TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.w600,
@@ -392,7 +395,7 @@ class _ProfileCardModal extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Gratis',
+                          context.l10n.settingsFreeBadge,
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
@@ -401,7 +404,7 @@ class _ProfileCardModal extends ConsumerWidget {
                           ),
                         ),
                         Text(
-                          'Prueba gratis usada',
+                          context.l10n.settingsTrialUsedBadge,
                           style: TextStyle(
                             fontSize: 10,
                             color: (isDark ? colorScheme.onPrimaryContainer : colorScheme.onPrimary)
@@ -415,16 +418,16 @@ class _ProfileCardModal extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Gratis',
+                          context.l10n.settingsFreeBadge,
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
                             color: (isDark ? colorScheme.onPrimaryContainer : colorScheme.onPrimary)
-                                .withValues(alpha: 0.7),
+                                .withValues(alpha: 0.5),
                           ),
                         ),
                         Text(
-                          'Sin prueba gratis',
+                          context.l10n.settingsNoTrialBadge,
                           style: TextStyle(
                             fontSize: 10,
                             color: (isDark ? colorScheme.onPrimaryContainer : colorScheme.onPrimary)
@@ -467,10 +470,10 @@ class _ProfilePage extends ConsumerWidget {
     final premiumUntil = settings.premiumUntil;
 
     return Scaffold(
-      backgroundColor: isDark ? AppTheme.bgPrimaryDark : AppTheme.bgPrimaryLight,
+      backgroundColor: colorScheme.background,
       appBar: AppBar(
         title: Text(
-          'Mi Perfil',
+          context.l10n.settingsProfileTitle,
           style: TextStyle(
             color: colorScheme.onSurface,
             fontWeight: FontWeight.bold,
@@ -483,15 +486,15 @@ class _ProfilePage extends ConsumerWidget {
             ],
           ),
         ),
-        backgroundColor: isDark ? AppTheme.surfaceDark.withOpacity(0.8) : AppTheme.surfaceLight.withOpacity(0.8),
+        backgroundColor: colorScheme.surface.withOpacity(0.8),
         iconTheme: IconThemeData(color: colorScheme.onSurface),
       ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: LayoutConstants.insetMd,
         children: [
           // Profile Card
           Container(
-            padding: const EdgeInsets.all(24),
+            padding: LayoutConstants.insetLg,
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: isPremium
@@ -503,7 +506,7 @@ class _ProfilePage extends ConsumerWidget {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: LayoutConstants.radiusLg,
               boxShadow: [
                 BoxShadow(
                   color: isPremium
@@ -526,9 +529,11 @@ class _ProfilePage extends ConsumerWidget {
                     color: isPremium ? Colors.white : Colors.white,
                   ),
                 ),
-                const SizedBox(height: 16),
+                LayoutConstants.gapH16,
                 Text(
-                  username.isNotEmpty ? username : 'Sin nombre',
+                  username.isNotEmpty
+                      ? username
+                      : context.l10n.settingsProfileNamePlaceholder,
                   style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
@@ -542,7 +547,7 @@ class _ProfilePage extends ConsumerWidget {
                     ],
                   ),
                 ),
-                const SizedBox(height: 8),
+                LayoutConstants.gapH8,
                 if (premiumUntil > 0)
                   Column(
                     children: [
@@ -558,7 +563,7 @@ class _ProfilePage extends ConsumerWidget {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 8),
+                      LayoutConstants.gapH8,
                       _RemainingTimeModal(premiumUntil: premiumUntil),
                     ],
                   )
@@ -567,7 +572,7 @@ class _ProfilePage extends ConsumerWidget {
                     padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: LayoutConstants.radiusLg,
                       border: Border.all(color: Colors.white.withOpacity(0.3)),
                     ),
                     child: Row(
@@ -580,7 +585,7 @@ class _ProfilePage extends ConsumerWidget {
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          'PREMIUM',
+                          context.l10n.settingsPremiumBadge.toUpperCase(),
                           style: TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
@@ -600,11 +605,11 @@ class _ProfilePage extends ConsumerWidget {
                         ),
                         decoration: BoxDecoration(
                           color: Colors.white.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(20),
+                          borderRadius: LayoutConstants.radiusLg,
                           border: Border.all(color: Colors.white.withOpacity(0.3)),
                         ),
                         child: Text(
-                          'GRATIS',
+                          context.l10n.settingsFreeBadge.toUpperCase(),
                           style: TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
@@ -612,9 +617,9 @@ class _ProfilePage extends ConsumerWidget {
                           ),
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      LayoutConstants.gapH4,
                       Text(
-                        'Sin prueba gratis',
+                        context.l10n.settingsNoTrialBadge,
                         style: TextStyle(fontSize: 11, color: Colors.white70),
                       ),
                     ],
@@ -622,18 +627,18 @@ class _ProfilePage extends ConsumerWidget {
               ],
             ),
           ),
-          const SizedBox(height: 24),
+          LayoutConstants.gapH24,
           Text(
-            'Nombre',
+            context.l10n.settingsNameLabel,
             style: TextStyle(
               fontWeight: FontWeight.w600,
               color: colorScheme.onSurfaceVariant,
             ),
           ),
-          const SizedBox(height: 8),
+          LayoutConstants.gapH8,
           NeonCard(
             margin: EdgeInsets.zero,
-            padding: const EdgeInsets.all(16),
+            padding: LayoutConstants.insetMd,
             onTap: () => _showUsernameDialog(context, ref, username),
             child: Row(
               children: [
@@ -642,8 +647,8 @@ class _ProfilePage extends ConsumerWidget {
                 Expanded(
                   child: Text(
                     username.isNotEmpty
-                        ? username
-                        : 'Toca para agregar nombre',
+                    ? username
+                    : context.l10n.settingsNameHint,
                     style: TextStyle(
                       color: username.isEmpty
                           ? colorScheme.onSurfaceVariant
@@ -659,14 +664,14 @@ class _ProfilePage extends ConsumerWidget {
               ],
             ),
           ),
-          const SizedBox(height: 16),
+          LayoutConstants.gapH16,
           // Stats Card
           NeonCard(
             margin: EdgeInsets.zero,
-            padding: const EdgeInsets.all(16),
+            padding: LayoutConstants.insetMd,
             child: StatsCard(),
           ),
-          const SizedBox(height: 24),
+          LayoutConstants.gapH24,
           Center(
             child: NeonCard(
               margin: EdgeInsets.zero,
@@ -674,7 +679,7 @@ class _ProfilePage extends ConsumerWidget {
               glowColor: Colors.redAccent,
               onTap: () => _showResetDialog(context, ref),
               child: Text(
-                'Reiniciar configuración',
+                context.l10n.dialogResetSettings,
                 style: TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -694,20 +699,21 @@ class _ProfilePage extends ConsumerWidget {
     WidgetRef ref,
     String current,
   ) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = colorScheme.brightness == Brightness.dark;
     final controller = TextEditingController(text: current);
     showDialog(
       context: context,
       builder: (ctx) => BackdropFilter(
         filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
         child: AlertDialog(
-          backgroundColor: isDark ? AppTheme.surfaceDark.withOpacity(0.9) : AppTheme.surfaceLight.withOpacity(0.9),
-          title: Text('Tu nombre'),
+          backgroundColor: colorScheme.surface.withOpacity(0.9),
+          title: Text(context.l10n.settingsNameDialogTitle),
           content: TextField(
             controller: controller,
             autofocus: true,
             decoration: InputDecoration(
-              hintText: 'Ingresa tu nombre...',
+              hintText: context.l10n.settingsNameDialogHint,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
@@ -720,7 +726,7 @@ class _ProfilePage extends ConsumerWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancelar'),
+              child: Text(context.l10n.dialogCancel),
             ),
             FilledButton(
               onPressed: () {
@@ -729,7 +735,7 @@ class _ProfilePage extends ConsumerWidget {
                     .setUsername(controller.text.trim());
                 Navigator.pop(ctx);
               },
-              child: const Text('Guardar'),
+              child: Text(context.l10n.settingsSave),
             ),
           ],
         ),
@@ -738,16 +744,16 @@ class _ProfilePage extends ConsumerWidget {
   }
 
   void _showResetDialog(BuildContext context, WidgetRef ref) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = colorScheme.brightness == Brightness.dark;
     showDialog(
       context: context,
       builder: (ctx) => BackdropFilter(
         filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
         child: AlertDialog(
-          backgroundColor: isDark ? AppTheme.surfaceDark.withOpacity(0.9) : AppTheme.surfaceLight.withOpacity(0.9),
-          title: const Text('Reiniciar configuración'),
-          content: const Text(
-              '¿Deseas restablecer la app al asistente de configuración inicial?'),
+          backgroundColor: colorScheme.surface.withOpacity(0.9),
+          title: Text(context.l10n.dialogResetSettings),
+          content: Text(context.l10n.dialogResetSettingsMessage),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
@@ -770,7 +776,7 @@ class _ProfilePage extends ConsumerWidget {
                   extra: {'initialStep': 0},
                 );
               },
-              child: const Text('Reiniciar'),
+              child: Text(context.l10n.dialogReset),
             ),
           ],
         ),
@@ -817,7 +823,7 @@ class _RemainingTimeModalState extends State<_RemainingTimeModal> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Prueba usada el:',
+            context.l10n.settingsTrialUsedDate,
             style: TextStyle(fontSize: 11, color: Colors.red[300]),
           ),
           Text(
@@ -831,7 +837,7 @@ class _RemainingTimeModalState extends State<_RemainingTimeModal> {
     final minutos = (_remainingMs % (1000 * 60 * 60)) ~/ (1000 * 60);
     final segundos = ((_remainingMs % (1000 * 60 * 60)) % (1000 * 60)) ~/ 1000;
     return Text(
-      '${horas}h ${minutos}m ${segundos}s restantes',
+      context.l10n.settingsTimeRemaining(horas, minutos, segundos),
       style: TextStyle(
         fontSize: 12,
         color: Colors.white.withValues(alpha: 0.9),

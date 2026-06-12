@@ -37,12 +37,12 @@ class _FactoryResetDialogState extends State<FactoryResetDialog> {
               const CircularProgressIndicator(),
               const SizedBox(height: 16),
               Text(
-                'Restableciendo aplicación...',
+                l10n.factoryResetResetting,
                 style: Theme.of(context).textTheme.bodyLarge,
               ),
               const SizedBox(height: 8),
               Text(
-                'Por favor, no cierres la aplicación.',
+                l10n.factoryResetPleaseWait,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: colorScheme.onSurfaceVariant,
                 ),
@@ -58,31 +58,29 @@ class _FactoryResetDialogState extends State<FactoryResetDialog> {
         children: [
           Icon(Icons.warning_amber_rounded, color: colorScheme.error),
           const SizedBox(width: 8),
-          const Text('Restablecimiento de fábrica'),
+          Text(l10n.factoryResetTitle),
         ],
       ),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Esto eliminará permanentemente todas tus configuraciones, historial de descargas y colecciones guardadas.',
-          ),
+          Text(l10n.factoryResetDescription),
           const SizedBox(height: 16),
           CheckboxListTile(
             value: _deleteFiles,
             onChanged: (val) => setState(() => _deleteFiles = val ?? false),
-            title: const Text('Eliminar también archivos de música'),
-            subtitle: const Text(
-              'Borra físicamente las canciones descargadas del almacenamiento.',
-              style: TextStyle(fontSize: 11),
+            title: Text(l10n.factoryResetDeleteMusic),
+            subtitle: Text(
+              l10n.factoryResetDeleteMusicSubtitle,
+              style: const TextStyle(fontSize: 11),
             ),
             contentPadding: EdgeInsets.zero,
             activeColor: colorScheme.error,
           ),
           const SizedBox(height: 8),
           Text(
-            'Esta acción NO se puede deshacer.',
+            l10n.factoryResetCannotUndo,
             style: TextStyle(
               color: colorScheme.error,
               fontWeight: FontWeight.bold,
@@ -107,7 +105,7 @@ class _FactoryResetDialogState extends State<FactoryResetDialog> {
               await AppResetService.resetEverything(deleteFiles: _deleteFiles);
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Aplicación restablecida. Reiniciando...')),
+                  SnackBar(content: Text(l10n.factoryResetSuccess)),
                 );
                 // exit the process so the app reopens fresh
                 await Future.delayed(const Duration(milliseconds: 500));
@@ -117,12 +115,12 @@ class _FactoryResetDialogState extends State<FactoryResetDialog> {
               if (mounted) {
                 setState(() => _isResetting = false);
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Error al restablecer: $e')),
+                  SnackBar(content: Text(l10n.factoryResetError(e.toString()))),
                 );
               }
             }
           },
-          child: const Text('Restablecer ahora'),
+          child: Text(l10n.factoryResetButton),
         ),
       ],
     );

@@ -12,6 +12,7 @@ import 'package:bitly/widgets/track_collection_quick_actions.dart';
 import 'package:bitly/widgets/track_heart_button.dart';
 import 'package:bitly/widgets/track_info_sheet.dart';
 import 'package:bitly/theme/app_theme.dart';
+import 'package:bitly/l10n/l10n.dart';
 import 'package:bitly/widgets/glass_container.dart';
 
 class TrackCard extends ConsumerWidget {
@@ -101,7 +102,7 @@ class TrackCard extends ConsumerWidget {
                     fontWeight: isCurrentTrack ? FontWeight.bold : FontWeight.w600,
                     fontSize: 15,
                     color: isCurrentTrack 
-                        ? (isDark ? AppTheme.primaryDark : AppTheme.primaryLight)
+                        ? (colorScheme.primary)
                         : colorScheme.onSurface,
                     shadows: isCurrentTrack
                         ? [
@@ -151,7 +152,7 @@ class TrackCard extends ConsumerWidget {
             width: coverSize,
             height: coverSize,
             decoration: BoxDecoration(
-              color: isDark ? AppTheme.surfaceDark.withOpacity(0.3) : AppTheme.surfaceLight.withOpacity(0.3),
+              color: colorScheme.surface.withOpacity(0.3),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(Icons.music_note, color: colorScheme.onSurfaceVariant),
@@ -171,7 +172,7 @@ class TrackCard extends ConsumerWidget {
       text: track.artistName,
       style: TextStyle(
         fontSize: 13,
-        color: isDark ? AppTheme.textSecondaryDark : AppTheme.textSecondaryLight,
+        color: colorScheme.onSurfaceVariant,
       ),
     ));
     if (track.albumName.isNotEmpty) {
@@ -180,7 +181,7 @@ class TrackCard extends ConsumerWidget {
         text: '$sep${track.albumName}',
         style: TextStyle(
           fontSize: 12,
-          color: (isDark ? AppTheme.textSecondaryDark : AppTheme.textSecondaryLight).withValues(alpha: 0.7),
+          color: (colorScheme.onSurfaceVariant).withValues(alpha: 0.7),
         ),
       ));
     }
@@ -189,7 +190,7 @@ class TrackCard extends ConsumerWidget {
         text: ' · ',
         style: TextStyle(
           fontSize: 12,
-          color: (isDark ? AppTheme.textSecondaryDark : AppTheme.textSecondaryLight).withValues(alpha: 0.5),
+          color: (colorScheme.onSurfaceVariant).withValues(alpha: 0.5),
         ),
       ));
       parts.add(TextSpan(
@@ -197,7 +198,7 @@ class TrackCard extends ConsumerWidget {
         style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w500,
-          color: (isDark ? AppTheme.primaryDark : AppTheme.primaryLight).withValues(alpha: 0.7),
+          color: (colorScheme.primary).withValues(alpha: 0.7),
         ),
       ));
     }
@@ -228,19 +229,19 @@ class TrackCard extends ConsumerWidget {
 
     if (showStatusLabel) {
       final isLocal = downloadProgress >= 1.0;
-      final label = isLocal ? 'Local' : 'En línea';
+      final label = isLocal ? context.l10n.trackCardLocal : context.l10n.trackCardOnline;
       children.add(
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
           decoration: BoxDecoration(
             color: isLocal
                 ? (isDark ? AppTheme.successDark.withOpacity(0.12) : AppTheme.successLight.withOpacity(0.12))
-                : (isDark ? AppTheme.textSecondaryDark.withOpacity(0.08) : AppTheme.textSecondaryLight.withOpacity(0.08)),
+                : colorScheme.onSurfaceVariant.withOpacity(0.08),
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
               color: isLocal
                   ? (isDark ? AppTheme.successDark.withOpacity(0.2) : AppTheme.successLight.withOpacity(0.2))
-                  : (isDark ? AppTheme.borderDark.withOpacity(0.3) : AppTheme.borderLight.withOpacity(0.3)),
+                  : (colorScheme.outline.withOpacity(0.3)),
               width: 0.5,
             ),
           ),
@@ -252,7 +253,7 @@ class TrackCard extends ConsumerWidget {
                 size: 10,
                 color: isLocal 
                     ? (isDark ? AppTheme.successDark : AppTheme.successLight)
-                    : (isDark ? AppTheme.textSecondaryDark : AppTheme.textSecondaryLight),
+                    : (colorScheme.onSurfaceVariant),
               ),
               const SizedBox(width: 3),
               Text(
@@ -262,7 +263,7 @@ class TrackCard extends ConsumerWidget {
                   fontWeight: FontWeight.w600,
                   color: isLocal 
                       ? (isDark ? AppTheme.successDark : AppTheme.successLight)
-                      : (isDark ? AppTheme.textSecondaryDark : AppTheme.textSecondaryLight),
+                      : (colorScheme.onSurfaceVariant),
                   height: 1.3,
                   letterSpacing: 0.3,
                 ),
@@ -485,6 +486,7 @@ class _StatusDot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     final isNone = progress <= 0;
     final isCompleted = progress >= 1.0;
 
@@ -503,7 +505,7 @@ class _StatusDot extends StatelessWidget {
             ),
           ],
         ),
-        child: Icon(Icons.check, size: size * 0.7, color: isDark ? AppTheme.textPrimaryDark : AppTheme.textPrimaryLight),
+        child: Icon(Icons.check, size: size * 0.7, color: colorScheme.onSurface),
       );
     }
 
@@ -512,7 +514,7 @@ class _StatusDot extends StatelessWidget {
         width: size,
         height: size,
         decoration: BoxDecoration(
-          color: (isDark ? AppTheme.textSecondaryDark : AppTheme.textSecondaryLight).withValues(alpha: 0.15),
+          color: (colorScheme.onSurfaceVariant).withValues(alpha: 0.15),
           shape: BoxShape.circle,
         ),
       );
@@ -526,7 +528,7 @@ class _StatusDot extends StatelessWidget {
           CircularProgressIndicator(
             value: progress,
             strokeWidth: 2,
-            backgroundColor: (isDark ? AppTheme.textSecondaryDark : AppTheme.textSecondaryLight).withValues(alpha: 0.1),
+            backgroundColor: (colorScheme.onSurfaceVariant).withValues(alpha: 0.1),
             valueColor: AlwaysStoppedAnimation<Color>(
               isDark ? AppTheme.warningDark : AppTheme.warningLight,
             ),
@@ -557,6 +559,7 @@ class _Badge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
       decoration: BoxDecoration(
@@ -569,7 +572,7 @@ class _Badge extends StatelessWidget {
         style: TextStyle(
           fontSize: 9,
           fontWeight: FontWeight.w700,
-          color: isDark ? AppTheme.textPrimaryDark : AppTheme.textPrimaryLight,
+          color: colorScheme.onSurface,
           letterSpacing: 0.5,
         ),
       ),
@@ -586,7 +589,8 @@ class _SelectionCheckbox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(this.context).brightness == Brightness.dark;
+    final colorScheme = Theme.of(this.context).colorScheme;
+    final isDark = colorScheme.brightness == Brightness.dark;
     return GestureDetector(
       onTap: () => onChanged?.call(!isSelected),
       child: AnimatedContainer(
@@ -595,11 +599,11 @@ class _SelectionCheckbox extends StatelessWidget {
         height: 24,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: isSelected ? (isDark ? AppTheme.primaryDark : AppTheme.primaryLight) : Colors.transparent,
+          color: isSelected ? (colorScheme.primary) : Colors.transparent,
           border: Border.all(
             color: isSelected 
-                ? (isDark ? AppTheme.primaryDark : AppTheme.primaryLight)
-                : (isDark ? AppTheme.textSecondaryDark : AppTheme.textSecondaryLight),
+                ? (colorScheme.primary)
+                : (colorScheme.onSurfaceVariant),
             width: 1.5,
           ),
           boxShadow: isSelected
@@ -616,7 +620,7 @@ class _SelectionCheckbox extends StatelessWidget {
             ? Icon(
                 Icons.check,
                 size: 14,
-                color: isDark ? AppTheme.textPrimaryDark : AppTheme.textPrimaryLight,
+                color: colorScheme.onSurface,
               )
             : null,
       ),

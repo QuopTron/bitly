@@ -5,7 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:bitly/providers/audio/audio_player_provider.dart';
 import 'package:bitly/providers/lyrics/lyrics_provider.dart';
 import 'package:bitly/providers/playback/playback_queue_provider.dart';
+import 'package:bitly/l10n/l10n.dart';
 import 'package:bitly/screens/player_screen.dart';
+import 'package:bitly/constants/layout_constants.dart';
 
 bool _isLocalCover(String url) =>
     !url.startsWith('http://') && !url.startsWith('https://');
@@ -87,7 +89,7 @@ class MiniPlayer extends ConsumerWidget {
                                     errorBuilder: (_, _, _) => Icon(
                                       Icons.music_note,
                                       color: colorScheme.onPrimaryContainer,
-                                      size: 24,
+                                      size: LayoutConstants.iconMd,
                                     ),
                                   )
                                 : Image.network(
@@ -96,13 +98,13 @@ class MiniPlayer extends ConsumerWidget {
                                     errorBuilder: (_, _, _) => Icon(
                                       Icons.music_note,
                                       color: colorScheme.onPrimaryContainer,
-                                      size: 24,
+                                      size: LayoutConstants.iconMd,
                                     ),
                                   ))
                             : Icon(
                                 Icons.music_note,
                                 color: colorScheme.onPrimaryContainer,
-                                size: 24,
+                                size: LayoutConstants.iconMd,
                               ),
                       ),
                     ),
@@ -123,7 +125,7 @@ class MiniPlayer extends ConsumerWidget {
                               color: isDark ? Colors.white : colorScheme.onSurface,
                             ),
                           ),
-                          const SizedBox(height: 2),
+                          LayoutConstants.gapH2,
                           Text(
                             state.artistName ?? '',
                             maxLines: 1,
@@ -150,7 +152,7 @@ class MiniPlayer extends ConsumerWidget {
                             color: queue.canGoNext || queue.canGoPrevious
                                 ? (isDark ? Colors.white : colorScheme.onSurface)
                                 : (isDark ? const Color(0xFF7A7A7A) : colorScheme.onSurfaceVariant.withOpacity(0.4)),
-                            size: 18,
+                            size: LayoutConstants.iconSm,
                           ),
                           const SizedBox(width: 4),
                           _buildControlButton(
@@ -159,7 +161,7 @@ class MiniPlayer extends ConsumerWidget {
                                 : Icons.play_circle_filled,
                             onPressed: () => ref.read(audioPlayerProvider.notifier).togglePlayPause(),
                             color: isDark ? const Color(0xFF00F5B0) : colorScheme.primary,
-                            size: 32,
+                            size: LayoutConstants.iconLg,
                           ),
                           const SizedBox(width: 4),
                           _buildControlButton(
@@ -170,7 +172,7 @@ class MiniPlayer extends ConsumerWidget {
                             color: queue.canGoNext
                                 ? (isDark ? Colors.white : colorScheme.onSurface)
                                 : (isDark ? const Color(0xFF7A7A7A) : colorScheme.onSurfaceVariant.withOpacity(0.4)),
-                            size: 18,
+                            size: LayoutConstants.iconSm,
                           ),
                           const SizedBox(width: 8),
                         ],
@@ -190,7 +192,7 @@ class MiniPlayer extends ConsumerWidget {
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              'Cargando...',
+                              context.l10n.miniPlayerLoading,
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w500,

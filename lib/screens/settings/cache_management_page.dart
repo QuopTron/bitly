@@ -10,6 +10,7 @@ import 'package:bitly/core/bridge/bridge_client.dart';
 import 'package:bitly/utils/app_bar_layout.dart';
 import 'package:bitly/widgets/factory_reset_dialog.dart';
 import 'package:bitly/widgets/video_cache_settings.dart';
+import 'package:bitly/widgets/common/loading_indicator.dart';
 
 class CacheManagementPage extends ConsumerStatefulWidget {
   const CacheManagementPage({super.key});
@@ -157,7 +158,7 @@ class _CacheManagementPageState extends ConsumerState<CacheManagementPage> {
           ),
 
           if (_isLoading || _overview == null)
-            const SliverFillRemaining(child: Center(child: CircularProgressIndicator()))
+            const SliverFillRemaining(child: LoadingIndicator())
           else
             SliverToBoxAdapter(
               child: Container(

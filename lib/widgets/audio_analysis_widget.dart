@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:bitly/l10n/l10n.dart';
 import 'package:bitly/core/bridge/bridge_client.dart';
+import 'package:bitly/constants/layout_constants.dart';
 
 class AudioAnalysisData {
   final String filePath;
@@ -519,7 +520,7 @@ class _AudioAnalysisCardState extends State<AudioAnalysisCard> {
       return Card(
         color: cs.surfaceContainerLow,
         child: Padding(
-          padding: const EdgeInsets.all(24),
+          padding: LayoutConstants.insetLg,
           child: Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -529,7 +530,7 @@ class _AudioAnalysisCardState extends State<AudioAnalysisCard> {
                   height: 24,
                   child: CircularProgressIndicator(strokeWidth: 2.5),
                 ),
-                const SizedBox(height: 12),
+                LayoutConstants.gapH12,
                 Text(
                   l10n.audioAnalysisAnalyzing,
                   style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13),
@@ -545,7 +546,7 @@ class _AudioAnalysisCardState extends State<AudioAnalysisCard> {
       return Card(
         color: cs.errorContainer,
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: LayoutConstants.insetMd,
           child: Row(
             children: [
               Icon(Icons.error_outline, color: cs.onErrorContainer),
@@ -567,9 +568,9 @@ class _AudioAnalysisCardState extends State<AudioAnalysisCard> {
         color: cs.surfaceContainerLow,
         child: InkWell(
           onTap: _analyze,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(LayoutConstants.radiusMd),
           child: Padding(
-            padding: const EdgeInsets.all(20),
+            padding: LayoutConstants.inset20,
             child: Row(
               children: [
                 Icon(Icons.analytics_outlined, color: cs.primary, size: 28),
@@ -611,7 +612,7 @@ class _AudioAnalysisCardState extends State<AudioAnalysisCard> {
       children: [
         _AudioInfoCard(data: data, onRescan: () => _analyze(skipCache: true)),
         if (_spectrogramImage != null) ...[
-          const SizedBox(height: 12),
+          LayoutConstants.gapH12,
           _SpectrogramView(
             image: _spectrogramImage!,
             sampleRate: data.sampleRate,
@@ -825,7 +826,7 @@ class _AudioInfoCard extends StatelessWidget {
     return Card(
       color: cs.surfaceContainerLow,
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: LayoutConstants.insetMd,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -846,13 +847,13 @@ class _AudioInfoCard extends StatelessWidget {
                   IconButton(
                     icon: Icon(Icons.refresh, color: cs.primary, size: 20),
                     onPressed: onRescan,
-                    tooltip: 'Rescan',
+                    tooltip: context.l10n.audioAnalysisRescan,
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
                   ),
               ],
             ),
-            const SizedBox(height: 12),
+            LayoutConstants.gapH12,
             Wrap(
               spacing: 16,
               runSpacing: 8,
@@ -873,9 +874,9 @@ class _AudioInfoCard extends StatelessWidget {
                   icon: Icons.surround_sound,
                   label: context.l10n.audioAnalysisChannels,
                   value: data.channels == 2
-                      ? 'Stereo'
+                      ? context.l10n.audioAnalysisStereo
                       : data.channels == 1
-                      ? 'Mono'
+                      ? context.l10n.audioAnalysisMono
                       : '${data.channels}',
                   cs: cs,
                 ),
@@ -900,9 +901,9 @@ class _AudioInfoCard extends StatelessWidget {
                   ),
               ],
             ),
-            const SizedBox(height: 8),
+            LayoutConstants.gapH8,
             Divider(color: cs.outlineVariant),
-            const SizedBox(height: 8),
+            LayoutConstants.gapH8,
             Wrap(
               spacing: 16,
               runSpacing: 8,

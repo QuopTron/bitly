@@ -5039,5 +5039,790 @@
   "downloadFallbackExtensionsSubtitle": "Choose which extensions can be used as fallback",
   "@downloadFallbackExtensionsSubtitle": {
     "description": "Subtitle for fallback extensions item"
+  },
+  "videoCacheTitle": "Video Cache Settings",
+  "@videoCacheTitle": {
+    "description": "Screen title for video cache settings"
+  },
+  "videoCacheStorage": "Cache Storage",
+  "@videoCacheStorage": {
+    "description": "Section header for cache storage info"
+  },
+  "videoCacheMaxLimit": "Maximum Cache Limit",
+  "@videoCacheMaxLimit": {
+    "description": "Section header for max cache size"
+  },
+  "videoCacheManageStorage": "Manage Storage",
+  "@videoCacheManageStorage": {
+    "description": "Button to open storage management"
+  },
+  "videoCacheClearTitle": "Clear Cache",
+  "@videoCacheClearTitle": {
+    "description": "Dialog title - clear video cache"
+  },
+  "videoCacheClearMessage": "Are you sure you want to delete all cached videos?",
+  "@videoCacheClearMessage": {
+    "description": "Dialog message - confirm cache clear"
+  },
+  "videoCacheCleared": "Cache cleared successfully",
+  "@videoCacheCleared": {
+    "description": "Snackbar after cache cleared"
+  },
+  "videoCacheClearAll": "CLEAR ALL CACHE",
+  "@videoCacheClearAll": {
+    "description": "Button - clear all cached videos"
+  },
+  "videoCacheEmpty": "No cached videos",
+  "@videoCacheEmpty": {
+    "description": "Empty state - no cached videos"
+  },
+  "timeDaysAgo": "{count} days ago",
+  "@timeDaysAgo": {
+    "description": "Relative time - days ago",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "timeHoursAgo": "{count} hours ago",
+  "@timeHoursAgo": {
+    "description": "Relative time - hours ago",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "timeMinutesAgo": "{count} minutes ago",
+  "@timeMinutesAgo": {
+    "description": "Relative time - minutes ago",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "timeJustNow": "Just now",
+  "@timeJustNow": {
+    "description": "Relative time - just now"
+  },
+  "videoCacheCachedListTitle": "Cached Videos ({count})",
+  "@videoCacheCachedListTitle": {
+    "description": "Section header for cached videos list",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "videoCacheCachedCount": "Cached videos: {count}",
+  "@videoCacheCachedCount": {
+    "description": "Label showing number of cached videos",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "factoryResetTitle": "Factory Reset",
+  "@factoryResetTitle": {
+    "description": "Dialog title for factory reset"
+  },
+  "factoryResetDescription": "This will permanently delete all your settings, download history, and saved collections.",
+  "@factoryResetDescription": {
+    "description": "Factory reset warning message"
+  },
+  "factoryResetDeleteMusic": "Also delete music files",
+  "@factoryResetDeleteMusic": {
+    "description": "Checkbox label for deleting music files"
+  },
+  "factoryResetDeleteMusicSubtitle": "Physically deletes downloaded songs from storage.",
+  "@factoryResetDeleteMusicSubtitle": {
+    "description": "Subtitle for music deletion checkbox"
+  },
+  "factoryResetCannotUndo": "This action CANNOT be undone.",
+  "@factoryResetCannotUndo": {
+    "description": "Warning text about irreversible action"
+  },
+  "factoryResetResetting": "Resetting app...",
+  "@factoryResetResetting": {
+    "description": "In progress message during factory reset"
+  },
+  "factoryResetPleaseWait": "Please do not close the app.",
+  "@factoryResetPleaseWait": {
+    "description": "Instruction during reset"
+  },
+  "factoryResetSuccess": "App reset. Restarting...",
+  "@factoryResetSuccess": {
+    "description": "Snackbar after successful reset"
+  },
+  "factoryResetError": "Reset error: {error}",
+  "@factoryResetError": {
+    "description": "Snackbar on reset failure",
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "factoryResetButton": "Reset now",
+  "@factoryResetButton": {
+    "description": "Button to confirm factory reset"
+  },
+  "dialogResetSettings": "Reset Settings",
+  "@dialogResetSettings": {
+    "description": "Button and dialog title - reset app settings"
+  },
+  "dialogResetSettingsMessage": "Do you want to reset the app to the initial setup wizard?",
+  "@dialogResetSettingsMessage": {
+    "description": "Dialog message - reset to initial setup"
+  },
+  "dialogReset": "Reset",
+  "@dialogReset": {
+    "description": "Dialog button - confirm reset"
+  },
+  "playlistCreatorTitle": "Create Playlist",
+  "@playlistCreatorTitle": {
+    "description": "Sheet title for creating a playlist"
+  },
+  "playlistCreatorNameLabel": "Playlist name",
+  "@playlistCreatorNameLabel": {
+    "description": "Text field label for playlist name"
+  },
+  "playlistCreatorNameHint": "My awesome playlist",
+  "@playlistCreatorNameHint": {
+    "description": "Hint text for playlist name field"
+  },
+  "playlistCreatorSearchLabel": "Search songs",
+  "@playlistCreatorSearchLabel": {
+    "description": "Text field label for searching songs"
+  },
+  "playlistCreatorSearchHint": "Type to filter...",
+  "@playlistCreatorSearchHint": {
+    "description": "Hint text for song search field"
+  },
+  "playlistCreatorSelectedCount": "{count} selected",
+  "@playlistCreatorSelectedCount": {
+    "description": "Count of selected tracks",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "playlistCreatorSelectAll": "Select all",
+  "@playlistCreatorSelectAll": {
+    "description": "Button to select all tracks"
+  },
+  "playlistCreatorDeselectAll": "Deselect all",
+  "@playlistCreatorDeselectAll": {
+    "description": "Button to deselect all tracks"
+  },
+  "playlistCreatorCreateButton": "Create ({count} songs)",
+  "@playlistCreatorCreateButton": {
+    "description": "Button to create playlist",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "downloadPickerExtraOptions": "Extra options",
+  "@downloadPickerExtraOptions": {
+    "description": "Section header for extra download options (lyrics, video)"
+  },
+  "downloadPickerDownloadLyrics": "Download Lyrics",
+  "@downloadPickerDownloadLyrics": {
+    "description": "Toggle label to also download lyrics"
+  },
+  "downloadPickerDownloadVideo": "Download Video",
+  "@downloadPickerDownloadVideo": {
+    "description": "Toggle label to also download video"
+  },
+  "downloadPickerBest": "Best",
+  "@downloadPickerBest": {
+    "description": "Badge text for recommended download provider"
+  },
+  "downloadPickerServiceOnline": "Online",
+  "@downloadPickerServiceOnline": {
+    "description": "Health status label when service is online"
+  },
+  "downloadPickerServiceDegraded": "Degraded",
+  "@downloadPickerServiceDegraded": {
+    "description": "Health status label when service is degraded"
+  },
+  "downloadPickerServiceOffline": "Offline",
+  "@downloadPickerServiceOffline": {
+    "description": "Health status label when service is offline"
+  },
+  "downloadPickerServiceOnlineTooltip": "Service online",
+  "@downloadPickerServiceOnlineTooltip": {
+    "description": "Tooltip text for online health dot"
+  },
+  "downloadPickerServiceDegradedTooltip": "Service degraded",
+  "@downloadPickerServiceDegradedTooltip": {
+    "description": "Tooltip text for degraded health dot"
+  },
+  "downloadPickerServiceOfflineTooltip": "Service offline",
+  "@downloadPickerServiceOfflineTooltip": {
+    "description": "Tooltip text for offline health dot"
+  },
+  "downloadPickerServiceUnknownTooltip": "Unknown status",
+  "@downloadPickerServiceUnknownTooltip": {
+    "description": "Tooltip text for unknown health dot"
+  },
+  "downloadPickerQualityCount": "{count, plural, =1{1 quality} other{{count} qualities}}",
+  "@downloadPickerQualityCount": {
+    "description": "Label showing quality count for a provider",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "downloadPickerEstimatedSize": "~{size} MB",
+  "@downloadPickerEstimatedSize": {
+    "description": "Estimated download size badge",
+    "placeholders": {
+      "size": { "type": "String" }
+    }
+  },
+  "networkStatusOnline": "Online",
+  "@networkStatusOnline": {
+    "description": "Tooltip text when network is connected"
+  },
+  "networkStatusOffline": "Offline",
+  "@networkStatusOffline": {
+    "description": "Tooltip text when network is disconnected"
+  },
+  "statsLevel": "Level {level}",
+  "@statsLevel": {
+    "description": "User level label in stats card",
+    "placeholders": { "level": { "type": "int" } }
+  },
+  "statsFirstPlayPrompt": "Play your first song to level up",
+  "@statsFirstPlayPrompt": {
+    "description": "Prompt shown when user has no plays yet"
+  },
+  "statsXpPlays": "{count} XP · {display} plays",
+  "@statsXpPlays": {
+    "description": "XP and play count line below level",
+    "placeholders": {
+      "count": { "type": "int" },
+      "display": { "type": "String" }
+    }
+  },
+  "statsLegendPlays": "🏆 Legend · {display} plays",
+  "@statsLegendPlays": {
+    "description": "Level 10 legend status with play count",
+    "placeholders": { "display": { "type": "String" } }
+  },
+  "statsXpToNextLevel": "{current} / {next} XP for level {level}",
+  "@statsXpToNextLevel": {
+    "description": "XP progress text toward next level",
+    "placeholders": {
+      "current": { "type": "String" },
+      "next": { "type": "String" },
+      "level": { "type": "int" }
+    }
+  },
+  "statsMostListenedArtist": "Most listened: {artist}",
+  "@statsMostListenedArtist": {
+    "description": "Label for most played artist",
+    "placeholders": { "artist": { "type": "String" } }
+  },
+  "statsAchievementsHeader": "🏅 Achievements",
+  "@statsAchievementsHeader": {
+    "description": "Section header for achievements list"
+  },
+  "statsPlaysBadge": "Plays",
+  "@statsPlaysBadge": {
+    "description": "Stat badge subtitle - total play count"
+  },
+  "statsSongsBadge": "Songs",
+  "@statsSongsBadge": {
+    "description": "Stat badge subtitle - unique songs"
+  },
+  "statsAlbumsBadge": "Albums",
+  "@statsAlbumsBadge": {
+    "description": "Stat badge subtitle - unique albums"
+  },
+  "statsArtistsBadge": "Artists",
+  "@statsArtistsBadge": {
+    "description": "Stat badge subtitle - unique artists"
+  },
+  "statsDownloadsBadge": "Downloads",
+  "@statsDownloadsBadge": {
+    "description": "Stat badge subtitle - download count"
+  },
+  "statsAchPlays": "{count, plural, =1{First Listen} other{{count} Plays}}",
+  "@statsAchPlays": {
+    "description": "Achievement name for play count milestones",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "statsAchAlbums": "{count} Albums",
+  "@statsAchAlbums": {
+    "description": "Achievement name for album count milestones",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "statsAchArtists": "{count} Artists",
+  "@statsAchArtists": {
+    "description": "Achievement name for artist count milestones",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "statsAchSongs": "{count} Songs",
+  "@statsAchSongs": {
+    "description": "Achievement name for unique song count milestones",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "statsAchSameSong": "{count}x Same Song",
+  "@statsAchSameSong": {
+    "description": "Achievement name for same song repeat milestones",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "statsAchDays": "{count} Days",
+  "@statsAchDays": {
+    "description": "Achievement name for active day milestones",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "statsAchDownloads": "{count} Downloads",
+  "@statsAchDownloads": {
+    "description": "Achievement name for download count milestones",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "statsAchNightOwl": "Night Owl",
+  "@statsAchNightOwl": {
+    "description": "Secret achievement - late night listening"
+  },
+  "statsAchNightRider": "Night Rider",
+  "@statsAchNightRider": {
+    "description": "Secret achievement - very late night listening"
+  },
+  "statsAchAlbumMarathon5": "Album Marathon (5)",
+  "@statsAchAlbumMarathon5": {
+    "description": "Secret achievement - 5 albums in a row"
+  },
+  "statsAchAlbumMarathon10": "Album Marathon (10)",
+  "@statsAchAlbumMarathon10": {
+    "description": "Secret achievement - 10 albums in a row"
+  },
+  "downloadProgressTitle": "Downloading",
+  "@downloadProgressTitle": {
+    "description": "Title for the download progress modal sheet"
+  },
+  "downloadProgressStopDownload": "Stop Download",
+  "@downloadProgressStopDownload": {
+    "description": "Button to stop a download in progress"
+  },
+  "downloadProgressPercent": "{percent}%",
+  "@downloadProgressPercent": {
+    "description": "Download progress percentage text",
+    "placeholders": { "percent": { "type": "int" } }
+  },
+  "downloadProgressSpeed": "{speed} MB/s",
+  "@downloadProgressSpeed": {
+    "description": "Download speed display",
+    "placeholders": { "speed": { "type": "String" } }
+  },
+  "downloadProgressDetails": "Download Details",
+  "@downloadProgressDetails": {
+    "description": "Section header for download details"
+  },
+  "downloadProgressSource": "Source",
+  "@downloadProgressSource": {
+    "description": "Label for download source/service"
+  },
+  "downloadProgressQuality": "Quality",
+  "@downloadProgressQuality": {
+    "description": "Label for download quality"
+  },
+  "downloadProgressDefaultQuality": "Default",
+  "@downloadProgressDefaultQuality": {
+    "description": "Download quality option - default/auto"
+  },
+  "downloadProgressStatus": "Status",
+  "@downloadProgressStatus": {
+    "description": "Label for download status"
+  },
+  "downloadProgressStatusQueued": "Queued",
+  "@downloadProgressStatusQueued": {
+    "description": "Download status - waiting in queue"
+  },
+  "downloadProgressStatusDownloading": "Downloading",
+  "@downloadProgressStatusDownloading": {
+    "description": "Download status - actively downloading"
+  },
+  "downloadProgressStatusFinalizing": "Finalizing",
+  "@downloadProgressStatusFinalizing": {
+    "description": "Download status - finalizing/processing"
+  },
+  "downloadProgressStatusComplete": "Complete",
+  "@downloadProgressStatusComplete": {
+    "description": "Download status - completed successfully"
+  },
+  "downloadProgressStatusFailed": "Failed",
+  "@downloadProgressStatusFailed": {
+    "description": "Download status - failed"
+  },
+  "downloadProgressStatusSkipped": "Skipped",
+  "@downloadProgressStatusSkipped": {
+    "description": "Download status - skipped"
+  },
+  "trackCardLocal": "Local",
+  "@trackCardLocal": {
+    "description": "Label indicating a track is downloaded locally"
+  },
+  "trackCardOnline": "Online",
+  "@trackCardOnline": {
+    "description": "Label indicating a track is streaming online"
+  },
+  "deleteDownloadTitle": "Delete download?",
+  "@deleteDownloadTitle": {
+    "description": "Dialog title confirming download deletion"
+  },
+  "deleteDownloadContent": "\"{name}\" will be deleted from your device.",
+  "@deleteDownloadContent": {
+    "description": "Dialog content confirming download deletion",
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "deleteDownloadCancel": "Cancel",
+  "@deleteDownloadCancel": {
+    "description": "Cancel button in delete download confirmation dialog"
+  },
+  "deleteDownloadConfirm": "Delete",
+  "@deleteDownloadConfirm": {
+    "description": "Confirm button in delete download confirmation dialog"
+  },
+  "playlistCreated": "List \"{name}\" created",
+  "@playlistCreated": {
+    "description": "Snackbar message when empty playlist is created",
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "playlistCreatedWithCount": "List \"{name}\" created with {count} songs",
+  "@playlistCreatedWithCount": {
+    "description": "Snackbar message when playlist is created with tracks",
+    "placeholders": {
+      "name": { "type": "String" },
+      "count": { "type": "int" }
+    }
+  },
+  "extensionStoreTitle": "Extensions & Store",
+  "@extensionStoreTitle": {
+    "description": "Title for extensions and store modal"
+  },
+  "extensionStoreTabStore": "Store",
+  "@extensionStoreTabStore": {
+    "description": "Tab label for extension store"
+  },
+  "extensionStoreTabExtensions": "Extensions",
+  "@extensionStoreTabExtensions": {
+    "description": "Tab label for installed extensions"
+  },
+  "extensionStoreSearchHint": "Search extensions...",
+  "@extensionStoreSearchHint": {
+    "description": "Search field placeholder text"
+  },
+  "extensionStoreFilterAll": "All",
+  "@extensionStoreFilterAll": {
+    "description": "Category filter showing all extensions"
+  },
+  "extensionStoreFilterDownload": "Download",
+  "@extensionStoreFilterDownload": {
+    "description": "Category filter for download extensions"
+  },
+  "extensionStoreFilterMetadata": "Metadata",
+  "@extensionStoreFilterMetadata": {
+    "description": "Category filter for metadata extensions"
+  },
+  "extensionStoreFilterUtility": "Utility",
+  "@extensionStoreFilterUtility": {
+    "description": "Category filter for utility extensions"
+  },
+  "extensionStoreFilterLyrics": "Lyrics",
+  "@extensionStoreFilterLyrics": {
+    "description": "Category filter for lyrics extensions"
+  },
+  "extensionStoreCount": "{count,plural, one{{count} extension} other{{count} extensions}}",
+  "@extensionStoreCount": {
+    "description": "Count of extensions in the store",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "extensionStoreUpdateAll": "Update all ({count})",
+  "@extensionStoreUpdateAll": {
+    "description": "Button to update all extensions",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "extensionStoreConfigureRepo": "Configure Repository",
+  "@extensionStoreConfigureRepo": {
+    "description": "Title for repository configuration section"
+  },
+  "extensionStoreRepoUrlHint": "Registry.json URL",
+  "@extensionStoreRepoUrlHint": {
+    "description": "Hint text for registry URL input field"
+  },
+  "extensionStoreUseDefaultRepo": "Use default repository",
+  "@extensionStoreUseDefaultRepo": {
+    "description": "Button to reset to default repository URL"
+  },
+  "extensionStoreRetry": "Retry",
+  "@extensionStoreRetry": {
+    "description": "Button to retry loading extensions"
+  },
+  "extensionStoreNoResults": "No results",
+  "@extensionStoreNoResults": {
+    "description": "Message when search/filter returns no results"
+  },
+  "extensionStoreNoExtensions": "No extensions",
+  "@extensionStoreNoExtensions": {
+    "description": "Message when store has no extensions"
+  },
+  "extensionStoreInstalled": "{name} installed",
+  "@extensionStoreInstalled": {
+    "description": "Snackbar when extension is installed",
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "extensionStoreInstallError": "Error installing {name}",
+  "@extensionStoreInstallError": {
+    "description": "Snackbar when extension installation fails",
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "extensionStoreUpdated": "{name} updated to v{version}",
+  "@extensionStoreUpdated": {
+    "description": "Snackbar when extension is updated",
+    "placeholders": {
+      "name": { "type": "String" },
+      "version": { "type": "String" }
+    }
+  },
+  "extensionStoreUpdateError": "Error updating {name}",
+  "@extensionStoreUpdateError": {
+    "description": "Snackbar when extension update fails",
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "extensionStoreBulkUpdated": "{count,plural, one{{count} extension updated} other{{count} extensions updated}}",
+  "@extensionStoreBulkUpdated": {
+    "description": "Snackbar when multiple extensions are updated at once",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "extensionStoreNoUpdates": "No updates available",
+  "@extensionStoreNoUpdates": {
+    "description": "Snackbar when there are no extensions to update"
+  },
+  "extensionStoreNoExtensionsInstalled": "No extensions installed",
+  "@extensionStoreNoExtensionsInstalled": {
+    "description": "Message when no extensions are installed"
+  },
+  "extensionStoreGoToStore": "Go to the store to install extensions",
+  "@extensionStoreGoToStore": {
+    "description": "Hint telling user to visit store"
+
+  },
+  "extensionStoreInstalledCount": "{count,plural, one{{count} installed} other{{count} installed}}",
+  "@extensionStoreInstalledCount": {
+    "description": "Count of installed extensions",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "extensionStoreImportExtension": "Import extension",
+  "@extensionStoreImportExtension": {
+    "description": "Button to import an extension file"
+  },
+  "extensionStoreImported": "{count,plural, one{{count} extension imported} other{{count} extensions imported}}",
+  "@extensionStoreImported": {
+    "description": "Snackbar when extensions are imported",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "extensionStoreImportError": "Error importing",
+  "@extensionStoreImportError": {
+    "description": "Snackbar when extension import fails"
+  },
+  "extensionStoreUpdate": "Update",
+  "@extensionStoreUpdate": {
+    "description": "Button to update a single extension"
+  },
+  "extensionStoreInstall": "Install",
+  "@extensionStoreInstall": {
+    "description": "Button to install an extension"
+  },
+  "extensionStoreEnabled": "Enabled",
+  "@extensionStoreEnabled": {
+    "description": "Label showing an extension is enabled"
+  },
+  "extensionStoreDisabled": "Disabled",
+  "@extensionStoreDisabled": {
+    "description": "Label showing an extension is disabled"
+  },
+  "batchProgressCount": "{current} / {total}",
+  "@batchProgressCount": {
+    "description": "Batch progress counter",
+    "placeholders": {
+      "current": { "type": "int" },
+      "total": { "type": "int" }
+    }
+  },
+  "updatePercent": "{percent}%",
+  "@updatePercent": {
+    "description": "Update download progress percentage",
+    "placeholders": { "percent": { "type": "int" } }
+  },
+  "updateSeeReleaseNotes": "See release notes for details.",
+  "@updateSeeReleaseNotes": {
+    "description": "Fallback text when release notes are empty"
+  },
+  "updateVersion": "v{version}",
+  "@updateVersion": {
+    "description": "Version label prefix in update dialog",
+    "placeholders": { "version": { "type": "String" } }
+  },
+  "trackInfoIsrc": "ISRC",
+  "@trackInfoIsrc": {
+    "description": "Label for ISRC identifier"
+  },
+  "trackInfoDownloads": "Downloads",
+  "@trackInfoDownloads": {
+    "description": "Section header for downloaded tracks"
+  },
+  "trackInfoCodec": "Codec",
+  "@trackInfoCodec": {
+    "description": "Label for audio codec"
+  },
+  "trackInfoSampleRate": "Sample rate",
+  "@trackInfoSampleRate": {
+    "description": "Label for audio sample rate"
+  },
+  "trackInfoBitDepth": "Bit depth",
+  "@trackInfoBitDepth": {
+    "description": "Label for audio bit depth"
+  },
+  "trackInfoBitrate": "Bitrate",
+  "@trackInfoBitrate": {
+    "description": "Label for audio bitrate"
+  },
+  "trackInfoLocation": "Location",
+  "@trackInfoLocation": {
+    "description": "Label for file location path"
+  },
+  "audioAnalysisRescan": "Rescan",
+  "@audioAnalysisRescan": {
+    "description": "Tooltip for rescan/refresh audio analysis button"
+  },
+  "audioAnalysisStereo": "Stereo",
+  "@audioAnalysisStereo": {
+    "description": "Label for stereo audio channel configuration"
+  },
+  "audioAnalysisMono": "Mono",
+  "@audioAnalysisMono": {
+    "description": "Label for mono audio channel configuration"
+  },
+  "miniPlayerLoading": "Loading...",
+  "@miniPlayerLoading": {
+    "description": "Loading text shown in the mini player when track is loading"
+  },
+  "wishlistTitle": "Wishlist",
+  "@wishlistTitle": {
+    "description": "Title for the wishlist sheet"
+  },
+  "wishlistTrackCount": "{count,plural, one{{count} track} other{{count} tracks}}",
+  "@wishlistTrackCount": {
+    "description": "Count of tracks in wishlist",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "wishlistEmptyTitle": "No tracks in Wishlist",
+  "@wishlistEmptyTitle": {
+    "description": "Empty state title when wishlist has no tracks"
+  },
+  "wishlistEmptySubtitle": "Add tracks from the track menu",
+  "@wishlistEmptySubtitle": {
+    "description": "Empty state subtitle telling user how to add tracks"
+  },
+  "settingsProfileNamePlaceholder": "Unnamed",
+  "@settingsProfileNamePlaceholder": {
+    "description": "Placeholder name when user has not set their profile name"
+  },
+  "settingsPremiumBadge": "Premium",
+  "@settingsPremiumBadge": {
+    "description": "Badge label for premium users"
+  },
+  "settingsFreeBadge": "Free",
+  "@settingsFreeBadge": {
+    "description": "Badge label for free tier users"
+  },
+  "settingsTrialUsedBadge": "Trial used",
+  "@settingsTrialUsedBadge": {
+    "description": "Label shown when user has already used their free trial"
+  },
+  "settingsNoTrialBadge": "No trial",
+  "@settingsNoTrialBadge": {
+    "description": "Label shown when no free trial is available"
+  },
+  "settingsProfileTitle": "My Profile",
+  "@settingsProfileTitle": {
+    "description": "Title for the settings profile screen"
+  },
+  "settingsNameLabel": "Name",
+  "@settingsNameLabel": {
+    "description": "Label for the profile name field"
+  },
+  "settingsNameHint": "Tap to add name",
+  "@settingsNameHint": {
+    "description": "Hint text shown when profile name is empty"
+  },
+  "settingsNameDialogTitle": "Your name",
+  "@settingsNameDialogTitle": {
+    "description": "Title of the dialog to edit profile name"
+  },
+  "settingsNameDialogHint": "Enter your name...",
+  "@settingsNameDialogHint": {
+    "description": "Hint text inside the name editing dialog field"
+  },
+  "settingsSave": "Save",
+  "@settingsSave": {
+    "description": "Save button text"
+  },
+  "settingsTrialUsedDate": "Trial used on:",
+  "@settingsTrialUsedDate": {
+    "description": "Label shown before the date a trial was used"
+  },
+  "settingsTimeRemaining": "{hours}h {minutes}m {seconds}s remaining",
+  "@settingsTimeRemaining": {
+    "description": "Duration remaining for a premium trial",
+    "placeholders": {
+      "hours": {},
+      "minutes": {},
+      "seconds": {}
+    }
+  },
+  "albumCardSemantics": "Open album {name} by {artist}",
+  "@albumCardSemantics": {
+    "description": "Semantics label for album card",
+    "placeholders": {
+      "name": {},
+      "artist": {}
+    }
+  },
+  "albumCardTypeEp": "EP",
+  "@albumCardTypeEp": {
+    "description": "Label for EP album type badge"
+  },
+  "albumCardTypeSingle": "Single",
+  "@albumCardTypeSingle": {
+    "description": "Label for Single album type badge"
+  },
+  "albumCardTrackCount": "{count,plural, one{{count} song} other{{count} songs}}",
+  "@albumCardTrackCount": {
+    "description": "Track count for album/playlist cards",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "albumCardFallbackName": "Album",
+  "@albumCardFallbackName": {
+    "description": "Fallback name when album artist name is empty"
+  },
+  "lyricsModeSynced": "SYNC",
+  "@lyricsModeSynced": {
+    "description": "Label for synced lyrics mode badge"
+  },
+  "lyricsModeText": "LYRICS",
+  "@lyricsModeText": {
+    "description": "Label for text lyrics mode badge"
+  },
+  "lyricsLoading": "Loading lyrics...",
+  "@lyricsLoading": {
+    "description": "Loading message while fetching lyrics"
+  },
+  "lyricsError": "Could not load lyrics",
+  "@lyricsError": {
+    "description": "Error message when lyrics fail to load"
+  },
+  "lyricsUnavailable": "No lyrics available",
+  "@lyricsUnavailable": {
+    "description": "Message when no lyrics are available for the track"
+  },
+  "lyricsSelectLanguage": "Select translation language",
+  "@lyricsSelectLanguage": {
+    "description": "Title for the translation language selector"
   }
 }

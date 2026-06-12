@@ -6,6 +6,8 @@ import 'package:bitly/utils/clickable_metadata.dart';
 import 'package:bitly/widgets/cached_cover_image.dart';
 import 'package:bitly/theme/app_theme.dart';
 import 'package:bitly/widgets/glass_container.dart';
+import 'package:bitly/l10n/l10n.dart';
+import 'package:bitly/constants/layout_constants.dart';
 
 enum AlbumCardLayout { grid, row }
 
@@ -92,7 +94,7 @@ class AlbumCard extends ConsumerWidget {
 
     return Semantics(
       button: true,
-      label: 'Open album $albumName by $artistName',
+      label: context.l10n.albumCardSemantics(albumName, artistName),
       child: GestureDetector(
         onTap: onTap,
         onLongPress: onLongPress,
@@ -125,9 +127,7 @@ class AlbumCard extends ConsumerWidget {
                         end: Alignment.bottomCenter,
                         colors: [
                           Colors.transparent,
-                          isDark 
-                              ? AppTheme.bgPrimaryDark.withOpacity(0.7)
-                              : AppTheme.bgPrimaryLight.withOpacity(0.7),
+                          colorScheme.background.withOpacity(0.7),
                         ],
                         stops: const [0.4, 1.0],
                       ),
@@ -179,7 +179,7 @@ class AlbumCard extends ConsumerWidget {
                       child: Icon(
                         Icons.download_done, 
                         size: 12, 
-                        color: isDark ? AppTheme.textPrimaryDark : AppTheme.textPrimaryLight
+                        color: colorScheme.onSurface
                       ),
                     ),
                   ),
@@ -191,9 +191,7 @@ class AlbumCard extends ConsumerWidget {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        color: isDark 
-                            ? AppTheme.surfaceDark.withOpacity(0.8)
-                            : AppTheme.surfaceLight.withOpacity(0.8),
+                        color: colorScheme.surface.withOpacity(0.8),
                         borderRadius: BorderRadius.circular(6),
                         border: Border.all(
                           color: isDark ? AppTheme.glassBorderDark : AppTheme.glassBorderLight,
@@ -201,9 +199,11 @@ class AlbumCard extends ConsumerWidget {
                         ),
                       ),
                       child: Text(
-                        albumType == 'ep' ? 'EP' : 'Single',
+                        albumType == 'ep'
+                            ? context.l10n.albumCardTypeEp
+                            : context.l10n.albumCardTypeSingle,
                         style: TextStyle(
-                          color: isDark ? AppTheme.textPrimaryDark : AppTheme.textPrimaryLight,
+                          color: colorScheme.onSurface,
                           fontSize: 10,
                           fontWeight: FontWeight.w600
                         ),
@@ -216,9 +216,9 @@ class AlbumCard extends ConsumerWidget {
                   Positioned(
                     right: 4, top: 4,
                     child: Container(
-                      padding: const EdgeInsets.all(4),
+                      padding: LayoutConstants.insetXs,
                       decoration: BoxDecoration(
-                        color: badgeColor ?? (isDark ? AppTheme.primaryDark : AppTheme.primaryLight),
+                        color: badgeColor ?? (colorScheme.primary),
                         borderRadius: BorderRadius.circular(16),
                         boxShadow: [
                           BoxShadow(
@@ -246,11 +246,9 @@ class AlbumCard extends ConsumerWidget {
                       onTap: onHeartTap,
                       behavior: HitTestBehavior.translucent,
                       child: Container(
-                        padding: const EdgeInsets.all(4),
+                        padding: LayoutConstants.insetXs,
                         decoration: BoxDecoration(
-                          color: isDark 
-                              ? AppTheme.surfaceDark.withOpacity(0.7)
-                              : AppTheme.surfaceLight.withOpacity(0.7),
+                          color: colorScheme.surface.withOpacity(0.7),
                           shape: BoxShape.circle,
                           border: Border.all(
                             color: isDark ? AppTheme.glassBorderDark : AppTheme.glassBorderLight,
@@ -262,7 +260,7 @@ class AlbumCard extends ConsumerWidget {
                           size: 16,
                           color: isFavorite 
                               ? (isDark ? Colors.redAccent : Colors.red.shade700)
-                              : (isDark ? AppTheme.textPrimaryDark : AppTheme.textPrimaryLight).withOpacity(0.7),
+                              : (colorScheme.onSurface).withOpacity(0.7),
                         ),
                       ),
                     ),
@@ -284,18 +282,18 @@ class AlbumCard extends ConsumerWidget {
                         Text(
                           albumName,
                           style: TextStyle(
-                            color: isDark ? AppTheme.textPrimaryDark : AppTheme.textPrimaryLight,
+                            color: colorScheme.onSurface,
                             fontWeight: FontWeight.w600,
                             fontSize: 12,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: 2),
+                        LayoutConstants.gapH2,
                         Text(
                           artistName,
                           style: TextStyle(
-                            color: isDark ? AppTheme.textSecondaryDark : AppTheme.textSecondaryLight,
+                            color: colorScheme.onSurfaceVariant,
                             fontSize: 11,
                           ),
                           maxLines: 1,
@@ -303,7 +301,7 @@ class AlbumCard extends ConsumerWidget {
                         ),
                         if (trackCount > 0)
                           Text(
-                            '$trackCount canciones',
+                            context.l10n.albumCardTrackCount(trackCount),
                             style: TextStyle(
                               color: isDark ? AppTheme.textMutedDark : AppTheme.textMutedLight,
                               fontSize: 10,
@@ -352,7 +350,7 @@ class AlbumCard extends ConsumerWidget {
                     padding: const EdgeInsets.all(2),
                     decoration: BoxDecoration(
                       color: isDark ? AppTheme.successDark : AppTheme.successLight,
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: LayoutConstants.radiusXs,
                       boxShadow: [
                         BoxShadow(
                           color: isDark ? AppTheme.successDark.withOpacity(0.4) : AppTheme.successLight.withOpacity(0.3),
@@ -361,7 +359,7 @@ class AlbumCard extends ConsumerWidget {
                         ),
                       ],
                     ),
-                    child: Icon(Icons.download_done, size: 12, color: isDark ? AppTheme.textPrimaryDark : AppTheme.textPrimaryLight),
+                    child: Icon(Icons.download_done, size: 12, color: colorScheme.onSurface),
                   ),
                 ),
             ],
@@ -378,27 +376,29 @@ class AlbumCard extends ConsumerWidget {
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: 15,
-                    color: isDark ? AppTheme.textPrimaryDark : AppTheme.textPrimaryLight,
+                    color: colorScheme.onSurface,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 2),
+                LayoutConstants.gapH2,
                 showArtistAsClickable && artistName.isNotEmpty
                     ? ClickableArtistName(
                         artistName: artistName,
                         style: TextStyle(
                           fontSize: 13,
-                          color: isDark ? AppTheme.textSecondaryDark : AppTheme.textSecondaryLight,
+                          color: colorScheme.onSurfaceVariant,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       )
                     : Text(
-                        artistName.isNotEmpty ? artistName : 'Álbum',
+                        artistName.isNotEmpty
+                            ? artistName
+                            : context.l10n.albumCardFallbackName,
                         style: TextStyle(
                           fontSize: 13,
-                          color: isDark ? AppTheme.textSecondaryDark : AppTheme.textSecondaryLight,
+                          color: colorScheme.onSurfaceVariant,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -447,7 +447,7 @@ class AlbumCard extends ConsumerWidget {
 
   Widget _albumPlaceholder(ColorScheme colorScheme, bool isDark) {
     return Container(
-      color: isDark ? AppTheme.surfaceDark : AppTheme.surfaceLight,
+      color: colorScheme.surface,
       child: Center(
         child: Icon(
           Icons.album, 
@@ -481,11 +481,11 @@ class _SelectionCheckbox extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: selected
-            ? (isDark ? AppTheme.primaryDark : AppTheme.primaryLight)
+            ? (colorScheme.primary)
             : colorScheme.surface.withValues(alpha: 0.85),
         border: Border.all(
           color: selected 
-              ? (isDark ? AppTheme.primaryDark : AppTheme.primaryLight)
+              ? (colorScheme.primary)
               : (isDark ? AppTheme.glassBorderDark : AppTheme.glassBorderLight),
           width: 1.5,
         ),
@@ -503,7 +503,7 @@ class _SelectionCheckbox extends StatelessWidget {
           ? Icon(
               Icons.check, 
               size: 16, 
-              color: isDark ? AppTheme.textPrimaryDark : AppTheme.textPrimaryLight
+              color: colorScheme.onSurface
             )
           : null,
     );

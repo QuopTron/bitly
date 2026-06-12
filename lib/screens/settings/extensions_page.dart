@@ -13,6 +13,7 @@ import 'package:bitly/screens/settings/extension_detail_page.dart';
 import 'package:bitly/screens/settings/metadata_provider_priority_page.dart';
 import 'package:bitly/screens/settings/provider_priority_page.dart';
 import 'package:bitly/utils/app_bar_layout.dart';
+import 'package:bitly/widgets/common/loading_indicator.dart';
 import 'package:bitly/utils/source_icons.dart';
 import 'package:bitly/widgets/settings_group.dart';
 
@@ -112,10 +113,7 @@ class _ExtensionsPageState extends ConsumerState<ExtensionsPage> {
 
             if (extState.isLoading)
               const SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.all(32),
-                  child: Center(child: CircularProgressIndicator()),
-                ),
+                child: LoadingIndicator(),
               ),
 
             if (extState.error != null)

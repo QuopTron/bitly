@@ -7,8 +7,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:bitly/models/lyrics.dart';
 import 'package:bitly/providers/audio/audio_player_provider.dart';
 import 'package:bitly/providers/lyrics/lyrics_provider.dart';
+import 'package:bitly/widgets/common/error_state_widget.dart';
+import 'package:bitly/widgets/common/loading_indicator.dart';
 import 'package:bitly/services/library/covers/cover_cache_manager.dart';
 import 'package:bitly/core/bridge/bridge_client.dart';
+import 'package:bitly/l10n/l10n.dart';
+import 'package:bitly/constants/layout_constants.dart';
 
 class LyricsSheet extends ConsumerStatefulWidget {
   const LyricsSheet({super.key});
@@ -181,7 +185,7 @@ class _LyricsSheetState extends ConsumerState<LyricsSheet> {
     return Container(
       height: MediaQuery.of(context).size.height * 0.75,
       decoration: BoxDecoration(
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(LayoutConstants.radiusXl)),
       ),
       clipBehavior: Clip.hardEdge,
       child: Stack(
@@ -226,7 +230,7 @@ class _LyricsSheetState extends ConsumerState<LyricsSheet> {
           Positioned.fill(child: coverWidget),
         Positioned.fill(
           child: ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(LayoutConstants.radiusXl)),
             child: BackdropFilter(
               filter: ui.ImageFilter.blur(sigmaX: 40, sigmaY: 40),
               child: Container(color: Colors.transparent),
@@ -243,7 +247,7 @@ class _LyricsSheetState extends ConsumerState<LyricsSheet> {
                 color: Colors.white.withValues(alpha: 0.06),
                 width: 0.5,
               ),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(LayoutConstants.radiusXl)),
             ),
           ),
         ),
@@ -269,7 +273,7 @@ class _LyricsSheetState extends ConsumerState<LyricsSheet> {
   Widget _buildHeader(ColorScheme colorScheme, AudioPlayerState playerState, LyricsState lyricsState) {
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-      padding: const EdgeInsets.all(12),
+      padding: LayoutConstants.inset12,
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.25),
         borderRadius: BorderRadius.circular(16),
@@ -281,7 +285,7 @@ class _LyricsSheetState extends ConsumerState<LyricsSheet> {
       child: Row(
         children: [
           ClipRRect(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: LayoutConstants.radiusSm,
             child: Container(
               width: 44, height: 44,
               color: colorScheme.primaryContainer,
@@ -314,7 +318,7 @@ class _LyricsSheetState extends ConsumerState<LyricsSheet> {
                   ),
                   maxLines: 1, overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 2),
+                LayoutConstants.gapH2,
                 Text(
                   playerState.artistName ?? '',
                   style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
@@ -336,7 +340,9 @@ class _LyricsSheetState extends ConsumerState<LyricsSheet> {
     if (lyricsState.response == null) return const SizedBox.shrink();
     final label = lyricsState.response!.source.isNotEmpty
         ? lyricsState.response!.source.toUpperCase()
-        : lyricsState.response!.isSynced ? 'SYNC' : 'LYRICS';
+        : lyricsState.response!.isSynced
+            ? context.l10n.lyricsModeSynced
+            : context.l10n.lyricsModeText;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
@@ -361,7 +367,7 @@ class _LyricsSheetState extends ConsumerState<LyricsSheet> {
       return GestureDetector(
         onTap: _toggleTranslation,
         child: Container(
-          padding: const EdgeInsets.all(8),
+          padding: LayoutConstants.insetSm,
           decoration: BoxDecoration(
             color: _showTranslation
                 ? colorScheme.primary.withValues(alpha: 0.2)
@@ -395,7 +401,7 @@ class _LyricsSheetState extends ConsumerState<LyricsSheet> {
     return GestureDetector(
       onTap: _toggleTranslation,
       child: Container(
-        padding: const EdgeInsets.all(8),
+        padding: LayoutConstants.insetSm,
         decoration: BoxDecoration(
           color: colorScheme.primary.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(10),
@@ -407,49 +413,24 @@ class _LyricsSheetState extends ConsumerState<LyricsSheet> {
 
   Widget _buildBody(ColorScheme colorScheme, List<LyricsLine> lines, LyricsState lyricsState) {
     if (lyricsState.isLoading) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              width: 28, height: 28,
-              child: CircularProgressIndicator(strokeWidth: 3, color: colorScheme.primary),
-            ),
-            const SizedBox(height: 12),
-            Text('Cargando letras...',
-                style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13)),
-          ],
-        ),
-      );
+      return LoadingIndicator(message: context.l10n.lyricsLoading);
     }
 
     if (lyricsState.error != null) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.error_outline, size: 40, color: colorScheme.error.withValues(alpha: 0.7)),
-            const SizedBox(height: 8),
-            Text('No se pudieron cargar las letras',
-                style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13)),
-            const SizedBox(height: 16),
-            TextButton(
-              onPressed: () {
-                final p = ref.read(audioPlayerProvider);
-                final lyricsNotifier = ref.read(lyricsProvider.notifier);
-                Future(() {
-                  lyricsNotifier.fetchForTrack(
-                    trackId: p.trackId ?? '',
-                    trackName: p.trackName ?? '',
-                    artistName: p.artistName ?? '',
-                    durationMs: p.duration.inMilliseconds,
-                  );
-                });
-              },
-              child: const Text('Reintentar'),
-            ),
-          ],
-        ),
+      return ErrorStateWidget(
+        message: context.l10n.lyricsError,
+        onRetry: () {
+          final p = ref.read(audioPlayerProvider);
+          final lyricsNotifier = ref.read(lyricsProvider.notifier);
+          Future(() {
+            lyricsNotifier.fetchForTrack(
+              trackId: p.trackId ?? '',
+              trackName: p.trackName ?? '',
+              artistName: p.artistName ?? '',
+              durationMs: p.duration.inMilliseconds,
+            );
+          });
+        },
       );
     }
 
@@ -459,8 +440,8 @@ class _LyricsSheetState extends ConsumerState<LyricsSheet> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.lyrics_outlined, size: 48, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.3)),
-            const SizedBox(height: 8),
-            Text('Sin letras disponibles',
+            LayoutConstants.gapH8,
+            Text(context.l10n.lyricsUnavailable,
                 style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13)),
           ],
         ),
@@ -671,11 +652,11 @@ class _LanguagePickerSheet extends StatelessWidget {
       height: MediaQuery.of(context).size.height * 0.5,
       decoration: BoxDecoration(
         color: colorScheme.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(LayoutConstants.radiusLg)),
       ),
       child: Column(
         children: [
-          const SizedBox(height: 12),
+          LayoutConstants.gapH12,
           Container(
             width: 36, height: 4,
             decoration: BoxDecoration(
@@ -686,13 +667,13 @@ class _LanguagePickerSheet extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
             child: Text(
-              'Selecciona idioma de traducción',
+              context.l10n.lyricsSelectLanguage,
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
             ),
           ),
           Expanded(
             child: ListView.separated(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: LayoutConstants.hMd,
               itemCount: languages.length,
               separatorBuilder: (_, __) => Divider(height: 1, color: colorScheme.outlineVariant.withValues(alpha: 0.3)),
               itemBuilder: (_, i) {

@@ -6,6 +6,7 @@ import 'package:bitly/services/updates/apk_downloader.dart';
 import 'package:bitly/services/updates/update_models.dart';
 import 'package:bitly/services/notifications/update_notification.dart';
 import 'package:bitly/l10n/l10n.dart';
+import 'package:bitly/constants/layout_constants.dart';
 
 class UpdateDialog extends StatefulWidget {
   final UpdateInfo updateInfo;
@@ -112,9 +113,9 @@ class _UpdateDialogState extends State<UpdateDialog> {
     
     return Dialog(
       backgroundColor: colorScheme.surfaceContainerHigh,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(LayoutConstants.radiusXl)),
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: LayoutConstants.insetLg,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -135,7 +136,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(context.l10n.updateAvailable, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 2),
+                      LayoutConstants.gapH2,
                       Text(context.l10n.updateNewVersionReady, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: colorScheme.onSurfaceVariant)),
                     ],
                   ),
@@ -145,7 +146,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
             const SizedBox(height: 20),
             
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: LayoutConstants.insetH16V12,
               decoration: BoxDecoration(
                 color: isDark 
                     ? Color.alphaBlend(Colors.white.withValues(alpha: 0.08), colorScheme.surface)
@@ -168,7 +169,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
             
             if (_isDownloading) ...[
               Container(
-                padding: const EdgeInsets.all(16),
+                padding: LayoutConstants.insetMd,
                 decoration: BoxDecoration(
                   color: isDark 
                       ? Color.alphaBlend(Colors.white.withValues(alpha: 0.05), colorScheme.surface)
@@ -188,21 +189,21 @@ class _UpdateDialogState extends State<UpdateDialog> {
                         Text(context.l10n.updateDownloading, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
                       ],
                     ),
-                    const SizedBox(height: 12),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
+            LayoutConstants.gapH12,
+            ClipRRect(
+              borderRadius: BorderRadius.circular(LayoutConstants.radiusXs),
                       child: LinearProgressIndicator(
                         value: _progress,
                         minHeight: 6,
                         backgroundColor: colorScheme.surfaceContainerHighest,
                       ),
                     ),
-                    const SizedBox(height: 8),
+            LayoutConstants.gapH8,
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(_statusText, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant)),
-                        Text('${(_progress * 100).toInt()}%', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colorScheme.primary, fontWeight: FontWeight.w600)),
+                        Text(context.l10n.updatePercent((_progress * 100).toInt()), style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colorScheme.primary, fontWeight: FontWeight.w600)),
                       ],
                     ),
                   ],
@@ -210,7 +211,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
               ),
             ] else ...[
               Text(context.l10n.updateWhatsNew, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
+              LayoutConstants.gapH8,
               Container(
                 constraints: const BoxConstraints(maxHeight: 180),
                 decoration: BoxDecoration(
@@ -220,7 +221,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
+                padding: LayoutConstants.insetMd,
                   child: Text(
                     _formatChangelog(widget.updateInfo.changelog),
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(height: 1.5),
@@ -228,7 +229,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
                 ),
               ),
             ],
-            const SizedBox(height: 24),
+            LayoutConstants.gapH24,
             
             if (_isDownloading)
               SizedBox(
@@ -237,7 +238,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
                   onPressed: () => Navigator.pop(context),
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(LayoutConstants.radiusMd)),
                   ),
                   child: Text(context.l10n.dialogCancel),
                 ),
@@ -253,11 +254,11 @@ class _UpdateDialogState extends State<UpdateDialog> {
                       label: Text(context.l10n.updateDownloadInstall),
                       style: FilledButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(LayoutConstants.radiusMd)),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  LayoutConstants.gapH8,
                   Row(
                     children: [
                       Expanded(
@@ -268,7 +269,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
                           },
                           style: TextButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(LayoutConstants.radiusMd)),
                           ),
                           child: Text(context.l10n.updateDontRemind, style: TextStyle(color: colorScheme.onSurfaceVariant)),
                         ),
@@ -282,7 +283,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
                           },
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(LayoutConstants.radiusMd)),
                           ),
                           child: Text(context.l10n.updateLater),
                         ),
@@ -351,7 +352,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
       formatted = '${formatted.substring(0, 2000)}...';
     }
     
-    return formatted.isEmpty ? 'See release notes for details.' : formatted;
+    return formatted.isEmpty ? context.l10n.updateSeeReleaseNotes : formatted;
   }
 }
 
@@ -373,15 +374,15 @@ class _VersionChip extends StatelessWidget {
     return Column(
       children: [
         Text(label, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: colorScheme.onSurfaceVariant)),
-        const SizedBox(height: 4),
+        LayoutConstants.gapH4,
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
             color: isNew ? colorScheme.primaryContainer : colorScheme.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(LayoutConstants.radiusLg),
           ),
           child: Text(
-            'v$version',
+            context.l10n.updateVersion(version),
             style: Theme.of(context).textTheme.labelLarge?.copyWith(
               color: isNew ? colorScheme.onPrimaryContainer : colorScheme.onSurfaceVariant,
               fontWeight: isNew ? FontWeight.bold : FontWeight.w500,

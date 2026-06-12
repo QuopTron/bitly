@@ -5,6 +5,7 @@ import 'package:bitly/models/download_item.dart';
 import 'package:bitly/providers/download/download_queue_provider.dart';
 import 'package:bitly/providers/extension/extension_provider.dart';
 import 'package:bitly/theme/app_theme.dart';
+import 'package:bitly/l10n/l10n.dart';
 import 'package:bitly/widgets/cached_cover_image.dart';
 import 'package:bitly/widgets/glass_container.dart';
 
@@ -65,13 +66,13 @@ class DownloadProgressModal extends ConsumerWidget {
               borderRadius: BorderRadius.circular(28),
               boxShadow: [
                 BoxShadow(
-                  color: isDark ? AppTheme.primaryDark.withOpacity(0.3) : AppTheme.primaryLight.withOpacity(0.3),
+                  color: colorScheme.primary.withOpacity(0.3),
                   blurRadius: 40,
                   spreadRadius: 4,
                   offset: const Offset(0, 20),
                 ),
                 BoxShadow(
-                  color: isDark ? AppTheme.primaryDark.withOpacity(0.08) : AppTheme.primaryLight.withOpacity(0.08),
+                  color: colorScheme.primary.withOpacity(0.08),
                   blurRadius: 20,
                   offset: const Offset(0, 0),
                   spreadRadius: 2,
@@ -88,7 +89,7 @@ class DownloadProgressModal extends ConsumerWidget {
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: [
-                        isDark ? AppTheme.primaryDark : AppTheme.primaryLight,
+                        colorScheme.primary,
                         isDark ? AppTheme.glowDark : AppTheme.glowLight,
                       ],
                     ),
@@ -106,7 +107,7 @@ class DownloadProgressModal extends ConsumerWidget {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
                   child: Text(
-                    'Descargando',
+                    context.l10n.downloadProgressTitle,
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: colorScheme.onSurface,
@@ -156,7 +157,7 @@ class DownloadProgressModal extends ConsumerWidget {
                                     gradient: LinearGradient(
                                       colors: [
                                         Colors.transparent,
-                                        isDark ? AppTheme.surfaceDark.withOpacity(0.8) : AppTheme.surfaceLight.withOpacity(0.8),
+                                        colorScheme.surface.withOpacity(0.8),
                                       ],
                                       begin: Alignment.topCenter,
                                       end: Alignment.bottomCenter,
@@ -281,7 +282,7 @@ class DownloadProgressModal extends ConsumerWidget {
                               Navigator.pop(context);
                             },
                             icon: const Icon(Icons.stop_rounded),
-                            label: const Text('Detener Descarga'),
+                            label: Text(context.l10n.downloadProgressStopDownload),
                             style: FilledButton.styleFrom(
                               backgroundColor: colorScheme.errorContainer,
                               foregroundColor: colorScheme.onErrorContainer,
@@ -329,7 +330,7 @@ class _ProgressIndicator extends StatelessWidget {
               shape: BoxShape.circle,
               gradient: LinearGradient(
                 colors: [
-                  isDark ? AppTheme.primaryDark.withOpacity(0.1) : AppTheme.primaryLight.withOpacity(0.1),
+                  colorScheme.primary.withOpacity(0.1),
                   Colors.transparent,
                 ],
               ),
@@ -357,7 +358,7 @@ class _ProgressIndicator extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                '$percentage%',
+                context.l10n.downloadProgressPercent(percentage),
                 style: TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.w900,
@@ -373,7 +374,7 @@ class _ProgressIndicator extends StatelessWidget {
               ),
               if (item.speedMBps > 0)
                 Text(
-                  '${item.speedMBps.toStringAsFixed(1)} MB/s',
+                  context.l10n.downloadProgressSpeed(item.speedMBps.toStringAsFixed(1)),
                   style: TextStyle(
                     fontSize: 12,
                     color: colorScheme.primary,
@@ -405,7 +406,7 @@ class _DetailsRow extends ConsumerWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          'Detalles de la Descarga',
+          context.l10n.downloadProgressDetails,
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.bold,
@@ -418,20 +419,20 @@ class _DetailsRow extends ConsumerWidget {
           children: [
             _DetailItem(
               icon: Icons.source_rounded,
-              label: 'Fuente',
+              label: context.l10n.downloadProgressSource,
               value: sourceName,
             ),
             GlassDivider(height: 40, indent: 0, vertical: true),
             _DetailItem(
               icon: Icons.high_quality_rounded,
-              label: 'Calidad',
-              value: item.qualityOverride ?? 'Default',
+              label: context.l10n.downloadProgressQuality,
+              value: item.qualityOverride ?? context.l10n.downloadProgressDefaultQuality,
             ),
             GlassDivider(height: 40, indent: 0, vertical: true),
             _DetailItem(
               icon: Icons.timer_outlined,
-              label: 'Estado',
-              value: _statusText(item.status),
+              label: context.l10n.downloadProgressStatus,
+              value: _statusText(context, item.status),
             ),
           ],
         ),
@@ -439,14 +440,14 @@ class _DetailsRow extends ConsumerWidget {
     );
   }
 
-  String _statusText(DownloadStatus status) {
+  String _statusText(BuildContext context, DownloadStatus status) {
     switch (status) {
-      case DownloadStatus.queued: return 'En Cola';
-      case DownloadStatus.downloading: return 'Bajando';
-      case DownloadStatus.finalizing: return 'Finalizando';
-      case DownloadStatus.completed: return 'Listo';
-      case DownloadStatus.failed: return 'Falló';
-      case DownloadStatus.skipped: return 'Saltado';
+      case DownloadStatus.queued: return context.l10n.downloadProgressStatusQueued;
+      case DownloadStatus.downloading: return context.l10n.downloadProgressStatusDownloading;
+      case DownloadStatus.finalizing: return context.l10n.downloadProgressStatusFinalizing;
+      case DownloadStatus.completed: return context.l10n.downloadProgressStatusComplete;
+      case DownloadStatus.failed: return context.l10n.downloadProgressStatusFailed;
+      case DownloadStatus.skipped: return context.l10n.downloadProgressStatusSkipped;
     }
   }
 }

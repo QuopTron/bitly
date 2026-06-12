@@ -55,11 +55,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark ? AppTheme.bgPrimaryDark : AppTheme.bgPrimaryLight,
+      backgroundColor: colorScheme.background,
       appBar: AppBar(
-        backgroundColor: isDark 
-            ? AppTheme.surfaceDark.withOpacity(0.8) 
-            : AppTheme.surfaceLight.withOpacity(0.8),
+        backgroundColor: colorScheme.surface.withOpacity(0.8),
         foregroundColor: colorScheme.onSurface,
         elevation: 0,
         title: Container(
@@ -235,7 +233,7 @@ class _SearchEmptyState extends StatelessWidget {
               color: colorScheme.onSurfaceVariant,
               shadows: [
                 Shadow(
-                  color: isDark ? AppTheme.primaryDark.withOpacity(0.2) : AppTheme.primaryLight.withOpacity(0.2),
+                  color: colorScheme.primary.withOpacity(0.2),
                   blurRadius: 12,
                   offset: const Offset(0, 4),
                 ),

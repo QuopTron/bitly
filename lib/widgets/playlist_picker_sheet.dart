@@ -8,6 +8,7 @@ import 'package:bitly/l10n/l10n.dart';
 import 'package:bitly/models/track.dart';
 import 'package:bitly/providers/library/library_collections_provider.dart';
 import 'package:bitly/services/library/covers/cover_cache_manager.dart';
+import 'package:bitly/widgets/common/loading_indicator.dart';
 
 Future<void> showAddTrackToPlaylistSheet(
   BuildContext context,
@@ -310,13 +311,7 @@ class _PlaylistPickerSheetContentState
                       },
                     );
                   },
-                  loading: () => const Center(
-                    child: SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  ),
+                  loading: () => const LoadingIndicator(size: 24, strokeWidth: 2),
                   error: (_, _) => Padding(
                     padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
                     child: Text(

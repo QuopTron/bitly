@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:bitly/widgets/cached_cover_image.dart';
 import 'package:bitly/theme/app_theme.dart';
 import 'package:bitly/widgets/glass_container.dart';
+import 'package:bitly/l10n/l10n.dart';
 
 enum PlaylistCardLayout { grid, row }
 
@@ -122,9 +123,7 @@ class PlaylistCard extends ConsumerWidget {
                     child: Container(
                       padding: const EdgeInsets.all(5),
                       decoration: BoxDecoration(
-                        color: isDark 
-                            ? AppTheme.surfaceDark.withOpacity(0.7)
-                            : AppTheme.surfaceLight.withOpacity(0.7),
+                        color: colorScheme.surface.withOpacity(0.7),
                         shape: BoxShape.circle,
                         border: Border.all(
                           color: isDark ? AppTheme.glassBorderDark : AppTheme.glassBorderLight,
@@ -143,7 +142,7 @@ class PlaylistCard extends ConsumerWidget {
                         size: 16,
                         color: isFavorite 
                             ? (isDark ? Colors.redAccent : Colors.red.shade700)
-                            : (isDark ? AppTheme.textPrimaryDark : AppTheme.textPrimaryLight).withOpacity(0.7),
+                            : (colorScheme.onSurface).withOpacity(0.7),
                       ),
                     ),
                   ),
@@ -165,7 +164,7 @@ class PlaylistCard extends ConsumerWidget {
                       Text(
                         playlistName,
                         style: TextStyle(
-                          color: isDark ? AppTheme.textPrimaryDark : AppTheme.textPrimaryLight,
+                          color: colorScheme.onSurface,
                           fontWeight: FontWeight.w600,
                           fontSize: 12,
                         ),
@@ -176,9 +175,9 @@ class PlaylistCard extends ConsumerWidget {
                         Padding(
                           padding: const EdgeInsets.only(top: 2),
                           child: Text(
-                            subtitle ?? '$trackCount canciones',
+                            subtitle ?? context.l10n.albumCardTrackCount(trackCount),
                             style: TextStyle(
-                              color: isDark ? AppTheme.textSecondaryDark : AppTheme.textSecondaryLight,
+                              color: colorScheme.onSurfaceVariant,
                               fontSize: 11,
                             ),
                             maxLines: 1,
@@ -229,7 +228,7 @@ class PlaylistCard extends ConsumerWidget {
                       style: TextStyle(
                         fontWeight: FontWeight.w600,
                         fontSize: 15,
-                        color: isDark ? AppTheme.textPrimaryDark : AppTheme.textPrimaryLight,
+                        color: colorScheme.onSurface,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -237,11 +236,11 @@ class PlaylistCard extends ConsumerWidget {
                     if (subtitle != null || trackCount > 0)
                       Padding(
                         padding: const EdgeInsets.only(top: 2),
-                        child: Text(
-                          subtitle ?? '$trackCount canciones',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: isDark ? AppTheme.textSecondaryDark : AppTheme.textSecondaryLight,
+                      child: Text(
+                        subtitle ?? context.l10n.albumCardTrackCount(trackCount),
+                        style: TextStyle(
+                          fontSize: 13,
+                            color: colorScheme.onSurfaceVariant,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,

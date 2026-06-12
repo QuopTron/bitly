@@ -8,6 +8,7 @@ import 'package:bitly/l10n/l10n.dart';
 import 'package:bitly/services/library/covers/cover_cache_manager.dart';
 import 'package:bitly/providers/settings/settings_provider.dart';
 import 'package:bitly/utils/source_icons.dart';
+import 'package:bitly/constants/layout_constants.dart';
 
 class DownloadServicePicker extends ConsumerStatefulWidget {
   final String? trackName;
@@ -45,7 +46,7 @@ class DownloadServicePicker extends ConsumerStatefulWidget {
       useRootNavigator: true,
       backgroundColor: Colors.transparent,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(LayoutConstants.radiusXl)),
       ),
       isScrollControlled: true,
       builder: (context) => DownloadServicePicker(
@@ -120,11 +121,11 @@ class _DownloadServicePickerState extends ConsumerState<DownloadServicePicker> {
                 coverUrl: widget.coverUrl,
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+                padding: LayoutConstants.hMd,
                 child: Container(height: 1, color: colorScheme.outlineVariant.withValues(alpha: 0.2)),
               ),
             ] else ...[
-              const SizedBox(height: 8),
+              LayoutConstants.gapH8,
               Center(
                 child: Container(
                   width: 40,
@@ -150,8 +151,8 @@ class _DownloadServicePickerState extends ConsumerState<DownloadServicePicker> {
                     child: Icon(Icons.settings_input_composite, size: 15, color: colorScheme.secondary),
                   ),
                   const SizedBox(width: 8),
-                  Text(
-                    'Opciones extra',
+                    Text(
+                      context.l10n.downloadPickerExtraOptions,
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
@@ -162,18 +163,18 @@ class _DownloadServicePickerState extends ConsumerState<DownloadServicePicker> {
             
             _ExtraOptionToggle(
               icon: Icons.lyrics_outlined,
-              label: 'Descargar Letra',
+              label: context.l10n.downloadPickerDownloadLyrics,
               value: settings.embedLyrics,
               onChanged: (v) => ref.read(settingsProvider.notifier).setEmbedLyrics(v),
             ),
             _ExtraOptionToggle(
               icon: Icons.movie_outlined,
-              label: 'Descargar Video',
+              label: context.l10n.downloadPickerDownloadVideo,
               value: settings.downloadVideo,
               onChanged: (v) => ref.read(settingsProvider.notifier).setDownloadVideo(v),
             ),
 
-            const SizedBox(height: 12),
+            LayoutConstants.gapH12,
             if (hasProviders)
               for (final ext in downloadExtensions)
                 _ProviderAccordion(
@@ -198,14 +199,14 @@ class _DownloadServicePickerState extends ConsumerState<DownloadServicePicker> {
                 ),
               ),
 
-            const SizedBox(height: 16),
+            LayoutConstants.gapH16,
           ],
         ),
       ),
     );
 
     return ClipRRect(
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(LayoutConstants.radiusXl)),
       child: Stack(
           children: [
             if (coverWidget != null)
@@ -225,7 +226,7 @@ class _DownloadServicePickerState extends ConsumerState<DownloadServicePicker> {
               child: Container(
                 decoration: BoxDecoration(
                   border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.08), width: 0.5)),
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(LayoutConstants.radiusXl)),
                 ),
               ),
             ),
@@ -388,7 +389,7 @@ class _ProviderAccordionState extends State<_ProviderAccordion> {
                                       borderRadius: BorderRadius.circular(3),
                                     ),
                                       child: Text(
-                                        'Mejor',
+                                        context.l10n.downloadPickerBest,
                                       style: TextStyle(
                                         fontSize: 8,
                                         fontWeight: FontWeight.w600,
@@ -410,10 +411,10 @@ class _ProviderAccordionState extends State<_ProviderAccordion> {
                                       const SizedBox(width: 4),
                                       Text(
                                         widget.healthStatus == 'online'
-                                            ? 'En línea'
+                                            ? context.l10n.downloadPickerServiceOnline
                                             : (widget.healthStatus == 'degraded'
-                                                ? 'Degradado'
-                                                : 'Fuera de línea'),
+                                                ? context.l10n.downloadPickerServiceDegraded
+                                                : context.l10n.downloadPickerServiceOffline),
                                         style: TextStyle(
                                           fontSize: 10,
                                           color: colorScheme.onSurfaceVariant,
@@ -434,7 +435,7 @@ class _ProviderAccordionState extends State<_ProviderAccordion> {
                                     ],
                                     if (hasQualities)
                                       Text(
-                                        '${widget.qualities.length} ${widget.qualities.length == 1 ? 'cal' : 'cales'}',
+                                        context.l10n.downloadPickerQualityCount(widget.qualities.length),
                                         style: TextStyle(
                                           fontSize: 10,
                                           color: colorScheme.onSurfaceVariant,
@@ -626,7 +627,7 @@ class _QualityItem extends StatelessWidget {
                         Icon(Icons.storage, size: 9, color: colorScheme.onPrimaryContainer),
                         const SizedBox(width: 2),
                         Text(
-                          '~${_formatSize(estimatedMB)} MB',
+                          context.l10n.downloadPickerEstimatedSize(_formatSize(estimatedMB)),
                           style: TextStyle(
                             fontSize: 9,
                             fontWeight: FontWeight.w600,
@@ -661,7 +662,7 @@ class _ServiceHealthDot extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = _serviceHealthColor(status);
     return Tooltip(
-      message: _serviceHealthTooltip(status),
+      message: _serviceHealthTooltip(context, status),
       child: Container(
         width: size,
         height: size,
@@ -695,16 +696,16 @@ Color _serviceHealthColor(String status) {
   }
 }
 
-String _serviceHealthTooltip(String status) {
+String _serviceHealthTooltip(BuildContext context, String status) {
   switch (status) {
     case 'online':
-      return 'Servicio en línea';
+      return context.l10n.downloadPickerServiceOnlineTooltip;
     case 'degraded':
-      return 'Servicio degradado';
+      return context.l10n.downloadPickerServiceDegradedTooltip;
     case 'offline':
-      return 'Servicio fuera de línea';
+      return context.l10n.downloadPickerServiceOfflineTooltip;
     default:
-      return 'Estado desconocido';
+      return context.l10n.downloadPickerServiceUnknownTooltip;
   }
 }
 
@@ -722,7 +723,7 @@ class _NoDownloadProviderHint extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: LayoutConstants.insetMd,
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
         borderRadius: BorderRadius.circular(16),
@@ -749,7 +750,7 @@ class _NoDownloadProviderHint extends StatelessWidget {
                     context,
                   ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
                 ),
-                const SizedBox(height: 4),
+                LayoutConstants.gapH4,
                 Text(
                   secondaryText,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -794,8 +795,8 @@ class _TrackInfoHeaderState extends State<_TrackInfoHeader> {
             ? () => setState(() => _expanded = !_expanded)
             : null,
         borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(28),
-          topRight: Radius.circular(28),
+          topLeft: Radius.circular(LayoutConstants.radiusXl),
+          topRight: Radius.circular(LayoutConstants.radiusXl),
         ),
         child: Column(
           children: [
@@ -882,7 +883,7 @@ class _TrackInfoHeaderState extends State<_TrackInfoHeader> {
                                   : TextOverflow.ellipsis,
                             ),
                             if (widget.artistName != null) ...[
-                              const SizedBox(height: 2),
+                              LayoutConstants.gapH2,
                               Text(
                                 widget.artistName!,
                                 style: Theme.of(context).textTheme.bodySmall
@@ -936,12 +937,12 @@ class _ExtraOptionToggle extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
       child: InkWell(
         onTap: () => onChanged(!value),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: LayoutConstants.radiusMd,
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
             color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: LayoutConstants.radiusMd,
           ),
           child: Row(
             children: [

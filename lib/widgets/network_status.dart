@@ -2,7 +2,9 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:bitly/l10n/l10n.dart';
 import 'package:bitly/utils/logger.dart';
+import 'package:bitly/constants/layout_constants.dart';
 
 final _log = AppLogger('NetworkStatus');
 
@@ -19,12 +21,12 @@ class NetworkStatusIcon extends ConsumerWidget {
     final color = isOffline ? Colors.orange : Colors.green;
 
     return Tooltip(
-      message: isOffline ? 'Sin conexión' : 'En línea',
+      message: isOffline ? context.l10n.networkStatusOffline : context.l10n.networkStatusOnline,
       child: Padding(
         padding: const EdgeInsets.only(right: 8),
         child: Icon(
           isOffline ? Icons.wifi_off_rounded : Icons.wifi_rounded,
-          size: 18,
+          size: LayoutConstants.iconSm,
           color: color,
         ),
       ),

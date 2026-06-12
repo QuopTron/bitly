@@ -4,6 +4,7 @@ import 'package:bitly/models/track.dart';
 import 'package:bitly/providers/library/library_collections_provider.dart';
 import 'package:bitly/providers/download/download_queue_provider.dart';
 import 'package:bitly/providers/local_library/local_library_provider.dart';
+import 'package:bitly/l10n/l10n.dart';
 import 'package:bitly/widgets/cached_cover_image.dart';
 
 class PlaylistCreatorSheet extends ConsumerStatefulWidget {
@@ -122,7 +123,7 @@ class _PlaylistCreatorSheetState extends ConsumerState<PlaylistCreatorSheet> {
                 child: Column(
                   children: [
                     Text(
-                      'Crear Lista de Reproducción',
+                      context.l10n.playlistCreatorTitle,
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
@@ -131,8 +132,8 @@ class _PlaylistCreatorSheetState extends ConsumerState<PlaylistCreatorSheet> {
                     TextField(
                       controller: _nameController,
                       decoration: InputDecoration(
-                        labelText: 'Nombre de la lista',
-                        hintText: 'Mi lista increíble',
+                        labelText: context.l10n.playlistCreatorNameLabel,
+                        hintText: context.l10n.playlistCreatorNameHint,
                         prefixIcon: const Icon(Icons.playlist_add),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -143,8 +144,8 @@ class _PlaylistCreatorSheetState extends ConsumerState<PlaylistCreatorSheet> {
                     TextField(
                       onChanged: (value) => setState(() => _searchQuery = value),
                       decoration: InputDecoration(
-                        labelText: 'Buscar canciones',
-                        hintText: 'Escribe para filtrar...',
+                        labelText: context.l10n.playlistCreatorSearchLabel,
+                        hintText: context.l10n.playlistCreatorSearchHint,
                         prefixIcon: const Icon(Icons.search),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -161,7 +162,7 @@ class _PlaylistCreatorSheetState extends ConsumerState<PlaylistCreatorSheet> {
                 child: Row(
                   children: [
                     Text(
-                      '${_selectedTrackKeys.length} seleccionadas',
+                      context.l10n.playlistCreatorSelectedCount(_selectedTrackKeys.length),
                       style: TextStyle(
                         color: colorScheme.primary,
                         fontWeight: FontWeight.w600,
@@ -180,8 +181,8 @@ class _PlaylistCreatorSheetState extends ConsumerState<PlaylistCreatorSheet> {
                       },
                       child: Text(
                         _selectedTrackKeys.length == filteredTracks.length
-                            ? 'Deseleccionar todo'
-                            : 'Seleccionar todo',
+                            ? context.l10n.playlistCreatorDeselectAll
+                            : context.l10n.playlistCreatorSelectAll,
                       ),
                     ),
                   ],
@@ -261,7 +262,7 @@ class _PlaylistCreatorSheetState extends ConsumerState<PlaylistCreatorSheet> {
                     Expanded(
                       child: OutlinedButton(
                         onPressed: () => Navigator.pop(context),
-                        child: const Text('Cancelar'),
+                        child: Text(context.l10n.dialogCancel),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -271,7 +272,7 @@ class _PlaylistCreatorSheetState extends ConsumerState<PlaylistCreatorSheet> {
                           onPressed: _nameController.text.trim().isEmpty
                               ? null
                               : () => _createPlaylist(filteredTracks),
-                          child: Text('Crear (${_selectedTrackKeys.length} canciones)'),
+                          child: Text(context.l10n.playlistCreatorCreateButton(_selectedTrackKeys.length)),
                         ),
                     ),
                   ],
@@ -300,8 +301,8 @@ class _PlaylistCreatorSheetState extends ConsumerState<PlaylistCreatorSheet> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(
         selectedTracks.isEmpty
-            ? 'Lista "$name" creada'
-            : 'Lista "$name" creada con ${selectedTracks.length} canciones',
+            ? context.l10n.playlistCreated(name)
+            : context.l10n.playlistCreatedWithCount(name, selectedTracks.length),
       )),
     );
   }
