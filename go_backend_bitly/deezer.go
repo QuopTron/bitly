@@ -1099,6 +1099,40 @@ func (c *DeezerClient) fetchISRCsParallel(ctx context.Context, tracks []deezerTr
 	return result
 }
 
+// GetArtistTopTracks fetches top tracks for a Deezer artist.
+// artistID should be the numeric Deezer artist ID (without "deezer:" prefix).
+func (c *DeezerClient) GetArtistTopTracks(ctx context.Context, artistID string, limit int) ([]TrackMetadata, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+
+	topURL := fmt.Sprintf("%s/artist/%s/top?limit=%d", deezerBaseURL, artistID, limit)
+	GoLog("[Deezer] GetArtistTopTracks: artistID=%s, limit=%d\n", artistID, limit)
+
+	var topResp struct {
+		Data  []deezerTrack `json:"data"`
+		Error *struct {
+			Type    string `json:"type"`
+			Message string `json:"message"`
+			Code    int    `json:"code"`
+		} `json:"error"`
+	}
+	if err := c.getJSON(ctx, topURL, &topResp); err != nil {
+		return nil, fmt.Errorf("failed to fetch artist top tracks: %w", err)
+	}
+	if topResp.Error != nil {
+		return nil, fmt.Errorf("deezer API error: %s (code %d)", topResp.Error.Message, topResp.Error.Code)
+	}
+
+	result := make([]TrackMetadata, 0, len(topResp.Data))
+	for _, track := range topResp.Data {
+		result = append(result, c.convertTrack(track))
+	}
+
+	GoLog("[Deezer] GetArtistTopTracks: got %d tracks\n", len(result))
+	return result, nil
+}
+
 func (c *DeezerClient) GetTrackISRC(ctx context.Context, trackID string) (string, error) {
 	c.cacheMu.RLock()
 	if isrc, ok := c.isrcCache[trackID]; ok {

@@ -403,12 +403,44 @@ func applyDefaultLibraryMetadata(filePath, displayNameHint string, result *Libra
 	}
 }
 
+// applyAudioMetadataFields sets common metadata fields from AudioMetadata on a LibraryScanResult.
+// This eliminates the repetitive field-by-field mapping that was duplicated across scan functions.
+func applyAudioMetadataFields(result *LibraryScanResult, meta *AudioMetadata) {
+	result.TrackName = meta.Title
+	result.ArtistName = meta.Artist
+	result.AlbumName = meta.Album
+	result.AlbumArtist = meta.AlbumArtist
+	result.ISRC = meta.ISRC
+	result.TrackNumber = meta.TrackNumber
+	result.TotalTracks = meta.TotalTracks
+	result.DiscNumber = meta.DiscNumber
+	result.TotalDiscs = meta.TotalDiscs
+	result.ReleaseDate = meta.Date
+	result.Genre = meta.Genre
+	result.Composer = meta.Composer
+	result.Label = meta.Label
+	result.Copyright = meta.Copyright
+}
+
+// applyQualityFields sets common quality fields on a LibraryScanResult.
+func applyQualityFields(result *LibraryScanResult, bitDepth, sampleRate, duration, bitrate int) {
+	result.BitDepth = bitDepth
+	result.SampleRate = sampleRate
+	if duration > 0 {
+		result.Duration = duration
+	}
+	if bitrate > 0 {
+		result.Bitrate = bitrate
+	}
+}
+
 func scanFLACFile(filePath string, result *LibraryScanResult, displayNameHint string) (*LibraryScanResult, error) {
 	metadata, err := ReadMetadata(filePath)
 	if err != nil {
 		return scanFromFilename(filePath, displayNameHint, result)
 	}
 
+	// Map Metadata fields individually (different struct layout from AudioMetadata)
 	result.TrackName = metadata.Title
 	result.ArtistName = metadata.Artist
 	result.AlbumName = metadata.Album
@@ -426,11 +458,11 @@ func scanFLACFile(filePath string, result *LibraryScanResult, displayNameHint st
 
 	quality, err := GetAudioQuality(filePath)
 	if err == nil {
-		result.BitDepth = quality.BitDepth
-		result.SampleRate = quality.SampleRate
+		duration := 0
 		if quality.SampleRate > 0 && quality.TotalSamples > 0 {
-			result.Duration = int(quality.TotalSamples / int64(quality.SampleRate))
+			duration = int(quality.TotalSamples / int64(quality.SampleRate))
 		}
+		applyQualityFields(result, quality.BitDepth, quality.SampleRate, duration, 0)
 	}
 
 	applyDefaultLibraryMetadata(filePath, displayNameHint, result)
@@ -446,29 +478,15 @@ func scanM4AFile(filePath string, result *LibraryScanResult, displayNameHint str
 	}
 
 	if metadata != nil {
-		result.TrackName = metadata.Title
-		result.ArtistName = metadata.Artist
-		result.AlbumName = metadata.Album
-		result.AlbumArtist = metadata.AlbumArtist
-		result.ISRC = metadata.ISRC
-		result.TrackNumber = metadata.TrackNumber
-		result.TotalTracks = metadata.TotalTracks
-		result.DiscNumber = metadata.DiscNumber
-		result.TotalDiscs = metadata.TotalDiscs
-		result.ReleaseDate = metadata.Date
-		if result.ReleaseDate == "" {
+		applyAudioMetadataFields(result, metadata)
+		if result.ReleaseDate == "" && metadata.Year != "" {
 			result.ReleaseDate = metadata.Year
 		}
-		result.Genre = metadata.Genre
-		result.Composer = metadata.Composer
-		result.Label = metadata.Label
-		result.Copyright = metadata.Copyright
 	}
 
 	quality, err := GetM4AQuality(filePath)
 	if err == nil {
-		result.BitDepth = quality.BitDepth
-		result.SampleRate = quality.SampleRate
+		applyQualityFields(result, quality.BitDepth, quality.SampleRate, quality.Duration, 0)
 	}
 
 	applyDefaultLibraryMetadata(filePath, displayNameHint, result)
@@ -482,33 +500,20 @@ func scanMP3File(filePath string, result *LibraryScanResult, displayNameHint str
 		return scanFromFilename(filePath, displayNameHint, result)
 	}
 
-	result.TrackName = metadata.Title
-	result.ArtistName = metadata.Artist
-	result.AlbumName = metadata.Album
-	result.AlbumArtist = metadata.AlbumArtist
-	result.TrackNumber = metadata.TrackNumber
-	result.TotalTracks = metadata.TotalTracks
-	result.DiscNumber = metadata.DiscNumber
-	result.TotalDiscs = metadata.TotalDiscs
-	result.Genre = metadata.Genre
+	applyAudioMetadataFields(result, metadata)
 	if metadata.Date != "" {
 		result.ReleaseDate = metadata.Date
 	} else {
 		result.ReleaseDate = metadata.Year
 	}
-	result.ISRC = metadata.ISRC
-	result.Composer = metadata.Composer
-	result.Label = metadata.Label
-	result.Copyright = metadata.Copyright
 
 	quality, err := GetMP3Quality(filePath)
 	if err == nil {
-		result.SampleRate = quality.SampleRate
-		result.BitDepth = quality.BitDepth // 0 for lossy
-		result.Duration = quality.Duration
+		bitrate := 0
 		if quality.Bitrate > 0 {
-			result.Bitrate = quality.Bitrate / 1000 // convert bps to kbps
+			bitrate = quality.Bitrate / 1000 // convert bps to kbps
 		}
+		applyQualityFields(result, quality.BitDepth, quality.SampleRate, quality.Duration, bitrate)
 	}
 
 	applyDefaultLibraryMetadata(filePath, displayNameHint, result)
@@ -523,29 +528,15 @@ func scanOggFile(filePath string, result *LibraryScanResult, displayNameHint str
 		return scanFromFilename(filePath, displayNameHint, result)
 	}
 
-	result.TrackName = metadata.Title
-	result.ArtistName = metadata.Artist
-	result.AlbumName = metadata.Album
-	result.AlbumArtist = metadata.AlbumArtist
-	result.ISRC = metadata.ISRC
-	result.TrackNumber = metadata.TrackNumber
-	result.TotalTracks = metadata.TotalTracks
-	result.DiscNumber = metadata.DiscNumber
-	result.TotalDiscs = metadata.TotalDiscs
-	result.Genre = metadata.Genre
-	result.ReleaseDate = metadata.Date
-	result.Composer = metadata.Composer
-	result.Label = metadata.Label
-	result.Copyright = metadata.Copyright
+	applyAudioMetadataFields(result, metadata)
 
 	quality, err := GetOggQuality(filePath)
 	if err == nil {
-		result.SampleRate = quality.SampleRate
-		result.BitDepth = quality.BitDepth // 0 for lossy
-		result.Duration = quality.Duration
+		bitrate := 0
 		if quality.Bitrate > 0 {
-			result.Bitrate = quality.Bitrate / 1000 // convert bps to kbps
+			bitrate = quality.Bitrate / 1000 // convert bps to kbps
 		}
+		applyQualityFields(result, quality.BitDepth, quality.SampleRate, quality.Duration, bitrate)
 	}
 
 	applyDefaultLibraryMetadata(filePath, displayNameHint, result)
@@ -565,24 +556,12 @@ func scanAPEFile(filePath string, result *LibraryScanResult, displayNameHint str
 		return scanFromFilename(filePath, displayNameHint, result)
 	}
 
-	result.TrackName = metadata.Title
-	result.ArtistName = metadata.Artist
-	result.AlbumName = metadata.Album
-	result.AlbumArtist = metadata.AlbumArtist
-	result.ISRC = metadata.ISRC
-	result.TrackNumber = metadata.TrackNumber
-	result.TotalTracks = metadata.TotalTracks
-	result.DiscNumber = metadata.DiscNumber
-	result.TotalDiscs = metadata.TotalDiscs
-	result.Genre = metadata.Genre
+	applyAudioMetadataFields(result, metadata)
 	if metadata.Date != "" {
 		result.ReleaseDate = metadata.Date
 	} else {
 		result.ReleaseDate = metadata.Year
 	}
-	result.Composer = metadata.Composer
-	result.Label = metadata.Label
-	result.Copyright = metadata.Copyright
 
 	applyDefaultLibraryMetadata(filePath, displayNameHint, result)
 

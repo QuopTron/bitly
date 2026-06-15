@@ -33,11 +33,11 @@ func downloadCoverToMemory(coverURL string, maxQuality bool) ([]byte, error) {
 		return nil, fmt.Errorf("no cover URL provided")
 	}
 
-	GoLog("[Cover] Original URL: %s", coverURL)
+	LogDebug("Cover", "Original URL: %s", coverURL)
 
 	downloadURL := convertSmallToMedium(coverURL)
 	if downloadURL != coverURL {
-		GoLog("[Cover] Upgraded 300x300 → 640x640")
+		LogDebug("Cover", "Upgraded 300x300 to 640x640")
 	}
 
 	if maxQuality {
@@ -45,12 +45,12 @@ func downloadCoverToMemory(coverURL string, maxQuality bool) ([]byte, error) {
 		if maxURL != downloadURL {
 			downloadURL = maxURL
 			if strings.Contains(coverURL, "scdn.co") || strings.Contains(coverURL, "spotifycdn") {
-				GoLog("[Cover] Spotify: upgraded to max resolution (~2000x2000)")
+				LogInfo("Cover", "Spotify: upgraded to max resolution (~2000x2000)")
 			}
 		}
 	}
 
-	GoLog("[Cover] Final URL: %s", downloadURL)
+	LogDebug("Cover", "Final URL: %s", downloadURL)
 
 	client := NewHTTPClientWithTimeout(DefaultTimeout)
 
@@ -83,7 +83,7 @@ func downloadCoverToMemory(coverURL string, maxQuality bool) ([]byte, error) {
 	} else {
 		resolution = "~300x300"
 	}
-	GoLog("[Cover] Downloaded %d KB (%s)", sizeKB, resolution)
+	LogInfo("Cover", "Downloaded %d KB (%s)", sizeKB, resolution)
 
 	return data, nil
 }
@@ -115,7 +115,7 @@ func upgradeDeezerCover(coverURL string) string {
 
 	upgraded := deezerSizeRegex.ReplaceAllString(coverURL, "/1800x1800-000000-80-0-0.jpg")
 	if upgraded != coverURL {
-		GoLog("[Cover] Deezer: upgraded to 1800x1800")
+		LogDebug("Cover", "Deezer: upgraded to 1800x1800")
 	}
 	return upgraded
 }
@@ -127,7 +127,7 @@ func upgradeTidalCover(coverURL string) string {
 
 	upgraded := tidalSizeRegex.ReplaceAllString(coverURL, "/origin.jpg")
 	if upgraded != coverURL {
-		GoLog("[Cover] Tidal: upgraded to origin resolution")
+		LogDebug("Cover", "Tidal: upgraded to origin resolution")
 	}
 	return upgraded
 }
@@ -139,7 +139,7 @@ func upgradeQobuzCover(coverURL string) string {
 
 	upgraded := qobuzSizeRegex.ReplaceAllString(coverURL, "_max.jpg")
 	if upgraded != coverURL {
-		GoLog("[Cover] Qobuz: upgraded to max resolution")
+		LogDebug("Cover", "Qobuz: upgraded to max resolution")
 	}
 	return upgraded
 }

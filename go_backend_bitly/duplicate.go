@@ -83,7 +83,7 @@ func buildISRCIndex(outputDir string) *ISRCIndex {
 		return nil
 	})
 
-	fmt.Printf("[ISRCIndex] Built index for %s: %d files in %v\n",
+	LogInfo("ISRCIndex", "Built index for %s: %d files in %v",
 		outputDir, fileCount, time.Since(startTime).Round(time.Millisecond))
 
 	isrcIndexCacheMu.Lock()

@@ -1,0 +1,11 @@
+{
+  "@@locale": "en",
+  "libraryTitle": "Library",
+  "libraryTracks": "Tracks",
+  "libraryAlbums": "Albums",
+  "libraryArtists": "Artists",
+  "libraryEmpty": "Your library is empty",
+  "libraryScan": "Scan library",
+  "libraryScanning": "Scanning...",
+  "libraryDelete": "Delete"
+}

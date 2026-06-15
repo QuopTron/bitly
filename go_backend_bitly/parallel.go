@@ -5,6 +5,7 @@ import (
 	"sync"
 )
 
+// PreWarmCacheRequest is used by PreWarmTrackCacheJSON in exports.go.
 type PreWarmCacheRequest struct {
 	ISRC       string
 	TrackName  string
@@ -13,14 +14,17 @@ type PreWarmCacheRequest struct {
 	Service    string
 }
 
+// PreWarmTrackCache is a noop kept for API compatibility.
 func PreWarmTrackCache(requests []PreWarmCacheRequest) {
 	_ = requests
 }
 
+// GetCacheSize is a noop kept for API compatibility.
 func GetCacheSize() int {
 	return 0
 }
 
+// ClearTrackCache is a noop kept for API compatibility.
 func ClearTrackCache() {
 }
 

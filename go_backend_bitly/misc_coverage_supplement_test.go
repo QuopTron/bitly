@@ -69,8 +69,6 @@ func TestMoreSmallConstructorsRuntimeAndMetadataHelpers(t *testing.T) {
 	if NewIDHSClient().client == nil {
 		t.Fatal("expected IDHS HTTP client")
 	}
-	ClearTrackCache()
-
 	vm := goja.New()
 	runtime := &extensionRuntime{extensionID: "misc-runtime", vm: vm, settings: map[string]interface{}{}}
 	if parseExtensionTimeoutSeconds(" 42 ") != 42 || parseExtensionTimeoutSeconds("bad") != 0 || parseExtensionTimeoutSeconds(float64(7)) != 7 {

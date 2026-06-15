@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"time"
 )
 
 var customYtDlpPath string
@@ -43,17 +44,50 @@ func GetYtDlpPath() string {
 	return localPath
 }
 
+// ytDlpDownloadName returns the platform-specific binary name for yt-dlp.
+// On Android it uses the static Linux builds which are fully self-contained.
+func ytDlpDownloadName() string {
+	switch runtime.GOOS {
+	case "windows":
+		return "yt-dlp.exe"
+	case "darwin":
+		return "yt-dlp_macos"
+	case "android":
+		// Android uses the Linux static builds
+		switch runtime.GOARCH {
+		case "arm64":
+			return "yt-dlp_linux_aarch64"
+		case "amd64":
+			return "yt-dlp_linux"
+		case "386":
+			return "yt-dlp_linux_x86"
+		case "arm":
+			return "yt-dlp_linux_armv7l"
+		default:
+			return "yt-dlp_linux"
+		}
+	default:
+		// Linux and other Unix-like
+		switch runtime.GOARCH {
+		case "arm64":
+			return "yt-dlp_linux_aarch64"
+		case "amd64":
+			return "yt-dlp_linux"
+		case "386":
+			return "yt-dlp_linux_x86"
+		case "arm":
+			return "yt-dlp_linux_armv7l"
+		default:
+			return "yt-dlp_linux"
+		}
+	}
+}
+
 // EnsureYtDlp verifica y descarga yt-dlp si es necesario
 func EnsureYtDlp() error {
-	// On Android, yt-dlp Python binary won't work (no Python interpreter).
-	// The android_youtube.go uses native Go YouTube client instead.
-	if runtime.GOOS == "android" {
-		return nil
-	}
-
 	path := GetYtDlpPath()
 
-	// 1. Verificar si ya existe en el sistema (PATH)
+	// 1. Verificar si ya existe en el sistema (PATH) o localmente
 	if _, err := exec.LookPath("yt-dlp"); err == nil {
 		return nil
 	}
@@ -63,20 +97,19 @@ func EnsureYtDlp() error {
 		}
 	}
 
-	// 2. Verificar si existe localmente en la carpeta del backend
+	// 2. Verificar si existe localmente
 	if _, err := os.Stat(path); err == nil {
 		return nil
 	}
 
 	// 3. Descargar segun la plataforma
-	url := "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp"
-	if runtime.GOOS == "windows" {
-		url += ".exe"
-	}
+	downloadName := ytDlpDownloadName()
+	url := "https://github.com/yt-dlp/yt-dlp/releases/latest/download/" + downloadName
 
-	fmt.Printf("[YouTube] Downloading yt-dlp from %s...\n", url)
+	LogInfo("YouTube", "Downloading yt-dlp from %s...", url)
 
-	resp, err := http.Get(url)
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Get(url)
 	if err != nil {
 		return fmt.Errorf("failed to download yt-dlp: %w", err)
 	}
@@ -98,7 +131,7 @@ func EnsureYtDlp() error {
 		os.Chmod(path, 0755)
 	}
 
-	fmt.Println("[YouTube] yt-dlp installed successfully at:", path)
+	LogInfo("YouTube", "yt-dlp installed successfully at: %s", path)
 	return nil
 }
 

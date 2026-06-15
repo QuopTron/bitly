@@ -165,7 +165,7 @@ func EmbedMetadata(filePath string, metadata Metadata, coverPath string) error {
 		if fileExists(coverPath) {
 			coverData, err := os.ReadFile(coverPath)
 			if err != nil {
-				fmt.Printf("[Metadata] Warning: Failed to read cover file %s: %v\n", coverPath, err)
+				LogWarn("Metadata", "Failed to read cover file %s: %v", coverPath, err)
 			} else {
 				for i := len(f.Meta) - 1; i >= 0; i-- {
 					if f.Meta[i].Type == flac.Picture {
@@ -178,10 +178,10 @@ func EmbedMetadata(filePath string, metadata Metadata, coverPath string) error {
 					return fmt.Errorf("failed to create picture block: %w", err)
 				}
 				f.Meta = append(f.Meta, &picBlock)
-				fmt.Printf("[Metadata] Cover art embedded successfully (%d bytes)\n", len(coverData))
+				LogInfo("Metadata", "Cover art embedded successfully (%d bytes)", len(coverData))
 			}
 		} else {
-			fmt.Printf("[Metadata] Warning: Cover file does not exist: %s\n", coverPath)
+			LogWarn("Metadata", "Cover file does not exist: %s", coverPath)
 		}
 	}
 
@@ -233,7 +233,7 @@ func EmbedMetadataWithCoverData(filePath string, metadata Metadata, coverData []
 			return fmt.Errorf("failed to create picture block: %w", err)
 		}
 		f.Meta = append(f.Meta, &picBlock)
-		fmt.Printf("[Metadata] Cover art embedded successfully (%d bytes)\n", len(coverData))
+		LogInfo("Metadata", "Cover art embedded successfully (%d bytes)", len(coverData))
 	}
 
 	return f.Save(filePath)
@@ -353,7 +353,7 @@ func EditFlacFields(filePath string, fields map[string]string) error {
 
 	artistMode := fields["artist_tag_mode"]
 
-	// Mapping from fields-map key → one or more Vorbis Comment keys.
+	// Mapping from fields-map key -> one or more Vorbis Comment keys.
 	// Each entry is handled with set-or-clear semantics.
 	simpleKeys := map[string]string{
 		"title":                 "TITLE",
@@ -405,7 +405,7 @@ func EditFlacFields(filePath string, fields map[string]string) error {
 		removeCommentKey(cmt, "ALBUM_ARTIST")
 	}
 
-	// Track/disc numbers: present + empty → clear; when only totals are edited,
+	// Track/disc numbers: present + empty -> clear; when only totals are edited,
 	// preserve the current index number and rewrite the combined value.
 	if _, ok := fields["track_number"]; ok || fields["track_total"] != "" || hasMapKey(fields, "track_total") {
 		currentTrackNum, currentTotalTracks := parseIndexPair(getComment(cmt, "TRACKNUMBER"))
@@ -1578,10 +1578,11 @@ func looksLikeEmbeddedLyrics(value string) bool {
 }
 
 type AudioQuality struct {
-	BitDepth     int   `json:"bit_depth"`
-	SampleRate   int   `json:"sample_rate"`
-	TotalSamples int64 `json:"total_samples"`
-	Duration     int   `json:"duration"`
+	BitDepth     int    `json:"bit_depth"`
+	SampleRate   int    `json:"sample_rate"`
+	TotalSamples int64  `json:"total_samples"`
+	Duration     int    `json:"duration"`
+	Codec        string `json:"codec"`
 }
 
 func GetAudioQuality(filePath string) (AudioQuality, error) {
@@ -1627,12 +1628,13 @@ func GetAudioQuality(filePath string) (AudioQuality, error) {
 			duration = int(totalSamples / int64(sampleRate))
 		}
 
-		return AudioQuality{
-			BitDepth:     bitsPerSample,
-			SampleRate:   sampleRate,
-			TotalSamples: totalSamples,
-			Duration:     duration,
-		}, nil
+	return AudioQuality{
+		BitDepth:     bitsPerSample,
+		SampleRate:   sampleRate,
+		TotalSamples: totalSamples,
+		Duration:     duration,
+		Codec:        "FLAC",
+	}, nil
 	}
 
 	file.Seek(0, 0)
@@ -1712,7 +1714,12 @@ func GetM4AQuality(filePath string) (AudioQuality, error) {
 		bitDepth = 16
 	}
 
-	return AudioQuality{BitDepth: bitDepth, SampleRate: sampleRate, Duration: duration}, nil
+	codec := "AAC"
+	if atomType == "alac" {
+		codec = "ALAC"
+	}
+
+	return AudioQuality{BitDepth: bitDepth, SampleRate: sampleRate, Duration: duration, Codec: codec}, nil
 }
 
 func readM4ADurationSeconds(f *os.File, moovHeader atomHeader, fileSize int64) int {

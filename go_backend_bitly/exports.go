@@ -211,6 +211,7 @@ type DownloadResponse struct {
 	AlreadyExists               bool                    `json:"already_exists,omitempty"`
 	ActualBitDepth              int                     `json:"actual_bit_depth,omitempty"`
 	ActualSampleRate            int                     `json:"actual_sample_rate,omitempty"`
+	AudioCodec                  string                  `json:"audio_codec,omitempty"`
 	ActualExtension             string                  `json:"actual_extension,omitempty"`
 	ActualContainer             string                  `json:"actual_container,omitempty"`
 	RequiresContainerConversion bool                    `json:"requires_container_conversion,omitempty"`
@@ -240,6 +241,7 @@ type DownloadResult struct {
 	FilePath                    string
 	BitDepth                    int
 	SampleRate                  int
+	AudioCodec string
 	Title                       string
 	Artist                      string
 	Album                       string
@@ -761,6 +763,7 @@ func buildDownloadSuccessResponse(
 		AlreadyExists:               alreadyExists,
 		ActualBitDepth:              result.BitDepth,
 		ActualSampleRate:            result.SampleRate,
+		AudioCodec:                  result.AudioCodec,
 		ActualExtension:             result.ActualExtension,
 		ActualContainer:             result.ActualContainer,
 		RequiresContainerConversion: result.RequiresContainerConversion,
@@ -818,7 +821,8 @@ func enrichResultQualityFromFile(result *DownloadResult) {
 	if qErr == nil {
 		result.BitDepth = quality.BitDepth
 		result.SampleRate = quality.SampleRate
-		GoLog("[Download] Actual quality from file: %d-bit/%dHz\n", quality.BitDepth, quality.SampleRate)
+		result.AudioCodec = quality.Codec
+		GoLog("[Download] Actual quality from file: %d-bit/%dHz codec=%s\n", quality.BitDepth, quality.SampleRate, quality.Codec)
 		return
 	}
 
@@ -2790,6 +2794,10 @@ func SetExtensionSettingsJSON(extensionID, settingsJSON string) error {
 	return manager.InitializeExtension(extensionID, settings)
 }
 
+func FindCollectionAcrossExtensionsJSON(requestJSON string) (string, error) {
+	return findCollectionAcrossExtensions(requestJSON)
+}
+
 func SearchTracksWithMetadataProvidersJSON(query string, limit int, includeExtensions bool) (string, error) {
 	manager := getExtensionManager()
 	tracks, err := manager.SearchTracksWithMetadataProviders(query, limit, includeExtensions)
@@ -3654,15 +3662,27 @@ func callExtensionFunctionJSONWithRequestID(extensionID, functionName string, ti
 }
 
 func GetExtensionHomeFeedJSON(extensionID string) (string, error) {
-	return callExtensionFunctionJSON(extensionID, "getHomeFeed", 60*time.Second)
+	result, err := callExtensionFunctionJSON(extensionID, "getHomeFeed", 60*time.Second)
+	if err != nil {
+		return result, err
+	}
+	return normalizeFeedItems(result), nil
 }
 
 func GetExtensionHomeFeedJSONWithRequestID(extensionID, requestID string) (string, error) {
-	return callExtensionFunctionJSONWithRequestID(extensionID, "getHomeFeed", 60*time.Second, requestID)
+	result, err := callExtensionFunctionJSONWithRequestID(extensionID, "getHomeFeed", 60*time.Second, requestID)
+	if err != nil {
+		return result, err
+	}
+	return normalizeFeedItems(result), nil
 }
 
 func GetExtensionBrowseCategoriesJSON(extensionID string) (string, error) {
-	return callExtensionFunctionJSON(extensionID, "getBrowseCategories", 30*time.Second)
+	result, err := callExtensionFunctionJSON(extensionID, "getBrowseCategories", 30*time.Second)
+	if err != nil {
+		return result, err
+	}
+	return normalizeFeedItems(result), nil
 }
 
 func CancelExtensionRequestJSON(requestID string) {

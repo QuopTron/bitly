@@ -468,9 +468,9 @@ func apeKeysFromFields(fields map[string]string) map[string]struct{} {
 		}
 	}
 	// Some fields have reader aliases that must also be cleared when the
-	// canonical key is updated (e.g. DATE writer ↔ DATE/YEAR reader,
-	// DISC ↔ DISCNUMBER, TRACK ↔ TRACKNUMBER, "ALBUM ARTIST" ↔ ALBUMARTIST,
-	// LABEL ↔ PUBLISHER, LYRICS ↔ UNSYNCEDLYRICS).
+// canonical key is updated (e.g. DATE writer <-> DATE/YEAR reader,
+// DISC <-> DISCNUMBER, TRACK <-> TRACKNUMBER, "ALBUM ARTIST" <-> ALBUMARTIST,
+// LABEL <-> PUBLISHER, LYRICS <-> UNSYNCEDLYRICS).
 	if _, present := fields["date"]; present {
 		result["DATE"] = struct{}{}
 	}

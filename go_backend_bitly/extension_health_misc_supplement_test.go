@@ -84,9 +84,7 @@ func TestCoverRomajiParallelAndIDHSHelpers(t *testing.T) {
 	if result := FetchCoverAndLyricsParallel("", false, "", "", "", false, 0); result == nil || result.CoverErr != nil || result.LyricsErr != nil {
 		t.Fatalf("parallel result = %#v", result)
 	}
-	if ClearTrackCache(); GetCacheSize() != 0 {
-		t.Fatal("expected empty cache size")
-	}
+
 
 	client := &IDHSClient{client: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		if req.Method != http.MethodPost {

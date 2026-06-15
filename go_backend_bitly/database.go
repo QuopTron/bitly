@@ -44,6 +44,9 @@ func InitMasterDatabase(path string) error {
 	if _, err := db.Exec("PRAGMA cache_size=-64000"); err != nil {
 		GoLog("[DB] cache_size pragma warning: %v", err)
 	}
+	if _, err := db.Exec("PRAGMA foreign_keys=ON"); err != nil {
+		GoLog("[DB] foreign_keys pragma warning: %v", err)
+	}
 	if _, err := db.Exec("PRAGMA busy_timeout=5000"); err != nil {
 		GoLog("[DB] busy_timeout pragma warning: %v", err)
 	}
@@ -60,6 +63,12 @@ func InitMasterDatabase(path string) error {
 
 	masterDB = db
 	dbPath = path
+
+	// Run V2 migration to handle legacy DBs without track_id columns
+	if migErr := RunMigrationV2(db); migErr != nil {
+		GoLog("[DB] V2 migration warning (non-fatal): %v", migErr)
+	}
+
 	return nil
 }
 
@@ -441,6 +450,36 @@ func UpsertDownloadEntry(entry DownloadHistoryEntry) error {
 		entry.BitDepth, entry.SampleRate, entry.DownloadedAt, entry.SAFFileName)
 	if err != nil {
 		return err
+	}
+
+	// ---- V2: Populate canonical tables ----
+	now := time.Now().UTC().Format(time.RFC3339)
+
+	artistID, err := upsertV2Artist(tx, entry.ArtistName, entry.Service, now)
+	if err != nil {
+		GoLog("[V2] upsertV2Artist warning: %v", err)
+		// Non-fatal — continue with legacy-only path
+		return tx.Commit()
+	}
+
+	albumID, err := upsertV2Album(tx, entry.AlbumName, artistID, entry.Service, entry.CoverURL, entry.CoverPath, entry.ReleaseDate, entry.TotalTracks, now)
+	if err != nil {
+		GoLog("[V2] upsertV2Album warning: %v", err)
+		return tx.Commit()
+	}
+
+	canonID, err := upsertV2Track(tx, entry, artistID, albumID, now)
+	if err != nil {
+		GoLog("[V2] upsertV2Track warning: %v", err)
+		return tx.Commit()
+	}
+
+	if err := upsertV2Source(tx, canonID, entry.ID, entry.Service, entry.ID, now); err != nil {
+		GoLog("[V2] upsertV2Source warning: %v", err)
+	}
+
+	if err := upsertV2FileLink(tx, entry.ID, canonID); err != nil {
+		GoLog("[V2] upsertV2FileLink warning: %v", err)
 	}
 
 	return tx.Commit()
@@ -938,87 +977,6 @@ func DeleteLocalLibraryEntriesByPaths(paths []string) error {
 	return tx.Commit()
 }
 
-// --- Favorites (Likes) ---
-
-func UpsertFavorite(itemJSON string) error {
-	var item map[string]interface{}
-	if err := json.Unmarshal([]byte(itemJSON), &item); err != nil {
-		return err
-	}
-	db, err := GetMasterDB()
-	if err != nil {
-		return err
-	}
-	_, err = db.Exec(`
-		INSERT INTO favorites (item_id, type, name, secondary_name, cover_url, added_at, item_json, cover_path, audio_path, match_key, codec, bit_depth, sample_rate)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(item_id) DO UPDATE SET
-			type=excluded.type, name=excluded.name, secondary_name=excluded.secondary_name,
-			cover_url=excluded.cover_url, added_at=excluded.added_at,
-			item_json=excluded.item_json, cover_path=excluded.cover_path,
-			audio_path=excluded.audio_path, match_key=excluded.match_key,
-			codec=excluded.codec, bit_depth=excluded.bit_depth, sample_rate=excluded.sample_rate`,
-		nvl(item["item_id"]), nvl(item["type"]), nvl(item["name"]), nvl(item["secondary_name"]),
-		nvl(item["cover_url"]), nvl(item["added_at"]), nvl(item["item_json"]),
-		nvl(item["cover_path"]), nvl(item["audio_path"]), nvl(item["match_key"]),
-		nvl(item["codec"]), nvl(item["bit_depth"]), nvl(item["sample_rate"]))
-	return err
-}
-
-func DeleteFavorite(itemID string) error {
-	db, err := GetMasterDB()
-	if err != nil {
-		return err
-	}
-	_, err = db.Exec("DELETE FROM favorites WHERE item_id = ?", itemID)
-	return err
-}
-
-func GetAllFavorites(typeFilter string) (string, error) {
-	db, err := GetMasterDB()
-	if err != nil {
-		return "", err
-	}
-	var rows *sql.Rows
-	if typeFilter != "" {
-		rows, err = db.Query("SELECT * FROM favorites WHERE type = ? ORDER BY added_at DESC", typeFilter)
-	} else {
-		rows, err = db.Query("SELECT * FROM favorites ORDER BY added_at DESC")
-	}
-	if err != nil {
-		return "", err
-	}
-	defer rows.Close()
-
-	cols, _ := rows.Columns()
-	var results []map[string]interface{}
-	for rows.Next() {
-		vals := make([]interface{}, len(cols))
-		valPtrs := make([]interface{}, len(cols))
-		for i := range vals {
-			valPtrs[i] = &vals[i]
-		}
-		rows.Scan(valPtrs...)
-		row := make(map[string]interface{})
-		for i, col := range cols {
-			if vals[i] != nil {
-				switch v := vals[i].(type) {
-				case []byte:
-					row[col] = string(v)
-				default:
-					row[col] = v
-				}
-			}
-		}
-		results = append(results, row)
-	}
-	if results == nil {
-		results = []map[string]interface{}{}
-	}
-	out, _ := json.Marshal(results)
-	return string(out), nil
-}
-
 // --- Local Library Query Operations (managed by Go to avoid DB contention) ---
 
 func libraryColumns() string {
@@ -1480,117 +1438,6 @@ func GetLocalLibraryAlbumTracks(album, artist string) (string, error) {
 	}
 	out, _ := json.Marshal(results)
 	return string(out), nil
-}
-
-// --- Collections ---
-
-func UpsertCollection(itemJSON string) error {
-	var item map[string]interface{}
-	if err := json.Unmarshal([]byte(itemJSON), &item); err != nil {
-		return err
-	}
-	db, err := GetMasterDB()
-	if err != nil {
-		return err
-	}
-	_, err = db.Exec(`
-		INSERT INTO collections (id, name, type, cover_path, created_at, updated_at, custom_json, item_json)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(id) DO UPDATE SET
-			name=excluded.name, type=excluded.type, cover_path=excluded.cover_path,
-			created_at=excluded.created_at, updated_at=excluded.updated_at,
-			custom_json=excluded.custom_json, item_json=excluded.item_json`,
-		nvl(item["id"]), nvl(item["name"]), nvl(item["type"]), nvl(item["cover_path"]),
-		nvl(item["created_at"]), nvl(item["updated_at"]), nvl(item["custom_json"]),
-		nvl(item["item_json"]))
-	return err
-}
-
-func DeleteCollection(id string) error {
-	db, err := GetMasterDB()
-	if err != nil {
-		return err
-	}
-	_, err = db.Exec("DELETE FROM collections WHERE id = ?", id)
-	return err
-}
-
-func AddToCollection(collectionID, itemID, addedAt, itemJSON string) error {
-	db, err := GetMasterDB()
-	if err != nil {
-		return err
-	}
-	if addedAt == "" {
-		addedAt = time.Now().UTC().Format(time.RFC3339)
-	}
-	_, err = db.Exec(`
-		INSERT INTO collection_items (collection_id, item_id, item_json, added_at)
-		VALUES (?, ?, ?, ?)
-		ON CONFLICT(collection_id, item_id) DO UPDATE SET
-			item_json=excluded.item_json, added_at=excluded.added_at`,
-		collectionID, itemID, itemJSON, addedAt)
-	return err
-}
-
-func RemoveFromCollection(collectionID, itemID string) error {
-	db, err := GetMasterDB()
-	if err != nil {
-		return err
-	}
-	_, err = db.Exec("DELETE FROM collection_items WHERE collection_id = ? AND (metadata_id = ? OR item_id = ?)", collectionID, itemID, itemID)
-	return err
-}
-
-func GetAllCollections() (string, error) {
-	db, err := GetMasterDB()
-	if err != nil {
-		return "", err
-	}
-	rows, err := db.Query("SELECT * FROM collections ORDER BY updated_at DESC")
-	if err != nil {
-		return "", err
-	}
-	defer rows.Close()
-	return rowsToJSON(rows), nil
-}
-
-func GetCollectionItems(collectionID string) (string, error) {
-	db, err := GetMasterDB()
-	if err != nil {
-		return "", err
-	}
-	rows, err := db.Query("SELECT * FROM collection_items WHERE collection_id = ? ORDER BY position, added_at", collectionID)
-	if err != nil {
-		return "", err
-	}
-	defer rows.Close()
-	return rowsToJSON(rows), nil
-}
-
-func GetAllCollectionItems() (string, error) {
-	db, err := GetMasterDB()
-	if err != nil {
-		return "", err
-	}
-	rows, err := db.Query("SELECT * FROM collection_items ORDER BY position, added_at")
-	if err != nil {
-		return "", err
-	}
-	defer rows.Close()
-	return rowsToJSON(rows), nil
-}
-
-func GetCollectionItemIDsByItemID(itemID string) (string, error) {
-	db, err := GetMasterDB()
-	if err != nil {
-		return "", err
-	}
-	rows, err := db.Query("SELECT collection_id, item_id FROM collection_items WHERE item_id = ?", itemID)
-	if err != nil {
-		return "", err
-	}
-	defer rows.Close()
-	return rowsToJSON(rows), nil
 }
 
 // --- Play History ---
@@ -2248,6 +2095,11 @@ func ResetDatabase() error {
 		"metadata", "files", "favorites", "collections", "collection_items",
 		"play_history", "play_aggregates", "secret_counters", "secret_unlocks",
 		"download_queue", "recent_access", "hidden_download_ids", "application_state",
+		// V2 canonical tables
+		"favorite_artists", "favorite_albums", "loved_tracks",
+		"sources", "tracks", "albums", "artists",
+		// Cache tables
+		"isrc_cache", "video_url_cache",
 	}
 	for _, table := range tables {
 		_, _ = db.Exec("DELETE FROM " + table)

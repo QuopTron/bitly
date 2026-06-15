@@ -41,7 +41,29 @@ echo [3/5] Building AAR...
 set AAR_OUT=..\android\app\libs\bitly.aar
 set JAR_OUT=..\android\app\libs\Bitly-sources.jar
 
-gomobile bind -target=android -androidapi 24 -o %AAR_OUT% .
+:: Auto-detect NDK (try highest version first, then fallback)
+if not defined ANDROID_NDK_HOME (
+    if exist "%LOCALAPPDATA%\Android\sdk\ndk\30.0.14904198" (
+        set ANDROID_NDK_HOME=%LOCALAPPDATA%\Android\sdk\ndk\30.0.14904198
+    ) else if exist "%LOCALAPPDATA%\Android\sdk\ndk\28.2.13676358" (
+        set ANDROID_NDK_HOME=%LOCALAPPDATA%\Android\sdk\ndk\28.2.13676358
+    ) else if exist "%LOCALAPPDATA%\Android\sdk\ndk\27.0.12077973" (
+        set ANDROID_NDK_HOME=%LOCALAPPDATA%\Android\sdk\ndk\27.0.12077973
+    ) else if exist "%ANDROID_HOME%\ndk\30.0.14904198" (
+        set ANDROID_NDK_HOME=%ANDROID_HOME%\ndk\30.0.14904198
+    ) else if exist "%ANDROID_HOME%\ndk\28.2.13676358" (
+        set ANDROID_NDK_HOME=%ANDROID_HOME%\ndk\28.2.13676358
+    ) else if exist "%ANDROID_HOME%\ndk\27.0.12077973" (
+        set ANDROID_NDK_HOME=%ANDROID_HOME%\ndk\27.0.12077973
+    )
+    if defined ANDROID_NDK_HOME (
+        echo [INFO] ANDROID_NDK_HOME set to: !ANDROID_NDK_HOME!
+    ) else (
+        echo [WARN] No NDK found at standard paths. Ensure ANDROID_NDK_HOME or ANDROID_HOME is set.
+    )
+)
+
+gomobile bind -target=android -androidapi 21 -o %AAR_OUT% .
 if %errorlevel% neq 0 (
     echo [ERROR] gomobile bind failed
     exit /b 1

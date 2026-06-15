@@ -70,114 +70,150 @@ func GetPlaybackState() *PlaybackState {
 	return playbackState
 }
 
+// applyPlaybackAction applies a single action to the playback state.
+// It is called by both the async processor goroutine and the sync fallback.
+func applyPlaybackAction(state *PlaybackState, action PlaybackAction, log bool) {
+	switch action.Type {
+	case "play":
+		if action.Track != nil {
+			if state.CurrentTrack != nil {
+				state.addToHistory(*state.CurrentTrack)
+			}
+			state.CurrentTrack = action.Track
+			state.Position = 0
+			state.Duration = int64(action.Track.Duration)
+			state.IsPlaying = true
+			if log {
+				GoLog("[Playback] Playing: %s - %s (local=%v)\n",
+					action.Track.Name, action.Track.ArtistName,
+					action.Track.LocalPath != "")
+			}
+		}
+
+	case "pause":
+		state.IsPlaying = false
+		if log {
+			GoLog("[Playback] Paused at %dms\n", state.Position)
+		}
+
+	case "resume":
+		if state.CurrentTrack != nil {
+			state.IsPlaying = true
+			if log {
+				GoLog("[Playback] Resumed at %dms\n", state.Position)
+			}
+		}
+
+	case "stop":
+		state.IsPlaying = false
+		state.Position = 0
+		if log {
+			GoLog("[Playback] Stopped\n")
+		}
+
+	case "seek":
+		if action.Position >= 0 && action.Position <= state.Duration {
+			state.Position = action.Position
+			if log {
+				GoLog("[Playback] Seek to %dms\n", action.Position)
+			}
+		}
+
+	case "set_queue":
+		if action.Tracks != nil {
+			// Preserve current track position if possible
+			oldCurrentID := ""
+			if state.QueueIndex >= 0 && state.QueueIndex < len(state.Queue) {
+				oldCurrentID = state.Queue[state.QueueIndex].ID
+			}
+			state.Queue = action.Tracks
+			// Try to find the same track in the new queue to preserve index
+			state.QueueIndex = 0
+			if oldCurrentID != "" {
+				for i, t := range state.Queue {
+					if t.ID == oldCurrentID {
+						state.QueueIndex = i
+						break
+					}
+				}
+			}
+			if log {
+				GoLog("[Playback] Queue set with %d tracks, index=%d\n", len(action.Tracks), state.QueueIndex)
+			}
+		}
+
+	case "add_to_queue":
+		if action.Tracks != nil {
+			state.Queue = append(state.Queue, action.Tracks...)
+			if log {
+				GoLog("[Playback] Added %d tracks to queue\n", len(action.Tracks))
+			}
+		}
+
+	case "next":
+		state.advanceNext()
+
+	case "previous":
+		state.goPrevious()
+
+	case "set_shuffle":
+		if v, ok := action.Params["shuffle"].(bool); ok {
+			state.Shuffle = v
+			if log {
+				GoLog("[Playback] Shuffle: %v\n", v)
+			}
+		}
+
+	case "set_repeat":
+		if v, ok := action.Params["repeat_mode"].(string); ok {
+			state.RepeatMode = v
+			if log {
+				GoLog("[Playback] Repeat: %s\n", v)
+			}
+		}
+
+	case "remove_from_queue":
+		if idx, ok := action.Params["index"].(int); ok && idx >= 0 && idx < len(state.Queue) {
+			state.Queue = append(state.Queue[:idx], state.Queue[idx+1:]...)
+			if idx < state.QueueIndex {
+				state.QueueIndex--
+			} else if idx == state.QueueIndex && state.QueueIndex >= len(state.Queue) {
+				state.QueueIndex = len(state.Queue) - 1
+			}
+		}
+
+	case "clear_queue":
+		state.Queue = make([]PlaybackTrack, 0)
+		state.QueueIndex = -1
+		if log {
+			GoLog("[Playback] Queue cleared\n")
+		}
+
+	case "track_completed":
+		if state.CurrentTrack != nil {
+			state.addToHistory(*state.CurrentTrack)
+		}
+		state.advanceNext()
+	}
+
+	state.Timestamp = time.Now().UnixMilli()
+}
+
 // playbackActionProcessor processes playback actions in sequence
 func playbackActionProcessor() {
 	for action := range playbackActions {
 		state := GetPlaybackState()
 		state.mu.Lock()
-
-		switch action.Type {
-		case "play":
-			if action.Track != nil {
-				// Add current to history if exists
-				if state.CurrentTrack != nil {
-					state.addToHistory(*state.CurrentTrack)
-				}
-				state.CurrentTrack = action.Track
-				state.Position = 0
-				state.Duration = int64(action.Track.Duration)
-				state.IsPlaying = true
-				GoLog("[Playback] Playing: %s - %s (local=%v)\n",
-					action.Track.Name, action.Track.ArtistName,
-					action.Track.LocalPath != "")
-			}
-
-		case "pause":
-			state.IsPlaying = false
-			GoLog("[Playback] Paused at %dms\n", state.Position)
-
-		case "resume":
-			if state.CurrentTrack != nil {
-				state.IsPlaying = true
-				GoLog("[Playback] Resumed at %dms\n", state.Position)
-			}
-
-		case "stop":
-			state.IsPlaying = false
-			state.Position = 0
-			GoLog("[Playback] Stopped\n")
-
-		case "seek":
-			if action.Position >= 0 && action.Position <= state.Duration {
-				state.Position = action.Position
-				GoLog("[Playback] Seek to %dms\n", action.Position)
-			}
-
-		case "set_queue":
-			if action.Tracks != nil {
-				state.Queue = action.Tracks
-				state.QueueIndex = 0
-				GoLog("[Playback] Queue set with %d tracks\n", len(action.Tracks))
-			}
-
-		case "add_to_queue":
-			if action.Tracks != nil {
-				state.Queue = append(state.Queue, action.Tracks...)
-				GoLog("[Playback] Added %d tracks to queue\n", len(action.Tracks))
-			}
-
-		case "next":
-			state.advanceNext()
-
-		case "previous":
-			state.goPrevious()
-
-		case "set_shuffle":
-			if v, ok := action.Params["shuffle"].(bool); ok {
-				state.Shuffle = v
-				GoLog("[Playback] Shuffle: %v\n", v)
-			}
-
-		case "set_repeat":
-			if v, ok := action.Params["repeat_mode"].(string); ok {
-				state.RepeatMode = v
-				GoLog("[Playback] Repeat: %s\n", v)
-			}
-
-		case "remove_from_queue":
-			if idx, ok := action.Params["index"].(int); ok && idx >= 0 && idx < len(state.Queue) {
-				state.Queue = append(state.Queue[:idx], state.Queue[idx+1:]...)
-				if idx < state.QueueIndex {
-					state.QueueIndex--
-				} else if idx == state.QueueIndex && state.QueueIndex >= len(state.Queue) {
-					state.QueueIndex = len(state.Queue) - 1
-				}
-			}
-
-		case "clear_queue":
-			state.Queue = make([]PlaybackTrack, 0)
-			state.QueueIndex = -1
-			GoLog("[Playback] Queue cleared\n")
-
-		case "track_completed":
-			if state.CurrentTrack != nil {
-				state.addToHistory(*state.CurrentTrack)
-			}
-			state.advanceNext()
-		}
-
-		state.Timestamp = time.Now().UnixMilli()
+		applyPlaybackAction(state, action, true)
 		state.mu.Unlock()
 	}
 }
 
 // addToHistory adds a track to playback history (keep last 50)
 func (s *PlaybackState) addToHistory(track PlaybackTrack) {
-	// Don't add if it's the same as the most recent
 	if len(s.History) > 0 && s.History[len(s.History)-1].ID == track.ID {
 		return
 	}
-
 	s.History = append(s.History, track)
 	if len(s.History) > 50 {
 		s.History = s.History[len(s.History)-50:]
@@ -195,18 +231,13 @@ func (s *PlaybackState) advanceNext() {
 		GoLog("[Playback] End of queue\n")
 		return
 	}
-
 	if s.RepeatMode == "one" && s.CurrentTrack != nil {
-		// Replay same track
 		GoLog("[Playback] Repeating: %s\n", s.CurrentTrack.Name)
 		return
 	}
-
-	// Move current to history
 	if s.CurrentTrack != nil {
 		s.addToHistory(*s.CurrentTrack)
 	}
-
 	if s.Shuffle {
 		if len(s.Queue) > 0 {
 			idx := 0
@@ -223,30 +254,24 @@ func (s *PlaybackState) advanceNext() {
 			s.Position = 0
 			s.Duration = int64(s.CurrentTrack.Duration)
 			s.IsPlaying = true
-			GoLog("[Playback] Shuffle next: %s - %s\n",
-				s.CurrentTrack.Name, s.CurrentTrack.ArtistName)
+			GoLog("[Playback] Shuffle next: %s - %s\n", s.CurrentTrack.Name, s.CurrentTrack.ArtistName)
 		}
 	} else {
-		// Sequential
 		if s.QueueIndex < len(s.Queue)-1 {
 			s.QueueIndex++
 			s.CurrentTrack = &s.Queue[s.QueueIndex]
 			s.Position = 0
 			s.Duration = int64(s.CurrentTrack.Duration)
 			s.IsPlaying = true
-			GoLog("[Playback] Next: %s - %s\n",
-				s.CurrentTrack.Name, s.CurrentTrack.ArtistName)
+			GoLog("[Playback] Next: %s - %s\n", s.CurrentTrack.Name, s.CurrentTrack.ArtistName)
 		} else if s.RepeatMode == "all" {
-			// Wrap to beginning
 			s.QueueIndex = 0
 			s.CurrentTrack = &s.Queue[0]
 			s.Position = 0
 			s.Duration = int64(s.CurrentTrack.Duration)
 			s.IsPlaying = true
-			GoLog("[Playback] Repeat all, starting: %s - %s\n",
-				s.CurrentTrack.Name, s.CurrentTrack.ArtistName)
+			GoLog("[Playback] Repeat all, starting: %s - %s\n", s.CurrentTrack.Name, s.CurrentTrack.ArtistName)
 		} else {
-			// End of queue
 			s.CurrentTrack = nil
 			s.IsPlaying = false
 			GoLog("[Playback] End of queue\n")
@@ -267,14 +292,9 @@ func (s *PlaybackState) goPrevious() {
 		}
 		return
 	}
-
-	// Get last from history
 	prevTrack := s.History[len(s.History)-1]
 	s.History = s.History[:len(s.History)-1]
-
-	// If we have a current track, add it back to queue at current position
 	if s.CurrentTrack != nil {
-		// Put current track back into queue if it's not already there
 		found := false
 		for _, t := range s.Queue {
 			if t.ID == s.CurrentTrack.ID {
@@ -286,21 +306,17 @@ func (s *PlaybackState) goPrevious() {
 			s.Queue = append(s.Queue[:s.QueueIndex], append([]PlaybackTrack{*s.CurrentTrack}, s.Queue[s.QueueIndex:]...)...)
 		}
 	}
-
-	// Set previous as current
 	for i, t := range s.Queue {
 		if t.ID == prevTrack.ID {
 			s.QueueIndex = i
 			break
 		}
 	}
-
 	s.CurrentTrack = &prevTrack
 	s.Position = 0
 	s.Duration = int64(prevTrack.Duration)
 	s.IsPlaying = true
-	GoLog("[Playback] Previous (history): %s - %s\n",
-		prevTrack.Name, prevTrack.ArtistName)
+	GoLog("[Playback] Previous (history): %s - %s\n", prevTrack.Name, prevTrack.ArtistName)
 }
 
 // SendPlaybackAction sends an action to the playback processor
@@ -309,68 +325,11 @@ func SendPlaybackAction(action PlaybackAction) {
 	case playbackActions <- action:
 	default:
 		// Channel full, process synchronously
-		processPlaybackActionSync(action)
+		state := GetPlaybackState()
+		state.mu.Lock()
+		applyPlaybackAction(state, action, false)
+		state.mu.Unlock()
 	}
-}
-
-func processPlaybackActionSync(action PlaybackAction) {
-	state := GetPlaybackState()
-	state.mu.Lock()
-	defer state.mu.Unlock()
-
-	// Same logic as playbackActionProcessor but synchronous
-	switch action.Type {
-	case "play":
-		if action.Track != nil {
-			if state.CurrentTrack != nil {
-				state.addToHistory(*state.CurrentTrack)
-			}
-			state.CurrentTrack = action.Track
-			state.Position = 0
-			state.Duration = int64(action.Track.Duration)
-			state.IsPlaying = true
-		}
-	case "pause":
-		state.IsPlaying = false
-	case "resume":
-		if state.CurrentTrack != nil {
-			state.IsPlaying = true
-		}
-	case "stop":
-		state.IsPlaying = false
-		state.Position = 0
-	case "seek":
-		if action.Position >= 0 && action.Position <= state.Duration {
-			state.Position = action.Position
-		}
-	case "set_queue":
-		if action.Tracks != nil {
-			state.Queue = action.Tracks
-			state.QueueIndex = 0
-		}
-	case "add_to_queue":
-		if action.Tracks != nil {
-			state.Queue = append(state.Queue, action.Tracks...)
-		}
-	case "next":
-		state.advanceNext()
-	case "previous":
-		state.goPrevious()
-	case "set_shuffle":
-		if v, ok := action.Params["shuffle"].(bool); ok {
-			state.Shuffle = v
-		}
-	case "set_repeat":
-		if v, ok := action.Params["repeat_mode"].(string); ok {
-			state.RepeatMode = v
-		}
-	case "track_completed":
-		if state.CurrentTrack != nil {
-			state.addToHistory(*state.CurrentTrack)
-		}
-		state.advanceNext()
-	}
-	state.Timestamp = time.Now().UnixMilli()
 }
 
 // GetPlaybackStateJSON returns the current state as JSON

@@ -1,0 +1,10 @@
+{
+  "@@locale": "es",
+  "searchTitle": "Búsqueda",
+  "searchHint": "Busca canciones, álbumes o artistas...",
+  "searchByUrl": "Buscar por URL",
+  "searchFilters": "Filtros",
+  "searchResults": "Resultados",
+  "searchNoResults": "Sin resultados",
+  "searchRecent": "Búsquedas recientes"
+}

@@ -58,21 +58,21 @@ const ffmpegURL = "https://github.com/BtbN/FFmpeg-Builds/releases/download/lates
 
 func ensureFFmpeg() {
 	if _, err := exec.LookPath("ffmpeg"); err == nil {
-		log.Println("[FFmpeg] Found in PATH")
+		gobackend.LogInfo("FFmpeg", "Found in PATH")
 		return
 	}
 	exe, _ := os.Executable()
 	dir := filepath.Dir(exe)
 	localPath := filepath.Join(dir, "ffmpeg.exe")
 	if _, err := os.Stat(localPath); err == nil {
-		log.Println("[FFmpeg] Found locally")
+		gobackend.LogInfo("FFmpeg", "Found locally")
 		return
 	}
 
-	log.Println("[FFmpeg] Not found, downloading...")
+	gobackend.LogInfo("FFmpeg", "Not found, downloading...")
 	resp, err := http.Get(ffmpegURL)
 	if err != nil {
-		log.Printf("[FFmpeg] Download failed: %v", err)
+		gobackend.LogError("FFmpeg", "Download failed: %v", err)
 		return
 	}
 	defer resp.Body.Close()
@@ -98,9 +98,9 @@ func ensureFFmpeg() {
 	os.Remove(tmp)
 
 	if _, err := os.Stat(localPath); err == nil {
-		log.Printf("[FFmpeg] Downloaded to %s", localPath)
+		gobackend.LogInfo("FFmpeg", "Downloaded to %s", localPath)
 	} else {
-		log.Println("[FFmpeg] Could not download FFmpeg. Install manually: https://ffmpeg.org/download.html")
+		gobackend.LogWarn("FFmpeg", "Could not download FFmpeg. Install manually: https://ffmpeg.org/download.html")
 	}
 }
 
@@ -116,7 +116,7 @@ func main() {
 		go ensureFFmpeg()
 		go func() {
 			if err := gobackend.EnsureYtDlp(); err != nil {
-				log.Printf("[YouTube] Auto-install failed: %v", err)
+				gobackend.LogWarn("YouTube", "Auto-install failed: %v", err)
 			}
 		}()
 	}
@@ -129,7 +129,7 @@ func main() {
 	mux.HandleFunc("/dl/", handleDownload)
 
 	addr := "127.0.0.1:" + port
-	fmt.Printf("[bitly-backend] Backend on %s\n", addr)
+	gobackend.LogInfo("bitly-backend", "Backend on %s", addr)
 	log.Fatal(http.ListenAndServe(addr, mux))
 }
 
@@ -441,7 +441,7 @@ func handleBuiltinURL(parts *spotifyURLParts) map[string]interface{} {
 								"name":        trackName,
 								"artists":     artistName,
 								"album_name":  albumName,
-								"cover_url":   coverURL,
+								"cover_url":   gobackend.GetCoverFromSpotify(coverURL, true),
 								"duration_ms": int(duration * 1000),
 								"source":      "deezer",
 							},
@@ -576,6 +576,16 @@ func dispatch(method string, params map[string]interface{}) (interface{}, error)
 	case "ping":
 		return "pong", nil
 
+	// --- Normalization (synchronized with Flutter's track_utils.dart & artist_utils.dart) ---
+	case "normalizeForMatch":
+		return gobackend.NormalizeForMatch(sp("text")), nil
+	case "normalizeSource":
+		return gobackend.NormalizeSource(sp("source")), nil
+	case "primaryArtistName":
+		return gobackend.PrimaryArtistName(sp("raw_artists")), nil
+	case "splitArtistNames":
+		return gobackend.SplitArtistNames(sp("raw_artists")), nil
+
 	// --- Core ---
 	case "InitMasterDatabaseJSON":
 		return "ok", gobackend.InitMasterDatabase(sp("request"))
@@ -676,6 +686,41 @@ func dispatch(method string, params map[string]interface{}) (interface{}, error)
 
 	case "sanitizeFilename":
 		return gobackend.SanitizeFilename(sp("filename")), nil
+
+	// --- Utility functions (moved from Flutter) ---
+	case "sanitizeFolderName":
+		return gobackend.SanitizeFolderName(sp("name")), nil
+	case "normalizeOptionalString":
+		return gobackend.NormalizeOptionalString(sp("value")), nil
+	case "normalizeCoverReference":
+		return gobackend.NormalizeCoverReference(sp("value")), nil
+	case "normalizeRemoteHttpUrl":
+		return gobackend.NormalizeRemoteHttpUrl(sp("value")), nil
+	case "formatSampleRateKHz":
+		return gobackend.FormatSampleRateKHz(sn("sample_rate")), nil
+	case "buildDisplayAudioQuality":
+		return gobackend.BuildDisplayAudioQuality(sn("bit_depth"), sn("sample_rate"), sn("bitrate_kbps"), sp("format"), sp("stored_quality")), nil
+	case "isPlaceholderQualityLabel":
+		return gobackend.IsPlaceholderQualityLabel(sp("quality")), nil
+	case "audioMimeTypeForPath":
+		return gobackend.AudioMimeTypeForPath(sp("file_path")), nil
+	case "normalizeIsrc":
+		return gobackend.NormalizeIsrc(sp("value")), nil
+	case "normalizeSpotifyId":
+		return gobackend.NormalizeSpotifyId(sp("value")), nil
+	case "matchKeyFor":
+		return gobackend.MatchKeyFor(sp("track"), sp("artist")), nil
+	case "albumKeyFor":
+		return gobackend.AlbumKeyFor(sp("album"), sp("artist")), nil
+	case "hasEmbeddedLyricsMetadata":
+		// metadata passed as JSON string
+		return gobackend.HasEmbeddedLyricsMetadataJSON(sp("metadata")), nil
+	case "buildPathMatchKeys":
+		return gobackend.BuildPathMatchKeys(sp("file_path")), nil
+	case "deleteFileAndCleanupFolder":
+		return "ok", gobackend.DeleteFileAndCleanupFolder(sp("file_path"))
+	case "deleteSidecarFiles":
+		return "ok", gobackend.DeleteSidecarFiles(sp("audio_path"))
 
 	// --- Track metadata & lyrics ---
 	case "fetchLyrics":
@@ -1034,6 +1079,12 @@ func dispatch(method string, params map[string]interface{}) (interface{}, error)
 	case "updateDownloadFilePath":
 		return "ok", gobackend.UpdateDownloadFilePath(sp("id"), sp("file_path"))
 
+	case "updateDownloadVideoPath":
+		return "ok", gobackend.UpdateDownloadVideoPath(sp("id"), sp("video_path"))
+
+	case "updateDownloadLyricsPath":
+		return "ok", gobackend.UpdateDownloadLyricsPath(sp("id"), sp("lyrics_path"))
+
 	case "updateDownloadAudioMetadata":
 		var entry gobackend.DownloadHistoryEntry
 		if err := json.Unmarshal([]byte(sp("request")), &entry); err != nil {
@@ -1235,6 +1286,12 @@ func dispatch(method string, params map[string]interface{}) (interface{}, error)
 	case "playbackPrevious":
 		return gobackend.PlaybackPrevious(), nil
 
+	case "getSimilarTracks":
+		return gobackend.GetSimilarTracksJSON(sp("request")), nil
+
+	case "playbackSyncQueueState":
+		return gobackend.PlaybackSyncQueueState(sp("state")), nil
+
 	case "playbackSetQueue":
 		return gobackend.PlaybackSetQueue(sp("tracks_json")), nil
 
@@ -1274,61 +1331,10 @@ func dispatch(method string, params map[string]interface{}) (interface{}, error)
 		return gobackend.SearchYouTubeVideo(sp("track_name"), sp("artist_name"))
 	case "downloadYouTubeVideo":
 		return gobackend.DownloadYouTubeVideo(sp("track_name"), sp("artist_name"), sp("output_path"))
-
-	// --- Favorites (Likes) ---
-	case "upsertFavorite":
-		return "ok", gobackend.UpsertFavorite(sp("request"))
-
-	case "deleteFavorite":
-		return "ok", gobackend.DeleteFavorite(sp("request"))
-
-	case "getAllFavorites":
-		result, err := gobackend.GetAllFavorites(sp("type"))
-		if err != nil {
-			return nil, err
-		}
-		return result, nil
-
-	// --- Collections ---
-	case "upsertCollection":
-		return "ok", gobackend.UpsertCollection(sp("request"))
-
-	case "deleteCollection":
-		return "ok", gobackend.DeleteCollection(sp("request"))
-
-	case "addToCollection":
-		return "ok", gobackend.AddToCollection(sp("collection_id"), sp("item_id"), sp("added_at"), sp("item_json"))
-
-	case "removeFromCollection":
-		return "ok", gobackend.RemoveFromCollection(sp("collection_id"), sp("request"))
-
-	case "getAllCollections":
-		result, err := gobackend.GetAllCollections()
-		if err != nil {
-			return nil, err
-		}
-		return result, nil
-
-	case "getCollectionItems":
-		result, err := gobackend.GetCollectionItems(sp("request"))
-		if err != nil {
-			return nil, err
-		}
-		return result, nil
-
-	case "getAllCollectionItems":
-		result, err := gobackend.GetAllCollectionItems()
-		if err != nil {
-			return nil, err
-		}
-		return result, nil
-
-	case "getCollectionItemIDsByItemID":
-		result, err := gobackend.GetCollectionItemIDsByItemID(sp("item_id"))
-		if err != nil {
-			return nil, err
-		}
-		return result, nil
+	case "clearVideoUrlCache":
+		return "ok", gobackend.ClearVideoURLCache()
+	case "getVideoUrlCacheCount":
+		return gobackend.GetVideoURLCacheCount()
 
 	// --- Play History ---
 	case "logPlay":
@@ -1409,6 +1415,27 @@ func dispatch(method string, params map[string]interface{}) (interface{}, error)
 	case "clearAllStats":
 		return "ok", gobackend.ClearAllStats()
 
+	// --- Batch Operations ---
+	case "upsertDownloadEntriesBatch":
+		return "ok", gobackend.UpsertDownloadEntriesBatch(sp("request"))
+
+	case "upsertLocalLibraryEntriesBatch":
+		return "ok", gobackend.UpsertLocalLibraryEntriesBatch(sp("request"))
+
+	case "findExistingDownloadEntry":
+		result, err := gobackend.FindExistingDownloadEntry(sp("spotify_id"), sp("isrc"), sp("track_name"), sp("artist_name"))
+		if err != nil {
+			return nil, err
+		}
+		return result, nil
+
+	case "getQueueCounts":
+		result, err := gobackend.GetQueueCounts(sp("searchQuery"))
+		if err != nil {
+			return nil, err
+		}
+		return result, nil
+
 	// --- Download Queue (Go-managed in master DB) ---
 	case "saveDownloadQueue":
 		return "ok", gobackend.SaveDownloadQueue(sp("items"))
@@ -1486,6 +1513,18 @@ func dispatch(method string, params map[string]interface{}) (interface{}, error)
 			return "es", nil
 		}
 		return result, nil
+	case "translateLyricsLRC":
+		return gobackend.TranslateLyricsLRCJSON(sp("request"))
+
+	case "setTranslationAPIConfig":
+		return "ok", gobackend.SetTranslationAPIConfigJSON(sp("request"))
+
+	case "setTranslationLanguageWithDetection":
+		sourceLang, err := gobackend.SetTranslationLanguageWithDetection(sp("lrc_content"), sp("target_lang"))
+		if err != nil {
+			return nil, err
+		}
+		return map[string]interface{}{"detected_lang": sourceLang}, nil
 
 	// --- App Settings ---
 	case "saveAppSettings":
@@ -1551,6 +1590,196 @@ func dispatch(method string, params map[string]interface{}) (interface{}, error)
 			return searchWithDeezer(sp("query"), sn("limit"))
 		}
 		return result, err
+
+	// --- Scrobbling ---
+	case "setupScrobbling":
+		return gobackend.SetupScrobbling(sp("config"))
+	case "getScrobblingConfig":
+		return gobackend.GetScrobblingConfig()
+	case "scrobbleNowPlaying":
+		return gobackend.ScrobbleNowPlaying(sp("track_json"))
+	case "scrobbleTrack":
+		return gobackend.ScrobbleTrack(sp("track_json"))
+
+	// --- V2 Schema (migration, artists, albums, loved tracks) ---
+	case "runMigrationV2JSON":
+		result, err := gobackend.RunMigrationV2JSON()
+		if err != nil{return nil, err}
+		return result, nil
+
+	case "getAllArtistsV2JSON":
+		result, err := gobackend.GetAllArtistsV2JSON()
+		if err != nil{return nil, err}
+		return result, nil
+
+	case "getFavoriteArtistsV2JSON":
+		result, err := gobackend.GetFavoriteArtistsV2JSON()
+		if err != nil{return nil, err}
+		return result, nil
+
+	case "addFavoriteArtistV2JSON":
+		b, _ := json.Marshal(params)
+		_, err := gobackend.AddFavoriteArtistV2JSON(string(b))
+		return "ok", err
+
+	case "removeFavoriteArtistV2JSON":
+		b, _ := json.Marshal(params)
+		_, err := gobackend.RemoveFavoriteArtistV2JSON(string(b))
+		return "ok", err
+
+	case "getFavoriteAlbumsV2JSON":
+		result, err := gobackend.GetFavoriteAlbumsV2JSON()
+		if err != nil{return nil, err}
+		return result, nil
+
+	case "addFavoriteAlbumV2JSON":
+		b, _ := json.Marshal(params)
+		_, err := gobackend.AddFavoriteAlbumV2JSON(string(b))
+		return "ok", err
+
+	case "removeFavoriteAlbumV2JSON":
+		b, _ := json.Marshal(params)
+		_, err := gobackend.RemoveFavoriteAlbumV2JSON(string(b))
+		return "ok", err
+
+	case "addLovedTrackV2JSON":
+		b, _ := json.Marshal(params)
+		_, err := gobackend.AddLovedTrackV2JSON(string(b))
+		return "ok", err
+
+	case "removeLovedTrackV2JSON":
+		b, _ := json.Marshal(params)
+		_, err := gobackend.RemoveLovedTrackV2JSON(string(b))
+		return "ok", err
+
+	case "updateArtistImageV2JSON":
+		b, _ := json.Marshal(params)
+		_, err := gobackend.UpdateArtistImageV2JSON(string(b))
+		return "ok", err
+
+	// --- V2 album queries ---
+	case "getAllAlbumsV2JSON":
+		result, err := gobackend.GetAllAlbumsV2JSON()
+		if err != nil{return nil, err}
+		return result, nil
+
+	// --- V2 track/cover queries ---
+	case "getTrackV2ByID":
+		return gobackend.GetTrackV2ByID(sp("track_id"))
+
+	case "updateTrackCoverPathV2":
+		return "ok", gobackend.UpdateTrackCoverPathV2(sp("track_id"), sp("cover_path"))
+
+	case "getLovedTracksV2JSON":
+		result, err := gobackend.GetLovedTracksV2JSON()
+		if err != nil{return nil, err}
+		return result, nil
+
+	// --- V2 Collections/Playlists ---
+	case "getCollectionTracksV2JSON":
+		result, err := gobackend.GetCollectionTracksV2JSONExport(sp("collection_id"))
+		if err != nil{return nil, err}
+		return result, nil
+
+	case "getFavoritePlaylistsV2JSON":
+		result, err := gobackend.GetFavoritePlaylistsV2JSON()
+		if err != nil{return nil, err}
+		return result, nil
+
+	case "createCollectionV2JSON":
+		result, err := gobackend.CreateCollectionV2JSON(sp("request"))
+		if err != nil{return "", err}
+		return result, nil
+
+	case "updateCollectionV2JSON":
+		return "ok", gobackend.UpdateCollectionV2JSON(sp("request"))
+
+	case "addCollectionTrackV2JSON":
+		return "ok", gobackend.AddCollectionTrackV2JSON(sp("request"))
+
+	case "removeCollectionTrackV2":
+		return "ok", gobackend.RemoveCollectionTrackV2(sp("collection_id"), sp("item_id"))
+
+	case "reorderCollectionItemsV2JSON":
+		return "ok", gobackend.ReorderCollectionItemsV2JSON(sp("collection_id"), sp("item_ids"))
+
+	case "deleteCollectionV2":
+		return "ok", gobackend.DeleteCollectionV2(sp("collection_id"))
+
+	case "addWishlistTrackV2JSON":
+		b, _ := json.Marshal(params)
+		_, err := gobackend.AddWishlistTrackV2JSON(string(b))
+		return "ok", err
+
+	case "removeWishlistTrackV2JSON":
+		b, _ := json.Marshal(params)
+		_, err := gobackend.RemoveWishlistTrackV2JSON(string(b))
+		return "ok", err
+
+	case "getWishlistTracksV2JSON":
+		result, err := gobackend.GetWishlistTracksV2JSON()
+		if err != nil{return nil, err}
+		return result, nil
+
+	// --- V2 User Premium & Stats ---
+	case "getUserPremiumV2JSON":
+		result, err := gobackend.GetUserPremiumV2JSON()
+		if err != nil{return nil, err}
+		return result, nil
+
+	case "setUserPremiumV2JSON":
+		b, _ := json.Marshal(params)
+		_, err := gobackend.SetUserPremiumV2JSON(string(b))
+		return "ok", err
+
+	case "getListeningLevelV2JSON":
+		result, err := gobackend.GetListeningLevelV2JSON()
+		if err != nil{return nil, err}
+		return result, nil
+
+	// --- V2 Play Logging ---
+	case "logPlayV2JSON":
+		b, _ := json.Marshal(params)
+		_, err := gobackend.LogPlayV2JSON(string(b))
+		return "ok", err
+
+	case "getPlayStatsV2JSON":
+		return gobackend.GetPlayStatsV2JSON(sp("type"), sp("item_id"))
+
+	case "getRecentPlaysV2JSON":
+		return gobackend.GetRecentPlaysV2JSON(sp("limit"))
+
+	// --- V2 Download Queries ---
+	case "logDownloadV2JSON":
+		b, _ := json.Marshal(params)
+		_, err := gobackend.LogDownloadV2JSON(string(b))
+		return "ok", err
+
+	case "getDownloadedTracksV2JSON":
+		result, err := gobackend.GetDownloadedTracksV2JSON()
+		if err != nil{return nil, err}
+		return result, nil
+
+	case "getDownloadedAlbumsV2JSON":
+		result, err := gobackend.GetDownloadedAlbumsV2JSON()
+		if err != nil{return nil, err}
+		return result, nil
+
+	// --- V2 Artist Details ---
+	case "getArtistTopTracksV2JSON":
+		return gobackend.GetArtistTopTracksV2JSON(sp("artist_id"), sp("limit"))
+
+	case "getArtistTopAlbumsV2JSON":
+		return gobackend.GetArtistTopAlbumsV2JSON(sp("artist_id"), sp("limit"))
+
+	// --- V2 Similar Artists ---
+	case "addSimilarArtistV2JSON":
+		b, _ := json.Marshal(params)
+		_, err := gobackend.AddSimilarArtistV2JSON(string(b))
+		return "ok", err
+
+	case "getSimilarArtistsV2JSON":
+		return gobackend.GetSimilarArtistsV2JSON(sp("artist_id"))
 
 	default:
 		return nil, fmt.Errorf("unknown method: %s", method)

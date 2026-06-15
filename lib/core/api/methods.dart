@@ -1,0 +1,12 @@
+export 'methods/download_methods.dart';
+export 'methods/extension_methods.dart';
+export 'methods/library_methods.dart';
+export 'methods/lyrics_methods.dart';
+export 'methods/metadata_methods.dart';
+export 'methods/playback_methods.dart';
+export 'methods/playlist_methods.dart';
+export 'methods/search_methods.dart';
+export 'methods/settings_methods.dart';
+export 'methods/stats_methods.dart';
+export 'methods/store_methods.dart';
+export 'methods/system_methods.dart';

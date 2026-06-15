@@ -1,0 +1,11 @@
+{
+  "@@locale": "es",
+  "libraryTitle": "Biblioteca",
+  "libraryTracks": "Canciones",
+  "libraryAlbums": "Álbumes",
+  "libraryArtists": "Artistas",
+  "libraryEmpty": "Tu biblioteca está vacía",
+  "libraryScan": "Escanear biblioteca",
+  "libraryScanning": "Escaneando...",
+  "libraryDelete": "Eliminar"
+}

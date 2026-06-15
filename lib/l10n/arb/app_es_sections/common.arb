@@ -1,0 +1,17 @@
+{
+  "@@locale": "es",
+  "appName": "Bitly",
+  "appTitle": "Bitly - Descargador de Música",
+  "buttonAccept": "Aceptar",
+  "buttonCancel": "Cancelar",
+  "buttonSave": "Guardar",
+  "buttonDelete": "Eliminar",
+  "buttonConfirm": "Confirmar",
+  "buttonContinue": "Continuar",
+  "buttonBack": "Atrás",
+  "buttonNext": "Siguiente",
+  "buttonSkip": "Saltar",
+  "buttonStart": "Comenzar",
+  "buttonRetry": "Reintentar",
+  "buttonClose": "Cerrar"
+}

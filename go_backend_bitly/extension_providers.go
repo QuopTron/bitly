@@ -45,16 +45,25 @@ type ExtTrackMetadata struct {
 	Copyright string `json:"copyright,omitempty"`
 	Genre     string `json:"genre,omitempty"`
 	Composer  string `json:"composer,omitempty"`
+	ExternalURL string `json:"external_url,omitempty"`
+	AlbumURL    string `json:"album_url,omitempty"`
+	AlbumID     string `json:"album_id,omitempty"`
+	ArtistURL   string `json:"artist_url,omitempty"`
+	ArtistID    string `json:"artist_id,omitempty"`
 
 	AudioQuality string `json:"audio_quality,omitempty"`
 	AudioModes   string `json:"audio_modes,omitempty"`
 }
 
 func (t *ExtTrackMetadata) ResolvedCoverURL() string {
-	if t.CoverURL != "" {
-		return t.CoverURL
+	url := t.CoverURL
+	if url == "" {
+		url = t.Images
 	}
-	return t.Images
+	if url == "" {
+		return ""
+	}
+	return GetCoverFromSpotify(url, true)
 }
 
 type ExtAlbumMetadata struct {
@@ -695,6 +704,11 @@ func parseExtensionTrackValue(vm *goja.Runtime, value goja.Value) ExtTrackMetada
 		DeezerID:      gojaObjectString(obj, "deezer_id", "deezerId"),
 		SpotifyID:     gojaObjectString(obj, "spotify_id", "spotifyId"),
 		ExternalLinks: gojaObjectStringMap(vm, obj, "external_links", "externalLinks"),
+		ExternalURL:  gojaObjectString(obj, "external_url", "externalUrl"),
+		AlbumURL:     gojaObjectString(obj, "album_url", "albumUrl"),
+		AlbumID:      gojaObjectString(obj, "album_id", "albumId"),
+		ArtistURL:    gojaObjectString(obj, "artist_url", "artistUrl"),
+		ArtistID:     gojaObjectString(obj, "artist_id", "artistId"),
 		Label:         gojaObjectString(obj, "label"),
 		Copyright:     gojaObjectString(obj, "copyright"),
 		Genre:         gojaObjectString(obj, "genre"),
@@ -1806,7 +1820,9 @@ func SetExtensionFallbackProviderIDs(providerIDs []string) {
 	extensionFallbackProviderIDsMu.Lock()
 	defer extensionFallbackProviderIDsMu.Unlock()
 
-	if providerIDs == nil {
+	// Treat nil AND empty slice as "allow all" — otherwise downstream
+	// isExtensionFallbackAllowed rejects every provider.
+	if len(providerIDs) == 0 {
 		extensionFallbackProviderIDs = nil
 		GoLog("[Extension] Extension fallback providers reset to default (all enabled download extensions)\n")
 		return
@@ -2010,6 +2026,15 @@ func DownloadWithExtensionFallback(req DownloadRequest) (*DownloadResponse, erro
 		}
 	}
 
+	// Si la prioridad está vacía (ej. nunca se configuró o falló getProviderPriority),
+	// poblarla con todos los extensiones de descarga habilitados.
+	if len(priority) == 0 && !strictMode {
+		for _, provider := range extManager.GetDownloadProviders() {
+			priority = append(priority, provider.extension.ID)
+		}
+		GoLog("[DownloadWithExtensionFallback] Priority was empty, using all enabled download providers: %v\n", priority)
+	}
+
 	if !strictMode && req.Service != "" {
 		found := false
 		for _, p := range priority {
@@ -2022,6 +2047,23 @@ func DownloadWithExtensionFallback(req DownloadRequest) (*DownloadResponse, erro
 		for _, p := range priority {
 			if !strings.EqualFold(p, req.Service) {
 				newPriority = append(newPriority, p)
+			}
+		}
+		// Cuando la prioridad está vacía o solo tiene el provider fuente,
+		// agrega todos los extensiones de descarga habilitados como fallback.
+		if len(newPriority) <= 1 {
+			for _, provider := range extManager.GetDownloadProviders() {
+				id := provider.extension.ID
+				dup := false
+				for _, p := range newPriority {
+					if strings.EqualFold(p, id) {
+						dup = true
+						break
+					}
+				}
+				if !dup {
+					newPriority = append(newPriority, id)
+				}
 			}
 		}
 		priority = newPriority
@@ -2435,6 +2477,21 @@ func DownloadWithExtensionFallback(req DownloadRequest) (*DownloadResponse, erro
 					GoLog("[DownloadWithExtensionFallback] %s requested skip_fallback after availability check\n", providerID)
 					return buildExtensionFallbackStoppedResponse(providerID, availability, err), nil
 				}
+				// Even if checkAvailability returned false, try to download anyway.
+				// The extension may still be able to find the track by ISRC/name.
+				GoLog("[DownloadWithExtensionFallback] %s: trying download despite unavailable availability check\n", providerID)
+			}
+
+			trackID := ""
+			if availability != nil && availability.TrackID != "" {
+				trackID = availability.TrackID
+			} else {
+				trackID = resolvePreferredTrackIDForExtension(ext, req, "")
+				GoLog("[DownloadWithExtensionFallback] %s: resolved fallback trackID=%q\n", providerID, trackID)
+			}
+			if trackID == "" {
+				GoLog("[DownloadWithExtensionFallback] %s: no trackID available, skipping\n", providerID)
+				lastErr = fmt.Errorf("no trackID available for %s", providerID)
 				continue
 			}
 
@@ -2444,7 +2501,7 @@ func DownloadWithExtensionFallback(req DownloadRequest) (*DownloadResponse, erro
 				StartItemProgress(req.ItemID)
 			}
 
-			result, err := provider.Download(availability.TrackID, req.Quality, outputPath, req.ItemID, func(percent int) {
+			result, err := provider.Download(trackID, req.Quality, outputPath, req.ItemID, func(percent int) {
 				if req.ItemID != "" {
 					normalized := float64(percent) / 100.0
 					if normalized < 0 {

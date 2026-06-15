@@ -339,7 +339,7 @@ func TestExportsJSONWrappersAndExtensionManagerSurface(t *testing.T) {
 	if catsJSON, err := GetStoreCategoriesJSON(); err != nil || !strings.Contains(catsJSON, "metadata") {
 		t.Fatalf("GetStoreCategoriesJSON = %q/%v", catsJSON, err)
 	}
-	if dest, err := buildStoreExtensionDestPath(dir, "coverage/ext"); err != nil || !strings.HasSuffix(dest, ".Bitly-ext") {
+	if dest, err := buildStoreExtensionDestPath(dir, "coverage/ext"); err != nil || !strings.HasSuffix(dest, ".bitly-ext") {
 		t.Fatalf("buildStoreExtensionDestPath = %q/%v", dest, err)
 	}
 	if _, err := buildStoreExtensionDestPath(dir, " "); err == nil {

@@ -1,5 +1,12 @@
 package gobackend
 
+// [SYNC] normalizeLooseTitle y cleanTitle deben mantener sincronia con
+// normalizeForMatch() en lib/models/track_utils.dart.
+// Si modificas una, modifica la otra.
+//
+// [SYNC] normalizeArtistName y splitArtists deben mantener sincronia con
+// primaryArtistName() y splitArtistNames() en lib/utils/artist_utils.dart.
+
 import (
 	"strings"
 	"unicode"
@@ -151,6 +158,9 @@ func splitArtists(artists string) []string {
 	normalized = strings.ReplaceAll(normalized, " and ", "|")
 	normalized = strings.ReplaceAll(normalized, ", ", "|")
 	normalized = strings.ReplaceAll(normalized, " x ", "|")
+	normalized = strings.ReplaceAll(normalized, " y ", "|")
+	normalized = strings.ReplaceAll(normalized, " vs ", "|")
+	normalized = strings.ReplaceAll(normalized, " presents ", "|")
 
 	parts := strings.Split(normalized, "|")
 	result := make([]string, 0, len(parts))
@@ -160,6 +170,21 @@ func splitArtists(artists string) []string {
 			result = append(result, trimmed)
 		}
 	}
+	return result
+}
+
+// SplitArtistNames exporta splitArtists para Flutter via bridge.
+// [SYNC] Debe mantenerse sincronizada con splitArtistNames() en lib/utils/artist_utils.dart.
+func SplitArtistNames(rawArtists string) string {
+	parts := splitArtists(rawArtists)
+	result := "["
+	for i, p := range parts {
+		if i > 0 {
+			result += ","
+		}
+		result += "\"" + p + "\""
+	}
+	result += "]"
 	return result
 }
 
@@ -358,6 +383,47 @@ func isLatinScript(value string) bool {
 		}
 	}
 	return true
+}
+
+// NormalizeForMatch exporta normalizeLooseTitle + cleanTitle como bridge para Flutter.
+// [SYNC] Debe mantenerse sincronizada con normalizeForMatch() en lib/models/track_utils.dart.
+func NormalizeForMatch(text string) string {
+	if text == "" {
+		return ""
+	}
+	return normalizeLooseTitle(cleanTitle(text))
+}
+
+// NormalizeSource exporta la normalización de nombre de fuente para Flutter.
+func NormalizeSource(source string) string {
+	if source == "" {
+		return "builtin"
+	}
+	s := strings.TrimSpace(strings.ToLower(source))
+	switch s {
+	case "qobuz_kennyy", "qobuz-web", "qobuz":
+		return "qobuz"
+	case "spotify-web", "spotify:track", "spotify":
+		return "spotify"
+	case "tidal-web", "tidal":
+		return "tidal"
+	case "deezer":
+		return "deezer"
+	case "apple-music", "apple_music":
+		return "apple-music"
+	case "soundcloud":
+		return "soundcloud"
+	case "ytmusic-Bitly", "ytmusic":
+		return "ytmusic"
+	case "pandora":
+		return "pandora"
+	case "amazon", "amazon_music":
+		return "amazon"
+	case "local":
+		return "local"
+	default:
+		return s
+	}
 }
 
 type resolvedTrackInfo struct {

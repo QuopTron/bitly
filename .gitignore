@@ -23,10 +23,10 @@ android/app/libs/spotiflac-sources.jar
 android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java
 
 # Go
-go_backend_bitly/bitly-backend.exe
-go_backend_bitly/bitly-backend-linux
-go_backend_bitly/bitly-backend-macos
-go_backend_bitly/bitly-backend-macos-arm64
+bitly-backend.exe
+bitly-backend-linux
+bitly-backend-macos
+bitly-backend-macos-arm64
 
 # Python
 __pycache__/

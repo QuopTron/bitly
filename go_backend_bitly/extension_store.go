@@ -520,7 +520,7 @@ func resolveRegistryURL(input string) (string, error) {
 	branch := resolveGitHubDefaultBranch(owner, repo)
 
 	resolved := fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/%s/registry.json", owner, repo, branch)
-	LogInfo("ExtensionStore", "Resolved %s → %s (branch: %s)", input, resolved, branch)
+	LogInfo("ExtensionStore", "Resolved %s -> %s (branch: %s)", input, resolved, branch)
 	return resolved, nil
 }
 

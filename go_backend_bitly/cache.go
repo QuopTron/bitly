@@ -3,7 +3,6 @@ package gobackend
 import (
 	"container/list"
 	"encoding/json"
-	"fmt"
 	"sync"
 	"time"
 )
@@ -117,68 +116,4 @@ func (c *LRUCache) StatsJSON() string {
 	}
 	b, _ := json.Marshal(m)
 	return string(b)
-}
-
-type PreloadCache struct {
-	streamCache *LRUCache
-	metaCache   *LRUCache
-}
-
-var (
-	preloadCache     *PreloadCache
-	preloadCacheOnce sync.Once
-)
-
-func GetPreloadCache() *PreloadCache {
-	preloadCacheOnce.Do(func() {
-		preloadCache = &PreloadCache{
-			streamCache: NewLRUCache(200, 30*time.Minute),
-			metaCache:   NewLRUCache(500, 1*time.Hour),
-		}
-	})
-	return preloadCache
-}
-
-func (pc *PreloadCache) GetStreamURL(trackID string) (string, error) {
-	v, ok := pc.streamCache.Get("stream:" + trackID)
-	if !ok {
-		return "", fmt.Errorf("stream not cached: %s", trackID)
-	}
-	s, _ := v.(string)
-	return s, nil
-}
-
-func (pc *PreloadCache) SetStreamURL(trackID, streamURL string) {
-	pc.streamCache.Set("stream:"+trackID, streamURL, 30*time.Minute)
-}
-
-func (pc *PreloadCache) GetMetadata(trackID string) (interface{}, error) {
-	v, ok := pc.metaCache.Get("meta:" + trackID)
-	if !ok {
-		return nil, fmt.Errorf("metadata not cached: %s", trackID)
-	}
-	return v, nil
-}
-
-func (pc *PreloadCache) SetMetadata(trackID string, data interface{}) {
-	pc.metaCache.Set("meta:"+trackID, data, 1*time.Hour)
-}
-
-func (pc *PreloadCache) WarmStream(trackID, trackName, artistName string, fetchFn func(string, string) (string, error)) {
-	if _, err := pc.GetStreamURL(trackID); err == nil {
-		return
-	}
-	url, err := fetchFn(trackName, artistName)
-	if err == nil && url != "" {
-		pc.SetStreamURL(trackID, url)
-	}
-}
-
-func (pc *PreloadCache) ClearTrack(trackID string) {
-	pc.streamCache.Set("stream:"+trackID, nil, 0)
-	pc.metaCache.Set("meta:"+trackID, nil, 0)
-}
-
-func (pc *PreloadCache) StatsJSON() string {
-	return `{"stream":` + pc.streamCache.StatsJSON() + `,"meta":` + pc.metaCache.StatsJSON() + `}`
 }

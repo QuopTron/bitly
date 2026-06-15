@@ -1,0 +1,21 @@
+{
+  "@@locale": "en",
+  "onboardingWelcomeTitle": "Welcome to Bitly",
+  "onboardingWelcomeDesc": "Your ultimate music download manager",
+  "onboardingTutorial1Title": "Search Music",
+  "onboardingTutorial1Desc": "Find songs, albums and artists from multiple sources",
+  "onboardingTutorial2Title": "Download",
+  "onboardingTutorial2Desc": "Download in high quality with one click",
+  "onboardingTutorial3Title": "Extensions",
+  "onboardingTutorial3Desc": "Expand sources with community extensions",
+  "onboardingPremiumTitle": "Premium Code",
+  "onboardingPremiumHint": "Enter your premium code",
+  "onboardingPremiumDesc": "If you have a premium code, enter it now",
+  "onboardingUsernameTitle": "Username",
+  "onboardingUsernameHint": "Choose a username",
+  "onboardingUsernameDesc": "This name will appear on your profile",
+  "onboardingDirectoriesTitle": "Directories",
+  "onboardingDirectoriesDesc": "Configure download folders",
+  "onboardingComplete": "All set!",
+  "onboardingCompleteDesc": "You can now start using Bitly"
+}

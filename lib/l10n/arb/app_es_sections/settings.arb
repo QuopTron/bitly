@@ -1,0 +1,18 @@
+{
+  "@@locale": "es",
+  "settingsTitle": "Configuración",
+  "settingsGeneral": "General",
+  "settingsDownloads": "Descargas",
+  "settingsAppearance": "Apariencia",
+  "settingsLyrics": "Letras",
+  "settingsScrobbling": "Scrobbling",
+  "settingsAdvanced": "Avanzado",
+  "settingsLanguage": "Idioma",
+  "settingsDownloadDir": "Directorio de descargas",
+  "settingsThemeMode": "Modo oscuro",
+  "settingsVersion": "Versión",
+  "settingsAbout": "Acerca de",
+  "settingsReset": "Restablecer ajustes",
+  "errorGeneral": "Ha ocurrido un error",
+  "errorNoBackend": "No se puede conectar con el backend"
+}

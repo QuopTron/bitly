@@ -1,0 +1,22 @@
+{
+  "extensionsTitle": "Extensiones",
+  "extensionsInstalled": "Extensiones Instaladas",
+  "extensionsStore": "Tienda de Extensiones",
+  "extensionsNoInstalled": "No hay extensiones instaladas",
+  "extensionsNoAvailable": "No hay extensiones disponibles",
+  "extensionsSearch": "Buscar extensiones...",
+  "extensionsInstall": "Instalar",
+  "extensionsUninstall": "Desinstalar",
+  "extensionsEnable": "Activar",
+  "extensionsDisable": "Desactivar",
+  "extensionsSettings": "Configuración",
+  "extensionsDetails": "Detalles",
+  "extensionsVersion": "Versión",
+  "extensionsAuthor": "Autor",
+  "extensionsPriority": "Prioridad",
+  "extensionsCategory": "Categoría",
+  "extensionsDownloads": "Descargas",
+  "extensionsRating": "Puntuación",
+  "extensionsEnabled": "Activada",
+  "extensionsDisabled": "Desactivada"
+}

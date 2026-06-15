@@ -1,3 +1,0 @@
-class PlaybackState {
-  const PlaybackState();
-}

@@ -453,7 +453,7 @@ func (c *LyricsClient) FetchLyricsAllSources(spotifyID, trackName, artistName st
 	if cached, found := globalLyricsCache.Get(artistName, trackName, durationSec); found {
 		isExtensionCache := strings.HasPrefix(cached.Source, "Extension:")
 		if len(extensionProviders) == 0 || isExtensionCache {
-			fmt.Printf("[Lyrics] Cache hit for: %s - %s\n", artistName, trackName)
+			LogInfo("Lyrics", "Cache hit for: %s - %s", artistName, trackName)
 			cachedCopy := *cached
 			cachedCopy.Source = cached.Source + " (cached)"
 			return &cachedCopy, nil
@@ -912,18 +912,29 @@ func simplifyTrackName(name string) string {
 	return result
 }
 
+// normalizeArtistName extrae el artista principal eliminando colaboraciones.
+// [SYNC] SINCRONIZADA con primaryArtistName() en lib/utils/artist_utils.dart.
 func normalizeArtistName(name string) string {
-	separators := []string{", ", "; ", " & ", " feat. ", " ft. ", " featuring ", " with "}
+	separators := []string{
+		" feat. ", " ft. ", " featuring ", " with ",
+		", ", "; ", " & ", " vs ", " presents ", " presentó ",
+		" y ", " x ",
+	}
 
-	result := name
+	lower := strings.ToLower(name)
 	for _, sep := range separators {
-		if idx := strings.Index(strings.ToLower(result), strings.ToLower(sep)); idx > 0 {
-			result = result[:idx]
-			break
+		if idx := strings.Index(lower, sep); idx > 0 {
+			return strings.TrimSpace(name[:idx])
 		}
 	}
 
-	return strings.TrimSpace(result)
+	return strings.TrimSpace(name)
+}
+
+// PrimaryArtistName exporta normalizeArtistName para Flutter via bridge.
+// [SYNC] Debe mantenerse sincronizada con primaryArtistName() en lib/utils/artist_utils.dart.
+func PrimaryArtistName(rawArtists string) string {
+	return normalizeArtistName(rawArtists)
 }
 
 func isLikelyInstrumentalTrack(name string) bool {

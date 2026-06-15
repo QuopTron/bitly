@@ -1,0 +1,17 @@
+{
+  "@@locale": "en",
+  "downloadTitle": "Downloads",
+  "downloadQueue": "Download queue",
+  "downloadHistory": "History",
+  "downloadStart": "Start download",
+  "downloadCancel": "Cancel download",
+  "downloadPause": "Pause",
+  "downloadResume": "Resume",
+  "downloadRetry": "Retry",
+  "downloadComplete": "Completed",
+  "downloadFailed": "Failed",
+  "downloadPending": "Pending",
+  "downloadInProgress": "Downloading",
+  "downloadQuality": "Quality",
+  "downloadClearAll": "Clear all"
+}
