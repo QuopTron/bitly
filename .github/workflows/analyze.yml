@@ -1,4 +1,4 @@
-name: flutter analyze
+name: flutter analyze & test
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  analyze:
+  check:
     runs-on: ubuntu-latest
 
     steps:
@@ -28,3 +28,6 @@ jobs:
 
       - name: Flutter analyze (lib/)
         run: flutter analyze lib/
+
+      - name: Flutter test
+        run: flutter test
