@@ -53,6 +53,7 @@ temp_*/
 
 # logs
 *.log
+*.hprof
 build_error.txt
 error_log.txt
 
