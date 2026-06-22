@@ -24,9 +24,13 @@ android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java
 
 # Go
 bitly-backend.exe
+**/bitly-backend.exe
 bitly-backend-linux
 bitly-backend-macos
 bitly-backend-macos-arm64
+bitly.db
+bitly.db-shm
+bitly.db-wal
 
 # Python
 __pycache__/
@@ -36,6 +40,7 @@ __pycache__/
 # OS
 .DS_Store
 Thumbs.db
+nul
 
 # Env
 .env

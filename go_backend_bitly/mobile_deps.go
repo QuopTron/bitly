@@ -1,7 +1,6 @@
-// This file ensures gomobile dependencies are not removed by go mod tidy.
-// These packages are required by gomobile bind but not directly imported in code.
+// Package gobackend provides the gomobile-bindable API for Android.
+//
+// This file ensures gomobile bind dependencies are not removed by go mod tidy.
 package gobackend
 
-import (
-	_ "golang.org/x/mobile/bind"
-)
+import _ "golang.org/x/mobile/bind"
