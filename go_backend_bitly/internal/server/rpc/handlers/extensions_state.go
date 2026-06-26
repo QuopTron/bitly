@@ -40,6 +40,9 @@ func ensureExtensionInit() {
 	if extStore == nil {
 		extStore = store.New(extManager, "")
 	}
+	// Always load embedded extensions so they're available
+	// even before initExtensionSystem is called from Flutter.
+	loadEmbeddedExtensions()
 }
 
 var (

@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/zarz/bitly/go_backend_bitly/internal/search"
@@ -11,6 +12,7 @@ import (
 
 func registerSearchTracks(reg *rpc.Registry) {
 	reg.Register("searchTracks", func(params map[string]interface{}) (interface{}, error) {
+		fmt.Printf("[SEARCH-RPC] searchTracks called with query=%q\n", rpc.Sp(params, "query"))
 		initSearchService()
 		query := rpc.Sp(params, "query")
 		if query == "" {

@@ -47,3 +47,9 @@ func (m *Manager) SetDirectories(extensionsDir, dataDir string) error {
 	}
 	return nil
 }
+
+func (m *Manager) ExtensionsDir() string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.extensionsDir
+}

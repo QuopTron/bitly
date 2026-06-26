@@ -18,6 +18,8 @@ android/local.properties
 android/gradle/wrapper/gradle-wrapper.jar
 android/app/libs/bitly.aar
 android/app/libs/bitly-sources.jar
+android/app/libs/backend.aar
+android/app/libs/backend-sources.jar
 android/app/libs/spotiflac.aar
 android/app/libs/spotiflac-sources.jar
 android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java
@@ -31,6 +33,10 @@ bitly-backend-macos-arm64
 bitly.db
 bitly.db-shm
 bitly.db-wal
+bitly_server.exe
+go_backend_bitly/bin/
+go_backend_bitly/server.exe
+linux/runner/bitly-backend
 
 # Python
 __pycache__/
@@ -56,6 +62,12 @@ temp_*/
 *.hprof
 build_error.txt
 error_log.txt
+
+# Build artifacts
+*.zip
+extensions/
+flutter_*.png
+assets/extensions_bundle.zip
 
 # Python scripts (build tools)
 scripts/

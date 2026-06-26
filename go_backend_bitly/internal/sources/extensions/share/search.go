@@ -57,14 +57,56 @@ func (s *Service) findForExtension(extID, itemType, name, artists, query string)
 	return result
 }
 
-func (s *Service) searchCandidates(extID, itemType, query string) ([]extTrack, error) {
-	filter := ""
-	switch itemType {
-	case "album":
-		filter = "albums"
-	case "artist":
-		filter = "artists"
+// extensionFilter returns the filter value an extension expects for a given search type.
+// Different extensions use different conventions (singular vs plural, or custom like "songs").
+// This mirrors the same logic in handlers/search.go.
+func extensionFilter(extID, searchType string) string {
+	overrides := map[string]map[string]string{
+		"amazon": {
+			"track":    "songs",
+			"album":    "albums",
+			"artist":   "artists",
+			"playlist": "playlists",
+		},
+		"deezer": {
+			"track":    "track",
+			"album":    "album",
+			"artist":   "artist",
+			"playlist": "playlist",
+		},
+		"qobuz-web": {
+			"track":  "track",
+			"album":  "album",
+			"artist": "artist",
+		},
+		"tidal-web": {
+			"track":    "track",
+			"album":    "album",
+			"artist":   "artist",
+			"playlist": "playlist",
+		},
 	}
+	if extMap, ok := overrides[extID]; ok {
+		if f, ok := extMap[searchType]; ok {
+			return f
+		}
+	}
+	// Default: plural convention (apple-music, soundcloud, spotify-web, ytmusic-spotiflac, etc.)
+	switch searchType {
+	case "track":
+		return "tracks"
+	case "album":
+		return "albums"
+	case "artist":
+		return "artists"
+	case "playlist":
+		return "playlists"
+	}
+	return ""
+}
+
+func (s *Service) searchCandidates(extID, itemType, query string) ([]extTrack, error) {
+	filter := extensionFilter(extID, itemType)
 
 	if filter != "" {
 		options := map[string]interface{}{
@@ -90,7 +132,7 @@ func (s *Service) searchCandidates(extID, itemType, query string) ([]extTrack, e
 			Name:       r.Name,
 			Artists:    r.Artists,
 			AlbumName:  r.AlbumName,
-			DurationMS: int(r.Duration),
+			DurationMS: int(r.DurationMS),
 			CoverURL:   r.CoverURL,
 			ISRC:       r.ISRC,
 		}

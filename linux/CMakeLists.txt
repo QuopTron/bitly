@@ -94,6 +94,13 @@ set(INSTALL_BUNDLE_LIB_DIR "${CMAKE_INSTALL_PREFIX}/lib")
 install(TARGETS ${BINARY_NAME} RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}"
   COMPONENT Runtime)
 
+# Bundle the Go backend binary alongside the runner.
+set(GO_BACKEND_SRC "${CMAKE_SOURCE_DIR}/runner/bitly-backend")
+if(EXISTS "${GO_BACKEND_SRC}")
+  install(FILES "${GO_BACKEND_SRC}" DESTINATION "${CMAKE_INSTALL_PREFIX}"
+    COMPONENT Runtime)
+endif()
+
 install(FILES "${FLUTTER_ICU_DATA_FILE}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
   COMPONENT Runtime)
 

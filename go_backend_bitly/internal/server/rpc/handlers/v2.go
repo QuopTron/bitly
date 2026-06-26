@@ -9,5 +9,6 @@ func RegisterV2Handlers(reg *rpc.Registry) {
 	registerV2Tracks(reg)
 	registerV2Collections(reg)
 	registerV2Wishlist(reg)
+	registerV2Feed(reg)
 	registerV2Other(reg)
 }

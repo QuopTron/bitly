@@ -46,6 +46,7 @@ func (ler *loadedExtensionRuntime) registerUtils() {
 	utilsObj.Set("appUserAgent", ler.appUserAgent)
 	utilsObj.Set("isDownloadCancelled", ler.isDownloadCancelled)
 	utilsObj.Set("isRequestCancelled", ler.isRequestCancelled)
+	utilsObj.Set("decryptCTRSegments", ler.decryptCTRSegments)
 	utilsObj.Set("setDownloadStatus", ler.setDownloadStatus)
 	ler.vm.Set("utils", utilsObj)
 }
@@ -72,20 +73,32 @@ func (ler *loadedExtensionRuntime) sha256Hash(call goja.FunctionCall) goja.Value
 }
 func (ler *loadedExtensionRuntime) hmacSHA256(call goja.FunctionCall) goja.Value {
 	if len(call.Arguments) < 2 { return ler.vm.ToValue("") }
-	mac := hmac.New(sha256.New, []byte(call.Arguments[1].String()))
-	mac.Write([]byte(call.Arguments[0].String()))
+	key, err := decodeRuntimeBytesValue(call.Arguments[1].Export(), "utf8")
+	if err != nil { return ler.vm.ToValue("") }
+	data, err := decodeRuntimeBytesValue(call.Arguments[0].Export(), "utf8")
+	if err != nil { return ler.vm.ToValue("") }
+	mac := hmac.New(sha256.New, key)
+	mac.Write(data)
 	return ler.vm.ToValue(hex.EncodeToString(mac.Sum(nil)))
 }
 func (ler *loadedExtensionRuntime) hmacSHA256Base64(call goja.FunctionCall) goja.Value {
 	if len(call.Arguments) < 2 { return ler.vm.ToValue("") }
-	mac := hmac.New(sha256.New, []byte(call.Arguments[1].String()))
-	mac.Write([]byte(call.Arguments[0].String()))
+	key, err := decodeRuntimeBytesValue(call.Arguments[1].Export(), "utf8")
+	if err != nil { return ler.vm.ToValue("") }
+	data, err := decodeRuntimeBytesValue(call.Arguments[0].Export(), "utf8")
+	if err != nil { return ler.vm.ToValue("") }
+	mac := hmac.New(sha256.New, key)
+	mac.Write(data)
 	return ler.vm.ToValue(base64.StdEncoding.EncodeToString(mac.Sum(nil)))
 }
 func (ler *loadedExtensionRuntime) hmacSHA1(call goja.FunctionCall) goja.Value {
 	if len(call.Arguments) < 2 { return ler.vm.ToValue([]byte{}) }
-	mac := hmac.New(sha1.New, []byte(call.Arguments[0].String()))
-	mac.Write([]byte(call.Arguments[1].String()))
+	key, err := decodeRuntimeBytesValue(call.Arguments[0].Export(), "utf8")
+	if err != nil { return ler.vm.ToValue([]byte{}) }
+	data, err := decodeRuntimeBytesValue(call.Arguments[1].Export(), "utf8")
+	if err != nil { return ler.vm.ToValue([]byte{}) }
+	mac := hmac.New(sha1.New, key)
+	mac.Write(data)
 	result := mac.Sum(nil)
 	arr := make([]interface{}, len(result))
 	for i, b := range result { arr[i] = int(b) }
@@ -105,8 +118,12 @@ func (ler *loadedExtensionRuntime) stringifyJSON(call goja.FunctionCall) goja.Va
 }
 func (ler *loadedExtensionRuntime) cryptoEncrypt(call goja.FunctionCall) goja.Value {
 	if len(call.Arguments) < 2 { return ler.vm.ToValue(map[string]interface{}{"success": false, "error": "plaintext and key required"}) }
-	key := sha256.Sum256([]byte(call.Arguments[1].String()))
-	encrypted, err := encryptAESGCM([]byte(call.Arguments[0].String()), key[:])
+	keyData, err := decodeRuntimeBytesValue(call.Arguments[1].Export(), "utf8")
+	if err != nil { return ler.vm.ToValue(map[string]interface{}{"success": false, "error": "invalid key"}) }
+	plaintext, err := decodeRuntimeBytesValue(call.Arguments[0].Export(), "utf8")
+	if err != nil { return ler.vm.ToValue(map[string]interface{}{"success": false, "error": "invalid plaintext"}) }
+	key := sha256.Sum256(keyData)
+	encrypted, err := encryptAESGCM(plaintext, key[:])
 	if err != nil { return ler.vm.ToValue(map[string]interface{}{"success": false, "error": err.Error()}) }
 	return ler.vm.ToValue(map[string]interface{}{"success": true, "data": base64.StdEncoding.EncodeToString(encrypted)})
 }
@@ -114,7 +131,9 @@ func (ler *loadedExtensionRuntime) cryptoDecrypt(call goja.FunctionCall) goja.Va
 	if len(call.Arguments) < 2 { return ler.vm.ToValue(map[string]interface{}{"success": false, "error": "ciphertext and key required"}) }
 	ct, err := base64.StdEncoding.DecodeString(call.Arguments[0].String())
 	if err != nil { return ler.vm.ToValue(map[string]interface{}{"success": false, "error": "invalid base64"}) }
-	key := sha256.Sum256([]byte(call.Arguments[1].String()))
+	keyData, err := decodeRuntimeBytesValue(call.Arguments[1].Export(), "utf8")
+	if err != nil { return ler.vm.ToValue(map[string]interface{}{"success": false, "error": "invalid key"}) }
+	key := sha256.Sum256(keyData)
 	decrypted, err := decryptAESGCM(ct, key[:])
 	if err != nil { return ler.vm.ToValue(map[string]interface{}{"success": false, "error": "decryption failed"}) }
 	return ler.vm.ToValue(map[string]interface{}{"success": true, "data": string(decrypted)})
@@ -312,6 +331,11 @@ func decodeRuntimeBytesValue(raw interface{}, encoding string) ([]byte, error) {
 		cloned := make([]byte, len(value))
 		copy(cloned, value)
 		return cloned, nil
+	case goja.ArrayBuffer:
+		src := value.Bytes()
+		cloned := make([]byte, len(src))
+		copy(cloned, src)
+		return cloned, nil
 	case []interface{}:
 		decoded := make([]byte, len(value))
 		for i, item := range value {
@@ -414,7 +438,10 @@ func (ler *loadedExtensionRuntime) transformBlockCipher(call goja.FunctionCall, 
 	if err != nil {
 		return ler.vm.ToValue(map[string]interface{}{"success": false, "error": err.Error()})
 	}
-	if parsedOptions.Mode != "cbc" {
+	switch parsedOptions.Mode {
+	case "cbc", "ctr":
+		// supported
+	default:
 		return ler.vm.ToValue(map[string]interface{}{"success": false, "error": fmt.Sprintf("unsupported block cipher mode: %s", parsedOptions.Mode)})
 	}
 	inputData, err := decodeRuntimeBytesValue(call.Arguments[0].Export(), parsedOptions.InputEncoding)
@@ -426,26 +453,36 @@ func (ler *loadedExtensionRuntime) transformBlockCipher(call goja.FunctionCall, 
 		return ler.vm.ToValue(map[string]interface{}{"success": false, "error": err.Error()})
 	}
 	if len(parsedOptions.IV) != block.BlockSize() {
-		return ler.vm.ToValue(map[string]interface{}{"success": false, "error": fmt.Sprintf("iv must be %d bytes for %s", block.BlockSize(), parsedOptions.Algorithm)})
-	}
-	data := inputData
-	if !decrypt && parsedOptions.Padding == "pkcs7" {
-		data = applyPKCS7Padding(data, block.BlockSize())
-	}
-	if len(data)%block.BlockSize() != 0 {
-		return ler.vm.ToValue(map[string]interface{}{"success": false, "error": fmt.Sprintf("input length must be a multiple of %d bytes", block.BlockSize())})
-	}
-	output := make([]byte, len(data))
-	if decrypt {
-		cipher.NewCBCDecrypter(block, parsedOptions.IV).CryptBlocks(output, data)
-		if parsedOptions.Padding == "pkcs7" {
-			output, err = removePKCS7Padding(output, block.BlockSize())
-			if err != nil {
-				return ler.vm.ToValue(map[string]interface{}{"success": false, "error": err.Error()})
-			}
+		ivLabel := "iv"
+		if parsedOptions.Mode == "ctr" {
+			ivLabel = "iv (counter)"
 		}
+		return ler.vm.ToValue(map[string]interface{}{"success": false, "error": fmt.Sprintf("%s must be %d bytes for %s", ivLabel, block.BlockSize(), parsedOptions.Algorithm)})
+	}
+	var output []byte
+	if parsedOptions.Mode == "ctr" {
+		output = make([]byte, len(inputData))
+		cipher.NewCTR(block, parsedOptions.IV).XORKeyStream(output, inputData)
 	} else {
-		cipher.NewCBCEncrypter(block, parsedOptions.IV).CryptBlocks(output, data)
+		data := inputData
+		if !decrypt && parsedOptions.Padding == "pkcs7" {
+			data = applyPKCS7Padding(data, block.BlockSize())
+		}
+		if len(data)%block.BlockSize() != 0 {
+			return ler.vm.ToValue(map[string]interface{}{"success": false, "error": fmt.Sprintf("input length must be a multiple of %d bytes", block.BlockSize())})
+		}
+		output = make([]byte, len(data))
+		if decrypt {
+			cipher.NewCBCDecrypter(block, parsedOptions.IV).CryptBlocks(output, data)
+			if parsedOptions.Padding == "pkcs7" {
+				output, err = removePKCS7Padding(output, block.BlockSize())
+				if err != nil {
+					return ler.vm.ToValue(map[string]interface{}{"success": false, "error": err.Error()})
+				}
+			}
+		} else {
+			cipher.NewCBCEncrypter(block, parsedOptions.IV).CryptBlocks(output, data)
+		}
 	}
 	encoded, err := encodeRuntimeBytes(output, parsedOptions.OutputEncoding)
 	if err != nil {
@@ -460,4 +497,130 @@ func (ler *loadedExtensionRuntime) encryptBlockCipher(call goja.FunctionCall) go
 
 func (ler *loadedExtensionRuntime) decryptBlockCipher(call goja.FunctionCall) goja.Value {
 	return ler.transformBlockCipher(call, true)
+}
+
+func (ler *loadedExtensionRuntime) decryptCTRSegments(call goja.FunctionCall) goja.Value {
+	fail := func(msg string) goja.Value {
+		return ler.vm.ToValue(map[string]interface{}{
+			"success": false,
+			"error":   msg,
+		})
+	}
+
+	if len(call.Arguments) < 2 {
+		return fail("data and options are required")
+	}
+
+	options := parseRuntimeOptionsArgument(call, 1)
+	if options == nil {
+		return fail("options object is required")
+	}
+
+	algorithm := strings.ToLower(runtimeOptionString(options, "algorithm", "aes"))
+	inputEncoding := strings.ToLower(runtimeOptionString(options, "inputEncoding", "base64"))
+	outputEncoding := strings.ToLower(runtimeOptionString(options, "outputEncoding", "base64"))
+	ivEncoding := strings.ToLower(runtimeOptionString(options, "ivEncoding", "base64"))
+
+	key, err := decodeRuntimeBytesString(
+		runtimeOptionString(options, "key", ""),
+		runtimeOptionString(options, "keyEncoding", "hex"),
+	)
+	if err != nil {
+		return fail(fmt.Sprintf("invalid key: %v", err))
+	}
+	if len(key) == 0 {
+		return fail("key is required")
+	}
+
+	var block cipher.Block
+	switch algorithm {
+	case "aes":
+		block, err = aes.NewCipher(key)
+	case "blowfish":
+		block, err = blowfish.NewCipher(key)
+	default:
+		return fail("unsupported algorithm: " + algorithm)
+	}
+	if err != nil {
+		return fail(err.Error())
+	}
+	blockSize := block.BlockSize()
+
+	var data []byte
+	if inputEncoding == "bytes" || inputEncoding == "raw" {
+		data, err = decodeRuntimeBytesValue(call.Arguments[0].Export(), "")
+		if err != nil {
+			return fail("invalid byte payload: " + err.Error())
+		}
+	} else {
+		data, err = decodeRuntimeBytesValue(call.Arguments[0].Export(), inputEncoding)
+		if err != nil {
+			return fail(err.Error())
+		}
+	}
+
+	rawSegments, ok := options["segments"]
+	if !ok || rawSegments == nil {
+		return fail("segments array is required")
+	}
+	segments, ok := rawSegments.([]interface{})
+	if !ok {
+		return fail("segments must be an array")
+	}
+
+	processed := 0
+	for i, rawSeg := range segments {
+		seg, ok := rawSeg.(map[string]interface{})
+		if !ok {
+			return fail(fmt.Sprintf("segment %d is not an object", i))
+		}
+
+		offset := int(runtimeOptionInt64(seg, "offset", -1))
+		size := int(runtimeOptionInt64(seg, "size", -1))
+		if offset < 0 || size < 0 {
+			return fail(fmt.Sprintf("segment %d has invalid offset/size", i))
+		}
+		if size == 0 {
+			continue
+		}
+		if offset+size > len(data) {
+			return fail(fmt.Sprintf("segment %d out of bounds (offset=%d size=%d len=%d)", i, offset, size, len(data)))
+		}
+
+		iv, err := decodeRuntimeBytesString(runtimeOptionString(seg, "iv", ""), ivEncoding)
+		if err != nil {
+			return fail(fmt.Sprintf("segment %d has invalid iv: %v", i, err))
+		}
+		if len(iv) != blockSize {
+			if len(iv) > blockSize {
+				return fail(fmt.Sprintf("segment %d iv longer than block size (%d > %d)", i, len(iv), blockSize))
+			}
+			padded := make([]byte, blockSize)
+			copy(padded, iv)
+			iv = padded
+		}
+
+		segData := data[offset : offset+size]
+		cipher.NewCTR(block, iv).XORKeyStream(segData, segData)
+		processed++
+	}
+
+	if outputEncoding == "bytes" || outputEncoding == "raw" {
+		return ler.vm.ToValue(map[string]interface{}{
+			"success":            true,
+			"data":               ler.vm.NewArrayBuffer(data),
+			"segments_processed": processed,
+		})
+	}
+
+	encoded, err := encodeRuntimeBytes(data, outputEncoding)
+	if err != nil {
+		return fail(err.Error())
+	}
+
+	return ler.vm.ToValue(map[string]interface{}{
+		"success":            true,
+		"data":               encoded,
+		"segments_processed": processed,
+	})
 }

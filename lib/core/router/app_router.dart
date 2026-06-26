@@ -3,11 +3,10 @@ import 'package:go_router/go_router.dart';
 import 'route_names.dart';
 import '../../features/splash/splash_page.dart';
 import '../../features/setup/setup_page.dart';
+import '../../features/home/home_page.dart';
 
 class AppRouter {
-  final bool setupCompleted;
-
-  AppRouter({required this.setupCompleted});
+  AppRouter();
 
   GoRouter get router => GoRouter(
     initialLocation: RouteNames.splash.path,
@@ -26,6 +25,11 @@ class AppRouter {
           transitionsBuilder: (_, animation, _, child) =>
             FadeTransition(opacity: animation, child: child),
         ),
+      ),
+      GoRoute(
+        path: RouteNames.home.path,
+        name: 'home',
+        builder: (_, _) => const HomePage(),
       ),
     ],
   );

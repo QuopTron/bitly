@@ -1,13 +1,37 @@
 package api
 
+// SearchResult holds all fields returned by extension customSearch,
+// matching upstream ExtTrackMetadata (https://github.com/spotiflacapp/SpotiFLAC-Mobile).
+// Non-empty fields are included in the JSON response; empty/zero fields are omitted.
 type SearchResult struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	Artists   string `json:"artists"`
-	AlbumName string `json:"album_name"`
-	Duration  int64  `json:"duration_ms"`
-	CoverURL  string `json:"cover_url"`
-	ISRC      string `json:"isrc"`
+	ID          string `json:"id,omitempty"`
+	Name        string `json:"name,omitempty"`
+	Artists     string `json:"artists,omitempty"`
+	AlbumName   string `json:"album_name,omitempty"`
+	AlbumArtist string `json:"album_artist,omitempty"`
+	AlbumID     string `json:"album_id,omitempty"`
+	ArtistID    string `json:"artist_id,omitempty"`
+	DurationMS  int64  `json:"duration_ms,omitempty"`
+	CoverURL    string `json:"cover_url,omitempty"`
+	Images      string `json:"images,omitempty"`
+	ReleaseDate string `json:"release_date,omitempty"`
+	TrackNumber int    `json:"track_number,omitempty"`
+	TotalTracks int    `json:"total_tracks,omitempty"`
+	DiscNumber  int    `json:"disc_number,omitempty"`
+	ISRC        string `json:"isrc,omitempty"`
+	ProviderID  string `json:"provider_id,omitempty"`
+	ItemType    string `json:"item_type,omitempty"`
+	AlbumType   string `json:"album_type,omitempty"`
+	Owner       string `json:"owner,omitempty"`
+	Label       string `json:"label,omitempty"`
+	Genre       string `json:"genre,omitempty"`
+	Composer    string `json:"composer,omitempty"`
+	AudioQuality string `json:"audio_quality,omitempty"`
+	AudioModes  string `json:"audio_modes,omitempty"`
+	TidalID     string `json:"tidal_id,omitempty"`
+	QobuzID     string `json:"qobuz_id,omitempty"`
+	DeezerID    string `json:"deezer_id,omitempty"`
+	SpotifyID   string `json:"spotify_id,omitempty"`
 }
 
 type TrackMetadata struct {

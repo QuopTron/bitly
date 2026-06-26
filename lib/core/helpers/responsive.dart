@@ -15,22 +15,25 @@ class Responsive {
     scale = (size.shortestSide / _base).clamp(0.6, 1.1);
   }
 
-  double get logoSize => (114 * scale).clamp(66, 200);
-  double get circlePadding => (23 * scale).clamp(13, 40);
-  double get titleSize => (21 * scale).clamp(15, 34);
-  double get subtitleSize => (13 * scale).clamp(11, 19);
-  double get footerSize => (9 * scale).clamp(8, 14);
-  double get retryButtonHeight => (40 * scale).clamp(32, 54);
-  double get continueButtonHeight => (44 * scale).clamp(36, 58);
-  double get languageCardVPadding => (15 * scale).clamp(11, 26);
-  double get languageCardHPadding => (19 * scale).clamp(13, 34);
-  double get languageCardMargin => (27 * scale).clamp(17, 52);
-  double get languageCardIconSize => (34 * scale).clamp(26, 46);
-  double get languageCheckSize => (13 * scale).clamp(11, 17);
-  double get spacingS => (5 * scale).clamp(4, 10);
-  double get spacingM => (11 * scale).clamp(9, 20);
-  double get spacingL => (15 * scale).clamp(11, 26);
-  double get spacingXL => (25 * scale).clamp(18, 42);
-  double get bottomPadding => (25 * scale).clamp(18, 46);
-  double get topPadding => (38 * scale).clamp(26, 68);
+  double val(double ideal, double min, double max) => (ideal * scale).clamp(min, max);
+
+  double get logoSize => val(90, 56, 150);
+  double get circlePadding => val(18, 10, 30);
+  double get titleSize => val(18, 14, 26);
+  double get subtitleSize => val(12, 10, 16);
+  double get footerSize => val(10, 9, 13);
+  double get retryButtonHeight => val(36, 28, 44);
+  double get continueButtonHeight => val(38, 32, 48);
+  double get languageCardVPadding => val(12, 9, 20);
+  double get languageCardHPadding => val(16, 11, 26);
+  double get languageCardMargin => val(22, 14, 40);
+  double get languageCardIconSize => val(28, 22, 38);
+  double get languageCheckSize => val(11, 9, 14);
+  double get spacingXS => val(4, 3, 6);
+  double get spacingS => val(6, 4, 8);
+  double get spacingM => val(10, 8, 16);
+  double get spacingL => val(14, 10, 22);
+  double get spacingXL => val(20, 16, 32);
+  double get bottomPadding => val(20, 14, 34);
+  double get topPadding => val(30, 20, 52);
 }

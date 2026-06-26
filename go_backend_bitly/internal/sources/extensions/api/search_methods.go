@@ -6,11 +6,9 @@ import (
 )
 
 func (c *ActionClient) SearchTracks(extensionID, query string, limit int) ([]SearchResult, error) {
-	params := map[string]interface{}{
-		"query": query,
-		"limit": limit,
-	}
-	callResult, err := c.runtime.CallMethod(extensionID, "searchTracks", params)
+	// IMPORTANT: Extensions define searchTracks(query, limit) with SEPARATE arguments,
+	// NOT with an object param. Passing {query, limit} would make query="[object Object]".
+	callResult, err := c.runtime.CallMethod(extensionID, "searchTracks", query, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -18,25 +16,19 @@ func (c *ActionClient) SearchTracks(extensionID, query string, limit int) ([]Sea
 		return nil, nil
 	}
 
-	raw, err := json.Marshal(callResult.Value)
-	if err != nil {
-		return nil, fmt.Errorf("SearchTracks marshal: %w", err)
+	// Try direct array
+	if arr, ok := callResult.Value.([]interface{}); ok {
+		return ParseSearchResultsFromArray(arr), nil
 	}
 
-	var tracks []SearchResult
-	if err := json.Unmarshal(raw, &tracks); err == nil {
-		return tracks, nil
+	// Try wrapper with tracks key
+	if wrapper, ok := callResult.Value.(map[string]interface{}); ok {
+		if arr, ok := wrapper["tracks"].([]interface{}); ok {
+			return ParseSearchResultsFromArray(arr), nil
+		}
 	}
 
-	var wrapper struct {
-		Tracks []SearchResult `json:"tracks"`
-		Total  int            `json:"total"`
-	}
-	if err := json.Unmarshal(raw, &wrapper); err == nil {
-		return wrapper.Tracks, nil
-	}
-
-	return nil, fmt.Errorf("SearchTracks: unexpected response format: %s", string(raw))
+	return nil, fmt.Errorf("SearchTracks: unexpected response format")
 }
 
 func (c *ActionClient) GetTrack(extensionID, trackID string) (*TrackMetadata, error) {

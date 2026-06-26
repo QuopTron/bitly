@@ -51,6 +51,28 @@ func registerConsole(vm *goja.Runtime, extensionID string) {
 		return goja.Undefined()
 	}
 
+	// Global log object with info/warn/error/debug — some extensions call log.info(...) directly
+	logObj := vm.NewObject()
+	logObj.Set("info", logFn)
+	logObj.Set("warn", func(call goja.FunctionCall) goja.Value {
+		parts := make([]string, len(call.Arguments))
+		for i, arg := range call.Arguments {
+			parts[i] = fmt.Sprintf("%v", arg.Export())
+		}
+		fmt.Printf("[Extension:%s:WARN] %s\n", extensionID, strings.Join(parts, " "))
+		return goja.Undefined()
+	})
+	logObj.Set("error", func(call goja.FunctionCall) goja.Value {
+		parts := make([]string, len(call.Arguments))
+		for i, arg := range call.Arguments {
+			parts[i] = fmt.Sprintf("%v", arg.Export())
+		}
+		fmt.Printf("[Extension:%s:ERROR] %s\n", extensionID, strings.Join(parts, " "))
+		return goja.Undefined()
+	})
+	logObj.Set("debug", logFn)
+	vm.Set("log", logObj)
+
 	consoleObj := vm.NewObject()
 	consoleObj.Set("log", logFn)
 	consoleObj.Set("info", logFn)

@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -156,7 +157,15 @@ func (ler *loadedExtensionRuntime) httpRequest(call goja.FunctionCall) goja.Valu
 	if len(call.Arguments) > 1 {
 		if opts, ok := call.Arguments[1].Export().(map[string]interface{}); ok {
 			if m, ok := opts["method"].(string); ok { method = strings.ToUpper(m) }
-			if b, ok := opts["body"]; ok { bodyStr = fmt.Sprintf("%v", b) }
+			if b, ok := opts["body"]; ok {
+			switch v := b.(type) {
+			case string: bodyStr = v
+			case map[string]interface{}, []interface{}:
+				jb, err := json.Marshal(v)
+				if err == nil { bodyStr = string(jb) }
+			default: bodyStr = fmt.Sprintf("%v", b)
+			}
+		}
 			if h, ok := opts["headers"].(map[string]interface{}); ok {
 				for k, v := range h { headers[k] = fmt.Sprintf("%v", v) }
 			}
@@ -211,7 +220,9 @@ func extractBody(call goja.FunctionCall, idx int) string {
 		switch v := arg.(type) {
 		case string: return v
 		case map[string]interface{}, []interface{}:
-			return fmt.Sprintf("%v", arg)
+			b, err := json.Marshal(v)
+			if err != nil { return "" }
+			return string(b)
 		default: return call.Arguments[idx].String()
 		}
 	}

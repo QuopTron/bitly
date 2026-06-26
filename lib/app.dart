@@ -57,7 +57,7 @@ class _BitlyAppState extends State<BitlyApp> {
           GlobalWidgetsLocalizations.delegate,
           GlobalCupertinoLocalizations.delegate,
         ],
-        routerConfig: AppRouter(setupCompleted: false).router,
+        routerConfig: AppRouter().router,
       ),
     );
   }

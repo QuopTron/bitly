@@ -40,6 +40,8 @@ var (
 //
 // Thread-safe: subsequent calls return nil if already initialised.  If a
 // previous call failed, calling again with a fixed dbPath will retry.
+//
+//export InitBackend
 func InitBackend(dbPath string) error {
 	globalDispatcherMu.Lock()
 	defer globalDispatcherMu.Unlock()
@@ -85,6 +87,8 @@ func InitBackend(dbPath string) error {
 
 // CloseBackend cleanly shuts down the database and releases resources.
 // Safe to call even if InitBackend was never called or failed.
+//
+//export CloseBackend
 func CloseBackend() {
 	globalDispatcherMu.Lock()
 	globalDispatcher = nil
@@ -106,7 +110,10 @@ func CloseBackend() {
 //
 //	result, err := gobackend.InvokeRPC("ping", "")
 //	result, err := gobackend.InvokeRPC("searchTracks", `{"query":"bohemian rhapsody"}`)
+//
+//export InvokeRPC
 func InvokeRPC(method string, paramsJSON string) (string, error) {
+	fmt.Printf("[InvokeRPC] method=%q params=%s\n", method, paramsJSON)
 	globalDispatcherMu.Lock()
 	d := globalDispatcher
 	globalDispatcherMu.Unlock()
@@ -142,6 +149,8 @@ func InvokeRPC(method string, paramsJSON string) (string, error) {
 
 // Ping is a convenience wrapper around InvokeRPC("ping", "").
 // Returns "pong" on success.
+//
+//export Ping
 func Ping() (string, error) {
 	return InvokeRPC("ping", "")
 }

@@ -15,38 +15,62 @@ import (
 func registerExtensionLifecycle(reg *rpc.Registry) {
 	reg.Register("initExtensionSystem", func(params map[string]interface{}) (interface{}, error) {
 		ensureExtensionInit()
-		cacheDir := rpc.Sp(params, "cache_dir")
-		if cacheDir != "" {
-			extManager.SetDirectories(filepath.Join(cacheDir, "extensions"), filepath.Join(cacheDir, "ext_data"))
+		extDir := rpc.Sp(params, "extensions_dir")
+		if extDir == "" {
+			extDir = rpc.Sp(params, "cache_dir")
 		}
+		dataDir := rpc.Sp(params, "data_dir")
+		if dataDir == "" && extDir != "" {
+			dataDir = filepath.Join(extDir, "..", "ext_data")
+		}
+		if extDir != "" {
+			extManager.SetDirectories(extDir, dataDir)
+		}
+		// Load bundled extensions from the Go binary as a fallback.
+		// This ensures extensions are always available even when the
+		// Android filesystem copies haven't completed yet.
+		loadEmbeddedExtensions()
 		return "ok", nil
 	})
 
 	reg.Register("loadExtensionsFromDir", func(params map[string]interface{}) (interface{}, error) {
 		ensureExtensionInit()
 		dirPath := rpc.Sp(params, "dir_path")
+		fmt.Printf("[extensions] loadExtensionsFromDir: dir=%q\n", dirPath)
 		if dirPath == "" {
+			fmt.Println("[extensions] loadExtensionsFromDir: empty dir path")
 			return "[]", nil
 		}
 		entries, err := os.ReadDir(dirPath)
 		if err != nil {
+			fmt.Printf("[extensions] loadExtensionsFromDir: cannot read dir %q: %v\n", dirPath, err)
 			return "[]", nil
 		}
+		fmt.Printf("[extensions] loadExtensionsFromDir: found %d entries\n", len(entries))
 		var loaded []*manager.Extension
 		for _, entry := range entries {
 			if !entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
 				continue
 			}
 			extDir := filepath.Join(dirPath, entry.Name())
+			fmt.Printf("[extensions] loadExtensionsFromDir: trying %q\n", extDir)
 			ext, err := extManager.LoadExtensionFromDir(extDir)
 			if err != nil {
+				fmt.Printf("[extensions] LoadExtensionFromDir failed for %q: %v\n", extDir, err)
 				continue
 			}
 			jsPath := filepath.Join(extDir, "index.js")
+			fmt.Printf("[extensions] loading %q (id=%s) into runtime from %s\n", ext.ID, ext.ID, jsPath)
 			if err := extRuntime.LoadExtensionWithDirs(ext.ID, jsPath, ext.SourceDir, ext.DataDir, ext.Manifest); err != nil {
+				fmt.Printf("[extensions] LoadExtensionWithDirs failed for %q: %v\n", ext.ID, err)
 				continue
 			}
+			fmt.Printf("[extensions] successfully loaded %q\n", ext.ID)
 			loaded = append(loaded, ext)
+		}
+		fmt.Printf("[extensions] loadExtensionsFromDir: loaded %d extensions\n", len(loaded))
+		for _, l := range loaded {
+			fmt.Printf("[extensions]   - %s (v%s, enabled=%v)\n", l.ID, l.Version, l.Enabled)
 		}
 		b, _ := json.Marshal(loaded)
 		return string(b), nil

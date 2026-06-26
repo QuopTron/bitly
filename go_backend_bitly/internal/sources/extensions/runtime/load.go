@@ -72,6 +72,11 @@ func (r *ExtensionRuntime) LoadExtensionWithDirs(extensionID, filePath, sourceDi
 		ler.downloadClient = newExtensionHTTPClient(ler, jar, 5*time.Minute)
 	}
 
+	// Register all APIs BEFORE running the extension script so they're available
+	// to registerExtension() and any initialization code.
+	ler.registerExtensionAPIs()
+	ler.registerRegisterExtension()
+
 	_, err = vm.RunString(string(jsSource))
 	if err != nil {
 		return fmt.Errorf("failed to execute extension %q: %w", extensionID, err)
@@ -81,8 +86,6 @@ func (r *ExtensionRuntime) LoadExtensionWithDirs(extensionID, filePath, sourceDi
 	if extObj == nil || goja.IsUndefined(extObj) {
 		return fmt.Errorf("extension %q does not expose an 'extension' object", extensionID)
 	}
-
-	ler.registerExtensionAPIs()
 
 	r.runtimes[extensionID] = ler
 	return nil

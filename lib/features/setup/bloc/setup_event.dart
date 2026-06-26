@@ -16,6 +16,62 @@ class SelectLanguage extends SetupEvent {
   List<Object?> get props => [locale];
 }
 
+class NextSlide extends SetupEvent {
+  const NextSlide();
+}
+
+class PreviousSlide extends SetupEvent {
+  const PreviousSlide();
+}
+
+class UsernameChanged extends SetupEvent {
+  final String username;
+
+  const UsernameChanged(this.username);
+
+  @override
+  List<Object?> get props => [username];
+}
+
+class GenerateRandomName extends SetupEvent {
+  const GenerateRandomName();
+}
+
+class SelectMode extends SetupEvent {
+  final String mode;
+
+  const SelectMode(this.mode);
+
+  @override
+  List<Object?> get props => [mode];
+}
+
+class PremiumCodeChanged extends SetupEvent {
+  final String code;
+
+  const PremiumCodeChanged(this.code);
+
+  @override
+  List<Object?> get props => [code];
+}
+
+class ValidatePremiumCode extends SetupEvent {
+  const ValidatePremiumCode();
+}
+
 class CompleteSetup extends SetupEvent {
   const CompleteSetup();
+}
+
+class CheckExistingData extends SetupEvent {
+  const CheckExistingData();
+}
+
+class AcceptExistingData extends SetupEvent {
+  final bool accept;
+
+  const AcceptExistingData(this.accept);
+
+  @override
+  List<Object?> get props => [accept];
 }

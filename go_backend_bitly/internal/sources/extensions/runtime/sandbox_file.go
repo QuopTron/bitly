@@ -395,7 +395,9 @@ func (ler *loadedExtensionRuntime) fileWrite(call goja.FunctionCall) goja.Value 
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return ler.vm.ToValue(map[string]interface{}{"success": false, "error": fmt.Sprintf("failed to create directory: %v", err)})
 	}
-	if err := os.WriteFile(fullPath, []byte(call.Arguments[1].String()), 0644); err != nil {
+	data, err := decodeRuntimeBytesValue(call.Arguments[1].Export(), "utf8")
+	if err != nil { return ler.vm.ToValue(map[string]interface{}{"success": false, "error": err.Error()}) }
+	if err := os.WriteFile(fullPath, data, 0644); err != nil {
 		return ler.vm.ToValue(map[string]interface{}{"success": false, "error": err.Error()})
 	}
 	return ler.vm.ToValue(map[string]interface{}{"success": true, "path": fullPath})
@@ -533,6 +535,7 @@ func (ler *loadedExtensionRuntime) gobackendGetAudioQuality(call goja.FunctionCa
 		"sampleRate":   q.SampleRate,
 		"totalSamples": q.TotalSamples,
 		"duration":     q.Duration,
+		"codec":        q.Codec,
 	})
 }
 

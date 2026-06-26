@@ -1,6 +1,7 @@
 enum RouteNames {
   splash('/'),
-  setup('/setup');
+  setup('/setup'),
+  home('/home');
 
   final String path;
   const RouteNames(this.path);

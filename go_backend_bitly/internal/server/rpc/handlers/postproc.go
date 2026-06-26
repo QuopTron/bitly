@@ -317,4 +317,48 @@ func RegisterPostProcessingHandlers(reg *rpc.Registry) {
 
 		return result.OutputFile, nil
 	})
+
+	reg.Register("resampleAudio", func(params map[string]interface{}) (interface{}, error) {
+		filePath := rpc.Sp(params, "file_path")
+		if filePath == "" {
+			return "", fmt.Errorf("file_path is required")
+		}
+
+		sampleRate := rpc.Sn(params, "sample_rate")
+		bitDepth := rpc.Sn(params, "bit_depth")
+
+		if sampleRate <= 0 && bitDepth <= 0 {
+			return "", fmt.Errorf("at least one of sample_rate or bit_depth must be specified")
+		}
+
+		ffmpegPath := findFFmpegPath()
+		if ffmpegPath == "" {
+			return "", fmt.Errorf("ffmpeg not found")
+		}
+
+		outputFile := rpc.Sp(params, "output_file")
+
+		conv := formats.NewConverter(ffmpegPath)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+		defer cancel()
+
+		result, err := conv.Resample(ctx, formats.ResampleRequest{
+			SourceFile: filePath,
+			SampleRate: sampleRate,
+			BitDepth:   bitDepth,
+			OutputFile: outputFile,
+		})
+		if err != nil {
+			return "", fmt.Errorf("resample failed: %w", err)
+		}
+
+		resp := map[string]interface{}{
+			"success":     true,
+			"output_file": result.OutputFile,
+			"sample_rate": result.SampleRate,
+			"bit_depth":   result.BitDepth,
+		}
+		out, _ := json.Marshal(resp)
+		return string(out), nil
+	})
 }

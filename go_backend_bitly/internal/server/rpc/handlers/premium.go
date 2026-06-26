@@ -13,11 +13,26 @@ func RegisterPremiumHandlers(reg *rpc.Registry) {
 		code := rpc.Sp(params, "codigo")
 		status, err := premium.ValidateCode(code)
 		if err != nil {
-			return nil, err
+			return map[string]interface{}{"valido": false, "error": err.Error()}, nil
+		}
+		if err := premium.CheckCodeInRegistry(code); err != nil {
+			return map[string]interface{}{"valido": false, "error": err.Error()}, nil
+		}
+		if err := premium.MarkCodeAsUsed(code); err != nil {
+			return map[string]interface{}{"valido": false, "error": fmt.Sprintf("código válido pero error al actualizar registro: %v", err)}, nil
 		}
 		return map[string]interface{}{
 			"valido": status.IsPremium,
 		}, nil
+	})
+
+	reg.Register("setGithubToken", func(params map[string]interface{}) (interface{}, error) {
+		token := rpc.Sp(params, "token")
+		if token == "" {
+			return nil, fmt.Errorf("token requerido")
+		}
+		premium.SetGithubToken(token)
+		return "ok", nil
 	})
 
 	reg.Register("verificarPremium", func(params map[string]interface{}) (interface{}, error) {
