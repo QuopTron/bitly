@@ -4,8 +4,11 @@ package deezer
 
 import (
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/zarz/bitly/go_backend/internal/httpclient"
@@ -75,6 +78,11 @@ func (c *Client) doGet(path string, params map[string]string, result interface{}
 		return err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("deezer: HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
 
 	return json.NewDecoder(resp.Body).Decode(result)
 }

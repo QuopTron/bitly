@@ -65,6 +65,43 @@ func (c *Client) SearchAlbums(query string, limit int) ([]provider.AlbumResult, 
 	return results, nil
 }
 
+// SearchPlaylists searches YouTube Music for playlists using yt-dlp.
+func (c *Client) SearchPlaylists(query string, limit int) ([]provider.PlaylistResult, error) {
+	if limit < 1 || limit > 100 {
+		limit = 10
+	}
+	searchQuery := fmt.Sprintf("ytsearchpl%d:%s", limit, query)
+	args := []string{
+		"--dump-json", "--no-warnings", "--flat-playlist",
+		"--extract-flat", "--skip-download",
+		searchQuery,
+	}
+	cmd := exec.Command(c.ytdlpPath, args...)
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("youtube: playlist search failed: %w", err)
+	}
+
+	results := make([]provider.PlaylistResult, 0)
+	for _, line := range splitLines(string(output)) {
+		var sr searchResult
+		if err := json.Unmarshal([]byte(line), &sr); err != nil {
+			continue
+		}
+		results = append(results, provider.PlaylistResult{
+			ID:         "yt:" + sr.ID,
+			Title:      sr.Title,
+			Creator:    sr.Channel,
+			CoverURL:   sr.Thumbnail,
+			Provider:   "youtube",
+		})
+		if len(results) >= limit {
+			break
+		}
+	}
+	return results, nil
+}
+
 // SearchArtists searches YouTube Music for artists (channels).
 func (c *Client) SearchArtists(query string, limit int) ([]provider.ArtistResult, error) {
 	if limit < 1 || limit > 100 {

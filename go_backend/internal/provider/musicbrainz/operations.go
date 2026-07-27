@@ -6,6 +6,15 @@ import (
 	"github.com/zarz/bitly/go_backend/internal/provider"
 )
 
+// coverArtURL constructs the Cover Art Archive URL for a MusicBrainz release.
+// Note: Not all releases have covers — returns empty if no release ID.
+func coverArtURL(releaseID string) string {
+	if releaseID == "" {
+		return ""
+	}
+	return "https://coverartarchive.org/release/" + releaseID + "/front-250.jpg"
+}
+
 // ─── API response types ──────────────────────────────────────────
 
 type mbRelease struct {
@@ -49,6 +58,7 @@ func (c *Client) SearchAlbums(query string, limit int) ([]provider.AlbumResult, 
 			Title:       r.Title,
 			ReleaseDate: r.Date,
 			TrackCount:  r.TrackCount,
+			CoverURL:    coverArtURL(r.ID),
 			Provider:    "musicbrainz",
 		}
 		if len(r.ArtistCredit) > 0 {
@@ -58,6 +68,13 @@ func (c *Client) SearchAlbums(query string, limit int) ([]provider.AlbumResult, 
 		results = append(results, ar)
 	}
 	return results, nil
+}
+
+// ─── SearchPlaylists ─────────────────────────────────────────────
+
+// SearchPlaylists — MusicBrainz does not have playlists.
+func (c *Client) SearchPlaylists(query string, limit int) ([]provider.PlaylistResult, error) {
+	return nil, nil
 }
 
 // ─── SearchArtists ───────────────────────────────────────────────
@@ -100,6 +117,7 @@ func (c *Client) GetAlbum(id string) (*provider.AlbumResult, error) {
 		Title:       resp.Title,
 		ReleaseDate: resp.Date,
 		TrackCount:  resp.TrackCount,
+		CoverURL:    coverArtURL(resp.ID),
 		Provider:    "musicbrainz",
 	}
 	if len(resp.ArtistCredit) > 0 {

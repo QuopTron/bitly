@@ -64,6 +64,56 @@ func (c *Client) SearchAlbums(query string, limit int) ([]provider.AlbumResult, 
 }
 
 // SearchArtists searches Tidal for artists.
+// PlaylistSearchItem represents a Tidal playlist search result.
+type PlaylistSearchItem struct {
+	ID          int64  `json:"id"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	Creator     struct {
+		ID   int64  `json:"id"`
+		Name string `json:"name"`
+	} `json:"creator"`
+	TrackCount int    `json:"numberOfItems"`
+	Images     []struct {
+		URL string `json:"url"`
+	} `json:"images,omitempty"`
+}
+
+// PlaylistSearchResponse is the Tidal playlist search response.
+type PlaylistSearchResponse struct {
+	Items      []PlaylistSearchItem `json:"items"`
+	TotalCount int                  `json:"totalNumberOfItems"`
+}
+
+// SearchPlaylists searches Tidal for playlists.
+func (c *Client) SearchPlaylists(query string, limit int) ([]provider.PlaylistResult, error) {
+	if limit < 1 || limit > 100 {
+		limit = 25
+	}
+	var resp PlaylistSearchResponse
+	if err := c.doGet("/search/playlists", map[string]string{
+		"query": query, "limit": strconv.Itoa(limit),
+	}, &resp); err != nil {
+		return nil, err
+	}
+	results := make([]provider.PlaylistResult, 0, len(resp.Items))
+	for _, pl := range resp.Items {
+		r := provider.PlaylistResult{
+			ID:          fmt.Sprintf("tidal:%d", pl.ID),
+			Title:       pl.Title,
+			Description: pl.Description,
+			Creator:     pl.Creator.Name,
+			TrackCount:  pl.TrackCount,
+			Provider:    "tidal",
+		}
+		if len(pl.Images) > 0 {
+			r.CoverURL = pl.Images[0].URL
+		}
+		results = append(results, r)
+	}
+	return results, nil
+}
+
 func (c *Client) SearchArtists(query string, limit int) ([]provider.ArtistResult, error) {
 	if limit < 1 || limit > 100 {
 		limit = 25

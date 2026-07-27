@@ -38,12 +38,24 @@ type ArtistResult struct {
 	Provider  string `json:"provider"`
 }
 
+// PlaylistResult is the normalized playlist result across all providers.
+type PlaylistResult struct {
+	ID          string `json:"id"`
+	Title       string `json:"title"`
+	Description string `json:"description,omitempty"`
+	Creator     string `json:"creator"`
+	TrackCount  int    `json:"trackCount"`
+	CoverURL    string `json:"coverUrl,omitempty"`
+	Provider    string `json:"provider"`
+}
+
 // Provider defines the interface all music providers must implement.
 type Provider interface {
 	Name() string
 	SearchTracks(query string, limit int) ([]TrackResult, error)
 	SearchAlbums(query string, limit int) ([]AlbumResult, error)
 	SearchArtists(query string, limit int) ([]ArtistResult, error)
+	SearchPlaylists(query string, limit int) ([]PlaylistResult, error)
 	GetTrack(id string) (*TrackResult, error)
 	GetTrackByISRC(isrc string) (*TrackResult, error)
 	GetAlbum(id string) (*AlbumResult, error)

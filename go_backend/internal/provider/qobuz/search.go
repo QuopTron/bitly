@@ -77,6 +77,12 @@ func (c *Client) SearchAlbums(query string, limit int) ([]provider.AlbumResult, 
 	return results, nil
 }
 
+// SearchPlaylists searches Qobuz for playlists.
+// Qobuz does not have a dedicated playlist search endpoint.
+func (c *Client) SearchPlaylists(query string, limit int) ([]provider.PlaylistResult, error) {
+	return nil, nil
+}
+
 // SearchArtists searches Qobuz for artists.
 func (c *Client) SearchArtists(query string, limit int) ([]provider.ArtistResult, error) {
 	if limit < 1 || limit > 100 {

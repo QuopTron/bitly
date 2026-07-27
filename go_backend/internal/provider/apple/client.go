@@ -74,6 +74,19 @@ type appleArtist struct {
 	} `json:"attributes"`
 }
 
+type applePlaylist struct {
+	ID   string `json:"id"`
+	Attributes struct {
+		Name        string `json:"name"`
+		Description string `json:"description"`
+		CuratorName string `json:"curatorName"`
+		TrackCount  int    `json:"trackCount"`
+		Artwork     struct {
+			URL string `json:"url"`
+		} `json:"artwork"`
+	} `json:"attributes"`
+}
+
 func (c *Client) SearchTracks(query string, limit int) ([]provider.TrackResult, error) {
 	if c.token == "" {
 		return nil, fmt.Errorf("apple: no developer token set")

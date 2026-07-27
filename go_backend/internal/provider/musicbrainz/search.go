@@ -53,6 +53,7 @@ func (c *Client) SearchTracks(query string, limit int) ([]provider.TrackResult, 
 		if len(r.Releases) > 0 {
 			tr.Album = r.Releases[0].Title
 			tr.AlbumID = "mb:" + r.Releases[0].ID
+			tr.CoverURL = coverArtURL(r.Releases[0].ID)
 		}
 		results = append(results, tr)
 	}

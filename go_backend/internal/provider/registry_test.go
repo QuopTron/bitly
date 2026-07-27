@@ -9,10 +9,11 @@ type mockProvider struct {
 	name string
 }
 
-func (m *mockProvider) Name() string                                         { return m.name }
-func (m *mockProvider) SearchTracks(q string, l int) ([]TrackResult, error)  { return nil, nil }
-func (m *mockProvider) SearchAlbums(q string, l int) ([]AlbumResult, error)  { return nil, nil }
-func (m *mockProvider) SearchArtists(q string, l int) ([]ArtistResult, error){ return nil, nil }
+func (m *mockProvider) Name() string                                           { return m.name }
+func (m *mockProvider) SearchTracks(q string, l int) ([]TrackResult, error)    { return nil, nil }
+func (m *mockProvider) SearchAlbums(q string, l int) ([]AlbumResult, error)    { return nil, nil }
+func (m *mockProvider) SearchArtists(q string, l int) ([]ArtistResult, error)  { return nil, nil }
+func (m *mockProvider) SearchPlaylists(q string, l int) ([]PlaylistResult, error){ return nil, nil }
 func (m *mockProvider) GetTrack(id string) (*TrackResult, error)            { return nil, nil }
 func (m *mockProvider) GetTrackByISRC(isrc string) (*TrackResult, error)    { return nil, nil }
 func (m *mockProvider) GetAlbum(id string) (*AlbumResult, error)            { return nil, nil }

@@ -95,6 +95,50 @@ func (c *Client) SearchAlbums(query string, limit int) ([]provider.AlbumResult, 
 	return results, nil
 }
 
+func (c *Client) SearchPlaylists(query string, limit int) ([]provider.PlaylistResult, error) {
+	type playlistSearchItem struct {
+		ID          int64  `json:"id"`
+		Title       string `json:"title"`
+		Description string `json:"description"`
+		TrackCount  int    `json:"nb_tracks"`
+		Picture     string `json:"picture"`
+		PictureSmall string `json:"picture_small"`
+		Creator     struct {
+			Name string `json:"name"`
+		} `json:"creator"`
+	} 
+	type playlistSearchResp struct {
+		Data  []playlistSearchItem `json:"data"`
+		Total int                  `json:"total"`
+	}
+	if limit < 1 || limit > 100 {
+		limit = 25
+	}
+	var resp playlistSearchResp
+	if err := c.doGet("/search/playlist", map[string]string{
+		"q": query, "limit": fmt.Sprintf("%d", limit),
+	}, &resp); err != nil {
+		return nil, err
+	}
+	results := make([]provider.PlaylistResult, 0, len(resp.Data))
+	for _, pl := range resp.Data {
+		cover := pl.Picture
+		if cover == "" {
+			cover = pl.PictureSmall
+		}
+		results = append(results, provider.PlaylistResult{
+			ID:          fmt.Sprintf("deezer:%d", pl.ID),
+			Title:       pl.Title,
+			Description: pl.Description,
+			Creator:     pl.Creator.Name,
+			TrackCount:  pl.TrackCount,
+			CoverURL:    cover,
+			Provider:    "deezer",
+		})
+	}
+	return results, nil
+}
+
 func (c *Client) SearchArtists(query string, limit int) ([]provider.ArtistResult, error) {
 	refs, err := c.searchArtists(query, limit)
 	if err != nil {

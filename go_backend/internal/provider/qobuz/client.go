@@ -4,6 +4,7 @@ package qobuz
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -114,5 +115,11 @@ func (c *Client) doGet(path string, params map[string]string, result interface{}
 		return err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("qobuz: HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+
 	return json.NewDecoder(resp.Body).Decode(result)
 }
