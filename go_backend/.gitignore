@@ -1,0 +1,29 @@
+# Build outputs
+/build/
+*.exe
+*.aar
+*.xcframework
+*.dll
+*.so
+*.dylib
+
+# Go
+*.test
+*.test.exe
+*.out
+go.sum
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Binary dependencies (downloaded at runtime)
+/bin/
+/ffmpeg*
+/yt-dlp*
+
+# Temp files
+*.tmp
+*~
