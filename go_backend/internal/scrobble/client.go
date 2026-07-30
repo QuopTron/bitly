@@ -21,10 +21,12 @@ type Track struct {
 
 // Client manages scrobbling to multiple services.
 type Client struct {
-	lastfmKey string
+	lastfmKey    string
 	lastfmSecret string
-	lbToken   string
-	http      *http.Client
+	lbToken      string
+	lastfmURL    string // override para tests
+	lbURL        string // override para tests
+	http         *http.Client
 }
 
 // NewClient creates a scrobble client.
@@ -53,7 +55,11 @@ func (c *Client) ScrobbleLastFM(track Track, sessionKey string) error {
 		"duration":     {fmt.Sprintf("%d", track.DurationMs/1000)},
 		"format":       {"json"},
 	}
-	req, _ := http.NewRequest("POST", "https://ws.audioscrobbler.com/2.0/",
+	apiURL := c.lastfmURL
+	if apiURL == "" {
+		apiURL = "https://ws.audioscrobbler.com/2.0/"
+	}
+	req, _ := http.NewRequest("POST", apiURL,
 		strings.NewReader(data.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
@@ -87,7 +93,11 @@ func (c *Client) ScrobbleListenBrainz(track Track) error {
 		},
 	}
 	body, _ := json.Marshal(payload)
-	req, _ := http.NewRequest("POST", "https://api.listenbrainz.org/1/submit-listens",
+	apiURL := c.lbURL
+	if apiURL == "" {
+		apiURL = "https://api.listenbrainz.org/1/submit-listens"
+	}
+	req, _ := http.NewRequest("POST", apiURL,
 		strings.NewReader(string(body)))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Token "+c.lbToken)

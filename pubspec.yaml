@@ -69,6 +69,13 @@ dependencies:
 
   # Notifications
   flutter_local_notifications: ^21.0.0
+  drift: ^2.34.2
+
+  # Crypto (HMAC for premium codes)
+  crypto: ^3.0.4
+
+  # WebView for Cloudflare verification
+  webview_flutter: ^4.0.0
 
 dev_dependencies:
   flutter_test:
@@ -80,7 +87,6 @@ dev_dependencies:
   custom_lint: ^0.8.1
   json_serializable: ^6.11.2
   flutter_launcher_icons: ^0.14.3
-  webview_flutter: ^4.0.0
 
 flutter_launcher_icons:
   android: true

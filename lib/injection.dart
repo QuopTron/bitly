@@ -1,20 +1,56 @@
 import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
-import 'core/backend/backend_service.dart';
-import 'core/backend/android_backend.dart';
-import 'core/backend/desktop_backend.dart';
-import 'core/backend/ios_backend.dart';
-import 'features/splash/bloc/splash_bloc.dart';
-import 'features/setup/bloc/setup_bloc.dart';
+import 'backend/rpc/backend_service.dart';
+import 'backend/rpc/android_backend.dart';
+import 'backend/rpc/desktop_backend.dart';
+import 'backend/rpc/ios_backend.dart';
+import 'backend/database/app_database.dart';
+import 'backend/cache/settings_cache.dart';
+import 'backend/cache/premium_cache.dart';
+import 'backend/cache/download_cache.dart';
+import 'backend/cache/favorite_cache.dart';
+import 'backend/cache/playback_cache.dart';
+import 'backend/cache/detail_cache.dart';
+import 'backend/cache/detail_memory_cache.dart';
+import 'backend/cache/search_cache.dart';
+import 'backend/cache/library_cache.dart';
+import 'backend/cache/collection_cache.dart';
+import 'backend/services/queue_cubit.dart';
+import 'backend/services/player_cubit.dart';
+import 'backend/services/download_cubit.dart';
+import 'backend/services/like_cubit.dart';
+import 'backend/services/playlist_cubit.dart';
+import 'backend/services/album_domain_service.dart';
+import 'backend/services/playlist_domain_service.dart';
+import 'frontend/features/splash/bloc/splash_bloc.dart';
+import 'frontend/features/setup/bloc/setup_bloc.dart';
 
 final sl = GetIt.instance;
 
 Future<void> configureDependencies() async {
+  // ── 1. Core values ───────────────────────────────────────────
   sl.registerLazySingleton<ValueNotifier<Locale>>(
     () => ValueNotifier(const Locale('es')),
   );
 
+  // ── 2. Database ───────────────────────────────────────────────
+  final db = await AppDatabase.create();
+  sl.registerLazySingleton<AppDatabase>(() => db);
+
+  // ── 3. Caches (dependen de AppDatabase) ───────────────────────
+  sl.registerLazySingleton<SettingsCache>(() => SettingsCache(db));
+  sl.registerLazySingleton<PremiumCache>(() => PremiumCache(db));
+  sl.registerLazySingleton<DownloadCache>(() => DownloadCache(db));
+  sl.registerLazySingleton<FavoriteCache>(() => FavoriteCache(db));
+  sl.registerLazySingleton<PlaybackCache>(() => PlaybackCache(db));
+  sl.registerLazySingleton<DetailCache>(() => DetailCache(db));
+  sl.registerLazySingleton<DetailMemoryCache>(() => DetailMemoryCache());
+  sl.registerLazySingleton<SearchCache>(() => SearchCache(db));
+  sl.registerLazySingleton<LibraryCache>(() => LibraryCache(db));
+  sl.registerLazySingleton<CollectionCache>(() => CollectionCache(db));
+
+  // ── 4. Backend (plataforma) ───────────────────────────────────
   final sep = Platform.pathSeparator;
   BackendService backend;
   if (Platform.isAndroid) {
@@ -37,9 +73,20 @@ Future<void> configureDependencies() async {
   }
   sl.registerLazySingleton<BackendService>(() => backend);
 
-  sl.registerFactory(() => SplashBloc(sl<BackendService>()));
+  // ── 5. Domain Services (dependen de BackendService + caches) ──
+  sl.registerLazySingleton<AlbumDomainService>(() => AlbumDomainService(backend));
+  sl.registerLazySingleton<PlaylistDomainService>(() => PlaylistDomainService(backend));
+
+  // ── 6. Cubits (orden: QueueCubit no tiene deps) ───────────────
+  sl.registerLazySingleton<QueueCubit>(() => QueueCubit());
+  sl.registerLazySingleton<PlayerCubit>(() => PlayerCubit(sl<QueueCubit>()));
+  sl.registerLazySingleton<DownloadCubit>(() => DownloadCubit(backend));
+  sl.registerLazySingleton<LikeCubit>(() => LikeCubit(backend));
+  sl.registerLazySingleton<PlaylistCubit>(() => PlaylistCubit(sl<PlaylistDomainService>()));
+
+  // ── 7. Blocs (factory para que cada screen tenga su instancia) ─
+  sl.registerFactory(() => SplashBloc(backend));
   sl.registerFactory(() => SetupBloc(
-    sl<BackendService>(),
     sl<ValueNotifier<Locale>>(),
   ));
 }

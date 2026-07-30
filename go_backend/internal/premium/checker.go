@@ -102,10 +102,12 @@ func (c *Checker) ValidateCode(code string) error {
 
 	// HMAC-based validation for generated codes
 	// Format: BITLY-XXXXXXXX-XXXXXX (prefix + payload + signature)
+	// HMAC is computed over the payload only (e.g. "FRIENDS2026"),
+	// matching GenerateCode which signs just the payload without the BITLY- prefix.
 	if strings.HasPrefix(code, "BITLY-") {
 		parts := strings.Split(code, "-")
 		if len(parts) == 3 {
-			payload := parts[0] + "-" + parts[1]
+			payload := parts[1]
 			sig := parts[2]
 			if validateHMAC(payload, sig) {
 				c.status = Status{

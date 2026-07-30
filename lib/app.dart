@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'core/theme/app_theme.dart';
-import 'core/router/app_router.dart';
-import 'core/localization/app_localizations.dart';
-import 'features/splash/bloc/splash_bloc.dart';
-import 'features/setup/bloc/setup_bloc.dart';
+import 'frontend/shared/theme/app_theme.dart';
+import 'router/app_router.dart';
+import 'frontend/l10n/app_localizations.dart';
+import 'frontend/features/splash/bloc/splash_bloc.dart';
+import 'frontend/features/setup/bloc/setup_bloc.dart';
 import 'injection.dart';
 
 class BitlyApp extends StatefulWidget {
