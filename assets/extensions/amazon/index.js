@@ -2919,23 +2919,36 @@ function isLikelySpotifyId(id) {
   return typeof id === "string" && /^[A-Za-z0-9]{22}$/.test(id.trim());
 }
 
-function resolveAmazonURL(isrc, spotifyID, deezerID) {
-  // Deezer first: the app resolves a Deezer ID from the ISRC reliably and
-  // SongLink maps it to Amazon without depending on the zarz.moe resolve
-  // endpoint, which can be slow or down and otherwise burns the whole timeout.
+function resolveAmazonURL(isrc, spotifyID, deezerID, tidalID, qobuzID) {
+  // Non-Spotify cross-provider ids first (Tidal/Qobuz/Deezer): tracks from
+  // THOSE feeds resolve here via a single SongLink lookup. The source
+  // provider's own id is the strongest signal (it came from that provider's
+  // catalog), so try them in source order, then Spotify, then ISRC.
+  var attempts = [];
+  if (tidalID) {
+    attempts.push({ label: "Tidal", url: "https://tidal.com/track/" + tidalID });
+  }
+  if (qobuzID) {
+    attempts.push({ label: "Qobuz", url: "https://play.qobuz.com/track/" + qobuzID });
+  }
   if (deezerID) {
-    L("info", "[Amazon] Resolving via Deezer ID:", deezerID);
-    var deezerURL = "https://www.deezer.com/track/" + deezerID;
-    var data = callSongLink(CONFIG.songlinkBaseURL + "?url=" + encodeURIComponent(deezerURL) + "&userCountry=US");
+    attempts.push({ label: "Deezer", url: "https://www.deezer.com/track/" + deezerID });
+  }
+  for (var i = 0; i < attempts.length; i++) {
+    L("info", "[Amazon] Resolving via " + attempts[i].label + " ID:", attempts[i].url);
+    var data = callSongLink(CONFIG.songlinkBaseURL + "?url=" + encodeURIComponent(attempts[i].url) + "&userCountry=US");
     var url = extractAmazonURLFromSongLink(data);
     if (url) {
-      L("info", "[Amazon] Found Amazon URL via Deezer:", url);
+      L("info", "[Amazon] Found Amazon URL via " + attempts[i].label + ":", url);
       return url;
     }
   }
-  // Spotify next, but only for genuine Spotify IDs. Metadata sourced from Apple
-  // Music and others can place a numeric foreign ID in this field, which
-  // produces an invalid Spotify URL and poisons every Spotify-based lookup.
+  // Spotify stays on its proven path: signed zarz.moe /resolve FIRST (fast,
+  // no rate-limit risk), then the SongLink page, then the SongLink API. Do
+  // NOT reorder this — it is the main Spotify-feed resolution route.
+  // Spotify only for genuine Spotify IDs. Metadata sourced from Apple Music
+  // and others can place a numeric foreign ID in this field, which produces
+  // an invalid Spotify URL and poisons every Spotify-based lookup.
   if (isLikelySpotifyId(spotifyID)) {
     L("info", "[Amazon] Resolving via Spotify ID:", spotifyID);
     var url = callZarzMoeResolve(spotifyID);
@@ -3422,6 +3435,9 @@ registerExtension({
     L("info", "[Amazon] checkAvailability:", isrc, trackName, artistName);
     var spotifyID = (options && options.spotify_id) ? options.spotify_id : null;
     var deezerID = (options && options.deezer_id) ? options.deezer_id : null;
+    var tidalID = (options && options.tidal_id) ? options.tidal_id : null;
+    var qobuzID = (options && options.qobuz_id) ? options.qobuz_id : null;
+    var durationMS = (options && options.duration_ms) ? Number(options.duration_ms) || 0 : 0;
 
     // Cek apakah spotifyID sebenarnya sudah ASIN (dari handleUrl/getAlbum)
     if (spotifyID && ASIN_REGEX.test(spotifyID)) {
@@ -3430,7 +3446,7 @@ registerExtension({
     }
 
     // Fallback: resolve ASIN via SongLink (untuk track dari sumber lain)
-    var amazonURL = resolveAmazonURL(isrc, spotifyID, deezerID);
+    var amazonURL = resolveAmazonURL(isrc, spotifyID, deezerID, tidalID, qobuzID, durationMS);
     if (!amazonURL) {
       return { available: false, reason: "not_found_on_amazon" };
     }

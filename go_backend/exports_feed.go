@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/zarz/bitly/go_backend/internal/cooldown"
 	"github.com/zarz/bitly/go_backend/internal/provider"
 )
 
@@ -328,29 +329,84 @@ func Search(payload string) string {
 	return searchProvider(p, query, limit, searchType)
 }
 
-// searchAllSource searches all providers for a given type, using searchAll (parallel + timeout).
+// orderedSearchProviders returns providers ordered for a "Todas" search:
+// the manifest primary search extension first (SpotiFLAC's
+// defaultSearchExtension — our deezer), then every other registered provider.
+// This lets the sequential search below try the best source first and only
+// fall through when it returns nothing (e.g. deezer rate-limited), instead of
+// firing every search API in parallel and tripping 429s on each keystroke.
+func orderedSearchProviders() []provider.Provider {
+	if reg == nil {
+		return nil
+	}
+	all := reg.All()
+	primary := map[string]bool{}
+	for _, e := range bundledExts {
+		if e.Search.Primary {
+			primary[e.ID] = true
+		}
+	}
+	ordered := make([]provider.Provider, 0, len(all))
+	seen := map[string]bool{}
+	add := func(p provider.Provider) {
+		if p == nil || seen[p.Name()] {
+			return
+		}
+		seen[p.Name()] = true
+		ordered = append(ordered, p)
+	}
+	for _, p := range all {
+		if primary[p.Name()] {
+			add(p)
+		}
+	}
+	for _, p := range all {
+		if !primary[p.Name()] {
+			add(p)
+		}
+	}
+	return ordered
+}
+
+// searchAllSourceBest searches providers sequentially in primary-first order
+// and stops once enough results are collected. A rate-limited (cooled) source
+// is skipped fast, and a healthy primary fills the screen — the others only
+// step in when the primary returns nothing. This replaces the old
+// fire-all-APIs-in-parallel mix that blanked search results on 429s.
+func searchAllSourceBest(query string, limit int, searchType string) string {
+	items := make([]FeedItemGo, 0, limit)
+	sourcesUsed := 0
+	for _, p := range orderedSearchProviders() {
+		if cooldown.IsCooled(p.Name()) {
+			continue
+		}
+		res := searchProvider(p, query, limit, searchType)
+		var batch []FeedItemGo
+		if err := json.Unmarshal([]byte(res), &batch); err == nil && len(batch) > 0 {
+			items = append(items, batch...)
+			sourcesUsed++
+			// Primary source healthy: its results fill the screen (SpotiFLAC
+			// searches a single primary source). Fall through only when the
+			// primary came back empty or a second source is needed to fill.
+			if sourcesUsed >= 2 || len(items) >= limit {
+				break
+			}
+		}
+	}
+	data, _ := json.Marshal(items)
+	return string(data)
+}
+
+// searchAllSource searches all providers for a given type, using the
+// sequential primary-first strategy (never firing every API in parallel).
+// Accepts the manifest filter ids in singular/plural form ("track"/"tracks",
+// "song"/"songs", ...) plus "all"/"" for the combined mix.
 func searchAllSource(query string, limit int, searchType string) string {
 	switch searchType {
-	case "track":
-		raw := searchAll(query, limit, func(p provider.Provider, q string, l int) ([]provider.TrackResult, error) {
-			return p.SearchTracks(q, l)
-		})
-		return searchRawToJSON(raw, trackToFeedItem)
-	case "album":
-		raw := searchAll(query, limit, func(p provider.Provider, q string, l int) ([]provider.AlbumResult, error) {
-			return p.SearchAlbums(q, l)
-		})
-		return searchRawToJSON(raw, albumToFeedItem)
-	case "artist":
-		raw := searchAll(query, limit, func(p provider.Provider, q string, l int) ([]provider.ArtistResult, error) {
-			return p.SearchArtists(q, l)
-		})
-		return searchRawToJSON(raw, artistToFeedItem)
-	case "playlist":
-		raw := searchAll(query, limit, func(p provider.Provider, q string, l int) ([]provider.PlaylistResult, error) {
-			return p.SearchPlaylists(q, l)
-		})
-		return searchRawToJSON(raw, playlistToFeedItem)
+	case "track", "tracks", "song", "songs", "album", "albums", "artist", "artists", "playlist", "playlists":
+		return searchAllSourceBest(query, limit, searchType)
+	case "all", "":
+		return searchAllSourceBest(query, limit, "all")
 	default:
 		return `[]`
 	}
@@ -359,6 +415,11 @@ func searchAllSource(query string, limit int, searchType string) string {
 // searchProvider searches a single provider for a given type.
 func searchProvider(p provider.Provider, query string, limit int, searchType string) string {
 	items := make([]FeedItemGo, 0)
+
+	// Circuit breaker: a provider cooling down from rate-limits returns fast.
+	if cooldown.IsCooled(p.Name()) {
+		return `[]`
+	}
 
 	switch searchType {
 	case "all":
@@ -430,6 +491,10 @@ func combinedToJSON(res []provider.CombinedResult, source string) string {
 // back to a plain track search so the source still returns something.
 func searchProviderAll(p provider.Provider, query string, limit int) string {
 	items := make([]FeedItemGo, 0)
+	// Circuit breaker: a provider cooling down from rate-limits returns fast.
+	if cooldown.IsCooled(p.Name()) {
+		return `[]`
+	}
 	if ep, ok := p.(*provider.ExtensionProvider); ok {
 		if res, err := ep.CombinedSearch(query, limit); err == nil && len(res) > 0 {
 			for _, c := range res {

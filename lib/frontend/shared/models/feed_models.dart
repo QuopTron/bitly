@@ -12,6 +12,13 @@ class FeedItem {
   final int? totalTracks;
   final String? owner;
   final String? isrc;
+  /// Cross-provider ids carried by detail tracks (album/artist/playlist) so
+  /// playback can resolve on ANY extension via CheckAvailability instead of a
+  /// slow name search.
+  final String? spotifyId;
+  final String? deezerId;
+  final String? tidalId;
+  final String? qobuzId;
 
   const FeedItem({
     required this.id,
@@ -27,6 +34,10 @@ class FeedItem {
     this.totalTracks,
     this.owner,
     this.isrc,
+    this.spotifyId,
+    this.deezerId,
+    this.tidalId,
+    this.qobuzId,
   });
 
   factory FeedItem.fromJson(Map<String, dynamic> json) {
@@ -44,6 +55,10 @@ class FeedItem {
       totalTracks: json['total_tracks'] as int?,
       owner: json['owner'] as String?,
       isrc: json['isrc'] as String?,
+      spotifyId: json['spotify_id'] as String?,
+      deezerId: json['deezer_id'] as String?,
+      tidalId: json['tidal_id'] as String?,
+      qobuzId: json['qobuz_id'] as String?,
     );
   }
 
@@ -61,6 +76,10 @@ class FeedItem {
         'total_tracks': totalTracks,
         'owner': owner,
         'isrc': isrc,
+        'spotify_id': spotifyId,
+        'deezer_id': deezerId,
+        'tidal_id': tidalId,
+        'qobuz_id': qobuzId,
       };
 }
 
@@ -90,12 +109,17 @@ class SearchFilterConfig {
 /// extension intends (SpotiFLAC principle via the Bitly backend flow).
 class SourceSearchConfig {
   final String source;
+  /// Mirrors the manifest's searchBehavior.primary — the default search source
+  /// (SpotiFLAC's defaultSearchExtension). Used to order the source bubbles and
+  /// hint at which source the backend tries first on a "Todas" search.
+  final bool primary;
   final String thumbnailRatio;
   final String placeholder;
   final List<SearchFilterConfig> filters;
 
   const SourceSearchConfig({
     required this.source,
+    this.primary = false,
     this.thumbnailRatio = '',
     this.placeholder = '',
     this.filters = const [],
@@ -104,6 +128,7 @@ class SourceSearchConfig {
   factory SourceSearchConfig.fromJson(Map<String, dynamic> json) {
     return SourceSearchConfig(
       source: json['source'] as String? ?? '',
+      primary: json['primary'] as bool? ?? false,
       thumbnailRatio: json['thumbnailRatio'] as String? ?? '',
       placeholder: json['placeholder'] as String? ?? '',
       filters: (json['filters'] as List?)

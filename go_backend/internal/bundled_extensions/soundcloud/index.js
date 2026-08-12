@@ -1262,6 +1262,26 @@ function findBestMatch(
       score += matching.compareDuration(targetDurationMs, t.duration) * 20;
     }
 
+    // Prefer tracks with a full-length transcoding. Re-uploads/remixes often
+    // only expose a 30s snipped preview — picking one burns the whole fallback
+    // on "no transcoding" for every format. A full transcoding gets a strong
+    // bonus; a preview-only track is heavily penalized (but not excluded, in
+    // case every candidate is a preview and duration/title still need to win).
+    var hasFull = false;
+    var media = t.media || {};
+    var trs = media.transcodings || [];
+    for (var j = 0; j < trs.length; j++) {
+      if (trs[j] && !trs[j].snipped) {
+        hasFull = true;
+        break;
+      }
+    }
+    if (hasFull) {
+      score += 25;
+    } else if (trs.length > 0) {
+      score -= 40;
+    }
+
     if (score > bestScore) {
       bestScore = score;
       bestTrack = t;

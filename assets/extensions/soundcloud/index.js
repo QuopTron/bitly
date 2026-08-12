@@ -970,21 +970,38 @@ function resolveStreamURL(trackID, audioFormat, allowHls, allowPreview) {
   try {
     trackData = scGet("tracks/" + trackID);
   } catch (e) {
-    return { url: "", format: audioFormat, error: "Could not fetch track data: " + e.message };
+    return {
+      url: "",
+      format: audioFormat,
+      error: "Could not fetch track data: " + e.message,
+    };
   }
   if (!trackData) {
-    return { url: "", format: audioFormat, error: "Track not found: " + trackID };
+    return {
+      url: "",
+      format: audioFormat,
+      error: "Track not found: " + trackID,
+    };
   }
 
   var transcodings = (trackData.media && trackData.media.transcodings) || [];
   var trackAuth = trackData.track_authorization || "";
 
   if (transcodings.length === 0 || !trackAuth) {
-    return { url: "", format: audioFormat, error: "No transcodings or track_authorization available" };
+    return {
+      url: "",
+      format: audioFormat,
+      error: "No transcodings or track_authorization available",
+    };
   }
 
   // Pick the best transcoding matching requested format
-  var bestTranscoding = pickTranscoding(transcodings, audioFormat, allowHls, allowPreview);
+  var bestTranscoding = pickTranscoding(
+    transcodings,
+    audioFormat,
+    allowHls,
+    allowPreview,
+  );
   if (!bestTranscoding) {
     log.warn(
       "[SC] no transcoding for " +
@@ -1004,21 +1021,21 @@ function resolveStreamURL(trackID, audioFormat, allowHls, allowPreview) {
                 q: t.quality,
                 sn: !!t.snipped,
               };
-            })
-        )
+            }),
+        ),
     );
-    return { url: "", format: audioFormat, error: "No suitable transcoding found for format: " + audioFormat };
+    return {
+      url: "",
+      format: audioFormat,
+      error: "No suitable transcoding found for format: " + audioFormat,
+    };
   }
 
   try {
     var streamInfoUrl = bestTranscoding.url;
     var sep = streamInfoUrl.indexOf("?") === -1 ? "?" : "&";
     streamInfoUrl +=
-      sep +
-      "client_id=" +
-      state.clientId +
-      "&track_authorization=" +
-      trackAuth;
+      sep + "client_id=" + state.clientId + "&track_authorization=" + trackAuth;
 
     var streamResp = http.get(streamInfoUrl, {
       "User-Agent": utils.randomUserAgent(),
@@ -1037,11 +1054,16 @@ function resolveStreamURL(trackID, audioFormat, allowHls, allowPreview) {
 
     var streamData = JSON.parse(streamResp.body);
     if (!streamData.url) {
-      return { url: "", format: audioFormat, error: "Stream response missing url" };
+      return {
+        url: "",
+        format: audioFormat,
+        error: "Stream response missing url",
+      };
     }
 
     var actualFormat = audioFormat;
-    var mime = (bestTranscoding.format && bestTranscoding.format.mime_type) || "";
+    var mime =
+      (bestTranscoding.format && bestTranscoding.format.mime_type) || "";
     if (mime.indexOf("opus") !== -1) {
       actualFormat = "opus";
     } else if (mime.indexOf("mpeg") !== -1 || mime.indexOf("mp3") !== -1) {
@@ -1054,11 +1076,15 @@ function resolveStreamURL(trackID, audioFormat, allowHls, allowPreview) {
         actualFormat +
         ", protocol: " +
         ((bestTranscoding.format && bestTranscoding.format.protocol) || "?") +
-        ")"
+        ")",
     );
     return { url: streamData.url, format: actualFormat, error: "" };
   } catch (e) {
-    return { url: "", format: audioFormat, error: "Stream URL fetch failed: " + e.message };
+    return {
+      url: "",
+      format: audioFormat,
+      error: "Stream URL fetch failed: " + e.message,
+    };
   }
 }
 
@@ -1236,6 +1262,26 @@ function findBestMatch(
       score += matching.compareDuration(targetDurationMs, t.duration) * 20;
     }
 
+    // Prefer tracks with a full-length transcoding. Re-uploads/remixes often
+    // only expose a 30s snipped preview — picking one burns the whole fallback
+    // on "no transcoding" for every format. A full transcoding gets a strong
+    // bonus; a preview-only track is heavily penalized (but not excluded, in
+    // case every candidate is a preview and duration/title still need to win).
+    var hasFull = false;
+    var media = t.media || {};
+    var trs = media.transcodings || [];
+    for (var j = 0; j < trs.length; j++) {
+      if (trs[j] && !trs[j].snipped) {
+        hasFull = true;
+        break;
+      }
+    }
+    if (hasFull) {
+      score += 25;
+    } else if (trs.length > 0) {
+      score -= 40;
+    }
+
     if (score > bestScore) {
       bestScore = score;
       bestTrack = t;
@@ -1271,14 +1317,25 @@ function getDownloadUrl(trackID, quality) {
   try {
     var qualityParts = String(quality || "mp3").split("_");
     var audioFormat = qualityParts[0] || "mp3";
-    var resolved = resolveStreamURL(String(trackID || "").trim(), audioFormat, true, false);
+    var resolved = resolveStreamURL(
+      String(trackID || "").trim(),
+      audioFormat,
+      true,
+      false,
+    );
     if (resolved && resolved.url) {
       log.info("[SC] getDownloadUrl resolved stream for", trackID);
       return resolved.url;
     }
-    log.warn("[SC] getDownloadUrl failed:", resolved && resolved.error ? resolved.error : "no stream");
+    log.warn(
+      "[SC] getDownloadUrl failed:",
+      resolved && resolved.error ? resolved.error : "no stream",
+    );
   } catch (e) {
-    log.warn("[SC] getDownloadUrl exception:", e && e.message ? e.message : String(e));
+    log.warn(
+      "[SC] getDownloadUrl exception:",
+      e && e.message ? e.message : String(e),
+    );
   }
   return null;
 }
@@ -1366,7 +1423,9 @@ function searchTracks(query, limit) {
 // Unified cover URL: prefer t500x500 for a good balance of quality/size.
 function feedCover(url) {
   if (!url) return "";
-  return url.replace("-large.", "-t500x500.").replace("-original.", "-t500x500.");
+  return url
+    .replace("-large.", "-t500x500.")
+    .replace("-original.", "-t500x500.");
 }
 
 function extractChartsItems(data, maxItems) {
@@ -1380,7 +1439,12 @@ function extractChartsItems(data, maxItems) {
     // Charts entries can be tracks or playlists
     var item = entry.track || entry.playlist || entry;
     if (!item || !item.id) continue;
-    var isTrack = !!(item.genre || item.duration || item.full_duration || entry.track);
+    var isTrack = !!(
+      item.genre ||
+      item.duration ||
+      item.full_duration ||
+      entry.track
+    );
     if (isTrack) {
       var track = formatTrack(item);
       if (track) {
@@ -1436,16 +1500,27 @@ function extractFeaturedItems(collection, maxItems) {
 function fetchHomeFeed() {
   log.info("[SC] Fetching SoundCloud home feed...");
   var sections = [];
-  try { ensureClientId(); } catch (e) {}
+  try {
+    ensureClientId();
+  } catch (e) {}
 
   // Section 1: Trending charts — top 15 (all-music genre).
   try {
-    var topData = scGet("charts?kind=trending&genre=soundcloud:genres:all-music", "limit=15&offset=0");
+    var topData = scGet(
+      "charts?kind=trending&genre=soundcloud:genres:all-music",
+      "limit=15&offset=0",
+    );
     var topItems = extractChartsItems(topData, 15);
     if (topItems.length > 0) {
-      sections.push({ uri: "sc:charts:trending", title: "Tendencias de SoundCloud", items: topItems });
+      sections.push({
+        uri: "sc:charts:trending",
+        title: "Tendencias de SoundCloud",
+        items: topItems,
+      });
     }
-  } catch (e1) { log.debug("[SC] charts trending failed:", e1.message); }
+  } catch (e1) {
+    log.debug("[SC] charts trending failed:", e1.message);
+  }
 
   // Section 2: Curated featured tracks (the API returns only 5 unique ones).
   if (sections.length < 2) {
@@ -1453,21 +1528,36 @@ function fetchHomeFeed() {
       var fData = scGet("featured_tracks/top/all-music", "limit=10");
       var fItems = extractFeaturedItems(fData.collection || fData, 10);
       if (fItems.length > 0) {
-        sections.push({ uri: "sc:featured:all-music", title: "Destacados de SoundCloud", items: fItems });
+        sections.push({
+          uri: "sc:featured:all-music",
+          title: "Destacados de SoundCloud",
+          items: fItems,
+        });
       }
-    } catch (e2) { log.debug("[SC] featured failed:", e2.message); }
+    } catch (e2) {
+      log.debug("[SC] featured failed:", e2.message);
+    }
   }
 
   // Section 3: Next trending page (rising tracks) — pagination returns
   // 15 new unique tracks per offset, so this adds real variety.
   if (sections.length < 3) {
     try {
-      var risingData = scGet("charts?kind=trending&genre=soundcloud:genres:all-music", "limit=15&offset=15");
+      var risingData = scGet(
+        "charts?kind=trending&genre=soundcloud:genres:all-music",
+        "limit=15&offset=15",
+      );
       var risingItems = extractChartsItems(risingData, 15);
       if (risingItems.length > 0) {
-        sections.push({ uri: "sc:charts:rising", title: "En ascenso", items: risingItems });
+        sections.push({
+          uri: "sc:charts:rising",
+          title: "En ascenso",
+          items: risingItems,
+        });
       }
-    } catch (e3) { log.debug("[SC] charts rising failed:", e3.message); }
+    } catch (e3) {
+      log.debug("[SC] charts rising failed:", e3.message);
+    }
   }
 
   if (sections.length > 0) {
@@ -1479,7 +1569,11 @@ function fetchHomeFeed() {
 }
 
 function getHomeFeed() {
-  try { return fetchHomeFeed(); } catch (e) { return { success: false, error: e.message, sections: [] }; }
+  try {
+    return fetchHomeFeed();
+  } catch (e) {
+    return { success: false, error: e.message, sections: [] };
+  }
 }
 
 // ============================================

@@ -62,6 +62,10 @@ type SearchFilterConfig struct {
 // SpotiFLAC reading the manifest.
 type SourceSearchConfig struct {
 	Source         string              `json:"source"`
+	// Primary mirrors the manifest's searchBehavior.primary — the default
+	// search source (SpotiFLAC's defaultSearchExtension). The UI preselects
+	// it and the backend tries it first on a "Todas" search.
+	Primary        bool                `json:"primary"`
 	ThumbnailRatio string              `json:"thumbnailRatio,omitempty"`
 	Placeholder    string              `json:"placeholder,omitempty"`
 	Filters        []SearchFilterConfig `json:"filters"`
@@ -78,6 +82,7 @@ func GetSearchConfig() string {
 		}
 		cfg := SourceSearchConfig{
 			Source:         e.ID,
+			Primary:        e.Search.Primary,
 			ThumbnailRatio: e.Search.ThumbnailRatio,
 			Placeholder:    e.Search.Placeholder,
 			Filters:        make([]SearchFilterConfig, 0, len(e.Search.Filters)),

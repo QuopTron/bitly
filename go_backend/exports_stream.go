@@ -77,6 +77,13 @@ func GetStreamPackage(payload string) string {
 		ISRC              string `json:"isrc"`
 		DurationMS        int    `json:"durationMs"`
 		AllowFallback     bool   `json:"allowFallback"`
+		// Cross-provider ids from detail views (album/artist/playlist). Detail
+		// tracks carry these so ANY extension can resolve immediately via
+		// CheckAvailability instead of a slow name search.
+		SpotifyID string `json:"spotifyId"`
+		DeezerID  string `json:"deezerId"`
+		TidalID   string `json:"tidalId"`
+		QobuzID   string `json:"qobuzId"`
 	}
 	if err := json.Unmarshal([]byte(payload), &params); err != nil {
 		return `{"error":"payload inválido"}`
@@ -90,7 +97,7 @@ func GetStreamPackage(payload string) string {
 	// path below is the fallback for when no provider can yield a high-quality
 	// file.
 	if params.AllowFallback {
-		out := streamFallbackDownload(params.TrackID, params.Quality, params.PreferredProvider, params.TrackName, params.ArtistName, params.ISRC, params.DurationMS)
+		out := streamFallbackDownload(params.TrackID, params.Quality, params.PreferredProvider, params.TrackName, params.ArtistName, params.ISRC, params.DurationMS, params.SpotifyID, params.DeezerID, params.TidalID, params.QobuzID)
 		if out.encrypted != nil {
 			return streamEncryptedJSON(out.encrypted, params.PreferredProvider)
 		}
@@ -104,13 +111,33 @@ func GetStreamPackage(payload string) string {
 			return string(data)
 		}
 		if out.err != nil {
-			// The fallback download already exhausted every provider and either
-			// found a real stream (returned above) or failed. Surface its
-			// structured error directly — it carries errorType/service naming
-			// the provider that actually needs verification (e.g. amazon
-			// VERIFY_REQUIRED). Do NOT re-run the full resolve here: that only
-			// duplicates the multi-provider search and can blow past the RPC
-			// timeout (60s on Android).
+			// The fallback download exhausted every provider and failed.
+			// Before surfacing the structured error, try the direct streaming
+			// path (getDownloadUrl over http(s)) as a genuine LAST resort:
+			// some tracks only exist as a direct web stream and a playable
+			// URL beats silence. Bounded to 40s so the total RPC stays inside
+			// the 180s Android window (the orchestrator already burned up to
+			// maxFallbackDuration).
+			done := make(chan *streaming.StreamPackage, 1)
+			go func() {
+				pkg, err := streaming.GetStreamPackage(reg, lyricsClient, params.PreferredProvider, params.TrackID, params.Quality, fetchL, params.TrackName, params.ArtistName)
+				if err == nil && pkg != nil && pkg.AudioURL != "" {
+					done <- pkg
+				} else {
+					done <- nil
+				}
+			}()
+			select {
+			case pkg := <-done:
+				if pkg != nil {
+					data, _ := json.Marshal(pkg)
+					return string(data)
+				}
+			case <-time.After(40 * time.Second):
+			}
+			// Everything failed. Surface the structured error directly — it
+			// carries errorType/service naming the provider that actually
+			// needs verification (e.g. amazon VERIFY_REQUIRED).
 			return streamFallbackErrorJSON(out.err, out)
 		}
 	}
@@ -125,7 +152,7 @@ func GetStreamPackage(payload string) string {
 	if err != nil {
 		// Last resort: only download-to-cache if the direct resolve above failed
 		// (the AllowFallback fast-path already tried it once).
-		out := streamFallbackDownload(params.TrackID, params.Quality, params.PreferredProvider, params.TrackName, params.ArtistName, params.ISRC, params.DurationMS)
+		out := streamFallbackDownload(params.TrackID, params.Quality, params.PreferredProvider, params.TrackName, params.ArtistName, params.ISRC, params.DurationMS, params.SpotifyID, params.DeezerID, params.TidalID, params.QobuzID)
 		if out.encrypted != nil {
 			return streamEncryptedJSON(out.encrypted, params.PreferredProvider)
 		}
@@ -203,7 +230,7 @@ type streamFallbackOutcome struct {
 // URL that media_kit can open on every platform (desktop + Android), or — when
 // the only source is an encrypted/DRM file needing ffmpeg that isn't available
 // (Android) — the encrypted file so the client can decrypt via ffmpeg-kit.
-func streamFallbackDownload(trackID, quality, provider, trackName, artistName, isrc string, durationMs int) *streamFallbackOutcome {
+func streamFallbackDownload(trackID, quality, provider, trackName, artistName, isrc string, durationMs int, spotifyID, deezerID, tidalID, qobuzID string) *streamFallbackOutcome {
 	if downloadOrch == nil {
 		return &streamFallbackOutcome{err: fmt.Errorf("descarga no disponible")}
 	}
@@ -229,6 +256,10 @@ func streamFallbackDownload(trackID, quality, provider, trackName, artistName, i
 		Quality:    quality,
 		OutputDir:  outDir,
 		DurationMS: durationMs,
+		SpotifyID:  spotifyID,
+		DeezerID:   deezerID,
+		TidalID:    tidalID,
+		QobuzID:    qobuzID,
 	})
 	// Cache-only downloads must not leak into the download tracker: the Flutter
 	// download UI polls getAllDownloadProgress and would otherwise record this

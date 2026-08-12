@@ -293,7 +293,8 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
           return FeedItem(id: t.trackId, type: 'track', name: t.name,
               artists: t.artistName, coverUrl: effectiveCoverUrl,
               albumName: t.albumName, durationMs: t.durationMs, isrc: t.isrc,
-              source: src);
+              source: src, spotifyId: t.spotifyId,
+              deezerId: t.deezerId, tidalId: t.tidalId, qobuzId: t.qobuzId);
         })
         .toList();
 

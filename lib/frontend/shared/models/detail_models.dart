@@ -93,6 +93,7 @@ class DetailTrack {
   final String trackId, name, isrc;
   final int durationMs, trackNumber;
   final String? coverUrl, coverPath, filePath, artistName, albumName, provider;
+  final String? spotifyId, deezerId, tidalId, qobuzId;
   final bool isLiked, isDownloaded;
 
   const DetailTrack({
@@ -101,7 +102,7 @@ class DetailTrack {
     this.isrc = '', this.coverUrl, this.coverPath, this.filePath,
     this.artistName, this.albumName,
     this.isLiked = false, this.isDownloaded = false,
-    this.provider,
+    this.provider, this.spotifyId, this.deezerId, this.tidalId, this.qobuzId,
   });
 
   factory DetailTrack.fromJson(Map<String, dynamic> json) => DetailTrack(
@@ -118,6 +119,10 @@ class DetailTrack {
     isLiked: json['isLiked'] == true,
     isDownloaded: json['isDownloaded'] == true,
     provider: json['provider'] as String?,
+    spotifyId: json['spotifyId'] as String?,
+    deezerId: json['deezerId'] as String?,
+    tidalId: json['tidalId'] as String?,
+    qobuzId: json['qobuzId'] as String?,
   );
 }
 

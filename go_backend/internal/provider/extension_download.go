@@ -28,8 +28,10 @@ func (p *ExtensionProvider) Download(trackID, quality, outputPath string, onProg
 		}
 	}
 
-	result, err := p.runtime.CallMethod(p.extID, "download", trackID, quality, outputPath, progressFn)
+	result, err := p.call("download", trackID, quality, outputPath, progressFn)
 	if err != nil {
+		// cooldown already marked inside call(); a second mark here would
+		// double the window via the backoff for a single 429 event.
 		return &DownloadResult{Success: false, Error: fmt.Sprintf("ext %s download call failed: %v", p.extID, err)}
 	}
 	if result == nil {
@@ -63,7 +65,7 @@ func (p *ExtensionProvider) Download(trackID, quality, outputPath string, onProg
 }
 
 func (p *ExtensionProvider) searchTracksAsAlbums(query string, limit int) ([]AlbumResult, error) {
-	result, err := p.runtime.CallMethod(p.extID, "searchTracks", query, limit)
+	result, err := p.call("searchTracks", query, limit)
 	if err != nil || result == nil {
 		return nil, nil
 	}
@@ -71,7 +73,7 @@ func (p *ExtensionProvider) searchTracksAsAlbums(query string, limit int) ([]Alb
 }
 
 func (p *ExtensionProvider) searchByISRC(isrc string) (*TrackResult, error) {
-	result, err := p.runtime.CallMethod(p.extID, "searchTracks", `isrc:"`+isrc+`"`, 5)
+	result, err := p.call("searchTracks", `isrc:"`+isrc+`"`, 5)
 	if err != nil || result == nil {
 		return nil, nil
 	}
@@ -114,15 +116,20 @@ func IsSpotifyID(id string) bool {
 }
 
 // CheckAvailability invokes the extension's checkAvailability(isrc, trackName,
-// artistName, {spotify_id, deezer_id}) JS function, which returns
-// {available, track_id} when the track can be resolved on the provider (e.g.
-// amazon resolves the ASIN via its signed /resolve route instead of an
-// anonymous web search). Returns the provider-specific track id and whether it
-// was found.
-func (p *ExtensionProvider) CheckAvailability(isrc, trackName, artistName string, spotifyID, deezerID string) (string, bool) {
-	result, err := p.runtime.CallMethod(p.extID, "checkAvailability", isrc, trackName, artistName, map[string]interface{}{
-		"spotify_id": spotifyID,
-		"deezer_id":  deezerID,
+// artistName, {spotify_id, deezer_id, tidal_id, qobuz_id, duration_ms}) JS
+// function, which returns {available, track_id} when the track can be resolved
+// on the provider (e.g. amazon resolves the ASIN via its signed /resolve route
+// or SongLink instead of an anonymous web search). All cross-provider ids are
+// passed so any feed (spotify/deezer/tidal/qobuz/apple) can resolve — mirroring
+// the reference middleware's CheckAvailabilityForItemID inputs. Returns the
+// provider-specific track id and whether it was found.
+func (p *ExtensionProvider) CheckAvailability(isrc, trackName, artistName string, spotifyID, deezerID, tidalID, qobuzID string, durationMS int) (string, bool) {
+	result, err := p.call("checkAvailability", isrc, trackName, artistName, map[string]interface{}{
+		"spotify_id":  spotifyID,
+		"deezer_id":   deezerID,
+		"tidal_id":    tidalID,
+		"qobuz_id":    qobuzID,
+		"duration_ms": durationMS,
 	})
 	if err != nil || result == nil {
 		return "", false
@@ -141,7 +148,7 @@ func (p *ExtensionProvider) CheckAvailability(isrc, trackName, artistName string
 }
 
 func (p *ExtensionProvider) callStringMethod(method string, args ...interface{}) (string, error) {
-	result, err := p.runtime.CallMethod(p.extID, method, args...)
+	result, err := p.call(method, args...)
 	if err != nil {
 		return "", err
 	}

@@ -31,6 +31,8 @@ var nonOriginalMarkers = []string{
 
 // FoldTrack lowercases and folds common accented characters for fair
 // comparison, keeping letters/digits separated by single spaces.
+// Combining marks (e.g. "n\u0303" instead of "ñ") are dropped so titles that
+// differ only in NFD/NFC encoding still match ("Pun\u0303aladas" == "Puñaladas").
 func FoldTrack(s string) string {
 	r := strings.NewReplacer(
 		"á", "a", "à", "a", "ä", "a", "â", "a", "ã", "a", "å", "a",
@@ -44,6 +46,10 @@ func FoldTrack(s string) string {
 	var b strings.Builder
 	prevSpace := true
 	for _, r := range s {
+		// Drop any remaining combining mark so NFC/NFD forms fold identically.
+		if unicode.Is(unicode.Mn, r) {
+			continue
+		}
 		if unicode.IsLetter(r) || unicode.IsDigit(r) {
 			b.WriteRune(r)
 			prevSpace = false
@@ -68,6 +74,22 @@ func IsNonOriginalTitle(rawTitle string) bool {
 	low := strings.ToLower(rawTitle)
 	for _, m := range nonOriginalMarkers {
 		if strings.Contains(low, m) {
+			return true
+		}
+	}
+	return false
+}
+
+// IsNonOriginalVariant reports whether [rawTitle] is a NON-original version of
+// [queryTitle]. A marker like "remix"/"live" is only a signal of a different
+// version when the QUERY does not already contain it — "MORNING DEW (DONK)
+// REMIX" is the official title of Beyoncé's track, so a candidate carrying the
+// same "remix" is the original, not a variant.
+func IsNonOriginalVariant(rawTitle, queryTitle string) bool {
+	low := strings.ToLower(rawTitle)
+	q := strings.ToLower(queryTitle)
+	for _, m := range nonOriginalMarkers {
+		if strings.Contains(low, m) && !strings.Contains(q, m) {
 			return true
 		}
 	}
@@ -99,7 +121,8 @@ func tokenOverlap(a, b string) float64 {
 }
 
 // FieldScore measures how strongly a query field matches a candidate field:
-// 3 = equal, 2 = containment, 1 = weak token overlap, 0 = no match.
+// 3 = equal, 2 = containment / near-full token overlap, 1 = weak token overlap,
+// 0 = no match.
 func FieldScore(q, r string) float64 {
 	q = FoldTrack(q)
 	r = FoldTrack(r)
@@ -112,33 +135,118 @@ func FieldScore(q, r string) float64 {
 	if strings.Contains(r, q) || strings.Contains(q, r) {
 		return 2
 	}
+	// "suave (feat Tokischa) bonus track" vs "suave bonus track feat Tokischa":
+	// same token SET, different order — a strong match, not a weak one.
+	if tokenOverlap(q, r) >= 0.85 {
+		return 2
+	}
 	if tokenOverlap(q, r) >= 0.6 {
 		return 1
 	}
 	return 0
 }
 
+// artistInTitle reports whether a folded token of [queryArtist] appears as a
+// token inside [title]. SoundCloud/YouTube re-uploads put the REAL artist in the
+// track title ("Shakira - DAI DAI") while the Artist field holds the uploader
+// ("minecraftdiablo") — the title is still the original song.
+func artistInTitle(queryArtist, title string) bool {
+	qa := FoldTrack(queryArtist)
+	if qa == "" {
+		return false
+	}
+	t := FoldTrack(title)
+	tokens := strings.Fields(qa)
+	for _, tok := range tokens {
+		if len(tok) >= 3 && strings.Contains(t, tok) {
+			return true
+		}
+	}
+	return false
+}
+
 // OriginalStrength reports whether the candidate is the ORIGINAL track for the
-// query and how strongly (combined title+artist score). The bar is intentionally
-// strict: strong artist (>=2) AND strong title (>=2) AND a non-variant title.
-// This rejects covers, live/remix/acoustic and wrong-artist re-uploads that a
-// looser "something that plays" rule would wrongly rescue.
+// query and how strongly (combined title+artist score). Strong title (>=2) is
+// required; the artist may be strong (>=2), OR appear inside the title (common
+// SoundCloud re-uploads), OR be exact while the title differs only in token
+// order/extra words ("(feat. X) [bonus track]" vs "[bonus track] (feat. X)").
+// A title is only rejected as a variant when its non-original markers (remix,
+// live, cover...) are absent from the QUERY title too — official titles like
+// "MORNING DEW (DONK) REMIX" are accepted.
 func OriginalStrength(queryTitle, queryArtist string, t TrackResult) (float64, bool) {
 	tt := FieldScore(queryTitle, t.Title)
 	aa := FieldScore(queryArtist, t.Artist)
-	strong := tt >= 2 && aa >= 2 && !IsNonOriginalTitle(t.Title)
+	if tt < 2 {
+		return tt + aa, false
+	}
+	if IsNonOriginalVariant(t.Title, queryTitle) {
+		return tt + aa, false
+	}
+	strong := aa >= 2
+	if !strong && artistInTitle(queryArtist, t.Title) {
+		strong = true
+	}
 	return tt + aa, strong
+}
+
+// RankOriginalCandidates orders [results] best-first for fallback resolution:
+// first every strict ORIGINAL match (strong title + plausible artist), then a
+// best-effort pass that keeps candidates whose TITLE strongly matches the query
+// even when the Artist field holds an uploader/lyrics channel (SoundCloud/YouTube
+// re-uploads: "Manuel Turizo – La Bachata" uploaded by "Anna pham"). Variants
+// relative to the query (remix/live/cover when the query lacks them) and tracks
+// with a weak title are still excluded, so a different song is never served.
+func RankOriginalCandidates(queryTitle, queryArtist string, results []TrackResult) []TrackResult {
+	var out []TrackResult
+	seen := map[int]bool{}
+	// Pass 1: strict originals, best first.
+	for i := range results {
+		s, ok := OriginalStrength(queryTitle, queryArtist, results[i])
+		if ok {
+			out = append(out, results[i])
+			seen[i] = true
+			_ = s
+		}
+	}
+	// Pass 2: best-effort — strong title, non-variant relative to the query,
+	// any artist (uploader channels). Only used when no strict original exists.
+	if len(out) == 0 {
+		var eff []struct {
+			idx   int
+			score float64
+		}
+		for i := range results {
+			tt := FieldScore(queryTitle, results[i].Title)
+			if tt < 2 || IsNonOriginalVariant(results[i].Title, queryTitle) {
+				continue
+			}
+			aa := FieldScore(queryArtist, results[i].Artist)
+			if artistInTitle(queryArtist, results[i].Title) {
+				aa = 2 // real artist appears inside the title (re-upload)
+			}
+			eff = append(eff, struct {
+				idx   int
+				score float64
+			}{i, tt + aa})
+		}
+		// Best first, stable.
+		for x := 1; x < len(eff); x++ {
+			for y := x; y > 0 && eff[y-1].score < eff[y].score; y-- {
+				eff[y-1], eff[y] = eff[y], eff[y-1]
+			}
+		}
+		for _, e := range eff {
+			out = append(out, results[e.idx])
+		}
+	}
+	return out
 }
 
 // BestOriginal picks the strongest candidate that is an ORIGINAL match, or nil.
 func BestOriginal(queryTitle, queryArtist string, results []TrackResult) *TrackResult {
-	var best *TrackResult
-	var bestScore float64
-	for i := range results {
-		if s, ok := OriginalStrength(queryTitle, queryArtist, results[i]); ok && s > bestScore {
-			best = &results[i]
-			bestScore = s
-		}
+	ranked := RankOriginalCandidates(queryTitle, queryArtist, results)
+	if len(ranked) == 0 {
+		return nil
 	}
-	return best
+	return &ranked[0]
 }

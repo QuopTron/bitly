@@ -260,7 +260,8 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
               : ((album.coverUrl?.isNotEmpty == true) ? album.coverUrl! : null);
           return FeedItem(id: t.trackId, type: 'track', name: t.name, artists: t.artistName,
               coverUrl: effectiveCoverUrl, albumName: album.name, durationMs: t.durationMs,
-              isrc: t.isrc, source: src);
+              isrc: t.isrc, source: src, spotifyId: t.spotifyId,
+              deezerId: t.deezerId, tidalId: t.tidalId, qobuzId: t.qobuzId);
         })
         .toList();
 

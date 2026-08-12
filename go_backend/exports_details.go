@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/zarz/bitly/go_backend/internal/cooldown"
 	"github.com/zarz/bitly/go_backend/internal/provider"
 )
 
@@ -30,6 +31,14 @@ type detailTrack struct {
 	IsLiked      bool   `json:"isLiked"`
 	IsDownloaded bool   `json:"isDownloaded"`
 	Provider     string `json:"provider,omitempty"`
+	// Cross-provider ids, mirroring the reference CheckAvailabilityForItemID
+	// inputs so a detail track from ANY extension (spotify, tidal, qobuz,
+	// deezer) can resolve immediately on other providers instead of falling
+	// back to a slow name search.
+	SpotifyID string `json:"spotifyId,omitempty"`
+	DeezerID  string `json:"deezerId,omitempty"`
+	TidalID   string `json:"tidalId,omitempty"`
+	QobuzID   string `json:"qobuzId,omitempty"`
 }
 
 // detailAlbum is Flutter's DetailAlbum schema (artist page albums).
@@ -67,6 +76,14 @@ func FetchAlbumDetail(payload string) string {
 			if out := mapAlbumDetail(raw, params.Source); out != "" {
 				return out
 			}
+		}
+		// The raw detail call is scoped to the "detail" cooldown bucket; if it
+		// just 429'd (bucket now cooled), DON'T fall through to GetAlbum — that
+		// re-hits the same provider through the provider-wide bucket and would
+		// leak a detail-page rate-limit into playback/search. Genuine
+		// non-rate-limit failures still fall back as before.
+		if cooldown.IsCooledOp(p.Name(), "detail") {
+			return `{}`
 		}
 	}
 
@@ -139,6 +156,11 @@ func FetchArtistDetail(payload string) string {
 			if out := mapArtistDetail(raw, params.Source); out != "" {
 				return out
 			}
+		}
+		// Same isolation as FetchAlbumDetail: a rate-limited raw detail call
+		// must not fall through to GetArtist and cool the provider-wide bucket.
+		if cooldown.IsCooledOp(p.Name(), "detail") {
+			return `{}`
 		}
 	}
 
@@ -245,9 +267,11 @@ func mapArtistDetail(raw, source string) string {
 	return string(data)
 }
 
-// extractDetailTracks pulls a track list from any common key name.
+// extractDetailTracks pulls a track list from any common key name. Artist
+// responses commonly put top songs under top_tracks/topTracks (amazon,
+// ytmusic-spotiflac), matching the reference's parseExtensionArtistValue.
 func extractDetailTracks(m map[string]interface{}, source string) []detailTrack {
-	lists := []string{"tracks", "track_list", "songs", "items", "data"}
+	lists := []string{"tracks", "track_list", "songs", "items", "data", "top_tracks", "topTracks", "top-songs"}
 	for _, key := range lists {
 		raw, ok := m[key]
 		if !ok {
@@ -268,6 +292,13 @@ func extractDetailTracks(m map[string]interface{}, source string) []detailTrack 
 			if tid == "" && tname == "" {
 				continue
 			}
+			// Prefer the track's own provider_id when present (extensions tag
+			// every track with it) — a playlist can mix tracks from different
+			// providers, and forcing the collection source misroutes playback.
+			provider := detailString(tm, "provider_id", "providerId")
+			if provider == "" {
+				provider = source
+			}
 			result = append(result, detailTrack{
 				TrackID:     tid,
 				Name:        tname,
@@ -277,7 +308,11 @@ func extractDetailTracks(m map[string]interface{}, source string) []detailTrack 
 				CoverURL:    detailCover(tm),
 				ArtistName:  detailString(tm, "artists", "artist", "artist_name"),
 				AlbumName:   detailString(tm, "album_name", "album", "albumName"),
-				Provider:    source,
+				Provider:    provider,
+				SpotifyID:   detailString(tm, "spotify_id", "spotifyId"),
+				DeezerID:    detailString(tm, "deezer_id", "deezerId"),
+				TidalID:     detailString(tm, "tidal_id", "tidalId"),
+				QobuzID:     detailString(tm, "qobuz_id", "qobuzId"),
 			})
 		}
 		return result

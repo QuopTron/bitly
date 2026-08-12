@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/zarz/bitly/go_backend/internal/cooldown"
 	"github.com/zarz/bitly/go_backend/internal/provider"
 	"github.com/zarz/bitly/go_backend/internal/provider/youtube"
 )
@@ -224,15 +225,18 @@ func (o *Orchestrator) Download(req Request) *Result {
 		if name == req.Provider && req.Provider == "" {
 			continue
 		}
-		if name == req.Provider && req.Provider == "" {
-			continue
-		}
 		p := o.providers.Get(name)
 		if p == nil {
 			continue
 		}
 		// Metadata-only extensions (spotify-web) can never produce audio.
 		if ep, ok := p.(*provider.ExtensionProvider); ok && !ep.DownloadCapable() {
+			continue
+		}
+		// Circuit breaker: skip providers cooling down from rate-limits (429).
+		// Hammering them only burns the 50s fallback budget that a later
+		// provider (soundcloud/ytmusic) needs to actually yield a stream.
+		if cooldown.IsCooled(name) {
 			continue
 		}
 
@@ -261,6 +265,7 @@ func (o *Orchestrator) Download(req Request) *Result {
 			})
 			if !result.Success {
 				lastErr = result.Error
+				cooldown.MarkError(name, result.Error)
 				if vt := classifyVerificationError(result.Error); vt != "" {
 					// Don't abort the fallback here: a later provider (e.g.
 					// soundcloud, ytmusic-spotiflac) may still yield a stream.
@@ -299,6 +304,7 @@ func (o *Orchestrator) Download(req Request) *Result {
 				if dec, derr := decryptStream(result.FilePath, result.DecryptionKey, outDir, result.OutputExtension); derr == nil && dec != "" {
 					_ = os.Remove(result.FilePath)
 					dec = o.applyQuality(req.ItemID, dec, outDir, req.Quality)
+					cooldown.MarkOk(name)
 					return &Result{
 						ItemID:    req.ItemID,
 						Success:   true,
@@ -312,6 +318,7 @@ func (o *Orchestrator) Download(req Request) *Result {
 						// via ffmpeg-kit; this is the real, high-quality source
 						// (amazon FLAC) and rejecting it would leave nothing.
 						o.tracker.SetEncryptedOutput(req.ItemID, result.FilePath, result.DecryptionKey, result.OutputExtension)
+						cooldown.MarkOk(name)
 						return &Result{
 							ItemID:          req.ItemID,
 							Success:         true,
@@ -332,6 +339,7 @@ func (o *Orchestrator) Download(req Request) *Result {
 					continue
 				}
 				result.FilePath = o.applyQuality(req.ItemID, result.FilePath, outDir, req.Quality)
+				cooldown.MarkOk(name)
 				return &Result{
 					ItemID:    req.ItemID,
 					Success:   true,
@@ -346,6 +354,9 @@ func (o *Orchestrator) Download(req Request) *Result {
 		streamURL, err := p.GetStreamURL(trackID, qualityForProvider(p, req.Quality))
 		if err != nil || streamURL == "" {
 			lastErr = fmt.Sprintf("%s: sin stream", name)
+			if err != nil {
+				cooldown.MarkError(name, err.Error())
+			}
 			continue
 		}
 		if outDir != "" {
@@ -359,6 +370,7 @@ func (o *Orchestrator) Download(req Request) *Result {
 				continue
 			}
 			filePath = o.applyQuality(req.ItemID, filePath, outDir, req.Quality)
+			cooldown.MarkOk(name)
 			return &Result{
 				ItemID:    req.ItemID,
 				Success:   true,
@@ -371,6 +383,7 @@ func (o *Orchestrator) Download(req Request) *Result {
 		// No output dir configured: fall back to returning the stream URL
 		// (compatible with the previous streaming-only behavior).
 		o.tracker.SetOutputPath(req.ItemID, streamURL)
+		cooldown.MarkOk(name)
 		return &Result{
 			ItemID:    req.ItemID,
 			Success:   true,
@@ -482,7 +495,11 @@ func resolveProviderTrackID(p provider.Provider, name string, req Request) (stri
 	title, artist := req.Title, req.Artist
 
 	if name == req.Provider && req.TrackID != "" {
-		return req.TrackID, title, artist
+		// The owner provider receives its NATIVE id: feed items carry a
+		// prefixed id ("tidal:123", "spotify:abc") that the extension's JS
+		// does not understand. Mirror the reference middleware's
+		// trimKnownProviderPrefix before handing it to the extension.
+		return stripTrackPrefix(req.TrackID), title, artist
 	}
 
 	// Cross-provider ids: resolve them if the provider knows the id.
@@ -507,16 +524,32 @@ func resolveProviderTrackID(p provider.Provider, name string, req Request) (stri
 		// -> numeric id, tidal -> numeric id, amazon -> ASIN).
 		spotifyID := req.SpotifyID
 		deezerID := req.DeezerID
-		if req.Provider == "spotify" || req.Provider == "spotify-web" {
-			if spotifyID == "" && provider.IsSpotifyID(req.TrackID) {
-				spotifyID = req.TrackID
+		tidalID := req.TidalID
+		qobuzID := req.QobuzID
+		// Feed items only carry the source provider's TrackID, but extensions
+		// resolve via their own native id — so derive the right cross-provider
+		// id from the TrackID shape (spotify=22 base62, deezer/tidal/qobuz=
+		// numeric) so amazon & friends can resolve from ANY feed, exactly like
+		// the reference middleware derives these ids for CheckAvailability.
+		switch {
+		case req.Provider == "spotify" || req.Provider == "spotify-web":
+			if spotifyID == "" && provider.IsSpotifyID(stripTrackPrefix(req.TrackID)) {
+				spotifyID = stripTrackPrefix(req.TrackID)
 			}
-		} else if req.Provider == "deezer" || req.Provider == "deezer-web" {
-			if deezerID == "" && provider.IsNumericID(req.TrackID) {
-				deezerID = req.TrackID
+		case req.Provider == "deezer" || req.Provider == "deezer-web":
+			if deezerID == "" && provider.IsNumericID(stripTrackPrefix(req.TrackID)) {
+				deezerID = stripTrackPrefix(req.TrackID)
+			}
+		case req.Provider == "tidal" || req.Provider == "tidal-web":
+			if tidalID == "" && provider.IsNumericID(stripTrackPrefix(req.TrackID)) {
+				tidalID = stripTrackPrefix(req.TrackID)
+			}
+		case req.Provider == "qobuz" || req.Provider == "qobuz-web":
+			if qobuzID == "" && provider.IsNumericID(stripTrackPrefix(req.TrackID)) {
+				qobuzID = stripTrackPrefix(req.TrackID)
 			}
 		}
-		if id, found := ep.CheckAvailability(req.ISRC, req.Title, req.Artist, spotifyID, deezerID); found && id != "" {
+		if id, found := ep.CheckAvailability(req.ISRC, req.Title, req.Artist, spotifyID, deezerID, tidalID, qobuzID, req.DurationMS); found && id != "" {
 			return id, title, artist
 		}
 		// amazon's anonymous name/ISRC search always returns a login dialog
@@ -548,11 +581,19 @@ func resolveProviderTrackID(p provider.Provider, name string, req Request) (stri
 	return "", title, artist
 }
 
-// stripTrackPrefix removes a known source prefix ("tidal:", "spotify:",
-// "deezer:", ...) from a feed item's id so provider GetTrack calls receive the
-// raw native id the extension understands.
+// stripTrackPrefix removes a KNOWN source prefix ("tidal:", "spotify:",
+// "deezer:", "qobuz:", "amazon:", ...) from a feed item's id so provider
+// GetTrack calls receive the raw native id the extension understands. Only
+// known prefixes are stripped — a URL-shaped id ("https://...") or any other
+// colon-bearing value is passed through untouched, mirroring the reference
+// middleware's trimKnownProviderPrefix behavior.
 func stripTrackPrefix(id string) string {
-	if i := strings.IndexByte(id, ':'); i > 0 && i < len(id)-1 {
+	i := strings.IndexByte(id, ':')
+	if i <= 0 || i >= len(id)-1 {
+		return id
+	}
+	switch strings.ToLower(id[:i]) {
+	case "spotify", "deezer", "tidal", "qobuz", "amazon", "soundcloud", "apple", "youtube":
 		return id[i+1:]
 	}
 	return id
@@ -689,11 +730,15 @@ func (o *Orchestrator) ResolveVideoURL(trackID, quality string) (string, error) 
 // resolveStreamURL returns a stream URL for a track from any registered provider.
 func (o *Orchestrator) resolveStreamURL(trackID, quality string) (string, error) {
 	for _, name := range o.fallbackOrder {
+		if cooldown.IsCooled(name) {
+			continue
+		}
 		p := o.providers.Get(name)
 		if p == nil {
 			continue
 		}
 		if url, err := p.GetStreamURL(trackID, quality); err == nil && url != "" {
+			cooldown.MarkOk(name)
 			return url, nil
 		}
 	}

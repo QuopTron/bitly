@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/zarz/bitly/go_backend/internal/cooldown"
 	"github.com/zarz/bitly/go_backend/internal/extensions"
 )
 
@@ -54,10 +55,71 @@ func (p *ExtensionProvider) HomeFeedEnabled() bool { return p.hasHomeFeed }
 
 func (p *ExtensionProvider) Name() string { return p.name }
 
+// call invokes a JS method on the extension, honoring the shared per-provider
+// circuit breaker (internal/cooldown):
+//   - while the provider is cooling down (recent HTTP 429 / rate-limit), calls
+//     are skipped fast (nil, nil) instead of re-hitting the API — search,
+//     download fallback and prefetch all converge here, so a hammered provider
+//     stops being queried everywhere;
+//   - a failed call whose error mentions rate-limit / unavailability / blocked
+//     puts the provider on cooldown;
+//   - a successful response clears the cooldown so a recovered provider is used
+//     again immediately.
+//
+// The 429 errors from extension HTTP helpers (e.g. deezer's getJSON throws
+// "HTTP 429 for ...") surface through this error path; callers that previously
+// swallowed them (return nil, nil) now still trip the breaker, which is what
+// stops the hammering at its source.
+func (p *ExtensionProvider) call(method string, args ...interface{}) (interface{}, error) {
+	return p.callOp("", method, args...)
+}
+
+// callOp is [call] scoped to an operation class [op] that gets its own
+// isolated cooldown bucket:
+//   - ""       → provider-wide bucket (playback / search / download fallback);
+//   - "feed"   → home-feed requests (getHomeFeed) — a feed endpoint 429ing
+//     only cools future feed calls, never playback/search for that provider;
+//   - "detail" → raw detail fetches (getAlbum/getArtist/getPlaylist used by
+//     the detail pages) — same isolation, so a rate-limited detail endpoint
+//     doesn't disable the provider elsewhere.
+//
+// While the provider is cooling down in this bucket the call is skipped fast
+// (nil, nil) instead of re-hitting the API. Failed calls whose error mentions
+// rate-limit / unavailability / blocked mark the bucket (the 429 errors from
+// extension HTTP helpers, e.g. deezer's getJSON throwing "HTTP 429 for ...",
+// surface through this path — callers that previously swallowed them with
+// `return nil, nil` still trip the breaker, which is what stops hammering).
+//
+// NOTE: we deliberately do NOT auto-clear the cooldown here on success. A
+// provider can have endpoints that still work while its rate-limited endpoints
+// 429 (mixed preload traffic); clearing on every success would let the breaker
+// flap and never give the API a real break. Recovery is time-based (the window
+// simply expires) plus explicit MarkOk from the orchestrator/streaming success
+// paths that consumed a real stream/file.
+func (p *ExtensionProvider) callOp(op, method string, args ...interface{}) (interface{}, error) {
+	if op == "" {
+		if cooldown.IsCooled(p.name) {
+			return nil, nil
+		}
+	} else if cooldown.IsCooledOp(p.name, op) {
+		return nil, nil
+	}
+	res, err := p.runtime.CallMethod(p.extID, method, args...)
+	if err != nil {
+		if op == "" {
+			cooldown.MarkError(p.name, err.Error())
+		} else {
+			cooldown.MarkOpError(p.name, op, err.Error())
+		}
+		return res, err
+	}
+	return res, nil
+}
+
 // SearchTracks calls the extension's searchTracks(query, limit) JS function.
 // Falls back to customSearch with filter "song" if searchTracks is not available.
 func (p *ExtensionProvider) SearchTracks(query string, limit int) ([]TrackResult, error) {
-	result, err := p.runtime.CallMethod(p.extID, "searchTracks", query, limit)
+	result, err := p.call("searchTracks", query, limit)
 	if err == nil {
 		if result != nil {
 			return convertToTrackResults(result, p.name)
@@ -67,7 +129,7 @@ func (p *ExtensionProvider) SearchTracks(query string, limit int) ([]TrackResult
 
 	// Fallback: try customSearch with filter "song"
 	opts := map[string]interface{}{"limit": limit, "filter": "song"}
-	result, err = p.runtime.CallMethod(p.extID, "customSearch", query, opts)
+	result, err = p.call("customSearch", query, opts)
 	if err != nil || result == nil {
 		return nil, nil
 	}
@@ -77,7 +139,7 @@ func (p *ExtensionProvider) SearchTracks(query string, limit int) ([]TrackResult
 // SearchAlbums calls the extension's customSearch with filter "album".
 func (p *ExtensionProvider) SearchAlbums(query string, limit int) ([]AlbumResult, error) {
 	opts := map[string]interface{}{"limit": limit, "filter": "album"}
-	result, err := p.runtime.CallMethod(p.extID, "customSearch", query, opts)
+	result, err := p.call("customSearch", query, opts)
 	if err != nil || result == nil {
 		return p.searchTracksAsAlbums(query, limit)
 	}
@@ -87,7 +149,7 @@ func (p *ExtensionProvider) SearchAlbums(query string, limit int) ([]AlbumResult
 // SearchPlaylists calls the extension's customSearch with filter "playlist".
 func (p *ExtensionProvider) SearchPlaylists(query string, limit int) ([]PlaylistResult, error) {
 	opts := map[string]interface{}{"limit": limit, "filter": "playlist"}
-	result, err := p.runtime.CallMethod(p.extID, "customSearch", query, opts)
+	result, err := p.call("customSearch", query, opts)
 	if err != nil || result == nil {
 		return nil, nil
 	}
@@ -97,7 +159,7 @@ func (p *ExtensionProvider) SearchPlaylists(query string, limit int) ([]Playlist
 // SearchArtists calls the extension's customSearch with filter "artist".
 func (p *ExtensionProvider) SearchArtists(query string, limit int) ([]ArtistResult, error) {
 	opts := map[string]interface{}{"limit": limit, "filter": "artist"}
-	result, err := p.runtime.CallMethod(p.extID, "customSearch", query, opts)
+	result, err := p.call("customSearch", query, opts)
 	if err != nil || result == nil {
 		return nil, nil
 	}
@@ -128,7 +190,7 @@ type CombinedResult struct {
 // on this to surface artists/albums/playlists at all.
 func (p *ExtensionProvider) CombinedSearch(query string, limit int) ([]CombinedResult, error) {
 	opts := map[string]interface{}{"limit": limit}
-	result, err := p.runtime.CallMethod(p.extID, "customSearch", query, opts)
+	result, err := p.call("customSearch", query, opts)
 	if err != nil || result == nil {
 		return nil, nil
 	}
@@ -141,7 +203,7 @@ func (p *ExtensionProvider) CombinedSearch(query string, limit int) ([]CombinedR
 // many more results than the capped "all" mix (50 tracks / 20 albums, etc.).
 func (p *ExtensionProvider) SearchFiltered(filter string, query string, limit int) ([]CombinedResult, error) {
 	opts := map[string]interface{}{"limit": limit, "filter": filter}
-	result, err := p.runtime.CallMethod(p.extID, "customSearch", query, opts)
+	result, err := p.call("customSearch", query, opts)
 	if err != nil || result == nil {
 		return nil, nil
 	}
@@ -183,7 +245,7 @@ func (p *ExtensionProvider) combinedFromResult(result interface{}) ([]CombinedRe
 
 // GetTrack calls the extension's getTrack(id) JS function.
 func (p *ExtensionProvider) GetTrack(id string) (*TrackResult, error) {
-	result, err := p.runtime.CallMethod(p.extID, "getTrack", id)
+	result, err := p.call("getTrack", id)
 	if err != nil {
 		return nil, fmt.Errorf("ext %s getTrack: %w", p.extID, err)
 	}
@@ -204,7 +266,7 @@ func (p *ExtensionProvider) GetTrackByISRC(isrc string) (*TrackResult, error) {
 
 // GetAlbum calls the extension's getAlbum(id).
 func (p *ExtensionProvider) GetAlbum(id string) (*AlbumResult, error) {
-	result, err := p.runtime.CallMethod(p.extID, "getAlbum", id)
+	result, err := p.call("getAlbum", id)
 	if err != nil {
 		return nil, fmt.Errorf("ext %s getAlbum: %w", p.extID, err)
 	}
@@ -216,7 +278,7 @@ func (p *ExtensionProvider) GetAlbum(id string) (*AlbumResult, error) {
 
 // GetArtist calls the extension's getArtist(id).
 func (p *ExtensionProvider) GetArtist(id string) (*ArtistResult, error) {
-	result, err := p.runtime.CallMethod(p.extID, "getArtist", id)
+	result, err := p.call("getArtist", id)
 	if err != nil {
 		return nil, fmt.Errorf("ext %s getArtist: %w", p.extID, err)
 	}
@@ -228,7 +290,7 @@ func (p *ExtensionProvider) GetArtist(id string) (*ArtistResult, error) {
 
 // GetStreamURL calls the extension's getDownloadUrl(id, quality) for stream URL.
 func (p *ExtensionProvider) GetStreamURL(id, quality string) (string, error) {
-	result, err := p.runtime.CallMethod(p.extID, "getDownloadUrl", id, quality)
+	result, err := p.call("getDownloadUrl", id, quality)
 	if err != nil {
 		return "", fmt.Errorf("ext %s getDownloadUrl: %w", p.extID, err)
 	}
@@ -263,7 +325,9 @@ type HomeFeedItem struct {
 
 // GetHomeFeed calls the extension's getHomeFeed() JS function.
 func (p *ExtensionProvider) GetHomeFeed() ([]HomeFeedSection, error) {
-	result, err := p.runtime.CallMethod(p.extID, "getHomeFeed")
+	// Home-feed requests get their own cooldown bucket so a rate-limited feed
+	// endpoint doesn't disable playback/search for this provider.
+	result, err := p.callOp("feed", "getHomeFeed")
 	if err != nil {
 		return nil, fmt.Errorf("ext %s getHomeFeed: %w", p.extID, err)
 	}

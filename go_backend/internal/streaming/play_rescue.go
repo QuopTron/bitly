@@ -4,10 +4,9 @@ import (
 	"fmt"
 	"log"
 	"strings"
-	"sync"
-	"time"
 	"unicode"
 
+	"github.com/zarz/bitly/go_backend/internal/cooldown"
 	"github.com/zarz/bitly/go_backend/internal/provider"
 )
 
@@ -16,35 +15,9 @@ import (
 // rescue/prefetch loop doesn't hammer it repeatedly. Without this, deezer (429)
 // was retried for every quality of every queued track, saturating the executor
 // and pushing getStreamPackage past the 60s RPC timeout ("Could not resolve
-// URI" even though another provider had a valid stream).
-var (
-	cooldownMu       sync.Mutex
-	providerCooldown = map[string]time.Time{}
-)
-
-func isProviderCooled(name string) bool {
-	cooldownMu.Lock()
-	defer cooldownMu.Unlock()
-	return time.Now().Before(providerCooldown[name])
-}
-
-func markProviderError(name, errMsg string) {
-	if !strings.Contains(errMsg, "429") &&
-		!strings.Contains(errMsg, "temporarily unavailable") &&
-		!strings.Contains(errMsg, "client decryption") &&
-		!strings.Contains(errMsg, "encriptado") {
-		return
-	}
-	cooldownMu.Lock()
-	defer cooldownMu.Unlock()
-	providerCooldown[name] = time.Now().Add(60 * time.Second)
-}
-
-func markProviderOk(name string) {
-	cooldownMu.Lock()
-	defer cooldownMu.Unlock()
-	delete(providerCooldown, name)
-}
+// URI" even though another provider had a valid stream). The breaker is shared
+// with search and the download orchestrator via internal/cooldown so a provider
+// that 429s anywhere is skipped fast everywhere.
 
 
 // availableQualities returns the preferred quality plus a set of fallback
@@ -79,31 +52,31 @@ func tryStream(reg *provider.Registry, name, trackID string, track *provider.Tra
 
 	candidates := availableQualities(quality)
 	for _, q := range candidates {
-		if isProviderCooled(name) {
+		if cooldown.IsCooled(name) {
 			break
 		}
 		url, err := p.GetStreamURL(trackID, q)
 		if err != nil {
-			markProviderError(name, err.Error())
+			cooldown.MarkError(name, err.Error())
 			continue
 		}
 		if url != "" && isPlayableStreamURL(url) {
-			markProviderOk(name)
+			cooldown.MarkOk(name)
 			return url, nil
 		}
 	}
 	if track != nil && track.ID != "" && track.ID != trackID {
 		for _, q := range candidates {
-			if isProviderCooled(name) {
+			if cooldown.IsCooled(name) {
 				break
 			}
 			url, err := p.GetStreamURL(track.ID, q)
 			if err != nil {
-				markProviderError(name, err.Error())
+				cooldown.MarkError(name, err.Error())
 				continue
 			}
 			if url != "" && isPlayableStreamURL(url) {
-				markProviderOk(name)
+				cooldown.MarkOk(name)
 				return url, nil
 			}
 		}
@@ -111,13 +84,13 @@ func tryStream(reg *provider.Registry, name, trackID string, track *provider.Tra
 	if track != nil && track.ISRC != "" {
 		if trackByISRC, err := p.GetTrackByISRC(track.ISRC); err == nil && trackByISRC != nil {
 			for _, q := range candidates {
-				if isProviderCooled(name) {
+				if cooldown.IsCooled(name) {
 					break
 				}
 				if url, err := p.GetStreamURL(trackByISRC.ID, q); err != nil {
-					markProviderError(name, err.Error())
+					cooldown.MarkError(name, err.Error())
 				} else if url != "" && isPlayableStreamURL(url) {
-					markProviderOk(name)
+					cooldown.MarkOk(name)
 					return url, nil
 				}
 			}
@@ -138,7 +111,7 @@ func rescueStream(reg *provider.Registry, track *provider.TrackResult, trackName
 		if p == nil {
 			continue
 		}
-		if isProviderCooled(name) {
+		if cooldown.IsCooled(name) {
 			continue
 		}
 
@@ -146,13 +119,13 @@ func rescueStream(reg *provider.Registry, track *provider.TrackResult, trackName
 			found := false
 			if trackByISRC, err := p.GetTrackByISRC(track.ISRC); err == nil && trackByISRC != nil {
 				for _, q := range candidates {
-					if isProviderCooled(name) {
+					if cooldown.IsCooled(name) {
 						break
 					}
 					if url, err := p.GetStreamURL(trackByISRC.ID, q); err != nil {
-						markProviderError(name, err.Error())
+						cooldown.MarkError(name, err.Error())
 					} else if url != "" && isPlayableStreamURL(url) {
-						markProviderOk(name)
+						cooldown.MarkOk(name)
 						return url, name, nil
 					}
 				}
@@ -169,13 +142,13 @@ func rescueStream(reg *provider.Registry, track *provider.TrackResult, trackName
 			if results, err := p.SearchTracks(trackName+" "+artistName, 8); err == nil && len(results) > 0 {
 				for _, cand := range rankedMatches(trackName, artistName, results) {
 					for _, q := range candidates {
-						if isProviderCooled(name) {
+						if cooldown.IsCooled(name) {
 							break
 						}
 						if url, err := p.GetStreamURL(cand.ID, q); err != nil {
-							markProviderError(name, err.Error())
+							cooldown.MarkError(name, err.Error())
 						} else if url != "" && isPlayableStreamURL(url) {
-							markProviderOk(name)
+							cooldown.MarkOk(name)
 							return url, name, attempted
 						}
 					}
@@ -307,30 +280,15 @@ func bestMatch(queryTitle, queryArtist string, results []provider.TrackResult) (
 // rankedMatches returns the search results sorted best-first by combined
 // title+artist score, keeping only candidates that are the ORIGINAL track
 // (strong artist AND strong title AND non-variant title via
-// provider.OriginalStrength). Non-original versions (covers, remixes, live,
-// wrong-artist re-uploads) are excluded so rescue never serves a different
-// song than the one the user asked for, even if it means nothing to play.
+// provider.OriginalStrength). When no strict original exists it falls back to
+// a best-effort pass (strong title + non-variant relative to the query) so the
+// rescue can still serve a re-upload of the same song instead of playing
+// nothing — different songs (weak title, or covers/remixes the query lacks)
+// are still excluded.
 func rankedMatches(queryTitle, queryArtist string, results []provider.TrackResult) []provider.TrackResult {
-	type scored struct {
-		idx           int
-		title, artist float64
-	}
-	qt := norm(queryTitle)
-	qa := norm(queryArtist)
-	var sc []scored
-	for i := range results {
-		t := fieldScore(qt, norm(results[i].Title))
-		a := fieldScore(qa, norm(results[i].Artist))
-		// Keep only the ORIGINAL track: strong artist + strong title and no
-		// variant markers (remix/live/cover/acoustic/...). Everything else —
-		// covers, remixes, wrong artist — is dropped so we never play a
-		// different song than requested.
-		if _, ok := provider.OriginalStrength(queryTitle, queryArtist, results[i]); ok {
-			sc = append(sc, scored{idx: i, title: t, artist: a})
-		}
-	}
-	if len(results) > 0 && len(sc) == 0 {
-		log.Printf("[rescue] %q / %q: %d results, NINGUNO es la original. Candidatos:",
+	ranked := provider.RankOriginalCandidates(queryTitle, queryArtist, results)
+	if len(results) > 0 && len(ranked) == 0 {
+		log.Printf("[rescue] %q / %q: %d results, sin candidato reproducible. Candidatos:",
 			queryTitle, queryArtist, len(results))
 		for i := range results {
 			tt := provider.FieldScore(queryTitle, results[i].Title)
@@ -339,15 +297,5 @@ func rankedMatches(queryTitle, queryArtist string, results []provider.TrackResul
 				results[i].Title, results[i].Artist, provider.IsNonOriginalTitle(results[i].Title))
 		}
 	}
-	// Stable sort by descending combined score.
-	for i := 1; i < len(sc); i++ {
-		for j := i; j > 0 && sc[j-1].title+sc[j-1].artist < sc[j].title+sc[j].artist; j-- {
-			sc[j-1], sc[j] = sc[j], sc[j-1]
-		}
-	}
-	out := make([]provider.TrackResult, 0, len(sc))
-	for _, s := range sc {
-		out = append(out, results[s.idx])
-	}
-	return out
+	return ranked
 }

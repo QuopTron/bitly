@@ -8,18 +8,18 @@ import '../../../shared/models/feed_models.dart';
 
 class SearchBarWidget extends StatefulWidget {
   final TextEditingController controller;
-  final String selectedSource;
-  final ValueChanged<String> onSourceChanged;
   final ValueChanged<String> onTextChanged;
   final VoidCallback onClear;
+  /// Optional per-source hint (e.g. "Search Deezer..." from the manifest).
+  /// When null the localized generic search hint is used.
+  final String? hintText;
 
   const SearchBarWidget({
     super.key,
     required this.controller,
-    required this.selectedSource,
-    required this.onSourceChanged,
     required this.onTextChanged,
     required this.onClear,
+    this.hintText,
   });
 
   @override
@@ -44,10 +44,11 @@ class _SearchBarWidgetState extends State<SearchBarWidget> {
         onChanged: widget.onTextChanged,
         style: TextStyle(fontSize: r.subtitleSize + 3, color: onBg),
         decoration: InputDecoration(
-          hintText: AppLocalizations.of(context).setup.searchHint,
+          hintText: widget.hintText ??
+              AppLocalizations.of(context).setup.searchHint,
           hintStyle: TextStyle(fontSize: r.subtitleSize + 3, color: onBg.withValues(alpha: 0.3)),
           border: InputBorder.none,
-          icon: _sourceDropdown(isDark, onBg, glowColor, r),
+          icon: Icon(Icons.search, size: r.footerSize + 5, color: glowColor.withValues(alpha: 0.8)),
           suffixIcon: widget.controller.text.isNotEmpty
               ? GestureDetector(onTap: widget.onClear,
                   child: Icon(Icons.clear, size: r.footerSize + 5, color: onBg.withValues(alpha: 0.3)))
@@ -56,38 +57,6 @@ class _SearchBarWidgetState extends State<SearchBarWidget> {
       ),
     );
   }
-
-  Widget _sourceDropdown(bool isDark, Color onBg, Color glowColor, Responsive r) {
-    return PopupMenuButton<String>(
-      onSelected: widget.onSourceChanged,
-      offset: const Offset(0, 40),
-      color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: 8,
-      constraints: BoxConstraints(maxHeight: 320, minWidth: 180),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(sourceIcons[widget.selectedSource] ?? Icons.search, size: r.footerSize + 5, color: glowColor.withValues(alpha: 0.8)),
-        Icon(Icons.arrow_drop_down, size: r.footerSize + 2, color: onBg.withValues(alpha: 0.4)),
-      ]),
-      itemBuilder: (_) => allSources.map((src) {
-        final sel = src == widget.selectedSource;
-        return PopupMenuItem<String>(
-          value: src, height: 40,
-          child: Row(children: [
-            Icon(sourceIcons[src] ?? Icons.music_video, size: r.footerSize + 2,
-              color: sel ? glowColor : onBg.withValues(alpha: 0.5)),
-            SizedBox(width: r.spacingXS),
-            Expanded(child: Text(sourceDisplayName(src),
-              style: TextStyle(fontSize: r.subtitleSize,
-                color: sel ? glowColor : onBg.withValues(alpha: 0.7),
-                fontWeight: sel ? FontWeight.w600 : FontWeight.normal))),
-            if (sel) Icon(Icons.check, size: r.footerSize, color: glowColor),
-          ]),
-        );
-      }).toList(),
-    );
-  }
-
 
 }
 

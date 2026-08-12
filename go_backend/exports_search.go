@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/zarz/bitly/go_backend/internal/cooldown"
 	"github.com/zarz/bitly/go_backend/internal/provider"
 )
 
@@ -60,6 +61,11 @@ func searchAllWithTimeout[T any](query string, limit int,
 					// Don't crash the app if a provider panics
 				}
 			}()
+			// Circuit breaker: a provider cooling down from rate-limits is
+			// skipped fast instead of re-hitting its API for every keystroke.
+			if cooldown.IsCooled(prov.Name()) {
+				return
+			}
 			res, err := fn(prov, query, limit)
 			if err == nil && len(res) > 0 {
 				ch <- item{name: prov.Name(), data: res}

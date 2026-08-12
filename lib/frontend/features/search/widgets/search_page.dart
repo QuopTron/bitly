@@ -9,6 +9,7 @@ import '../../../shared/constants/source_constants.dart';
 import '../../../../backend/services/like_cubit.dart';
 import '../../../../backend/services/download_cubit.dart';
 import '../../../shared/widgets/glass_container.dart';
+import '../../../shared/widgets/source_accordion.dart';
 import '../bloc/search_bloc.dart';
 import '../bloc/search_event.dart';
 import '../bloc/search_state.dart';
@@ -25,7 +26,13 @@ class SearchPage extends StatefulWidget {
 class _SearchPageState extends State<SearchPage> {
   final TextEditingController _searchCtrl = TextEditingController();
   Timer? _debounceTimer;
-  String _selectedSource = 'deezer';
+
+  /// Default source: empty = "Todas" (search every search-enabled extension at
+  /// once). One rate-limited source (e.g. deezer 429 on the emulator IP) never
+  /// blanks the whole screen — the others still fill the results, matching how
+  /// SpotiFLAC keeps the search surface alive. Tapping a bubble narrows to that
+  /// single source.
+  String _selectedSource = '';
   String? _selectedType;
 
   bool _searching = false;
@@ -47,6 +54,49 @@ class _SearchPageState extends State<SearchPage> {
       SearchFilterConfig(id: 'albums', label: ''),
       SearchFilterConfig(id: 'playlists', label: ''),
     ];
+  }
+
+  /// Searchable sources for the selector, from the authoritative backend config
+  /// (every bundled extension that declares a searchBehavior). The manifest
+  /// primary source (deezer — SpotiFLAC's defaultSearchExtension) is listed
+  /// first, then the rest. Falls back to a curated list while loading.
+  Map<String, String> _searchSources(SearchState state) {
+    final cfg = state.searchConfig;
+    if (cfg.isNotEmpty) {
+      final ordered = <String, String>{};
+      final primary = cfg.entries.where((e) => e.value.primary).toList();
+      final rest = cfg.entries.where((e) => !e.value.primary).toList();
+      for (final e in [...primary, ...rest]) {
+        ordered[e.key] = sourceDisplayName(e.key);
+      }
+      return ordered;
+    }
+    return {
+      for (final s in const [
+        'deezer', 'spotify-web', 'apple-music', 'soundcloud', 'amazon',
+        'qobuz-web', 'tidal-web', 'ytmusic-spotiflac',
+      ])
+        s: sourceDisplayName(s),
+    };
+  }
+
+  /// Placeholder hint for the search bar: the active source's manifest
+  /// placeholder when one is selected, the primary source's placeholder for
+  /// the "Todas" default (SpotiFLAC shows the primary source's hint), or null
+  /// to fall back to the generic localized hint.
+  String? _searchHint(SearchState state) {
+    final cfg = state.searchConfig;
+    if (cfg.isEmpty) return null;
+    if (_selectedSource.isNotEmpty && cfg[_selectedSource] != null) {
+      final p = cfg[_selectedSource]!.placeholder;
+      if (p.isNotEmpty) return p;
+      return null;
+    }
+    final primary = cfg.values.where((c) => c.primary).toList();
+    if (primary.isNotEmpty && primary.first.placeholder.isNotEmpty) {
+      return primary.first.placeholder;
+    }
+    return null;
   }
 
   bool _sourceHasCategory(SearchState state, String source, String cat) {
@@ -173,10 +223,19 @@ class _SearchPageState extends State<SearchPage> {
               child: Column(mainAxisSize: MainAxisSize.min, children: [
                 SearchBarWidget(
                   controller: _searchCtrl,
-                  selectedSource: _selectedSource,
-                  onSourceChanged: _onSourceChanged,
                   onTextChanged: _onSearchChanged,
                   onClear: _clearSearch,
+                  hintText: _searchHint(state),
+                ),
+                SizedBox(height: r.spacingS),
+                // Source selector: 'Todas' + every search-enabled extension as a
+                // bubble (SpotiFLAC style) — no more hidden icon dropdown.
+                SourceAccordion(
+                  sources: _searchSources(state),
+                  selectedSource: _selectedSource,
+                  onBg: onBg,
+                  glowColor: glowColor,
+                  onChanged: _onSourceChanged,
                 ),
                 SizedBox(height: r.spacingS),
                 SearchTypeChips(

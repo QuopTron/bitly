@@ -44,10 +44,14 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
   /// Cleaned up after playback completes or on app close.
   final Set<String> _tempStreamFiles = {};
 
-  /// Cache of resolved live stream URLs (normalized trackId → audioUrl).
-  /// Avoids re-resolving (network + provider lookups) every time a track is
-  /// opened, so tapping an already-prefetched track plays instantly.
-  final Map<String, String> _streamUrlCache = {};
+  /// Cache of resolved stream URLs (normalized trackId → (url, withFallback)).
+  /// [withFallback] is true when the URL came from the download pipeline (a
+  /// produced file on disk, same logic as a real download); false when it is
+  /// just a direct http(s) probe from a background preload. Taps reuse only
+  /// withFallback results — a preload-only URL is re-resolved WITH the
+  /// fallback so playback gets the download-quality copy, and that preloaded
+  /// URL becomes the plan B if the download pipeline comes up empty.
+  final Map<String, (String url, bool withFallback)> _streamUrlCache = {};
 
   /// Normalized track IDs that are ready to play instantly (stream already
   /// resolved or a local file available). Backs the "ready" indicator shown on
@@ -625,7 +629,12 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
   /// of starting the resolution from scratch.
   Future<String?> _resolveStreamUrl(FeedItem track, {bool isPreload = false}) async {
     final key = normalizeTrackId(track.id);
-    if (_streamUrlCache.containsKey(key)) return _streamUrlCache[key];
+    final cached = _streamUrlCache[key];
+    // A preload may reuse any cached URL. A real tap may only reuse a result
+    // that came from the download pipeline (withFallback); a preload-only
+    // http(s) probe is re-resolved so playback uses the same logic as a
+    // download (file produced, quality-transformed, DRM-decrypted).
+    if (cached != null && (isPreload || cached.$2)) return cached.$1;
     final inFlight = _streamFutures[key];
     if (inFlight != null) {
       // A preload (no download fallback) is in flight but the user is now
@@ -643,8 +652,22 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
     try {
       final url = await future;
       if (url != null && url.isNotEmpty) {
-        _streamUrlCache[key] = url;
+        // Taps resolve through the download pipeline (withFallback=true);
+        // background preloads only probe direct streams (withFallback=false).
+        // Never let a late-finishing preload downgrade a better entry that a
+        // tap already stored (both can be in flight for the same track).
+        final current = _streamUrlCache[key];
+        if (current == null || !isPreload || !current.$2) {
+          _streamUrlCache[key] = (url, !isPreload);
+        }
         _markReady(key);
+        return url;
+      }
+      // A real tap that could not produce a download-quality copy still has
+      // the preload's direct stream URL as plan B — better than silence.
+      // Skip it if that probe URL already failed to decode on a prior open.
+      if (!isPreload && cached != null && !cached.$2) {
+        if (_brokenUrlByTrack[key] != cached.$1) return cached.$1;
       }
       return url;
     } finally {
@@ -670,6 +693,13 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
         'artistName': track.artists ?? '',
         'isrc': track.isrc ?? '',
         'durationMs': track.durationMs,
+        // Cross-provider ids (album/artist/playlist detail tracks) let the
+        // backend resolve via CheckAvailability on any provider instead of a
+        // slow name search.
+        'spotifyId': track.spotifyId ?? '',
+        'deezerId': track.deezerId ?? '',
+        'tidalId': track.tidalId ?? '',
+        'qobuzId': track.qobuzId ?? '',
         // Background prefetches skip the download fallback (no full audio
         // downloads in the background); real taps allow it.
         'allowFallback': !isPreload,

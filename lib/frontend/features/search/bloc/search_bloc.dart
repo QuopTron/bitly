@@ -11,10 +11,12 @@ import 'search_state.dart';
 
 final _log = Logger();
 
-/// Fuentes que usan sesión firmada (signed session v2 / Cloudflare).
-/// Si una búsqueda devuelve vacío en estas fuentes, probablemente hace falta
-/// verificar primero (Qobuz lanza VERIFY_REQUIRED).
-final _signedSessionSources = VerificationService.signedSessionSources.toSet();
+/// Fuentes cuyas BÚSQUEDAS requieren la sesión firmada para devolver
+/// resultados: qobuz-web da 403 y amazon devuelve 0 sin verificar. Deezer y
+/// pandora buscan de forma anónima — un resultado vacío ahí casi siempre es
+/// rate-limit (429) o "sin resultados", NUNCA un problema de sesión, así que
+/// abrir el modal de Cloudflare desde la búsqueda es inútil y molesto.
+final _verifyOnEmptySources = <String>{'qobuz-web', 'amazon'};
 
 /// Resultado de intentar verificar una fuente con sesión firmada.
 enum _VerifyOutcome { verified, notNeeded, failed }
@@ -22,6 +24,14 @@ enum _VerifyOutcome { verified, notNeeded, failed }
 class SearchBloc extends Bloc<SearchEvent, SearchState> {
   final BackendService _backend;
   final SearchCache _searchCache;
+
+  /// Cooldown per source so a signed-session search source (qobuz-web,
+  /// amazon) that returns empty — e.g. a temporary provider 429, not a missing
+  /// session — doesn't re-open the Cloudflare verification modal on every
+  /// keystroke. After a verification attempt, further empty searches just show
+  /// "no results" for a while.
+  final Map<String, DateTime> _lastVerifyAttempt = {};
+  static const _verifyCooldown = Duration(minutes: 5);
 
   SearchBloc(this._backend, this._searchCache) : super(const SearchState()) {
     _loadRecents();
@@ -48,24 +58,38 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
       try {
         var results = await _searchAll(event.query, event.source, event.type, event.limit);
 
-        // backend haya respondido VERIFY_REQUIRED (Qobuz). Verificamos y
-        // reintentamos una sola vez.
-        if (results.isEmpty && _signedSessionSources.contains(event.source)) {
-          _log.i('[search] Fuente ${event.source} vacía — intentando verificación');
-          switch (await _verifySource(event.source)) {
+        // A search-enabled signed-session source (qobuz-web, amazon) that
+        // returns empty. Only open the Cloudflare modal when the session is
+        // actually missing/expired — an empty result for an already-verified
+        // source usually means "no results" or a temporary provider 429, and
+        // popping the modal on every keystroke was spamming the user. Deezer
+        // and pandora search anonymously, so their empty results never open it.
+        if (results.isEmpty && _verifyOnEmptySources.contains(event.source)) {
+          final last = _lastVerifyAttempt[event.source];
+          final inCooldown = last != null &&
+              DateTime.now().difference(last) < _verifyCooldown;
+          final sessionUsable = await _sourceSessionUsable(event.source);
+          if (!inCooldown && !sessionUsable) {
+            // Session is genuinely missing/expired: open the modal once.
+            _lastVerifyAttempt[event.source] = DateTime.now();
+            _log.i('[search] Fuente ${event.source} vacía — intentando verificación');
+            switch (await _verifySource(event.source)) {
               case _VerifyOutcome.verified:
-              _log.i('[search] Verificación OK — reintentando búsqueda');
-              results = await _searchAll(event.query, event.source, event.type, event.limit);
-            case _VerifyOutcome.failed:
-              emit(state.copyWith(
-                loading: false,
-                hasSearched: true,
-                error: 'Verificación requerida para ${sourceDisplayName(event.source)}. Ábrela desde Configuración y reintenta.',
-              ));
-              return;
-            case _VerifyOutcome.notNeeded:
-              break; // no hubo verificación → mostrar vacío normal
+                _log.i('[search] Verificación OK — reintentando búsqueda');
+                results = await _searchAll(event.query, event.source, event.type, event.limit);
+              case _VerifyOutcome.failed:
+                emit(state.copyWith(
+                  loading: false,
+                  hasSearched: true,
+                  error: 'Verificación requerida para ${sourceDisplayName(event.source)}. Ábrela desde Configuración y reintenta.',
+                ));
+                return;
+              case _VerifyOutcome.notNeeded:
+                break; // no hubo verificación → mostrar vacío normal
+            }
           }
+          // Session already usable (or we just tried): empty search is a real
+          // empty result, not a verification problem — show it normally.
         }
 
         final recents = List<String>.from(state.recentSearches);
@@ -137,14 +161,30 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     }
   }
 
+  /// Reports whether a signed-session source already has a usable session, so
+  /// empty search results aren't mistaken for a missing verification (which
+  /// would open the Cloudflare modal repeatedly). Mirrors PlayerCubit's
+  /// pre-play gate.
+  Future<bool> _sourceSessionUsable(String source) async {
+    try {
+      final status = await _backend.getSignedSessionStatus(source);
+      return status.authenticated;
+    } catch (_) {
+      // Can't ask — don't block on verification.
+      return true;
+    }
+  }
+
   /// Ejecuta el flujo completo de verificación (WebView → grant → complete)
   /// para una fuente con sesión firmada.
   Future<_VerifyOutcome> _verifySource(String source) async {
     try {
-      var url = await _backend.getPendingVerificationUrl(source);
-      if (url.isEmpty) {
-        url = await _backend.triggerExtensionVerification(source);
-      }
+      // Solo reportamos lo que el backend ya tiene pendiente. Nunca forzamos
+      // triggerExtensionVerification desde la búsqueda: en Go es idéntico a
+      // getPendingVerificationUrl (ambos bootstrapean y devuelven un challenge
+      // URL cuando la sesión no está verificada), así que forzarlo re-abría el
+      // modal para fuentes rate-limitadas en cada resultado vacío.
+      final url = await _backend.getPendingVerificationUrl(source);
       if (url.isEmpty) return _VerifyOutcome.notNeeded;
 
       final service = VerificationService();

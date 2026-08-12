@@ -47,6 +47,10 @@ type SearchFilter struct {
 // Search mirrors manifest.searchBehavior for the search UI.
 type Search struct {
 	Enabled        bool           `json:"enabled,omitempty"`
+	// Primary marks the extension as the default search source (SpotiFLAC's
+	// defaultSearchExtension): the search UI selects it first and the backend
+	// tries it before any other source when searching "Todas".
+	Primary        bool           `json:"primary,omitempty"`
 	Placeholder    string         `json:"placeholder,omitempty"`
 	ThumbnailRatio string         `json:"thumbnailRatio,omitempty"`
 	Filters        []SearchFilter `json:"filters,omitempty"`
@@ -88,6 +92,7 @@ func LoadAllToRegistry(reg *extensions.Registry) []RegisteredExtension {
 		} `json:"qualityOptions"`
 		SearchBehavior struct {
 				Enabled        bool   `json:"enabled"`
+				Primary        bool   `json:"primary"`
 				Placeholder    string `json:"placeholder"`
 				ThumbnailRatio string `json:"thumbnailRatio"`
 				Filters        []SearchFilter
@@ -155,6 +160,7 @@ func LoadAllToRegistry(reg *extensions.Registry) []RegisteredExtension {
 			QualityOptions:     qOpts,
 			Search: Search{
 				Enabled:        manifest.SearchBehavior.Enabled,
+				Primary:        manifest.SearchBehavior.Primary,
 				Placeholder:    manifest.SearchBehavior.Placeholder,
 				ThumbnailRatio: manifest.SearchBehavior.ThumbnailRatio,
 				Filters:        manifest.SearchBehavior.Filters,

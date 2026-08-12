@@ -143,7 +143,9 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
       final src = widget.source.isNotEmpty ? widget.source : (t.provider ?? '');
       return FeedItem(id: t.trackId, type: 'track', name: t.name,
         coverUrl: t.coverUrl, artists: artist.name, source: src,
-        albumName: t.albumName, durationMs: t.durationMs, isrc: t.isrc);
+        albumName: t.albumName, durationMs: t.durationMs, isrc: t.isrc,
+        spotifyId: t.spotifyId, deezerId: t.deezerId,
+        tidalId: t.tidalId, qobuzId: t.qobuzId);
     }).toList();
 
     return Scaffold(

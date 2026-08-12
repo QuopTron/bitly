@@ -203,11 +203,11 @@ class _SourceAccordionState extends State<SourceAccordion> {
   }
 
   List<_SourceRow> get _rows {
-    final entries = widget.sources.entries.toList()
-      ..sort((a, b) => a.key.compareTo(b.key));
+    // Preserve the caller's insertion order (search config lists the primary
+    // source first, e.g. deezer) instead of re-sorting alphabetically.
     return [
       _SourceRow('', Icons.apps, 'Todas'),
-      for (final e in entries)
+      for (final e in widget.sources.entries)
         _SourceRow(e.key, sourceIcons[e.key] ?? Icons.music_video, e.value),
     ];
   }

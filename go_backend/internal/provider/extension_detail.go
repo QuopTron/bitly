@@ -6,8 +6,11 @@ import (
 )
 
 // getRawMap calls a JS method and converts the result to a map[string]interface{}.
+// Raw detail fetches (getAlbum/getArtist/getPlaylist) are scoped to their own
+// cooldown bucket so a rate-limited detail endpoint doesn't disable playback
+// or search for the provider.
 func (p *ExtensionProvider) getRawMap(method string, args ...interface{}) (map[string]interface{}, error) {
-	result, err := p.runtime.CallMethod(p.extID, method, args...)
+	result, err := p.callOp("detail", method, args...)
 	if err != nil {
 		return nil, fmt.Errorf("ext %s %s: %w", p.extID, method, err)
 	}

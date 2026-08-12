@@ -3,6 +3,8 @@ package search
 import (
 	"sort"
 	"sync"
+
+	"github.com/zarz/bitly/go_backend/internal/cooldown"
 	"github.com/zarz/bitly/go_backend/internal/provider"
 )
 
@@ -37,6 +39,10 @@ func (e *Engine) SearchTracks(query string, limit int) (Results, error) {
 		wg.Add(1)
 		go func(prov provider.Provider) {
 			defer wg.Done()
+			// Circuit breaker: skip providers cooling down from rate-limits.
+			if cooldown.IsCooled(prov.Name()) {
+				return
+			}
 			tracks, err := prov.SearchTracks(query, limit)
 			if err != nil {
 				return
