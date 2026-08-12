@@ -1,11 +1,28 @@
 {
   "name": "qobuz-web",
   "displayName": "Qobuz",
-  "version": "1.0.7",
+  "version": "1.1.0",
   "description": "Qobuz metadata and download provider for SpotiFLAC Mobile.",
   "homepage": "https://github.com/zarzet/SpotiFLAC-Mobile",
   "type": ["metadata_provider", "download_provider"],
-  "minAppVersion": "4.5.0",
+  "minAppVersion": "4.7.0",
+  "requiredRuntimeFeatures": ["signedSession@1", "sessionGrant@1"],
+  "signedSession": {
+    "namespace": "zarz-v2",
+    "baseUrl": "https://api.zarz.moe/v2",
+    "appVersion": "qobuz-web@1.1.0",
+    "platform": "extension",
+    "callbackUrl": "spotiflac://session-grant",
+    "schemeLabel": "ZARZ-HMAC-V1",
+    "headerPrefix": "X-Zarz-",
+    "timeWindowSeconds": 300,
+    "endpoints": {
+      "bootstrap": "/bootstrap",
+      "challenge": "/challenge",
+      "exchange": "/session/exchange",
+      "refresh": "/session/refresh"
+    }
+  },
   "permissions": {
     "network": [
       "api.zarz.moe",
@@ -37,6 +54,7 @@
     }
   ],
   "capabilities": {
+    "homeFeed": true,
     "downloadFallbackTier": "lossless",
     "replacesBuiltInProviders": ["qobuz"],
     "shareUrlTemplates": {

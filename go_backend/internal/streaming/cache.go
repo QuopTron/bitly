@@ -10,7 +10,15 @@ import (
 	"github.com/zarz/bitly/go_backend/internal/cache"
 )
 
-const chunkSize = 256 * 1024 // 256KB chunks
+var chunkSize = 256 * 1024 // 256KB chunks (configurable via SetChunkSize)
+
+// SetChunkSize overrides the streaming chunk size (bytes). Clamped to a sane range.
+func SetChunkSize(bytes int) {
+	if bytes < 32*1024 {
+		bytes = 32 * 1024
+	}
+	chunkSize = bytes
+}
 
 // Chunk holds a streamed audio segment.
 type Chunk struct {

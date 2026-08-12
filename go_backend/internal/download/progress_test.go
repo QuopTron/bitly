@@ -108,6 +108,29 @@ func TestTrackerSetOutputPath(t *testing.T) {
 	}
 }
 
+func TestTrackerSetEncryptedOutput(t *testing.T) {
+	tr := NewTracker()
+	tr.Add("track_1", "Song", "amazon")
+	tr.SetEncryptedOutput("track_1", "/music/song.flac", "deadbeef", ".flac")
+
+	p := tr.Get("track_1")
+	if p.Status != StatusCompleted {
+		t.Errorf("expected completed, got %v", p.Status)
+	}
+	if p.Progress != 1.0 {
+		t.Errorf("expected 1.0 progress, got %f", p.Progress)
+	}
+	if !p.Encrypted || !p.ClientDecrypt {
+		t.Errorf("expected encrypted + clientDecrypt flags")
+	}
+	if p.DecryptionKey != "deadbeef" || p.OutputExtension != ".flac" {
+		t.Errorf("decryption info not stored: %+v", p)
+	}
+	if p.OutputPath != "/music/song.flac" {
+		t.Errorf("expected /music/song.flac, got %s", p.OutputPath)
+	}
+}
+
 func TestStatusStrings(t *testing.T) {
 	tests := []struct {
 		status Status

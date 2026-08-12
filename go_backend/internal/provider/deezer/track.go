@@ -15,38 +15,21 @@ func (c *Client) getTrackByID(trackID int64) (*Track, error) {
 	return &track, nil
 }
 
-// GetTrackByISRC looks up a track by its ISRC code using Deezer search.
+// getTrackByISRC looks up a track by its ISRC code using Deezer search.
 func (c *Client) getTrackByISRC(isrc string) (*Track, error) {
-	results, err := c.searchTracks(fmt.Sprintf("isrc:\"%s\"", isrc), 1)
-	if err != nil {
+	type searchResp struct {
+		Data []Track `json:"data"`
+	}
+	var resp searchResp
+	if err := c.doGet("/search/track", map[string]string{
+		"q": fmt.Sprintf("isrc:\"%s\"", isrc), "limit": "1",
+	}, &resp); err != nil {
 		return nil, err
 	}
-	if len(results) == 0 {
+	if len(resp.Data) == 0 {
 		return nil, fmt.Errorf("deezer: no track found for ISRC %s", isrc)
 	}
-	return c.getTrackByID(results[0].ID)
-}
-
-// GetStreamURL returns the stream URL for a Deezer track.
-// Requires ARL to be set via SetARL.
-//
-// The URL is built using the MD5_ORIGIN field from the track metadata,
-// which points to an encrypted audio stream on Deezer's CDN.
-//
-// Format: https://e-cdns-proxy-{cdn}.deezer.com/mobile/1/{md5_origin}
-func (c *Client) getStreamURLByID(trackID int64) (string, error) {
-	if c.arl == "" {
-		return "", fmt.Errorf("deezer: ARL not set, cannot get stream URL")
-	}
-	track, err := c.getTrackByID(trackID)
-	if err != nil {
-		return "", err
-	}
-	if track.MD5Origin == "" {
-		return "", fmt.Errorf("deezer: track %d has no MD5_ORIGIN", trackID)
-	}
-	cdn := calculateCDN(track.MD5Origin)
-	return fmt.Sprintf("https://e-cdns-proxy-%s.deezer.com/mobile/1/%s", cdn, track.MD5Origin), nil
+	return &resp.Data[0], nil
 }
 
 // calculateCDN determines the CDN server index from the MD5 hash.

@@ -72,6 +72,8 @@ type Playlist struct {
 	Picture         string      `json:"picture"`
 	PictureSmall    string      `json:"picture_small"`
 	PictureMedium   string      `json:"picture_medium"`
+	PictureBig      string      `json:"picture_big"`
+	PictureXl       string      `json:"picture_xl"`
 	Creator         struct {
 		ID   int64  `json:"id"`
 		Name string `json:"name"`

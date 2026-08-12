@@ -4,10 +4,7 @@
   "version": "1.0.5",
   "description": "SoundCloud metadata and download provider. Search tracks, albums, playlists, artists. Downloads via direct SoundCloud streams.",
   "homepage": "https://github.com/zarzet/SpotiFLAC-Mobile",
-  "type": [
-    "metadata_provider",
-    "download_provider"
-  ],
+  "type": ["metadata_provider", "download_provider"],
   "minAppVersion": "4.2.3",
   "skipLyrics": true,
   "permissions": {
@@ -78,9 +75,7 @@
   },
   "urlHandler": {
     "enabled": true,
-    "patterns": [
-      "soundcloud.com"
-    ]
+    "patterns": ["soundcloud.com"]
   },
   "settings": []
 }

@@ -1,6 +1,6 @@
 // ============================================
 // Apple Music Extension for SpotiFLAC Mobile
-// Version: 1.2.2
+// Version: 1.3.8
 //
 // Uses Apple Music's public catalog API (amp-api)
 // to fetch metadata including ISRC. No login required.
@@ -88,9 +88,9 @@ function initialize(config) {
   return true;
 }
 
-function cleanup() {
+function persistState() {
   try {
-    storage.set(
+    return storage.set(
       "am_state",
       JSON.stringify({
         token: state.token,
@@ -98,7 +98,14 @@ function cleanup() {
         trackURLCache: state.trackURLCache,
       }),
     );
-  } catch (e) {}
+  } catch (e) {
+    log.warn("Failed to persist Apple Music session:", e.message || String(e));
+    return false;
+  }
+}
+
+function cleanup() {
+  persistState();
 }
 
 function clampInt(value, fallback, minValue, maxValue) {
@@ -356,6 +363,7 @@ function parseTokenExpiry() {
       Math.round((state.tokenExpiry - Date.now()) / 60000) +
       " minutes",
   );
+  persistState();
 }
 
 function ensureToken() {
@@ -389,6 +397,7 @@ function apiGet(path, allowRetry) {
     log.info("Token expired, refreshing...");
     state.token = null;
     state.tokenExpiry = 0;
+    persistState();
     return apiGet(path, false);
   }
 
@@ -454,6 +463,12 @@ function artworkURL(artwork, size) {
   return artwork.url.replace("{w}", String(size)).replace("{h}", String(size));
 }
 
+function previewURL(attributes) {
+  var previews = attributes && attributes.previews;
+  if (!Array.isArray(previews) || previews.length === 0) return "";
+  return previews[0] && previews[0].url ? previews[0].url : "";
+}
+
 /**
  * Extract the best tall (3:4) cover URL from editorialArtwork if available.
  * Falls back to standard square artwork.
@@ -476,6 +491,80 @@ function tallArtworkURL(editorialArtwork, regularArtwork, size) {
 
   // Fallback to regular square artwork
   return artworkURL(regularArtwork, size);
+}
+
+// Apple editorialVideo key priority for a "moving banner". The detail headers
+// (album/artist) are full-width and portrait (taller than wide), so a tall 3:4
+// motion source fills them with the least cropping (matches Apple Music).
+// Covers both artist (motionArtist*) and album (motionDetail*) keys.
+var MOTION_VIDEO_KEYS = [
+  "motionDetailTall",
+  "motionTallVideo3x4",
+  "motionArtworkTall3x4",
+  "motionArtistSquare1x1",
+  "motionDetailSquare",
+  "motionSquareVideo1x1",
+  "motionArtworkSquare1x1",
+  "motionArtistFullscreen16x9",
+  "motionArtistWide16x9",
+  "motionArtworkWide16x9",
+  "motionDetailWide",
+];
+
+function motionArtworkIsTallKey(key) {
+  return key.indexOf("Tall") >= 0 || key.indexOf("3x4") >= 0;
+}
+
+// Best HLS motion-artwork (.m3u8) video URL, or "" when none exists.
+// The .video field is a direct HLS URL (no {w}/{h} template).
+function motionArtworkVideoURL(editorialVideo, allowNonTall) {
+  if (!editorialVideo) return "";
+  for (var i = 0; i < MOTION_VIDEO_KEYS.length; i++) {
+    var key = MOTION_VIDEO_KEYS[i];
+    if (!allowNonTall && !motionArtworkIsTallKey(key)) continue;
+    var entry = editorialVideo[key];
+    if (entry && entry.video) return entry.video;
+  }
+  return "";
+}
+
+function motionArtworkPreviewHeight(key, entry, width) {
+  var frame = entry && entry.previewFrame ? entry.previewFrame : null;
+  var frameWidth = frame && Number(frame.width || frame.w || 0);
+  var frameHeight = frame && Number(frame.height || frame.h || 0);
+  if (frameWidth > 0 && frameHeight > 0) {
+    return Math.round((width * frameHeight) / frameWidth);
+  }
+
+  if (motionArtworkIsTallKey(key)) {
+    return Math.round((width * 4) / 3);
+  }
+  if (
+    key.indexOf("Wide") >= 0 ||
+    key.indexOf("Fullscreen") >= 0 ||
+    key.indexOf("16x9") >= 0
+  ) {
+    return Math.round((width * 9) / 16);
+  }
+  return width;
+}
+
+// Static preview-frame image for the motion artwork (banner placeholder /
+// fallback when the HLS video cannot play).
+function motionArtworkPreviewURL(editorialVideo, size) {
+  if (!editorialVideo) return "";
+  size = size || 1080;
+  for (var i = 0; i < MOTION_VIDEO_KEYS.length; i++) {
+    var key = MOTION_VIDEO_KEYS[i];
+    var entry = editorialVideo[key];
+    if (entry && entry.previewFrame && entry.previewFrame.url) {
+      var height = motionArtworkPreviewHeight(key, entry, size);
+      return entry.previewFrame.url
+        .replace("{w}", String(size))
+        .replace("{h}", String(height));
+    }
+  }
+  return "";
 }
 
 // ============================================
@@ -557,6 +646,7 @@ function formatSong(song, albumData) {
     album_name: albumName,
     album_artist: albumAttr.artistName || attr.artistName || "",
     duration_ms: attr.durationInMillis || 0,
+    preview_url: previewURL(attr),
     images: coverURL,
     release_date: attr.releaseDate || albumAttr.releaseDate || "",
     track_number: attr.trackNumber || 0,
@@ -578,6 +668,7 @@ function formatSong(song, albumData) {
     label: albumAttr.recordLabel || "",
     copyright: albumAttr.copyright || "",
     composer: attr.composerName || "",
+    explicit: attr.contentRating === "explicit",
   };
 }
 
@@ -591,6 +682,9 @@ function formatAlbumInfo(album) {
 
   // Use square artwork — tall artwork causes 3:4 covers in downloaded files.
   var coverURL = artworkURL(attr.artwork);
+  var editorialVideo = attr.editorialVideo;
+  var headerVideo = motionArtworkVideoURL(editorialVideo);
+  var headerImage = motionArtworkPreviewURL(editorialVideo) || coverURL;
 
   return {
     id: album.id || "",
@@ -599,6 +693,8 @@ function formatAlbumInfo(album) {
     artist_id: firstArtistId,
     images: coverURL,
     cover_url: coverURL,
+    header_image: headerImage,
+    header_video: headerVideo,
     release_date: attr.releaseDate || "",
     total_tracks: attr.trackCount || 0,
     record_label: attr.recordLabel || "",
@@ -608,6 +704,7 @@ function formatAlbumInfo(album) {
         return g !== "Music";
       })
       .join(", "),
+    audio_traits: attr.audioTraits || [],
     provider_id: "apple-music",
   };
 }
@@ -655,7 +752,9 @@ function fetchAlbum(albumID) {
   log.info("Fetching album:", albumID);
 
   var data = apiGet(
-    "albums/" + albumID + "?include=tracks,artists&extend=editorialArtwork",
+    "albums/" +
+      albumID +
+      "?include=tracks,artists&extend=editorialArtwork,editorialVideo",
   );
   var albums = data.data || [];
   if (albums.length === 0) {
@@ -709,7 +808,9 @@ function fetchPlaylist(playlistID) {
   log.info("Fetching playlist:", playlistID);
 
   var data = apiGet(
-    "playlists/" + playlistID + "?include=tracks&extend=editorialArtwork",
+    "playlists/" +
+      playlistID +
+      "?include=tracks&extend=editorialArtwork,editorialVideo",
   );
   var playlists = data.data || [];
   if (playlists.length === 0) {
@@ -733,6 +834,9 @@ function fetchPlaylist(playlistID) {
     description: description,
     owner: attr.curatorName || "",
     cover: artworkURL(attr.artwork),
+    header_image:
+      motionArtworkPreviewURL(attr.editorialVideo) || artworkURL(attr.artwork),
+    header_video: motionArtworkVideoURL(attr.editorialVideo),
     totalTracks: 0,
     followers: 0,
   };
@@ -780,7 +884,11 @@ function fetchPlaylist(playlistID) {
 function fetchArtist(artistID) {
   log.info("Fetching artist:", artistID);
 
-  var data = apiGet("artists/" + artistID + "?include=albums&views=top-songs");
+  var data = apiGet(
+    "artists/" +
+      artistID +
+      "?include=albums&views=top-songs&extend=editorialVideo",
+  );
   var artists = data.data || [];
   if (artists.length === 0) {
     throw new Error("Artist not found: " + artistID);
@@ -802,9 +910,11 @@ function fetchArtist(artistID) {
         artists: songAttr.artistName || "",
         album_name: albumName,
         duration_ms: songAttr.durationInMillis || 0,
+        preview_url: previewURL(songAttr),
         images: artworkURL(songAttr.artwork),
         provider_id: "apple-music",
         isrc: songAttr.isrc || "",
+        explicit: songAttr.contentRating === "explicit",
       });
     }
   }
@@ -859,12 +969,19 @@ function fetchArtist(artistID) {
     "top tracks",
   );
 
+  var editorialVideo = attr.editorialVideo;
+  var headerVideo = motionArtworkVideoURL(editorialVideo);
+  var headerImage =
+    motionArtworkPreviewURL(editorialVideo) || artworkURL(attr.artwork);
+
   return {
     type: "artist",
     artist: {
       id: artistID,
       name: attr.name || "",
       image_url: artworkURL(attr.artwork),
+      header_image: headerImage,
+      header_video: headerVideo,
       listeners: 0,
       albums: albums,
       top_tracks: topTracks,
@@ -930,12 +1047,17 @@ function customSearch(searchQuery, options) {
         artists: songAttr.artistName || "",
         album_name: albumName,
         duration_ms: songAttr.durationInMillis || 0,
+        preview_url: previewURL(songAttr),
         images: artworkURL(songAttr.artwork),
+        release_date: songAttr.releaseDate || "",
+        track_number: songAttr.trackNumber || 0,
+        disc_number: songAttr.discNumber || 1,
         isrc: songAttr.isrc || "",
         composer: songAttr.composerName || "",
         source: "apple-music",
         item_type: "track",
         provider_id: "apple-music",
+        explicit: songAttr.contentRating === "explicit",
       });
     }
   }
@@ -1020,9 +1142,31 @@ function enrichTrack(track) {
       var songs = data.data || [];
       if (songs.length > 0) {
         var songAttr = songs[0].attributes || {};
+        var albumRel = songs[0].relationships && songs[0].relationships.albums;
+        var albumData =
+          albumRel && albumRel.data && albumRel.data.length > 0
+            ? albumRel.data[0]
+            : null;
+        var fullTrack = formatSong(songs[0], albumData);
+
         if (songAttr.isrc) {
           track.isrc = songAttr.isrc;
           log.info("Enriched ISRC from Apple Music:", track.isrc);
+        }
+        if (fullTrack.track_number > 0) {
+          track.track_number = fullTrack.track_number;
+        }
+        if (fullTrack.total_tracks > 0) {
+          track.total_tracks = fullTrack.total_tracks;
+        }
+        if (fullTrack.disc_number > 0) {
+          track.disc_number = fullTrack.disc_number;
+        }
+        if (!track.album_id && fullTrack.album_id) {
+          track.album_id = fullTrack.album_id;
+        }
+        if (!track.album_artist && fullTrack.album_artist) {
+          track.album_artist = fullTrack.album_artist;
         }
         if (songAttr.genreNames) {
           var genres = songAttr.genreNames.filter(function (g) {
@@ -1038,9 +1182,8 @@ function enrichTrack(track) {
         }
 
         // Get label/copyright from album
-        var albumRel = songs[0].relationships && songs[0].relationships.albums;
-        if (albumRel && albumRel.data && albumRel.data.length > 0) {
-          var albAttr = albumRel.data[0].attributes || {};
+        if (albumData) {
+          var albAttr = albumData.attributes || {};
           if (albAttr.recordLabel) track.label = albAttr.recordLabel;
           if (albAttr.copyright) track.copyright = albAttr.copyright;
         }
@@ -1073,6 +1216,12 @@ function enrichTrack(track) {
           if (mAttr.isrc) {
             track.isrc = mAttr.isrc;
             log.info("Enriched ISRC via search:", track.isrc);
+          }
+          if (mAttr.trackNumber) {
+            track.track_number = mAttr.trackNumber;
+          }
+          if (mAttr.discNumber) {
+            track.disc_number = mAttr.discNumber;
           }
           if (!track.genre && mAttr.genreNames) {
             var g = mAttr.genreNames.filter(function (x) {
@@ -1267,6 +1416,9 @@ function handleURL(url) {
             name: result.album_info.name,
             artists: result.album_info.artists,
             cover_url: result.album_info.images,
+            header_image: result.album_info.header_image,
+            header_video: result.album_info.header_video,
+            audio_traits: result.album_info.audio_traits,
             release_date: result.album_info.release_date,
             total_tracks: result.album_info.total_tracks,
             tracks: result.track_list,
@@ -1274,6 +1426,9 @@ function handleURL(url) {
           tracks: result.track_list,
           name: result.album_info.name,
           cover_url: result.album_info.images,
+          header_image: result.album_info.header_image,
+          header_video: result.album_info.header_video,
+          audio_traits: result.album_info.audio_traits,
         };
 
       case "playlist":
@@ -1284,6 +1439,8 @@ function handleURL(url) {
           tracks: result.track_list,
           name: result.playlist_info.name,
           cover_url: result.playlist_info.cover,
+          header_image: result.playlist_info.header_image,
+          header_video: result.playlist_info.header_video,
         };
 
       case "artist":
@@ -1334,6 +1491,9 @@ function getAlbum(albumId) {
       total_tracks: result.album_info.total_tracks,
       images: result.album_info.images,
       cover_url: result.album_info.images,
+      header_image: result.album_info.header_image,
+      header_video: result.album_info.header_video,
+      audio_traits: result.album_info.audio_traits,
       tracks: tracks,
       provider_id: "apple-music",
     };
@@ -1367,6 +1527,8 @@ function getPlaylist(playlistId) {
       owner: result.playlist_info.owner,
       cover: result.playlist_info.cover,
       cover_url: result.playlist_info.cover,
+      header_image: result.playlist_info.header_image,
+      header_video: result.playlist_info.header_video,
       total_tracks: result.playlist_info.totalTracks,
       tracks: tracks,
       provider_id: "apple-music",
@@ -2358,7 +2520,24 @@ function parseTTML(ttml) {
     // Extract timed syllable spans from main content
     var timedSpanRe = /<span\s+([^>]*)>([^<]*)<\/span>/gi;
     var tsMatch;
+    var tsPrevEnd = -1;
     while ((tsMatch = timedSpanRe.exec(mainContent)) !== null) {
+      // Apple separates words with whitespace text nodes between the word
+      // spans. The regex only captures span contents, so preserve that gap as
+      // a trailing space on the previous syllable; otherwise words run
+      // together (e.g. "Brownguiltyeyes"). Syllables within a single word have
+      // no gap and stay joined.
+      if (tsPrevEnd >= 0 && line.syllables.length > 0) {
+        var gap = decodeXMLEntities(
+          mainContent.substring(tsPrevEnd, tsMatch.index),
+        );
+        if (/\s/.test(gap)) {
+          var prevSyl = line.syllables[line.syllables.length - 1];
+          if (!/\s$/.test(prevSyl.text)) prevSyl.text += " ";
+        }
+      }
+      tsPrevEnd = timedSpanRe.lastIndex;
+
       var sTag = "<span " + tsMatch[1] + ">";
       var sBegin = parseTTMLTime(extractAttr(sTag, "begin"));
       var sEnd = parseTTMLTime(extractAttr(sTag, "end"));
@@ -2413,7 +2592,19 @@ function parseTTML(ttml) {
       var bgClean = removeRoleSpans(bgContent);
       var bgTimedRe = /<span\s+([^>]*)>([^<]*)<\/span>/gi;
       var bgTsMatch;
+      var bgPrevEnd = -1;
       while ((bgTsMatch = bgTimedRe.exec(bgClean)) !== null) {
+        if (bgPrevEnd >= 0 && line.bgSyllables.length > 0) {
+          var bgGap = decodeXMLEntities(
+            bgClean.substring(bgPrevEnd, bgTsMatch.index),
+          );
+          if (/\s/.test(bgGap)) {
+            var prevBg = line.bgSyllables[line.bgSyllables.length - 1];
+            if (!/\s$/.test(prevBg.text)) prevBg.text += " ";
+          }
+        }
+        bgPrevEnd = bgTimedRe.lastIndex;
+
         var bgTag = "<span " + bgTsMatch[1] + ">";
         var bgBegin = parseTTMLTime(extractAttr(bgTag, "begin"));
         var bgEnd = parseTTMLTime(extractAttr(bgTag, "end"));
@@ -2729,6 +2920,146 @@ function findTrackId(trackName, artistName, albumName, durationSec) {
 // REGISTER EXTENSION
 // ============================================
 
+function getHomeFeed() {
+  var sections = [];
+  try {
+    ensureToken();
+    // Apple Music catalog charts: top songs, albums and playlists.
+    var charts = apiGet("charts?limit=20&types=songs,albums,playlists");
+    if (!charts || !charts.results) {
+      return { success: false, error: "no chart data", sections: [] };
+    }
+
+    // Section 1: Top songs.
+    try {
+      var songItems = [];
+      // results.songs is an array of chart objects, each with its own .data.
+      var songCharts =
+        charts.results.songs && Array.isArray(charts.results.songs)
+          ? charts.results.songs
+          : [];
+      for (var c = 0; c < songCharts.length && songItems.length < 15; c++) {
+        var chartData =
+          songCharts[c] && songCharts[c].data ? songCharts[c].data : [];
+        for (var i = 0; i < chartData.length && songItems.length < 15; i++) {
+          var s = formatSong(chartData[i], null);
+          if (!s || !s.id) continue;
+          songItems.push({
+            name: s.name,
+            artists: s.artists,
+            duration_ms: s.duration_ms,
+            type: "track",
+            id: s.id,
+            album_id: s.album_id,
+            album_name: s.album_name,
+            cover_url: s.images || s.cover_url,
+          });
+        }
+      }
+      if (songItems.length > 0) {
+        sections.push({
+          uri: "am:charts:songs",
+          title: "Canciones del momento",
+          items: songItems,
+        });
+      }
+    } catch (e1) {
+      log.debug("Apple getHomeFeed songs failed:", e1.message);
+    }
+
+    // Section 2: Top albums.
+    try {
+      var albumItems = [];
+      var albumCharts =
+        charts.results.albums && Array.isArray(charts.results.albums)
+          ? charts.results.albums
+          : [];
+      for (
+        var c2 = 0;
+        c2 < albumCharts.length && albumItems.length < 12;
+        c2++
+      ) {
+        var chartAlbums =
+          albumCharts[c2] && albumCharts[c2].data ? albumCharts[c2].data : [];
+        for (var j = 0; j < chartAlbums.length && albumItems.length < 12; j++) {
+          var al = formatAlbumInfo(chartAlbums[j]);
+          if (!al || !al.id) continue;
+          albumItems.push({
+            name: al.name,
+            artists: al.artists,
+            type: "album",
+            id: al.id,
+            cover_url: al.cover_url,
+            release_date: al.release_date,
+            total_tracks: al.total_tracks,
+          });
+        }
+      }
+      if (albumItems.length > 0) {
+        sections.push({
+          uri: "am:charts:albums",
+          title: "Álbumes más escuchados",
+          items: albumItems,
+        });
+      }
+    } catch (e2) {
+      log.debug("Apple getHomeFeed albums failed:", e2.message);
+    }
+
+    // Section 3: Top playlists.
+    try {
+      var playlistItems = [];
+      var playlistCharts =
+        charts.results.playlists && Array.isArray(charts.results.playlists)
+          ? charts.results.playlists
+          : [];
+      for (
+        var c3 = 0;
+        c3 < playlistCharts.length && playlistItems.length < 12;
+        c3++
+      ) {
+        var chartPlaylists =
+          playlistCharts[c3] && playlistCharts[c3].data
+            ? playlistCharts[c3].data
+            : [];
+        for (
+          var k = 0;
+          k < chartPlaylists.length && playlistItems.length < 12;
+          k++
+        ) {
+          var pl = chartPlaylists[k] || {};
+          var plAttr = pl.attributes || {};
+          var plCover = artworkURL(plAttr.artwork);
+          playlistItems.push({
+            name: String(plAttr.name || ""),
+            type: "playlist",
+            id: String(pl.id || ""),
+            cover_url: plCover,
+            total_tracks: Number(plAttr.trackCount || 0),
+          });
+        }
+      }
+      if (playlistItems.length > 0) {
+        sections.push({
+          uri: "am:charts:playlists",
+          title: "Playlists populares",
+          items: playlistItems,
+        });
+      }
+    } catch (e3) {
+      log.debug("Apple getHomeFeed playlists failed:", e3.message);
+    }
+  } catch (e) {
+    log.debug("Apple getHomeFeed failed:", e.message);
+    return { success: false, error: String(e.message || e), sections: [] };
+  }
+
+  if (sections.length > 0) {
+    return { success: true, sections: sections };
+  }
+  return { success: false, error: "no home feed available", sections: [] };
+}
+
 registerExtension({
   initialize: initialize,
   cleanup: cleanup,
@@ -2739,6 +3070,7 @@ registerExtension({
   getArtist: getArtist,
   getPlaylist: getPlaylist,
   searchTracks: searchTracks,
+  getHomeFeed: getHomeFeed,
   enrichTrack: enrichTrack,
   fetchLyrics: fetchLyrics,
   checkAvailability: checkAvailability,

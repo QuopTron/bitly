@@ -1,0 +1,44 @@
+2026/08/05 04:05:12 [apple-music][INFO] Apple Music Extension loaded!
+2026/08/05 04:05:13 [deezer][INFO] [DeezerExt] Deezer metadata and download extension loaded
+2026/08/05 04:05:13 [pandora][INFO] [Pandora] Pandora extension loaded
+2026/08/05 04:05:13 [qobuz-web][INFO] [QobuzWeb] Qobuz extension loaded
+2026/08/05 04:05:13 [soundcloud][INFO] [SC] SoundCloud Extension loaded!
+2026/08/05 04:05:13 [spotify-web][INFO] Spotify Web Extension loaded!
+2026/08/05 04:05:13 [tidal-web][INFO] [TidalWeb] TIDAL web metadata extension loaded
+2026/08/05 04:05:13 [backend] Initialized
+2026/08/05 04:05:13 [server] Ready: {"bundled_extensions":9,"ok":true,"providers":["soundcloud","tidal-web","ytmusic-spotiflac","musicbrainz","amazon","apple-music","qobuz-web","spotify-web","youtube","deezer","pandora"]}
+2026/08/05 04:05:13 🌐 Go backend server listening on http://127.0.0.1:55113
+2026/08/05 04:05:13    Try: curl http://127.0.0.1:55113/ping
+2026/08/05 04:05:13    Try: curl "http://127.0.0.1:55113/search/tracks?q=queen"
+2026/08/05 04:05:16 [feed] pandora: skipped (no homeFeed capability)
+2026/08/05 04:05:16 [feed] soundcloud: skipped (no homeFeed capability)
+2026/08/05 04:05:16 [spotify-web][INFO] Fetching Spotify home feed...
+2026/08/05 04:05:16 [apple-music][INFO] Fetching Apple Music developer token...
+2026/08/05 04:05:16 [amazon][INFO] [Amazon] Fetching home feed...
+2026/08/05 04:05:16 [amazon][INFO] [Amazon] Fetching config.json for session...
+2026/08/05 04:05:16 [feed] deezer: 3 sections, 27 items
+2026/08/05 04:05:16 [feed] ytmusic-spotiflac: 2 sections, 30 items
+2026/08/05 04:05:16 [amazon][INFO] [Amazon] initSession config.json status: 200
+2026/08/05 04:05:16 [amazon][INFO] [Amazon] Session initialized, deviceId: 14431874530739619
+2026/08/05 04:05:16 [amazon][INFO] [Amazon] callShowHomeBrowse, nextToken: initial
+2026/08/05 04:05:16 [amazon][INFO] [Amazon] showHomeBrowse fetching: https://na.mesk.skill.music.a2z.com/api/showHomeBrowse
+2026/08/05 04:05:16 [feed] tidal-web: 3 sections, 27 items
+2026/08/05 04:05:17 [spotify-web][INFO] No sp_t cookie; using anonymous generated device id
+2026/08/05 04:05:18 [spotify-web][ERROR] new-releases failed: REST request failed: HTTP 429
+2026/08/05 04:05:18 [spotify-web][ERROR] featured-playlists failed: REST request failed: HTTP 429
+2026/08/05 04:05:19 [spotify-web][INFO] Fetched 5 sections from home feed
+2026/08/05 04:05:19 [feed] spotify-web: 5 sections, 54 items
+2026/08/05 04:05:20 [apple-music][INFO] Token not in HTML, checking JS bundles...
+2026/08/05 04:05:20 [apple-music][DEBUG] Checking bundle: /assets/index~f0647adb63.js
+2026/08/05 04:05:20 [amazon][INFO] [Amazon] showHomeBrowse response: 200
+2026/08/05 04:05:20 [amazon][INFO] [Amazon] showHomeBrowse OK, methods: 1
+2026/08/05 04:05:20 [amazon][INFO] [Amazon] Home feed ALL interfaces (33 total): TemplateListInterface.v1_0.BindTemplateMethod, Web.TemplatesInterface.v1_0.Touch.GalleryTemplateInterface.GalleryTemplate, Web.TemplatesInterface.v1_0.Touch.WidgetsInterface.VisualShovelerWidgetElement, Web.TemplatesInterface.v1_0.Touch.WidgetsInterface.SquareVerticalItemElement, Web.TemplatesInterface.v1_0.Touch.WidgetsInterface.TextElement, StorageInterface.v1_0.StorageObserver, Web.PageInterface.v1_0.LinkElement, InteractionInterface.v1_0.GlobalInvokeHttpSkillMethod, QueuesInterface.v1_0.MultiThreadedQueue, TemplateListInterface.v1_0.CreateTemplateMethod, Web.TemplatesInterface.v1_0.Touch.DetailTemplateInterface.DetailTemplate, Web.PageInterface.v1_0.TemplateDataElement, Web.PageInterface.v1_0.SEOHeadElement, Web.PageInterface.v1_0.SEOHeadMetaElement, Web.PageInterface.v1_0.SEOHeadLinkElement, Web.TemplatesInterface.v1_0.Touch.WidgetsInterface.ButtonElement, InteractionInterface.v1_0.InvokeHttpSkillMethod, TemplateListInterface.v1_0.CreateAndBindTemplateMethod, StorageInterface.v1_0.ClearGroupMethod, QueuesInterface.v1_0.SingleThreadedQueue, Web.TemplatesInterface.v1_0.Touch.WidgetsInterface.IconButtonElement, PlaybackInterface.v1_0.ResumeMediaMethod, PlaybackInterface.v1_0.PauseMediaMethod, Web.TemplatesInterface.v1_0.Touch.MessageTemplateInterface.MessageTemplate, Web.ContextInterface.v1_0.ContextMenuElement, Web.ContextInterface.v1_0.ContextMenuBaseItemElement, Web.TemplatesInterface.v1_0.Touch.WidgetsInterface.SeeMoreItemElement, Web.PageInterface.v1_0.SEOHeadLDJSONScriptElement, Web.TemplatesInterface.v1_0.Touch.DetailTemplateInterface.EntityDetailsElement, Web.TemplatesInterface.v1_0.Touch.WidgetsInterface.DescriptiveShovelerWidgetElement, Web.TemplatesInterface.v1_0.Touch.WidgetsInterface.SquareHorizontalItemElement, TemplateListInterface.v1_0.ClearOverlayTemplatesMethod, Web.TemplatesInterface.v1_0.Touch.ChromeTemplateInterface.CloseNotificationMethod
+2026/08/05 04:05:20 [amazon][INFO] [Amazon] Home feed widget/item interfaces: VisualShovelerWidgetElement:2, SquareVerticalItemElement:24, TextElement:168, ButtonElement:228, IconButtonElement:180, Web.ContextInterface.v1_0.ContextMenuBaseItemElement:120, SeeMoreItemElement:3, DescriptiveShovelerWidgetElement:1, SquareHorizontalItemElement:12
+2026/08/05 04:05:20 [amazon][INFO] [Amazon] Home feed: 3 sections
+2026/08/05 04:05:20 [feed] amazon: 3 sections, 36 items
+2026/08/05 04:05:21 [qobuz-web][DEBUG] [QobuzWeb] getHomeFeed failed: VERIFY_REQUIRED
+2026/08/05 04:05:21 [feed] qobuz-web: no sections returned
+2026/08/05 04:05:21 [apple-music][DEBUG] Bundle size: 3285706 bytes
+2026/08/05 04:05:21 [apple-music][INFO] Found token in JS bundle: /assets/index~f0647adb63.js
+2026/08/05 04:05:21 [apple-music][INFO] Token valid for 78768 minutes
+2026/08/05 04:05:21 [feed] apple-music: 3 sections, 39 items

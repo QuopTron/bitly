@@ -1,7 +1,7 @@
 {
   "name": "ytmusic-spotiflac",
   "displayName": "YouTube Music",
-  "version": "2.3.8",
+  "version": "2.3.9",
   "description": "YouTube Music metadata & download provider for SpotiFLAC Mobile. Search tracks, albums, playlists on YouTube Music.",
   "type": [
     "metadata_provider",

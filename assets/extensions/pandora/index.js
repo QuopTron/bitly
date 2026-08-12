@@ -1,10 +1,10 @@
 var CONFIG = {
-  apiBaseURL: "https://api.zarz.moe",
-  downloadPath: "/v1/dl/pan",
+  apiBaseURL: "https://api.zarz.moe/v2",
+  downloadPath: "/dl/pan",
   songLinkBaseURL: "https://api.song.link/v1-alpha.1/links",
   deezerBaseURL: "https://api.deezer.com",
   pandoraBaseURL: "https://www.pandora.com",
-  userCountry: "US"
+  userCountry: "US",
 };
 
 function initialize(settings) {
@@ -17,7 +17,10 @@ function initialize(settings) {
 
   var songLinkBase = String(settings.songLinkBaseUrl || "").trim();
   if (songLinkBase) {
-    CONFIG.songLinkBaseURL = normalizeSecureURL(songLinkBase).replace(/\/+$/, "");
+    CONFIG.songLinkBaseURL = normalizeSecureURL(songLinkBase).replace(
+      /\/+$/,
+      "",
+    );
   }
 
   return true;
@@ -66,8 +69,13 @@ function appUserAgent() {
 }
 
 function userAgentForURL(url) {
-  var text = String(url || "").trim().toLowerCase();
-  if (text.indexOf("https://api.zarz.moe") === 0 || text.indexOf("http://api.zarz.moe") === 0) {
+  var text = String(url || "")
+    .trim()
+    .toLowerCase();
+  if (
+    text.indexOf("https://api.zarz.moe") === 0 ||
+    text.indexOf("http://api.zarz.moe") === 0
+  ) {
     return appUserAgent();
   }
   return utils.randomUserAgent();
@@ -78,15 +86,17 @@ function getJSON(url, headers) {
     url,
     mergeHeaders(
       {
-        "Accept": "application/json",
-        "User-Agent": userAgentForURL(url)
+        Accept: "application/json",
+        "User-Agent": userAgentForURL(url),
       },
-      headers
-    )
+      headers,
+    ),
   );
 
   if (!response || response.error) {
-    throw new Error(response && response.error ? response.error : "request failed");
+    throw new Error(
+      response && response.error ? response.error : "request failed",
+    );
   }
   if (response.statusCode !== 200) {
     throw new Error("HTTP " + response.statusCode + " for " + url);
@@ -102,21 +112,72 @@ function postJSON(url, body, headers) {
     mergeHeaders(
       {
         "Content-Type": "application/json",
-        "Accept": "application/json",
-        "User-Agent": userAgentForURL(url)
+        Accept: "application/json",
+        "User-Agent": userAgentForURL(url),
       },
-      headers
-    )
+      headers,
+    ),
   );
 
   if (!response || response.error) {
-    throw new Error(response && response.error ? response.error : "request failed");
+    throw new Error(
+      response && response.error ? response.error : "request failed",
+    );
   }
   if (response.statusCode !== 200) {
     throw new Error("HTTP " + response.statusCode + " for " + url);
   }
 
   return JSON.parse(response.body);
+}
+
+function signedPandoraDownload(payload) {
+  if (
+    typeof session === "undefined" ||
+    !session ||
+    typeof session.signedFetch !== "function"
+  ) {
+    throw new Error("signed session runtime is not available");
+  }
+  var resourceHash = utils.sha256(
+    "pan:track:" + String(payload.url || "").toLowerCase(),
+  );
+  var ticket = session.signedFetch(
+    "POST",
+    "/tickets",
+    {
+      capability: "download_ticket",
+      provider: "pan",
+      resource_hash: resourceHash,
+    },
+    {},
+  );
+  if (!ticket || ticket.error || ticket.needsVerification) {
+    var ticketErr = ticket && ticket.error ? ticket.error : "ticket request failed";
+    throw new Error(ticketErr);
+  }
+  var ticketID = "";
+  try {
+    var ticketBody = JSON.parse(ticket.body || "{}");
+    ticketID = String(ticketBody.ticket_id || ticketBody.ticket || "").trim();
+  } catch (e) {}
+  if (!ticketID) {
+    throw new Error("signed ticket response missing ticket_id");
+  }
+  var response = session.signedFetch(
+    "POST",
+    CONFIG.downloadPath,
+    payload,
+    { "X-Zarz-Ticket": ticketID },
+  );
+  if (!response || response.error || response.needsVerification) {
+    var error = response && response.error ? response.error : "request failed";
+    throw new Error(error);
+  }
+  if (response.statusCode !== 200) {
+    throw new Error("HTTP " + response.statusCode + " for " + CONFIG.downloadPath);
+  }
+  return JSON.parse(response.body || "{}");
 }
 
 function ensureLeadingDot(ext) {
@@ -133,7 +194,9 @@ function ensureOutputExtension(outputPath, extension) {
   if (dotIndex < 0) {
     return outputPath + normalizedExt;
   }
-  if (outputPath.substring(dotIndex).toLowerCase() === normalizedExt.toLowerCase()) {
+  if (
+    outputPath.substring(dotIndex).toLowerCase() === normalizedExt.toLowerCase()
+  ) {
     return outputPath;
   }
   return outputPath.substring(0, dotIndex) + normalizedExt;
@@ -143,10 +206,7 @@ function titleCaseFromSlug(value) {
   value = String(value || "").trim();
   if (!value) return "";
 
-  var cleaned = value
-    .replace(/[-_]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  var cleaned = value.replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim();
 
   if (!cleaned) return "";
 
@@ -161,15 +221,16 @@ function normalizePandoraID(value) {
 
   try {
     raw = decodeURIComponent(raw);
-  } catch (e) {
-  }
+  } catch (e) {}
 
   var match = raw.match(/\b(TR|AL|AR|PL|ST):[A-Za-z0-9:]+\b/i);
   if (match) {
     return match[0].toUpperCase();
   }
 
-  var prettyMatch = raw.match(/(?:^|[\/?=&])((TR|AL|AR|PL|ST)[A-Za-z0-9]+)(?=$|[\/?&#])/i);
+  var prettyMatch = raw.match(
+    /(?:^|[\/?=&])((TR|AL|AR|PL|ST)[A-Za-z0-9]+)(?=$|[\/?&#])/i,
+  );
   return prettyMatch ? prettyMatch[1] : "";
 }
 
@@ -207,7 +268,10 @@ function normalizePandoraWebURL(url) {
   }
 
   var lastSegment = segments[segments.length - 1] || "";
-  if ((/^TR/i.test(lastSegment) && segments.length >= 4) || (/^AL/i.test(lastSegment) && segments.length >= 3)) {
+  if (
+    (/^TR/i.test(lastSegment) && segments.length >= 4) ||
+    (/^AL/i.test(lastSegment) && segments.length >= 3)
+  ) {
     return CONFIG.pandoraBaseURL + "/artist/" + segments.join("/");
   }
 
@@ -216,10 +280,16 @@ function normalizePandoraWebURL(url) {
 
 function normalizePandoraCanonicalURL(input, pandoraID) {
   var normalized = normalizeSecureURL(String(input || "").trim());
-  if (normalized.indexOf("pandora.com/") >= 0 && extractPandoraTrackID(normalized)) {
+  if (
+    normalized.indexOf("pandora.com/") >= 0 &&
+    extractPandoraTrackID(normalized)
+  ) {
     return normalizePandoraWebURL(normalized);
   }
-  if (normalized.indexOf("pandora.com/") >= 0 && extractPandoraAlbumID(normalized)) {
+  if (
+    normalized.indexOf("pandora.com/") >= 0 &&
+    extractPandoraAlbumID(normalized)
+  ) {
     return normalizePandoraWebURL(normalized);
   }
   return buildPandoraURL(pandoraID);
@@ -233,10 +303,9 @@ function tryParseURL(url) {
       var parsed = new URL(url);
       return {
         hostname: parsed.hostname || "",
-        pathname: parsed.pathname || ""
+        pathname: parsed.pathname || "",
       };
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   var match = String(url || "").match(/^https?:\/\/([^\/]+)(\/[^?#]*)?/i);
@@ -246,7 +315,7 @@ function tryParseURL(url) {
 
   return {
     hostname: match[1] || "",
-    pathname: match[2] || "/"
+    pathname: match[2] || "/",
   };
 }
 
@@ -260,7 +329,8 @@ function extractPandoraURLFromAppLinkHTML(html) {
   var body = String(html || "");
   if (!body) return "";
 
-  var matches = body.match(/https?:\/\/(?:www\.)?pandora\.com\/[^"'<>\\\s]+/gi) || [];
+  var matches =
+    body.match(/https?:\/\/(?:www\.)?pandora\.com\/[^"'<>\\\s]+/gi) || [];
   for (var i = 0; i < matches.length; i++) {
     var candidate = normalizeSecureURL(matches[i]).replace(/&amp;/gi, "&");
     if (candidate.indexOf("pandora.com/") >= 0) {
@@ -273,8 +343,7 @@ function extractPandoraURLFromAppLinkHTML(html) {
     var decoded = encodedIdMatch[1];
     try {
       decoded = decodeURIComponent(decoded);
-    } catch (e) {
-    }
+    } catch (e) {}
 
     var pandoraID = normalizePandoraID(decoded);
     if (pandoraID) {
@@ -287,12 +356,16 @@ function extractPandoraURLFromAppLinkHTML(html) {
 
 function resolvePandoraAppLink(url) {
   var response = http.get(normalizeSecureURL(url), {
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "User-Agent": appUserAgent()
+    Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "User-Agent": appUserAgent(),
   });
 
   if (!response || response.error) {
-    throw new Error(response && response.error ? response.error : "Pandora app link request failed");
+    throw new Error(
+      response && response.error
+        ? response.error
+        : "Pandora app link request failed",
+    );
   }
 
   if (
@@ -330,8 +403,13 @@ function parsePandoraPrettyURL(url) {
   if (!url) return null;
 
   try {
-    var parsed = tryParseURL(normalizePandoraWebURL(normalizePandoraInput(url)));
-    if (!parsed || parsed.hostname.toLowerCase().indexOf("pandora.com") === -1) {
+    var parsed = tryParseURL(
+      normalizePandoraWebURL(normalizePandoraInput(url)),
+    );
+    if (
+      !parsed ||
+      parsed.hostname.toLowerCase().indexOf("pandora.com") === -1
+    ) {
       return null;
     }
 
@@ -344,7 +422,7 @@ function parsePandoraPrettyURL(url) {
           type: "track",
           artistName: titleCaseFromSlug(segments[1]),
           albumName: titleCaseFromSlug(segments[2]),
-          trackName: titleCaseFromSlug(segments[3])
+          trackName: titleCaseFromSlug(segments[3]),
         };
       }
 
@@ -352,14 +430,14 @@ function parsePandoraPrettyURL(url) {
         return {
           type: "album",
           artistName: titleCaseFromSlug(segments[1]),
-          albumName: titleCaseFromSlug(segments[2])
+          albumName: titleCaseFromSlug(segments[2]),
         };
       }
 
       if (segments.length >= 2) {
         return {
           type: "artist",
-          artistName: titleCaseFromSlug(segments[1])
+          artistName: titleCaseFromSlug(segments[1]),
         };
       }
     }
@@ -367,11 +445,10 @@ function parsePandoraPrettyURL(url) {
     if (segments[0] === "playlist") {
       return {
         type: "playlist",
-        playlistName: titleCaseFromSlug(segments[1] || "Pandora Playlist")
+        playlistName: titleCaseFromSlug(segments[1] || "Pandora Playlist"),
       };
     }
-  } catch (e) {
-  }
+  } catch (e) {}
 
   return null;
 }
@@ -382,7 +459,7 @@ function resolveSongLink(url) {
       "?url=" +
       encodeURIComponent(url) +
       "&userCountry=" +
-      encodeURIComponent(CONFIG.userCountry)
+      encodeURIComponent(CONFIG.userCountry),
   );
 }
 
@@ -412,7 +489,9 @@ function extractDeezerTrackIDFromSongLink(songLinkData) {
   var linksByPlatform = (songLinkData && songLinkData.linksByPlatform) || {};
   var deezer = linksByPlatform.deezer;
   if (deezer && deezer.url) {
-    var match = String(deezer.url).match(/deezer\.com\/(?:[a-z]{2}\/)?track\/(\d+)/i);
+    var match = String(deezer.url).match(
+      /deezer\.com\/(?:[a-z]{2}\/)?track\/(\d+)/i,
+    );
     if (match) {
       return match[1];
     }
@@ -425,7 +504,9 @@ function fetchDeezerTrack(trackID) {
   if (!trackID) return null;
 
   try {
-    return getJSON(CONFIG.deezerBaseURL + "/track/" + encodeURIComponent(trackID));
+    return getJSON(
+      CONFIG.deezerBaseURL + "/track/" + encodeURIComponent(trackID),
+    );
   } catch (e) {
     log.debug("[Pandora] Deezer enrichment failed:", e.message);
     return null;
@@ -436,7 +517,9 @@ function fetchDeezerAlbum(albumID) {
   if (!albumID) return null;
 
   try {
-    return getJSON(CONFIG.deezerBaseURL + "/album/" + encodeURIComponent(albumID));
+    return getJSON(
+      CONFIG.deezerBaseURL + "/album/" + encodeURIComponent(albumID),
+    );
   } catch (e) {
     log.debug("[Pandora] Deezer album enrichment failed:", e.message);
     return null;
@@ -564,7 +647,7 @@ function resolvePandoraTrack(input) {
     entity: entity,
     deezerTrack: deezerTrack,
     deezerAlbum: deezerAlbum,
-    pretty: pretty
+    pretty: pretty,
   };
 }
 
@@ -612,7 +695,7 @@ function resolvePandoraAlbum(input) {
     pandoraID: pandoraID,
     pandoraURL: pandoraURL,
     entity: entity,
-    pretty: pretty
+    pretty: pretty,
   };
 }
 
@@ -621,7 +704,7 @@ function buildTrackMetadata(resolved) {
   var deezerTrack = resolved.deezerTrack || {};
   var deezerAlbum = resolved.deezerAlbum || {};
   var pretty = resolved.pretty || {};
-  var album = deezerAlbum.id ? deezerAlbum : (deezerTrack.album || {});
+  var album = deezerAlbum.id ? deezerAlbum : deezerTrack.album || {};
   var albumArtist =
     normalizeAlbumArtistFromDeezer(deezerAlbum, deezerTrack) ||
     entity.artistName ||
@@ -633,7 +716,11 @@ function buildTrackMetadata(resolved) {
 
   return {
     id: resolved.pandoraID,
-    name: deezerTrack.title || entity.title || pretty.trackName || resolved.pandoraID,
+    name:
+      deezerTrack.title ||
+      entity.title ||
+      pretty.trackName ||
+      resolved.pandoraID,
     artists:
       normalizeArtistsFromDeezer(deezerTrack) ||
       entity.artistName ||
@@ -664,7 +751,7 @@ function buildTrackMetadata(resolved) {
     label: deezerAlbum.label || "",
     composer: composer,
     provider_id: "pandora",
-    item_type: "track"
+    item_type: "track",
   };
 }
 
@@ -682,7 +769,7 @@ function buildAlbumMetadata(resolved) {
     total_tracks: 0,
     album_type: "album",
     provider_id: "pandora",
-    tracks: []
+    tracks: [],
   };
 }
 
@@ -702,7 +789,7 @@ function buildArtistMetadata(url) {
     provider_id: "pandora",
     albums: [],
     releases: [],
-    top_tracks: []
+    top_tracks: [],
   };
 }
 
@@ -719,14 +806,21 @@ function normalizePandoraTrackURL(input) {
     throw new Error("Could not resolve Pandora track URL");
   }
 
-  return normalizePandoraCanonicalURL(pandoraURL, extractPandoraTrackID(pandoraURL));
+  return normalizePandoraCanonicalURL(
+    pandoraURL,
+    extractPandoraTrackID(pandoraURL),
+  );
 }
 
 function normalizeDownloadCandidateURL(value) {
   value = normalizeSecureURL(value);
   if (!value) return "";
 
-  if (/^https?:\/\//i.test(value) || value.indexOf("pandora.com") >= 0 || value.indexOf("pandora.app.link") >= 0) {
+  if (
+    /^https?:\/\//i.test(value) ||
+    value.indexOf("pandora.com") >= 0 ||
+    value.indexOf("pandora.app.link") >= 0
+  ) {
     return value;
   }
 
@@ -818,7 +912,7 @@ function handleUrl(url) {
         return {
           success: true,
           type: "track",
-          track: buildTrackMetadata(resolvedTrack)
+          track: buildTrackMetadata(resolvedTrack),
         };
       } catch (trackErr) {
         log.debug("[Pandora] Track URL handling failed:", trackErr.message);
@@ -835,7 +929,7 @@ function handleUrl(url) {
         album: album,
         tracks: [],
         name: album.name,
-        cover_url: album.cover_url
+        cover_url: album.cover_url,
       };
     }
 
@@ -844,7 +938,7 @@ function handleUrl(url) {
       return {
         success: true,
         type: "artist",
-        artist: artist
+        artist: artist,
       };
     }
   } catch (e) {
@@ -895,7 +989,7 @@ function checkAvailability(isrc, trackName, artistName, options) {
     normalizeDownloadCandidateURL(options.spotify_id || ""),
     normalizeDownloadCandidateURL(options.deezer_id || ""),
     normalizeDownloadCandidateURL(options.url || ""),
-    normalizeDownloadCandidateURL(options.link || "")
+    normalizeDownloadCandidateURL(options.link || ""),
   ];
 
   for (var i = 0; i < candidates.length; i++) {
@@ -925,13 +1019,16 @@ function download(trackID, quality, outputPath, onProgress) {
       resolvedTrack = resolvePandoraTrack(trackID);
       trackMetadata = buildTrackMetadata(resolvedTrack);
     } catch (metadataErr) {
-      log.debug("[Pandora] Download metadata prefetch failed:", metadataErr.message);
+      log.debug(
+        "[Pandora] Download metadata prefetch failed:",
+        metadataErr.message,
+      );
     }
 
     if (onProgress) onProgress(0.1);
 
-    var payload = postJSON(CONFIG.apiBaseURL + CONFIG.downloadPath, {
-      url: downloadURL
+    var payload = signedPandoraDownload({
+      url: downloadURL,
     });
 
     if (!payload || payload.success !== true) {
@@ -942,7 +1039,7 @@ function download(trackID, quality, outputPath, onProgress) {
       return {
         success: false,
         error_message: errorMessage,
-        error_type: "api_error"
+        error_type: "api_error",
       };
     }
 
@@ -951,7 +1048,7 @@ function download(trackID, quality, outputPath, onProgress) {
       return {
         success: false,
         error_message: "No downloadable Pandora stream available",
-        error_type: "api_error"
+        error_type: "api_error",
       };
     }
 
@@ -959,15 +1056,15 @@ function download(trackID, quality, outputPath, onProgress) {
 
     var actualOutputPath = ensureOutputExtension(
       outputPath,
-      outputExtensionForLink(selectedLink)
+      outputExtensionForLink(selectedLink),
     );
 
     if (onProgress) onProgress(0.3);
 
     var downloadResult = file.download(selectedLink.url, actualOutputPath, {
       headers: {
-        "User-Agent": userAgentForURL(selectedLink.url)
-      }
+        "User-Agent": userAgentForURL(selectedLink.url),
+      },
     });
 
     if (!downloadResult || !downloadResult.success) {
@@ -978,7 +1075,7 @@ function download(trackID, quality, outputPath, onProgress) {
           (downloadResult && downloadResult.error
             ? downloadResult.error
             : "file.download returned null"),
-        error_type: "download_error"
+        error_type: "download_error",
       };
     }
 
@@ -990,33 +1087,73 @@ function download(trackID, quality, outputPath, onProgress) {
       bit_depth: 0,
       sample_rate: 0,
       title: trackMetadata && trackMetadata.name ? trackMetadata.name : "",
-      artist: trackMetadata && trackMetadata.artists ? trackMetadata.artists : "",
-      album: trackMetadata && trackMetadata.album_name ? trackMetadata.album_name : "",
+      artist:
+        trackMetadata && trackMetadata.artists ? trackMetadata.artists : "",
+      album:
+        trackMetadata && trackMetadata.album_name
+          ? trackMetadata.album_name
+          : "",
       album_artist:
-        trackMetadata && trackMetadata.album_artist ? trackMetadata.album_artist : "",
+        trackMetadata && trackMetadata.album_artist
+          ? trackMetadata.album_artist
+          : "",
       track_number:
-        trackMetadata && trackMetadata.track_number ? trackMetadata.track_number : 0,
+        trackMetadata && trackMetadata.track_number
+          ? trackMetadata.track_number
+          : 0,
       total_tracks:
-        trackMetadata && trackMetadata.total_tracks ? trackMetadata.total_tracks : 0,
+        trackMetadata && trackMetadata.total_tracks
+          ? trackMetadata.total_tracks
+          : 0,
       disc_number:
-        trackMetadata && trackMetadata.disc_number ? trackMetadata.disc_number : 0,
+        trackMetadata && trackMetadata.disc_number
+          ? trackMetadata.disc_number
+          : 0,
       total_discs:
-        trackMetadata && trackMetadata.total_discs ? trackMetadata.total_discs : 0,
+        trackMetadata && trackMetadata.total_discs
+          ? trackMetadata.total_discs
+          : 0,
       release_date:
-        trackMetadata && trackMetadata.release_date ? trackMetadata.release_date : "",
-      cover_url: trackMetadata && trackMetadata.cover_url ? trackMetadata.cover_url : "",
+        trackMetadata && trackMetadata.release_date
+          ? trackMetadata.release_date
+          : "",
+      cover_url:
+        trackMetadata && trackMetadata.cover_url ? trackMetadata.cover_url : "",
       isrc: trackMetadata && trackMetadata.isrc ? trackMetadata.isrc : "",
       genre: trackMetadata && trackMetadata.genre ? trackMetadata.genre : "",
       label: trackMetadata && trackMetadata.label ? trackMetadata.label : "",
-      composer: trackMetadata && trackMetadata.composer ? trackMetadata.composer : ""
+      composer:
+        trackMetadata && trackMetadata.composer ? trackMetadata.composer : "",
     };
   } catch (e) {
     return {
       success: false,
       error_message: e.message || String(e),
-      error_type: "runtime_error"
+      error_type: "runtime_error",
     };
   }
+}
+
+// ============================================
+// HOME FEED — Pandora (limited API, empty sections)
+// ============================================
+
+function getHomeFeed() {
+  log.info("[Pandora] Pandora does not have a home feed API");
+  // Pandora's API is limited to radio stations and doesn't have
+  // a search or charts endpoint. Return empty gracefully.
+  return { success: false, error: "No home feed available", sections: [] };
+}
+
+function completeGrant() {
+  if (
+    typeof session === "undefined" ||
+    !session ||
+    typeof session.completeGrant !== "function"
+  ) {
+    return { success: false, error: "signed session runtime is not available" };
+  }
+  return session.completeGrant();
 }
 
 registerExtension({
@@ -1028,9 +1165,11 @@ registerExtension({
   getArtist: getArtist,
   checkAvailability: checkAvailability,
   download: download,
+  getHomeFeed: getHomeFeed,
+  completeGrant: completeGrant,
   getDownloadUrl: function () {
     return null;
-  }
+  },
 });
 
 log.info("[Pandora] Pandora extension loaded");

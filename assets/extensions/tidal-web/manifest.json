@@ -1,14 +1,34 @@
 {
   "name": "tidal-web",
   "displayName": "Tidal",
-  "version": "1.0.9",
+  "version": "1.1.2",
   "description": "TIDAL metadata and search provider for SpotiFLAC Mobile using TIDAL public web endpoints.",
   "homepage": "https://github.com/zarzet/SpotiFLAC-Mobile",
   "type": [
     "metadata_provider",
     "download_provider"
   ],
-  "minAppVersion": "4.5.0",
+  "minAppVersion": "4.7.0",
+  "requiredRuntimeFeatures": [
+    "signedSession@1",
+    "sessionGrant@1"
+  ],
+  "signedSession": {
+    "namespace": "zarz-v2",
+    "baseUrl": "https://api.zarz.moe/v2",
+    "appVersion": "tidal-web@1.1.0",
+    "platform": "extension",
+    "callbackUrl": "spotiflac://session-grant",
+    "schemeLabel": "ZARZ-HMAC-V1",
+    "headerPrefix": "X-Zarz-",
+    "timeWindowSeconds": 300,
+    "endpoints": {
+      "bootstrap": "/bootstrap",
+      "challenge": "/challenge",
+      "exchange": "/session/exchange",
+      "refresh": "/session/refresh"
+    }
+  },
   "permissions": {
     "network": [
       "tidal.com",
@@ -50,6 +70,7 @@
     }
   ],
   "capabilities": {
+    "homeFeed": true,
     "downloadFallbackTier": "lossless",
     "requiresNativeContainerConversion": true,
     "replacesBuiltInProviders": [

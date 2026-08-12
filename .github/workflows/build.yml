@@ -1,0 +1,319 @@
+# CI/CD — Builds de Bitly (Windows + Android + iOS best-effort)
+#
+# - `test`:          gate de calidad (Go vet/test + Flutter analyze/test)
+# - `build-windows`: compila el backend Go para Windows y la app Flutter (release)
+# - `build-android`: compila el AAR Go con gomobile y el APK release
+# - `build-ios`:     best-effort en macOS (solo manual o tags). iOS NO puede
+#                    generarse en runners de Windows/Linux (requiere macOS/Xcode
+#                    + firmado), por lo que si se omite o falla, el job `notify`
+#                    lo reporta explícitamente.
+# - `notify`:        resume el estado de todos los builds y notifica (summary +
+#                    comentario en PR) incluyendo el motivo por el que iOS no
+#                    se generó.
+
+name: CI/CD Builds
+
+on:
+  push:
+    branches: [main, recuperacion]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      include_ios:
+        description: "Intentar el build de iOS (usa un runner macOS con Xcode)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: builds-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # ─── Gate de calidad ────────────────────────────────────────────────
+  test:
+    name: Tests (Go + Flutter)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go_backend/go.mod
+          cache-dependency-path: go_backend/go.sum
+
+      - name: Go vet
+        run: cd go_backend && go vet ./...
+
+      - name: Go test
+        run: cd go_backend && go test ./... -count=1 -timeout=180s
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Flutter analyze
+        run: flutter analyze lib/
+
+      - name: Flutter test
+        run: flutter test
+
+  # ─── Build Windows (release) ────────────────────────────────────────
+  build-windows:
+    name: Build Windows
+    runs-on: windows-latest
+    needs: test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go_backend/go.mod
+          cache-dependency-path: go_backend/go.sum
+
+      # El EXE está gitignored; el CMake lo empaqueta junto al runner solo si
+      # existe al configurar el build, así que se compila antes que Flutter.
+      - name: Build Go backend (Windows)
+        run: |
+          cd go_backend
+          go build -ldflags="-s -w" -o "../windows/backend/bitly-backend.exe" ./cmd/server
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Build Windows release
+        run: flutter build windows --release
+
+      - name: Upload artifact (Windows)
+        uses: actions/upload-artifact@v4
+        with:
+          name: bitly-windows
+          path: build/windows/x64/runner/Release/
+          if-no-files-found: error
+
+  # ─── Build Android (APK release) ────────────────────────────────────
+  build-android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go_backend/go.mod
+          cache-dependency-path: go_backend/go.sum
+
+      # El NDK debe resolverse ANTES de `gomobile init` (necesita ANDROID_NDK_HOME).
+      - name: Resolve Android NDK
+        id: ndk
+        run: |
+          NDK_ROOT="${ANDROID_SDK_ROOT:-$ANDROID_HOME}/ndk"
+          NDK_PATH=$(ls -d "$NDK_ROOT"/*/ 2>/dev/null | head -1 | sed 's:/$::')
+          if [ -z "$NDK_PATH" ]; then
+            echo "::error::Android NDK no encontrado en $NDK_ROOT"
+            exit 1
+          fi
+          echo "ndk_path=$NDK_PATH" >> "$GITHUB_OUTPUT"
+          echo "ANDROID_NDK_HOME=$NDK_PATH" >> "$GITHUB_ENV"
+
+      - name: Install gomobile
+        run: |
+          go install golang.org/x/mobile/cmd/gomobile@latest
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          gomobile init
+
+      # El AAR está gitignored; Flutter lo enlaza desde android/app/libs.
+      - name: Build Go backend AAR (Android)
+        run: |
+          cd go_backend
+          gomobile bind -target=android -androidapi=24 -o "../android/app/libs/bitly.aar" .
+        env:
+          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk_path }}
+          ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Build Android release APK
+        run: flutter build apk --release
+
+      - name: Upload artifact (Android)
+        uses: actions/upload-artifact@v4
+        with:
+          name: bitly-android
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+
+  # ─── Build iOS (best-effort, solo macOS) ────────────────────────────
+  # iOS no puede generarse en runners de Windows/Linux: requiere macOS + Xcode
+  # + firmado. Se intenta únicamente de forma manual (workflow_dispatch con
+  # include_ios) o al publicar un tag. Cualquier fallo no rompe el workflow:
+  # el job `notify` reporta el motivo.
+  build-ios:
+    name: Build iOS (best-effort)
+    runs-on: macos-latest
+    needs: test
+    if: >-
+      (github.event_name == 'workflow_dispatch' && inputs.include_ios == true)
+      || startsWith(github.ref, 'refs/tags/')
+    # continue-on-error: un fallo de iOS no rompe el workflow. Nota: con este
+    # flag el job se reporta como 'success' en needs.*.result incluso si falla;
+    # el job `notify` distingue el estado real mediante el output ios_status
+    # (seteado por el step ios_report con if: always()), no por result.
+    continue-on-error: true
+    outputs:
+      ios_status: ${{ steps.ios_report.outputs.ios_status }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go_backend/go.mod
+          cache-dependency-path: go_backend/go.sum
+
+      - name: Install gomobile
+        run: |
+          go install golang.org/x/mobile/cmd/gomobile@latest
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          gomobile init
+
+      - name: Build Go backend framework (iOS)
+        run: |
+          cd go_backend
+          gomobile bind -target=ios -o "../ios/Runner/Gobackend.xcframework" .
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      # El repo no tiene Podfile; Flutter lo genera y corre `pod install`. En un
+      # runner limpio, plugins como ffmpeg_kit necesitan el repo de CocoaPods
+      # actualizado. Best-effort: un fallo aquí NO rompe el workflow (notify lo
+      # reporta).
+      - name: CocoaPods repo update
+        run: pod repo update || true
+
+      - name: Build iOS (no codesign)
+        run: flutter build ios --release --no-codesign
+
+      - name: Report iOS build result
+        id: ios_report
+        if: always()
+        run: |
+          if [ -d "build/ios/iphoneos" ]; then
+            echo "ios_status=built" >> "$GITHUB_OUTPUT"
+          else
+            echo "ios_status=failed" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload artifact (iOS)
+        if: steps.ios_report.outputs.ios_status == 'built'
+        uses: actions/upload-artifact@v4
+        with:
+          name: bitly-ios
+          path: build/ios/iphoneos/*.app
+          if-no-files-found: warn
+
+  # ─── Notificación del estado de builds ──────────────────────────────
+  notify:
+    name: Notify build status
+    runs-on: ubuntu-latest
+    needs: [build-windows, build-android, build-ios]
+    if: always()
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Compose summary
+        id: compose
+        run: |
+          WIN="${{ needs.build-windows.result }}"
+          AND="${{ needs.build-android.result }}"
+          IOS_JOB="${{ needs.build-ios.result }}"
+          IOS_OUT="${{ needs.build-ios.outputs.ios_status }}"
+
+          echo "## 🏗️ Bitly — Estado de builds" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Plataforma | Estado |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 🪟 Windows | $WIN |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 🤖 Android | $AND |" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$IOS_JOB" = "skipped" ]; then
+            echo "| 🍎 iOS | ⚠️ No generado |" >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$IOS_OUT" = "built" ]; then
+            echo "| 🍎 iOS | ✅ Generado |" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "| 🍎 iOS | ❌ No se pudo generar |" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$IOS_JOB" = "skipped" ]; then
+            echo "> 🍎 **iOS no se generó** en esta ejecución: los runners de Windows/Linux no pueden compilar iOS. Requiere un runner de **macOS** con Xcode + configuración de firmado. Para intentarlo, ejecuta el workflow manualmente con el input \`include_ios\` o publica un tag." >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$IOS_OUT" != "built" ]; then
+            echo "> 🍎 **iOS no se pudo generar**: revisa los logs del job \`build-ios\`. Causas típicas: falta el Podfile (se genera solo), falta firmado, o el proyecto Xcode aún no enlaza \`Gobackend.xcframework\`." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          echo "ios_job=$IOS_JOB" >> "$GITHUB_OUTPUT"
+          echo "ios_out=$IOS_OUT" >> "$GITHUB_OUTPUT"
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const win = '${{ needs.build-windows.result }}';
+            const and = '${{ needs.build-android.result }}';
+            const iosJob = '${{ steps.compose.outputs.ios_job }}';
+            const iosOut = '${{ steps.compose.outputs.ios_out }}';
+            const iosTxt = iosJob === 'skipped'
+              ? '⚠️ no generado (requiere macOS + firmado)'
+              : (iosOut === 'built' ? '✅ generado' : '❌ no se pudo generar');
+            const body = `## 🏗️ Bitly — Builds\n\n| Plataforma | Estado |\n|---|---|\n| 🪟 Windows | ${win} |\n| 🤖 Android | ${and} |\n| 🍎 iOS | ${iosTxt} |\n\n> 🍎 iOS no se genera en runners de Windows/Linux; necesita macOS/Xcode. Detalle en [Run #${context.runNumber}](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}).`;
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number,
+            });
+            const existing = comments.find(c => c.body && c.body.startsWith('## 🏗️ Bitly — Builds'));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner, repo: context.repo.repo, comment_id: existing.id, body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number, body,
+              });
+            }

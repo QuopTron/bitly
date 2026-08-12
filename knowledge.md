@@ -4,7 +4,7 @@ A Flutter app for downloading Spotify tracks in FLAC quality from Tidal, Qobuz &
 
 ## What This Is
 - **Frontend:** Flutter (Dart) — cross-platform UI with Riverpod state management.
-- **Backend:** Go (`go_backend_bitly/`) — compiled to `Bitly-backend.exe` for desktop and an `.aar` for Android.
+- **Backend:** Go (`go_backend/`) — compiled to `Bitly-backend.exe` for desktop and an `.aar` for Android.
 - **Android Bridge:** Kotlin (`android/app/src/main/kotlin/...`) — handles platform-specific calls (e.g., YouTube search via yt-dlp).
 - **Communication:** Desktop runs the Go binary; Android uses MethodChannel + gomobile bindings.
 
@@ -12,7 +12,7 @@ A Flutter app for downloading Spotify tracks in FLAC quality from Tidal, Qobuz &
 | Directory | Purpose |
 |-----------|---------|
 | `lib/` | Flutter Dart source (screens, providers, services, widgets, models, theme) |
-| `go_backend_bitly/` | Go backend (HTTP API, downloads, metadata, extensions, DB, FFmpeg wrappers) |
+| `go_backend/` | Go backend (HTTP API, downloads, metadata, extensions, DB, FFmpeg wrappers) |
 | `android/` | Android-specific config and Kotlin bridge code |
 | `windows/` | Windows runner and CMake config |
 | `assets/` | Fonts, images, localization ARB files |
@@ -52,7 +52,7 @@ flutter pub run flutter_launcher_icons:main
 
 ### Go Backend
 ```bash
-cd go_backend_bitly
+cd go_backend
 
 # Build Windows backend
 go build -o ../Bitly-backend.exe .

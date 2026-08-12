@@ -1345,6 +1345,53 @@ function outputPathWithExtension(outputPath, extension) {
   return actualOutputPath;
 }
 
+function audioCodecForExtension(ext) {
+  switch (String(ext || "").toLowerCase()) {
+    case ".opus":
+    case ".ogg":
+      return "opus";
+    case ".m4a":
+    case ".mp4":
+    case ".aac":
+      return "aac";
+    case ".mp3":
+      return "mp3";
+    case ".flac":
+      return "flac";
+    default:
+      return "";
+  }
+}
+
+// Build a successful download result that reports the ACTUAL container/codec
+// of the written file. YouTube audio is typically Opus/AAC, never FLAC, so the
+// host must not assume the requested .flac extension. Reporting the real
+// extension lets the generic pipeline name the file and embed metadata with the
+// correct format instead of treating Opus bytes as FLAC.
+function buildDownloadSuccess(filePath, coverUrl) {
+  var result = {
+    success: true,
+    file_path: filePath || "",
+    cover_url: coverUrl || "",
+    bit_depth: 0,
+    sample_rate: 0,
+  };
+
+  var path = String(filePath || "");
+  var dotIdx = path.lastIndexOf(".");
+  if (dotIdx >= 0) {
+    var ext = path.substring(dotIdx).toLowerCase();
+    if (ext && ext.length <= 5) {
+      result.actual_extension = ext;
+      result.output_extension = ext;
+      var codec = audioCodecForExtension(ext);
+      if (codec) result.audio_codec = codec;
+    }
+  }
+
+  return result;
+}
+
 function downloadAudioURL(
   downloadURL,
   outputPath,
@@ -4919,13 +4966,10 @@ registerExtension({
           directCandidate.clientName,
           "itag=" + directCandidate.itag,
         );
-        return {
-          success: true,
-          file_path: directResult.path || directAttempt.path,
-          cover_url: downloadCoverUrl || "",
-          bit_depth: 0,
-          sample_rate: 0,
-        };
+        return buildDownloadSuccess(
+          directResult.path || directAttempt.path,
+          downloadCoverUrl,
+        );
       }
       L(
         "warn",
@@ -4967,13 +5011,10 @@ registerExtension({
               refreshedCandidate.clientName,
               "itag=" + refreshedCandidate.itag,
             );
-            return {
-              success: true,
-              file_path: retryResult.path || retryAttempt.path,
-              cover_url: downloadCoverUrl || "",
-              bit_depth: 0,
-              sample_rate: 0,
-            };
+            return buildDownloadSuccess(
+              retryResult.path || retryAttempt.path,
+              downloadCoverUrl,
+            );
           }
           L(
             "warn",
@@ -5096,13 +5137,10 @@ registerExtension({
       "via",
       downloadSource,
     );
-    return {
-      success: true,
-      file_path: downloadResult.path || actualOutputPath,
-      cover_url: downloadCoverUrl || "",
-      bit_depth: 0,
-      sample_rate: 0,
-    };
+    return buildDownloadSuccess(
+      downloadResult.path || actualOutputPath,
+      downloadCoverUrl,
+    );
   },
 
   getDownloadUrl: function () {

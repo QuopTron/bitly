@@ -4,11 +4,25 @@
   "version": "1.0.8",
   "description": "Pandora metadata and download provider for SpotiFLAC Mobile. Handles Pandora track and album URLs.",
   "homepage": "https://github.com/zarzet/SpotiFLAC-Mobile",
-  "type": [
-    "metadata_provider",
-    "download_provider"
-  ],
-  "minAppVersion": "4.2.3",
+  "type": ["metadata_provider", "download_provider"],
+  "minAppVersion": "4.7.0",
+  "requiredRuntimeFeatures": ["signedSession@1", "sessionGrant@1"],
+  "signedSession": {
+    "namespace": "zarz-v2",
+    "baseUrl": "https://api.zarz.moe/v2",
+    "appVersion": "pandora@1.1.0",
+    "platform": "extension",
+    "callbackUrl": "spotiflac://session-grant",
+    "schemeLabel": "ZARZ-HMAC-V1",
+    "headerPrefix": "X-Zarz-",
+    "timeWindowSeconds": 300,
+    "endpoints": {
+      "bootstrap": "/bootstrap",
+      "challenge": "/challenge",
+      "exchange": "/session/exchange",
+      "refresh": "/session/refresh"
+    }
+  },
   "permissions": {
     "network": [
       "api.zarz.moe",
@@ -43,17 +57,11 @@
   ],
   "urlHandler": {
     "enabled": true,
-    "patterns": [
-      "pandora.app.link",
-      "pandora.com",
-      "www.pandora.com"
-    ]
+    "patterns": ["pandora.app.link", "pandora.com", "www.pandora.com"]
   },
   "capabilities": {
     "downloadFallbackTier": "low_res",
-    "preserveNativeOutputExtensions": [
-      ".m4a"
-    ]
+    "preserveNativeOutputExtensions": [".m4a"]
   },
   "serviceHealth": [
     {
@@ -72,7 +80,7 @@
       "key": "apiBaseUrl",
       "label": "Resolver API URL",
       "type": "string",
-      "default": "https://api.zarz.moe",
+      "default": "https://api.zarz.moe/v2",
       "description": "Base URL for the Pandora download API."
     },
     {

@@ -52,10 +52,12 @@ func (r *Rescuer) RescueByISRC(isrc, trackName, artistName, quality string) *Res
 		if err != nil {
 			// Try search by name if ISRC fails
 			if trackName != "" {
-				searchResults, searchErr := p.SearchTracks(trackName+" "+artistName, 1)
+				searchResults, searchErr := p.SearchTracks(trackName+" "+artistName, 8)
 				if searchErr == nil && len(searchResults) > 0 {
-					track = &searchResults[0]
-					err = nil
+					if best := provider.BestOriginal(trackName, artistName, searchResults); best != nil {
+						track = best
+						err = nil
+					}
 				}
 			}
 			if err != nil {

@@ -109,9 +109,12 @@ build_aar() {
     local aar_dir; aar_dir=$(dirname "$AAR_OUTPUT")
     mkdir -p "$aar_dir"
 
-    info "gomobile bind — target: android/arm,android/arm64..."
+    # OJO: target=android incluye TODAS las ABIs (arm, arm64, x86, x86_64).
+    # Si se limita a arm/arm64, el emulador x86_64 crashea con
+    # 'libgojni.so not found' (UnsatisfiedLinkError) porque el APK no trae la lib.
+    info "gomobile bind — target: android (arm, arm64, x86, x86_64)..."
     gomobile bind \
-        -target="android/arm,android/arm64" \
+        -target="android" \
         -androidapi 24 \
         -ldflags="-s -w -X main.version=$VERSION -X main.buildDate=$DATE" \
         -o "$AAR_OUTPUT" \
@@ -122,6 +125,16 @@ build_aar() {
         ok "AAR: $AAR_OUTPUT ($size)"
     else
         fail "AAR no se creó en $AAR_OUTPUT"
+    fi
+
+    # gradle lee el AAR desde android/app/libs/bitly.aar (implementation(files("libs/bitly.aar"))).
+    # Copiar ahí para que el flujo documentado produzca siempre un APK consistente.
+    local android_libs="$ROOT/../android/app/libs"
+    if [ -d "$android_libs" ]; then
+        cp "$AAR_OUTPUT" "$android_libs/bitly.aar"
+        ok "AAR copiado a: $android_libs/bitly.aar"
+    else
+        warn "No existe $android_libs — saltando copia a android/app/libs (solo se dejó $AAR_OUTPUT)"
     fi
 }
 

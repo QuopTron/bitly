@@ -44,8 +44,18 @@ func NewUTLSDialer(fingerprint string) func(network, addr string) (net.Conn, err
 			return nil, err
 		}
 
+		host, _, splitErr := net.SplitHostPort(addr)
+		if splitErr != nil {
+			host = addr
+		}
 		tlsConn := utls.UClient(conn, &utls.Config{
 			InsecureSkipVerify: false,
+			ServerName:         host,
+			// The extension HTTP transport serves providers over plain
+			// HTTP/1.1 (no h2 round-trip handling for the uTLS dialer).
+			// Advertising only http/1.1 keeps amazon/CF from replying with
+			// HTTP/2 frames the transport can't parse.
+			NextProtos: []string{"http/1.1"},
 		}, helloID)
 
 		if err := tlsConn.Handshake(); err != nil {

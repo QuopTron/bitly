@@ -18,7 +18,7 @@ func (c *Client) GetAlbum(id string) (*provider.AlbumResult, error) {
 		ArtistID:    fmt.Sprintf("tidal:%d", album.Artist.ID),
 		ReleaseDate: album.ReleaseDate,
 		TrackCount:  album.TrackCount,
-		CoverURL:    album.Cover,
+		CoverURL:    coverURL(album.Cover),
 		Provider:    "tidal",
 	}, nil
 }

@@ -1,0 +1,93 @@
+import 'app_localizations.dart';
+
+/// Translations for the section titles that the backend extensions return in
+/// English (TIDAL, Spotify, YouTube Music…). Sources like Deezer, Apple Music
+/// and Amazon already localize their own titles. Falls back to the original
+/// string when there is no known translation or the locale is English.
+String localizeFeedTitle(AppLocalizations loc, String title) {
+  if (loc.locale.languageCode == 'en') return title;
+  final key = title.trim().toLowerCase();
+  final t = _esMap[key];
+  if (t != null) return t;
+  return title.trim();
+}
+
+const _esMap = <String, String>{
+  // Spotify / general
+  'new releases': 'Lanzamientos recientes',
+  'featured playlists': 'Playlists destacadas',
+  'trending songs': 'Canciones en tendencia',
+  'popular artists': 'Artistas populares',
+  'popular albums and singles': 'Álbumes y sencillos populares',
+  'popular radio': 'Radio popular',
+  'featured charts': 'Rankings destacados',
+  'made for you': 'Hecho para ti',
+  'made for you today': 'Hecho para ti hoy',
+  'fresh finds': 'Descubrimientos',
+  'discover weekly': 'Descubrimiento semanal',
+  'release radar': 'Radar de novedades',
+  'daily mix 1': 'Mezcla diaria 1',
+  'daily mix 2': 'Mezcla diaria 2',
+  'daily mix 3': 'Mezcla diaria 3',
+  'daily mix 4': 'Mezcla diaria 4',
+  'daily mix 5': 'Mezcla diaria 5',
+  'daily mix 6': 'Mezcla diaria 6',
+  'top songs': 'Canciones top',
+  'top songs global': 'Canciones top global',
+  'top 50 global': 'Top 50 global',
+  'top 50 spain': 'Top 50 España',
+  'global top 50': 'Top 50 global',
+  'trending': 'Tendencias',
+  'popular': 'Popular',
+  'popular songs': 'Canciones populares',
+  'popular albums': 'Álbumes populares',
+  'popular playlists': 'Playlists populares',
+  'new music': 'Música nueva',
+  'new tracks': 'Nuevas canciones',
+  'new albums': 'Nuevos álbumes',
+  'recently played': 'Reproducido recientemente',
+  'jump back in': 'Continúa donde lo dejaste',
+  'your top mixes': 'Tus mejores mezclas',
+  'todays top hits': 'Éxitos de hoy',
+  "today's top hits": 'Éxitos de hoy',
+  "today's hits": 'Éxitos de hoy',
+  'hits': 'Los éxitos',
+  'the hits': 'Los éxitos',
+  'on repeat': 'En repetición',
+  'repeat rewind': 'Repetir rebobinado',
+  'chill hits': 'Éxitos chill',
+  'rock classics': 'Clásicos del rock',
+  'latin hits': 'Éxitos latinos',
+  'the vault': 'El archivo',
+  'charts': 'Rankings',
+  'chart': 'Ranking',
+  'songs': 'Canciones',
+  'albums': 'Álbumes',
+  'playlists': 'Playlists',
+  'artists': 'Artistas',
+  'single releases': 'Sencillos',
+  'recent releases': 'Lanzamientos recientes',
+  'compilations': 'Recopilaciones',
+  'happy melodies': 'Melodías alegres',
+  'happy pop': 'Pop alegre',
+  'focus': 'Concentración',
+  'focus flow': 'Concentración',
+  'sleep': 'Dormir',
+  'sleep stories': 'Historias para dormir',
+  'workout': 'Entrenamiento',
+  'party': 'Fiesta',
+  'party hits': 'Éxitos de fiesta',
+  'jazz': 'Jazz',
+  'lofi beats': 'Beats lofi',
+  'top mixes': 'Mejores mezclas',
+  'warmup': 'Calentamiento',
+  'curated for you': 'Seleccionado para ti',
+  'for the love of music': 'Por amor a la música',
+  'podcasts': 'Podcasts',
+  'featured': 'Destacado',
+  'suggested': 'Sugerido',
+  'related': 'Relacionado',
+  'summary': 'Resumen',
+  'weekly top tracks': 'Canciones top semanales',
+  'weekly top artists': 'Artistas top semanales',
+};

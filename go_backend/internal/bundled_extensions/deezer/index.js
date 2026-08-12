@@ -1,6 +1,6 @@
 var CONFIG = {
   resolverBaseURL: "https://api.zarz.moe",
-  resolverDownloadPath: "/v1/dl/dzr",
+  resolverDownloadPath: "/dl/dzr",
   deezerBaseURL: "https://www.deezer.com",
   apiBaseURL: "https://api.deezer.com",
   blowfishSecret: "g4el58wc0zvf9na1",
@@ -98,6 +98,42 @@ function postJSON(url, body, headers) {
     throw new Error("HTTP " + response.statusCode + " for " + url);
   }
   return JSON.parse(response.body);
+}
+
+function signedJSON(method, path, body, headers) {
+  if (
+    typeof session === "undefined" ||
+    !session ||
+    typeof session.signedFetch !== "function"
+  ) {
+    throw new Error("signed session runtime is not available");
+  }
+  var response = session.signedFetch(method, path, body || null, headers || {});
+  if (!response || response.error || response.needsVerification) {
+    var error =
+      response && response.error ? response.error : "signed request failed";
+    throw new Error(error);
+  }
+  if (response.statusCode !== 200) {
+    throw new Error("HTTP " + response.statusCode + " for " + path);
+  }
+  return JSON.parse(response.body || "{}");
+}
+
+function signedTicket(provider, type, id) {
+  var resourceHash = utils.sha256(
+    provider + ":" + (type || "track") + ":" + String(id || "").toLowerCase(),
+  );
+  var payload = signedJSON("POST", "/tickets", {
+    capability: "download_ticket",
+    provider: provider,
+    resource_hash: resourceHash,
+  });
+  var ticketID = String(payload.ticket_id || payload.ticket || "").trim();
+  if (!ticketID) {
+    throw new Error("signed ticket response missing ticket_id");
+  }
+  return ticketID;
 }
 
 function parseBoolean(value, fallback) {
@@ -418,6 +454,7 @@ function formatTrack(trackData, context) {
     artist_id: artistID,
     album_id: albumID,
     duration_ms: Number(trackData.duration || 0) * 1000,
+    preview_url: String(trackData.preview || ""),
     cover_url: coverURL,
     images: coverURL,
     release_date: normalizeDate(releaseDate),
@@ -435,6 +472,7 @@ function formatTrack(trackData, context) {
     copyright: String((albumData && albumData.copyright) || ""),
     genre: String(context.genre || ""),
     composer: String(trackData.composer || ""),
+    audio_quality: "16bit/44.1kHz",
   };
 }
 
@@ -459,6 +497,7 @@ function formatAlbum(albumData) {
     item_type: "album",
     label: String(albumData.label || ""),
     copyright: String(albumData.copyright || ""),
+    audio_traits: ["lossless"],
   };
 }
 
@@ -1045,10 +1084,21 @@ function checkAvailability(isrc, trackName, artistName, options) {
 }
 
 function resolveDownloadDescriptor(trackID) {
-  return postJSON(CONFIG.resolverBaseURL + CONFIG.resolverDownloadPath, {
-    platform: "deezer",
-    url: CONFIG.deezerBaseURL + "/track/" + encodeURIComponent(trackID),
-  });
+  var trackURL = CONFIG.deezerBaseURL + "/track/" + encodeURIComponent(trackID);
+  var ticketID = signedTicket("dzr", "track", trackURL);
+  return signedJSON(
+    "POST",
+    CONFIG.resolverDownloadPath,
+    {
+      id: String(trackID || ""),
+      type: "track",
+      platform: "deezer",
+      url: trackURL,
+    },
+    {
+      "X-Zarz-Ticket": ticketID,
+    },
+  );
 }
 
 function resolveDescriptorDownloadURL(descriptor) {
@@ -1207,10 +1257,14 @@ function download(trackID, quality, outputPath, onProgress) {
   try {
     descriptor = resolveDownloadDescriptor(resolvedTrackID);
   } catch (e2) {
+    var resolveError = e2 && e2.message ? e2.message : String(e2);
     return {
       success: false,
-      error_message: "Failed to resolve Deezer download: " + e2.message,
-      error_type: "api_error",
+      error_message: "Failed to resolve Deezer download: " + resolveError,
+      error_type:
+        resolveError.indexOf("VERIFY_REQUIRED") >= 0
+          ? "verification_required"
+          : "api_error",
     };
   }
 
@@ -1324,9 +1378,166 @@ function searchTracks(query, limit) {
   });
 }
 
+function getHomeFeed() {
+  var sections = [];
+  try {
+    // Deezer global charts: top tracks, albums and playlists in one call.
+    var chart = deezerGet("/chart");
+    if (!chart) {
+      return { success: false, error: "no chart data", sections: [] };
+    }
+
+    // Section 1: Top tracks.
+    try {
+      var trackItems = [];
+      var chartTracks =
+        chart.tracks && chart.tracks.data ? chart.tracks.data : [];
+      for (var i = 0; i < chartTracks.length && trackItems.length < 15; i++) {
+        var t = formatTrack(chartTracks[i], {
+          album: chartTracks[i].album,
+          artist: chartTracks[i].artist,
+        });
+        if (!t) continue;
+        trackItems.push({
+          name: t.name,
+          artists: t.artists,
+          duration_ms: t.duration_ms,
+          type: "track",
+          id: t.id,
+          album_id: t.album_id,
+          album_name: t.album_name,
+          cover_url: t.cover_url,
+        });
+      }
+      if (trackItems.length > 0) {
+        sections.push({
+          uri: "dz:charts:tracks",
+          title: "Tendencias de Deezer",
+          items: trackItems,
+        });
+      }
+    } catch (e1) {
+      log.debug("[DeezerExt] chart tracks failed:", e1 && e1.message);
+    }
+
+    // Section 2: Top albums.
+    try {
+      var albumItems = [];
+      var chartAlbums =
+        chart.albums && chart.albums.data ? chart.albums.data : [];
+      for (var j = 0; j < chartAlbums.length && albumItems.length < 12; j++) {
+        var a = formatAlbum(chartAlbums[j]);
+        if (!a) continue;
+        albumItems.push({
+          name: a.name,
+          artists: a.artists,
+          type: "album",
+          id: a.id,
+          cover_url: a.cover_url,
+          release_date: a.release_date,
+          total_tracks: a.total_tracks,
+        });
+      }
+      if (albumItems.length > 0) {
+        sections.push({
+          uri: "dz:charts:albums",
+          title: "Álbumes más escuchados",
+          items: albumItems,
+        });
+      }
+    } catch (e2) {
+      log.debug("[DeezerExt] chart albums failed:", e2 && e2.message);
+    }
+
+    // Section 3: Top playlists.
+    try {
+      var playlistItems = [];
+      var chartPlaylists =
+        chart.playlists && chart.playlists.data ? chart.playlists.data : [];
+      for (
+        var k = 0;
+        k < chartPlaylists.length && playlistItems.length < 12;
+        k++
+      ) {
+        var p = formatPlaylist(chartPlaylists[k]);
+        if (!p) continue;
+        playlistItems.push({
+          name: p.name,
+          type: "playlist",
+          id: p.id,
+          cover_url: p.cover_url,
+          total_tracks: p.total_tracks,
+        });
+      }
+      if (playlistItems.length > 0) {
+        sections.push({
+          uri: "dz:charts:playlists",
+          title: "Playlists populares",
+          items: playlistItems,
+        });
+      }
+    } catch (e3) {
+      log.debug("[DeezerExt] chart playlists failed:", e3 && e3.message);
+    }
+  } catch (e) {
+    log.debug("[DeezerExt] getHomeFeed failed:", e && e.message);
+    return {
+      success: false,
+      error: String((e && e.message) || e),
+      sections: [],
+    };
+  }
+
+  if (sections.length > 0) {
+    return { success: true, sections: sections };
+  }
+  return { success: false, error: "no home feed available", sections: [] };
+}
+
+function completeGrant() {
+  if (
+    typeof session === "undefined" ||
+    !session ||
+    typeof session.completeGrant !== "function"
+  ) {
+    return { success: false, error: "signed session runtime is not available" };
+  }
+  return session.completeGrant();
+}
+
+function getDownloadUrl(trackID, quality) {
+  try {
+    var resolvedTrackID = parseTrackID(trackID);
+    if (!resolvedTrackID) return null;
+    var descriptor = resolveDownloadDescriptor(resolvedTrackID);
+    if (!descriptor || descriptor.success !== true) return null;
+    var downloadURL = resolveDescriptorDownloadURL(descriptor);
+    if (!downloadURL) return null;
+    // Encrypted (client-decryption) streams cannot be played directly by the
+    // media player — skip so the rescue chain can try the next provider.
+    if (descriptorRequiresClientDecryption(descriptor)) {
+      log.info(
+        "[DeezerExt] getDownloadUrl: stream requires client decryption, skipping",
+      );
+      return null;
+    }
+    log.info("[DeezerExt] getDownloadUrl resolved stream for", resolvedTrackID);
+    return downloadURL;
+  } catch (e) {
+    // Re-throw instead of returning null so the Go layer sees the real error
+    // (e.g. "HTTP 429") and can cooldown the provider to stop hammering a
+    // rate-limited gateway. Returning null hid the error as a generic
+    // "stream not available", so the circuit breaker never engaged.
+    var _errMsg = e && e.message ? e.message : String(e);
+    log.warn("[DeezerExt] getDownloadUrl failed:", _errMsg);
+    throw new Error(_errMsg);
+  }
+}
+
 registerExtension({
   initialize: initialize,
   cleanup: cleanup,
+  completeGrant: completeGrant,
   customSearch: customSearch,
   handleUrl: handleURL,
   getTrack: getTrack,
@@ -1334,11 +1545,10 @@ registerExtension({
   getArtist: getArtist,
   getPlaylist: getPlaylist,
   searchTracks: searchTracks,
+  getHomeFeed: getHomeFeed,
   checkAvailability: checkAvailability,
   download: download,
-  getDownloadUrl: function () {
-    return null;
-  },
+  getDownloadUrl: getDownloadUrl,
 });
 
 log.info("[DeezerExt] Deezer metadata and download extension loaded");

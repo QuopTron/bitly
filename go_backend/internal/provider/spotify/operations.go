@@ -6,7 +6,7 @@ import (
 	"github.com/zarz/bitly/go_backend/internal/provider"
 )
 
-// Spotify API response types for album search.
+// spotifySearchAlbum represents an album from Spotify search.
 type spotifySearchAlbum struct {
 	ID          string `json:"id"`
 	Name        string `json:"name"`
@@ -21,7 +21,7 @@ type spotifySearchAlbum struct {
 	} `json:"artists"`
 }
 
-// Spotify API response types for artist search.
+// spotifySearchArtist represents an artist from Spotify search.
 type spotifySearchArtist struct {
 	ID        string `json:"id"`
 	Name      string `json:"name"`
@@ -52,11 +52,8 @@ func (c *Client) SearchAlbums(query string, limit int) ([]provider.AlbumResult, 
 	results := make([]provider.AlbumResult, 0, len(resp.Albums.Items))
 	for _, a := range resp.Albums.Items {
 		r := provider.AlbumResult{
-			ID:          "spotify:" + a.ID,
-			Title:       a.Name,
-			ReleaseDate: a.ReleaseDate,
-			TrackCount:  a.TotalTracks,
-			Provider:    "spotify",
+			ID: "spotify:" + a.ID, Title: a.Name,
+			ReleaseDate: a.ReleaseDate, TrackCount: a.TotalTracks, Provider: "spotify",
 		}
 		if len(a.Artists) > 0 {
 			r.Artist = a.Artists[0].Name
@@ -71,56 +68,6 @@ func (c *Client) SearchAlbums(query string, limit int) ([]provider.AlbumResult, 
 }
 
 // SearchArtists searches Spotify for artists.
-// spotifySearchPlaylist represents a playlist from Spotify search.
-type spotifySearchPlaylist struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Tracks      struct {
-		Total int `json:"total"`
-	} `json:"tracks"`
-	Images []struct {
-		URL string `json:"url"`
-	} `json:"images"`
-	Owner struct {
-		DisplayName string `json:"display_name"`
-	} `json:"owner"`
-}
-
-// SearchPlaylists searches Spotify for playlists.
-func (c *Client) SearchPlaylists(query string, limit int) ([]provider.PlaylistResult, error) {
-	if limit < 1 || limit > 100 {
-		limit = 20
-	}
-	type searchResp struct {
-		Playlists struct {
-			Items []spotifySearchPlaylist `json:"items"`
-		} `json:"playlists"`
-	}
-	var resp searchResp
-	if err := c.doGet("/search", map[string]string{
-		"q": query, "type": "playlist", "limit": fmt.Sprintf("%d", limit),
-	}, &resp); err != nil {
-		return nil, err
-	}
-	results := make([]provider.PlaylistResult, 0, len(resp.Playlists.Items))
-	for _, pl := range resp.Playlists.Items {
-		r := provider.PlaylistResult{
-			ID:          "spotify:" + pl.ID,
-			Title:       pl.Name,
-			Description: pl.Description,
-			Creator:     pl.Owner.DisplayName,
-			TrackCount:  pl.Tracks.Total,
-			Provider:    "spotify",
-		}
-		if len(pl.Images) > 0 {
-			r.CoverURL = pl.Images[0].URL
-		}
-		results = append(results, r)
-	}
-	return results, nil
-}
-
 func (c *Client) SearchArtists(query string, limit int) ([]provider.ArtistResult, error) {
 	if limit < 1 || limit > 100 {
 		limit = 20
@@ -139,10 +86,8 @@ func (c *Client) SearchArtists(query string, limit int) ([]provider.ArtistResult
 	results := make([]provider.ArtistResult, 0, len(resp.Artists.Items))
 	for _, a := range resp.Artists.Items {
 		r := provider.ArtistResult{
-			ID:       "spotify:" + a.ID,
-			Name:     a.Name,
-			Fans:     a.Followers.Total,
-			Provider: "spotify",
+			ID: "spotify:" + a.ID, Name: a.Name,
+			Fans: a.Followers.Total, Provider: "spotify",
 		}
 		if len(a.Images) > 0 {
 			r.PictureURL = a.Images[0].URL

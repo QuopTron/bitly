@@ -68,7 +68,7 @@ function userAgentForURL(url) {
 // CLIENT ID EXTRACTION
 // ============================================
 
-function fetchClientId() {
+function fetchClientIdOnce() {
   log.info("[SC] Fetching SoundCloud client_id...");
 
   var response = http.get("https://soundcloud.com/", {
@@ -115,12 +115,22 @@ function fetchClientId() {
   }
 
   if (scriptMatches) {
-    // Process from last to first (client_id is usually in later bundles)
-    for (
-      var i = scriptMatches.length - 1;
-      i >= 0 && i >= scriptMatches.length - 8;
-      i--
-    ) {
+    // Prioritize the main _app bundle, then process the rest from last to
+    // first (client_id usually lives in a later bundle).
+    var order = [];
+    var appIndex = -1;
+    for (var ai = 0; ai < scriptMatches.length; ai++) {
+      if (scriptMatches[ai].indexOf("_app-") !== -1) {
+        appIndex = ai;
+        break;
+      }
+    }
+    if (appIndex !== -1) order.push(appIndex);
+    for (var oi = scriptMatches.length - 1; oi >= 0; oi--) {
+      if (oi !== appIndex) order.push(oi);
+    }
+    for (var oi2 = 0; oi2 < order.length && oi2 < 10; oi2++) {
+      var i = order[oi2];
       var srcMatch = scriptMatches[i].match(/src="([^"]+)"/);
       if (!srcMatch) continue;
 
@@ -182,6 +192,23 @@ function fetchClientId() {
   }
 
   throw new Error("Could not find SoundCloud client_id in page or JS bundles");
+}
+
+// Retry wrapper: the homepage layout varies and client_id may not appear on
+// the first attempt, so try up to 3 times before giving up.
+function fetchClientId() {
+  var lastErr = null;
+  for (var attempt = 0; attempt < 3; attempt++) {
+    try {
+      fetchClientIdOnce();
+      if (state.clientId) return;
+    } catch (e) {
+      lastErr = e;
+      state.clientId = null;
+      state.clientIdExpiry = 0;
+    }
+  }
+  throw lastErr || new Error("Could not find SoundCloud client_id");
 }
 
 function ensureClientId() {
@@ -509,6 +536,15 @@ function customSearch(query, options) {
   var offset = (options && options.offset) || 0;
   var filter = (options && options.filter) || null;
   if (limit <= 0 || limit > 50) limit = 50;
+
+  // Normalize singular/plural filter forms ("track"/"song" -> "tracks", etc.)
+  if (filter) {
+    var nf = String(filter).toLowerCase();
+    if (nf === "song" || nf === "track") filter = "tracks";
+    else if (nf === "album") filter = "albums";
+    else if (nf === "artist") filter = "artists";
+    else if (nf === "playlist") filter = "playlists";
+  }
 
   var isFiltered = filter && filter !== "all";
   var results = [];
@@ -924,105 +960,147 @@ function checkAvailability(isrc, trackName, artistName, options) {
   }
 }
 
-function download(trackID, quality, outputPath, onProgress) {
-  log.info("[SC] Downloading track:", trackID, "quality:", quality);
-
-  var trackData = null;
+/**
+ * Resolve the direct progressive stream URL for a SoundCloud track.
+ * Shared by download() (saves to disk) and getDownloadUrl() (live streaming).
+ * Returns { url, format, error } with url empty on failure.
+ */
+function resolveStreamURL(trackID, audioFormat, allowHls, allowPreview) {
+  var trackData;
   try {
     trackData = scGet("tracks/" + trackID);
   } catch (e) {
     return {
-      success: false,
-      error_message: "Could not fetch track data: " + e.message,
-      error_type: "api_error",
+      url: "",
+      format: audioFormat,
+      error: "Could not fetch track data: " + e.message,
     };
   }
-
   if (!trackData) {
     return {
-      success: false,
-      error_message: "Track not found: " + trackID,
-      error_type: "api_error",
+      url: "",
+      format: audioFormat,
+      error: "Track not found: " + trackID,
     };
   }
-
-  var qualityParts = quality.split("_");
-  var audioFormat = qualityParts[0] || "mp3";
-
-  var downloadURL = null;
-  var downloadError = "";
-  var actualFormat = audioFormat;
-
-  // ---- Primary: Direct SoundCloud stream ----
-  if (onProgress) onProgress(0.1);
 
   var transcodings = (trackData.media && trackData.media.transcodings) || [];
   var trackAuth = trackData.track_authorization || "";
 
-  if (transcodings.length > 0 && trackAuth) {
-    // Pick the best transcoding matching requested format
-    var bestTranscoding = pickTranscoding(transcodings, audioFormat);
-
-    if (bestTranscoding) {
-      try {
-        // Fetch the actual stream URL from the transcoding endpoint
-        var streamInfoUrl = bestTranscoding.url;
-        var sep = streamInfoUrl.indexOf("?") === -1 ? "?" : "&";
-        streamInfoUrl +=
-          sep +
-          "client_id=" +
-          state.clientId +
-          "&track_authorization=" +
-          trackAuth;
-
-        var streamResp = http.get(streamInfoUrl, {
-          "User-Agent": utils.randomUserAgent(),
-          Accept: "application/json",
-        });
-
-        if (streamResp && !streamResp.error && streamResp.statusCode === 200) {
-          var streamData = JSON.parse(streamResp.body);
-          if (streamData.url) {
-            downloadURL = streamData.url;
-            // Determine actual format from transcoding
-            var mime =
-              (bestTranscoding.format && bestTranscoding.format.mime_type) ||
-              "";
-            if (mime.indexOf("opus") !== -1) {
-              actualFormat = "opus";
-            } else if (
-              mime.indexOf("mpeg") !== -1 ||
-              mime.indexOf("mp3") !== -1
-            ) {
-              actualFormat = "mp3";
-            } else if (mime.indexOf("ogg") !== -1) {
-              actualFormat = "ogg";
-            }
-            log.info(
-              "[SC] Got direct stream URL (format: " +
-                actualFormat +
-                ", protocol: " +
-                ((bestTranscoding.format && bestTranscoding.format.protocol) ||
-                  "?") +
-                ")",
-            );
-          }
-        } else {
-          downloadError =
-            "Stream URL fetch returned HTTP " +
-            (streamResp ? streamResp.statusCode : "null");
-          log.warn("[SC] " + downloadError);
-        }
-      } catch (e) {
-        downloadError = "Stream URL fetch failed: " + e.message;
-        log.warn("[SC] " + downloadError);
-      }
-    } else {
-      log.warn("[SC] No suitable transcoding found for format: " + audioFormat);
-    }
-  } else {
-    log.warn("[SC] No transcodings or track_authorization available");
+  if (transcodings.length === 0 || !trackAuth) {
+    return {
+      url: "",
+      format: audioFormat,
+      error: "No transcodings or track_authorization available",
+    };
   }
+
+  // Pick the best transcoding matching requested format
+  var bestTranscoding = pickTranscoding(
+    transcodings,
+    audioFormat,
+    allowHls,
+    allowPreview,
+  );
+  if (!bestTranscoding) {
+    log.warn(
+      "[SC] no transcoding for " +
+        audioFormat +
+        " (allowHls=" +
+        allowHls +
+        "); tracks with protocol/mime: " +
+        JSON.stringify(
+          transcodings
+            .filter(function (t) {
+              return t && t.format;
+            })
+            .map(function (t) {
+              return {
+                p: (t.format && t.format.protocol) || "?",
+                m: (t.format && t.format.mime_type) || "?",
+                q: t.quality,
+                sn: !!t.snipped,
+              };
+            }),
+        ),
+    );
+    return {
+      url: "",
+      format: audioFormat,
+      error: "No suitable transcoding found for format: " + audioFormat,
+    };
+  }
+
+  try {
+    var streamInfoUrl = bestTranscoding.url;
+    var sep = streamInfoUrl.indexOf("?") === -1 ? "?" : "&";
+    streamInfoUrl +=
+      sep + "client_id=" + state.clientId + "&track_authorization=" + trackAuth;
+
+    var streamResp = http.get(streamInfoUrl, {
+      "User-Agent": utils.randomUserAgent(),
+      Accept: "application/json",
+    });
+
+    if (!streamResp || streamResp.error || streamResp.statusCode !== 200) {
+      return {
+        url: "",
+        format: audioFormat,
+        error:
+          "Stream URL fetch returned HTTP " +
+          (streamResp ? streamResp.statusCode : "null"),
+      };
+    }
+
+    var streamData = JSON.parse(streamResp.body);
+    if (!streamData.url) {
+      return {
+        url: "",
+        format: audioFormat,
+        error: "Stream response missing url",
+      };
+    }
+
+    var actualFormat = audioFormat;
+    var mime =
+      (bestTranscoding.format && bestTranscoding.format.mime_type) || "";
+    if (mime.indexOf("opus") !== -1) {
+      actualFormat = "opus";
+    } else if (mime.indexOf("mpeg") !== -1 || mime.indexOf("mp3") !== -1) {
+      actualFormat = "mp3";
+    } else if (mime.indexOf("ogg") !== -1) {
+      actualFormat = "ogg";
+    }
+    log.info(
+      "[SC] Got direct stream URL (format: " +
+        actualFormat +
+        ", protocol: " +
+        ((bestTranscoding.format && bestTranscoding.format.protocol) || "?") +
+        ")",
+    );
+    return { url: streamData.url, format: actualFormat, error: "" };
+  } catch (e) {
+    return {
+      url: "",
+      format: audioFormat,
+      error: "Stream URL fetch failed: " + e.message,
+    };
+  }
+}
+
+function download(trackID, quality, outputPath, onProgress) {
+  log.info("[SC] Downloading track:", trackID, "quality:", quality);
+
+  var qualityParts = quality.split("_");
+  var audioFormat = qualityParts[0] || "mp3";
+
+  // ---- Primary: Direct SoundCloud stream ----
+  if (onProgress) onProgress(0.1);
+
+  var resolved = resolveStreamURL(trackID, audioFormat);
+  var downloadURL = resolved.url;
+  var downloadError = resolved.error;
+  var actualFormat = resolved.format || audioFormat;
 
   if (!downloadURL) {
     return {
@@ -1079,55 +1157,76 @@ function download(trackID, quality, outputPath, onProgress) {
 
 /**
  * Pick the best transcoding from the list, preferring the requested format
- * and progressive protocol. HLS URLs are playlists and are not suitable for
- * file.download as a direct audio file.
+ * and progressive protocol. When [allowHls] is true and no progressive
+ * transcoding exists, falls back to an HLS (m3u8) transcoding instead — the
+ * player (media_kit) can stream an m3u8 playlist, even though it is not
+ * suitable for file.download as a direct audio file.
  */
-function pickTranscoding(transcodings, preferFormat) {
+function pickTranscoding(transcodings, preferFormat, allowHls, allowPreview) {
   if (!transcodings || transcodings.length === 0) return null;
 
   // Score each transcoding
   var best = null;
   var bestScore = -1;
+  var hlsBest = null;
+  var hlsBestScore = -1;
+  var previewBest = null;
+  var previewBestScore = -1;
 
   for (var i = 0; i < transcodings.length; i++) {
     var t = transcodings[i];
     if (!t.url || !t.format) continue;
-    // Skip snipped (preview) transcodings
-    if (t.snipped) continue;
+    // Snipped (preview) transcodings are only used as a last resort when
+    // [allowPreview] is set AND no full-length transcoding exists.
+    if (t.snipped) {
+      if (!allowPreview) continue;
+      var pScore = 10 + (t.quality === "hq" ? 5 : t.quality === "sq" ? 2 : 0);
+      if (pScore > previewBestScore) {
+        previewBestScore = pScore;
+        previewBest = t;
+      }
+      continue;
+    }
 
     var score = 0;
     var mime = t.format.mime_type || "";
     var protocol = t.format.protocol || "";
 
-    if (protocol !== "progressive") continue;
-    score += 50;
-
-    // Match requested format
+    // Match requested format (shared scoring between progressive and HLS)
+    var formatScore = 0;
     if (preferFormat === "opus" && mime.indexOf("opus") !== -1) {
-      score += 30;
+      formatScore = 30;
     } else if (
       preferFormat === "mp3" &&
       (mime.indexOf("mpeg") !== -1 || mime.indexOf("mp3") !== -1)
     ) {
-      score += 30;
+      formatScore = 30;
     } else if (preferFormat === "ogg" && mime.indexOf("ogg") !== -1) {
-      score += 20;
+      formatScore = 20;
     }
 
-    // Prefer higher quality tiers
-    if (t.quality === "hq") {
-      score += 10;
-    } else if (t.quality === "sq") {
-      score += 5;
-    }
+    // Higher quality tiers
+    var tierScore = t.quality === "hq" ? 10 : t.quality === "sq" ? 5 : 0;
 
-    if (score > bestScore) {
-      bestScore = score;
-      best = t;
+    if (protocol === "progressive") {
+      score = 50 + formatScore + tierScore;
+      if (score > bestScore) {
+        bestScore = score;
+        best = t;
+      }
+    } else if (allowHls && protocol.indexOf("hls") !== -1) {
+      // Keep the best HLS candidate as a fallback (no progressive found).
+      var hScore = 40 + formatScore + tierScore;
+      if (hScore > hlsBestScore) {
+        hlsBestScore = hScore;
+        hlsBest = t;
+      }
     }
   }
 
-  return best;
+  if (best) return best;
+  if (allowHls && hlsBest) return hlsBest;
+  return previewBest;
 }
 
 // ============================================
@@ -1184,6 +1283,41 @@ function normalizeText(text) {
     )
     .replace(/\s+/g, " ")
     .trim();
+}
+
+// ============================================
+// STREAMING
+// ============================================
+
+/**
+ * Returns a direct progressive stream URL for live playback, or null if the
+ * track cannot be streamed. Used by GetStreamPackage -> GetStreamURL.
+ */
+function getDownloadUrl(trackID, quality) {
+  try {
+    var qualityParts = String(quality || "mp3").split("_");
+    var audioFormat = qualityParts[0] || "mp3";
+    var resolved = resolveStreamURL(
+      String(trackID || "").trim(),
+      audioFormat,
+      true,
+      false,
+    );
+    if (resolved && resolved.url) {
+      log.info("[SC] getDownloadUrl resolved stream for", trackID);
+      return resolved.url;
+    }
+    log.warn(
+      "[SC] getDownloadUrl failed:",
+      resolved && resolved.error ? resolved.error : "no stream",
+    );
+  } catch (e) {
+    log.warn(
+      "[SC] getDownloadUrl exception:",
+      e && e.message ? e.message : String(e),
+    );
+  }
+  return null;
 }
 
 // ============================================
@@ -1263,6 +1397,166 @@ function searchTracks(query, limit) {
 }
 
 // ============================================
+// HOME FEED — SoundCloud Trending + Featured
+// ============================================
+
+// Unified cover URL: prefer t500x500 for a good balance of quality/size.
+function feedCover(url) {
+  if (!url) return "";
+  return url
+    .replace("-large.", "-t500x500.")
+    .replace("-original.", "-t500x500.");
+}
+
+function extractChartsItems(data, maxItems) {
+  if (!data) return [];
+  var items = [];
+  var collection = data.collection || [];
+  if (!collection.length) return [];
+  for (var i = 0; i < Math.min(collection.length, maxItems || 15); i++) {
+    var entry = collection[i];
+    if (!entry) continue;
+    // Charts entries can be tracks or playlists
+    var item = entry.track || entry.playlist || entry;
+    if (!item || !item.id) continue;
+    var isTrack = !!(
+      item.genre ||
+      item.duration ||
+      item.full_duration ||
+      entry.track
+    );
+    if (isTrack) {
+      var track = formatTrack(item);
+      if (track) {
+        track.cover_url = feedCover(track.cover_url);
+        items.push(track);
+      }
+    } else {
+      var pl = formatPlaylistOrAlbum(item);
+      if (pl) items.push(pl);
+    }
+  }
+  return items;
+}
+
+// featured_tracks collections are abbreviated tracks (no user/artist field).
+// Enrich via a tracks?ids= batch request to recover artist + publisher_metadata.
+function extractFeaturedItems(collection, maxItems) {
+  if (!collection || !collection.length) return [];
+  var limit = maxItems || 10;
+  var ids = [];
+  for (var i = 0; i < Math.min(collection.length, limit); i++) {
+    var it = collection[i];
+    if (it && it.id) ids.push(String(it.id));
+  }
+  if (!ids.length) return [];
+
+  var trackMap = {};
+  try {
+    var batchData = scGet("tracks?ids=" + ids.join(","));
+    if (batchData && batchData.length) {
+      for (var j = 0; j < batchData.length; j++) {
+        trackMap[batchData[j].id] = batchData[j];
+      }
+    }
+  } catch (e) {
+    log.debug("[SC] Featured batch fetch failed:", e.message);
+  }
+
+  var items = [];
+  for (var k = 0; k < collection.length && items.length < limit; k++) {
+    var orig = collection[k];
+    if (!orig || !orig.id) continue;
+    var full = trackMap[orig.id] || orig;
+    var track = formatTrack(full);
+    if (track) {
+      track.cover_url = feedCover(track.cover_url);
+      items.push(track);
+    }
+  }
+  return items;
+}
+
+function fetchHomeFeed() {
+  log.info("[SC] Fetching SoundCloud home feed...");
+  var sections = [];
+  try {
+    ensureClientId();
+  } catch (e) {}
+
+  // Section 1: Trending charts — top 15 (all-music genre).
+  try {
+    var topData = scGet(
+      "charts?kind=trending&genre=soundcloud:genres:all-music",
+      "limit=15&offset=0",
+    );
+    var topItems = extractChartsItems(topData, 15);
+    if (topItems.length > 0) {
+      sections.push({
+        uri: "sc:charts:trending",
+        title: "Tendencias de SoundCloud",
+        items: topItems,
+      });
+    }
+  } catch (e1) {
+    log.debug("[SC] charts trending failed:", e1.message);
+  }
+
+  // Section 2: Curated featured tracks (the API returns only 5 unique ones).
+  if (sections.length < 2) {
+    try {
+      var fData = scGet("featured_tracks/top/all-music", "limit=10");
+      var fItems = extractFeaturedItems(fData.collection || fData, 10);
+      if (fItems.length > 0) {
+        sections.push({
+          uri: "sc:featured:all-music",
+          title: "Destacados de SoundCloud",
+          items: fItems,
+        });
+      }
+    } catch (e2) {
+      log.debug("[SC] featured failed:", e2.message);
+    }
+  }
+
+  // Section 3: Next trending page (rising tracks) — pagination returns
+  // 15 new unique tracks per offset, so this adds real variety.
+  if (sections.length < 3) {
+    try {
+      var risingData = scGet(
+        "charts?kind=trending&genre=soundcloud:genres:all-music",
+        "limit=15&offset=15",
+      );
+      var risingItems = extractChartsItems(risingData, 15);
+      if (risingItems.length > 0) {
+        sections.push({
+          uri: "sc:charts:rising",
+          title: "En ascenso",
+          items: risingItems,
+        });
+      }
+    } catch (e3) {
+      log.debug("[SC] charts rising failed:", e3.message);
+    }
+  }
+
+  if (sections.length > 0) {
+    log.info("[SC] Fetched", sections.length, "real sections");
+    return { success: true, sections: sections };
+  }
+  log.info("[SC] No real home feed available");
+  return { success: false, error: "No home feed available", sections: [] };
+}
+
+function getHomeFeed() {
+  try {
+    return fetchHomeFeed();
+  } catch (e) {
+    return { success: false, error: e.message, sections: [] };
+  }
+}
+
+// ============================================
 // REGISTER EXTENSION
 // ============================================
 
@@ -1277,13 +1571,12 @@ registerExtension({
   getPlaylist: getPlaylist,
   searchTracks: searchTracks,
   enrichTrack: enrichTrack,
+  getHomeFeed: getHomeFeed,
 
   // Download provider
   checkAvailability: checkAvailability,
   download: download,
-  getDownloadUrl: function () {
-    return null;
-  },
+  getDownloadUrl: getDownloadUrl,
 });
 
 log.info("[SC] SoundCloud Extension loaded!");

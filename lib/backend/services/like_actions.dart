@@ -15,8 +15,6 @@ import '../database/app_database.dart';
 import 'item_fingerprint.dart';
 import '../cache/like_state.dart';
 
-const _coverBaseUrl = 'http://127.0.0.1:55009/cover/';
-
 mixin LikeActions on Cubit<LikeState> {
   BackendService get backend;
   FavoriteCache get _fav => inj.sl<FavoriteCache>();
@@ -46,9 +44,11 @@ mixin LikeActions on Cubit<LikeState> {
     }
   }
 
+  /// Saves the cover through the backend and returns its absolute local path
+  /// (already usable by Image.file on every platform, Android included).
   Future<String?> _saveCover(String coverUrl) async {
-    final filename = await backend.saveCover(coverUrl);
-    if (filename != null) return '$_coverBaseUrl$filename';
+    final path = await backend.saveCover(coverUrl);
+    if (path != null && path.isNotEmpty) return path;
     return null;
   }
 
@@ -61,6 +61,7 @@ mixin LikeActions on Cubit<LikeState> {
           isrc: item.isrc,
           trackName: item.name,
           artistName: item.artists,
+          coverUrl: item.coverUrl,
         );
         if (localCover != null && localCover.isNotEmpty) {
           coverPath = localCover;
@@ -128,6 +129,7 @@ mixin LikeActions on Cubit<LikeState> {
   /// Fetches album detail from Go backend and saves all tracks
   /// with their covers to the content database.
   Future<void> _syncAlbumTracks(String albumId, String source, String artistName, {String? parentCoverUrl}) async {
+    String? syncedCover;
     try {
       final json = await backend.fetchAlbumDetail(albumId, source);
       if (json.isEmpty || json == '{}') return;
@@ -138,6 +140,7 @@ mixin LikeActions on Cubit<LikeState> {
         if (cover != null && cover.isNotEmpty) {
           final path = await _saveCover(cover);
           if (path != null) {
+            syncedCover ??= path;
             await _contentDao.upsertTrack(TracksCompanion(
               id: Value(t.trackId),
               name: Value(t.name),
@@ -153,11 +156,13 @@ mixin LikeActions on Cubit<LikeState> {
         }
       }
     } catch (_) {}
+    _backfillLocalCover(albumId, syncedCover);
   }
 
   /// Fetches playlist detail from Go backend and saves all tracks
   /// with their covers to the content database.
   Future<void> _syncPlaylistTracks(String playlistId, String source, {String? parentCoverUrl}) async {
+    String? syncedCover;
     try {
       final json = await backend.fetchPlaylistDetail(playlistId, source);
       if (json.isEmpty || json == '{}') return;
@@ -168,6 +173,7 @@ mixin LikeActions on Cubit<LikeState> {
         if (cover != null && cover.isNotEmpty) {
           final path = await _saveCover(cover);
           if (path != null) {
+            syncedCover ??= path;
             await _contentDao.upsertTrack(TracksCompanion(
               id: Value(t.trackId),
               name: Value(t.name),
@@ -183,6 +189,19 @@ mixin LikeActions on Cubit<LikeState> {
         }
       }
     } catch (_) {}
+    _backfillLocalCover(playlistId, syncedCover);
+  }
+
+  /// If the parent album/playlist like didn't get a local cover (e.g. its
+  /// initial saveCover failed), adopt the first successfully-synced track
+  /// cover so the album/playlist grid card shows a local cover instead of gray.
+  void _backfillLocalCover(String id, String? coverPath) {
+    if (coverPath == null || coverPath.isEmpty) return;
+    final cur = state.allLiked[id];
+    if (cur == null || (cur.localCoverPath?.isNotEmpty == true)) return;
+    final newItems = Map<String, LikedItemData>.from(state.allLiked);
+    newItems[id] = cur.copyWith(localCoverPath: coverPath);
+    emit(state.copyWith(allLiked: newItems));
   }
 
   Future<void> _unlike(FeedItem item, String fp) async {

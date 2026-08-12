@@ -2,7 +2,6 @@ package rescue
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/zarz/bitly/go_backend/internal/provider"
 )
@@ -60,38 +59,4 @@ func (e *Enricher) EnrichFromISRC(isrc string) (*EnrichResult, error) {
 	}
 
 	return result, nil
-}
-
-// guessGenre attempts to determine genre from available metadata.
-func guessGenre(title, artist, album string) string {
-	combined := strings.ToLower(title + " " + artist + " " + album)
-	genreMap := map[string]string{
-		"rock":       "Rock",
-		"metal":      "Metal",
-		"jazz":       "Jazz",
-		"blues":      "Blues",
-		"classical":  "Classical",
-		"electronic": "Electronic",
-		"hip hop":    "Hip-Hop",
-		"rap":        "Hip-Hop",
-		"pop":        "Pop",
-		"rnb":        "R&B",
-		"soul":       "Soul",
-		"funk":       "Funk",
-		"reggae":     "Reggae",
-		"country":    "Country",
-		"folk":       "Folk",
-		"indie":      "Indie",
-		"alternative":"Alternative",
-		"dance":      "Dance",
-		"latin":      "Latin",
-		"jpop":       "J-Pop",
-		"kpop":       "K-Pop",
-	}
-	for keyword, genre := range genreMap {
-		if strings.Contains(combined, keyword) {
-			return genre
-		}
-	}
-	return ""
 }

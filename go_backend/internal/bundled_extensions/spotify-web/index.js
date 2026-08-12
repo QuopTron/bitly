@@ -1,6 +1,6 @@
 // ============================================
 // Spotify Web Extension for SpotiFLAC
-// Version: 1.0.0
+// Version: 1.9.14
 //
 // This extension uses Spotify's internal GraphQL API
 // to fetch metadata. It can access personalized playlists
@@ -26,10 +26,13 @@ const TOTP_SECRETS = {
 };
 
 const TOTP_VERSION = 61;
+const TOKEN_EXPIRY_SKEW_MS = 60 * 1000;
 
 let clientState = {
   accessToken: null,
+  accessTokenExpiry: 0,
   clientToken: null,
+  clientTokenExpiry: 0,
   clientID: null,
   deviceID: null,
   clientVersion: null,
@@ -44,20 +47,68 @@ function initialize(config) {
     const cached = storage.get("client_state");
     if (cached) {
       const parsed = JSON.parse(cached);
-      if (parsed.accessToken && parsed.clientToken) {
-        clientState = parsed;
-        clientState.initialized = true;
+      clientState.accessToken = parsed.accessToken || null;
+      clientState.accessTokenExpiry = Number(parsed.accessTokenExpiry || 0);
+      clientState.clientToken = parsed.clientToken || null;
+      clientState.clientTokenExpiry = Number(parsed.clientTokenExpiry || 0);
+      clientState.clientID = parsed.clientID || null;
+      clientState.deviceID = parsed.deviceID || null;
+      clientState.clientVersion = parsed.clientVersion || null;
+      clientState.cookies =
+        parsed.cookies && typeof parsed.cookies === "object"
+          ? parsed.cookies
+          : {};
+      clientState.initialized =
+        tokenIsUsable(clientState.accessToken, clientState.accessTokenExpiry) &&
+        tokenIsUsable(clientState.clientToken, clientState.clientTokenExpiry);
+
+      if (clientState.initialized) {
+        log.info("Loaded cached Spotify Web session");
       }
     }
-  } catch (e) {}
+  } catch (e) {
+    log.warn(
+      "Failed to load cached Spotify Web session:",
+      e.message || String(e),
+    );
+  }
 
   return true;
 }
 
-function cleanup() {
+function persistClientState() {
   try {
-    storage.set("client_state", JSON.stringify(clientState));
-  } catch (e) {}
+    return storage.set("client_state", JSON.stringify(clientState));
+  } catch (e) {
+    log.warn("Failed to persist Spotify Web session:", e.message || String(e));
+    return false;
+  }
+}
+
+function cleanup() {
+  persistClientState();
+}
+
+function tokenIsUsable(token, expiry) {
+  if (!token) return false;
+  const expiryMs = Number(expiry || 0);
+  // Older cached sessions did not store expiry. Reuse them until Spotify
+  // rejects them, then the existing 401 retry refreshes and persists expiry.
+  return expiryMs <= 0 || Date.now() < expiryMs - TOKEN_EXPIRY_SKEW_MS;
+}
+
+function absoluteExpiryMs(value) {
+  let expiry = Number(value || 0);
+  if (!isFinite(expiry) || expiry <= 0) return 0;
+  // Accept either Unix seconds or Unix milliseconds.
+  if (expiry < 100000000000) expiry *= 1000;
+  return expiry;
+}
+
+function relativeExpiryMs(seconds) {
+  const ttlSeconds = Number(seconds || 0);
+  if (!isFinite(ttlSeconds) || ttlSeconds <= 0) return 0;
+  return Date.now() + ttlSeconds * 1000;
 }
 
 function generateTOTP() {
@@ -233,6 +284,8 @@ function getSessionInfo() {
       clientState.clientVersion = cfg.clientVersion;
     } catch (e) {}
   }
+
+  persistClientState();
 }
 
 function getAccessToken() {
@@ -270,7 +323,12 @@ function getAccessToken() {
 
   const data = JSON.parse(response.body);
   clientState.accessToken = data.accessToken;
+  clientState.accessTokenExpiry = absoluteExpiryMs(
+    data.accessTokenExpirationTimestampMs ||
+      data.accessTokenExpirationTimestamp,
+  );
   clientState.clientID = data.clientId;
+  persistClientState();
 
   return clientState.accessToken;
 }
@@ -285,8 +343,13 @@ function getClientToken() {
     getAccessToken();
   }
 
+  // Anonymous fallback: the web player assigns a random persistent device id
+  // (32 hex chars) stored in localStorage. When not logged in there is no
+  // sp_t cookie to read one from, so generate and persist one. This keeps the
+  // client-token / browse REST home feed working without a signed session.
   if (!clientState.deviceID) {
-    throw new Error("Failed to get device ID from sp_t cookie");
+    clientState.deviceID = generateDeviceID();
+    log.info("No sp_t cookie; using anonymous generated device id");
   }
 
   const payload = {
@@ -328,7 +391,11 @@ function getClientToken() {
   }
 
   clientState.clientToken = data.granted_token.token;
+  clientState.clientTokenExpiry = relativeExpiryMs(
+    data.granted_token.expires_after_seconds,
+  );
   clientState.initialized = true;
+  persistClientState();
 
   return clientState.clientToken;
 }
@@ -343,24 +410,46 @@ function generateDeviceID() {
 }
 
 function ensureInitialized() {
-  if (
-    !clientState.initialized ||
-    !clientState.accessToken ||
-    !clientState.clientToken
-  ) {
+  const accessTokenUsable = tokenIsUsable(
+    clientState.accessToken,
+    clientState.accessTokenExpiry,
+  );
+  const clientTokenUsable = tokenIsUsable(
+    clientState.clientToken,
+    clientState.clientTokenExpiry,
+  );
+
+  if (accessTokenUsable && clientTokenUsable) {
+    clientState.initialized = true;
+    return;
+  }
+
+  clientState.initialized = false;
+
+  if (!clientState.deviceID || !clientState.clientVersion) {
     getSessionInfo();
+  }
+  if (!accessTokenUsable) {
     getAccessToken();
+  }
+  if (!clientTokenUsable) {
     getClientToken();
   }
+
+  clientState.initialized = true;
+  persistClientState();
 }
 
 function resetAuthState() {
   clientState.initialized = false;
   clientState.accessToken = null;
+  clientState.accessTokenExpiry = 0;
   clientState.clientToken = null;
+  clientState.clientTokenExpiry = 0;
+  persistClientState();
 }
 
-function query(payload) {
+function query(payload, allowRetry) {
   ensureInitialized();
 
   const response = http.post(
@@ -381,12 +470,10 @@ function query(payload) {
     );
   }
 
-  if (response.statusCode === 401) {
-    clientState.initialized = false;
-    clientState.accessToken = null;
-    clientState.clientToken = null;
+  if (response.statusCode === 401 && allowRetry !== false) {
+    resetAuthState();
     ensureInitialized();
-    return query(payload);
+    return query(payload, false);
   }
 
   if (response.statusCode !== 200) {
@@ -579,6 +666,7 @@ function formatPlaylistData(data, allItems) {
       disc_number: 1,
       external_urls: "https://open.spotify.com/track/" + trackID,
       isrc: "",
+      explicit: isExplicitSpotify(trackData),
       album_id: albumID,
       album_url: "https://open.spotify.com/album/" + albumID,
     });
@@ -724,6 +812,7 @@ function formatAlbumData(data, allItems, albumID) {
       disc_number: track.discNumber || 1,
       external_urls: "https://open.spotify.com/track/" + trackID,
       isrc: "",
+      explicit: isExplicitSpotify(track),
       album_id: albumID,
       album_url: "https://open.spotify.com/album/" + albumID,
     });
@@ -812,6 +901,7 @@ function fetchTrack(trackID) {
     disc_number: trackData.discNumber || 1,
     external_urls: "https://open.spotify.com/track/" + trackID,
     isrc: enrichISRC(trackID) || "",
+    explicit: isExplicitSpotify(trackData),
     album_id: albumID,
     album_url: "https://open.spotify.com/album/" + albumID,
   };
@@ -898,6 +988,7 @@ function fetchArtist(artistID) {
       provider_id: "spotify-web",
       spotify_id: trackID,
       isrc: "",
+      explicit: isExplicitSpotify(trackData),
     });
   }
 
@@ -1030,6 +1121,19 @@ function getNestedValue(obj, path) {
   }
 
   return current;
+}
+
+// Spotify GraphQL exposes a parental-advisory flag as `contentRating.label`
+// (e.g. "EXPLICIT" / "NONE"). Some shapes use a boolean `explicit`. This helper
+// normalizes both into a boolean so we can surface an "E" badge in the UI.
+function isExplicitSpotify(obj) {
+  if (!obj) return false;
+  var label = getNestedValue(obj, "contentRating.label");
+  if (typeof label === "string" && label.toUpperCase() === "EXPLICIT")
+    return true;
+  if (obj.explicit === true) return true;
+  if (typeof obj.isExplicit === "boolean") return obj.isExplicit;
+  return false;
 }
 
 function spotifyIDToHexGID(spotifyID) {
@@ -1493,6 +1597,7 @@ function customSearch(searchQuery, options) {
           source: "spotify-internal",
           item_type: "track",
           provider_id: "spotify-web",
+          explicit: isExplicitSpotify(trackData),
         });
       }
     }
@@ -1860,54 +1965,166 @@ function enrichTrack(track) {
   return track;
 }
 
+function restGet(url, allowRetry) {
+  const headers = {
+    Authorization: "Bearer " + clientState.accessToken,
+    "Client-Token": clientState.clientToken,
+    "Spotify-App-Version": clientState.clientVersion,
+    "Content-Type": "application/json",
+    "User-Agent": utils.randomUserAgent(),
+  };
+  const response = http.get(url, headers);
+  if (!response || response.error) {
+    throw new Error(
+      "REST request failed: " + (response ? response.error : "no response"),
+    );
+  }
+  if (response.statusCode === 401 && allowRetry !== false) {
+    resetAuthState();
+    ensureInitialized();
+    return restGet(url, false);
+  }
+  if (response.statusCode !== 200) {
+    throw new Error("REST request failed: HTTP " + response.statusCode);
+  }
+  return JSON.parse(response.body);
+}
+
+// Fetches real Spotify curated home content using the stable public REST v1
+// endpoints (browse/new-releases + browse/featured-playlists). Unlike the
+// GraphQL persisted-query 'home' hash (which Spotify rotates frequently and is
+// not public), these endpoints are stable and work with the anonymous web
+// player access token, so the home feed keeps working.
 function fetchHomeFeed() {
   log.info("Fetching Spotify home feed...");
-
   ensureInitialized();
 
-  let timeZone = "Asia/Jakarta";
+  const sections = [];
+
+  // 1. New releases (albums)
   try {
-    const localTime = gobackend.getLocalTime();
-    if (localTime && localTime.timezone && localTime.timezone !== "Local") {
-      timeZone = localTime.timezone;
-    } else if (localTime && localTime.offsetMinutes !== undefined) {
-      const offsetMinutes = localTime.offsetMinutes;
-      const tzMap = {
-        "-420": "Asia/Jakarta", // UTC+7 (WIB)
-        "-480": "Asia/Singapore", // UTC+8 (WITA)
-        "-540": "Asia/Tokyo", // UTC+9 (WIT)
-        "-330": "Asia/Kolkata", // UTC+5:30
-        0: "Europe/London", // UTC+0
-        "-60": "Europe/Paris", // UTC+1
-        300: "America/New_York", // UTC-5
-        480: "America/Los_Angeles", // UTC-8
-      };
-      timeZone = tzMap[String(offsetMinutes)] || "Asia/Jakarta";
+    const data = restGet(
+      "https://api.spotify.com/v1/browse/new-releases?country=US&limit=20",
+    );
+    const albums =
+      data && data.albums && data.albums.items ? data.albums.items : [];
+    const items = [];
+    for (let i = 0; i < albums.length && items.length < 12; i++) {
+      const album = albums[i] || {};
+      const name = album.name || "";
+      if (!name) continue;
+      const artistNames = (album.artists || [])
+        .map(function (a) {
+          return a.name || "";
+        })
+        .filter(function (n) {
+          return n;
+        })
+        .join(", ");
+      const images = album.images || [];
+      const coverUrl = images.length > 0 ? images[0].url : "";
+      items.push({
+        id: album.id || "",
+        uri: album.uri || "",
+        type: "album",
+        name: name,
+        artists: artistNames,
+        cover_url: coverUrl,
+        album_id: album.id || "",
+        album_name: name,
+        release_date: album.release_date || "",
+        total_tracks: album.total_tracks || 0,
+        provider_id: "spotify-web",
+      });
     }
-  } catch (e) {}
-  log.debug("Using timezone: " + timeZone);
-
-  const payload = {
-    operationName: "home",
-    variables: {
-      timeZone: timeZone,
-    },
-    extensions: {
-      persistedQuery: {
-        version: 1,
-        sha256Hash:
-          "3a67ee0ea6abad2ebad2e588a9aa130fc98d6b553f5b05ac6467503d02133bdc",
-      },
-    },
-  };
-
-  try {
-    const response = query(payload);
-    return formatHomeFeedData(response);
+    if (items.length > 0) {
+      sections.push({
+        uri: "sp:new-releases",
+        title: "New Releases",
+        items: items,
+      });
+    }
   } catch (e) {
-    log.error("fetchHomeFeed failed:", e.message);
-    return { success: false, error: e.message, sections: [] };
+    log.error("new-releases failed:", e.message);
   }
+
+  // 2. Featured playlists
+  try {
+    const data = restGet(
+      "https://api.spotify.com/v1/browse/featured-playlists?country=US&limit=20",
+    );
+    const playlists =
+      data && data.playlists && data.playlists.items
+        ? data.playlists.items
+        : [];
+    const items = [];
+    for (let i = 0; i < playlists.length && items.length < 12; i++) {
+      const playlist = playlists[i] || {};
+      const name = playlist.name || "";
+      if (!name) continue;
+      const images = playlist.images || [];
+      const coverUrl = images.length > 0 ? images[0].url : "";
+      items.push({
+        id: playlist.id || "",
+        uri: playlist.uri || "",
+        type: "playlist",
+        name: name,
+        artists: (playlist.owner && playlist.owner.display_name) || "",
+        cover_url: coverUrl,
+        description: playlist.description || "",
+        total_tracks:
+          playlist.tracks && playlist.tracks.total ? playlist.tracks.total : 0,
+        provider_id: "spotify-web",
+      });
+    }
+    if (items.length > 0) {
+      sections.push({
+        uri: "sp:featured-playlists",
+        title: "Featured Playlists",
+        items: items,
+      });
+    }
+  } catch (e) {
+    log.error("featured-playlists failed:", e.message);
+  }
+
+  if (sections.length > 0) {
+    log.info(
+      "Fetched",
+      sections.length,
+      "sections from Spotify home feed (REST)",
+    );
+    return { success: true, greeting: "", sections: sections };
+  }
+
+  // Fallback: GraphQL persisted query (hash may rotate)
+  try {
+    const payload = {
+      operationName: "home",
+      variables: { timeZone: "UTC" },
+      extensions: {
+        persistedQuery: {
+          version: 1,
+          sha256Hash:
+            "3a67ee0ea6abad2ebad2e588a9aa130fc98d6b553f5b05ac6467503d02133bdc",
+        },
+      },
+    };
+    const response = query(payload);
+    const parsed = formatHomeFeedData(response);
+    if (
+      parsed &&
+      parsed.success &&
+      parsed.sections &&
+      parsed.sections.length > 0
+    ) {
+      return parsed;
+    }
+  } catch (e) {
+    log.error("GraphQL home fallback failed:", e.message);
+  }
+
+  return { success: false, error: "no home feed available", sections: [] };
 }
 
 function formatHomeFeedData(data) {

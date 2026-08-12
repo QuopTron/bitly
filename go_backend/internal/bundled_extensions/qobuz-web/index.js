@@ -1,32 +1,185 @@
 var CONFIG = {
-  apiBaseURL: "https://api.zarz.moe/v1/qbz",
-  fallbackApiBaseURL: "https://api.zarz.moe/v1/qbz2",
+  apiBaseURL: "https://api.zarz.moe/v2/qbz",
+  fallbackApiBaseURL: "",
   appID: "798273057",
+  previewApiBaseURL: "https://www.qobuz.com",
+  previewAppID: "712109809",
+  previewAppSecret: "589be88e4538daea11f509d29e4a23b1",
   storeBaseURL: "https://www.qobuz.com/us-en",
   openBaseURL: "https://open.qobuz.com",
   playBaseURL: "https://play.qobuz.com",
   countryCode: "US",
   maxArtistAlbums: 100,
   pageSize: 50,
-  downloadProviders: [{ name: "zarz", url: "https://api.zarz.moe/v1/dl/qbz" }],
+  downloadProviders: [{ name: "zarz-v2", url: "/dl/qbz" }],
 };
 
 var STORE_TRACK_ID_REGEX = /\/v4\/ajax\/popin-add-cart\/track\/([0-9]+)/g;
 var LOCALE_SEGMENT_REGEX = /^[a-z]{2}-[a-z]{2}$/i;
 var IMAGE_SIZE_REGEX = /_\d+\.jpg$/;
 
+function md5(input) {
+  function add32(a, b) {
+    return (a + b) & 0xffffffff;
+  }
+
+  function cmn(q, a, b, x, s, t) {
+    a = add32(add32(a, q), add32(x, t));
+    return add32((a << s) | (a >>> (32 - s)), b);
+  }
+
+  function ff(a, b, c, d, x, s, t) {
+    return cmn((b & c) | (~b & d), a, b, x, s, t);
+  }
+
+  function gg(a, b, c, d, x, s, t) {
+    return cmn((b & d) | (c & ~d), a, b, x, s, t);
+  }
+
+  function hh(a, b, c, d, x, s, t) {
+    return cmn(b ^ c ^ d, a, b, x, s, t);
+  }
+
+  function ii(a, b, c, d, x, s, t) {
+    return cmn(c ^ (b | ~d), a, b, x, s, t);
+  }
+
+  function md5cycle(x, k) {
+    var a = x[0],
+      b = x[1],
+      c = x[2],
+      d = x[3];
+
+    a = ff(a, b, c, d, k[0], 7, -680876936);
+    d = ff(d, a, b, c, k[1], 12, -389564586);
+    c = ff(c, d, a, b, k[2], 17, 606105819);
+    b = ff(b, c, d, a, k[3], 22, -1044525330);
+    a = ff(a, b, c, d, k[4], 7, -176418897);
+    d = ff(d, a, b, c, k[5], 12, 1200080426);
+    c = ff(c, d, a, b, k[6], 17, -1473231341);
+    b = ff(b, c, d, a, k[7], 22, -45705983);
+    a = ff(a, b, c, d, k[8], 7, 1770035416);
+    d = ff(d, a, b, c, k[9], 12, -1958414417);
+    c = ff(c, d, a, b, k[10], 17, -42063);
+    b = ff(b, c, d, a, k[11], 22, -1990404162);
+    a = ff(a, b, c, d, k[12], 7, 1804603682);
+    d = ff(d, a, b, c, k[13], 12, -40341101);
+    c = ff(c, d, a, b, k[14], 17, -1502002290);
+    b = ff(b, c, d, a, k[15], 22, 1236535329);
+
+    a = gg(a, b, c, d, k[1], 5, -165796510);
+    d = gg(d, a, b, c, k[6], 9, -1069501632);
+    c = gg(c, d, a, b, k[11], 14, 643717713);
+    b = gg(b, c, d, a, k[0], 20, -373897302);
+    a = gg(a, b, c, d, k[5], 5, -701558691);
+    d = gg(d, a, b, c, k[10], 9, 38016083);
+    c = gg(c, d, a, b, k[15], 14, -660478335);
+    b = gg(b, c, d, a, k[4], 20, -405537848);
+    a = gg(a, b, c, d, k[9], 5, 568446438);
+    d = gg(d, a, b, c, k[14], 9, -1019803690);
+    c = gg(c, d, a, b, k[3], 14, -187363961);
+    b = gg(b, c, d, a, k[8], 20, 1163531501);
+    a = gg(a, b, c, d, k[13], 5, -1444681467);
+    d = gg(d, a, b, c, k[2], 9, -51403784);
+    c = gg(c, d, a, b, k[7], 14, 1735328473);
+    b = gg(b, c, d, a, k[12], 20, -1926607734);
+
+    a = hh(a, b, c, d, k[5], 4, -378558);
+    d = hh(d, a, b, c, k[8], 11, -2022574463);
+    c = hh(c, d, a, b, k[11], 16, 1839030562);
+    b = hh(b, c, d, a, k[14], 23, -35309556);
+    a = hh(a, b, c, d, k[1], 4, -1530992060);
+    d = hh(d, a, b, c, k[4], 11, 1272893353);
+    c = hh(c, d, a, b, k[7], 16, -155497632);
+    b = hh(b, c, d, a, k[10], 23, -1094730640);
+    a = hh(a, b, c, d, k[13], 4, 681279174);
+    d = hh(d, a, b, c, k[0], 11, -358537222);
+    c = hh(c, d, a, b, k[3], 16, -722521979);
+    b = hh(b, c, d, a, k[6], 23, 76029189);
+    a = hh(a, b, c, d, k[9], 4, -640364487);
+    d = hh(d, a, b, c, k[12], 11, -421815835);
+    c = hh(c, d, a, b, k[15], 16, 530742520);
+    b = hh(b, c, d, a, k[2], 23, -995338651);
+
+    a = ii(a, b, c, d, k[0], 6, -198630844);
+    d = ii(d, a, b, c, k[7], 10, 1126891415);
+    c = ii(c, d, a, b, k[14], 15, -1416354905);
+    b = ii(b, c, d, a, k[5], 21, -57434055);
+    a = ii(a, b, c, d, k[12], 6, 1700485571);
+    d = ii(d, a, b, c, k[3], 10, -1894986606);
+    c = ii(c, d, a, b, k[10], 15, -1051523);
+    b = ii(b, c, d, a, k[1], 21, -2054922799);
+    a = ii(a, b, c, d, k[8], 6, 1873313359);
+    d = ii(d, a, b, c, k[15], 10, -30611744);
+    c = ii(c, d, a, b, k[6], 15, -1560198380);
+    b = ii(b, c, d, a, k[13], 21, 1309151649);
+    a = ii(a, b, c, d, k[4], 6, -145523070);
+    d = ii(d, a, b, c, k[11], 10, -1120210379);
+    c = ii(c, d, a, b, k[2], 15, 718787259);
+    b = ii(b, c, d, a, k[9], 21, -343485551);
+
+    x[0] = add32(a, x[0]);
+    x[1] = add32(b, x[1]);
+    x[2] = add32(c, x[2]);
+    x[3] = add32(d, x[3]);
+  }
+
+  function md5blk(s) {
+    var md5blks = [];
+    for (var i = 0; i < 64; i += 4) {
+      md5blks[i >> 2] =
+        s.charCodeAt(i) +
+        (s.charCodeAt(i + 1) << 8) +
+        (s.charCodeAt(i + 2) << 16) +
+        (s.charCodeAt(i + 3) << 24);
+    }
+    return md5blks;
+  }
+
+  function md51(s) {
+    var n = s.length;
+    var state = [1732584193, -271733879, -1732584194, 271733878];
+    var i;
+    for (i = 64; i <= n; i += 64) {
+      md5cycle(state, md5blk(s.substring(i - 64, i)));
+    }
+    s = s.substring(i - 64);
+    var tail = [];
+    for (i = 0; i < 16; i++) tail[i] = 0;
+    for (i = 0; i < s.length; i++) {
+      tail[i >> 2] |= s.charCodeAt(i) << ((i % 4) << 3);
+    }
+    tail[i >> 2] |= 0x80 << ((i % 4) << 3);
+    if (i > 55) {
+      md5cycle(state, tail);
+      for (i = 0; i < 16; i++) tail[i] = 0;
+    }
+    tail[14] = n * 8;
+    md5cycle(state, tail);
+    return state;
+  }
+
+  function rhex(n) {
+    var s = "";
+    var hex = "0123456789abcdef";
+    for (var j = 0; j < 4; j++) {
+      s +=
+        hex.charAt((n >> (j * 8 + 4)) & 0x0f) +
+        hex.charAt((n >> (j * 8)) & 0x0f);
+    }
+    return s;
+  }
+
+  var utf8 = unescape(encodeURIComponent(String(input || "")));
+  var state = md51(utf8);
+  return rhex(state[0]) + rhex(state[1]) + rhex(state[2]) + rhex(state[3]);
+}
+
 function initialize(settings) {
   settings = settings || {};
 
-  var apiBaseUrl = normalizeBaseURL(settings.apiBaseUrl);
-  if (apiBaseUrl) {
-    CONFIG.apiBaseURL = apiBaseUrl;
-  }
-
-  var fallbackApiBaseUrl = normalizeBaseURL(settings.fallbackApiBaseUrl);
-  if (fallbackApiBaseUrl) {
-    CONFIG.fallbackApiBaseURL = fallbackApiBaseUrl;
-  }
+  // V2 metadata is signed and bound to the manifest baseUrl. Ignore persisted
+  // V1 API URL settings so upgrades cannot silently fall back to /v1.
 
   var appID = String(settings.appId || "").trim();
   if (appID) {
@@ -140,7 +293,13 @@ function parseJSONResponse(response, url) {
     );
   }
   if (response.statusCode !== 200) {
-    throw new Error("HTTP " + response.statusCode + " for " + url);
+    throw new Error(
+      "HTTP " +
+        response.statusCode +
+        " for " +
+        url +
+        summarizeErrorBody(response.body),
+    );
   }
   if (isCloudflareChallenge(response.body)) {
     throw new Error("Cloudflare challenge for " + url);
@@ -149,6 +308,29 @@ function parseJSONResponse(response, url) {
     throw new Error("Unexpected HTML for " + url);
   }
   return JSON.parse(response.body);
+}
+
+function summarizeErrorBody(body) {
+  var text = String(body || "").trim();
+  if (!text) return "";
+  try {
+    var parsed = JSON.parse(text);
+    if (parsed && typeof parsed === "object") {
+      text = String(
+        parsed.error ||
+          parsed.message ||
+          parsed.detail ||
+          JSON.stringify(parsed),
+      );
+    }
+  } catch (e) {
+    // Keep the raw text.
+  }
+  text = text.replace(/\s+/g, " ").trim();
+  if (text.length > 180) {
+    text = text.substring(0, 177) + "...";
+  }
+  return text ? ": " + text : "";
 }
 
 function getJSON(url, headers) {
@@ -168,6 +350,56 @@ function postJSON(url, body, headers) {
       ),
     ),
     url,
+  );
+}
+
+function signedJSON(method, path, body, headers) {
+  if (
+    typeof session === "undefined" ||
+    !session ||
+    typeof session.signedFetch !== "function"
+  ) {
+    throw new Error("signed session runtime is not available");
+  }
+  var response = session.signedFetch(method, path, body || null, headers || {});
+  if (!response || response.error || response.needsVerification) {
+    var error =
+      response && response.error ? response.error : "signed request failed";
+    throw new Error(error);
+  }
+  if (response.statusCode !== 200) {
+    throw new Error(
+      "HTTP " +
+        response.statusCode +
+        " for " +
+        path +
+        summarizeErrorBody(response.body),
+    );
+  }
+  return JSON.parse(response.body || "{}");
+}
+
+function signedTicket(provider, type, id) {
+  var resourceHash = utils.sha256(
+    provider + ":" + (type || "track") + ":" + String(id || "").toLowerCase(),
+  );
+  var payload = signedJSON("POST", "/tickets", {
+    capability: "download_ticket",
+    provider: provider,
+    resource_hash: resourceHash,
+  });
+  var ticketID = String(payload.ticket_id || payload.ticket || "").trim();
+  if (!ticketID) {
+    throw new Error("signed ticket response missing ticket_id");
+  }
+  return ticketID;
+}
+
+function isVerificationRequiredError(error) {
+  var message = String((error && error.message) || error || "");
+  return (
+    message.indexOf("VERIFY_REQUIRED") >= 0 ||
+    message.indexOf("verification_required") >= 0
   );
 }
 
@@ -725,20 +957,91 @@ function metadataURL(path, params, useFallback) {
   );
 }
 
+function qobuzSignedURL(objectName, methodName, params) {
+  var requestTS = String(Math.floor(new Date().getTime() / 1000));
+  var keys = [];
+  var query = [];
+  var raw = String(objectName || "") + String(methodName || "");
+  params = params || {};
+
+  for (var key in params) {
+    if (!params.hasOwnProperty(key)) continue;
+    keys.push(key);
+  }
+  keys.sort();
+
+  for (var i = 0; i < keys.length; i++) {
+    raw += keys[i] + String(params[keys[i]]);
+  }
+  raw += requestTS + CONFIG.previewAppSecret;
+
+  for (var j = 0; j < keys.length; j++) {
+    query.push(
+      encodeURIComponent(keys[j]) +
+        "=" +
+        encodeURIComponent(String(params[keys[j]])),
+    );
+  }
+  query.push("request_ts=" + encodeURIComponent(requestTS));
+  query.push("request_sig=" + encodeURIComponent(md5(raw)));
+
+  return (
+    CONFIG.previewApiBaseURL +
+    "/api.json/0.2/" +
+    objectName +
+    "/" +
+    methodName +
+    "?" +
+    query.join("&")
+  );
+}
+
+function qobuzPreviewURL(track) {
+  if (!track) return "";
+
+  var trackID = String(track.id || "").trim();
+  if (!trackID) return "";
+
+  if (
+    track.previewable === false &&
+    track.sampleable === false &&
+    track.streamable === false
+  ) {
+    return "";
+  }
+
+  try {
+    var url = qobuzSignedURL("track", "getFileUrl", {
+      track_id: trackID,
+      format_id: "5",
+      intent: "stream",
+    });
+    var payload = getJSON(
+      url,
+      requestHeaders(url, {
+        "X-App-Id": CONFIG.previewAppID,
+      }),
+    );
+    var preview = String((payload && payload.url) || "").trim();
+    if (!preview) return "";
+    if (payload.sample === false && Number(payload.duration || 0) > 45)
+      return "";
+    return preview;
+  } catch (e) {
+    log.warn(
+      "[QobuzWeb] Preview URL unavailable for track " +
+        trackID +
+        ": " +
+        e.message,
+    );
+    return "";
+  }
+}
+
 function getMetadataJSON(path, params) {
   var primaryURL = metadataURL(path, params, false);
-  try {
-    return getJSON(primaryURL, requestHeaders(primaryURL));
-  } catch (primaryError) {
-    var fallbackURL = metadataURL(path, params, true);
-    log.warn(
-      "[QobuzWeb] Primary metadata failed for " +
-        path +
-        ": " +
-        primaryError.message,
-    );
-    return getJSON(fallbackURL, requestHeaders(fallbackURL));
-  }
+  var relative = primaryURL.replace(/^https:\/\/api\.zarz\.moe\/v2/i, "");
+  return signedJSON("GET", relative, null, {});
 }
 
 function trackDisplayTitle(track) {
@@ -806,13 +1109,30 @@ function trackAlbumImage(track) {
 
 function albumImage(album) {
   if (!album) return "";
-  return upscaleImageURL(
-    firstNonEmpty(
-      album.image && album.image.large,
-      album.image && album.image.small,
-      album.image && album.image.thumbnail,
-    ),
-  );
+  // Handle the different shapes Qobuz returns: image object ({large/small/thumbnail}),
+  // plain string URL, or an images[] array (used by catalog/featured listings).
+  var img = album.image;
+  if (typeof img === "string") {
+    return upscaleImageURL(img);
+  }
+  if (img && typeof img === "object") {
+    var fromObj = firstNonEmpty(img.large, img.small, img.thumbnail, img.url);
+    if (fromObj) return upscaleImageURL(fromObj);
+  }
+  if (Array.isArray(album.images) && album.images.length > 0) {
+    var first = album.images[0];
+    if (typeof first === "string") return upscaleImageURL(first);
+    if (first && typeof first === "object") {
+      var fromArr = firstNonEmpty(
+        first.url,
+        first.large,
+        first.small,
+        first.thumbnail,
+      );
+      if (fromArr) return upscaleImageURL(fromArr);
+    }
+  }
+  return "";
 }
 
 function artistImage(artist) {
@@ -843,8 +1163,9 @@ function qobuzAudioQualityLabel(track) {
   return bitDepth + "bit/" + rateDisplay + "kHz";
 }
 
-function formatTrack(track, totalDiscsOverride) {
+function formatTrack(track, totalDiscsOverride, options) {
   if (!track) return null;
+  options = options || {};
 
   var totalTracks = Number((track.album && track.album.tracks_count) || 0);
   var totalDiscs = Number(totalDiscsOverride || 0);
@@ -852,7 +1173,7 @@ function formatTrack(track, totalDiscsOverride) {
     totalDiscs = Number(track.album.total_discs || 0);
   }
 
-  return {
+  var formatted = {
     id: withPrefix(track.id),
     name: trackDisplayTitle(track),
     artists: trackArtistName(track),
@@ -896,6 +1217,13 @@ function formatTrack(track, totalDiscsOverride) {
     composer: String((track.composer && track.composer.name) || "").trim(),
     audio_quality: qobuzAudioQualityLabel(track),
   };
+
+  if (options.includePreview) {
+    var previewURL = qobuzPreviewURL(track);
+    if (previewURL) formatted.preview_url = previewURL;
+  }
+
+  return formatted;
 }
 
 function formatAlbum(album) {
@@ -1308,12 +1636,14 @@ function searchTracksWithFallback(query, limit) {
     if (tracks && tracks.length) return tracks;
   } catch (e) {
     apiError = e;
+    if (isVerificationRequiredError(e)) throw e;
   }
 
   try {
     tracks = searchTracksViaAlbumSearch(query, limit);
     if (tracks && tracks.length) return tracks;
   } catch (albumError) {
+    if (isVerificationRequiredError(albumError)) throw albumError;
     if (apiError) {
       log.warn(
         "[QobuzWeb] Album search fallback failed after API error: " +
@@ -1344,7 +1674,9 @@ function searchOne(query, filter, limit) {
     var rawTracks = searchTracksWithFallback(cleanQuery, limit);
     var trackResults = [];
     for (var i = 0; i < rawTracks.length; i++) {
-      var formattedTrack = formatTrack(rawTracks[i]);
+      var formattedTrack = formatTrack(rawTracks[i], null, {
+        includePreview: true,
+      });
       if (formattedTrack) trackResults.push(formattedTrack);
     }
     return trackResults;
@@ -1424,6 +1756,7 @@ function customSearch(query, options) {
     return results;
   } catch (e) {
     log.error("[QobuzWeb] customSearch failed:", e.message);
+    if (isVerificationRequiredError(e)) throw e;
     return [];
   }
 }
@@ -1559,16 +1892,27 @@ function fetchProviderDownloadInfo(provider, trackID, qualityCode) {
     }
 
     try {
-      var response = http.post(
+      var trackURL =
+        CONFIG.openBaseURL + "/track/" + String(trackID || "").trim();
+      // The ticket resource_hash must match what the server hashes at consume
+      // time. The download body below sends `url`, and the server's /v2/dl/qbz
+      // handler derives the hash from `body.url || body.id || body.asin` (so it
+      // uses the URL). Minting with the bare trackID produced a different hash
+      // and every download failed with "Ticket resource mismatch" (403).
+      var ticketID = signedTicket("qbz", "track", trackURL);
+      var response = session.signedFetch(
+        "POST",
         providerRequestURL(provider, trackID, qualityCode),
-        JSON.stringify({
+        {
           quality: mapMusicDLQuality(qualityCode),
           upload_to_r2: false,
-          url: CONFIG.openBaseURL + "/track/" + String(trackID || "").trim(),
-        }),
-        requestHeaders(provider.url, {
-          "Content-Type": "application/json",
-        }),
+          id: String(trackID || "").trim(),
+          type: "track",
+          url: trackURL,
+        },
+        {
+          "X-Zarz-Ticket": ticketID,
+        },
       );
 
       if (!response || response.error) {
@@ -1578,11 +1922,15 @@ function fetchProviderDownloadInfo(provider, trackID, qualityCode) {
       }
 
       if (response.statusCode === 429 || response.statusCode >= 500) {
-        throw new Error("HTTP " + response.statusCode);
+        throw new Error(
+          "HTTP " + response.statusCode + summarizeErrorBody(response.body),
+        );
       }
 
       if (response.statusCode !== 200) {
-        throw new Error("HTTP " + response.statusCode);
+        throw new Error(
+          "HTTP " + response.statusCode + summarizeErrorBody(response.body),
+        );
       }
 
       var contentType = getHeaderValue(
@@ -1806,6 +2154,7 @@ function checkAvailability(isrc, trackName, artistName, options) {
       track_id: String(best.id || "").trim(),
     };
   } catch (e) {
+    if (isVerificationRequiredError(e)) throw e;
     return {
       available: false,
       reason: e && e.message ? e.message : String(e),
@@ -2015,10 +2364,14 @@ function download(trackID, quality, outputPath, onProgress) {
       lyrics_lrc: lyricsLRC,
     };
   } catch (e) {
+    var errorMessage = e && e.message ? e.message : String(e);
     return {
       success: false,
-      error_message: e && e.message ? e.message : String(e),
-      error_type: "runtime_error",
+      error_message: errorMessage,
+      error_type:
+        errorMessage.indexOf("VERIFY_REQUIRED") >= 0
+          ? "verification_required"
+          : "runtime_error",
     };
   }
 }
@@ -2082,9 +2435,76 @@ function handleUrl(url) {
   }
 }
 
+function completeGrant() {
+  if (
+    typeof session === "undefined" ||
+    !session ||
+    typeof session.completeGrant !== "function"
+  ) {
+    return { success: false, error: "signed session runtime is not available" };
+  }
+  return session.completeGrant();
+}
+
+function getHomeFeed() {
+  var sections = [];
+  try {
+    // Qobuz "featured" catalog via the signed zarz proxy — the same transport
+    // this extension already uses for all metadata (album/get, album/search...).
+    // The direct www.qobuz.com endpoint with the preview app id returns 503
+    // ("no Service found"), while the proxy carries a session with broader
+    // access. Response shape: { albums: { items: [...] } }.
+    var data = getMetadataJSON("catalog/featured", { limit: 20 });
+    if (!data) {
+      return { success: false, error: "no featured data", sections: [] };
+    }
+
+    var albums = data.albums && data.albums.items ? data.albums.items : [];
+    var albumItems = [];
+    for (var i = 0; i < albums.length && albumItems.length < 12; i++) {
+      var item = albums[i] || {};
+      var name = String(item.title || "").trim();
+      if (!name) continue;
+      albumItems.push({
+        name: name,
+        artists: joinArtistNames(
+          item.artists || [],
+          item.artist && item.artist.name,
+        ),
+        type: "album",
+        id: withPrefix(item.id),
+        cover_url: albumImage(item),
+        release_date: normalizeDate(item.release_date_original),
+        total_tracks: Number(item.tracks_count || 0),
+      });
+    }
+    if (albumItems.length > 0) {
+      sections.push({
+        uri: "qbz:featured",
+        title: "Novedades de Qobuz",
+        items: albumItems,
+      });
+    }
+  } catch (e) {
+    log.debug("[QobuzWeb] getHomeFeed failed:", e && e.message);
+    return {
+      success: false,
+      error: String((e && e.message) || e),
+      sections: [],
+    };
+  }
+
+  if (sections.length > 0) {
+    return { success: true, sections: sections };
+  }
+  return { success: false, error: "no home feed available", sections: [] };
+}
+
 registerExtension({
   initialize: initialize,
   cleanup: cleanup,
+  completeGrant: completeGrant,
+  getHomeFeed: getHomeFeed,
   customSearch: customSearch,
   checkAvailability: checkAvailability,
   download: download,

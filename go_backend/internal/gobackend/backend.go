@@ -10,7 +10,6 @@
 package gobackend
 
 import (
-	"fmt"
 	"log"
 	"sync"
 )
@@ -60,10 +59,4 @@ func IsReady() bool {
 	return globalBackend != nil && globalBackend.started
 }
 
-// requireReady returns an error if the backend is not initialized.
-func requireReady() error {
-	if !IsReady() {
-		return fmt.Errorf("backend not initialized")
-	}
-	return nil
-}
+

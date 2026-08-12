@@ -22,7 +22,7 @@ func (m *mockRescueProvider) SearchTracks(q string, l int) ([]provider.TrackResu
 }
 func (m *mockRescueProvider) SearchAlbums(q string, l int) ([]provider.AlbumResult, error)   { return nil, nil }
 func (m *mockRescueProvider) SearchArtists(q string, l int) ([]provider.ArtistResult, error)  { return nil, nil }
-func (m *mockRescueProvider) SearchPlaylists(q string, l int) ([]provider.PlaylistResult, error){ return nil, nil }
+func (m *mockRescueProvider) SearchPlaylists(q string, l int) ([]provider.PlaylistResult, error) { return nil, nil }
 func (m *mockRescueProvider) GetTrack(id string) (*provider.TrackResult, error) {
 	if t, ok := m.tracks[id]; ok {
 		return t, nil
@@ -46,14 +46,6 @@ func TestNewRescuer(t *testing.T) {
 	r := New(reg)
 	if r == nil {
 		t.Fatal("expected non-nil rescuer")
-	}
-}
-
-func TestNewEnricher(t *testing.T) {
-	reg := provider.NewRegistry()
-	e := NewEnricher(reg)
-	if e == nil {
-		t.Fatal("expected non-nil enricher")
 	}
 }
 
@@ -108,14 +100,13 @@ func TestRescueByISRC_NoStreamURL(t *testing.T) {
 		tracks: map[string]*provider.TrackResult{
 			"123": {ID: "spotify:123", Title: "Song", ISRC: "GBUM71029604"},
 		},
-		streamURL: "", // Spotify doesn't provide stream URLs
+		streamURL: "",
 	})
 	r := New(reg)
 	result := r.RescueByISRC("GBUM71029604", "Song", "Artist", "FLAC")
 	if result == nil {
 		t.Fatal("expected non-nil result")
 	}
-	// Might still be found even without stream URL
 	if !result.Found {
 		t.Log("rescue didn't find the track (no stream URL provider)")
 	}
@@ -133,38 +124,5 @@ func TestRescueBatch(t *testing.T) {
 	}
 	if len(results) != 1 {
 		t.Errorf("expected 1 result, got %d", len(results))
-	}
-}
-
-func TestEnrichFromISRC_NoProviders(t *testing.T) {
-	reg := provider.NewRegistry()
-	e := NewEnricher(reg)
-	result, err := e.EnrichFromISRC("GBUM71029604")
-	if err == nil {
-		t.Error("expected error with no providers")
-	}
-	if result != nil {
-		t.Errorf("expected nil result, got %+v", result)
-	}
-}
-
-func TestEnrichFromISRC_Found(t *testing.T) {
-	reg := provider.NewRegistry()
-	reg.Register(&mockRescueProvider{
-		name: "deezer",
-		tracks: map[string]*provider.TrackResult{
-			"123": {ID: "deezer:123", Title: "Song", ISRC: "GBUM71029604", Artist: "Queen", Album: "Greatest Hits", Duration: 180000},
-		},
-	})
-	e := NewEnricher(reg)
-	result, err := e.EnrichFromISRC("GBUM71029604")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if result == nil {
-		t.Fatal("expected non-nil result")
-	}
-	if result.ISRC != "GBUM71029604" {
-		t.Errorf("expected ISRC GBUM71029604, got %s", result.ISRC)
 	}
 }

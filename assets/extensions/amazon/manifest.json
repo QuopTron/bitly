@@ -1,13 +1,33 @@
 {
   "name": "amazon",
   "displayName": "Amazon Music",
-  "version": "2.1.4",
-  "description": "Amazon Music metadata & download provider for SpotiFLAC. Browse tracks, albums, artists, playlists from Amazon Music links and search. Downloads lossless and Dolby Atmos audio.",
+  "version": "2.2.1",
+  "description": "Amazon Music metadata & download provider for SpotiFLAC Mobile. Browse tracks, albums, artists, playlists from Amazon Music links and search. Downloads lossless and Dolby Atmos audio.",
   "type": [
     "metadata_provider",
     "download_provider"
   ],
-  "minAppVersion": "4.2.3",
+  "minAppVersion": "4.7.0",
+  "requiredRuntimeFeatures": [
+    "signedSession@1",
+    "sessionGrant@1"
+  ],
+  "signedSession": {
+    "namespace": "zarz-v2",
+    "baseUrl": "https://api.zarz.moe/v2",
+    "appVersion": "amzn@2.2.0",
+    "platform": "extension",
+    "callbackUrl": "spotiflac://session-grant",
+    "schemeLabel": "ZARZ-HMAC-V1",
+    "headerPrefix": "X-Zarz-",
+    "timeWindowSeconds": 300,
+    "endpoints": {
+      "bootstrap": "/bootstrap",
+      "challenge": "/challenge",
+      "exchange": "/session/exchange",
+      "refresh": "/session/refresh"
+    }
+  },
   "permissions": {
     "network": [
       "na.mesk.skill.music.a2z.com",
@@ -41,7 +61,7 @@
     {
       "id": "best",
       "label": "FLAC Best Available",
-      "description": "Best available quality (up to 24-bit/96kHz)"
+      "description": "Best available quality (up to 24-bit/192kHz)"
     },
     {
       "id": "opus",
@@ -52,6 +72,11 @@
       "id": "eac3",
       "label": "Dolby Digital Plus",
       "description": "Dolby Digital Plus surround sound (E-AC-3)"
+    },
+    {
+      "id": "ac4",
+      "label": "Dolby Atmos (AC-4)",
+      "description": "Dolby Atmos immersive audio (AC-4, MP4 passthrough)"
     }
   ],
   "searchBehavior": {
@@ -108,9 +133,8 @@
     {
       "id": "zarz-api",
       "label": "Zarz API",
-      "url": "https://api.zarz.moe/v1/health",
+      "url": "https://api.zarz.moe/v2/health",
       "method": "GET",
-      "serviceKey": "amazon",
       "timeoutMs": 4000,
       "cacheTtlSeconds": 60,
       "required": true

@@ -1,7 +1,9 @@
 package musicbrainz
 
 import (
+	"encoding/json"
 	"fmt"
+
 	"github.com/zarz/bitly/go_backend/internal/provider"
 )
 
@@ -9,14 +11,17 @@ func (c *Client) SearchTracks(query string, limit int) ([]provider.TrackResult, 
 	if limit < 1 || limit > 100 {
 		limit = 25
 	}
+	// isrcList handles both []{id:...} and "" (empty string) in MusicBrainz responses.
+	type isrcList []struct {
+		ID string `json:"id"`
+	}
+
 	type recordingResp struct {
 		Recordings []struct {
-			ID      string `json:"id"`
-			Title   string `json:"title"`
-			Length  int    `json:"length"`
-			ISRCs   []struct {
-				ID string `json:"id"`
-			} `json:"isrcs"`
+			ID      string          `json:"id"`
+			Title   string          `json:"title"`
+			Length  int             `json:"length"`
+			ISRCs   json.RawMessage `json:"isrcs"`
 			ArtistCredit []struct {
 				Name  string `json:"name"`
 				Artist struct {
@@ -44,7 +49,10 @@ func (c *Client) SearchTracks(query string, limit int) ([]provider.TrackResult, 
 			Provider: "musicbrainz",
 		}
 		if len(r.ISRCs) > 0 {
-			tr.ISRC = r.ISRCs[0].ID
+			var parsed isrcList
+			if err := json.Unmarshal(r.ISRCs, &parsed); err == nil && len(parsed) > 0 {
+				tr.ISRC = parsed[0].ID
+			}
 		}
 		if len(r.ArtistCredit) > 0 {
 			tr.Artist = r.ArtistCredit[0].Name

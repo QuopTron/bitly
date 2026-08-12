@@ -1,5 +1,5 @@
 // Amazon Music Metadata & Download Provider for SpotiFLAC
-// v2.0.8 - Amazon cover quality normalization update.
+// v2.2.0 - Signed v2 Zarz download API.
 // Uses reverse-engineered Amazon Music web API (skill.music.a2z.com).
 
 var CONFIG = {
@@ -8,7 +8,6 @@ var CONFIG = {
   cacheTtlMs: 180000,
   maxResults: 15,
   coverImageSize: 1000,
-  zarzBaseURL: "https://api.zarz.moe/v1/dl/amazeamazeamaze",
   songlinkBaseURL: "https://api.song.link/v1-alpha.1/links",
   skillBaseURL: "https://na.mesk.skill.music.a2z.com/api",
   musicBaseURL: "https://music.amazon.com",
@@ -962,6 +961,22 @@ function findFirst(obj, key, depth) {
   return undefined;
 }
 
+function amazonItemIsExplicit(item) {
+  // Amazon marks explicit tracks with a tag array containing "E" and an
+  // "explicitAriaLabel" ("Explicit Content") on the row element. Clean tracks
+  // carry an empty tags array, so presence of "E"/explicitAriaLabel is reliable.
+  if (!item || typeof item !== "object") return false;
+  var tags = findFirst(item, "tags", 0);
+  if (tags && Object.prototype.toString.call(tags) === "[object Array]") {
+    for (var i = 0; i < tags.length; i++) {
+      if (String(tags[i]).toUpperCase() === "E") return true;
+    }
+  }
+  var aria = findFirst(item, "explicitAriaLabel", 0);
+  if (aria && String(aria).toLowerCase().indexOf("explicit") >= 0) return true;
+  return false;
+}
+
 function textValue(value) {
   if (value === null || value === undefined) return "";
   if (typeof value === "string") return value;
@@ -1181,6 +1196,7 @@ function parseDescriptiveRows(data) {
         deeplink: deeplink,
         track_number: i + 1,
         album_id: albumId,
+        explicit: amazonItemIsExplicit(row),
       });
     }
   }
@@ -1245,6 +1261,7 @@ function parseVisualRows(data) {
         deeplink: deeplink,
         track_number: i + 1,
         album_id: albumId,
+        explicit: amazonItemIsExplicit(row),
       });
     }
   }
@@ -2296,6 +2313,7 @@ function handleAlbumUrl(albumId) {
       track_number: t.track_number || i + 1,
       disc_number: 1,
       isrc: "",
+      explicit: !!t.explicit,
     });
   }
 
@@ -2512,6 +2530,7 @@ function handlePlaylistUrl(playlistId) {
       cover_url: t.cover_art || playlist.cover_art || "",
       track_number: i + 1,
       isrc: "",
+      explicit: !!t.explicit,
     });
   }
 
@@ -2560,6 +2579,7 @@ function getAlbum(albumId) {
       track_number: t.track_number || i + 1,
       disc_number: 1,
       isrc: "",
+      explicit: !!t.explicit,
     });
   }
 
@@ -2774,6 +2794,7 @@ function getPlaylist(playlistId) {
       cover_url: t.cover_art || playlist.cover_art || "",
       track_number: i + 1,
       isrc: "",
+      explicit: !!t.explicit,
     });
   }
 
@@ -2901,6 +2922,7 @@ function parseSearchResults(data, filter) {
             duration_ms: trackDuration * 1000,
             cover_url: trackImage,
             album_id: trackAlbumId,
+            explicit: amazonItemIsExplicit(item),
           });
           rememberResourceContext("track", tId, _currentContext);
           if (trackAlbumId)
@@ -3053,6 +3075,7 @@ function parseSearchResults(data, filter) {
               duration_ms: tDur * 1000,
               cover_url: tImg,
               album_id: tInfo ? tInfo.albumId || "" : "",
+              explicit: amazonItemIsExplicit(tItem),
             });
             rememberResourceContext("track", tTrackId, _currentContext);
           }
@@ -3186,38 +3209,20 @@ function enrichTrack(trackInfo) {
 // ==================== Zarz Moe Resolve ====================
 
 function callZarzMoeResolve(spotifyID) {
-  var body = JSON.stringify({
-    url: "https://open.spotify.com/track/" + spotifyID,
-  });
-  var res;
+  var data;
   try {
-    res = fetch("https://api.zarz.moe/v1/resolve", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "User-Agent": getAppUserAgent(),
-      },
-      body: body,
+    data = signedJSON("POST", "/resolve", {
+      url: "https://open.spotify.com/track/" + spotifyID,
     });
   } catch (e) {
-    L("warn", "[Amazon] zarz.moe resolve fetch failed:", String(e));
-    return null;
-  }
-  if (!res || !res.ok) {
     L(
       "warn",
-      "[Amazon] zarz.moe resolve returned status:",
-      res ? res.status : "no response",
+      "[Amazon] zarz.moe resolve failed:",
+      String(e && e.message ? e.message : e),
     );
     return null;
   }
-  var data;
-  try {
-    data = res.json();
-  } catch (e) {
-    L("error", "[Amazon] zarz.moe resolve JSON parse failed:", String(e));
-    return null;
-  }
+
   if (!data || !data.success || !data.songUrls) {
     L(
       "warn",
@@ -3451,10 +3456,34 @@ function extractAmazonFromJsonLD(obj) {
   return null;
 }
 
+function isLikelySpotifyId(id) {
+  return typeof id === "string" && /^[A-Za-z0-9]{22}$/.test(id.trim());
+}
+
 function resolveAmazonURL(isrc, spotifyID, deezerID) {
-  if (spotifyID) {
+  // Deezer first: the app resolves a Deezer ID from the ISRC reliably and
+  // SongLink maps it to Amazon without depending on the zarz.moe resolve
+  // endpoint, which can be slow or down and otherwise burns the whole timeout.
+  if (deezerID) {
+    L("info", "[Amazon] Resolving via Deezer ID:", deezerID);
+    var deezerURL = "https://www.deezer.com/track/" + deezerID;
+    var data = callSongLink(
+      CONFIG.songlinkBaseURL +
+        "?url=" +
+        encodeURIComponent(deezerURL) +
+        "&userCountry=US",
+    );
+    var url = extractAmazonURLFromSongLink(data);
+    if (url) {
+      L("info", "[Amazon] Found Amazon URL via Deezer:", url);
+      return url;
+    }
+  }
+  // Spotify next, but only for genuine Spotify IDs. Metadata sourced from Apple
+  // Music and others can place a numeric foreign ID in this field, which
+  // produces an invalid Spotify URL and poisons every Spotify-based lookup.
+  if (isLikelySpotifyId(spotifyID)) {
     L("info", "[Amazon] Resolving via Spotify ID:", spotifyID);
-    // Try zarz.moe first (faster, no rate limit risk)
     var url = callZarzMoeResolve(spotifyID);
     if (url) return url;
     L(
@@ -3477,21 +3506,8 @@ function resolveAmazonURL(isrc, spotifyID, deezerID) {
       L("info", "[Amazon] Found Amazon URL via Spotify:", url);
       return url;
     }
-  }
-  if (deezerID) {
-    L("info", "[Amazon] Resolving via Deezer ID:", deezerID);
-    var deezerURL = "https://www.deezer.com/track/" + deezerID;
-    var data = callSongLink(
-      CONFIG.songlinkBaseURL +
-        "?url=" +
-        encodeURIComponent(deezerURL) +
-        "&userCountry=US",
-    );
-    var url = extractAmazonURLFromSongLink(data);
-    if (url) {
-      L("info", "[Amazon] Found Amazon URL via Deezer:", url);
-      return url;
-    }
+  } else if (spotifyID) {
+    L("info", "[Amazon] Ignoring non-Spotify ID in spotify field:", spotifyID);
   }
   if (isrc) {
     L("info", "[Amazon] Resolving via ISRC:", isrc);
@@ -3525,72 +3541,120 @@ function qualityToCodec(quality) {
   var q = String(quality).toLowerCase().trim();
   if (q === "opus") return "opus";
   if (q === "eac3") return "eac3";
-  if (q === "mha1") return "mha1";
+  if (q === "ac4") return "ac4";
   // "best" and any other value defaults to flac
   return "flac";
 }
 
+function normalizeAudioCodec(codec) {
+  var c = String(codec || "")
+    .toLowerCase()
+    .trim();
+  if (c.indexOf(".") >= 0) c = c.split(".")[0];
+  if (c === "ec-3") return "eac3";
+  if (c === "ac-4") return "ac4";
+  return c || "flac";
+}
+
+// ==================== v2 Signed Session Helpers ====================
+
+// Performs an HMAC-signed request via the host runtime. The session secret
+// lives in Go and is scoped by namespace, base URL, app version, and platform,
+// so each provider must complete its own verification challenge.
+function signedJSON(method, path, body, headers) {
+  if (
+    typeof session === "undefined" ||
+    !session ||
+    typeof session.signedFetch !== "function"
+  ) {
+    throw new Error("signed session runtime is not available");
+  }
+  var response = session.signedFetch(method, path, body || null, headers || {});
+  if (response && response.needsVerification) {
+    var verr = new Error("VERIFY_REQUIRED");
+    verr.needsVerification = true;
+    verr.authUrl = response.auth_url || response.open_auth_url || "";
+    throw verr;
+  }
+  if (!response || response.error) {
+    throw new Error(
+      response && response.error ? response.error : "signed request failed",
+    );
+  }
+  if (response.statusCode !== 200) {
+    throw new Error("HTTP " + response.statusCode + " for " + path);
+  }
+  return JSON.parse(response.body || "null");
+}
+
+// Mints a one-use download ticket. resource_hash must match what the server
+// hashes at consume time: the /v2/dl/amazeamazeamaze handler derives it from
+// body.asin, so we hash the alias + asin here.
+function signedTicket(provider, type, id) {
+  var resourceHash = utils.sha256(
+    provider + ":" + (type || "track") + ":" + String(id || "").toLowerCase(),
+  );
+  var payload = signedJSON("POST", "/tickets", {
+    capability: "download_ticket",
+    provider: provider,
+    resource_hash: resourceHash,
+  });
+  var ticketID = String(payload.ticket_id || payload.ticket || "").trim();
+  if (!ticketID) {
+    throw new Error("signed ticket response missing ticket_id");
+  }
+  return ticketID;
+}
+
 function callZarzMedia(asin, codec) {
   if (!codec) codec = "flac";
-  var apiURL =
-    CONFIG.zarzBaseURL +
-    "/media?asin=" +
-    encodeURIComponent(asin) +
-    "&codec=" +
-    encodeURIComponent(codec);
   L(
     "info",
-    "[Amazon] Calling Zarz.moe media API for ASIN:",
+    "[Amazon] Calling v2 signed download API for ASIN:",
     asin,
     "codec:",
     codec,
   );
-  var res;
+
+  var data;
   try {
-    res = fetch(apiURL, {
-      method: "GET",
-      headers: { "User-Agent": getAppUserAgent(), Accept: "application/json" },
-    });
+    var ticketID = signedTicket("amazeamazeamaze", "track", asin);
+    data = signedJSON(
+      "POST",
+      "/dl/amazeamazeamaze",
+      { asin: asin, codec: codec },
+      {
+        "X-Zarz-Ticket": ticketID,
+      },
+    );
   } catch (e) {
-    L("error", "[Amazon] Zarz.moe media API fetch failed:", String(e));
-    return null;
-  }
-  if (!res || !res.ok) {
-    var errMsg = "";
-    if (res) {
-      try {
-        var errBody = res.json();
-        errMsg = errBody && errBody.error ? errBody.error : "";
-      } catch (e2) {}
+    if (e && e.needsVerification) {
+      // Surface verification upward so download() can tag the result and the
+      // app shows the in-app verification sheet.
+      return { needsVerification: true, authUrl: e.authUrl || "" };
     }
+    // Other failures (5xx/429/transient) -> null lets fetchWithRetry retry.
     L(
       "warn",
-      "[Amazon] Zarz.moe media API returned status:",
-      res ? res.status : "no response",
-      errMsg,
+      "[Amazon] v2 download API failed:",
+      String(e && e.message ? e.message : e),
     );
     return null;
   }
-  var data;
-  try {
-    data = res.json();
-  } catch (e) {
-    L("error", "[Amazon] Zarz.moe media API JSON parse failed:", String(e));
-    return null;
-  }
+
   // Response is an array, take first element
   if (Array.isArray(data)) {
     if (data.length === 0) {
-      L("warn", "[Amazon] Zarz.moe media API returned empty array");
+      L("warn", "[Amazon] v2 download API returned empty array");
       return null;
     }
     data = data[0];
   }
   if (!data || !data.audio || !data.audio.url) {
-    L("warn", "[Amazon] Zarz.moe media API returned no audio URL");
+    L("warn", "[Amazon] v2 download API returned no audio URL");
     return null;
   }
-  // Build cover URL from template
+  // Build cover URL from template (when present)
   var coverUrl = "";
   if (data.cover) {
     coverUrl = data.cover
@@ -3980,12 +4044,28 @@ function getHomeFeed() {
 
 // ==================== Extension Registration ====================
 
+function completeGrant() {
+  if (
+    typeof session === "undefined" ||
+    !session ||
+    typeof session.completeGrant !== "function"
+  ) {
+    return { success: false, error: "signed session runtime is not available" };
+  }
+  return session.completeGrant();
+}
+
 registerExtension({
   initialize: function () {
-    L("info", "[Amazon] Extension v2.0.3 init");
+    L("info", "[Amazon] Extension v2.2.0 init");
     initSession();
     return true;
   },
+
+  // Exchanges the verification grant for a signed session. The host app calls
+  // this action after the user completes the Turnstile challenge; without it
+  // the grant is never exchanged and downloads loop on "Verification required".
+  completeGrant: completeGrant,
 
   // ---- Metadata Provider Functions ----
 
@@ -4097,6 +4177,15 @@ registerExtension({
       });
     }
 
+    if (apiResult && apiResult.needsVerification) {
+      return {
+        success: false,
+        error_message: "Verification required",
+        error_type: "verification_required",
+        auth_url: apiResult.authUrl || "",
+      };
+    }
+
     if (!apiResult) {
       return {
         success: false,
@@ -4105,10 +4194,17 @@ registerExtension({
       };
     }
 
+    var outputExt = "";
+    if (codec === "eac3" || codec === "ac4" || codec === "opus") {
+      outputExt = ".mp4";
+    } else if (codec === "flac") {
+      outputExt = ".flac";
+    }
+
     L("info", "[Amazon] Got stream URL, downloading to:", outputPath);
     var actualOutputPath = outputPath;
     if (apiResult.decryptionKey) {
-      actualOutputPath = outputPath.replace(/\.[^.]+$/, ".m4a");
+      actualOutputPath = outputPath.replace(/\.[^.]+$/, outputExt || ".m4a");
       L("info", "[Amazon] Encrypted stream, saving as:", actualOutputPath);
     }
 
@@ -4152,14 +4248,8 @@ registerExtension({
     if (apiResult.decryptionKey) {
       // Determine output extension based on codec:
       // - flac: decrypt to .flac (Dart default)
-      // - eac3/mha1: must use .mp4 (ipod muxer doesn't support eac3/mha1)
+      // - eac3/ac4: must use .mp4 (mp4/ipod muxer container constraints)
       // - opus: must use .mp4 (opus in encrypted MP4 can't go into .flac)
-      var outputExt = "";
-      if (codec === "eac3" || codec === "mha1") {
-        outputExt = ".mp4";
-      } else if (codec === "opus") {
-        outputExt = ".mp4";
-      }
       decryption = {
         strategy: "ffmpeg.mov_key",
         key: apiResult.decryptionKey,
@@ -4172,8 +4262,11 @@ registerExtension({
     var result = {
       success: true,
       file_path: downloadResult.path || actualOutputPath,
+      encrypted: apiResult.decryptionKey ? true : false,
       decryption: decryption,
       decryption_key: apiResult.decryptionKey || "",
+      output_extension: outputExt,
+      audio_codec: normalizeAudioCodec(apiResult.codec || codec),
       bit_depth: 0,
       sample_rate: apiResult.sampleRate || 0,
     };

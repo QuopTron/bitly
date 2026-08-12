@@ -1,38 +1,74 @@
 package provider
 
 import (
+	"encoding/json"
 	"fmt"
-	"strconv"
-	"strings"
 
 	"github.com/zarz/bitly/go_backend/internal/extensions"
 )
 
 // ExtensionProvider wraps a JS extension as a Provider.
 type ExtensionProvider struct {
-	extID   string
-	name    string
-	runtime *extensions.Runtime
+	extID           string
+	name            string
+	runtime         *extensions.Runtime
+	hasHomeFeed     bool
+	// qualityOptions mirrors the manifest's qualityOptions list, so the
+	// download/stream fallback can pass a quality token the extension actually
+	// recognizes instead of a source-provider token that doesn't map.
+	qualityOptions  []string
+	// downloadCapable is false for metadata-only extensions (e.g. spotify-web)
+	// that expose no download()/getDownloadUrl(), so the fallback can skip them
+	// quickly instead of attempting a doomed download for every track.
+	downloadCapable bool
 }
 
 // NewExtensionProvider creates a new provider backed by a JS extension.
 func NewExtensionProvider(extID, name string, rt *extensions.Runtime) *ExtensionProvider {
 	return &ExtensionProvider{
-		extID:   extID,
-		name:    name,
-		runtime: rt,
+		extID:           extID,
+		name:            name,
+		runtime:         rt,
+		downloadCapable: true, // optimistic; SetDownloadCapable(false) on metadata-only
 	}
 }
+
+// SetHomeFeedEnabled marks whether the extension declares the homeFeed
+// capability in its manifest (equivalent to SpotiFLAC's `hasHomeFeed`).
+func (p *ExtensionProvider) SetHomeFeedEnabled(v bool) { p.hasHomeFeed = v }
+
+// SetQualityOptions stores the extension's declared quality option IDs.
+func (p *ExtensionProvider) SetQualityOptions(qs []string) { p.qualityOptions = qs }
+
+// QualityOptions returns the extension's declared quality option IDs, or nil.
+func (p *ExtensionProvider) QualityOptions() []string { return p.qualityOptions }
+
+// SetDownloadCapable marks whether the extension can produce audio files.
+func (p *ExtensionProvider) SetDownloadCapable(v bool) { p.downloadCapable = v }
+
+// DownloadCapable reports whether the extension can produce audio files.
+func (p *ExtensionProvider) DownloadCapable() bool { return p.downloadCapable }
+
+// HomeFeedEnabled reports whether the extension supports a home feed.
+func (p *ExtensionProvider) HomeFeedEnabled() bool { return p.hasHomeFeed }
 
 func (p *ExtensionProvider) Name() string { return p.name }
 
 // SearchTracks calls the extension's searchTracks(query, limit) JS function.
+// Falls back to customSearch with filter "song" if searchTracks is not available.
 func (p *ExtensionProvider) SearchTracks(query string, limit int) ([]TrackResult, error) {
 	result, err := p.runtime.CallMethod(p.extID, "searchTracks", query, limit)
-	if err != nil {
-		return nil, fmt.Errorf("ext %s searchTracks: %w", p.extID, err)
+	if err == nil {
+		if result != nil {
+			return convertToTrackResults(result, p.name)
+		}
+		return nil, nil
 	}
-	if result == nil {
+
+	// Fallback: try customSearch with filter "song"
+	opts := map[string]interface{}{"limit": limit, "filter": "song"}
+	result, err = p.runtime.CallMethod(p.extID, "customSearch", query, opts)
+	if err != nil || result == nil {
 		return nil, nil
 	}
 	return convertToTrackResults(result, p.name)
@@ -68,6 +104,83 @@ func (p *ExtensionProvider) SearchArtists(query string, limit int) ([]ArtistResu
 	return convertToArtistResults(result, p.name)
 }
 
+// CombinedResult is a single typed search hit from an unfiltered combined
+// search. Type mirrors the extension's item_type (track/album/artist/playlist).
+type CombinedResult struct {
+	ID          string
+	Type        string
+	Name        string
+	Artists     string
+	CoverURL    string
+	AlbumID     string
+	AlbumName   string
+	Duration    int
+	ReleaseDate string
+	TotalTracks int
+	Owner       string
+}
+
+// CombinedSearch runs the extension's customSearch with no type filter, which
+// returns every result kind (tracks, albums, artists, playlists) in a single
+// call — the SpotiFLAC principle. Each item keeps its own item_type, so the UI
+// can group them afterwards. Providers whose filtered per-type search returns
+// empty (e.g. Spotify web search only populates the combined "all" view) rely
+// on this to surface artists/albums/playlists at all.
+func (p *ExtensionProvider) CombinedSearch(query string, limit int) ([]CombinedResult, error) {
+	opts := map[string]interface{}{"limit": limit}
+	result, err := p.runtime.CallMethod(p.extID, "customSearch", query, opts)
+	if err != nil || result == nil {
+		return nil, nil
+	}
+	return p.combinedFromResult(result)
+}
+
+// SearchFiltered runs customSearch restricted to a single category using the
+// extension's own manifest filter id (e.g. "tracks", "songs", "albums"). This is
+// how SpotiFLAC re-queries a category when the user taps its bubble, returning
+// many more results than the capped "all" mix (50 tracks / 20 albums, etc.).
+func (p *ExtensionProvider) SearchFiltered(filter string, query string, limit int) ([]CombinedResult, error) {
+	opts := map[string]interface{}{"limit": limit, "filter": filter}
+	result, err := p.runtime.CallMethod(p.extID, "customSearch", query, opts)
+	if err != nil || result == nil {
+		return nil, nil
+	}
+	return p.combinedFromResult(result)
+}
+
+func (p *ExtensionProvider) combinedFromResult(result interface{}) ([]CombinedResult, error) {
+	list, ok := result.([]interface{})
+	if !ok {
+		return nil, nil
+	}
+	out := make([]CombinedResult, 0, len(list))
+	for _, item := range list {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		typ := getString(m, "item_type", "type")
+		id := stripPrefix(getString(m, "id"))
+		if id == "" {
+			continue
+		}
+		out = append(out, CombinedResult{
+			ID:          id,
+			Type:        typ,
+			Name:        getString(m, "name", "title"),
+			Artists:     getString(m, "artists", "artist"),
+			CoverURL:    getCoverURL(m),
+			AlbumID:     getString(m, "album_id", "albumId", "albumID"),
+			AlbumName:   getString(m, "album_name", "album"),
+			Duration:    toInt(m["duration_ms"]),
+			ReleaseDate: getString(m, "release_date"),
+			TotalTracks: toInt(m["track_count"]),
+			Owner:       getString(m, "owner"),
+		})
+	}
+	return out, nil
+}
+
 // GetTrack calls the extension's getTrack(id) JS function.
 func (p *ExtensionProvider) GetTrack(id string) (*TrackResult, error) {
 	result, err := p.runtime.CallMethod(p.extID, "getTrack", id)
@@ -85,14 +198,6 @@ func (p *ExtensionProvider) GetTrackByISRC(isrc string) (*TrackResult, error) {
 	trackID, _ := p.callStringMethod("resolveTrackIDFromISRC", isrc)
 	if trackID != "" {
 		return p.GetTrack(trackID)
-	}
-	avail, err := p.runtime.CallMethod(p.extID, "checkAvailability", isrc, "", "", map[string]interface{}{})
-	if err == nil && avail != nil {
-		if m, ok := avail.(map[string]interface{}); ok {
-			if tid, ok := m["track_id"].(string); ok && tid != "" {
-				return p.GetTrack(tid)
-			}
-		}
 	}
 	return p.searchByISRC(isrc)
 }
@@ -136,326 +241,66 @@ func (p *ExtensionProvider) GetStreamURL(id, quality string) (string, error) {
 	return "", fmt.Errorf("ext %s: getDownloadUrl returned no URL", p.extID)
 }
 
-// DownloadResult holds the result of a JS extension download.
-type DownloadResult struct {
-	Success   bool   `json:"success"`
-	FilePath  string `json:"filePath"`
-	Title     string `json:"title"`
-	Artist    string `json:"artist"`
-	Album     string `json:"album"`
-	Error     string `json:"error,omitempty"`
+// HomeFeedSection represents a section from a JS extension's getHomeFeed().
+type HomeFeedSection struct {
+	URI   string         `json:"uri"`
+	Title string         `json:"title"`
+	Items []HomeFeedItem `json:"items"`
 }
 
-// Download invokes the extension's full download pipeline (JS download() function).
-// The JS function handles streaming, decryption, and file writing internally.
-// onProgress is called from JS with percentage (0-100).
-func (p *ExtensionProvider) Download(trackID, quality, outputPath string, onProgress func(int)) *DownloadResult {
-	// Wrap the Go callback as a JS-compatible function
-	progressFn := func(percent float64) {
-		if onProgress != nil {
-			onProgress(int(percent))
-		}
-	}
+// HomeFeedItem represents a single item in a home feed section.
+// Compatible with SpotiFLAC-Mobile extension format.
+type HomeFeedItem struct {
+	Name       string `json:"name"`
+	Artists    string `json:"artists"`
+	DurationMs int    `json:"duration_ms,omitempty"`
+	ItemType   string `json:"type"`
+	ItemID     string `json:"id"`
+	AlbumID    string `json:"album_id,omitempty"`
+	AlbumName  string `json:"album_name,omitempty"`
+	ThumbURL   string `json:"cover_url,omitempty"`
+}
 
-	result, err := p.runtime.CallMethod(p.extID, "download", trackID, quality, outputPath, progressFn)
+// GetHomeFeed calls the extension's getHomeFeed() JS function.
+func (p *ExtensionProvider) GetHomeFeed() ([]HomeFeedSection, error) {
+	result, err := p.runtime.CallMethod(p.extID, "getHomeFeed")
 	if err != nil {
-		return &DownloadResult{Success: false, Error: fmt.Sprintf("ext %s download call failed: %v", p.extID, err)}
+		return nil, fmt.Errorf("ext %s getHomeFeed: %w", p.extID, err)
 	}
 	if result == nil {
-		return &DownloadResult{Success: false, Error: "ext returned nil"}
-	}
-
-	m, ok := result.(map[string]interface{})
-	if !ok {
-		return &DownloadResult{Success: false, Error: fmt.Sprintf("ext returned unexpected type: %T", result)}
-	}
-
-	dr := &DownloadResult{}
-	if s, ok := m["success"].(bool); ok {
-		dr.Success = s
-	}
-	dr.FilePath = getString(m, "file_path", "filePath")
-	dr.Title = getString(m, "title")
-	dr.Artist = getString(m, "artist")
-	dr.Album = getString(m, "album")
-	if e, ok := m["error_message"].(string); ok && e != "" {
-		dr.Error = e
-	} else if e, ok := m["error"].(string); ok && e != "" {
-		dr.Error = e
-	}
-
-	return dr
-}
-
-// --- Internal helpers ---
-
-func (p *ExtensionProvider) searchTracksAsAlbums(query string, limit int) ([]AlbumResult, error) {
-	result, err := p.runtime.CallMethod(p.extID, "searchTracks", query, limit)
-	if err != nil || result == nil {
 		return nil, nil
 	}
-	return convertToAlbumResults(result, p.name)
-}
 
-func (p *ExtensionProvider) searchByISRC(isrc string) (*TrackResult, error) {
-	result, err := p.runtime.CallMethod(p.extID, "searchTracks", "isrc:\""+isrc+"\"", 5)
-	if err != nil || result == nil {
-		return nil, nil
-	}
-	tracks, err := convertToTrackResults(result, p.name)
-	if err != nil || len(tracks) == 0 {
-		return nil, nil
-	}
-	return &tracks[0], nil
-}
-
-// callStringMethod calls a JS method that returns a single string.
-func (p *ExtensionProvider) callStringMethod(method string, args ...interface{}) (string, error) {
-	result, err := p.runtime.CallMethod(p.extID, method, args...)
+	// Convert the JS result to JSON bytes so we can unmarshal properly
+	// (Goja returns int64/float64, not int; json.Unmarshal handles all types)
+	raw, err := json.Marshal(result)
 	if err != nil {
-		return "", err
+		return nil, fmt.Errorf("ext %s: marshal getHomeFeed result: %w", p.extID, err)
 	}
-	if result == nil {
-		return "", nil
-	}
-	if s, ok := result.(string); ok {
-		return s, nil
-	}
-	return fmt.Sprint(result), nil
-}
 
-// --- Conversion helpers ---
-
-func toInt(v interface{}) int {
-	if v == nil {
-		return 0
+	var feedResult struct {
+		Success  bool               `json:"success"`
+		Sections []HomeFeedSection  `json:"sections"`
 	}
-	switch n := v.(type) {
-	case float64:
-		return int(n)
-	case int64:
-		return int(n)
-	case int:
-		return n
-	case string:
-		i, _ := strconv.Atoi(n)
-		return i
-	default:
-		return 0
+	if err := json.Unmarshal(raw, &feedResult); err != nil {
+		return nil, fmt.Errorf("ext %s: unmarshal getHomeFeed: %w", p.extID, err)
 	}
-}
 
-func getString(m map[string]interface{}, keys ...string) string {
-	for _, k := range keys {
-		if v, ok := m[k]; ok && v != nil {
-			if s, ok := v.(string); ok && s != "" {
-				return s
-			}
-		}
+	if !feedResult.Success || len(feedResult.Sections) == 0 {
+		return nil, nil
 	}
-	return ""
-}
 
-func getCoverURL(m map[string]interface{}) string {
-	return getString(m, "cover_url", "coverUrl", "cover", "images", "image_url", "picture_xl", "picture_big", "picture_medium", "picture")
-}
-
-func convertToTrackResults(result interface{}, providerName string) ([]TrackResult, error) {
-	list, ok := result.([]interface{})
-	if !ok {
-		return nil, fmt.Errorf("expected array, got %T", result)
-	}
-	tracks := make([]TrackResult, 0, len(list))
-	for _, item := range list {
-		m, ok := item.(map[string]interface{})
-		if !ok {
-			continue
-		}
-		t := TrackResult{
-			ID:       getString(m, "id"),
-			Title:    getString(m, "name", "title"),
-			Artist:   getString(m, "artists", "artist"),
-			ArtistID: getString(m, "artist_id", "artistId", "artistID"),
-			Album:    getString(m, "album_name", "album"),
-			AlbumID:  getString(m, "album_id", "albumId", "albumID"),
-			Duration: toInt(m["duration_ms"]),
-			ISRC:     getString(m, "isrc"),
-			CoverURL: getCoverURL(m),
-			Provider: providerName,
-		}
-		if t.ID == "" {
-			continue
-		}
-		t.ID = stripPrefix(t.ID)
-		tracks = append(tracks, t)
-	}
-	return tracks, nil
-}
-
-func convertToTrackResult(result interface{}, providerName string) (*TrackResult, error) {
-	m, ok := result.(map[string]interface{})
-	if !ok {
-		if wrapper, ok := result.(map[string]interface{}); ok {
-			if t, ok := wrapper["track"]; ok {
-				if m2, ok := t.(map[string]interface{}); ok {
-					m = m2
+	// For YouTube Music, fill in missing thumbnails using video ID pattern
+	if p.extID == "ytmusic-spotiflac" {
+		for si := range feedResult.Sections {
+			for ii := range feedResult.Sections[si].Items {
+				item := &feedResult.Sections[si].Items[ii]
+				if item.ThumbURL == "" && item.ItemID != "" {
+					item.ThumbURL = "https://img.youtube.com/vi/" + item.ItemID + "/mqdefault.jpg"
 				}
 			}
 		}
-		if m == nil {
-			return nil, fmt.Errorf("expected object, got %T", result)
-		}
 	}
-	t := TrackResult{
-		ID:       getString(m, "id"),
-		Title:    getString(m, "name", "title"),
-		Artist:   getString(m, "artists", "artist"),
-		ArtistID: getString(m, "artist_id", "artistId", "artistID"),
-		Album:    getString(m, "album_name", "album"),
-		AlbumID:  getString(m, "album_id", "albumId", "albumID"),
-		Duration: toInt(m["duration_ms"]),
-		ISRC:     getString(m, "isrc"),
-		CoverURL: getCoverURL(m),
-		Provider: providerName,
-	}
-	if t.ID != "" {
-		t.ID = stripPrefix(t.ID)
-	}
-	return &t, nil
-}
 
-func convertToAlbumResults(result interface{}, providerName string) ([]AlbumResult, error) {
-	list, ok := result.([]interface{})
-	if !ok {
-		return nil, fmt.Errorf("expected array, got %T", result)
-	}
-	albums := make([]AlbumResult, 0, len(list))
-	for _, item := range list {
-		m, ok := item.(map[string]interface{})
-		if !ok {
-			continue
-		}
-		a := AlbumResult{
-			ID:          getString(m, "id"),
-			Title:       getString(m, "name", "title"),
-			Artist:      getString(m, "artists", "artist"),
-			ArtistID:    getString(m, "artist_id", "artistId", "artistID"),
-			CoverURL:    getCoverURL(m),
-			ReleaseDate: getString(m, "release_date", "releaseDate"),
-			TrackCount:  toInt(m["total_tracks"]),
-			Provider:    providerName,
-		}
-		if a.ID != "" {
-			a.ID = stripPrefix(a.ID)
-		}
-		if a.ID != "" {
-			albums = append(albums, a)
-		}
-	}
-	return albums, nil
-}
-
-func convertToAlbumResult(result interface{}, providerName string) (*AlbumResult, error) {
-	m, ok := result.(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("expected object, got %T", result)
-	}
-	a := AlbumResult{
-		ID:          getString(m, "id"),
-		Title:       getString(m, "name", "title"),
-		Artist:      getString(m, "artists", "artist"),
-		ArtistID:    getString(m, "artist_id", "artistId", "artistID"),
-		CoverURL:    getCoverURL(m),
-		ReleaseDate: getString(m, "release_date", "releaseDate"),
-		TrackCount:  toInt(m["total_tracks"]),
-		Provider:    providerName,
-	}
-	if a.ID != "" {
-		a.ID = stripPrefix(a.ID)
-	}
-	return &a, nil
-}
-
-func convertToArtistResults(result interface{}, providerName string) ([]ArtistResult, error) {
-	list, ok := result.([]interface{})
-	if !ok {
-		return nil, fmt.Errorf("expected array, got %T", result)
-	}
-	artists := make([]ArtistResult, 0, len(list))
-	for _, item := range list {
-		m, ok := item.(map[string]interface{})
-		if !ok {
-			continue
-		}
-		a := ArtistResult{
-			ID:        getString(m, "id"),
-			Name:      getString(m, "name"),
-			PictureURL: getCoverURL(m),
-			Fans:      toInt(m["listeners"]),
-			Provider:  providerName,
-		}
-		if a.ID != "" {
-			a.ID = stripPrefix(a.ID)
-		}
-		if a.ID != "" {
-			artists = append(artists, a)
-		}
-	}
-	return artists, nil
-}
-
-func convertToPlaylistResults(result interface{}, providerName string) ([]PlaylistResult, error) {
-	list, ok := result.([]interface{})
-	if !ok {
-		return nil, fmt.Errorf("expected array, got %T", result)
-	}
-	playlists := make([]PlaylistResult, 0, len(list))
-	for _, item := range list {
-		m, ok := item.(map[string]interface{})
-		if !ok {
-			continue
-		}
-		p := PlaylistResult{
-			ID:          getString(m, "id"),
-			Title:       getString(m, "name", "title"),
-			Description: getString(m, "description"),
-			Creator:     getString(m, "owner", "creator", "artist", "artists"),
-			TrackCount:  toInt(m["track_count"]),
-			CoverURL:    getCoverURL(m),
-			Provider:    providerName,
-		}
-		if p.ID != "" {
-			p.ID = stripPrefix(p.ID)
-		}
-		if p.ID != "" {
-			playlists = append(playlists, p)
-		}
-	}
-	return playlists, nil
-}
-
-func convertToArtistResult(result interface{}, providerName string) (*ArtistResult, error) {
-	m, ok := result.(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("expected object, got %T", result)
-	}
-	a := ArtistResult{
-		ID:        getString(m, "id"),
-		Name:      getString(m, "name"),
-		PictureURL: getCoverURL(m),
-		Fans:      toInt(m["listeners"]),
-		Provider:  providerName,
-	}
-	if a.ID != "" {
-		a.ID = stripPrefix(a.ID)
-	}
-	return &a, nil
-}
-
-// stripPrefix removes provider: prefix from IDs (e.g., "deezer:123" -> "123").
-func stripPrefix(id string) string {
-	if idx := strings.IndexByte(id, ':'); idx >= 0 {
-		return id[idx+1:]
-	}
-	return id
+	return feedResult.Sections, nil
 }

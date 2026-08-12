@@ -37,15 +37,26 @@ func (s Status) String() string {
 
 // Progress holds download progress for a single item.
 type Progress struct {
-	ItemID      string  `json:"itemId"`
-	Title       string  `json:"title"`
-	Status      Status  `json:"status"`
-	Progress    float64 `json:"progress"` // 0.0 to 1.0
-	BytesDone   int64   `json:"bytesDone"`
-	BytesTotal  int64   `json:"bytesTotal"`
-	Error       string  `json:"error,omitempty"`
-	Provider    string  `json:"provider"`
-	OutputPath  string  `json:"outputPath,omitempty"`
+	ItemID     string  `json:"itemId"`
+	Title      string  `json:"title"`
+	TrackName  string  `json:"track_name,omitempty"`
+	ArtistName string  `json:"artist_name,omitempty"`
+	Status     Status  `json:"status"`
+	Progress   float64 `json:"progress"` // 0.0 to 1.0
+	BytesDone  int64   `json:"bytesDone"`
+	BytesTotal int64   `json:"bytesTotal"`
+	Error      string  `json:"error,omitempty"`
+	Provider   string  `json:"provider"`
+	OutputPath string  `json:"outputPath,omitempty"`
+	// Encrypted marks an output file that is a DRM/encrypted stream (not yet
+	// playable). ClientDecrypt is true when the backend could not decrypt it
+	// here (no CLI ffmpeg, e.g. Android) so the client must decrypt it
+	// (ffmpeg-kit) before playback; DecryptionKey / OutputExtension carry the
+	// key and the container extension of the decrypted output.
+	Encrypted       bool   `json:"encrypted,omitempty"`
+	ClientDecrypt   bool   `json:"clientDecrypt,omitempty"`
+	DecryptionKey   string `json:"decryptionKey,omitempty"`
+	OutputExtension string `json:"outputExtension,omitempty"`
 }
 
 // Tracker maintains progress of all active downloads.
@@ -63,10 +74,28 @@ func NewTracker() *Tracker {
 func (t *Tracker) Add(itemID, title, provider string) {
 	t.mu.Lock()
 	t.items[itemID] = &Progress{
-		ItemID:   itemID,
-		Title:    title,
-		Status:   StatusQueued,
-		Provider: provider,
+		ItemID:    itemID,
+		Title:     title,
+		TrackName: title,
+		Status:    StatusQueued,
+		Provider:  provider,
+	}
+	t.mu.Unlock()
+}
+
+// SetTrackInfo stores the resolved track name and artist for display.
+func (t *Tracker) SetTrackInfo(itemID, trackName, artistName string) {
+	t.mu.Lock()
+	if p, ok := t.items[itemID]; ok {
+		if trackName != "" {
+			p.TrackName = trackName
+			if p.Title == "" {
+				p.Title = trackName
+			}
+		}
+		if artistName != "" {
+			p.ArtistName = artistName
+		}
 	}
 	t.mu.Unlock()
 }
@@ -100,6 +129,23 @@ func (t *Tracker) SetOutputPath(itemID, path string) {
 		p.Progress = 1.0
 	}
 	t.mu.Unlock()
+}
+
+// SetEncryptedOutput marks the item completed with an encrypted/DRM file that
+// the client must decrypt (ffmpeg-kit) before playback — used when the backend
+// has no CLI ffmpeg to decrypt it (e.g. Android).
+func (t *Tracker) SetEncryptedOutput(itemID, path, key, ext string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if p, ok := t.items[itemID]; ok {
+		p.OutputPath = path
+		p.Status = StatusCompleted
+		p.Progress = 1.0
+		p.Encrypted = true
+		p.ClientDecrypt = true
+		p.DecryptionKey = key
+		p.OutputExtension = ext
+	}
 }
 
 // Get returns progress for an item.

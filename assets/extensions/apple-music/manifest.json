@@ -1,7 +1,7 @@
 {
   "name": "apple-music",
   "displayName": "Apple Music",
-  "version": "1.3.2",
+  "version": "1.3.8",
   "description": "Apple Music metadata and lyrics provider for SpotiFLAC Mobile. Fetches ISRC, label, copyright, genre, composer. Lyrics require a Media User Token (Apple Music subscription).",
   "homepage": "https://github.com/zarzet/SpotiFLAC-Mobile",
   "type": [
@@ -11,8 +11,9 @@
   "minAppVersion": "4.2.3",
   "skipMetadataEnrichment": true,
   "capabilities": {
-    "homeFeed": false,
-    "browseCategories": false
+    "homeFeed": true,
+    "browseCategories": false,
+    "replacesBuiltInProviders": ["apple"]
   },
   "permissions": {
     "network": [

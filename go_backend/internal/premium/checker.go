@@ -1,9 +1,6 @@
 package premium
 
 import (
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"strings"
 	"sync"
@@ -13,19 +10,11 @@ import (
 // secretKey for HMAC-based code validation. Change in production.
 var secretKey = []byte("bitly-premium-secret-2026")
 
-// SetSecretKey overrides the default HMAC key for code validation.
-func SetSecretKey(key string) {
-	if key != "" {
-		secretKey = []byte(key)
-	}
-}
-
 // Checker manages premium status and code validation.
-// Thread-safe. All data is in-memory — Flutter persists codes via Drift.
 type Checker struct {
 	mu       sync.RWMutex
 	status   Status
-	codes    []CodeEntry // valid codes loaded at init
+	codes    []CodeEntry
 }
 
 // NewChecker creates a premium checker. Optionally loads initial codes.
@@ -69,7 +58,6 @@ func (c *Checker) SetPremium(isPremium bool, tier string) {
 }
 
 // ValidateCode checks if a code is valid and activates premium.
-// Returns error with reason if invalid.
 func (c *Checker) ValidateCode(code string) error {
 	code = strings.TrimSpace(code)
 	if code == "" {
@@ -101,9 +89,6 @@ func (c *Checker) ValidateCode(code string) error {
 	}
 
 	// HMAC-based validation for generated codes
-	// Format: BITLY-XXXXXXXX-XXXXXX (prefix + payload + signature)
-	// HMAC is computed over the payload only (e.g. "FRIENDS2026"),
-	// matching GenerateCode which signs just the payload without the BITLY- prefix.
 	if strings.HasPrefix(code, "BITLY-") {
 		parts := strings.Split(code, "-")
 		if len(parts) == 3 {
@@ -114,7 +99,7 @@ func (c *Checker) ValidateCode(code string) error {
 					IsPremium: true,
 					Code:      code,
 					Tier:      "premium",
-					ExpiresAt: time.Now().Add(365 * 24 * time.Hour).Unix(), // 1 year
+					ExpiresAt: time.Now().Add(365 * 24 * time.Hour).Unix(),
 				}
 				return nil
 			}
@@ -123,40 +108,4 @@ func (c *Checker) ValidateCode(code string) error {
 	}
 
 	return fmt.Errorf("código desconocido")
-}
-
-// CheckDownloadAllowed returns nil if download is allowed, error if blocked.
-func (c *Checker) CheckDownloadAllowed() error {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	if !c.status.IsPremium {
-		return fmt.Errorf("las descargas requieren premium — ingresa un código válido en Configuración")
-	}
-	if c.status.ExpiresAt > 0 && time.Now().Unix() > c.status.ExpiresAt {
-		return fmt.Errorf("suscripción premium expirada")
-	}
-	return nil
-}
-
-// GenerateCode creates a premium code with HMAC signature.
-// Only used for admin/testing — real codes are pre-loaded.
-func GenerateCode(payload string) string {
-	mac := hmac.New(sha256.New, secretKey)
-	mac.Write([]byte(payload))
-	sig := hex.EncodeToString(mac.Sum(nil))[:6]
-	return fmt.Sprintf("BITLY-%s-%s", payload, strings.ToUpper(sig))
-}
-
-func validateHMAC(payload, signature string) bool {
-	mac := hmac.New(sha256.New, secretKey)
-	mac.Write([]byte(payload))
-	expected := hex.EncodeToString(mac.Sum(nil))[:6]
-	return hmac.Equal([]byte(strings.ToUpper(expected)), []byte(strings.ToUpper(signature)))
-}
-
-func maskCode(code string) string {
-	if len(code) <= 4 {
-		return code
-	}
-	return code[:4] + strings.Repeat("*", len(code)-4)
 }

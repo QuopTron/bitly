@@ -25,6 +25,38 @@ func NewClient(ytdlpPath string) *Client {
 	return &Client{ytdlpPath: ytdlpPath}
 }
 
+// GetVideoURL resolves a direct video stream URL using yt-dlp -g.
+// quality is a height like "720p"/"1080p"/"480p"; empty defaults to 720p.
+func (c *Client) GetVideoURL(id, quality string) (string, error) {
+	videoID := strings.TrimPrefix(id, "yt:")
+	url := fmt.Sprintf("https://www.youtube.com/watch?v=%s", videoID)
+	height := "720"
+	switch quality {
+	case "1080p", "1080":
+		height = "1080"
+	case "480p", "480":
+		height = "480"
+	case "360p", "360":
+		height = "360"
+	case "720p", "720", "":
+		height = "720"
+	}
+	format := fmt.Sprintf("bestvideo[height<=%s]+bestaudio/best[height<=%s]/best", height, height)
+	args := []string{"-g", "-f", format, "--no-warnings", url}
+	cmd := exec.Command(c.ytdlpPath, args...)
+	output, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("youtube: get video URL failed: %w", err)
+	}
+	lines := strings.Fields(string(output))
+	if len(lines) == 0 || strings.TrimSpace(lines[0]) == "" {
+		return "", fmt.Errorf("youtube: no video stream URL returned for %s", videoID)
+	}
+	// yt-dlp -g with a combined format may print two URLs (video + audio).
+	// Return the first (video) URL; orchestrator downloads it directly.
+	return strings.TrimSpace(lines[0]), nil
+}
+
 // Name returns "youtube" for the provider registry.
 func (c *Client) Name() string { return "youtube" }
 

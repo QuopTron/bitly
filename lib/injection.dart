@@ -2,6 +2,7 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 import 'backend/rpc/backend_service.dart';
+import 'backend/rpc/mixins/actions_mixin.dart';
 import 'backend/rpc/android_backend.dart';
 import 'backend/rpc/desktop_backend.dart';
 import 'backend/rpc/ios_backend.dart';
@@ -16,6 +17,7 @@ import 'backend/cache/detail_memory_cache.dart';
 import 'backend/cache/search_cache.dart';
 import 'backend/cache/library_cache.dart';
 import 'backend/cache/collection_cache.dart';
+import 'backend/cache/feed_cache.dart';
 import 'backend/services/queue_cubit.dart';
 import 'backend/services/player_cubit.dart';
 import 'backend/services/download_cubit.dart';
@@ -23,6 +25,7 @@ import 'backend/services/like_cubit.dart';
 import 'backend/services/playlist_cubit.dart';
 import 'backend/services/album_domain_service.dart';
 import 'backend/services/playlist_domain_service.dart';
+import 'frontend/shared/models/performance_profile.dart';
 import 'frontend/features/splash/bloc/splash_bloc.dart';
 import 'frontend/features/setup/bloc/setup_bloc.dart';
 
@@ -33,9 +36,16 @@ Future<void> configureDependencies() async {
   sl.registerLazySingleton<ValueNotifier<Locale>>(
     () => ValueNotifier(const Locale('es')),
   );
+  sl.registerLazySingleton<ValueNotifier<PerformanceProfile>>(
+    () => ValueNotifier(PerformanceProfile.medium),
+  );
 
   // ── 2. Database ───────────────────────────────────────────────
   final db = await AppDatabase.create();
+  // Data migration: legacy covers stored as desktop-only loopback URLs
+  // (http://127.0.0.1:55009/cover/...) are cleared so cards fall back to the
+  // remote coverUrl instead of rendering gray. Cheap + idempotent.
+  await db.migrateLegacyCoverPaths();
   sl.registerLazySingleton<AppDatabase>(() => db);
 
   // ── 3. Caches (dependen de AppDatabase) ───────────────────────
@@ -49,6 +59,7 @@ Future<void> configureDependencies() async {
   sl.registerLazySingleton<SearchCache>(() => SearchCache(db));
   sl.registerLazySingleton<LibraryCache>(() => LibraryCache(db));
   sl.registerLazySingleton<CollectionCache>(() => CollectionCache(db));
+  sl.registerLazySingleton<FeedCache>(() => FeedCache(db));
 
   // ── 4. Backend (plataforma) ───────────────────────────────────
   final sep = Platform.pathSeparator;
@@ -89,4 +100,21 @@ Future<void> configureDependencies() async {
   sl.registerFactory(() => SetupBloc(
     sl<ValueNotifier<Locale>>(),
   ));
+}
+
+/// Loads the saved performance profile into the global notifier and pushes
+/// its concurrency/buffer settings to the Go backend.
+Future<void> loadPerformanceProfile() async {
+  final cache = sl<SettingsCache>();
+  final level = await cache.getPerfLevel();
+  final profile = PerformanceProfile.forLevel(level);
+  sl<ValueNotifier<PerformanceProfile>>().value = profile;
+  // Fire-and-forget: don't block the first frame waiting on a Go RPC that
+  // may hang if the backend isn't initialized yet.
+  (sl<BackendService>() as ActionsMixin).syncBackendConfig(
+    mode: profile.level.key,
+    streamCacheMaxMb: profile.streamCacheMaxMb,
+    downloadConcurrency: profile.downloadConcurrency,
+    streamChunkSize: profile.streamChunkSize,
+  );
 }

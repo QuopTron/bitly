@@ -1,7 +1,7 @@
 var CONFIG = {
   apiBaseURL: "https://tidal.com/v1",
   resourceBaseURL: "https://resources.tidal.com",
-  downloadAPIURL: "https://api.zarz.moe/v1/dl/tid2",
+  downloadAPIURL: "/dl/tid",
   publicToken: "49YxDN9a2aFV6RTG",
   countryCode: "US",
   locale: "en_US",
@@ -20,7 +20,7 @@ function initialize(settings) {
   }
 
   var downloadAPIURL = normalizeMirrorBaseURL(settings.downloadApiUrl);
-  if (downloadAPIURL === "https://api.zarz.moe/v1/dl/tid") {
+  if (downloadAPIURL.indexOf("https://api.zarz.moe/") === 0) {
     downloadAPIURL = CONFIG.downloadAPIURL;
   }
   if (downloadAPIURL) {
@@ -264,6 +264,40 @@ function postJSON(url, body, headers) {
     );
   }
   return JSON.parse(response.body);
+}
+
+function signedJSON(method, path, body, headers) {
+  if (typeof session === "undefined" || !session || typeof session.signedFetch !== "function") {
+    throw new Error("signed session runtime is not available");
+  }
+  var response = session.signedFetch(method, path, body || null, headers || {});
+  if (!response || response.error || response.needsVerification) {
+    var error = response && response.error ? response.error : "signed request failed";
+    throw new Error(error);
+  }
+  if (response.statusCode !== 200) {
+    throw new Error("HTTP " + response.statusCode + " for " + path);
+  }
+  return JSON.parse(response.body || "{}");
+}
+
+function signedTicket(provider, type, id) {
+  var resourceHash = utils.sha256(provider + ":" + (type || "track") + ":" + String(id || "").toLowerCase());
+  var payload = signedJSON("POST", "/tickets", {
+    capability: "download_ticket",
+    provider: provider,
+    resource_hash: resourceHash
+  });
+  var ticketID = String(payload.ticket_id || payload.ticket || "").trim();
+  if (!ticketID) {
+    throw new Error("signed ticket response missing ticket_id");
+  }
+  return ticketID;
+}
+
+function isVerificationRequiredError(error) {
+  var message = String(error && error.message || error || "");
+  return message.indexOf("VERIFY_REQUIRED") >= 0 || message.indexOf("verification_required") >= 0;
 }
 
 function fetchText(url, headers) {
@@ -818,8 +852,10 @@ function buildFallbackQualities(quality) {
 }
 
 function postDownloadAPI(body) {
-  return postJSON(CONFIG.downloadAPIURL, body, {
-    "User-Agent": downloadAPIUserAgent()
+  var trackID = String(body && body.id || "").trim();
+  var ticketID = signedTicket("tid", "track", trackID);
+  return signedJSON("POST", CONFIG.downloadAPIURL, body, {
+    "X-Zarz-Ticket": ticketID
   });
 }
 
@@ -1026,6 +1062,7 @@ function fetchDownloadInfo(trackID, quality, rejectedCandidates) {
           qualityErrors.push(candidate + " API attempt " + (attempt + 1) + ": returned lower tier than requested");
           deterministic = true;
         } catch (apiError) {
+          if (isVerificationRequiredError(apiError)) throw apiError;
           var apiMessage = apiError && apiError.message ? apiError.message : String(apiError);
           qualityErrors.push(candidate + " API attempt " + (attempt + 1) + ": " + apiMessage);
           deterministic = isDeterministicDownloadError(apiMessage);
@@ -1280,6 +1317,31 @@ function trackArtistID(track) {
   return "";
 }
 
+// Returns a comma-separated list of artist IDs aligned positionally with the
+// names produced by joinArtistNames, so the app can map each artist name to
+// its own ID (not just the primary artist). Artists with a name but no ID get
+// an empty slot to preserve alignment.
+function joinArtistIDs(artists) {
+  if (!artists || !artists.length) return "";
+  var ids = [];
+  for (var i = 0; i < artists.length; i++) {
+    var artist = artists[i] || {};
+    var name = String(artist.name || "").trim();
+    if (!name) continue;
+    ids.push(artist.id ? withPrefix(artist.id) : "");
+  }
+  return ids.join(",");
+}
+
+function trackArtistIDs(track) {
+  var artists = (track && track.artists && track.artists.length)
+    ? track.artists
+    : (track && track.artist ? [track.artist] : []);
+  var joined = joinArtistIDs(artists);
+  if (joined.replace(/,/g, "").length) return joined;
+  return trackArtistID(track);
+}
+
 function tidalMediaTags(track) {
   var meta = track.mediaMetadata;
   if (!meta || !meta.tags || !Array.isArray(meta.tags)) return [];
@@ -1341,6 +1403,25 @@ function tidalAudioModes(track) {
   return "";
 }
 
+function tidalTrackTitle(track) {
+  if (!track) return "";
+
+  var title = String(track.title || "").trim();
+  var version = String(track.version || "").trim();
+  if (!title || !version) return title;
+
+  var normalizedTitle = title.toLowerCase();
+  var normalizedVersion = version.toLowerCase();
+  if (normalizedTitle.indexOf("(" + normalizedVersion + ")") >= 0 ||
+      normalizedTitle.indexOf("[" + normalizedVersion + "]") >= 0 ||
+      normalizedTitle.indexOf(" - " + normalizedVersion) >= 0 ||
+      normalizedTitle === normalizedVersion) {
+    return title;
+  }
+
+  return title + " (" + version + ")";
+}
+
 function formatTrack(track) {
   if (!track || !track.id) return null;
 
@@ -1355,11 +1436,11 @@ function formatTrack(track) {
     id: withPrefix(track.id),
     spotify_id: withPrefix(track.id),
     tidal_id: String(track.id),
-    name: String(track.title || ""),
+    name: tidalTrackTitle(track),
     artists: joinArtistNames(track.artists || []),
     album_name: String(track.album && track.album.title || ""),
     album_artist: albumArtistNames(track),
-    artist_id: trackArtistID(track),
+    artist_id: trackArtistIDs(track),
     album_id: withPrefix(track.album && track.album.id || ""),
     duration_ms: Number(track.duration || 0) * 1000,
     cover_url: imageURL(track.album && track.album.cover || "", "1280x1280"),
@@ -1565,18 +1646,6 @@ function searchEndpoint(kind, query, limit) {
     limit: limit,
     offset: 0
   }));
-}
-
-function searchTopHits(query, types, limit) {
-  var params = {
-    query: query,
-    limit: limit,
-    offset: 0
-  };
-  if (types) {
-    params.types = types;
-  }
-  return getJSON(buildMetadataURL("search/top-hits", params));
 }
 
 function getTrack(trackID) {
@@ -1805,38 +1874,16 @@ function searchOne(query, filter, limit) {
       }
       return results;
     case "album":
-      try {
-        response = searchTopHits(query, "ALBUMS", limit);
-        items = (response.albums && response.albums.items) || [];
-        log.info("[TidalWeb] search/top-hits ALBUMS returned " + items.length + " items");
-      } catch (topHitsError) {
-        log.warn("[TidalWeb] search/top-hits ALBUMS failed: " + topHitsError.message + ", falling back to search/albums");
-        items = [];
-      }
-      if (!items.length) {
-        response = searchEndpoint("albums", query, limit);
-        items = response.items || [];
-        log.info("[TidalWeb] search/albums fallback returned " + items.length + " items");
-      }
+      response = searchEndpoint("albums", query, limit);
+      items = response.items || [];
       for (var k = 0; k < items.length; k++) {
         var album = formatSearchAlbum(items[k]);
         if (album) results.push(album);
       }
       return results;
     case "playlist":
-      try {
-        response = searchTopHits(query, "PLAYLISTS", limit);
-        items = (response.playlists && response.playlists.items) || [];
-        log.info("[TidalWeb] search/top-hits PLAYLISTS returned " + items.length + " items");
-      } catch (topHitsError) {
-        log.warn("[TidalWeb] search/top-hits PLAYLISTS failed: " + topHitsError.message + ", falling back to search/playlists");
-        items = [];
-      }
-      if (!items.length) {
-        response = searchEndpoint("playlists", query, limit);
-        items = response.items || [];
-        log.info("[TidalWeb] search/playlists fallback returned " + items.length + " items");
-      }
+      response = searchEndpoint("playlists", query, limit);
+      items = response.items || [];
       for (var m = 0; m < items.length; m++) {
         var playlist = formatSearchPlaylist(items[m]);
         if (playlist) results.push(playlist);
@@ -1872,6 +1919,7 @@ function customSearch(query, options) {
     return results;
   } catch (e) {
     log.error("[TidalWeb] customSearch failed:", e.message);
+    if (isVerificationRequiredError(e)) throw e;
     return [];
   }
 }
@@ -2059,10 +2107,11 @@ function download(trackID, quality, outputPath, onProgress) {
       lyrics_lrc: lyricsLRC
     };
   } catch (e) {
+    var errorMessage = e && e.message ? e.message : String(e);
     return {
       success: false,
-      error_message: e && e.message ? e.message : String(e),
-      error_type: "runtime_error"
+      error_message: errorMessage,
+      error_type: errorMessage.indexOf("VERIFY_REQUIRED") >= 0 ? "verification_required" : "runtime_error"
     };
   }
 }
@@ -2125,9 +2174,107 @@ function handleUrl(url) {
   }
 }
 
+function getHomeFeed() {
+  var sections = [];
+  try {
+    // Real TIDAL home feed from the public web API. pages/home returns rows of
+    // editorial modules (PLAYLIST_LIST / TRACK_LIST / ALBUM_LIST), each with a
+    // title and a pagedList.items[]. This gives genuine, non-duplicated
+    // sections exactly like the TIDAL app.
+    var page = getJSON(buildMetadataURL("pages/home", null));
+    if (!page || !page.rows) {
+      return { success: false, error: "no home page data", sections: [] };
+    }
+
+    var seenTypes = {};
+    for (var r = 0; r < page.rows.length && sections.length < 4; r++) {
+      var row = page.rows[r] || {};
+      var modules = row.modules || [];
+      for (var m = 0; m < modules.length && sections.length < 4; m++) {
+        var mod = modules[m] || {};
+        var modType = String(mod.type || "").toUpperCase();
+        var title = String(mod.title || "").trim();
+        var items = mod.pagedList && mod.pagedList.items ? mod.pagedList.items : [];
+        if (!title || items.length === 0) continue;
+        // Skip modules of a type we already emitted, to keep sections varied.
+        if (seenTypes[modType]) continue;
+
+        var out = [];
+        var isTrack = modType === "TRACK_LIST";
+        var isAlbum = modType === "ALBUM_LIST";
+        var limit = isTrack ? 15 : 12;
+        for (var i = 0; i < items.length && out.length < limit; i++) {
+          var it = items[i];
+          if (isTrack) {
+            var t = formatTrack(it);
+            if (!t) continue;
+            out.push({
+              name: t.name,
+              artists: t.artists,
+              duration_ms: t.duration_ms,
+              type: "track",
+              id: t.id,
+              album_id: t.album_id,
+              album_name: t.album_name,
+              cover_url: t.cover_url
+            });
+          } else if (isAlbum) {
+            var a = formatAlbumInfo(it);
+            if (!a) continue;
+            out.push({
+              name: a.name,
+              artists: a.artists,
+              type: "album",
+              id: a.id,
+              cover_url: a.cover_url,
+              release_date: a.release_date,
+              total_tracks: a.total_tracks
+            });
+          } else {
+            // PLAYLIST_LIST (and any other module): playlist cards.
+            var pl = it || {};
+            var plCover = imageURL(pl.image || pl.squareImage || "", "1080x1080");
+            out.push({
+              name: String(pl.title || pl.name || ""),
+              type: "playlist",
+              id: String(pl.uuid || pl.id || ""),
+              cover_url: plCover,
+              total_tracks: Number(pl.numberOfTracks || 0)
+            });
+          }
+        }
+        if (out.length === 0) continue;
+        seenTypes[modType] = true;
+        sections.push({
+          uri: "td:home:" + modType.toLowerCase(),
+          title: title,
+          items: out
+        });
+      }
+    }
+  } catch (e) {
+    log.debug("[TidalWeb] getHomeFeed failed:", e && e.message);
+    return { success: false, error: String(e && e.message || e), sections: [] };
+  }
+
+  if (sections.length > 0) {
+    return { success: true, sections: sections };
+  }
+  return { success: false, error: "no home feed available", sections: [] };
+}
+
+function completeGrant() {
+  if (typeof session === "undefined" || !session || typeof session.completeGrant !== "function") {
+    return { success: false, error: "signed session runtime is not available" };
+  }
+  return session.completeGrant();
+}
+
 registerExtension({
   initialize: initialize,
   cleanup: cleanup,
+  completeGrant: completeGrant,
+  getHomeFeed: getHomeFeed,
   customSearch: customSearch,
   checkAvailability: checkAvailability,
   download: download,

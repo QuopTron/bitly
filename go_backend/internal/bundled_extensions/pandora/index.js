@@ -1,6 +1,6 @@
 var CONFIG = {
-  apiBaseURL: "https://api.zarz.moe",
-  downloadPath: "/v1/dl/pan",
+  apiBaseURL: "https://api.zarz.moe/v2",
+  downloadPath: "/dl/pan",
   songLinkBaseURL: "https://api.song.link/v1-alpha.1/links",
   deezerBaseURL: "https://api.deezer.com",
   pandoraBaseURL: "https://www.pandora.com",
@@ -129,6 +129,55 @@ function postJSON(url, body, headers) {
   }
 
   return JSON.parse(response.body);
+}
+
+function signedPandoraDownload(payload) {
+  if (
+    typeof session === "undefined" ||
+    !session ||
+    typeof session.signedFetch !== "function"
+  ) {
+    throw new Error("signed session runtime is not available");
+  }
+  var resourceHash = utils.sha256(
+    "pan:track:" + String(payload.url || "").toLowerCase(),
+  );
+  var ticket = session.signedFetch(
+    "POST",
+    "/tickets",
+    {
+      capability: "download_ticket",
+      provider: "pan",
+      resource_hash: resourceHash,
+    },
+    {},
+  );
+  if (!ticket || ticket.error || ticket.needsVerification) {
+    var ticketErr =
+      ticket && ticket.error ? ticket.error : "ticket request failed";
+    throw new Error(ticketErr);
+  }
+  var ticketID = "";
+  try {
+    var ticketBody = JSON.parse(ticket.body || "{}");
+    ticketID = String(ticketBody.ticket_id || ticketBody.ticket || "").trim();
+  } catch (e) {}
+  if (!ticketID) {
+    throw new Error("signed ticket response missing ticket_id");
+  }
+  var response = session.signedFetch("POST", CONFIG.downloadPath, payload, {
+    "X-Zarz-Ticket": ticketID,
+  });
+  if (!response || response.error || response.needsVerification) {
+    var error = response && response.error ? response.error : "request failed";
+    throw new Error(error);
+  }
+  if (response.statusCode !== 200) {
+    throw new Error(
+      "HTTP " + response.statusCode + " for " + CONFIG.downloadPath,
+    );
+  }
+  return JSON.parse(response.body || "{}");
 }
 
 function ensureLeadingDot(ext) {
@@ -978,7 +1027,7 @@ function download(trackID, quality, outputPath, onProgress) {
 
     if (onProgress) onProgress(0.1);
 
-    var payload = postJSON(CONFIG.apiBaseURL + CONFIG.downloadPath, {
+    var payload = signedPandoraDownload({
       url: downloadURL,
     });
 
@@ -1085,6 +1134,28 @@ function download(trackID, quality, outputPath, onProgress) {
   }
 }
 
+// ============================================
+// HOME FEED — Pandora (limited API, empty sections)
+// ============================================
+
+function getHomeFeed() {
+  log.info("[Pandora] Pandora does not have a home feed API");
+  // Pandora's API is limited to radio stations and doesn't have
+  // a search or charts endpoint. Return empty gracefully.
+  return { success: false, error: "No home feed available", sections: [] };
+}
+
+function completeGrant() {
+  if (
+    typeof session === "undefined" ||
+    !session ||
+    typeof session.completeGrant !== "function"
+  ) {
+    return { success: false, error: "signed session runtime is not available" };
+  }
+  return session.completeGrant();
+}
+
 registerExtension({
   initialize: initialize,
   cleanup: cleanup,
@@ -1094,6 +1165,8 @@ registerExtension({
   getArtist: getArtist,
   checkAvailability: checkAvailability,
   download: download,
+  getHomeFeed: getHomeFeed,
+  completeGrant: completeGrant,
   getDownloadUrl: function () {
     return null;
   },

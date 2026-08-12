@@ -13,7 +13,7 @@ var SC_API = "https://api-v2.soundcloud.com";
 var state = {
   clientId: null,
   clientIdExpiry: 0,
-  scVersion: ""
+  scVersion: "",
 };
 
 // ============================================
@@ -27,27 +27,36 @@ function initialize(config) {
     var cached = storage.get("sc_state");
     if (cached) {
       var parsed = JSON.parse(cached);
-      if (parsed.clientId && parsed.clientIdExpiry && Date.now() < parsed.clientIdExpiry) {
+      if (
+        parsed.clientId &&
+        parsed.clientIdExpiry &&
+        Date.now() < parsed.clientIdExpiry
+      ) {
         state.clientId = parsed.clientId;
         state.clientIdExpiry = parsed.clientIdExpiry;
         state.scVersion = parsed.scVersion || "";
-        log.info("[SC] Loaded cached client_id (expires in " +
-          Math.round((state.clientIdExpiry - Date.now()) / 60000) + " min)");
+        log.info(
+          "[SC] Loaded cached client_id (expires in " +
+            Math.round((state.clientIdExpiry - Date.now()) / 60000) +
+            " min)",
+        );
       }
     }
-  } catch (e) {
-  }
+  } catch (e) {}
 
   return true;
 }
 
 function cleanup() {
   try {
-    storage.set("sc_state", JSON.stringify({
-      clientId: state.clientId,
-      clientIdExpiry: state.clientIdExpiry,
-      scVersion: state.scVersion
-    }));
+    storage.set(
+      "sc_state",
+      JSON.stringify({
+        clientId: state.clientId,
+        clientIdExpiry: state.clientIdExpiry,
+        scVersion: state.scVersion,
+      }),
+    );
   } catch (e) {}
 }
 
@@ -59,17 +68,19 @@ function userAgentForURL(url) {
 // CLIENT ID EXTRACTION
 // ============================================
 
-function fetchClientId() {
+function fetchClientIdOnce() {
   log.info("[SC] Fetching SoundCloud client_id...");
 
   var response = http.get("https://soundcloud.com/", {
     "User-Agent": utils.randomUserAgent(),
-    "Accept-Encoding": "identity"
+    "Accept-Encoding": "identity",
   });
 
   if (!response || response.error || response.statusCode !== 200) {
-    throw new Error("Failed to fetch soundcloud.com: HTTP " +
-      (response ? response.statusCode : "no response"));
+    throw new Error(
+      "Failed to fetch soundcloud.com: HTTP " +
+        (response ? response.statusCode : "no response"),
+    );
   }
 
   var body = response.body || "";
@@ -89,38 +100,59 @@ function fetchClientId() {
   var directMatch = body.match(/client_id[:=]["']([a-zA-Z0-9]{32})["']/);
   if (directMatch) {
     state.clientId = directMatch[1];
-    state.clientIdExpiry = Date.now() + (24 * 60 * 60 * 1000); // 24h
+    state.clientIdExpiry = Date.now() + 24 * 60 * 60 * 1000; // 24h
     log.info("[SC] Found client_id in HTML");
     return;
   }
 
   // Strategy 2: Extract from JS bundles at a-v2.sndcdn.com
-  var scriptMatches = body.match(/src="(https:\/\/a-v2\.sndcdn\.com\/assets\/[^"]+\.js)"/g);
+  var scriptMatches = body.match(
+    /src="(https:\/\/a-v2\.sndcdn\.com\/assets\/[^"]+\.js)"/g,
+  );
   if (!scriptMatches) {
     // Fallback: any script with sndcdn
     scriptMatches = body.match(/src="(https:\/\/[^"]*sndcdn\.com[^"]*\.js)"/g);
   }
 
   if (scriptMatches) {
-    // Process from last to first (client_id is usually in later bundles)
-    for (var i = scriptMatches.length - 1; i >= 0 && i >= scriptMatches.length - 8; i--) {
+    // Prioritize the main _app bundle, then process the rest from last to
+    // first (client_id usually lives in a later bundle).
+    var order = [];
+    var appIndex = -1;
+    for (var ai = 0; ai < scriptMatches.length; ai++) {
+      if (scriptMatches[ai].indexOf("_app-") !== -1) {
+        appIndex = ai;
+        break;
+      }
+    }
+    if (appIndex !== -1) order.push(appIndex);
+    for (var oi = scriptMatches.length - 1; oi >= 0; oi--) {
+      if (oi !== appIndex) order.push(oi);
+    }
+    for (var oi2 = 0; oi2 < order.length && oi2 < 10; oi2++) {
+      var i = order[oi2];
       var srcMatch = scriptMatches[i].match(/src="([^"]+)"/);
       if (!srcMatch) continue;
 
       var bundleURL = srcMatch[1];
-      log.debug("[SC] Checking bundle:", bundleURL.substring(bundleURL.lastIndexOf("/") + 1));
+      log.debug(
+        "[SC] Checking bundle:",
+        bundleURL.substring(bundleURL.lastIndexOf("/") + 1),
+      );
 
       try {
         var bundleResp = http.get(bundleURL, {
           "User-Agent": utils.randomUserAgent(),
-          "Accept-Encoding": "identity"
+          "Accept-Encoding": "identity",
         });
 
         if (bundleResp && !bundleResp.error && bundleResp.statusCode === 200) {
           var bundleBody = bundleResp.body || "";
 
           // Look for client_id pattern: client_id:"XXXX" or client_id=XXXX
-          var cidMatch = bundleBody.match(/client_id[:=]["']([a-zA-Z0-9]{32})["']/);
+          var cidMatch = bundleBody.match(
+            /client_id[:=]["']([a-zA-Z0-9]{32})["']/,
+          );
           if (!cidMatch) {
             // Alternative pattern: ("client_id=XXXXX")
             cidMatch = bundleBody.match(/\("client_id=([a-zA-Z0-9]{32})"\)/);
@@ -131,8 +163,13 @@ function fetchClientId() {
             if (idx !== -1) {
               var start = idx + 10;
               var end = start;
-              var chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-              while (end < bundleBody.length && end - start < 32 && chars.indexOf(bundleBody.charAt(end)) !== -1) {
+              var chars =
+                "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+              while (
+                end < bundleBody.length &&
+                end - start < 32 &&
+                chars.indexOf(bundleBody.charAt(end)) !== -1
+              ) {
                 end++;
               }
               if (end - start === 32) {
@@ -143,7 +180,7 @@ function fetchClientId() {
 
           if (cidMatch) {
             state.clientId = cidMatch[1];
-            state.clientIdExpiry = Date.now() + (24 * 60 * 60 * 1000);
+            state.clientIdExpiry = Date.now() + 24 * 60 * 60 * 1000;
             log.info("[SC] Found client_id in JS bundle");
             return;
           }
@@ -155,6 +192,23 @@ function fetchClientId() {
   }
 
   throw new Error("Could not find SoundCloud client_id in page or JS bundles");
+}
+
+// Retry wrapper: the homepage layout varies and client_id may not appear on
+// the first attempt, so try up to 3 times before giving up.
+function fetchClientId() {
+  var lastErr = null;
+  for (var attempt = 0; attempt < 3; attempt++) {
+    try {
+      fetchClientIdOnce();
+      if (state.clientId) return;
+    } catch (e) {
+      lastErr = e;
+      state.clientId = null;
+      state.clientIdExpiry = 0;
+    }
+  }
+  throw lastErr || new Error("Could not find SoundCloud client_id");
 }
 
 function ensureClientId() {
@@ -178,11 +232,13 @@ function scGet(path, extraParams) {
 
   var response = http.get(url, {
     "User-Agent": utils.randomUserAgent(),
-    "Accept": "application/json"
+    Accept: "application/json",
   });
 
   if (!response || response.error) {
-    throw new Error("SoundCloud API failed: " + (response ? response.error : "no response"));
+    throw new Error(
+      "SoundCloud API failed: " + (response ? response.error : "no response"),
+    );
   }
 
   if (response.statusCode === 401) {
@@ -197,11 +253,13 @@ function scGet(path, extraParams) {
     if (extraParams) url += "&" + extraParams;
     response = http.get(url, {
       "User-Agent": utils.randomUserAgent(),
-      "Accept": "application/json"
+      Accept: "application/json",
     });
     if (!response || response.statusCode !== 200) {
-      throw new Error("SoundCloud API failed after retry: HTTP " +
-        (response ? response.statusCode : "no response"));
+      throw new Error(
+        "SoundCloud API failed after retry: HTTP " +
+          (response ? response.statusCode : "no response"),
+      );
     }
   }
 
@@ -271,7 +329,7 @@ function formatTrack(track) {
     composer: pub.writer_composer || "",
     external_urls: attr.permalink_url || "",
     provider_id: "soundcloud",
-    item_type: "track"
+    item_type: "track",
   };
 }
 
@@ -279,9 +337,12 @@ function formatPlaylistOrAlbum(playlist) {
   if (!playlist || !playlist.id) return null;
 
   var user = playlist.user || {};
-  var isAlbum = playlist.is_album || (playlist.set_type === "album") ||
-                (playlist.set_type === "ep") || (playlist.set_type === "compilation") ||
-                (playlist.set_type === "single");
+  var isAlbum =
+    playlist.is_album ||
+    playlist.set_type === "album" ||
+    playlist.set_type === "ep" ||
+    playlist.set_type === "compilation" ||
+    playlist.set_type === "single";
 
   var coverURL = originalArtwork(playlist.artwork_url);
   if (!coverURL && user.avatar_url) {
@@ -297,13 +358,15 @@ function formatPlaylistOrAlbum(playlist) {
     artist_id: user.id ? String(user.id) : "",
     images: coverURL,
     cover_url: coverURL,
-    release_date: formatDate(playlist.display_date || playlist.published_at || playlist.created_at),
+    release_date: formatDate(
+      playlist.display_date || playlist.published_at || playlist.created_at,
+    ),
     total_tracks: playlist.track_count || 0,
     album_type: albumType,
     record_label: playlist.label_name || "",
     genre: playlist.genre || "",
     provider_id: "soundcloud",
-    item_type: isAlbum ? "album" : "playlist"
+    item_type: isAlbum ? "album" : "playlist",
   };
 }
 
@@ -319,7 +382,7 @@ function formatUser(user) {
     images: avatarURL,
     listeners: user.followers_count || 0,
     provider_id: "soundcloud",
-    item_type: "artist"
+    item_type: "artist",
   };
 }
 
@@ -457,8 +520,8 @@ function fetchArtist(userId) {
       listeners: artistInfo.listeners,
       albums: albums,
       top_tracks: topTracks,
-      provider_id: "soundcloud"
-    }
+      provider_id: "soundcloud",
+    },
   };
 }
 
@@ -474,32 +537,39 @@ function customSearch(query, options) {
   var filter = (options && options.filter) || null;
   if (limit <= 0 || limit > 50) limit = 50;
 
+  // Normalize singular/plural filter forms ("track"/"song" -> "tracks", etc.)
+  if (filter) {
+    var nf = String(filter).toLowerCase();
+    if (nf === "song" || nf === "track") filter = "tracks";
+    else if (nf === "album") filter = "albums";
+    else if (nf === "artist") filter = "artists";
+    else if (nf === "playlist") filter = "playlists";
+  }
+
   var isFiltered = filter && filter !== "all";
   var results = [];
 
   // Determine which types to search
   var searchTypes = ["tracks", "albums", "users", "playlists"];
   if (isFiltered) {
-    // SoundCloud API doesn't have a reliable search/albums endpoint —
-    // albums are just playlists with is_album=true or album-like set_type.
-    // So we use search/playlists for BOTH albums and playlists,
-    // then filter by is_album/set_type to separate them.
     var typeMap = {
-      "tracks": "tracks",
-      "albums": "playlists",
-      "artists": "users",
-      "playlists": "playlists"
+      tracks: "tracks",
+      albums: "albums",
+      artists: "users",
+      playlists: "playlists",
     };
     searchTypes = [typeMap[filter] || "tracks"];
   }
 
   for (var ti = 0; ti < searchTypes.length; ti++) {
     var searchType = searchTypes[ti];
-    var searchLimit = isFiltered ? limit : (searchType === "tracks" ? limit : 5);
+    var searchLimit = isFiltered ? limit : searchType === "tracks" ? limit : 5;
 
     try {
-      var data = scGet("search/" + searchType + "?q=" + encodeURIComponent(query),
-        "limit=" + searchLimit + "&offset=" + offset + "&access=playable");
+      var data = scGet(
+        "search/" + searchType + "?q=" + encodeURIComponent(query),
+        "limit=" + searchLimit + "&offset=" + offset + "&access=playable",
+      );
 
       var items = data.collection || [];
 
@@ -510,19 +580,10 @@ function customSearch(query, options) {
           var track = formatTrack(item);
           if (track) results.push(track);
         } else if (searchType === "albums") {
-          // SoundCloud doesn't truly distinguish albums from playlists at the API level.
-          // We use search/playlists for both and filter by is_album/set_type.
           var album = formatPlaylistOrAlbum(item);
           if (album) {
-            var isGenuinelyAlbum = item.is_album ||
-              item.set_type === "album" ||
-              item.set_type === "ep" ||
-              item.set_type === "compilation" ||
-              item.set_type === "single";
-            if (isGenuinelyAlbum) {
-              album.item_type = "album";
-              results.push(album);
-            }
+            album.item_type = "album";
+            results.push(album);
           }
         } else if (searchType === "users") {
           var user = formatUser(item);
@@ -531,18 +592,10 @@ function customSearch(query, options) {
             results.push(user);
           }
         } else if (searchType === "playlists") {
-          // For playlist search, exclude items that are actually albums
           var pl = formatPlaylistOrAlbum(item);
           if (pl) {
-            var isActuallyAlbum = item.is_album ||
-              item.set_type === "album" ||
-              item.set_type === "ep" ||
-              item.set_type === "compilation" ||
-              item.set_type === "single";
-            if (!isActuallyAlbum) {
-              pl.item_type = "playlist";
-              results.push(pl);
-            }
+            pl.item_type = "playlist";
+            results.push(pl);
           }
         }
       }
@@ -551,7 +604,13 @@ function customSearch(query, options) {
     }
   }
 
-  log.info("[SC] Found", results.length, "results (filter:", filter || "all", ")");
+  log.info(
+    "[SC] Found",
+    results.length,
+    "results (filter:",
+    filter || "all",
+    ")",
+  );
   return results;
 }
 
@@ -577,23 +636,41 @@ function parseSoundCloudURL(url) {
   // https://soundcloud.com/{author}/sets/{slug}
   var setsMatch = url.match(/soundcloud\.com\/([^/?#]+)\/sets\/([^/?#]+)/i);
   if (setsMatch) {
-    return { type: "playlist", permalink_url: "https://soundcloud.com/" + setsMatch[1] + "/sets/" + setsMatch[2] };
+    return {
+      type: "playlist",
+      permalink_url:
+        "https://soundcloud.com/" + setsMatch[1] + "/sets/" + setsMatch[2],
+    };
   }
 
   // https://soundcloud.com/{author}/{track}
   var trackMatch = url.match(/soundcloud\.com\/([^/?#]+)\/([^/?#]+)/i);
-  if (trackMatch && trackMatch[2] !== "sets" && trackMatch[2] !== "albums" &&
-      trackMatch[2] !== "tracks" && trackMatch[2] !== "likes" &&
-      trackMatch[2] !== "followers" && trackMatch[2] !== "following" &&
-      trackMatch[2] !== "reposts" && trackMatch[2] !== "playlists" &&
-      trackMatch[2] !== "popular-tracks") {
-    return { type: "track", permalink_url: "https://soundcloud.com/" + trackMatch[1] + "/" + trackMatch[2] };
+  if (
+    trackMatch &&
+    trackMatch[2] !== "sets" &&
+    trackMatch[2] !== "albums" &&
+    trackMatch[2] !== "tracks" &&
+    trackMatch[2] !== "likes" &&
+    trackMatch[2] !== "followers" &&
+    trackMatch[2] !== "following" &&
+    trackMatch[2] !== "reposts" &&
+    trackMatch[2] !== "playlists" &&
+    trackMatch[2] !== "popular-tracks"
+  ) {
+    return {
+      type: "track",
+      permalink_url:
+        "https://soundcloud.com/" + trackMatch[1] + "/" + trackMatch[2],
+    };
   }
 
   // https://soundcloud.com/{author} (user profile)
   var userMatch = url.match(/soundcloud\.com\/([^/?#]+)\/?$/i);
   if (userMatch) {
-    return { type: "user", permalink_url: "https://soundcloud.com/" + userMatch[1] };
+    return {
+      type: "user",
+      permalink_url: "https://soundcloud.com/" + userMatch[1],
+    };
   }
 
   // Unknown — try resolving
@@ -610,30 +687,45 @@ function handleURL(url) {
 
   // on.soundcloud.com short links are 302 redirects that the API can't resolve.
   // Follow the redirect to get the real soundcloud.com URL first.
-  if (parsed.type === "resolve" && parsed.permalink_url.indexOf("on.soundcloud.com") !== -1) {
+  if (
+    parsed.type === "resolve" &&
+    parsed.permalink_url.indexOf("on.soundcloud.com") !== -1
+  ) {
     log.info("[SC] Resolving short link:", parsed.permalink_url);
     try {
       var redirectResp = http.get(parsed.permalink_url, {
         "User-Agent": utils.randomUserAgent(),
-        "Accept-Encoding": "identity"
+        "Accept-Encoding": "identity",
       });
       var finalUrl = "";
 
       // Method 1: Use response.url (final URL after redirects, requires updated Go backend)
-      if (redirectResp && !redirectResp.error && redirectResp.url &&
-          redirectResp.url.indexOf("soundcloud.com") !== -1 &&
-          redirectResp.url.indexOf("on.soundcloud.com") === -1) {
+      if (
+        redirectResp &&
+        !redirectResp.error &&
+        redirectResp.url &&
+        redirectResp.url.indexOf("soundcloud.com") !== -1 &&
+        redirectResp.url.indexOf("on.soundcloud.com") === -1
+      ) {
         finalUrl = redirectResp.url;
         log.info("[SC] Got final URL from response.url");
       }
 
       // Method 2: Parse canonical URL from HTML body
       if (!finalUrl && redirectResp && redirectResp.body) {
-        var canonMatch = redirectResp.body.match(/<link[^>]*rel=["']canonical["'][^>]*href=["']([^"']+)["']/i);
+        var canonMatch = redirectResp.body.match(
+          /<link[^>]*rel=["']canonical["'][^>]*href=["']([^"']+)["']/i,
+        );
         if (!canonMatch) {
-          canonMatch = redirectResp.body.match(/<meta[^>]*property=["']og:url["'][^>]*content=["']([^"']+)["']/i);
+          canonMatch = redirectResp.body.match(
+            /<meta[^>]*property=["']og:url["'][^>]*content=["']([^"']+)["']/i,
+          );
         }
-        if (canonMatch && canonMatch[1] && canonMatch[1].indexOf("soundcloud.com") !== -1) {
+        if (
+          canonMatch &&
+          canonMatch[1] &&
+          canonMatch[1].indexOf("soundcloud.com") !== -1
+        ) {
           finalUrl = canonMatch[1];
           log.info("[SC] Got final URL from HTML meta tag");
         }
@@ -646,7 +738,10 @@ function handleURL(url) {
         log.info("[SC] Resolved short link ->", finalUrl);
         parsed = parseSoundCloudURL(finalUrl);
         if (!parsed) {
-          return { success: false, error: "Could not parse resolved URL: " + finalUrl };
+          return {
+            success: false,
+            error: "Could not parse resolved URL: " + finalUrl,
+          };
         }
       } else {
         log.warn("[SC] Could not extract final URL from short link response");
@@ -673,8 +768,11 @@ function handleURL(url) {
 
     if (kind === "playlist") {
       var playlistData = fetchPlaylistOrAlbum(resolved.id);
-      var isAlbum = resolved.is_album || (resolved.set_type === "album") ||
-                    (resolved.set_type === "ep") || (resolved.set_type === "single");
+      var isAlbum =
+        resolved.is_album ||
+        resolved.set_type === "album" ||
+        resolved.set_type === "ep" ||
+        resolved.set_type === "single";
 
       if (isAlbum) {
         return {
@@ -687,11 +785,11 @@ function handleURL(url) {
             cover_url: playlistData.info.cover_url,
             release_date: playlistData.info.release_date,
             total_tracks: playlistData.tracks.length,
-            tracks: playlistData.tracks
+            tracks: playlistData.tracks,
           },
           tracks: playlistData.tracks,
           name: playlistData.info.name,
-          cover_url: playlistData.info.cover_url
+          cover_url: playlistData.info.cover_url,
         };
       }
 
@@ -700,7 +798,7 @@ function handleURL(url) {
         type: "playlist",
         tracks: playlistData.tracks,
         name: playlistData.info.name,
-        cover_url: playlistData.info.cover_url
+        cover_url: playlistData.info.cover_url,
       };
     }
 
@@ -709,7 +807,7 @@ function handleURL(url) {
       return {
         success: true,
         type: "artist",
-        artist: artistResult.artist
+        artist: artistResult.artist,
       };
     }
 
@@ -759,10 +857,17 @@ function enrichTrack(track) {
     searchTerm = searchTerm.trim();
     if (searchTerm) {
       try {
-        var searchData = scGet("search/tracks?q=" + encodeURIComponent(searchTerm),
-          "limit=5&access=playable");
+        var searchData = scGet(
+          "search/tracks?q=" + encodeURIComponent(searchTerm),
+          "limit=5&access=playable",
+        );
         var songs = searchData.collection || [];
-    var best = findBestMatch(songs, track.name, track.artists, track.duration_ms);
+        var best = findBestMatch(
+          songs,
+          track.name,
+          track.artists,
+          track.duration_ms,
+        );
         if (best) {
           var bPub = best.publisher_metadata || {};
           if (bPub.isrc || best.isrc) {
@@ -799,20 +904,20 @@ function checkAvailability(isrc, trackName, artistName, options) {
           available: true,
           track_id: String(track.id),
           skip_fallback: true,
-          reason: "direct SoundCloud track ID"
+          reason: "direct SoundCloud track ID",
         };
       }
       return {
         available: false,
         skip_fallback: true,
-        reason: "direct SoundCloud track is not playable"
+        reason: "direct SoundCloud track is not playable",
       };
     } catch (e) {
       log.debug("[SC] Direct availability check failed:", e.message);
       return {
         available: false,
         skip_fallback: true,
-        reason: "direct SoundCloud lookup failed: " + e.message
+        reason: "direct SoundCloud lookup failed: " + e.message,
       };
     }
   }
@@ -829,109 +934,156 @@ function checkAvailability(isrc, trackName, artistName, options) {
     if (options && options.duration_ms) {
       targetDurationMs = Number(options.duration_ms) || 0;
     }
-    var data = scGet("search/tracks?q=" + encodeURIComponent(query),
-      "limit=5&access=playable");
+    var data = scGet(
+      "search/tracks?q=" + encodeURIComponent(query),
+      "limit=5&access=playable",
+    );
     var tracks = data.collection || [];
 
-    var best = findBestMatch(tracks, trackName, artistName, targetDurationMs, 65);
+    var best = findBestMatch(
+      tracks,
+      trackName,
+      artistName,
+      targetDurationMs,
+      65,
+    );
     if (best && best.access === "playable" && best.streamable !== false) {
       return { available: true, track_id: String(best.id) };
     }
 
-    return { available: false, reason: "No confident playable match found on SoundCloud" };
+    return {
+      available: false,
+      reason: "No confident playable match found on SoundCloud",
+    };
   } catch (e) {
     return { available: false, reason: "Search failed: " + e.message };
+  }
+}
+
+/**
+ * Resolve the direct progressive stream URL for a SoundCloud track.
+ * Shared by download() (saves to disk) and getDownloadUrl() (live streaming).
+ * Returns { url, format, error } with url empty on failure.
+ */
+function resolveStreamURL(trackID, audioFormat, allowHls, allowPreview) {
+  var trackData;
+  try {
+    trackData = scGet("tracks/" + trackID);
+  } catch (e) {
+    return { url: "", format: audioFormat, error: "Could not fetch track data: " + e.message };
+  }
+  if (!trackData) {
+    return { url: "", format: audioFormat, error: "Track not found: " + trackID };
+  }
+
+  var transcodings = (trackData.media && trackData.media.transcodings) || [];
+  var trackAuth = trackData.track_authorization || "";
+
+  if (transcodings.length === 0 || !trackAuth) {
+    return { url: "", format: audioFormat, error: "No transcodings or track_authorization available" };
+  }
+
+  // Pick the best transcoding matching requested format
+  var bestTranscoding = pickTranscoding(transcodings, audioFormat, allowHls, allowPreview);
+  if (!bestTranscoding) {
+    log.warn(
+      "[SC] no transcoding for " +
+        audioFormat +
+        " (allowHls=" +
+        allowHls +
+        "); tracks with protocol/mime: " +
+        JSON.stringify(
+          transcodings
+            .filter(function (t) {
+              return t && t.format;
+            })
+            .map(function (t) {
+              return {
+                p: (t.format && t.format.protocol) || "?",
+                m: (t.format && t.format.mime_type) || "?",
+                q: t.quality,
+                sn: !!t.snipped,
+              };
+            })
+        )
+    );
+    return { url: "", format: audioFormat, error: "No suitable transcoding found for format: " + audioFormat };
+  }
+
+  try {
+    var streamInfoUrl = bestTranscoding.url;
+    var sep = streamInfoUrl.indexOf("?") === -1 ? "?" : "&";
+    streamInfoUrl +=
+      sep +
+      "client_id=" +
+      state.clientId +
+      "&track_authorization=" +
+      trackAuth;
+
+    var streamResp = http.get(streamInfoUrl, {
+      "User-Agent": utils.randomUserAgent(),
+      Accept: "application/json",
+    });
+
+    if (!streamResp || streamResp.error || streamResp.statusCode !== 200) {
+      return {
+        url: "",
+        format: audioFormat,
+        error:
+          "Stream URL fetch returned HTTP " +
+          (streamResp ? streamResp.statusCode : "null"),
+      };
+    }
+
+    var streamData = JSON.parse(streamResp.body);
+    if (!streamData.url) {
+      return { url: "", format: audioFormat, error: "Stream response missing url" };
+    }
+
+    var actualFormat = audioFormat;
+    var mime = (bestTranscoding.format && bestTranscoding.format.mime_type) || "";
+    if (mime.indexOf("opus") !== -1) {
+      actualFormat = "opus";
+    } else if (mime.indexOf("mpeg") !== -1 || mime.indexOf("mp3") !== -1) {
+      actualFormat = "mp3";
+    } else if (mime.indexOf("ogg") !== -1) {
+      actualFormat = "ogg";
+    }
+    log.info(
+      "[SC] Got direct stream URL (format: " +
+        actualFormat +
+        ", protocol: " +
+        ((bestTranscoding.format && bestTranscoding.format.protocol) || "?") +
+        ")"
+    );
+    return { url: streamData.url, format: actualFormat, error: "" };
+  } catch (e) {
+    return { url: "", format: audioFormat, error: "Stream URL fetch failed: " + e.message };
   }
 }
 
 function download(trackID, quality, outputPath, onProgress) {
   log.info("[SC] Downloading track:", trackID, "quality:", quality);
 
-  var trackData = null;
-  try {
-    trackData = scGet("tracks/" + trackID);
-  } catch (e) {
-    return {
-      success: false,
-      error_message: "Could not fetch track data: " + e.message,
-      error_type: "api_error"
-    };
-  }
-
-  if (!trackData) {
-    return {
-      success: false,
-      error_message: "Track not found: " + trackID,
-      error_type: "api_error"
-    };
-  }
-
   var qualityParts = quality.split("_");
   var audioFormat = qualityParts[0] || "mp3";
-
-  var downloadURL = null;
-  var downloadError = "";
-  var actualFormat = audioFormat;
 
   // ---- Primary: Direct SoundCloud stream ----
   if (onProgress) onProgress(0.1);
 
-  var transcodings = (trackData.media && trackData.media.transcodings) || [];
-  var trackAuth = trackData.track_authorization || "";
-
-  if (transcodings.length > 0 && trackAuth) {
-    // Pick the best transcoding matching requested format
-    var bestTranscoding = pickTranscoding(transcodings, audioFormat);
-
-    if (bestTranscoding) {
-      try {
-        // Fetch the actual stream URL from the transcoding endpoint
-        var streamInfoUrl = bestTranscoding.url;
-        var sep = streamInfoUrl.indexOf("?") === -1 ? "?" : "&";
-        streamInfoUrl += sep + "client_id=" + state.clientId + "&track_authorization=" + trackAuth;
-
-        var streamResp = http.get(streamInfoUrl, {
-          "User-Agent": utils.randomUserAgent(),
-          "Accept": "application/json"
-        });
-
-        if (streamResp && !streamResp.error && streamResp.statusCode === 200) {
-          var streamData = JSON.parse(streamResp.body);
-          if (streamData.url) {
-            downloadURL = streamData.url;
-            // Determine actual format from transcoding
-            var mime = bestTranscoding.format && bestTranscoding.format.mime_type || "";
-            if (mime.indexOf("opus") !== -1) {
-              actualFormat = "opus";
-            } else if (mime.indexOf("mpeg") !== -1 || mime.indexOf("mp3") !== -1) {
-              actualFormat = "mp3";
-            } else if (mime.indexOf("ogg") !== -1) {
-              actualFormat = "ogg";
-            }
-            log.info("[SC] Got direct stream URL (format: " + actualFormat +
-              ", protocol: " + (bestTranscoding.format && bestTranscoding.format.protocol || "?") + ")");
-          }
-        } else {
-          downloadError = "Stream URL fetch returned HTTP " + (streamResp ? streamResp.statusCode : "null");
-          log.warn("[SC] " + downloadError);
-        }
-      } catch (e) {
-        downloadError = "Stream URL fetch failed: " + e.message;
-        log.warn("[SC] " + downloadError);
-      }
-    } else {
-      log.warn("[SC] No suitable transcoding found for format: " + audioFormat);
-    }
-  } else {
-    log.warn("[SC] No transcodings or track_authorization available");
-  }
+  var resolved = resolveStreamURL(trackID, audioFormat);
+  var downloadURL = resolved.url;
+  var downloadError = resolved.error;
+  var actualFormat = resolved.format || audioFormat;
 
   if (!downloadURL) {
     return {
       success: false,
-      error_message: "No direct SoundCloud progressive stream found for track: " + trackID +
+      error_message:
+        "No direct SoundCloud progressive stream found for track: " +
+        trackID +
         (downloadError ? " (" + downloadError + ")" : ""),
-      error_type: "api_error"
+      error_type: "api_error",
     };
   }
 
@@ -952,15 +1104,17 @@ function download(trackID, quality, outputPath, onProgress) {
 
   log.info("[SC] Downloading file to:", actualOutputPath);
   var downloadResult = file.download(downloadURL, actualOutputPath, {
-    headers: { "User-Agent": userAgentForURL(downloadURL) }
+    headers: { "User-Agent": userAgentForURL(downloadURL) },
   });
 
   if (!downloadResult || !downloadResult.success) {
-    var errMsg = downloadResult ? downloadResult.error : "file.download returned null";
+    var errMsg = downloadResult
+      ? downloadResult.error
+      : "file.download returned null";
     return {
       success: false,
       error_message: "Failed to download file: " + errMsg,
-      error_type: "download_error"
+      error_type: "download_error",
     };
   }
 
@@ -971,65 +1125,95 @@ function download(trackID, quality, outputPath, onProgress) {
     success: true,
     file_path: downloadResult.path || actualOutputPath,
     bit_depth: 0,
-    sample_rate: 0
+    sample_rate: 0,
   };
 }
 
 /**
  * Pick the best transcoding from the list, preferring the requested format
- * and progressive protocol. HLS URLs are playlists and are not suitable for
- * file.download as a direct audio file.
+ * and progressive protocol. When [allowHls] is true and no progressive
+ * transcoding exists, falls back to an HLS (m3u8) transcoding instead — the
+ * player (media_kit) can stream an m3u8 playlist, even though it is not
+ * suitable for file.download as a direct audio file.
  */
-function pickTranscoding(transcodings, preferFormat) {
+function pickTranscoding(transcodings, preferFormat, allowHls, allowPreview) {
   if (!transcodings || transcodings.length === 0) return null;
 
   // Score each transcoding
   var best = null;
   var bestScore = -1;
+  var hlsBest = null;
+  var hlsBestScore = -1;
+  var previewBest = null;
+  var previewBestScore = -1;
 
   for (var i = 0; i < transcodings.length; i++) {
     var t = transcodings[i];
     if (!t.url || !t.format) continue;
-    // Skip snipped (preview) transcodings
-    if (t.snipped) continue;
+    // Snipped (preview) transcodings are only used as a last resort when
+    // [allowPreview] is set AND no full-length transcoding exists.
+    if (t.snipped) {
+      if (!allowPreview) continue;
+      var pScore = 10 + (t.quality === "hq" ? 5 : t.quality === "sq" ? 2 : 0);
+      if (pScore > previewBestScore) {
+        previewBestScore = pScore;
+        previewBest = t;
+      }
+      continue;
+    }
 
     var score = 0;
     var mime = t.format.mime_type || "";
     var protocol = t.format.protocol || "";
 
-    if (protocol !== "progressive") continue;
-    score += 50;
-
-    // Match requested format
+    // Match requested format (shared scoring between progressive and HLS)
+    var formatScore = 0;
     if (preferFormat === "opus" && mime.indexOf("opus") !== -1) {
-      score += 30;
-    } else if (preferFormat === "mp3" && (mime.indexOf("mpeg") !== -1 || mime.indexOf("mp3") !== -1)) {
-      score += 30;
+      formatScore = 30;
+    } else if (
+      preferFormat === "mp3" &&
+      (mime.indexOf("mpeg") !== -1 || mime.indexOf("mp3") !== -1)
+    ) {
+      formatScore = 30;
     } else if (preferFormat === "ogg" && mime.indexOf("ogg") !== -1) {
-      score += 20;
+      formatScore = 20;
     }
 
-    // Prefer higher quality tiers
-    if (t.quality === "hq") {
-      score += 10;
-    } else if (t.quality === "sq") {
-      score += 5;
-    }
+    // Higher quality tiers
+    var tierScore = t.quality === "hq" ? 10 : t.quality === "sq" ? 5 : 0;
 
-    if (score > bestScore) {
-      bestScore = score;
-      best = t;
+    if (protocol === "progressive") {
+      score = 50 + formatScore + tierScore;
+      if (score > bestScore) {
+        bestScore = score;
+        best = t;
+      }
+    } else if (allowHls && protocol.indexOf("hls") !== -1) {
+      // Keep the best HLS candidate as a fallback (no progressive found).
+      var hScore = 40 + formatScore + tierScore;
+      if (hScore > hlsBestScore) {
+        hlsBestScore = hScore;
+        hlsBest = t;
+      }
     }
   }
 
-  return best;
+  if (best) return best;
+  if (allowHls && hlsBest) return hlsBest;
+  return previewBest;
 }
 
 // ============================================
 // MATCHING
 // ============================================
 
-function findBestMatch(tracks, targetName, targetArtist, targetDurationMs, minScore) {
+function findBestMatch(
+  tracks,
+  targetName,
+  targetArtist,
+  targetDurationMs,
+  minScore,
+) {
   if (!tracks || tracks.length === 0) return null;
 
   var bestScore = -1;
@@ -1038,9 +1222,11 @@ function findBestMatch(tracks, targetName, targetArtist, targetDurationMs, minSc
   for (var i = 0; i < tracks.length; i++) {
     var t = tracks[i];
     var tTitle = t.title || "";
-    var tArtist = (t.publisher_metadata && t.publisher_metadata.artist) ||
-                  t.metadata_artist ||
-                  (t.user && t.user.username) || "";
+    var tArtist =
+      (t.publisher_metadata && t.publisher_metadata.artist) ||
+      t.metadata_artist ||
+      (t.user && t.user.username) ||
+      "";
     var score = 0;
 
     score += matching.compareStrings(targetName || "", tTitle) * 50;
@@ -1056,17 +1242,45 @@ function findBestMatch(tracks, targetName, targetArtist, targetDurationMs, minSc
     }
   }
 
-  var threshold = (typeof minScore === "number") ? minScore : 40;
+  var threshold = typeof minScore === "number" ? minScore : 40;
   if (bestScore < threshold) return null;
   return bestTrack;
 }
 
 function normalizeText(text) {
   if (!text) return "";
-  return text.toLowerCase()
-    .replace(/[^a-z0-9\u00c0-\u024f\u0400-\u04ff\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]+/g, " ")
+  return text
+    .toLowerCase()
+    .replace(
+      /[^a-z0-9\u00c0-\u024f\u0400-\u04ff\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]+/g,
+      " ",
+    )
     .replace(/\s+/g, " ")
     .trim();
+}
+
+// ============================================
+// STREAMING
+// ============================================
+
+/**
+ * Returns a direct progressive stream URL for live playback, or null if the
+ * track cannot be streamed. Used by GetStreamPackage -> GetStreamURL.
+ */
+function getDownloadUrl(trackID, quality) {
+  try {
+    var qualityParts = String(quality || "mp3").split("_");
+    var audioFormat = qualityParts[0] || "mp3";
+    var resolved = resolveStreamURL(String(trackID || "").trim(), audioFormat, true, false);
+    if (resolved && resolved.url) {
+      log.info("[SC] getDownloadUrl resolved stream for", trackID);
+      return resolved.url;
+    }
+    log.warn("[SC] getDownloadUrl failed:", resolved && resolved.error ? resolved.error : "no stream");
+  } catch (e) {
+    log.warn("[SC] getDownloadUrl exception:", e && e.message ? e.message : String(e));
+  }
+  return null;
 }
 
 // ============================================
@@ -1099,7 +1313,7 @@ function getAlbum(albumId) {
       images: result.info.images,
       cover_url: result.info.cover_url,
       tracks: tracks,
-      provider_id: "soundcloud"
+      provider_id: "soundcloud",
     };
   } catch (e) {
     log.error("[SC] getAlbum failed:", e.message);
@@ -1123,7 +1337,7 @@ function getPlaylist(playlistId) {
       cover_url: result.info.cover_url,
       total_tracks: tracks.length,
       tracks: tracks,
-      provider_id: "soundcloud"
+      provider_id: "soundcloud",
     };
   } catch (e) {
     log.error("[SC] getPlaylist failed:", e.message);
@@ -1146,6 +1360,129 @@ function searchTracks(query, limit) {
 }
 
 // ============================================
+// HOME FEED — SoundCloud Trending + Featured
+// ============================================
+
+// Unified cover URL: prefer t500x500 for a good balance of quality/size.
+function feedCover(url) {
+  if (!url) return "";
+  return url.replace("-large.", "-t500x500.").replace("-original.", "-t500x500.");
+}
+
+function extractChartsItems(data, maxItems) {
+  if (!data) return [];
+  var items = [];
+  var collection = data.collection || [];
+  if (!collection.length) return [];
+  for (var i = 0; i < Math.min(collection.length, maxItems || 15); i++) {
+    var entry = collection[i];
+    if (!entry) continue;
+    // Charts entries can be tracks or playlists
+    var item = entry.track || entry.playlist || entry;
+    if (!item || !item.id) continue;
+    var isTrack = !!(item.genre || item.duration || item.full_duration || entry.track);
+    if (isTrack) {
+      var track = formatTrack(item);
+      if (track) {
+        track.cover_url = feedCover(track.cover_url);
+        items.push(track);
+      }
+    } else {
+      var pl = formatPlaylistOrAlbum(item);
+      if (pl) items.push(pl);
+    }
+  }
+  return items;
+}
+
+// featured_tracks collections are abbreviated tracks (no user/artist field).
+// Enrich via a tracks?ids= batch request to recover artist + publisher_metadata.
+function extractFeaturedItems(collection, maxItems) {
+  if (!collection || !collection.length) return [];
+  var limit = maxItems || 10;
+  var ids = [];
+  for (var i = 0; i < Math.min(collection.length, limit); i++) {
+    var it = collection[i];
+    if (it && it.id) ids.push(String(it.id));
+  }
+  if (!ids.length) return [];
+
+  var trackMap = {};
+  try {
+    var batchData = scGet("tracks?ids=" + ids.join(","));
+    if (batchData && batchData.length) {
+      for (var j = 0; j < batchData.length; j++) {
+        trackMap[batchData[j].id] = batchData[j];
+      }
+    }
+  } catch (e) {
+    log.debug("[SC] Featured batch fetch failed:", e.message);
+  }
+
+  var items = [];
+  for (var k = 0; k < collection.length && items.length < limit; k++) {
+    var orig = collection[k];
+    if (!orig || !orig.id) continue;
+    var full = trackMap[orig.id] || orig;
+    var track = formatTrack(full);
+    if (track) {
+      track.cover_url = feedCover(track.cover_url);
+      items.push(track);
+    }
+  }
+  return items;
+}
+
+function fetchHomeFeed() {
+  log.info("[SC] Fetching SoundCloud home feed...");
+  var sections = [];
+  try { ensureClientId(); } catch (e) {}
+
+  // Section 1: Trending charts — top 15 (all-music genre).
+  try {
+    var topData = scGet("charts?kind=trending&genre=soundcloud:genres:all-music", "limit=15&offset=0");
+    var topItems = extractChartsItems(topData, 15);
+    if (topItems.length > 0) {
+      sections.push({ uri: "sc:charts:trending", title: "Tendencias de SoundCloud", items: topItems });
+    }
+  } catch (e1) { log.debug("[SC] charts trending failed:", e1.message); }
+
+  // Section 2: Curated featured tracks (the API returns only 5 unique ones).
+  if (sections.length < 2) {
+    try {
+      var fData = scGet("featured_tracks/top/all-music", "limit=10");
+      var fItems = extractFeaturedItems(fData.collection || fData, 10);
+      if (fItems.length > 0) {
+        sections.push({ uri: "sc:featured:all-music", title: "Destacados de SoundCloud", items: fItems });
+      }
+    } catch (e2) { log.debug("[SC] featured failed:", e2.message); }
+  }
+
+  // Section 3: Next trending page (rising tracks) — pagination returns
+  // 15 new unique tracks per offset, so this adds real variety.
+  if (sections.length < 3) {
+    try {
+      var risingData = scGet("charts?kind=trending&genre=soundcloud:genres:all-music", "limit=15&offset=15");
+      var risingItems = extractChartsItems(risingData, 15);
+      if (risingItems.length > 0) {
+        sections.push({ uri: "sc:charts:rising", title: "En ascenso", items: risingItems });
+      }
+    } catch (e3) { log.debug("[SC] charts rising failed:", e3.message); }
+  }
+
+  if (sections.length > 0) {
+    log.info("[SC] Fetched", sections.length, "real sections");
+    return { success: true, sections: sections };
+  }
+  log.info("[SC] No real home feed available");
+  return { success: false, error: "No home feed available", sections: [] };
+}
+
+function getHomeFeed() {
+  try { return fetchHomeFeed(); } catch (e) { return { success: false, error: e.message, sections: [] }; }
+}
+
+// ============================================
 // REGISTER EXTENSION
 // ============================================
 
@@ -1160,11 +1497,12 @@ registerExtension({
   getPlaylist: getPlaylist,
   searchTracks: searchTracks,
   enrichTrack: enrichTrack,
+  getHomeFeed: getHomeFeed,
 
   // Download provider
   checkAvailability: checkAvailability,
   download: download,
-  getDownloadUrl: function () { return null; }
+  getDownloadUrl: getDownloadUrl,
 });
 
 log.info("[SC] SoundCloud Extension loaded!");

@@ -2,109 +2,125 @@ package deezer
 
 import (
 	"fmt"
+	"strings"
+
+	"github.com/zarz/bitly/go_backend/internal/provider"
 )
 
-// SearchTrackResult is the normalized result for a track search.
-type SearchTrackResult struct {
-	ID       int64  `json:"id"`
-	Title    string `json:"title"`
-	Artist   string `json:"artist"`
-	ArtistID int64  `json:"artistId"`
-	Album    string `json:"album"`
-	AlbumID  int64  `json:"albumId"`
-	Duration int    `json:"duration"`
-	ISRC     string `json:"isrc"`
-	Preview  string `json:"preview"`
-	CoverURL string `json:"coverUrl"`
-}
-
-// SearchTracks searches Deezer for tracks matching the query.
-func (c *Client) searchTracks(query string, limit int) ([]SearchTrackResult, error) {
+// SearchAlbums searches Deezer for albums.
+func (c *Client) SearchAlbums(query string, limit int) ([]provider.AlbumResult, error) {
 	if limit < 1 || limit > 100 {
 		limit = 25
 	}
-	var resp SearchResponse
-	if err := c.doGet("/search", map[string]string{
-		"q": query, "limit": fmt.Sprintf("%d", limit),
-	}, &resp); err != nil {
-		return nil, err
+	type albumSearch struct {
+		Data  []Album `json:"data"`
+		Total int     `json:"total"`
 	}
-	return normalizeSearchResults(resp.Data), nil
-}
-
-// SearchAlbums searches Deezer for albums matching the query.
-// Returns raw album search results (Deezer doesn't have a dedicated album
-// search type — uses /search/album endpoint).
-func (c *Client) searchAlbums(query string, limit int) ([]AlbumRef, error) {
-	if limit < 1 || limit > 100 {
-		limit = 25
-	}
-	type albumSearchItem struct {
-		ID    int64     `json:"id"`
-		Title string    `json:"title"`
-		Artist ArtistRef `json:"artist"`
-		Cover string    `json:"cover"`
-		Type  string    `json:"type"`
-	}
-	type albumSearchResp struct {
-		Data  []albumSearchItem `json:"data"`
-		Total int               `json:"total"`
-	}
-	var resp albumSearchResp
+	var resp albumSearch
 	if err := c.doGet("/search/album", map[string]string{
 		"q": query, "limit": fmt.Sprintf("%d", limit),
 	}, &resp); err != nil {
 		return nil, err
 	}
-	results := make([]AlbumRef, 0, len(resp.Data))
-	for _, item := range resp.Data {
-		results = append(results, AlbumRef{
-			ID:    item.ID,
-			Title: item.Title,
-			Cover: item.Cover,
+	results := make([]provider.AlbumResult, 0, len(resp.Data))
+	for _, a := range resp.Data {
+		results = append(results, provider.AlbumResult{
+			ID: fmt.Sprintf("deezer:%d", a.ID), Title: a.Title,
+			Artist: a.Artist.Name, ArtistID: fmt.Sprintf("deezer:%d", a.Artist.ID),
+			CoverURL: a.CoverBig, ReleaseDate: a.ReleaseDate,
+			TrackCount: a.TrackCount, Provider: "deezer",
 		})
 	}
 	return results, nil
 }
 
-// SearchArtists searches Deezer for artists matching the query.
-func (c *Client) searchArtists(query string, limit int) ([]ArtistRef, error) {
+// SearchPlaylists searches Deezer for playlists.
+func (c *Client) SearchPlaylists(query string, limit int) ([]provider.PlaylistResult, error) {
 	if limit < 1 || limit > 100 {
 		limit = 25
 	}
-	type artistSearchResp struct {
-		Data  []ArtistRef `json:"data"`
-		Total int         `json:"total"`
+	type playlistSearch struct {
+		Data  []Playlist `json:"data"`
+		Total int        `json:"total"`
 	}
-	var resp artistSearchResp
+	var resp playlistSearch
+	if err := c.doGet("/search/playlist", map[string]string{
+		"q": query, "limit": fmt.Sprintf("%d", limit),
+	}, &resp); err != nil {
+		return nil, err
+	}
+	results := make([]provider.PlaylistResult, 0, len(resp.Data))
+	for _, pl := range resp.Data {
+		// Use biggest available picture: XL > Big > Medium > Small
+		cover := pl.PictureXl
+		if cover == "" {
+			cover = pl.PictureBig
+		}
+		if cover == "" {
+			cover = pl.PictureMedium
+		}
+		if cover == "" {
+			cover = pl.Picture
+		}
+		results = append(results, provider.PlaylistResult{
+			ID: fmt.Sprintf("deezer:%d", pl.ID), Title: pl.Title,
+			Description: pl.Description, Creator: pl.Creator.Name,
+			TrackCount: pl.TrackCount, CoverURL: cover, Provider: "deezer",
+		})
+	}
+	return results, nil
+}
+
+// SearchArtists searches Deezer for artists.
+func (c *Client) SearchArtists(query string, limit int) ([]provider.ArtistResult, error) {
+	if limit < 1 || limit > 100 {
+		limit = 25
+	}
+	type artistSearch struct {
+		Data  []Artist `json:"data"`
+		Total int      `json:"total"`
+	}
+	var resp artistSearch
 	if err := c.doGet("/search/artist", map[string]string{
 		"q": query, "limit": fmt.Sprintf("%d", limit),
 	}, &resp); err != nil {
 		return nil, err
 	}
-	return resp.Data, nil
-}
-
-// normalizeSearchResults converts raw Deezer tracks to SearchTrackResult.
-func normalizeSearchResults(tracks []Track) []SearchTrackResult {
-	results := make([]SearchTrackResult, 0, len(tracks))
-	for _, t := range tracks {
-		coverURL := ""
-		if t.Album.Cover != "" {
-			coverURL = t.Album.Cover
-		}
-		results = append(results, SearchTrackResult{
-			ID:       t.ID,
-			Title:    t.Title,
-			Artist:   t.Artist.Name,
-			ArtistID: t.Artist.ID,
-			Album:    t.Album.Title,
-			AlbumID:  t.Album.ID,
-			Duration: t.Duration,
-			ISRC:     t.ISRC,
-			Preview:  t.Preview,
-			CoverURL: coverURL,
+	results := make([]provider.ArtistResult, 0, len(resp.Data))
+	for _, a := range resp.Data {
+		results = append(results, provider.ArtistResult{
+			ID: fmt.Sprintf("deezer:%d", a.ID), Name: a.Name,
+			PictureURL: a.PictureBig, Provider: "deezer",
 		})
 	}
-	return results
+	return results, nil
+}
+
+// SearchTracks searches Deezer for tracks.
+func (c *Client) SearchTracks(query string, limit int) ([]provider.TrackResult, error) {
+	if limit < 1 || limit > 100 {
+		limit = 25
+	}
+	var resp SearchResponse
+	if err := c.doGet("/search/track", map[string]string{
+		"q": query, "limit": fmt.Sprintf("%d", limit),
+	}, &resp); err != nil {
+		return nil, err
+	}
+	results := make([]provider.TrackResult, 0, len(resp.Data))
+	for _, t := range resp.Data {
+		coverURL := t.Album.Cover
+		// Deezer AlbumRef.Cover is ~250x250; upgrade to 500x500 via CDN URL pattern
+		if strings.Contains(coverURL, "250x250") {
+			coverURL = strings.ReplaceAll(coverURL, "250x250", "500x500")
+		}
+		results = append(results, provider.TrackResult{
+			ID: fmt.Sprintf("deezer:%d", t.ID), Title: t.Title,
+			Artist: t.Artist.Name, ArtistID: fmt.Sprintf("deezer:%d", t.Artist.ID),
+			Album: t.Album.Title, AlbumID: fmt.Sprintf("deezer:%d", t.Album.ID),
+			Duration: t.Duration, ISRC: t.ISRC,
+			CoverURL: coverURL, Provider: "deezer",
+		})
+	}
+	return results, nil
 }

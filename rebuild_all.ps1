@@ -4,7 +4,7 @@ Write-Host "=== REBUILD COMPLETO DE BITLY ===" -ForegroundColor Cyan
 
 # Configurar ambiente
 $ROOT = "e:\Pablo\proyectos\bitly"
-$GO_DIR = "$ROOT\go_backend_bitly"
+$GO_DIR = "$ROOT\go_backend"
 $ANDROID_SDK = "C:\Users\Carlos_M\AppData\Local\Android\Sdk"
 $NDK = "$ANDROID_SDK\ndk\27.0.12077973"
 $env:ANDROID_HOME = $ANDROID_SDK

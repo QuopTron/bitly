@@ -76,3 +76,15 @@ scripts/
 *.md
 !README.md
 !knowledge.md
+
+# Root build artifacts (regenerable via go_backend/build_all.sh)
+/*.aar
+/*.jar
+/bitly-backend-windows.exe
+*.exe~
+bin/
+signed_sessions/
+null
+
+# Secrets
+lib/config/secrets.dart

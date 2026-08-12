@@ -3,6 +3,7 @@ package com.example.bitly
 import android.app.Activity
 import android.content.Intent
 import android.os.Build
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import io.flutter.embedding.android.FlutterActivity
@@ -15,36 +16,140 @@ import java.util.concurrent.Executors
 
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "com.bitly/backend"
+    private val SESSION_CHANNEL = "com.bitly/session_grant"
+    private val OAUTH_CHANNEL = "com.bitly/oauth_callback"
     private val executor = Executors.newSingleThreadExecutor()
     private val handler = Handler(Looper.getMainLooper())
 
     private var safResult: MethodChannel.Result? = null
     private val SAF_PICKER_REQUEST_CODE = 1001
 
+    // Grant received from a spotiflac://session-grant deep link while Flutter
+    // was not ready yet (cold start). Delivered once the engine is configured.
+    private var pendingSessionGrant: String? = null
+
+    // OAuth callback received from a spotiflac://callback deep link (e.g. the
+    // future Spotify PKCE flow) before Flutter was ready (cold start).
+    private var pendingOAuth: OAuthResult? = null
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        handleDeepLinkIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleDeepLinkIntent(intent)
+    }
+
+    /**
+     * Dispatches spotiflac:// deep links to the matching handler by host.
+     *
+     * - `session-grant` → signed-session (Cloudflare) verification grant
+     * - `callback`     → extension OAuth (PKCE) callback, e.g. Spotify
+     */
+    private fun handleDeepLinkIntent(intent: Intent?) {
+        if (intent == null) return
+        val uri = intent.data ?: return
+        if (!uri.scheme.equals("spotiflac", ignoreCase = true)) return
+        when (uri.host?.lowercase()) {
+            "session-grant" -> handleSessionGrant(intent, uri)
+            "callback" -> handleOAuthCallback(intent, uri)
+        }
+    }
+
+    /**
+     * Captures the signed-session grant from the Cloudflare challenge callback
+     * (spotiflac://session-grant?cb_version=v2grant&grant=gr_...) and delivers it
+     * to Flutter via the session-grant MethodChannel.
+     */
+    private fun handleSessionGrant(intent: Intent, uri: android.net.Uri) {
+        val grant = uri.getQueryParameter("grant") ?: uri.getQueryParameter("code") ?: ""
+        if (grant.isEmpty()) return
+        intent.data = null
+        pendingSessionGrant = grant
+        forwardSessionGrant(grant)
+    }
+
+    /**
+     * Captures an extension OAuth (PKCE) callback
+     * (spotiflac://callback?code=...&state=... or ?error=...&state=...) and
+     * delivers it to Flutter via the OAuth MethodChannel.
+     */
+    private fun handleOAuthCallback(intent: Intent, uri: android.net.Uri) {
+        val result = OAuthResult(
+            code = uri.getQueryParameter("code") ?: "",
+            state = uri.getQueryParameter("state") ?: "",
+            error = uri.getQueryParameter("error") ?: "",
+        )
+        if (result.code.isEmpty() && result.error.isEmpty()) return
+        intent.data = null
+        pendingOAuth = result
+        forwardOAuthCallback(result)
+    }
+
+    /** OAuth PKCE callback payload captured from the spotiflac://callback deep link. */
+    private data class OAuthResult(
+        val code: String,
+        val state: String,
+        val error: String,
+    )
+
+    private fun forwardSessionGrant(grant: String) {
+        try {
+            val engine = flutterEngine
+            if (engine != null) {
+                MethodChannel(engine.dartExecutor.binaryMessenger, SESSION_CHANNEL)
+                    .invokeMethod("onSessionGrant", grant, null)
+                android.util.Log.i("NativeBridge", "Session grant forwarded to Flutter")
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("NativeBridge", "forwardSessionGrant error: ${e.message}")
+        }
+    }
+
+    private fun forwardOAuthCallback(result: OAuthResult) {
+        try {
+            val engine = flutterEngine
+            if (engine != null) {
+                val payload = hashMapOf(
+                    "code" to result.code,
+                    "state" to result.state,
+                    "error" to result.error,
+                )
+                MethodChannel(engine.dartExecutor.binaryMessenger, OAUTH_CHANNEL)
+                    .invokeMethod("onOAuthCallback", payload, null)
+                android.util.Log.i("NativeBridge", "OAuth callback forwarded to Flutter")
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("NativeBridge", "forwardOAuthCallback error: ${e.message}")
+        }
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
-        android.util.Log.i("NativeBridge", "FlutterEngine configured. Waiting for Flutter to initialize DB schema...")
+        android.util.Log.i("NativeBridge", "FlutterEngine configured.")
+
+        // Deliver a grant that arrived before Flutter was ready (cold start).
+        pendingSessionGrant?.let {
+            handler.postDelayed({ forwardSessionGrant(it); pendingSessionGrant = null }, 500)
+        }
+        pendingOAuth?.let {
+            handler.postDelayed({ forwardOAuthCallback(it); pendingOAuth = null }, 500)
+        }
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
                 // ── Init ──────────────────────────────────────────────────
                 "initGoBackend" -> {
-                    val dbPath = call.argument<String>("db_path") ?: ""
-                    val ytDlpPath = call.argument<String>("ytdlp_path") ?: ""
-                    android.util.Log.i("NativeBridge", "Initializing Go backend: dbPath=$dbPath")
                     executor.execute {
                         try {
-                            Gobackend.initBackend(dbPath)
-                            if (ytDlpPath.isNotEmpty()) {
-                                Gobackend.invokeRPC("setYtDlpPath", """{"path":"$ytDlpPath"}""")
-                            }
-                            try {
-                                Gobackend.invokeRPC("ensureYtDlp", "")
-                            } catch (e: Exception) {
-                                android.util.Log.w("NativeBridge", "yt-dlp install skipped: ${e.message}")
-                            }
-                            handler.post { result.success("ok") }
+                            Gobackend.initBackend()
+                            val state = Gobackend.initGlobalState()
+                            android.util.Log.i("NativeBridge", "Go backend initialized: $state")
+                            handler.post { result.success(state) }
                         } catch (e: Exception) {
                             android.util.Log.e("NativeBridge", "Failed to init Go backend: ${e.message}")
                             handler.post { result.error("INIT_ERROR", e.message, null) }
@@ -80,99 +185,72 @@ class MainActivity : FlutterActivity() {
                 "bootstrapEssentialExtensions" -> result.success("[]")
                 "startDownloadService", "stopDownloadService" -> result.success("ok")
 
-                // ── File validation wrappers ──────────────────────────────
-                "loadExtensionFromPath" -> {
-                    val filePath = call.argument<String>("file_path") ?: ""
-                    executor.execute {
-                        try {
-                            if (filePath.isEmpty()) {
-                                handler.post { result.error("BACKEND_ERROR", "invalid file path", null) }
-                                return@execute
-                            }
-                            val f = File(filePath)
-                            if (!f.exists() || !f.isFile) {
-                                handler.post { result.error("BACKEND_ERROR", "file not found: $filePath", null) }
-                                return@execute
-                            }
-                            val res = Gobackend.invokeRPC("loadExtensionFromPath", """{"file_path":"$filePath"}""")
-                            handler.post { result.success(res) }
-                        } catch (e: Exception) {
-                            handler.post { result.error("BACKEND_ERROR", e.message, null) }
-                        }
-                    }
-                }
-                "downloadStoreExtensionJSON" -> {
-                    val extensionId = call.argument<String>("extension_id") ?: ""
-                    val destDir = call.argument<String>("dest_dir") ?: ""
-                    executor.execute {
-                        try {
-                            val path = Gobackend.invokeRPC("downloadStoreExtension", """{"extension_id":"$extensionId","dest_dir":"$destDir"}""")
-                            android.util.Log.i("NativeBridge", "downloadStoreExtension: path=$path")
-                            if (path.isNullOrEmpty() || path == "\"\"") {
-                                handler.post { result.error("BACKEND_ERROR", "download returned empty path", null) }
-                                return@execute
-                            }
-                            val cleanPath = path.trim('"')
-                            val f = File(cleanPath)
-                            if (!f.exists() || !f.isFile) {
-                                handler.post { result.error("BACKEND_ERROR", "file not found: $cleanPath", null) }
-                                return@execute
-                            }
-                            handler.post { result.success(cleanPath) }
-                        } catch (e: Exception) {
-                            handler.post { result.error("BACKEND_ERROR", e.message, null) }
-                        }
-                    }
-                }
-                "fetchAndSaveLyrics" -> {
-                    val trackName = call.argument<String>("track_name") ?: ""
-                    val artistName = call.argument<String>("artist_name") ?: ""
-                    val spotifyID = call.argument<String>("spotify_id") ?: ""
-                    val durationMs = (call.argument<Int>("duration_ms") ?: 0).toLong()
-                    val outputPath = call.argument<String>("output_path") ?: ""
-                    val audioFilePath = call.argument<String>("audio_file_path") ?: ""
-                    executor.execute {
-                        try {
-                            val params = org.json.JSONObject()
-                            params.put("track_name", trackName)
-                            params.put("artist_name", artistName)
-                            params.put("spotify_id", spotifyID)
-                            params.put("duration_ms", durationMs)
-                            params.put("output_path", outputPath)
-                            params.put("audio_file_path", audioFilePath)
-                            Gobackend.invokeRPC("fetchAndSaveLyrics", params.toString())
-                            handler.post { result.success("ok") }
-                        } catch (e: Exception) {
-                            handler.post { result.error("BACKEND_ERROR", e.message, null) }
-                        }
-                    }
-                }
-
-                // ── Everything else: route through InvokeRPC ──────────────
-                else -> genericRPC(call, result)
+                // ── Everything else: dispatch via Go backend flat API ──────
+                else -> dispatchGoCall(call, result)
             }
         }
     }
 
-    // ── Generic RPC dispatcher ────────────────────────────────────────────
+    // ── Dispatch Go calls via reflection to flat exports.* functions ─────
 
-    private fun genericRPC(call: MethodCall, result: MethodChannel.Result) {
-        android.util.Log.i("NativeBridge", "genericRPC: method=" + call.method + " args=" + call.arguments?.toString())
+    private fun dispatchGoCall(call: MethodCall, result: MethodChannel.Result) {
+        android.util.Log.i("NativeBridge", "dispatchGoCall: method=${call.method}")
         executor.execute {
             try {
-                val paramsStr = when (val args = call.arguments) {
+                val methodName = call.method
+
+                // Build argument list from call.arguments
+                val args = when (val a = call.arguments) {
+                    is List<*> -> a.map { it?.toString() ?: "" }.toTypedArray()
+                    is String -> if (a.isEmpty()) emptyArray<String>() else arrayOf(a)
                     is Map<*, *> -> {
-                        val map = args
-                            .filterKeys { it is String }
-                            .mapKeys { it.key as String }
-                        if (map.isEmpty()) "" else org.json.JSONObject(map).toString()
+                        val json = org.json.JSONObject(
+                            a.filterKeys { it is String }
+                                .mapKeys { it.key as String }
+                        ).toString()
+                        arrayOf(json)
                     }
-                    is String -> if (args.isEmpty()) "" else """{"value":"$args"}"""
-                    else -> ""
+                    else -> emptyArray<String>()
                 }
-                val res = Gobackend.invokeRPC(call.method, paramsStr)
-                handler.post { result.success(res) }
+
+                // Find the Go backend method by name via reflection.
+                // gomobile converts Go's PascalCase to Java camelCase,
+                // so the Flutter method name (also camelCase) maps directly.
+                val methods = Gobackend::class.java.methods
+                val goMethod = methods.find { it.name == methodName }
+
+                if (goMethod != null) {
+                    val paramTypes = goMethod.parameterTypes
+                    val numParams = paramTypes.size
+                    val converted = if (numParams > 0) {
+                        Array<Any?>(numParams) { i ->
+                            val arg = args.getOrElse(i) { "" }
+                            val pt = paramTypes[i]
+                            when {
+                                pt == Long::class.javaPrimitiveType || pt == Long::class.java ->
+                                    arg.toLongOrNull() ?: 0L
+                                pt == Int::class.javaPrimitiveType || pt == Int::class.java ->
+                                    arg.toIntOrNull() ?: 0
+                                pt == Boolean::class.javaPrimitiveType || pt == Boolean::class.java ->
+                                    arg.toBooleanStrictOrNull() ?: false
+                                pt == Double::class.javaPrimitiveType || pt == Double::class.java ->
+                                    arg.toDoubleOrNull() ?: 0.0
+                                pt.isArray && pt.componentType == Byte::class.javaPrimitiveType ->
+                                    arg.encodeToByteArray()
+                                else -> arg // String
+                            }
+                        }
+                    } else {
+                        emptyArray<Any?>()
+                    }
+
+                    val res = goMethod.invoke(null, *converted)
+                    handler.post { result.success(res?.toString() ?: "null") }
+                } else {
+                    handler.post { result.error("NOT_FOUND", "Go method $methodName not found", null) }
+                }
             } catch (e: Exception) {
+                android.util.Log.e("NativeBridge", "dispatchGoCall error: ${e.message}")
                 handler.post { result.error("BACKEND_ERROR", e.message, null) }
             }
         }

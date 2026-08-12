@@ -42,9 +42,13 @@ android {
 }
 
 afterEvaluate {
+    // Build ALL real device ABIs (incl. armeabi-v7a for low/mid-range 32-bit
+    // phones) in one universal APK, overriding Flutter's default single-ABI.
     android.buildTypes.forEach { buildType ->
         buildType.ndk.abiFilters.clear()
+        buildType.ndk.abiFilters.add("armeabi-v7a")
         buildType.ndk.abiFilters.add("arm64-v8a")
+        buildType.ndk.abiFilters.add("x86_64")
     }
 }
 
