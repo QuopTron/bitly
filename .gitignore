@@ -88,3 +88,6 @@ null
 
 # Secrets
 lib/config/secrets.dart
+
+# Backups locales (no versionar)
+*.rar
