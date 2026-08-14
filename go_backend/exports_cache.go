@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"time"
 )
 
@@ -42,8 +43,12 @@ func CoversDir() string {
 	return path
 }
 
-// GetStreamCacheStats returns the stream cache stats for the settings UI.
-// Flutter contract: {size_mb, file_count, max_cache_mb, level_limit_mb, user_level}.
+// GetStreamCacheStats returns the cache stats for the settings UI: the
+// combined size of the audio stream cache (.stream_cache/) and the covers
+// (.covers/). Opening the settings screen also runs the opportunistic eviction
+// of both caches, so the numbers shown are post-cleanup.
+// Flutter contract: {total_size_bytes, file_count, size_mb, max_cache_mb,
+// level_limit_mb, user_level, estimated_hours}.
 func GetStreamCacheStats() string {
 	levelLimit := streamCacheLevelLimitMB()
 	maxMB := streamCacheMaxMB
@@ -53,20 +58,35 @@ func GetStreamCacheStats() string {
 	if maxMB > levelLimit {
 		maxMB = levelLimit
 	}
-	sizeMB, fileCount := coverDirStats()
+	evictStreamCache(streamCacheDirPath())
+	evictCovers(coversDirPath())
+	streamBytes, streamFiles := dirStats(streamCacheDirPath())
+	coversBytes, coversFiles := dirStats(coversDirPath())
+	streamMB := int(streamBytes / (1024 * 1024))
 	out, _ := json.Marshal(map[string]interface{}{
-		"size_mb":        sizeMB,
-		"file_count":     fileCount,
-		"max_cache_mb":   maxMB,
-		"level_limit_mb": levelLimit,
-		"user_level":     userLevelLabel(),
+		"total_size_bytes": streamBytes + coversBytes,
+		"file_count":       streamFiles + coversFiles,
+		"size_mb":          streamMB,
+		"max_cache_mb":     maxMB,
+		"level_limit_mb":   levelLimit,
+		"user_level":       userLevelLabel(),
+		// ~1h de audio por cada 100MB (estimación 320kbps).
+		"estimated_hours": int(float64(streamMB) / 100.0),
 	})
 	return string(out)
 }
 
-// ClearStreamCache removes cached stream files.
+// ClearStreamCache removes cached stream files AND covers (the two caches the
+// app writes next to downloads). Files in use keep working (fd stays open).
 func ClearStreamCache() string {
-	dir := coversDirPath()
+	removed := 0
+	removed += clearDirFiles(streamCacheDirPath())
+	removed += clearDirFiles(coversDirPath())
+	out, _ := json.Marshal(map[string]interface{}{"removed": removed, "ok": true})
+	return string(out)
+}
+
+func clearDirFiles(dir string) int {
 	removed := 0
 	if entries, err := os.ReadDir(dir); err == nil {
 		for _, e := range entries {
@@ -78,8 +98,7 @@ func ClearStreamCache() string {
 			}
 		}
 	}
-	out, _ := json.Marshal(map[string]interface{}{"removed": removed, "ok": true})
-	return string(out)
+	return removed
 }
 
 // SetStreamCacheMaxMb sets the cache limit, capped by the user's plan.
@@ -178,6 +197,9 @@ func SaveCover(payload string) string {
 	if err := os.WriteFile(path, data, 0644); err != nil {
 		return ""
 	}
+	// New cover on disk: enforce the covers cap (oldest first) so a big liked
+	// library never fills the storage with portadas.
+	evictCovers(coversDirPath())
 	return abs
 }
 
@@ -212,23 +234,84 @@ func coverHash(key string) string {
 	return hex.EncodeToString(h[:16])
 }
 
-func coverDirStats() (int, int) {
-	dir := coversDirPath()
-	var sizeMB, count int
+func dirStats(dir string) (bytes int64, count int) {
 	if entries, err := os.ReadDir(dir); err == nil {
-		var total int64
 		for _, e := range entries {
 			if e.IsDir() {
 				continue
 			}
 			count++
 			if info, err := e.Info(); err == nil {
-				total += info.Size()
+				bytes += info.Size()
 			}
 		}
-		sizeMB = int(total / (1024 * 1024))
 	}
-	return sizeMB, count
+	return
+}
+
+// coversLevelLimitMB returns the plan-based cap for the .covers dir. Covers
+// are small but accumulate one per liked/downloaded track, so they get their
+// own tighter budget instead of eating the stream-cache cap.
+func coversLevelLimitMB() int {
+	switch userLevelLabel() {
+	case "lifetime":
+		return 1000
+	case "premium":
+		return 500
+	default:
+		return 50
+	}
+}
+
+// evictCovers bounds the covers dir to the plan's covers cap, deleting the
+// oldest files first (same policy as evictStreamCache). Runs after each new
+// cover is saved and whenever the settings screen is opened.
+func evictCovers(dir string) {
+	evictCoversLimit(dir, coversLevelLimitMB())
+}
+
+// evictCoversLimit is evictCovers with an explicit cap (injectable for tests).
+func evictCoversLimit(dir string, limitMB int) {
+	if limitMB <= 0 {
+		return
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	type f struct {
+		path string
+		mod  time.Time
+		size int64
+	}
+	var files []f
+	var total int64
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		files = append(files, f{filepath.Join(dir, e.Name()), info.ModTime(), info.Size()})
+		total += info.Size()
+	}
+	if len(files) == 0 {
+		return
+	}
+	sort.Slice(files, func(i, j int) bool { return files[i].mod.Before(files[j].mod) })
+	maxBytes := int64(limitMB) * 1024 * 1024
+	const maxFiles = 5000
+	for i := 0; i < len(files); i++ {
+		remaining := len(files) - i
+		if remaining <= maxFiles && total <= maxBytes {
+			break
+		}
+		if os.Remove(files[i].path) == nil {
+			total -= files[i].size
+		}
+	}
 }
 
 func userLevelLabel() string {
