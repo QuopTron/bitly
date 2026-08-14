@@ -21,6 +21,15 @@ final _verifyOnEmptySources = <String>{'qobuz-web', 'amazon'};
 /// Resultado de intentar verificar una fuente con sesión firmada.
 enum _VerifyOutcome { verified, notNeeded, failed }
 
+/// Entrada del caché de resultados en memoria: resultados + momento en que se
+/// guardaron. Resultados vacíos se cachean con un TTL mucho más corto para no
+/// "congelar" un falso negativo (timeout/verificación) durante minutos.
+class _CachedSearch {
+  final List<FeedItem> results;
+  final DateTime at;
+  const _CachedSearch(this.results, this.at);
+}
+
 class SearchBloc extends Bloc<SearchEvent, SearchState> {
   final BackendService _backend;
   final SearchCache _searchCache;
@@ -32,6 +41,18 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
   /// "no results" for a while.
   final Map<String, DateTime> _lastVerifyAttempt = {};
   static const _verifyCooldown = Duration(minutes: 5);
+
+  /// Caché en memoria de resultados por (query, source, type, limit): repetir
+  /// la misma búsqueda devuelve los resultados al instante sin volver a
+  /// consultar a los providers (que tardan segundos y dependen de red). Se
+  /// limpia solo (TTL) y se descarta al cerrar la pantalla/app.
+  final Map<String, _CachedSearch> _resultCache = {};
+  static const _searchTtl = Duration(minutes: 5);
+  static const _emptyTtl = Duration(seconds: 20);
+  static const _maxCacheEntries = 40;
+
+  static String _cacheKey(String query, String source, String type, int limit) =>
+      '$query\u0001$source\u0001$type\u0001$limit';
 
   SearchBloc(this._backend, this._searchCache) : super(const SearchState()) {
     _loadRecents();
@@ -55,6 +76,30 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
 
     on<PerformSearch>((event, emit) async {
       emit(state.copyWith(loading: true, error: null, query: event.query, source: event.source));
+
+      // Sirve la misma búsqueda desde el caché en memoria: repetir una query
+      // (volver a la pestaña, corregir una letra y volver, re-tap del chip)
+      // es instantáneo y no vuelve a golpear a los providers.
+      final cacheKey = _cacheKey(event.query, event.source, event.type, event.limit);
+      final hit = _resultCache[cacheKey];
+      if (hit != null) {
+        final ttl = hit.results.isEmpty ? _emptyTtl : _searchTtl;
+        if (DateTime.now().difference(hit.at) < ttl) {
+          final recents = List<String>.from(state.recentSearches);
+          recents.remove(event.query);
+          recents.insert(0, event.query);
+          if (recents.length > 10) recents.removeLast();
+          emit(state.copyWith(
+            results: hit.results,
+            loading: false,
+            hasSearched: true,
+            recentSearches: recents,
+          ));
+          return;
+        }
+        _resultCache.remove(cacheKey); // expirado → re-buscar
+      }
+
       try {
         var results = await _searchAll(event.query, event.source, event.type, event.limit);
 
@@ -91,6 +136,21 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
           // Session already usable (or we just tried): empty search is a real
           // empty result, not a verification problem — show it normally.
         }
+
+        // Guardar en caché: no-vacío con TTL largo, vacío con TTL corto. Si el
+        // mapa está lleno, expulsar la entrada más vieja (LRU simple).
+        if (_resultCache.length >= _maxCacheEntries) {
+          String? oldestKey;
+          DateTime? oldestAt;
+          _resultCache.forEach((k, v) {
+            if (oldestAt == null || v.at.isBefore(oldestAt!)) {
+              oldestKey = k;
+              oldestAt = v.at;
+            }
+          });
+          if (oldestKey != null) _resultCache.remove(oldestKey);
+        }
+        _resultCache[cacheKey] = _CachedSearch(results, DateTime.now());
 
         final recents = List<String>.from(state.recentSearches);
         recents.remove(event.query);
