@@ -7,6 +7,7 @@ import '../../shared/widgets/download_options_sheet.dart';
 import '../../../backend/services/queue_cubit.dart';
 import '../../../backend/services/download_cubit.dart';
 import '../../../backend/services/like_cubit.dart';
+import '../../../backend/services/item_fingerprint.dart';
 import '../../shared/widgets/track_card.dart';
 import '../../shared/widgets/grid_card.dart';
 import '../../shared/widgets/create_playlist_modal.dart';
@@ -44,6 +45,9 @@ class MiEspacioContent extends StatelessWidget {
   final void Function(Item item)? onExportPlaylist;
   /// IDs of items that are currently liked (from LikeCubit.allLiked keys).
   final Set<String> likedIds;
+  /// Source-agnostic set of downloaded track fingerprints, for cross-extension
+  /// detection of a downloaded track (SpotiFLAC behavior).
+  final Set<String> downloadedFingerprints;
 
   const MiEspacioContent({
     super.key,
@@ -63,6 +67,7 @@ class MiEspacioContent extends StatelessWidget {
     this.onRetryBatch,
     this.onExportPlaylist,
     this.likedIds = const {},
+    this.downloadedFingerprints = const {},
   });
 
   /// Fallback download state lookup for items whose source is empty
@@ -97,13 +102,27 @@ class MiEspacioContent extends StatelessWidget {
     }
   }
 
+  /// Download state for a track: exact source-keyed state when present, else
+  /// source-agnostic fingerprint fallback (same track downloaded under another
+  /// extension still reads as downloaded here).
+  DownloadState _trackStateFor(FeedItem item, String id) {
+    final s = downloadStates[id];
+    if (s != null && s != DownloadState.none) return s;
+    return downloadedFingerprints.contains(fingerprintItem(item))
+        ? DownloadState.completed
+        : DownloadState.none;
+  }
+
   static DownloadState _resolveDownloadState(
     Map<String, DownloadState> states, String type, Item item,
   ) {
     final id = '${type}_${normalizeTrackId(item.realId)}_${item.source}';
     final ds = states[id];
     if (ds != null) return ds;
-    if (item.source.isNotEmpty) return DownloadState.none;
+    // Fallback por prefijo SIEMPRE: el batch de descarga puede tener un
+    // source escrito distinto al del item ("deezer" vs "deezer-web", o un
+    // batch restaurado de la BD con source vacío), así que buscamos cualquier
+    // estado del mismo tipo + ID sin importar el source.
     final prefix = '${type}_${normalizeTrackId(item.realId)}_';
     for (final key in states.keys) {
       if (key.startsWith(prefix)) return states[key]!;
@@ -245,7 +264,7 @@ class MiEspacioContent extends StatelessWidget {
               final isLiked = likedIds.any((rawId) => normalizeTrackId(rawId) == normalizeTrackId(feedItem.id));
               if (isLiked) { onUnlike(s); } else { onLike?.call(s); }
             },
-            downloadState: downloadStates[id] ?? DownloadState.none,
+            downloadState: _trackStateFor(feedItem, id),
             onTap: () => context.read<QueueCubit>().playWithContext(feedItems, feedItem),
             onDownload: () => _openDownload(context, s),
             onDelete: context.read<DownloadCubit>().downloadStateFor(id).state == DownloadState.completed

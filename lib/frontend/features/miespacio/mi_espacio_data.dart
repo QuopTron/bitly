@@ -50,16 +50,18 @@ String _normalizeName(String n) => n.toLowerCase().trim().replaceAll(RegExp(r'\s
 List<Item> itemsForTab(LikeState likeState, int tab, List<Item> createdPlaylists, {DownloadCubit? downloadCubit}) {
   switch (tab) {
     case 0: {
+      // Dedup por ID normalizado y por nombre+artista: dos canciones con el
+      // mismo título pero distinto artista (o viceversa) NO deben colisionar.
       final seenId = <String>{};
-      final seenName = <String>{};
+      final seenKey = <String>{};
       final liked = <Item>[];
       for (final i in likeState.allLiked.values.where((i) => i.type == 'track')) {
         final normId = normalizeTrackId(i.id);
-        final normName = _normalizeName(i.name);
+        final key = '${_normalizeName(i.name)}|${_normalizeName(i.artists ?? '')}';
         if (seenId.contains(normId)) continue;
-        if (seenName.contains(normName)) continue;
+        if (seenKey.contains(key)) continue;
         seenId.add(normId);
-        seenName.add(normName);
+        seenKey.add(key);
         liked.add(Item(i.name, i.artists ?? '', ItemType.song,
             coverUrl: (i.localCoverPath?.isNotEmpty == true) ? i.localCoverPath! : i.coverUrl,
             realId: i.id, source: i.source ?? ''));
@@ -67,11 +69,11 @@ List<Item> itemsForTab(LikeState likeState, int tab, List<Item> createdPlaylists
       if (downloadCubit != null) {
         for (final t in downloadCubit.completedTracks) {
           final normId = normalizeTrackId(t.id);
-          final normName = _normalizeName(t.name);
+          final key = '${_normalizeName(t.name)}|${_normalizeName(t.artists ?? '')}';
           if (seenId.contains(normId)) continue;
-          if (seenName.contains(normName)) continue;
+          if (seenKey.contains(key)) continue;
           seenId.add(normId);
-          seenName.add(normName);
+          seenKey.add(key);
           liked.add(Item(t.name, t.artists ?? '', ItemType.song,
               coverUrl: t.coverUrl, realId: t.id, source: t.source ?? ''));
         }
@@ -94,19 +96,39 @@ List<Item> itemsForTab(LikeState likeState, int tab, List<Item> createdPlaylists
             coverUrl: (i.localCoverPath?.isNotEmpty == true) ? i.localCoverPath! : i.coverUrl,
             realId: i.id, source: i.source ?? ''));
       }
+      if (downloadCubit != null) {
+        for (final entry in downloadCubit.state.downloads.entries) {
+          if (entry.value.state != DownloadState.completed) continue;
+          if (!entry.key.startsWith('playlist_')) continue;
+          final parts = entry.key.split('_');
+          if (parts.length < 3) continue;
+          final src = parts.last;
+          final playlistId = parts.sublist(1, parts.length - 1).join('_');
+          final normId = normalizeTrackId(playlistId);
+          final name = downloadCubit.batchNameFor(entry.key);
+          final normName = _normalizeName(name.isNotEmpty ? name : playlistId);
+          if (seenId.contains(normId) || seenName.contains(normName)) continue;
+          seenId.add(normId);
+          seenName.add(normName);
+          likedPlaylists.add(Item(name.isNotEmpty ? name : playlistId, src, ItemType.playlist,
+              realId: playlistId, source: src));
+        }
+      }
       return [...createdPlaylists, ...likedPlaylists];
     }
     case 2: {
+      // Dedup por ID y por nombre+artista (dos álbumes homónimos de distintos
+      // artistas no deben colisionar).
       final seenId = <String>{};
-      final seenName = <String>{};
+      final seenKey = <String>{};
       final albums = <Item>[];
       for (final i in likeState.allLiked.values.where((i) => i.type == 'album')) {
         final normId = normalizeTrackId(i.id);
-        final normName = _normalizeName(i.name);
+        final key = '${_normalizeName(i.name)}|${_normalizeName(i.artists ?? '')}';
         if (seenId.contains(normId)) continue;
-        if (seenName.contains(normName)) continue;
+        if (seenKey.contains(key)) continue;
         seenId.add(normId);
-        seenName.add(normName);
+        seenKey.add(key);
         albums.add(Item(i.name, i.artists ?? '', ItemType.album,
             coverUrl: (i.localCoverPath?.isNotEmpty == true) ? i.localCoverPath! : i.coverUrl,
             realId: i.id, source: i.source ?? ''));
@@ -121,11 +143,11 @@ List<Item> itemsForTab(LikeState likeState, int tab, List<Item> createdPlaylists
           final albumId = parts.sublist(1, parts.length - 1).join('_');
           final normId = normalizeTrackId(albumId);
           final name = downloadCubit.batchNameFor(entry.key);
-          final normName = _normalizeName(name.isNotEmpty ? name : albumId);
+          final key = '${_normalizeName(name.isNotEmpty ? name : albumId)}|$src';
           if (seenId.contains(normId)) continue;
-          if (seenName.contains(normName)) continue;
+          if (seenKey.contains(key)) continue;
           seenId.add(normId);
-          seenName.add(normName);
+          seenKey.add(key);
           albums.add(Item(name.isNotEmpty ? name : albumId, src, ItemType.album,
               realId: albumId, source: src));
         }

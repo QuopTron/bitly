@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -52,10 +53,28 @@ class _MiEspacioPageState extends State<MiEspacioPage> {
 
   Future<void> _initLoad() async {
     final loc = AppLocalizations.of(context);
+    // Carga defensiva de datos: si Mi Espacio se abre sin pasar por
+    // HomePage.initState (deep link / navegación directa), los cubits quedan
+    // inicializados y restauran likes + descargas desde la BD. Si ya estaban
+    // cargados, estos llamados son no-ops.
+    unawaited(context.read<LikeCubit>().initialize());
+    unawaited(context.read<DownloadCubit>().initialize());
+    unawaited(context.read<PlaylistCubit>().initialize());
     final u = await loadUsername();
     final p = await loadPlaylists(loc);
     await sl<PlaylistCubit>().loadStats();
     if (mounted) setState(() { _username = u; _playlists = p; _loading = false; });
+  }
+
+  void _onTabChanged(int i) {
+    setState(() => _selectedTab = i);
+    // Recargar playlists creadas al volver al tab: si se creó/borró una desde
+    // otra pantalla mientras Mi Espacio estaba cargado, se refleja al volver.
+    if (i == 1) {
+      loadPlaylists(AppLocalizations.of(context)).then((p) {
+        if (mounted) setState(() => _playlists = p);
+      });
+    }
   }
 
   void _onThemeChanged(bool isDark) {
@@ -292,6 +311,13 @@ class _MiEspacioPageState extends State<MiEspacioPage> {
     final hasRetryableBatches = dlState.downloads.entries.any((e) =>
         e.value.state == DownloadState.interrupted &&
         (e.key.startsWith('album_') || e.key.startsWith('playlist_')));
+    // Conteo real de descargas completadas: sin subtareas (_audio/_lyrics/_video)
+    // que inflarían el número del perfil (1 track con letra+video = 3 entradas).
+    final completedCount = dlState.downloads.entries.where((e) =>
+        e.value.state == DownloadState.completed &&
+        !e.key.endsWith('_audio') &&
+        !e.key.endsWith('_lyrics') &&
+        !e.key.endsWith('_video')).length;
 
     return SafeArea(
       child: Column(children: [
@@ -299,7 +325,7 @@ class _MiEspacioPageState extends State<MiEspacioPage> {
         MiEspacioProfile(
           username: _username, lovedSongsCount: tracksCount(likeState, downloadCubit: context.read<DownloadCubit>()),
           playlistsCount: _playlists.length,
-          downloadedCount: dlState.downloads.values.where((d) => d.state == DownloadState.completed).length,
+          downloadedCount: completedCount,
           level: playerStats?.level ?? 0,
           levelProgress: playerStats?.progress ?? 0.0,
           nextLevel: playerStats?.nextLevel ?? 1,
@@ -320,7 +346,7 @@ class _MiEspacioPageState extends State<MiEspacioPage> {
             bgColor: onBg.withValues(alpha: 0.02),
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               MiEspacioTabBar(
-                selectedTab: _selectedTab, onTabChanged: (i) => setState(() => _selectedTab = i),
+                selectedTab: _selectedTab, onTabChanged: _onTabChanged,
                 onBg: onBg, glowColor: glowColor,
               ),
               SizedBox(height: r.spacingS),
@@ -331,6 +357,7 @@ class _MiEspacioPageState extends State<MiEspacioPage> {
                 emptyMessage: emptyMessage(loc, _selectedTab),
                 likedIds: likeState.allLiked.keys.toSet(),
                 downloadStates: dlState.downloads.map((k, v) => MapEntry(k, v.state)),
+                downloadedFingerprints: dlState.downloadedFingerprints,
                 onUnlike: (item) => unlikeItem(item, context, _selectedTab),
                 onLike: _onLike,
                 onItemTap: _onItemTap,
