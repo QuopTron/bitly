@@ -9,10 +9,14 @@ import '../../frontend/shared/models/detail_models.dart';
 import '../cache/detail_cache.dart';
 import '../cache/favorite_cache.dart';
 import '../cache/playback_cache.dart';
+import '../cache/settings_cache.dart';
 import '../database/daos/download_dao.dart';
 import '../database/daos/content_dao.dart';
 import '../database/app_database.dart';
+import 'album_domain_service.dart';
+import 'download_cubit.dart';
 import 'item_fingerprint.dart';
+import 'playlist_domain_service.dart';
 import '../cache/like_state.dart';
 
 mixin LikeActions on Cubit<LikeState> {
@@ -59,6 +63,12 @@ mixin LikeActions on Cubit<LikeState> {
     // de segundos o expirar. Esperarlo aquí retrasaría (o bloquearía) el emit
     // y el usuario vería el corazón sin pintar aunque el like sí se haya dado.
     final newFps = Set<String>.from(state.likedFingerprints)..add(fp);
+    // El ISRC es el identificador que comparten TODAS las extensiones para la
+    // misma grabación: sumarlo al set hace que el corazón de un track likeado
+    // desde Deezer se refleje en el mismo track desde Spotify/Amazon/etc.
+    if (item.type == 'track' && item.isrc != null && item.isrc!.isNotEmpty) {
+      newFps.add(fingerprintIsrc(item.isrc!));
+    }
     final newItems = Map<String, LikedItemData>.from(state.allLiked);
     newItems[item.id] = LikedItemData(
       id: item.id, type: item.type, name: item.name,
@@ -92,6 +102,10 @@ mixin LikeActions on Cubit<LikeState> {
         unawaited(_syncAlbumTracks(item.id, item.source ?? '', item.artists ?? '',
           parentCoverUrl: item.coverUrl,
         ));
+        // Estilo SpotiFLAC: like de álbum → descarga en fila de todo el álbum
+        // con la configuración guardada (el dot de la tarjeta pasa gris →
+        // naranja → verde y el álbum aparece en Mi Espacio).
+        unawaited(_queueAlbumDownload(item));
       case 'artist':
         unawaited(_fav.toggleFavoriteArtist(
           artistId: item.id, name: item.name,
@@ -107,6 +121,8 @@ mixin LikeActions on Cubit<LikeState> {
         unawaited(_syncPlaylistTracks(item.id, item.source ?? '',
           parentCoverUrl: item.coverUrl,
         ));
+        // Like de playlist → descarga en fila (igual que álbum).
+        unawaited(_queuePlaylistDownload(item));
     }
 
     // Guardar la cover es best-effort y NO bloquea el like: corre en segundo
@@ -163,6 +179,59 @@ mixin LikeActions on Cubit<LikeState> {
         liked: true, source: item.source,
       ));
     }
+  }
+
+  /// Like de álbum → descarga en fila de todas sus tracks (estilo SpotiFLAC),
+  /// en silencio y con la configuración de descarga guardada del usuario. El
+  /// progreso aparece en el dot de la tarjeta (gris → naranja → verde) y el
+  /// álbum queda registrado en Mi Espacio vía el batch de descarga.
+  Future<void> _queueAlbumDownload(FeedItem item) async {
+    final src = item.source ?? '';
+    try {
+      final detail = await inj.sl<AlbumDomainService>().getDetail(item.id, source: src);
+      if (detail == null || detail.tracks.isEmpty) return;
+      final settings = await inj.sl<SettingsCache>().getDownloadSettings();
+      final albumCover =
+          (detail.coverUrl?.isNotEmpty == true) ? detail.coverUrl : item.coverUrl;
+      final artistFallback =
+          (detail.artistName?.isNotEmpty == true) ? detail.artistName! : (item.artists ?? '');
+      final tracks = detail.tracks.map((t) => <String, dynamic>{
+            'track_id': t.trackId,
+            'track_title': t.name,
+            'artist_name': (t.artistName?.isNotEmpty == true) ? t.artistName! : artistFallback,
+            'album_name': (t.albumName?.isNotEmpty == true) ? t.albumName! : detail.name,
+            'source': src,
+            'isrc': t.isrc,
+            'duration_ms': t.durationMs,
+            'cover_url': (t.coverUrl?.isNotEmpty == true) ? t.coverUrl! : albumCover,
+          }).toList();
+      inj.sl<DownloadCubit>().startAlbumDownload(
+        item.id, tracks, settings: settings, source: src);
+    } catch (_) {}
+  }
+
+  /// Like de playlist → descarga en fila de todas sus tracks, igual que álbum.
+  Future<void> _queuePlaylistDownload(FeedItem item) async {
+    final src = item.source ?? '';
+    try {
+      final detail = await inj.sl<PlaylistDomainService>().getDetail(item.id, source: src);
+      if (detail == null || detail.tracks.isEmpty) return;
+      final settings = await inj.sl<SettingsCache>().getDownloadSettings();
+      final playlistCover =
+          (detail.coverPath?.isNotEmpty == true) ? detail.coverPath : item.coverUrl;
+      final tracks = detail.tracks.map((t) => <String, dynamic>{
+            'track_id': t.trackId,
+            'track_title': t.name,
+            'artist_name': t.artistName ?? '',
+            'album_name': t.albumName ?? '',
+            'source': src,
+            'isrc': t.isrc,
+            'duration_ms': t.durationMs,
+            'cover_url': (t.coverUrl?.isNotEmpty == true) ? t.coverUrl! : (playlistCover ?? ''),
+          }).toList();
+      inj.sl<DownloadCubit>().startPlaylistDownload(
+        item.id, tracks, settings: settings, source: src);
+    } catch (_) {}
   }
 
   /// Fetches album detail from Go backend and saves all tracks
@@ -252,6 +321,11 @@ mixin LikeActions on Cubit<LikeState> {
     }
 
     final deadFps = <String>{fp};
+    // Quitar también el fingerprint por ISRC para que el corazón se apague en
+    // TODAS las extensiones donde aparezca la misma grabación.
+    if (item.type == 'track' && item.isrc != null && item.isrc!.isNotEmpty) {
+      deadFps.add(fingerprintIsrc(item.isrc!));
+    }
     final existing = _likedItemByFingerprint(item);
     if (existing != null) {
       final efp = _fingerprintForType(existing);
@@ -334,6 +408,8 @@ mixin LikeActions on Cubit<LikeState> {
     if (existing != null) {
       final efp = _fingerprintForType(existing);
       if (efp != null && efp != fp) newFps.remove(efp);
+      final isrc = existing.isrc;
+      if (isrc != null && isrc.isNotEmpty) newFps.remove(fingerprintIsrc(isrc));
     }
     final newItems = Map<String, LikedItemData>.from(state.allLiked)..remove(id);
 

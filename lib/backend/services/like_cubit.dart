@@ -105,6 +105,12 @@ class LikeCubit extends Cubit<LikeState> with LikeActions {
         );
         final fp = fingerprintItem(feedItem);
         fingerprints.add(fp);
+        // El fingerprint por ISRC sobrevive al reinicio: al cargar los tracks
+        // likeados, también se registra su ISRC para que el mismo track visto
+        // desde otra extensión muestre el corazón.
+        if (item.isrc != null && item.isrc!.isNotEmpty) {
+          fingerprints.add(fingerprintIsrc(item.isrc!));
+        }
       }
 
       emit(state.copyWith(
@@ -120,7 +126,15 @@ class LikeCubit extends Cubit<LikeState> with LikeActions {
 
   bool isLiked(FeedItem item) {
     final fp = fingerprintItem(item);
-    return state.likedFingerprints.contains(fp);
+    if (state.likedFingerprints.contains(fp)) return true;
+    // Matching cross-extension: si el item trae ISRC (identificador compartido
+    // entre todas las fuentes), el corazón se refleja aunque el fingerprint por
+    // nombre/artista difiera (otra escritura, feat. distinto, etc.).
+    final isrc = item.isrc;
+    if (isrc != null && isrc.isNotEmpty) {
+      return state.likedFingerprints.contains(fingerprintIsrc(isrc));
+    }
+    return false;
   }
 
   bool isItemIdLiked(String id) => state.allLiked.containsKey(id);

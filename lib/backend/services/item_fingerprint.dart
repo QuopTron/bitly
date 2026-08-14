@@ -68,4 +68,10 @@ String fingerprintFromName(String name, String artists) {
   return 'track:$n|$a';
 }
 
+/// Fingerprint canónico por ISRC (el identificador que comparten TODAS las
+/// extensiones para la misma grabación). Permite que el corazón de un track
+/// likeado desde Deezer se refleje en el mismo track desde Spotify/Amazon/etc,
+/// incluso si el título/artista vienen escritos distinto.
+String fingerprintIsrc(String isrc) => 'isrc:${isrc.trim().toUpperCase()}';
+
 
