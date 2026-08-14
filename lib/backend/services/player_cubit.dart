@@ -3,6 +3,7 @@ export '../cache/player_state.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:ffmpeg_kit_flutter_new_full/ffmpeg_kit.dart';
 import 'package:ffmpeg_kit_flutter_new_full/return_code.dart';
 import 'package:flutter/foundation.dart';
@@ -85,6 +86,15 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
   /// Stream URLs that already failed to decode (normalized trackId → url),
   /// so a re-resolve can avoid handing the same dead URL back to the player.
   final Map<String, String> _brokenUrlByTrack = {};
+
+  /// Per-track count of dead-file re-downloads (normalized trackId → count),
+  /// so a provider that keeps producing undecodable files ends in an error
+  /// state instead of an infinite re-download loop.
+  final Map<String, int> _deadFileRetries = {};
+
+  /// True while a switch to a new non-local track is resolving: the previous
+  /// audio is paused and the UI shows buffering until the new stream is ready.
+  bool _switchPending = false;
 
   /// Last backend/stream resolve error text for the current open attempt, so a
   /// silent "Could not resolve URI" can be surfaced with a useful message.
@@ -174,6 +184,29 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
       _audioQuality = profile.audioQuality;
     }
     _videoEnabled = profile.level != PerfLevel.low;
+  }
+
+  /// Applies download-settings quality choices to live streaming without an app
+  /// restart. Called from the settings sheet (global state) so a quality change
+  /// takes effect on the next resolved stream instead of only after relaunch.
+  void applyDownloadSettings({
+    String? audioQuality,
+    String? videoQuality,
+    bool? videoEnabled,
+    bool? lyricsEnabled,
+  }) {
+    if (audioQuality != null && audioQuality != _audioQuality) {
+      _audioQuality = audioQuality;
+    }
+    if (videoQuality != null && videoQuality != _videoQuality) {
+      _videoQuality = videoQuality;
+    }
+    if (videoEnabled != null) {
+      _videoEnabled = videoEnabled;
+    }
+    if (lyricsEnabled != null) {
+      _lyricsEnabled = lyricsEnabled;
+    }
   }
 
   Future<void> _initDownloadPath() async {
@@ -272,9 +305,14 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
     });
     _playSub = _player.stream.playing.listen((playing) {
       if (!isClosed) {
-        emit(state.copyWith(
-          playbackState: playing ? PlayerPlaybackState.playing : PlayerPlaybackState.paused,
-        ));
+        if (playing) {
+          _switchPending = false;
+          emit(state.copyWith(playbackState: PlayerPlaybackState.playing));
+        } else if (!_switchPending) {
+          emit(state.copyWith(playbackState: PlayerPlaybackState.paused));
+        }
+        // While _switchPending (a new track is resolving), the player being
+        // stopped does NOT downgrade the visible buffering state.
       }
     });
     _errorSub = _player.stream.error.listen((error) {
@@ -298,10 +336,26 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
         }
         // A local file that can't be decoded would otherwise reopen forever.
         // Stop the failing media FIRST (this breaks libmpv's error storm), then
-        // mark the file broken and retry the SAME track via streaming so the
-        // user's tap actually plays instead of erroring out.
+        // delete the dead file, drop its cached resolution and retry the SAME
+        // track so the next resolution re-downloads a fresh copy instead of
+        // reopening the same broken file again. Re-downloads are bounded per
+        // track so a provider that keeps producing undecodable files ends in
+        // an error state instead of an infinite retry loop.
         if (failed != null && deadUri.startsWith('file://')) {
+          final retries = (_deadFileRetries[normalizeTrackId(failed.id)] ?? 0) + 1;
+          _deadFileRetries[normalizeTrackId(failed.id)] = retries;
+          if (retries > 2) {
+            _recovering = true;
+            unawaited(_player.stop());
+            if (!isClosed) {
+              emit(state.copyWith(playbackState: PlayerPlaybackState.error));
+            }
+            return;
+          }
           _recovering = true;
+          _brokenUrlByTrack[normalizeTrackId(failed.id)] = deadUri;
+          _streamUrlCache.remove(normalizeTrackId(failed.id));
+          unawaited(_deleteDeadUriFile(deadUri));
           unawaited(_player.stop());
           unawaited(_openTrack(failed));
           return;
@@ -360,10 +414,20 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
               'para reproducir esta canción.');
         return;
       }
+      // Switch to a non-local track: stop the previous track's audio right now
+      // so the user doesn't keep hearing the old song while the new one
+      // resolves (which can take 20-30s on the download path), and surface a
+      // buffering state so the UI doesn't look stuck on the new track.
+      _switchPending = true;
+      if (!isClosed) {
+        emit(state.copyWith(playbackState: PlayerPlaybackState.buffering));
+      }
+      unawaited(_player.pause());
       uri = await _resolveStreamUrl(track);
     }
 
     if (uri == null) {
+      _switchPending = false;
       final raw = _lastStreamError.trim();
       final rawLower = raw.toLowerCase();
       final needsVerification = _lastStreamErrorType.toLowerCase() == 'verification_required' ||
@@ -418,7 +482,11 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
         'coverUrl=${track.coverUrl} isrc=${track.isrc} uri=$uri');
     _lastOpenedUri = uri;
     _consecutiveErrors = 0;
+    // A track that opened (or at least resolved) cleanly resets its dead-file
+    // retry budget, so a later corrupt download gets fresh retries.
+    _deadFileRetries.remove(normalizeTrackId(track.id));
     _recovering = false;
+    _switchPending = false;
     try {
       await _player.open(Media(uri));
       await _player.play();
@@ -560,6 +628,39 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
     return null;
   }
 
+  /// True when on wifi/ethernet; false on mobile data. On mobile data the
+  /// stream quality is capped to save MB, but wifi keeps the user's full choice.
+  /// Unknown/cached results default to wifi so normal playback isn't degraded
+  /// when the check fails.
+  static int _cacheThen = 0;
+  static bool _lastIsWifi = true;
+  Future<bool> _isWifiNetwork() async {
+    try {
+      if (DateTime.now().millisecondsSinceEpoch - _cacheThen > 30000) {
+        final conns = await Connectivity().checkConnectivity();
+        _lastIsWifi = conns.any((c) =>
+            c == ConnectivityResult.wifi || c == ConnectivityResult.ethernet);
+        _cacheThen = DateTime.now().millisecondsSinceEpoch;
+      }
+      return _lastIsWifi;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  /// Picks the quality sent to the backend for streaming. On mobile data,
+  /// lossless -> 320kbps to keep the stream light; on wifi keep the user's
+  /// chosen quality.
+  Future<String> _effectiveStreamQuality(String requested) async {
+    final isWifi = await _isWifiNetwork();
+    if (isWifi) return requested;
+    final q = requested.toLowerCase();
+    if (q == 'flac' || q == 'hi_res' || q == 'lossless' || q == 'flac_high') {
+      return 'high';
+    }
+return requested;
+  }
+
   Future<void> _preloadLyrics(FeedItem track) async {
     if (!_lyricsEnabled || track.name.isEmpty || (track.artists ?? '').isEmpty) return;
     preloadingLyrics = true;
@@ -606,6 +707,18 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
       await dir.create(recursive: true);
     }
     return dir;
+  }
+
+  /// Deletes a dead local media file (stream-cache/download file that
+  /// media_kit could not decode) so it is never served again and the next
+  /// tap re-downloads a fresh copy.
+  Future<void> _deleteDeadUriFile(String fileUri) async {
+    try {
+      if (!fileUri.startsWith('file://')) return;
+      final path = Uri.parse(fileUri).toFilePath();
+      final file = File(path);
+      if (await file.exists()) await file.delete();
+    } catch (_) {}
   }
 
   /// Deletes a temp stream file by normalized track ID.
@@ -687,7 +800,7 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
       final result = await sl<BackendService>().rpcCall('getStreamPackage', {
         'preferredProvider': track.source ?? '',
         'trackID': track.id,
-        'quality': _audioQuality,
+        'quality': await _effectiveStreamQuality(_audioQuality),
         'fetchLyrics': 'false',
         'trackName': name,
         'artistName': track.artists ?? '',
@@ -1119,13 +1232,14 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
       if (lastTrack.name.isEmpty || lastTrack.artists == null) return;
 
       final backend = sl<BackendService>();
+      // Params planos con las keys que espera Go (trackTitle/artistName/limit).
+      // Antes se enviaban anidados en 'request' con keys snake_case, así que el
+      // backend recibía título/artista vacíos y el autoplay buscaba "" en todos
+      // los providers (se veía en el log como "Searching Apple Music: ").
       final json = await backend.rpcCall('getSimilarTracks', {
-        'request': jsonEncode({
-          'artist_name': lastTrack.artists,
-          'track_name': lastTrack.name,
-          'limit': 10,
-          'exclude_ids': <String>[],
-        }),
+        'trackTitle': lastTrack.name,
+        'artistName': lastTrack.artists,
+        'limit': 10,
       });
       if (json == null || json == '' || json == '[]') return;
 

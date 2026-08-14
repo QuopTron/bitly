@@ -15,14 +15,14 @@ var CONFIG = {
   appVersion: "1.0.9678.0",
   deviceFamily: "WebPlayer",
   deviceModel: "WEBPLAYER",
-  musicTerritory: "US"
+  musicTerritory: "US",
 };
 
 var USER_AGENTS = [
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
-  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
 ];
 
 function getRandomUA() {
@@ -77,7 +77,16 @@ function fetchWithRetry(requestFn) {
   var delay = CONFIG.baseBackoffMs;
   for (var attempt = 0; attempt <= CONFIG.maxRetries; attempt++) {
     if (attempt > 0) {
-      L("info", "[Amazon] Retry " + attempt + "/" + CONFIG.maxRetries + " after " + delay + "ms");
+      L(
+        "info",
+        "[Amazon] Retry " +
+          attempt +
+          "/" +
+          CONFIG.maxRetries +
+          " after " +
+          delay +
+          "ms",
+      );
       sleep(delay);
       delay *= 2;
     }
@@ -89,7 +98,8 @@ function fetchWithRetry(requestFn) {
       lastErr = String(e);
       var lower = lastErr.toLowerCase();
       var is429 = lower.indexOf("429") >= 0;
-      var retryable = lower.indexOf("timeout") >= 0 ||
+      var retryable =
+        lower.indexOf("timeout") >= 0 ||
         lower.indexOf("reset") >= 0 ||
         lower.indexOf("refused") >= 0 ||
         lower.indexOf("eof") >= 0 ||
@@ -119,7 +129,9 @@ function normalizeASIN(candidate) {
   if (!candidate || typeof candidate !== "string") return null;
   var s = candidate.trim();
   if (!s) return null;
-  try { s = decodeURIComponent(s); } catch (e) {}
+  try {
+    s = decodeURIComponent(s);
+  } catch (e) {}
   s = s.toUpperCase();
   var cut = s.search(/[?#&\/]/);
   if (cut >= 0) s = s.substring(0, cut);
@@ -133,7 +145,14 @@ function extractASIN(rawURL) {
   if (!url) return null;
   try {
     var parsed = new URL(url);
-    var paramKeys = ["trackAsin", "trackasin", "trackASIN", "asin", "ASIN", "i"];
+    var paramKeys = [
+      "trackAsin",
+      "trackasin",
+      "trackASIN",
+      "asin",
+      "ASIN",
+      "i",
+    ];
     for (var i = 0; i < paramKeys.length; i++) {
       var val = parsed.searchParams.get(paramKeys[i]);
       if (val) {
@@ -142,6 +161,20 @@ function extractASIN(rawURL) {
       }
     }
     var segments = parsed.pathname.replace(/^\/|\/$/g, "").split("/");
+    // An artist/playlist page is never a downloadable track: the download API
+    // 404s on an artist ASIN. Reject those URLs outright (Songstats sometimes
+    // surfaces the artist's own Amazon page for an ISRC lookup).
+    if (segments.length > 0) {
+      var first = segments[0].toLowerCase();
+      if (
+        first === "artists" ||
+        first === "artist" ||
+        first === "playlists" ||
+        first === "playlist"
+      ) {
+        return null;
+      }
+    }
     for (var j = 0; j < segments.length - 1; j++) {
       var seg = segments[j].toLowerCase();
       if (seg === "track" || seg === "tracks") {
@@ -177,9 +210,16 @@ function parseAmazonMusicURL(rawURL) {
     var id = segments[1];
 
     if (kind === "albums") {
-      var trackAsin = parsed.searchParams.get("trackAsin") || parsed.searchParams.get("trackasin");
+      var trackAsin =
+        parsed.searchParams.get("trackAsin") ||
+        parsed.searchParams.get("trackasin");
       if (trackAsin) {
-        return { type: "track", id: normalizeASIN(trackAsin) || trackAsin, albumId: normalizeASIN(id) || id, context: context };
+        return {
+          type: "track",
+          id: normalizeASIN(trackAsin) || trackAsin,
+          albumId: normalizeASIN(id) || id,
+          context: context,
+        };
       }
       return { type: "album", id: normalizeASIN(id) || id, context: context };
     }
@@ -188,10 +228,19 @@ function parseAmazonMusicURL(rawURL) {
     }
     if (kind === "artists" || kind === "artist") {
       var slug = segments.length > 2 ? segments[2] : "";
-      return { type: "artist", id: normalizeASIN(id) || id, slug: slug, context: context };
+      return {
+        type: "artist",
+        id: normalizeASIN(id) || id,
+        slug: slug,
+        context: context,
+      };
     }
     if (kind === "playlists" || kind === "playlist") {
-      return { type: "playlist", id: normalizeASIN(id) || id, context: context };
+      return {
+        type: "playlist",
+        id: normalizeASIN(id) || id,
+        context: context,
+      };
     }
     return null;
   } catch (e) {
@@ -211,13 +260,13 @@ var _session = {
   displayLanguage: null,
   musicTerritory: null,
   baseURL: null,
-  initialized: false
+  initialized: false,
 };
 
 var _currentContext = {
   musicBaseURL: CONFIG.musicBaseURL,
   host: "music.amazon.com",
-  timeZone: "UTC"
+  timeZone: "UTC",
 };
 
 var _resourceContexts = {};
@@ -236,7 +285,13 @@ function defaultCurrencyForHost(host) {
   host = String(host || "").toLowerCase();
   if (host.indexOf(".co.jp") >= 0) return "JPY";
   if (host.indexOf(".co.uk") >= 0) return "GBP";
-  if (host.indexOf(".de") >= 0 || host.indexOf(".fr") >= 0 || host.indexOf(".it") >= 0 || host.indexOf(".es") >= 0) return "EUR";
+  if (
+    host.indexOf(".de") >= 0 ||
+    host.indexOf(".fr") >= 0 ||
+    host.indexOf(".it") >= 0 ||
+    host.indexOf(".es") >= 0
+  )
+    return "EUR";
   if (host.indexOf(".in") >= 0) return "INR";
   if (host.indexOf(".com.br") >= 0) return "BRL";
   if (host.indexOf(".com.mx") >= 0) return "MXN";
@@ -270,7 +325,7 @@ function createAmazonContext(rawURL) {
     musicBaseURL: base,
     host: host,
     timeZone: guessTimeZone(),
-    currency: defaultCurrencyForHost(host)
+    currency: defaultCurrencyForHost(host),
   };
 }
 
@@ -284,7 +339,7 @@ function rememberResourceContext(type, id, context) {
     musicBaseURL: context.musicBaseURL,
     host: context.host,
     timeZone: context.timeZone,
-    currency: context.currency
+    currency: context.currency,
   };
 }
 
@@ -294,7 +349,11 @@ function rememberResourceHint(type, id, hint) {
   if (!_resourceHints[key]) _resourceHints[key] = {};
   var keys = Object.keys(hint);
   for (var i = 0; i < keys.length; i++) {
-    if (hint[keys[i]] !== undefined && hint[keys[i]] !== null && hint[keys[i]] !== "") {
+    if (
+      hint[keys[i]] !== undefined &&
+      hint[keys[i]] !== null &&
+      hint[keys[i]] !== ""
+    ) {
       _resourceHints[key][keys[i]] = hint[keys[i]];
     }
   }
@@ -316,7 +375,9 @@ function slugToName(slug) {
   if (!slug) return "";
   var cleaned = String(slug).replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim();
   if (!cleaned) return "";
-  return cleaned.replace(/\b\w/g, function(ch) { return ch.toUpperCase(); });
+  return cleaned.replace(/\b\w/g, function (ch) {
+    return ch.toUpperCase();
+  });
 }
 
 function looksLikeURL(value) {
@@ -333,7 +394,8 @@ function sanitizeDisplayText(value) {
 }
 
 function initSession(context) {
-  var ctx = context || _currentContext || createAmazonContext(CONFIG.musicBaseURL);
+  var ctx =
+    context || _currentContext || createAmazonContext(CONFIG.musicBaseURL);
   if (_session.initialized && _session.baseURL === ctx.musicBaseURL) return;
   _currentContext = ctx;
 
@@ -345,10 +407,14 @@ function initSession(context) {
       method: "GET",
       headers: {
         "User-Agent": getRandomUA(),
-        "Accept": "application/json"
-      }
+        Accept: "application/json",
+      },
     });
-    L("info", "[Amazon] initSession config.json status:", res ? res.status : "null");
+    L(
+      "info",
+      "[Amazon] initSession config.json status:",
+      res ? res.status : "null",
+    );
 
     if (res && res.ok) {
       var config = res.json();
@@ -357,13 +423,16 @@ function initSession(context) {
         _session.sessionId = config.sessionId || "";
         _session.appVersion = config.version || CONFIG.appVersion;
         _session.displayLanguage = config.displayLanguage || "en_US";
-        _session.musicTerritory = config.musicTerritory || CONFIG.musicTerritory;
+        _session.musicTerritory =
+          config.musicTerritory || CONFIG.musicTerritory;
         _session.baseURL = ctx.musicBaseURL;
 
         if (config.csrf) {
           _session.csrfToken = config.csrf.token || "";
-          _session.csrfTs = config.csrf.ts || String(Math.floor(Date.now() / 1000));
-          _session.csrfRnd = config.csrf.rnd || String(Math.floor(Math.random() * 2000000000));
+          _session.csrfTs =
+            config.csrf.ts || String(Math.floor(Date.now() / 1000));
+          _session.csrfRnd =
+            config.csrf.rnd || String(Math.floor(Math.random() * 2000000000));
         }
 
         _session.initialized = true;
@@ -378,8 +447,11 @@ function initSession(context) {
   // Fallback: generate random session (may get 429)
   L("warn", "[Amazon] Using fallback random session");
   _session.deviceId = String(Math.floor(Math.random() * 99999999999999999));
-  _session.sessionId = Math.floor(Math.random() * 999) + "-" +
-    Math.floor(Math.random() * 9999999) + "-" +
+  _session.sessionId =
+    Math.floor(Math.random() * 999) +
+    "-" +
+    Math.floor(Math.random() * 9999999) +
+    "-" +
     Math.floor(Math.random() * 9999999);
   _session.csrfToken = "";
   _session.csrfTs = String(Math.floor(Date.now() / 1000));
@@ -398,16 +470,20 @@ function refreshSession() {
 }
 
 function buildHeaders(context, pageUrl) {
-  var ctx = context || _currentContext || createAmazonContext(pageUrl || CONFIG.musicBaseURL);
+  var ctx =
+    context ||
+    _currentContext ||
+    createAmazonContext(pageUrl || CONFIG.musicBaseURL);
   var csrf = JSON.stringify({
-    "interface": "CSRFInterface.v1_0.CSRFHeaderElement",
-    "token": _session.csrfToken || "",
-    "timestamp": _session.csrfTs || String(Math.floor(Date.now() / 1000)),
-    "rndNonce": _session.csrfRnd || String(Math.floor(Math.random() * 2000000000))
+    interface: "CSRFInterface.v1_0.CSRFHeaderElement",
+    token: _session.csrfToken || "",
+    timestamp: _session.csrfTs || String(Math.floor(Date.now() / 1000)),
+    rndNonce:
+      _session.csrfRnd || String(Math.floor(Math.random() * 2000000000)),
   });
   var auth = JSON.stringify({
-    "interface": "ClientAuthenticationInterface.v1_0.ClientTokenElement",
-    "accessToken": ""
+    interface: "ClientAuthenticationInterface.v1_0.ClientTokenElement",
+    accessToken: "",
   });
   return JSON.stringify({
     "x-amzn-authentication": auth,
@@ -418,9 +494,11 @@ function buildHeaders(context, pageUrl) {
     "x-amzn-user-agent": getRandomUA(),
     "x-amzn-session-id": _session.sessionId,
     "x-amzn-device-height": "1080",
-    "x-amzn-request-id": Math.random().toString(36).substring(2) + "-" + Date.now(),
+    "x-amzn-request-id":
+      Math.random().toString(36).substring(2) + "-" + Date.now(),
     "x-amzn-device-language": _session.displayLanguage || "en_US",
-    "x-amzn-currency-of-preference": ctx.currency || defaultCurrencyForHost(ctx.host),
+    "x-amzn-currency-of-preference":
+      ctx.currency || defaultCurrencyForHost(ctx.host),
     "x-amzn-os-version": "1.0",
     "x-amzn-application-version": _session.appVersion || CONFIG.appVersion,
     "x-amzn-device-time-zone": ctx.timeZone || "UTC",
@@ -435,14 +513,17 @@ function buildHeaders(context, pageUrl) {
     "x-amzn-video-player-token": "",
     "x-amzn-feature-flags": "",
     "x-amzn-has-profile-id": "",
-    "x-amzn-age-band": ""
+    "x-amzn-age-band": "",
   });
 }
 
 // ==================== Amazon Music API Calls ====================
 
 function _doShowHome(apiBaseURL, deeplink, pageUrl, body, context) {
-  var ctx = context || _currentContext || createAmazonContext(pageUrl || CONFIG.musicBaseURL);
+  var ctx =
+    context ||
+    _currentContext ||
+    createAmazonContext(pageUrl || CONFIG.musicBaseURL);
   var res;
   try {
     L("info", "[Amazon] showHome fetching:", apiBaseURL + "/showHome");
@@ -451,10 +532,10 @@ function _doShowHome(apiBaseURL, deeplink, pageUrl, body, context) {
       headers: {
         "Content-Type": "text/plain;charset=UTF-8",
         "User-Agent": getRandomUA(),
-        "Origin": ctx.musicBaseURL,
-        "Referer": pageUrl
+        Origin: ctx.musicBaseURL,
+        Referer: pageUrl,
       },
-      body: body
+      body: body,
     });
   } catch (e) {
     L("error", "[Amazon] showHome fetch exception:", String(e));
@@ -466,7 +547,11 @@ function _doShowHome(apiBaseURL, deeplink, pageUrl, body, context) {
     // Get raw text first (free - Go already has it), then parse JSON
     var rawText = res.text();
     var parsed = JSON.parse(rawText);
-    L("info", "[Amazon] showHome OK, methods:", parsed && parsed.methods ? parsed.methods.length : 0);
+    L(
+      "info",
+      "[Amazon] showHome OK, methods:",
+      parsed && parsed.methods ? parsed.methods.length : 0,
+    );
     return { data: parsed, rawText: rawText };
   } catch (e) {
     L("error", "[Amazon] showHome JSON parse failed:", String(e));
@@ -475,7 +560,10 @@ function _doShowHome(apiBaseURL, deeplink, pageUrl, body, context) {
 }
 
 function callShowHome(deeplink, context, _retried) {
-  var ctx = context || _currentContext || createAmazonContext(CONFIG.musicBaseURL + deeplink);
+  var ctx =
+    context ||
+    _currentContext ||
+    createAmazonContext(CONFIG.musicBaseURL + deeplink);
   _currentContext = ctx;
   initSession(ctx);
   var pageUrl = ctx.musicBaseURL + deeplink;
@@ -483,10 +571,10 @@ function callShowHome(deeplink, context, _retried) {
 
   var body = JSON.stringify({
     deeplink: JSON.stringify({
-      "interface": "DeeplinkInterface.v1_0.DeeplinkClientInformation",
-      "deeplink": deeplink
+      interface: "DeeplinkInterface.v1_0.DeeplinkClientInformation",
+      deeplink: deeplink,
     }),
-    headers: buildHeaders(ctx, pageUrl)
+    headers: buildHeaders(ctx, pageUrl),
   });
 
   var result = _doShowHome(CONFIG.skillBaseURL, deeplink, pageUrl, body, ctx);
@@ -505,19 +593,26 @@ function callShowHome(deeplink, context, _retried) {
 }
 
 function _doShowHomeBrowse(apiBaseURL, pageUrl, body, context) {
-  var ctx = context || _currentContext || createAmazonContext(pageUrl || CONFIG.musicBaseURL);
+  var ctx =
+    context ||
+    _currentContext ||
+    createAmazonContext(pageUrl || CONFIG.musicBaseURL);
   var res;
   try {
-    L("info", "[Amazon] showHomeBrowse fetching:", apiBaseURL + "/showHomeBrowse");
+    L(
+      "info",
+      "[Amazon] showHomeBrowse fetching:",
+      apiBaseURL + "/showHomeBrowse",
+    );
     res = fetch(apiBaseURL + "/showHomeBrowse", {
       method: "POST",
       headers: {
         "Content-Type": "text/plain;charset=UTF-8",
         "User-Agent": getRandomUA(),
-        "Origin": ctx.musicBaseURL,
-        "Referer": pageUrl
+        Origin: ctx.musicBaseURL,
+        Referer: pageUrl,
       },
-      body: body
+      body: body,
     });
   } catch (e) {
     L("error", "[Amazon] showHomeBrowse fetch exception:", String(e));
@@ -528,7 +623,11 @@ function _doShowHomeBrowse(apiBaseURL, pageUrl, body, context) {
   try {
     var rawText = res.text();
     var parsed = JSON.parse(rawText);
-    L("info", "[Amazon] showHomeBrowse OK, methods:", parsed && parsed.methods ? parsed.methods.length : 0);
+    L(
+      "info",
+      "[Amazon] showHomeBrowse OK, methods:",
+      parsed && parsed.methods ? parsed.methods.length : 0,
+    );
     return { data: parsed, rawText: rawText };
   } catch (e) {
     L("error", "[Amazon] showHomeBrowse JSON parse failed:", String(e));
@@ -537,15 +636,20 @@ function _doShowHomeBrowse(apiBaseURL, pageUrl, body, context) {
 }
 
 function callShowHomeBrowse(context, nextToken, _retried) {
-  var ctx = context || _currentContext || createAmazonContext(CONFIG.musicBaseURL);
+  var ctx =
+    context || _currentContext || createAmazonContext(CONFIG.musicBaseURL);
   _currentContext = ctx;
   initSession(ctx);
   var pageUrl = ctx.musicBaseURL + "/";
-  L("info", "[Amazon] callShowHomeBrowse, nextToken:", nextToken ? "yes" : "initial");
+  L(
+    "info",
+    "[Amazon] callShowHomeBrowse, nextToken:",
+    nextToken ? "yes" : "initial",
+  );
 
   var bodyObj = {
     userHash: JSON.stringify({ level: "LIBRARY_MEMBER" }),
-    headers: buildHeaders(ctx, pageUrl)
+    headers: buildHeaders(ctx, pageUrl),
   };
 
   if (nextToken) {
@@ -558,8 +662,15 @@ function callShowHomeBrowse(context, nextToken, _retried) {
   var result = _doShowHomeBrowse(CONFIG.skillBaseURL, pageUrl, body, ctx);
   if (!result) {
     // Fallback to web endpoint
-    var webApiUrl = CONFIG.skillBaseURL.replace("na.mesk.skill", "na.web.skill");
-    L("info", "[Amazon] showHomeBrowse: mesk failed, trying web endpoint:", webApiUrl);
+    var webApiUrl = CONFIG.skillBaseURL.replace(
+      "na.mesk.skill",
+      "na.web.skill",
+    );
+    L(
+      "info",
+      "[Amazon] showHomeBrowse: mesk failed, trying web endpoint:",
+      webApiUrl,
+    );
     result = _doShowHomeBrowse(webApiUrl, pageUrl, body, ctx);
   }
 
@@ -567,7 +678,10 @@ function callShowHomeBrowse(context, nextToken, _retried) {
 
   // If failed, refresh session and retry once
   if (!_retried) {
-    L("info", "[Amazon] showHomeBrowse failed, refreshing session and retrying...");
+    L(
+      "info",
+      "[Amazon] showHomeBrowse failed, refreshing session and retrying...",
+    );
     refreshSession();
     sleep(CONFIG.baseBackoffMs);
     return callShowHomeBrowse(ctx, nextToken, true);
@@ -578,7 +692,8 @@ function callShowHomeBrowse(context, nextToken, _retried) {
 }
 
 function callShowCatalogArtist(artistId, slug, context, _retried) {
-  var ctx = context || _currentContext || createAmazonContext(CONFIG.musicBaseURL);
+  var ctx =
+    context || _currentContext || createAmazonContext(CONFIG.musicBaseURL);
   _currentContext = ctx;
   initSession(ctx);
   // pageUrl uses only /artists/{id} (no slug) for showCatalogArtist
@@ -587,11 +702,13 @@ function callShowCatalogArtist(artistId, slug, context, _retried) {
 
   var body = JSON.stringify({
     id: artistId,
-    userHash: JSON.stringify({ "level": "LIBRARY_MEMBER" }),
-    headers: buildHeaders(ctx, pageUrl)
+    userHash: JSON.stringify({ level: "LIBRARY_MEMBER" }),
+    headers: buildHeaders(ctx, pageUrl),
   });
 
-  var apiUrl = CONFIG.skillBaseURL.replace(/\/api$/, "") + "/api/explore/v1/showCatalogArtist";
+  var apiUrl =
+    CONFIG.skillBaseURL.replace(/\/api$/, "") +
+    "/api/explore/v1/showCatalogArtist";
   var res;
   try {
     L("info", "[Amazon] showCatalogArtist fetching:", apiUrl);
@@ -600,10 +717,10 @@ function callShowCatalogArtist(artistId, slug, context, _retried) {
       headers: {
         "Content-Type": "text/plain;charset=UTF-8",
         "User-Agent": getRandomUA(),
-        "Origin": ctx.musicBaseURL,
-        "Referer": ctx.musicBaseURL + "/"
+        Origin: ctx.musicBaseURL,
+        Referer: ctx.musicBaseURL + "/",
       },
-      body: body
+      body: body,
     });
   } catch (e) {
     L("error", "[Amazon] showCatalogArtist fetch exception:", String(e));
@@ -612,7 +729,10 @@ function callShowCatalogArtist(artistId, slug, context, _retried) {
   L("info", "[Amazon] showCatalogArtist response:", res ? res.status : "null");
   if (!res || !res.ok) {
     if (!_retried) {
-      L("info", "[Amazon] showCatalogArtist failed, refreshing session and retrying...");
+      L(
+        "info",
+        "[Amazon] showCatalogArtist failed, refreshing session and retrying...",
+      );
       refreshSession();
       sleep(CONFIG.baseBackoffMs);
       return callShowCatalogArtist(artistId, slug, ctx, true);
@@ -622,7 +742,11 @@ function callShowCatalogArtist(artistId, slug, context, _retried) {
   try {
     var rawText = res.text();
     var parsed = JSON.parse(rawText);
-    L("info", "[Amazon] showCatalogArtist OK, methods:", parsed && parsed.methods ? parsed.methods.length : 0);
+    L(
+      "info",
+      "[Amazon] showCatalogArtist OK, methods:",
+      parsed && parsed.methods ? parsed.methods.length : 0,
+    );
     return { data: parsed, rawText: rawText };
   } catch (e) {
     L("error", "[Amazon] showCatalogArtist JSON parse failed:", String(e));
@@ -631,7 +755,8 @@ function callShowCatalogArtist(artistId, slug, context, _retried) {
 }
 
 function callDisplayCatalogTrack(trackId, context, _retried) {
-  var ctx = context || _currentContext || createAmazonContext(CONFIG.musicBaseURL);
+  var ctx =
+    context || _currentContext || createAmazonContext(CONFIG.musicBaseURL);
   _currentContext = ctx;
   initSession(ctx);
   var pageUrl = ctx.musicBaseURL + "/tracks/" + trackId;
@@ -639,11 +764,13 @@ function callDisplayCatalogTrack(trackId, context, _retried) {
 
   var body = JSON.stringify({
     id: trackId,
-    userHash: JSON.stringify({ "level": "LIBRARY_MEMBER" }),
-    headers: buildHeaders(ctx, pageUrl)
+    userHash: JSON.stringify({ level: "LIBRARY_MEMBER" }),
+    headers: buildHeaders(ctx, pageUrl),
   });
 
-  var apiUrl = CONFIG.skillBaseURL.replace(/\/api$/, "") + "/api/cosmicTrack/displayCatalogTrack";
+  var apiUrl =
+    CONFIG.skillBaseURL.replace(/\/api$/, "") +
+    "/api/cosmicTrack/displayCatalogTrack";
   var res;
   try {
     res = fetch(apiUrl, {
@@ -651,16 +778,20 @@ function callDisplayCatalogTrack(trackId, context, _retried) {
       headers: {
         "Content-Type": "text/plain;charset=UTF-8",
         "User-Agent": getRandomUA(),
-        "Origin": ctx.musicBaseURL,
-        "Referer": ctx.musicBaseURL + "/"
+        Origin: ctx.musicBaseURL,
+        Referer: ctx.musicBaseURL + "/",
       },
-      body: body
+      body: body,
     });
   } catch (e) {
     L("error", "[Amazon] displayCatalogTrack fetch exception:", String(e));
     return null;
   }
-  L("info", "[Amazon] displayCatalogTrack response:", res ? res.status : "null");
+  L(
+    "info",
+    "[Amazon] displayCatalogTrack response:",
+    res ? res.status : "null",
+  );
   if (!res || !res.ok) {
     if (!_retried) {
       refreshSession();
@@ -672,7 +803,11 @@ function callDisplayCatalogTrack(trackId, context, _retried) {
   try {
     var rawText = res.text();
     var parsed = JSON.parse(rawText);
-    L("info", "[Amazon] displayCatalogTrack OK, methods:", parsed && parsed.methods ? parsed.methods.length : 0);
+    L(
+      "info",
+      "[Amazon] displayCatalogTrack OK, methods:",
+      parsed && parsed.methods ? parsed.methods.length : 0,
+    );
     return { data: parsed, rawText: rawText };
   } catch (e) {
     L("error", "[Amazon] displayCatalogTrack JSON parse failed:", String(e));
@@ -681,7 +816,10 @@ function callDisplayCatalogTrack(trackId, context, _retried) {
 }
 
 function _doShowSearch(apiBaseURL, keyword, pageUrl, body, context) {
-  var ctx = context || _currentContext || createAmazonContext(pageUrl || CONFIG.musicBaseURL);
+  var ctx =
+    context ||
+    _currentContext ||
+    createAmazonContext(pageUrl || CONFIG.musicBaseURL);
   var res;
   try {
     L("info", "[Amazon] showSearch fetching:", apiBaseURL + "/showSearch");
@@ -690,10 +828,10 @@ function _doShowSearch(apiBaseURL, keyword, pageUrl, body, context) {
       headers: {
         "Content-Type": "text/plain;charset=UTF-8",
         "User-Agent": getRandomUA(),
-        "Origin": ctx.musicBaseURL,
-        "Referer": pageUrl
+        Origin: ctx.musicBaseURL,
+        Referer: pageUrl,
       },
-      body: body
+      body: body,
     });
   } catch (e) {
     L("error", "[Amazon] showSearch fetch exception:", String(e));
@@ -710,21 +848,23 @@ function _doShowSearch(apiBaseURL, keyword, pageUrl, body, context) {
 }
 
 function callShowSearch(keyword, context, _retried) {
-  var ctx = context || _currentContext || createAmazonContext(CONFIG.musicBaseURL);
+  var ctx =
+    context || _currentContext || createAmazonContext(CONFIG.musicBaseURL);
   _currentContext = ctx;
   initSession(ctx);
   var pageUrl = ctx.musicBaseURL + "/search/" + encodeURIComponent(keyword);
   L("info", "[Amazon] callShowSearch:", keyword);
 
   var body = JSON.stringify({
-    filter: JSON.stringify({ "IsLibrary": ["false"] }),
+    filter: JSON.stringify({ IsLibrary: ["false"] }),
     keyword: JSON.stringify({
-      "interface": "Web.TemplatesInterface.v1_0.Touch.SearchTemplateInterface.SearchKeywordClientInformation",
-      "keyword": keyword
+      interface:
+        "Web.TemplatesInterface.v1_0.Touch.SearchTemplateInterface.SearchKeywordClientInformation",
+      keyword: keyword,
     }),
     suggestedKeyword: keyword,
-    userHash: JSON.stringify({ "level": "LIBRARY_MEMBER" }),
-    headers: buildHeaders(ctx, pageUrl)
+    userHash: JSON.stringify({ level: "LIBRARY_MEMBER" }),
+    headers: buildHeaders(ctx, pageUrl),
   });
 
   var result = _doShowSearch(CONFIG.skillBaseURL, keyword, pageUrl, body, ctx);
@@ -744,7 +884,11 @@ function callShowSearch(keyword, context, _retried) {
 // ==================== Response Parsing Helpers ====================
 
 function deepStringify(obj) {
-  try { return JSON.stringify(obj); } catch (e) { return ""; }
+  try {
+    return JSON.stringify(obj);
+  } catch (e) {
+    return "";
+  }
 }
 
 function collectInterfaces(obj, results, depth) {
@@ -795,7 +939,8 @@ function findWidgetsWithItems(obj, results, depth) {
 
   // Look for objects that have both a "header" (or "headerText") and an "items" array
   if (Array.isArray(obj.items) && obj.items.length > 0) {
-    var hasHeader = obj.header || obj.headerText || obj.title || obj.sectionTitle;
+    var hasHeader =
+      obj.header || obj.headerText || obj.title || obj.sectionTitle;
     if (hasHeader) {
       results.push(obj);
       return results; // Don't recurse into children of this widget
@@ -867,7 +1012,10 @@ function textValue(value) {
 function extractAmazonDeeplinkInfo(deeplink) {
   if (!deeplink) return null;
   try {
-    var parsed = new URL(deeplink, (_currentContext && _currentContext.musicBaseURL) || CONFIG.musicBaseURL);
+    var parsed = new URL(
+      deeplink,
+      (_currentContext && _currentContext.musicBaseURL) || CONFIG.musicBaseURL,
+    );
     var pathname = parsed.pathname.replace(/^\/|\/$/g, "");
     var segments = pathname ? pathname.split("/") : [];
     if (!segments.length) return null;
@@ -876,13 +1024,15 @@ function extractAmazonDeeplinkInfo(deeplink) {
     if (kind === "albums" && parsed.searchParams.get("trackAsin")) {
       return {
         type: "track",
-        id: normalizeASIN(parsed.searchParams.get("trackAsin")) || parsed.searchParams.get("trackAsin"),
-        albumId: normalizeASIN(rawID) || rawID
+        id:
+          normalizeASIN(parsed.searchParams.get("trackAsin")) ||
+          parsed.searchParams.get("trackAsin"),
+        albumId: normalizeASIN(rawID) || rawID,
       };
     }
     return {
       type: kind,
-      id: normalizeASIN(rawID) || rawID
+      id: normalizeASIN(rawID) || rawID,
     };
   } catch (e) {
     return null;
@@ -938,7 +1088,11 @@ function parseDurationMMSS(mmss) {
     return parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
   }
   if (parts.length === 3) {
-    return parseInt(parts[0], 10) * 3600 + parseInt(parts[1], 10) * 60 + parseInt(parts[2], 10);
+    return (
+      parseInt(parts[0], 10) * 3600 +
+      parseInt(parts[1], 10) * 60 +
+      parseInt(parts[2], 10)
+    );
   }
   return 0;
 }
@@ -958,7 +1112,7 @@ function _extractSchemaAtPosition(responseStr, idx) {
   var content = "";
   var pos = quoteStart + 1;
   while (pos < responseStr.length) {
-    if (responseStr[pos] === '"' && responseStr[pos - 1] !== '\\') break;
+    if (responseStr[pos] === '"' && responseStr[pos - 1] !== "\\") break;
     content += responseStr[pos];
     pos++;
   }
@@ -1001,8 +1155,12 @@ function extractSchemaOrg(responseStr, schemaType) {
 // ==================== Track Row Parser ====================
 
 function parseDescriptiveRows(data) {
-  var rows = findAllByInterface(data,
-    "Web.TemplatesInterface.v1_0.Touch.WidgetsInterface.DescriptiveRowItemElement", [], 0);
+  var rows = findAllByInterface(
+    data,
+    "Web.TemplatesInterface.v1_0.Touch.WidgetsInterface.DescriptiveRowItemElement",
+    [],
+    0,
+  );
   var tracks = [];
 
   for (var i = 0; i < rows.length; i++) {
@@ -1052,7 +1210,7 @@ function parseDescriptiveRows(data) {
         deeplink: deeplink,
         track_number: i + 1,
         album_id: albumId,
-        explicit: amazonItemIsExplicit(row)
+        explicit: amazonItemIsExplicit(row),
       });
     }
   }
@@ -1061,8 +1219,12 @@ function parseDescriptiveRows(data) {
 
 // Parse VisualRowItemElement tracks (used by playlists)
 function parseVisualRows(data) {
-  var rows = findAllByInterface(data,
-    "Web.TemplatesInterface.v1_0.Touch.WidgetsInterface.VisualRowItemElement", [], 0);
+  var rows = findAllByInterface(
+    data,
+    "Web.TemplatesInterface.v1_0.Touch.WidgetsInterface.VisualRowItemElement",
+    [],
+    0,
+  );
   var tracks = [];
 
   for (var i = 0; i < rows.length; i++) {
@@ -1113,7 +1275,7 @@ function parseVisualRows(data) {
         deeplink: deeplink,
         track_number: i + 1,
         album_id: albumId,
-        explicit: amazonItemIsExplicit(row)
+        explicit: amazonItemIsExplicit(row),
       });
     }
   }
@@ -1132,7 +1294,7 @@ function parseAlbumFromResponse(data, responseStr, albumId) {
     year: "",
     track_count: 0,
     tracks: [],
-    type: "album"
+    type: "album",
   };
 
   // Try schema.org first for clean metadata
@@ -1165,7 +1327,11 @@ function parseAlbumFromResponse(data, responseStr, albumId) {
       // Check for headerLabel using findFirst
       var headerLabel = findFirst(method, "headerLabel", 0);
       if (headerLabel !== undefined) {
-        if (headerLabel === "Album" || headerLabel === "Single" || headerLabel === "EP") {
+        if (
+          headerLabel === "Album" ||
+          headerLabel === "Single" ||
+          headerLabel === "EP"
+        ) {
           result.type = headerLabel.toLowerCase();
         }
 
@@ -1185,13 +1351,17 @@ function parseAlbumFromResponse(data, responseStr, albumId) {
         if (!result.title) {
           var seoTitle = findFirst(method, "title", 0);
           if (seoTitle && typeof seoTitle === "string") {
-            var playMatch = seoTitle.match(/^Play\s+(.+?)\s+by\s+(.+?)\s+on\s+/);
+            var playMatch = seoTitle.match(
+              /^Play\s+(.+?)\s+by\s+(.+?)\s+on\s+/,
+            );
             if (playMatch) {
               result.title = playMatch[1];
               if (!result.artist) result.artist = playMatch[2];
             } else {
               // Try other patterns: "Album Name - Artist on Amazon Music"
-              var dashMatch = seoTitle.match(/^(.+?)\s*[-–]\s*(.+?)\s+on\s+Amazon/);
+              var dashMatch = seoTitle.match(
+                /^(.+?)\s*[-–]\s*(.+?)\s+on\s+Amazon/,
+              );
               if (dashMatch) {
                 result.title = dashMatch[1].trim();
                 if (!result.artist) result.artist = dashMatch[2].trim();
@@ -1210,10 +1380,17 @@ function parseAlbumFromResponse(data, responseStr, albumId) {
           result.artist = hptArtist;
         }
         if (!result.artist_id) {
-          var headerPrimaryTextLink = findFirst(method, "headerPrimaryTextLink", 0);
+          var headerPrimaryTextLink = findFirst(
+            method,
+            "headerPrimaryTextLink",
+            0,
+          );
           if (headerPrimaryTextLink && headerPrimaryTextLink.deeplink) {
-            var artistMatch = headerPrimaryTextLink.deeplink.match(/\/artists\/([^\/]+)/);
-            if (artistMatch) result.artist_id = normalizeASIN(artistMatch[1]) || artistMatch[1];
+            var artistMatch =
+              headerPrimaryTextLink.deeplink.match(/\/artists\/([^\/]+)/);
+            if (artistMatch)
+              result.artist_id =
+                normalizeASIN(artistMatch[1]) || artistMatch[1];
           }
         }
         if (!result.artist) {
@@ -1222,7 +1399,11 @@ function parseAlbumFromResponse(data, responseStr, albumId) {
         }
 
         var bgImage = findFirst(method, "backgroundImage", 0);
-        if (bgImage && typeof bgImage === "string" && bgImage.indexOf("images/I/") >= 0) {
+        if (
+          bgImage &&
+          typeof bgImage === "string" &&
+          bgImage.indexOf("images/I/") >= 0
+        ) {
           result.cover_art = ensureHighResCoverUrl(bgImage);
         }
       }
@@ -1271,7 +1452,7 @@ function parseTrackFromResponse(data, responseStr, trackId) {
     duration: 0,
     duration_ms: 0,
     track_number: 0,
-    type: "track"
+    type: "track",
   };
 
   if (responseStr) {
@@ -1326,7 +1507,11 @@ function parseTrackFromResponse(data, responseStr, trackId) {
         }
 
         var bgImage = findFirst(method, "backgroundImage", 0);
-        if (bgImage && typeof bgImage === "string" && bgImage.indexOf("images/I/") >= 0) {
+        if (
+          bgImage &&
+          typeof bgImage === "string" &&
+          bgImage.indexOf("images/I/") >= 0
+        ) {
           result.cover_art = ensureHighResCoverUrl(bgImage);
         }
       }
@@ -1348,7 +1533,8 @@ function parseTrackFromResponse(data, responseStr, trackId) {
           result.duration_ms = allTracks[j].duration_ms;
         }
         result.track_number = allTracks[j].track_number;
-        if (!result.album_id && allTracks[j].album_id) result.album_id = allTracks[j].album_id;
+        if (!result.album_id && allTracks[j].album_id)
+          result.album_id = allTracks[j].album_id;
         matched = true;
         break;
       }
@@ -1357,14 +1543,18 @@ function parseTrackFromResponse(data, responseStr, trackId) {
     if (!matched && result.title && allTracks.length > 0) {
       var titleLower = result.title.toLowerCase();
       for (var k = 0; k < allTracks.length; k++) {
-        if (allTracks[k].title && allTracks[k].title.toLowerCase() === titleLower) {
+        if (
+          allTracks[k].title &&
+          allTracks[k].title.toLowerCase() === titleLower
+        ) {
           if (allTracks[k].artist) result.artist = allTracks[k].artist;
           if (!result.duration && allTracks[k].duration) {
             result.duration = allTracks[k].duration;
             result.duration_ms = allTracks[k].duration_ms;
           }
           result.track_number = allTracks[k].track_number;
-          if (!result.album_id && allTracks[k].album_id) result.album_id = allTracks[k].album_id;
+          if (!result.album_id && allTracks[k].album_id)
+            result.album_id = allTracks[k].album_id;
           break;
         }
       }
@@ -1416,7 +1606,7 @@ function parseArtistCollectionItem(item, fallbackArtistName) {
     artist: fallbackArtistName || "",
     release_date: releaseDate,
     type: albumType,
-    album_type: albumType
+    album_type: albumType,
   };
 }
 
@@ -1436,7 +1626,7 @@ function parseArtistFromResponse(data, responseStr, artistId) {
     albums: [],
     releases: [],
     top_tracks: [],
-    type: "artist"
+    type: "artist",
   };
 
   if (responseStr) {
@@ -1456,7 +1646,10 @@ function parseArtistFromResponse(data, responseStr, artistId) {
       if (tmpl) {
         if (tmpl.headerText) {
           var directName = textValue(tmpl.headerText);
-          if (directName) { result.name = directName; break; }
+          if (directName) {
+            result.name = directName;
+            break;
+          }
         }
       }
     }
@@ -1464,7 +1657,13 @@ function parseArtistFromResponse(data, responseStr, artistId) {
   if (data && data.methods) {
     for (var mi2 = 0; mi2 < data.methods.length; mi2++) {
       var tmpl2 = data.methods[mi2] && data.methods[mi2].template;
-      if (tmpl2 && !result.image && tmpl2.backgroundImage && typeof tmpl2.backgroundImage === "string" && tmpl2.backgroundImage.indexOf("images/I/") >= 0) {
+      if (
+        tmpl2 &&
+        !result.image &&
+        tmpl2.backgroundImage &&
+        typeof tmpl2.backgroundImage === "string" &&
+        tmpl2.backgroundImage.indexOf("images/I/") >= 0
+      ) {
         result.image = ensureHighResCoverUrl(tmpl2.backgroundImage);
         break;
       }
@@ -1493,7 +1692,9 @@ function parseArtistFromResponse(data, responseStr, artistId) {
           var seoTitle = findFirst(method, "title", 0);
           if (seoTitle && typeof seoTitle === "string") {
             // "Listen to Artist on Amazon Music"
-            var listenMatch = seoTitle.match(/^(?:Listen to|Play)\s+(.+?)\s+on\s+/);
+            var listenMatch = seoTitle.match(
+              /^(?:Listen to|Play)\s+(.+?)\s+on\s+/,
+            );
             if (listenMatch) {
               result.name = listenMatch[1];
             } else if (seoTitle.indexOf("Amazon") === -1) {
@@ -1502,7 +1703,11 @@ function parseArtistFromResponse(data, responseStr, artistId) {
           }
         }
         var bgImage = findFirst(method, "backgroundImage", 0);
-        if (bgImage && typeof bgImage === "string" && bgImage.indexOf("images/I/") >= 0) {
+        if (
+          bgImage &&
+          typeof bgImage === "string" &&
+          bgImage.indexOf("images/I/") >= 0
+        ) {
           if (!result.image) result.image = ensureHighResCoverUrl(bgImage);
         }
       }
@@ -1510,31 +1715,58 @@ function parseArtistFromResponse(data, responseStr, artistId) {
   }
 
   if (data) {
-    var shovelers = findAllByInterface(data,
-      "Web.TemplatesInterface.v1_0.Touch.WidgetsInterface.VisualShovelerWidgetElement", [], 0);
-    var featuredShovelers = findAllByInterface(data,
-      "Web.TemplatesInterface.v1_0.Touch.WidgetsInterface.FeaturedShovelerWidgetElement", [], 0);
-    var descriptiveShowcases = findAllByInterface(data,
-      "Web.TemplatesInterface.v1_0.Touch.WidgetsInterface.DescriptiveShowcaseWidgetElement", [], 0);
-    for (var fs = 0; fs < featuredShovelers.length; fs++) shovelers.push(featuredShovelers[fs]);
-    for (var ds = 0; ds < descriptiveShowcases.length; ds++) shovelers.push(descriptiveShowcases[ds]);
+    var shovelers = findAllByInterface(
+      data,
+      "Web.TemplatesInterface.v1_0.Touch.WidgetsInterface.VisualShovelerWidgetElement",
+      [],
+      0,
+    );
+    var featuredShovelers = findAllByInterface(
+      data,
+      "Web.TemplatesInterface.v1_0.Touch.WidgetsInterface.FeaturedShovelerWidgetElement",
+      [],
+      0,
+    );
+    var descriptiveShowcases = findAllByInterface(
+      data,
+      "Web.TemplatesInterface.v1_0.Touch.WidgetsInterface.DescriptiveShowcaseWidgetElement",
+      [],
+      0,
+    );
+    for (var fs = 0; fs < featuredShovelers.length; fs++)
+      shovelers.push(featuredShovelers[fs]);
+    for (var ds = 0; ds < descriptiveShowcases.length; ds++)
+      shovelers.push(descriptiveShowcases[ds]);
 
     for (var s = 0; s < shovelers.length; s++) {
       var shoveler = shovelers[s];
       if (!shoveler.items) continue;
-      var headerStr = typeof shoveler.header === "string" ? shoveler.header : "";
-      var isReleaseSection = headerStr === "Releases" || headerStr === "Latest Releases";
-      var isAlbumSection = headerStr === "Albums" || headerStr === "Top Albums" || headerStr === "Popular Albums";
+      var headerStr =
+        typeof shoveler.header === "string" ? shoveler.header : "";
+      var isReleaseSection =
+        headerStr === "Releases" || headerStr === "Latest Releases";
+      var isAlbumSection =
+        headerStr === "Albums" ||
+        headerStr === "Top Albums" ||
+        headerStr === "Popular Albums";
       if (!isReleaseSection && !isAlbumSection) {
         // Fallback: stringify the whole shoveler to find section identifiers
         var shovelerStr = deepStringify(shoveler);
-        isReleaseSection = shovelerStr.indexOf('"Releases"') >= 0 || shovelerStr.indexOf('"Latest Releases"') >= 0;
-        isAlbumSection = shovelerStr.indexOf('"Albums"') >= 0 || shovelerStr.indexOf('"Top Albums"') >= 0 || shovelerStr.indexOf('"Popular Albums"') >= 0;
+        isReleaseSection =
+          shovelerStr.indexOf('"Releases"') >= 0 ||
+          shovelerStr.indexOf('"Latest Releases"') >= 0;
+        isAlbumSection =
+          shovelerStr.indexOf('"Albums"') >= 0 ||
+          shovelerStr.indexOf('"Top Albums"') >= 0 ||
+          shovelerStr.indexOf('"Popular Albums"') >= 0;
       }
       if (!isReleaseSection && !isAlbumSection) continue;
 
       for (var i = 0; i < shoveler.items.length; i++) {
-        var parsedCollection = parseArtistCollectionItem(shoveler.items[i], result.name);
+        var parsedCollection = parseArtistCollectionItem(
+          shoveler.items[i],
+          result.name,
+        );
         if (!parsedCollection) continue;
         if (isReleaseSection) {
           pushUniqueArtistCollection(result.releases, parsedCollection);
@@ -1545,8 +1777,12 @@ function parseArtistFromResponse(data, responseStr, artistId) {
     }
 
     if (!result.albums.length) {
-      var squares = findAllByInterface(data,
-        "Web.TemplatesInterface.v1_0.Touch.WidgetsInterface.SquareVerticalItemElement", [], 0);
+      var squares = findAllByInterface(
+        data,
+        "Web.TemplatesInterface.v1_0.Touch.WidgetsInterface.SquareVerticalItemElement",
+        [],
+        0,
+      );
       for (var k = 0; k < squares.length; k++) {
         var parsedAlbum = parseArtistCollectionItem(squares[k], result.name);
         if (parsedAlbum) {
@@ -1560,8 +1796,12 @@ function parseArtistFromResponse(data, responseStr, artistId) {
     // If no tracks from DescriptiveRowItems, try SquareHorizontalItems inside
     // DescriptiveShovelerWidgets (showCatalogArtist uses this for "Top Songs")
     if (!result.top_tracks.length) {
-      var descriptiveShovelers = findAllByInterface(data,
-        "Web.TemplatesInterface.v1_0.Touch.WidgetsInterface.DescriptiveShovelerWidgetElement", [], 0);
+      var descriptiveShovelers = findAllByInterface(
+        data,
+        "Web.TemplatesInterface.v1_0.Touch.WidgetsInterface.DescriptiveShovelerWidgetElement",
+        [],
+        0,
+      );
       for (var dsi = 0; dsi < descriptiveShovelers.length; dsi++) {
         var dWidget = descriptiveShovelers[dsi];
         if (!dWidget.items || !dWidget.header) continue;
@@ -1575,14 +1815,21 @@ function parseArtistFromResponse(data, responseStr, artistId) {
           var trackDeeplink = "";
           if (trackItem.primaryLink && trackItem.primaryLink.deeplink) {
             trackDeeplink = trackItem.primaryLink.deeplink;
-          } else if (trackItem.primaryTextLink && trackItem.primaryTextLink.deeplink) {
+          } else if (
+            trackItem.primaryTextLink &&
+            trackItem.primaryTextLink.deeplink
+          ) {
             trackDeeplink = trackItem.primaryTextLink.deeplink;
           }
-          if (!trackDeeplink || trackDeeplink.indexOf("trackAsin") < 0) continue;
+          if (!trackDeeplink || trackDeeplink.indexOf("trackAsin") < 0)
+            continue;
           var trackInfo = extractAmazonDeeplinkInfo(trackDeeplink);
           if (!trackInfo || !trackInfo.id) continue;
-          var trackArtist = textValue(trackItem.secondaryText) || result.name || "";
-          var trackImage = trackItem.image ? ensureHighResCoverUrl(trackItem.image) : "";
+          var trackArtist =
+            textValue(trackItem.secondaryText) || result.name || "";
+          var trackImage = trackItem.image
+            ? ensureHighResCoverUrl(trackItem.image)
+            : "";
           result.top_tracks.push({
             id: trackInfo.id,
             title: trackName,
@@ -1592,7 +1839,7 @@ function parseArtistFromResponse(data, responseStr, artistId) {
             cover_art: trackImage,
             deeplink: trackDeeplink,
             track_number: di + 1,
-            album_id: trackInfo.albumId || ""
+            album_id: trackInfo.albumId || "",
           });
         }
         break;
@@ -1619,7 +1866,7 @@ function parsePlaylistFromResponse(data, responseStr, playlistId) {
     owner: "",
     track_count: 0,
     tracks: [],
-    type: "playlist"
+    type: "playlist",
   };
 
   if (data && data.methods) {
@@ -1642,7 +1889,9 @@ function parsePlaylistFromResponse(data, responseStr, playlistId) {
         if (!result.title) {
           var seoTitle = findFirst(method, "title", 0);
           if (seoTitle && typeof seoTitle === "string") {
-            var playMatch = seoTitle.match(/^(?:Play\s+)?(.+?)(?:\s+on\s+Amazon Music)/);
+            var playMatch = seoTitle.match(
+              /^(?:Play\s+)?(.+?)(?:\s+on\s+Amazon Music)/,
+            );
             if (playMatch) {
               result.title = playMatch[1];
             } else if (seoTitle.indexOf("Amazon") === -1) {
@@ -1652,7 +1901,11 @@ function parsePlaylistFromResponse(data, responseStr, playlistId) {
         }
 
         var bgImage = findFirst(method, "backgroundImage", 0);
-        if (bgImage && typeof bgImage === "string" && bgImage.indexOf("images/I/") >= 0) {
+        if (
+          bgImage &&
+          typeof bgImage === "string" &&
+          bgImage.indexOf("images/I/") >= 0
+        ) {
           result.cover_art = ensureHighResCoverUrl(bgImage);
         }
 
@@ -1670,8 +1923,19 @@ function parsePlaylistFromResponse(data, responseStr, playlistId) {
     var ifaceNames = Object.keys(ifaces);
     var ifaceSummary = [];
     for (var k = 0; k < ifaceNames.length; k++) {
-      if (ifaceNames[k].indexOf("ItemElement") >= 0 || ifaceNames[k].indexOf("RowItem") >= 0 || ifaceNames[k].indexOf("Widget") >= 0) {
-        ifaceSummary.push(ifaceNames[k].replace("Web.TemplatesInterface.v1_0.Touch.WidgetsInterface.", "") + ":" + ifaces[ifaceNames[k]]);
+      if (
+        ifaceNames[k].indexOf("ItemElement") >= 0 ||
+        ifaceNames[k].indexOf("RowItem") >= 0 ||
+        ifaceNames[k].indexOf("Widget") >= 0
+      ) {
+        ifaceSummary.push(
+          ifaceNames[k].replace(
+            "Web.TemplatesInterface.v1_0.Touch.WidgetsInterface.",
+            "",
+          ) +
+            ":" +
+            ifaces[ifaceNames[k]],
+        );
       }
     }
     L("info", "[Amazon] Playlist interfaces: " + ifaceSummary.join(", "));
@@ -1696,7 +1960,10 @@ function parsePlaylistFromResponse(data, responseStr, playlistId) {
 }
 
 function findTrackSearchFallback(trackId, context) {
-  var results = customSearchSync(trackId, { filter: "songs", context: context });
+  var results = customSearchSync(trackId, {
+    filter: "songs",
+    context: context,
+  });
   for (var i = 0; i < results.length; i++) {
     var item = results[i];
     if (item && item.item_type === "track" && item.id === trackId) {
@@ -1710,7 +1977,10 @@ function buildArtistFromSearch(artistId, query, context) {
   if (!query) return null;
   var results = customSearchSync(query, { context: context });
   if (!results || !results.length) return null;
-  var songResults = customSearchSync(query, { filter: "songs", context: context });
+  var songResults = customSearchSync(query, {
+    filter: "songs",
+    context: context,
+  });
   if (!songResults) songResults = [];
 
   var artistName = "";
@@ -1734,17 +2004,25 @@ function buildArtistFromSearch(artistId, query, context) {
   for (var j = 0; j < results.length; j++) {
     var candidate = results[j];
     if (!candidate) continue;
-    if (candidate.item_type === "album" && candidate.artists && candidate.artists.toLowerCase() === artistName.toLowerCase()) {
+    if (
+      candidate.item_type === "album" &&
+      candidate.artists &&
+      candidate.artists.toLowerCase() === artistName.toLowerCase()
+    ) {
       albums.push({
         id: candidate.id,
         title: candidate.name || "",
         cover_art: candidate.cover_url || "",
         artist: artistName,
-        type: "album"
+        type: "album",
       });
       rememberResourceContext("album", candidate.id, context);
     }
-    if (candidate.item_type === "track" && candidate.artists && candidate.artists.toLowerCase().indexOf(artistName.toLowerCase()) >= 0) {
+    if (
+      candidate.item_type === "track" &&
+      candidate.artists &&
+      candidate.artists.toLowerCase().indexOf(artistName.toLowerCase()) >= 0
+    ) {
       topTracks.push({
         id: candidate.id,
         title: candidate.name || "",
@@ -1752,7 +2030,7 @@ function buildArtistFromSearch(artistId, query, context) {
         artist_id: artistId,
         duration_ms: candidate.duration_ms || 0,
         cover_art: candidate.cover_url || "",
-        album_id: candidate.album_id || ""
+        album_id: candidate.album_id || "",
       });
       rememberResourceContext("track", candidate.id, context);
     }
@@ -1761,7 +2039,11 @@ function buildArtistFromSearch(artistId, query, context) {
   for (var s = 0; s < songResults.length; s++) {
     var song = songResults[s];
     if (!song || song.item_type !== "track") continue;
-    if (!song.artists || song.artists.toLowerCase().indexOf(artistName.toLowerCase()) < 0) continue;
+    if (
+      !song.artists ||
+      song.artists.toLowerCase().indexOf(artistName.toLowerCase()) < 0
+    )
+      continue;
 
     var duplicate = false;
     for (var existing = 0; existing < topTracks.length; existing++) {
@@ -1779,12 +2061,15 @@ function buildArtistFromSearch(artistId, query, context) {
       artist_id: artistId,
       duration_ms: song.duration_ms || 0,
       cover_art: song.cover_url || "",
-      album_id: song.album_id || ""
+      album_id: song.album_id || "",
     });
     rememberResourceContext("track", song.id, context);
   }
 
-  rememberResourceHint("artist", artistId, { name: artistName, image: artistImage });
+  rememberResourceHint("artist", artistId, {
+    name: artistName,
+    image: artistImage,
+  });
 
   return {
     id: artistId,
@@ -1793,21 +2078,34 @@ function buildArtistFromSearch(artistId, query, context) {
     albums: albums,
     releases: [],
     top_tracks: topTracks,
-    type: "artist"
+    type: "artist",
   };
 }
 
 function mergeArtistFallbackData(artist, fallbackArtist) {
   if (!fallbackArtist) return artist;
   if (!artist.name && fallbackArtist.name) artist.name = fallbackArtist.name;
-  if (!artist.image && fallbackArtist.image) artist.image = fallbackArtist.image;
-  if ((!artist.albums || !artist.albums.length) && fallbackArtist.albums && fallbackArtist.albums.length) {
+  if (!artist.image && fallbackArtist.image)
+    artist.image = fallbackArtist.image;
+  if (
+    (!artist.albums || !artist.albums.length) &&
+    fallbackArtist.albums &&
+    fallbackArtist.albums.length
+  ) {
     artist.albums = fallbackArtist.albums;
   }
-  if ((!artist.releases || !artist.releases.length) && fallbackArtist.releases && fallbackArtist.releases.length) {
+  if (
+    (!artist.releases || !artist.releases.length) &&
+    fallbackArtist.releases &&
+    fallbackArtist.releases.length
+  ) {
     artist.releases = fallbackArtist.releases;
   }
-  if ((!artist.top_tracks || !artist.top_tracks.length) && fallbackArtist.top_tracks && fallbackArtist.top_tracks.length) {
+  if (
+    (!artist.top_tracks || !artist.top_tracks.length) &&
+    fallbackArtist.top_tracks &&
+    fallbackArtist.top_tracks.length
+  ) {
     artist.top_tracks = fallbackArtist.top_tracks;
   }
   return artist;
@@ -1830,8 +2128,12 @@ function handleUrl(url) {
   if (parsed.context) {
     _currentContext = parsed.context;
     rememberResourceContext(parsed.type, parsed.id, parsed.context);
-    if (parsed.albumId) rememberResourceContext("album", parsed.albumId, parsed.context);
-    if (parsed.slug) rememberResourceHint("artist", parsed.id, { name: slugToName(parsed.slug) });
+    if (parsed.albumId)
+      rememberResourceContext("album", parsed.albumId, parsed.context);
+    if (parsed.slug)
+      rememberResourceHint("artist", parsed.id, {
+        name: slugToName(parsed.slug),
+      });
   }
 
   if (parsed.type === "track") {
@@ -1853,7 +2155,13 @@ function handleUrl(url) {
 function handleTrackUrl(parsed) {
   var trackId = parsed.id;
   var albumId = parsed.albumId || null;
-  var context = parsed.context || getResourceContext("track", trackId, albumId ? getResourceContext("album", albumId, null) : null);
+  var context =
+    parsed.context ||
+    getResourceContext(
+      "track",
+      trackId,
+      albumId ? getResourceContext("album", albumId, null) : null,
+    );
 
   L("info", "[Amazon] handleTrackUrl:", trackId, "albumId:", albumId);
 
@@ -1880,7 +2188,10 @@ function handleTrackUrl(parsed) {
   // Fallback: try album page if we have an albumId
   if ((!trackInfo || !trackInfo.title) && albumId) {
     L("info", "[Amazon] handleTrackUrl trying album:", albumId);
-    var albumResult = callShowHome("/albums/" + albumId + "?trackAsin=" + trackId, context);
+    var albumResult = callShowHome(
+      "/albums/" + albumId + "?trackAsin=" + trackId,
+      context,
+    );
     if (albumResult) {
       result = albumResult;
       trackInfo = parseTrackFromResponse(result.data, result.rawText, trackId);
@@ -1892,36 +2203,63 @@ function handleTrackUrl(parsed) {
   var searchFallbackInfo = null;
   if (!trackInfo || !trackInfo.title) {
     searchFallbackInfo = findTrackSearchFallback(trackId, context);
-    if (searchFallbackInfo && searchFallbackInfo.album_id && searchFallbackInfo.album_id !== albumId) {
+    if (
+      searchFallbackInfo &&
+      searchFallbackInfo.album_id &&
+      searchFallbackInfo.album_id !== albumId
+    ) {
       albumId = searchFallbackInfo.album_id;
       rememberResourceContext("album", albumId, context);
-      var albumResult2 = callShowHome("/albums/" + albumId + "?trackAsin=" + trackId, context);
+      var albumResult2 = callShowHome(
+        "/albums/" + albumId + "?trackAsin=" + trackId,
+        context,
+      );
       if (albumResult2) {
         result = albumResult2;
-        trackInfo = parseTrackFromResponse(result.data, result.rawText, trackId);
+        trackInfo = parseTrackFromResponse(
+          result.data,
+          result.rawText,
+          trackId,
+        );
         if (looksLikeURL(trackInfo.title)) trackInfo.title = "";
       }
     }
     if ((!trackInfo || !trackInfo.title) && searchFallbackInfo) {
-      if (!trackInfo) trackInfo = { id: trackId, title: "", artist: "", album: "", album_id: "", cover_art: "", duration_ms: 0, track_number: 0 };
+      if (!trackInfo)
+        trackInfo = {
+          id: trackId,
+          title: "",
+          artist: "",
+          album: "",
+          album_id: "",
+          cover_art: "",
+          duration_ms: 0,
+          track_number: 0,
+        };
       trackInfo.title = searchFallbackInfo.name || "";
       trackInfo.artist = searchFallbackInfo.artists || "";
       trackInfo.album_id = searchFallbackInfo.album_id || trackInfo.album_id;
       trackInfo.duration_ms = searchFallbackInfo.duration_ms || 0;
-      trackInfo.cover_art = ensureHighResCoverUrl(searchFallbackInfo.cover_url || "");
+      trackInfo.cover_art = ensureHighResCoverUrl(
+        searchFallbackInfo.cover_url || "",
+      );
     }
   }
 
   if (!trackInfo) {
-    L("warn", "[Amazon] handleTrackUrl no data, returning minimal track:", trackId);
+    L(
+      "warn",
+      "[Amazon] handleTrackUrl no data, returning minimal track:",
+      trackId,
+    );
     return {
       type: "track",
       track: {
         id: trackId,
         name: "Amazon Track " + trackId,
         artists: "",
-        duration_ms: 0
-      }
+        duration_ms: 0,
+      },
     };
   }
 
@@ -1929,7 +2267,8 @@ function handleTrackUrl(parsed) {
     trackInfo.album_id = albumId;
   }
   rememberResourceContext("track", trackId, context);
-  if (trackInfo.album_id) rememberResourceContext("album", trackInfo.album_id, context);
+  if (trackInfo.album_id)
+    rememberResourceContext("album", trackInfo.album_id, context);
   L("info", "[Amazon] handleTrackUrl parsed:", trackInfo.title);
   return {
     type: "track",
@@ -1941,8 +2280,8 @@ function handleTrackUrl(parsed) {
       duration_ms: trackInfo.duration_ms || 0,
       cover_url: ensureHighResCoverUrl(trackInfo.cover_art || ""),
       track_number: trackInfo.track_number || 0,
-      isrc: ""
-    }
+      isrc: "",
+    },
   };
 }
 
@@ -1960,9 +2299,19 @@ function handleAlbumUrl(albumId) {
 
   var album = parseAlbumFromResponse(result.data, result.rawText, albumId);
   rememberResourceContext("album", albumId, context);
-  if (album.artist_id) rememberResourceContext("artist", album.artist_id, context);
-  if (album.artist) rememberResourceHint("artist", album.artist_id || album.artist, { name: album.artist });
-  L("info", "[Amazon] handleAlbumUrl parsed:", album.title, "tracks:", album.tracks.length);
+  if (album.artist_id)
+    rememberResourceContext("artist", album.artist_id, context);
+  if (album.artist)
+    rememberResourceHint("artist", album.artist_id || album.artist, {
+      name: album.artist,
+    });
+  L(
+    "info",
+    "[Amazon] handleAlbumUrl parsed:",
+    album.title,
+    "tracks:",
+    album.tracks.length,
+  );
 
   var tracks = [];
   for (var i = 0; i < album.tracks.length; i++) {
@@ -1975,10 +2324,10 @@ function handleAlbumUrl(albumId) {
       album_artist: album.artist || "",
       duration_ms: t.duration_ms || 0,
       cover_url: ensureHighResCoverUrl(t.cover_art || album.cover_art || ""),
-      track_number: t.track_number || (i + 1),
+      track_number: t.track_number || i + 1,
       disc_number: 1,
       isrc: "",
-      explicit: !!t.explicit
+      explicit: !!t.explicit,
     });
   }
 
@@ -1993,11 +2342,11 @@ function handleAlbumUrl(albumId) {
       release_date: album.year || "",
       total_tracks: tracks.length,
       album_type: album.type || "album",
-      tracks: tracks
+      tracks: tracks,
     },
     tracks: tracks,
     name: album.title || "",
-    cover_url: ensureHighResCoverUrl(album.cover_art || "")
+    cover_url: ensureHighResCoverUrl(album.cover_art || ""),
   };
 }
 
@@ -2012,14 +2361,21 @@ function handleArtistUrl(artistId) {
   // Try showCatalogArtist first (returns separate Releases + Top Albums sections)
   var result = callShowCatalogArtist(artistId, slug, context);
   if (!result) {
-    L("info", "[Amazon] handleArtistUrl showCatalogArtist failed, falling back to showHome");
+    L(
+      "info",
+      "[Amazon] handleArtistUrl showCatalogArtist failed, falling back to showHome",
+    );
     result = callShowHome(deeplink, context);
   }
 
   if (!result) {
     var fallbackArtist = buildArtistFromSearch(artistId, hintedName, context);
     if (fallbackArtist) {
-      L("info", "[Amazon] handleArtistUrl search fallback parsed:", fallbackArtist.name);
+      L(
+        "info",
+        "[Amazon] handleArtistUrl search fallback parsed:",
+        fallbackArtist.name,
+      );
       return {
         type: "artist",
         artist: {
@@ -2029,8 +2385,8 @@ function handleArtistUrl(artistId) {
           header_image: fallbackArtist.image || "",
           albums: fallbackArtist.albums || [],
           releases: fallbackArtist.releases || [],
-          top_tracks: fallbackArtist.top_tracks || []
-        }
+          top_tracks: fallbackArtist.top_tracks || [],
+        },
       };
     }
     L("error", "[Amazon] handleArtistUrl failed to fetch artist:", artistId);
@@ -2043,68 +2399,86 @@ function handleArtistUrl(artistId) {
         header_image: "",
         albums: [],
         releases: [],
-        top_tracks: []
-      }
+        top_tracks: [],
+      },
     };
   }
 
   var artist = parseArtistFromResponse(result.data, result.rawText, artistId);
   if (!artist.name && hintedName) artist.name = hintedName;
-  if (hintedName && (!artist.name || !artist.albums.length || !artist.top_tracks.length)) {
-    var parsedFallbackArtist = buildArtistFromSearch(artistId, hintedName, context);
+  if (
+    hintedName &&
+    (!artist.name || !artist.albums.length || !artist.top_tracks.length)
+  ) {
+    var parsedFallbackArtist = buildArtistFromSearch(
+      artistId,
+      hintedName,
+      context,
+    );
     artist = mergeArtistFallbackData(artist, parsedFallbackArtist);
   }
   rememberResourceContext("artist", artistId, context);
-  rememberResourceHint("artist", artistId, { name: artist.name, image: artist.image });
-  L("info", "[Amazon] handleArtistUrl parsed:", artist.name, "albums:", artist.albums.length, "tracks:", artist.top_tracks.length);
+  rememberResourceHint("artist", artistId, {
+    name: artist.name,
+    image: artist.image,
+  });
+  L(
+    "info",
+    "[Amazon] handleArtistUrl parsed:",
+    artist.name,
+    "albums:",
+    artist.albums.length,
+    "tracks:",
+    artist.top_tracks.length,
+  );
 
   var albums = [];
   for (var i = 0; i < artist.albums.length; i++) {
-      var a = artist.albums[i];
-      albums.push({
-        id: a.id,
-        name: a.name || a.title || "",
-        artists: a.artists || a.artist || artist.name || "",
-        cover_url: a.cover_url || a.cover_art || "",
-        album_type: a.album_type || a.type || "album",
-        total_tracks: a.total_tracks || 0,
-        release_date: a.release_date || "",
-        provider_id: "amazon"
-      });
-    }
+    var a = artist.albums[i];
+    albums.push({
+      id: a.id,
+      name: a.name || a.title || "",
+      artists: a.artists || a.artist || artist.name || "",
+      cover_url: a.cover_url || a.cover_art || "",
+      album_type: a.album_type || a.type || "album",
+      total_tracks: a.total_tracks || 0,
+      release_date: a.release_date || "",
+      provider_id: "amazon",
+    });
+  }
 
   var releases = [];
   for (var r = 0; r < artist.releases.length; r++) {
-      var rel = artist.releases[r];
-      releases.push({
-        id: rel.id,
-        name: rel.name || rel.title || "",
-        artists: rel.artists || rel.artist || artist.name || "",
-        cover_url: rel.cover_url || rel.cover_art || "",
-        album_type: rel.album_type || rel.type || "album",
-        total_tracks: rel.total_tracks || 0,
-        release_date: rel.release_date || "",
-        provider_id: "amazon"
-      });
-    }
+    var rel = artist.releases[r];
+    releases.push({
+      id: rel.id,
+      name: rel.name || rel.title || "",
+      artists: rel.artists || rel.artist || artist.name || "",
+      cover_url: rel.cover_url || rel.cover_art || "",
+      album_type: rel.album_type || rel.type || "album",
+      total_tracks: rel.total_tracks || 0,
+      release_date: rel.release_date || "",
+      provider_id: "amazon",
+    });
+  }
 
   var topTracks = [];
   for (var j = 0; j < artist.top_tracks.length; j++) {
-      var t = artist.top_tracks[j];
-      topTracks.push({
-        id: t.id,
-        name: t.name || t.title || "",
-        artists: t.artists || t.artist || artist.name || "",
-        album_name: t.album_name || "",
-        album_id: t.album_id || "",
-        duration_ms: t.duration_ms || 0,
-        cover_url: t.cover_url || t.cover_art || "",
-        track_number: 0,
-        isrc: "",
-        artist_id: t.artist_id || artist.id || artistId,
-        provider_id: "amazon"
-      });
-    }
+    var t = artist.top_tracks[j];
+    topTracks.push({
+      id: t.id,
+      name: t.name || t.title || "",
+      artists: t.artists || t.artist || artist.name || "",
+      album_name: t.album_name || "",
+      album_id: t.album_id || "",
+      duration_ms: t.duration_ms || 0,
+      cover_url: t.cover_url || t.cover_art || "",
+      track_number: 0,
+      isrc: "",
+      artist_id: t.artist_id || artist.id || artistId,
+      provider_id: "amazon",
+    });
+  }
 
   return {
     type: "artist",
@@ -2115,8 +2489,8 @@ function handleArtistUrl(artistId) {
       header_image: artist.image || "",
       albums: albums,
       releases: releases,
-      top_tracks: topTracks
-    }
+      top_tracks: topTracks,
+    },
   };
 }
 
@@ -2128,16 +2502,35 @@ function handlePlaylistUrl(playlistId) {
   var result = callShowHome(deeplink, context);
 
   if (!result) {
-    L("error", "[Amazon] handlePlaylistUrl failed to fetch playlist:", playlistId);
+    L(
+      "error",
+      "[Amazon] handlePlaylistUrl failed to fetch playlist:",
+      playlistId,
+    );
     return null;
   }
 
-  var playlist = parsePlaylistFromResponse(result.data, result.rawText, playlistId);
-  if (!playlist.title) playlist.title = getResourceHint("playlist", playlistId, "name");
-  if (!playlist.cover_art) playlist.cover_art = getResourceHint("playlist", playlistId, "cover_art");
+  var playlist = parsePlaylistFromResponse(
+    result.data,
+    result.rawText,
+    playlistId,
+  );
+  if (!playlist.title)
+    playlist.title = getResourceHint("playlist", playlistId, "name");
+  if (!playlist.cover_art)
+    playlist.cover_art = getResourceHint("playlist", playlistId, "cover_art");
   rememberResourceContext("playlist", playlistId, context);
-  rememberResourceHint("playlist", playlistId, { name: playlist.title, cover_art: playlist.cover_art });
-  L("info", "[Amazon] handlePlaylistUrl parsed:", playlist.title, "tracks:", playlist.tracks.length);
+  rememberResourceHint("playlist", playlistId, {
+    name: playlist.title,
+    cover_art: playlist.cover_art,
+  });
+  L(
+    "info",
+    "[Amazon] handlePlaylistUrl parsed:",
+    playlist.title,
+    "tracks:",
+    playlist.tracks.length,
+  );
 
   var tracks = [];
   for (var i = 0; i < playlist.tracks.length; i++) {
@@ -2151,7 +2544,7 @@ function handlePlaylistUrl(playlistId) {
       cover_url: t.cover_art || playlist.cover_art || "",
       track_number: i + 1,
       isrc: "",
-      explicit: !!t.explicit
+      explicit: !!t.explicit,
     });
   }
 
@@ -2159,7 +2552,7 @@ function handlePlaylistUrl(playlistId) {
     type: "playlist",
     tracks: tracks,
     name: playlist.title || "",
-    cover_url: playlist.cover_art || ""
+    cover_url: playlist.cover_art || "",
   };
 }
 
@@ -2174,7 +2567,7 @@ function getAlbum(albumId) {
 
   var context = getResourceContext("album", albumId, null);
   var deeplink = "/albums/" + albumId;
-  var result = fetchWithRetry(function() {
+  var result = fetchWithRetry(function () {
     return callShowHome(deeplink, context);
   });
 
@@ -2197,10 +2590,10 @@ function getAlbum(albumId) {
       album_artist: album.artist || "",
       duration_ms: t.duration_ms || 0,
       cover_url: t.cover_art || album.cover_art || "",
-      track_number: t.track_number || (i + 1),
+      track_number: t.track_number || i + 1,
       disc_number: 1,
       isrc: "",
-      explicit: !!t.explicit
+      explicit: !!t.explicit,
     });
   }
 
@@ -2214,10 +2607,16 @@ function getAlbum(albumId) {
     release_date: album.year || "",
     total_tracks: tracks.length,
     album_type: album.type || "album",
-    tracks: tracks
+    tracks: tracks,
   };
 
-  L("info", "[Amazon] Album parsed:", result.name, "tracks:", result.total_tracks);
+  L(
+    "info",
+    "[Amazon] Album parsed:",
+    result.name,
+    "tracks:",
+    result.total_tracks,
+  );
   cacheSet(cacheKey, result);
   return result;
 }
@@ -2238,12 +2637,15 @@ function getArtist(artistId) {
   if (slug) deeplink += "/" + slug;
 
   // Try showCatalogArtist first (returns separate Releases + Top Albums sections)
-  var result = fetchWithRetry(function() {
+  var result = fetchWithRetry(function () {
     return callShowCatalogArtist(artistId, slug, context);
   });
   if (!result) {
-    L("info", "[Amazon] getArtist showCatalogArtist failed, falling back to showHome");
-    result = fetchWithRetry(function() {
+    L(
+      "info",
+      "[Amazon] getArtist showCatalogArtist failed, falling back to showHome",
+    );
+    result = fetchWithRetry(function () {
       return callShowHome(deeplink, context);
     });
   }
@@ -2262,7 +2664,7 @@ function getArtist(artistId) {
       header_image: fallbackArtist.image || "",
       albums: fallbackArtist.albums || [],
       releases: fallbackArtist.releases || [],
-      top_tracks: fallbackArtist.top_tracks || []
+      top_tracks: fallbackArtist.top_tracks || [],
     };
     cacheSet(cacheKey, fallbackResult);
     return fallbackResult;
@@ -2270,60 +2672,70 @@ function getArtist(artistId) {
 
   var artist = parseArtistFromResponse(result.data, result.rawText, artistId);
   if (!artist.name && hintedName) artist.name = hintedName;
-  if (hintedName && (!artist.name || !artist.albums.length || !artist.top_tracks.length)) {
-    var parsedFallbackArtist = buildArtistFromSearch(artistId, hintedName, context);
+  if (
+    hintedName &&
+    (!artist.name || !artist.albums.length || !artist.top_tracks.length)
+  ) {
+    var parsedFallbackArtist = buildArtistFromSearch(
+      artistId,
+      hintedName,
+      context,
+    );
     artist = mergeArtistFallbackData(artist, parsedFallbackArtist);
   }
   rememberResourceContext("artist", artistId, context);
-  rememberResourceHint("artist", artistId, { name: artist.name, image: artist.image });
+  rememberResourceHint("artist", artistId, {
+    name: artist.name,
+    image: artist.image,
+  });
 
   var albums = [];
   for (var i = 0; i < artist.albums.length; i++) {
-      var a = artist.albums[i];
-      albums.push({
-        id: a.id,
-        name: a.name || a.title || "",
-        artists: a.artists || a.artist || artist.name || "",
-        cover_url: a.cover_url || a.cover_art || "",
-        album_type: a.album_type || a.type || "album",
-        total_tracks: a.total_tracks || 0,
-        release_date: a.release_date || "",
-        provider_id: "amazon"
-      });
-    }
+    var a = artist.albums[i];
+    albums.push({
+      id: a.id,
+      name: a.name || a.title || "",
+      artists: a.artists || a.artist || artist.name || "",
+      cover_url: a.cover_url || a.cover_art || "",
+      album_type: a.album_type || a.type || "album",
+      total_tracks: a.total_tracks || 0,
+      release_date: a.release_date || "",
+      provider_id: "amazon",
+    });
+  }
 
   var releases = [];
   for (var r = 0; r < artist.releases.length; r++) {
-      var rel = artist.releases[r];
-      releases.push({
-        id: rel.id,
-        name: rel.name || rel.title || "",
-        artists: rel.artists || rel.artist || artist.name || "",
-        cover_url: rel.cover_url || rel.cover_art || "",
-        album_type: rel.album_type || rel.type || "album",
-        total_tracks: rel.total_tracks || 0,
-        release_date: rel.release_date || "",
-        provider_id: "amazon"
-      });
-    }
+    var rel = artist.releases[r];
+    releases.push({
+      id: rel.id,
+      name: rel.name || rel.title || "",
+      artists: rel.artists || rel.artist || artist.name || "",
+      cover_url: rel.cover_url || rel.cover_art || "",
+      album_type: rel.album_type || rel.type || "album",
+      total_tracks: rel.total_tracks || 0,
+      release_date: rel.release_date || "",
+      provider_id: "amazon",
+    });
+  }
 
   var topTracks = [];
   for (var j = 0; j < artist.top_tracks.length; j++) {
-      var t = artist.top_tracks[j];
-      topTracks.push({
-        id: t.id,
-        name: t.name || t.title || "",
-        artists: t.artists || t.artist || artist.name || "",
-        album_name: t.album_name || "",
-        album_id: t.album_id || "",
-        duration_ms: t.duration_ms || 0,
-        cover_url: t.cover_url || t.cover_art || "",
-        track_number: 0,
-        isrc: "",
-        artist_id: t.artist_id || artist.id || artistId,
-        provider_id: "amazon"
-      });
-    }
+    var t = artist.top_tracks[j];
+    topTracks.push({
+      id: t.id,
+      name: t.name || t.title || "",
+      artists: t.artists || t.artist || artist.name || "",
+      album_name: t.album_name || "",
+      album_id: t.album_id || "",
+      duration_ms: t.duration_ms || 0,
+      cover_url: t.cover_url || t.cover_art || "",
+      track_number: 0,
+      isrc: "",
+      artist_id: t.artist_id || artist.id || artistId,
+      provider_id: "amazon",
+    });
+  }
 
   var result = {
     success: true,
@@ -2333,10 +2745,18 @@ function getArtist(artistId) {
     header_image: artist.image || "",
     albums: albums,
     releases: releases,
-    top_tracks: topTracks
+    top_tracks: topTracks,
   };
 
-  L("info", "[Amazon] Artist parsed:", result.name, "albums:", result.albums.length, "tracks:", result.top_tracks.length);
+  L(
+    "info",
+    "[Amazon] Artist parsed:",
+    result.name,
+    "albums:",
+    result.albums.length,
+    "tracks:",
+    result.top_tracks.length,
+  );
   cacheSet(cacheKey, result);
   return result;
 }
@@ -2352,7 +2772,7 @@ function getPlaylist(playlistId) {
 
   var context = getResourceContext("playlist", playlistId, null);
   var deeplink = "/playlists/" + playlistId;
-  var result = fetchWithRetry(function() {
+  var result = fetchWithRetry(function () {
     return callShowHome(deeplink, context);
   });
 
@@ -2361,11 +2781,20 @@ function getPlaylist(playlistId) {
     return null;
   }
 
-  var playlist = parsePlaylistFromResponse(result.data, result.rawText, playlistId);
-  if (!playlist.title) playlist.title = getResourceHint("playlist", playlistId, "name");
-  if (!playlist.cover_art) playlist.cover_art = getResourceHint("playlist", playlistId, "cover_art");
+  var playlist = parsePlaylistFromResponse(
+    result.data,
+    result.rawText,
+    playlistId,
+  );
+  if (!playlist.title)
+    playlist.title = getResourceHint("playlist", playlistId, "name");
+  if (!playlist.cover_art)
+    playlist.cover_art = getResourceHint("playlist", playlistId, "cover_art");
   rememberResourceContext("playlist", playlistId, context);
-  rememberResourceHint("playlist", playlistId, { name: playlist.title, cover_art: playlist.cover_art });
+  rememberResourceHint("playlist", playlistId, {
+    name: playlist.title,
+    cover_art: playlist.cover_art,
+  });
 
   var tracks = [];
   for (var i = 0; i < playlist.tracks.length; i++) {
@@ -2379,7 +2808,7 @@ function getPlaylist(playlistId) {
       cover_url: t.cover_art || playlist.cover_art || "",
       track_number: i + 1,
       isrc: "",
-      explicit: !!t.explicit
+      explicit: !!t.explicit,
     });
   }
 
@@ -2391,10 +2820,16 @@ function getPlaylist(playlistId) {
     cover_url: playlist.cover_art || "",
     owner: playlist.owner || "",
     total_tracks: tracks.length,
-    tracks: tracks
+    tracks: tracks,
   };
 
-  L("info", "[Amazon] Playlist parsed:", result.name, "tracks:", result.total_tracks);
+  L(
+    "info",
+    "[Amazon] Playlist parsed:",
+    result.name,
+    "tracks:",
+    result.total_tracks,
+  );
   cacheSet(cacheKey, result);
   return result;
 }
@@ -2412,14 +2847,28 @@ function parseSearchResults(data, filter) {
   var wantPlaylists = !filter || filter === "playlists";
 
   // Find all VisualShovelerWidgetElement - they contain categorized results
-  var shovelers = findAllByInterface(data,
-    "Web.TemplatesInterface.v1_0.Touch.WidgetsInterface.VisualShovelerWidgetElement", [], 0);
-  var featuredShovelers = findAllByInterface(data,
-    "Web.TemplatesInterface.v1_0.Touch.WidgetsInterface.FeaturedShovelerWidgetElement", [], 0);
-  var descriptiveShowcases = findAllByInterface(data,
-    "Web.TemplatesInterface.v1_0.Touch.WidgetsInterface.DescriptiveShowcaseWidgetElement", [], 0);
-  for (var fs = 0; fs < featuredShovelers.length; fs++) shovelers.push(featuredShovelers[fs]);
-  for (var ds = 0; ds < descriptiveShowcases.length; ds++) shovelers.push(descriptiveShowcases[ds]);
+  var shovelers = findAllByInterface(
+    data,
+    "Web.TemplatesInterface.v1_0.Touch.WidgetsInterface.VisualShovelerWidgetElement",
+    [],
+    0,
+  );
+  var featuredShovelers = findAllByInterface(
+    data,
+    "Web.TemplatesInterface.v1_0.Touch.WidgetsInterface.FeaturedShovelerWidgetElement",
+    [],
+    0,
+  );
+  var descriptiveShowcases = findAllByInterface(
+    data,
+    "Web.TemplatesInterface.v1_0.Touch.WidgetsInterface.DescriptiveShowcaseWidgetElement",
+    [],
+    0,
+  );
+  for (var fs = 0; fs < featuredShovelers.length; fs++)
+    shovelers.push(featuredShovelers[fs]);
+  for (var ds = 0; ds < descriptiveShowcases.length; ds++)
+    shovelers.push(descriptiveShowcases[ds]);
 
   for (var s = 0; s < shovelers.length; s++) {
     var shoveler = shovelers[s];
@@ -2427,17 +2876,27 @@ function parseSearchResults(data, filter) {
 
     // Check header to determine category
     var shovelerStr = deepStringify(shoveler);
-    var isTrackSection = shovelerStr.indexOf('"Songs"') >= 0 || shovelerStr.indexOf('"Top Result"') >= 0;
+    var isTrackSection =
+      shovelerStr.indexOf('"Songs"') >= 0 ||
+      shovelerStr.indexOf('"Top Result"') >= 0;
     var isAlbumSection = shovelerStr.indexOf('"Albums"') >= 0;
     var isArtistSection = shovelerStr.indexOf('"Artists"') >= 0;
     var isPlaylistSection = shovelerStr.indexOf('"Playlists"') >= 0;
 
-    for (var i = 0; i < shoveler.items.length && results.length < CONFIG.maxResults; i++) {
+    for (
+      var i = 0;
+      i < shoveler.items.length && results.length < CONFIG.maxResults;
+      i++
+    ) {
       var item = shoveler.items[i];
       var iface = item["interface"] || "";
 
       // Track items inside shoveler
-      if (wantTracks && (iface.indexOf("DescriptiveRowItemElement") >= 0 || iface.indexOf("SquareHorizontalItemElement") >= 0)) {
+      if (
+        wantTracks &&
+        (iface.indexOf("DescriptiveRowItemElement") >= 0 ||
+          iface.indexOf("SquareHorizontalItemElement") >= 0)
+      ) {
         var trackName = textValue(item.primaryText);
         var trackDeeplink = "";
         var trackDuration = 0;
@@ -2477,15 +2936,20 @@ function parseSearchResults(data, filter) {
             duration_ms: trackDuration * 1000,
             cover_url: trackImage,
             album_id: trackAlbumId,
-            explicit: amazonItemIsExplicit(item)
+            explicit: amazonItemIsExplicit(item),
           });
           rememberResourceContext("track", tId, _currentContext);
-          if (trackAlbumId) rememberResourceContext("album", trackAlbumId, _currentContext);
+          if (trackAlbumId)
+            rememberResourceContext("album", trackAlbumId, _currentContext);
         }
       }
 
       // Album items with /albums/ deeplink and no trackAsin
-      if (wantAlbums && (iface.indexOf("SquareVerticalItemElement") >= 0 || iface.indexOf("SquareHorizontalItemElement") >= 0)) {
+      if (
+        wantAlbums &&
+        (iface.indexOf("SquareVerticalItemElement") >= 0 ||
+          iface.indexOf("SquareHorizontalItemElement") >= 0)
+      ) {
         var albumDeeplink = "";
         if (item.primaryLink && item.primaryLink.deeplink) {
           albumDeeplink = item.primaryLink.deeplink;
@@ -2504,7 +2968,7 @@ function parseSearchResults(data, filter) {
               id: aId,
               name: albumTitle,
               artists: albumArtist,
-              cover_url: albumImage
+              cover_url: albumImage,
             });
             rememberResourceContext("album", aId, _currentContext);
           }
@@ -2512,7 +2976,11 @@ function parseSearchResults(data, filter) {
       }
 
       // Artist items (CircleVerticalItemElement or SquareVerticalItemElement with /artists/)
-      if (wantArtists && (iface.indexOf("CircleVerticalItemElement") >= 0 || iface.indexOf("SquareVerticalItemElement") >= 0)) {
+      if (
+        wantArtists &&
+        (iface.indexOf("CircleVerticalItemElement") >= 0 ||
+          iface.indexOf("SquareVerticalItemElement") >= 0)
+      ) {
         var artistDeeplink = "";
         if (item.primaryLink && item.primaryLink.deeplink) {
           artistDeeplink = item.primaryLink.deeplink;
@@ -2529,10 +2997,13 @@ function parseSearchResults(data, filter) {
               id: arId,
               name: artistName,
               artists: artistName,
-              cover_url: artistImage
+              cover_url: artistImage,
             });
             rememberResourceContext("artist", arId, _currentContext);
-            rememberResourceHint("artist", arId, { name: artistName, image: artistImage });
+            rememberResourceHint("artist", arId, {
+              name: artistName,
+              image: artistImage,
+            });
           }
         }
       }
@@ -2554,10 +3025,13 @@ function parseSearchResults(data, filter) {
               item_type: "playlist",
               id: plId,
               name: plTitle,
-              cover_url: plImage
+              cover_url: plImage,
             });
             rememberResourceContext("playlist", plId, _currentContext);
-            rememberResourceHint("playlist", plId, { name: plTitle, cover_art: plImage });
+            rememberResourceHint("playlist", plId, {
+              name: plTitle,
+              cover_art: plImage,
+            });
           }
         }
       }
@@ -2566,16 +3040,29 @@ function parseSearchResults(data, filter) {
 
   // Also check DescriptiveTableWidgetElement for track results not in shovelers
   if (wantTracks && results.length < CONFIG.maxResults) {
-    var tables = findAllByInterface(data,
-      "Web.TemplatesInterface.v1_0.Touch.WidgetsInterface.DescriptiveTableWidgetElement", [], 0);
+    var tables = findAllByInterface(
+      data,
+      "Web.TemplatesInterface.v1_0.Touch.WidgetsInterface.DescriptiveTableWidgetElement",
+      [],
+      0,
+    );
     for (var tb = 0; tb < tables.length; tb++) {
       if (!tables[tb].items) continue;
-      for (var ti = 0; ti < tables[tb].items.length && results.length < CONFIG.maxResults; ti++) {
+      for (
+        var ti = 0;
+        ti < tables[tb].items.length && results.length < CONFIG.maxResults;
+        ti++
+      ) {
         var tItem = tables[tb].items[ti];
         if (!tItem.primaryText) continue;
         var tName = textValue(tItem.primaryText);
-        var tDl = (tItem.primaryTextLink && tItem.primaryTextLink.deeplink) ? tItem.primaryTextLink.deeplink : "";
-        var tDur = tItem.secondaryText3 ? parseDurationMMSS(tItem.secondaryText3) : 0;
+        var tDl =
+          tItem.primaryTextLink && tItem.primaryTextLink.deeplink
+            ? tItem.primaryTextLink.deeplink
+            : "";
+        var tDur = tItem.secondaryText3
+          ? parseDurationMMSS(tItem.secondaryText3)
+          : 0;
         var tArt = "";
         if (tItem.secondaryText1) {
           tArt = textValue(tItem.secondaryText1);
@@ -2588,7 +3075,10 @@ function parseSearchResults(data, filter) {
           // Check for duplicates
           var dup = false;
           for (var d = 0; d < results.length; d++) {
-            if (results[d].id === tTrackId) { dup = true; break; }
+            if (results[d].id === tTrackId) {
+              dup = true;
+              break;
+            }
           }
           if (!dup) {
             results.push({
@@ -2599,7 +3089,7 @@ function parseSearchResults(data, filter) {
               duration_ms: tDur * 1000,
               cover_url: tImg,
               album_id: tInfo ? tInfo.albumId || "" : "",
-              explicit: amazonItemIsExplicit(tItem)
+              explicit: amazonItemIsExplicit(tItem),
             });
             rememberResourceContext("track", tTrackId, _currentContext);
           }
@@ -2623,7 +3113,7 @@ function customSearchSync(query, options) {
   var cached = cacheGet(cacheKey);
   if (cached) return cached;
 
-  var data = fetchWithRetry(function() {
+  var data = fetchWithRetry(function () {
     return callShowSearch(query, context);
   });
 
@@ -2642,7 +3132,11 @@ function customSearchSync(query, options) {
 // ==================== enrichTrack ====================
 
 function enrichTrack(trackInfo) {
-  L("info", "[Amazon] enrichTrack:", trackInfo ? (trackInfo.name || trackInfo.title || trackInfo.id) : "null");
+  L(
+    "info",
+    "[Amazon] enrichTrack:",
+    trackInfo ? trackInfo.name || trackInfo.title || trackInfo.id : "null",
+  );
 
   if (!trackInfo || !trackInfo.id) return trackInfo;
 
@@ -2660,17 +3154,24 @@ function enrichTrack(trackInfo) {
     album_name: trackInfo.album_name || trackInfo.album || "",
     duration_ms: trackInfo.duration_ms || 0,
     track_number: trackInfo.track_number || 0,
-    cover_url: ensureHighResCoverUrl(trackInfo.cover_url || trackInfo.cover_art || ""),
+    cover_url: ensureHighResCoverUrl(
+      trackInfo.cover_url || trackInfo.cover_art || "",
+    ),
     isrc: trackInfo.isrc || "",
     spotify_id: trackInfo.spotify_id || "",
-    deezer_id: trackInfo.deezer_id || ""
+    deezer_id: trackInfo.deezer_id || "",
   };
 
   // SongLink lookup is optional best-effort for ISRC/cross-platform IDs
   // It does NOT block downloading - ASIN is enough for AfkarXYZ
   try {
     var amazonUrl = CONFIG.musicBaseURL + "/tracks/" + trackId;
-    var songLinkData = callSongLink(CONFIG.songlinkBaseURL + "?url=" + encodeURIComponent(amazonUrl) + "&userCountry=US");
+    var songLinkData = callSongLink(
+      CONFIG.songlinkBaseURL +
+        "?url=" +
+        encodeURIComponent(amazonUrl) +
+        "&userCountry=US",
+    );
 
     if (songLinkData) {
       // Extract ISRC
@@ -2708,7 +3209,13 @@ function enrichTrack(trackInfo) {
     L("warn", "[Amazon] SongLink enrichment failed (non-fatal):", String(e));
   }
 
-  L("info", "[Amazon] Enriched track ISRC:", enriched.isrc, "spotify:", enriched.spotify_id);
+  L(
+    "info",
+    "[Amazon] Enriched track ISRC:",
+    enriched.isrc,
+    "spotify:",
+    enriched.spotify_id,
+  );
   cacheSet(cacheKey, enriched);
   return enriched;
 }
@@ -2718,14 +3225,23 @@ function enrichTrack(trackInfo) {
 function callZarzMoeResolve(spotifyID) {
   var data;
   try {
-    data = signedJSON("POST", "/resolve", { url: "https://open.spotify.com/track/" + spotifyID });
+    data = signedJSON("POST", "/resolve", {
+      url: "https://open.spotify.com/track/" + spotifyID,
+    });
   } catch (e) {
-    L("warn", "[Amazon] zarz.moe resolve failed:", String(e && e.message ? e.message : e));
+    L(
+      "warn",
+      "[Amazon] zarz.moe resolve failed:",
+      String(e && e.message ? e.message : e),
+    );
     return null;
   }
 
   if (!data || !data.success || !data.songUrls) {
-    L("warn", "[Amazon] zarz.moe resolve returned success=false or no songUrls");
+    L(
+      "warn",
+      "[Amazon] zarz.moe resolve returned success=false or no songUrls",
+    );
     return null;
   }
   var amazonURL = null;
@@ -2738,7 +3254,11 @@ function callZarzMoeResolve(spotifyID) {
     }
   }
   if (!amazonURL) {
-    L("info", "[Amazon] zarz.moe resolve: no AmazonMusic link for Spotify ID:", spotifyID);
+    L(
+      "info",
+      "[Amazon] zarz.moe resolve: no AmazonMusic link for Spotify ID:",
+      spotifyID,
+    );
     return null;
   }
   L("info", "[Amazon] zarz.moe resolve: found Amazon URL:", amazonURL);
@@ -2752,17 +3272,23 @@ function callSongLink(lookupURL) {
   try {
     res = fetch(lookupURL, {
       method: "GET",
-      headers: { "User-Agent": getRandomUA(), "Accept": "application/json" }
+      headers: { "User-Agent": getRandomUA(), Accept: "application/json" },
     });
   } catch (e) {
     L("error", "[Amazon] SongLink fetch failed:", String(e));
     return null;
   }
   if (!res || !res.ok) {
-    L("warn", "[Amazon] SongLink returned status:", res ? res.status : "no response");
+    L(
+      "warn",
+      "[Amazon] SongLink returned status:",
+      res ? res.status : "no response",
+    );
     return null;
   }
-  try { return res.json(); } catch (e) {
+  try {
+    return res.json();
+  } catch (e) {
     L("error", "[Amazon] SongLink JSON parse failed:", String(e));
     return null;
   }
@@ -2776,15 +3302,19 @@ function callSongLinkPage(spotifyID) {
       method: "GET",
       headers: {
         "User-Agent": getRandomUA(),
-        "Accept": "text/html,application/xhtml+xml"
-      }
+        Accept: "text/html,application/xhtml+xml",
+      },
     });
   } catch (e) {
     L("error", "[Amazon] SongLink page fetch failed:", String(e));
     return null;
   }
   if (!res || !res.ok) {
-    L("warn", "[Amazon] SongLink page returned status:", res ? res.status : "no response");
+    L(
+      "warn",
+      "[Amazon] SongLink page returned status:",
+      res ? res.status : "no response",
+    );
     return null;
   }
   try {
@@ -2834,11 +3364,23 @@ function resolveAmazonURLFromSpotifyPage(spotifyID) {
   var html = callSongLinkPage(spotifyID);
   if (!html) return null;
   var linksByPlatform = extractSongLinkPageLinks(html);
-  if (!linksByPlatform || !linksByPlatform.amazonMusic || !linksByPlatform.amazonMusic.url) {
-    L("warn", "[Amazon] SongLink page had no Amazon link for Spotify ID:", spotifyID);
+  if (
+    !linksByPlatform ||
+    !linksByPlatform.amazonMusic ||
+    !linksByPlatform.amazonMusic.url
+  ) {
+    L(
+      "warn",
+      "[Amazon] SongLink page had no Amazon link for Spotify ID:",
+      spotifyID,
+    );
     return null;
   }
-  L("info", "[Amazon] Found Amazon URL via SongLink page:", linksByPlatform.amazonMusic.url);
+  L(
+    "info",
+    "[Amazon] Found Amazon URL via SongLink page:",
+    linksByPlatform.amazonMusic.url,
+  );
   return linksByPlatform.amazonMusic.url;
 }
 
@@ -2851,23 +3393,32 @@ function extractAmazonURLFromSongLink(data) {
 }
 
 function callSongstatsForAmazon(isrc) {
-  var url = "https://songstats.com/" + encodeURIComponent(isrc.toUpperCase().trim()) + "?ref=ISRCFinder";
+  var url =
+    "https://songstats.com/" +
+    encodeURIComponent(isrc.toUpperCase().trim()) +
+    "?ref=ISRCFinder";
   var res;
   try {
     res = fetch(url, {
       method: "GET",
-      headers: { "User-Agent": getRandomUA(), "Accept": "text/html" }
+      headers: { "User-Agent": getRandomUA(), Accept: "text/html" },
     });
   } catch (e) {
     L("warn", "[Amazon] Songstats fetch failed:", String(e));
     return null;
   }
   if (!res || !res.ok) {
-    L("warn", "[Amazon] Songstats returned status:", res ? res.status : "no response");
+    L(
+      "warn",
+      "[Amazon] Songstats returned status:",
+      res ? res.status : "no response",
+    );
     return null;
   }
   var html;
-  try { html = res.text(); } catch (e) {
+  try {
+    html = res.text();
+  } catch (e) {
     L("error", "[Amazon] Songstats text read failed:", String(e));
     return null;
   }
@@ -2876,7 +3427,11 @@ function callSongstatsForAmazon(isrc) {
   while ((match = re.exec(html)) !== null) {
     var jsonStr = match[1];
     var parsed;
-    try { parsed = JSON.parse(jsonStr); } catch (e) { continue; }
+    try {
+      parsed = JSON.parse(jsonStr);
+    } catch (e) {
+      continue;
+    }
     var amazonURL = extractAmazonFromJsonLD(parsed);
     if (amazonURL) {
       L("info", "[Amazon] Found Amazon URL via Songstats:", amazonURL);
@@ -2900,6 +3455,19 @@ function extractAmazonFromJsonLD(obj) {
     for (var j = 0; j < obj.sameAs.length; j++) {
       var link = obj.sameAs[j];
       if (typeof link === "string" && link.indexOf("music.amazon.") !== -1) {
+        // Reject artist/playlist pages: the download API needs a TRACK (or
+        // album) ASIN, and the Songstats page's JSON-LD lists the artist's own
+        // Amazon page among sameAs. Picking it produced an artist ASIN (e.g.
+        // /artists/B000QJTKWE) that the /dl/ endpoint 404s on.
+        var lower = link.toLowerCase();
+        if (
+          lower.indexOf("/artists/") !== -1 ||
+          lower.indexOf("/artist/") !== -1 ||
+          lower.indexOf("/playlists/") !== -1 ||
+          lower.indexOf("/playlist/") !== -1
+        ) {
+          continue;
+        }
         return link;
       }
     }
@@ -2926,20 +3494,42 @@ function resolveAmazonURL(isrc, spotifyID, deezerID, tidalID, qobuzID) {
   // catalog), so try them in source order, then Spotify, then ISRC.
   var attempts = [];
   if (tidalID) {
-    attempts.push({ label: "Tidal", url: "https://tidal.com/track/" + tidalID });
+    attempts.push({
+      label: "Tidal",
+      url: "https://tidal.com/track/" + tidalID,
+    });
   }
   if (qobuzID) {
-    attempts.push({ label: "Qobuz", url: "https://play.qobuz.com/track/" + qobuzID });
+    attempts.push({
+      label: "Qobuz",
+      url: "https://play.qobuz.com/track/" + qobuzID,
+    });
   }
   if (deezerID) {
-    attempts.push({ label: "Deezer", url: "https://www.deezer.com/track/" + deezerID });
+    attempts.push({
+      label: "Deezer",
+      url: "https://www.deezer.com/track/" + deezerID,
+    });
   }
   for (var i = 0; i < attempts.length; i++) {
-    L("info", "[Amazon] Resolving via " + attempts[i].label + " ID:", attempts[i].url);
-    var data = callSongLink(CONFIG.songlinkBaseURL + "?url=" + encodeURIComponent(attempts[i].url) + "&userCountry=US");
+    L(
+      "info",
+      "[Amazon] Resolving via " + attempts[i].label + " ID:",
+      attempts[i].url,
+    );
+    var data = callSongLink(
+      CONFIG.songlinkBaseURL +
+        "?url=" +
+        encodeURIComponent(attempts[i].url) +
+        "&userCountry=US",
+    );
     var url = extractAmazonURLFromSongLink(data);
     if (url) {
-      L("info", "[Amazon] Found Amazon URL via " + attempts[i].label + ":", url);
+      L(
+        "info",
+        "[Amazon] Found Amazon URL via " + attempts[i].label + ":",
+        url,
+      );
       return url;
     }
   }
@@ -2953,13 +3543,21 @@ function resolveAmazonURL(isrc, spotifyID, deezerID, tidalID, qobuzID) {
     L("info", "[Amazon] Resolving via Spotify ID:", spotifyID);
     var url = callZarzMoeResolve(spotifyID);
     if (url) return url;
-    L("info", "[Amazon] zarz.moe failed for Spotify ID, falling back to SongLink page");
+    L(
+      "info",
+      "[Amazon] zarz.moe failed for Spotify ID, falling back to SongLink page",
+    );
     url = resolveAmazonURLFromSpotifyPage(spotifyID);
     if (url) {
       return url;
     }
     var spotifyURL = "https://open.spotify.com/track/" + spotifyID;
-    var data = callSongLink(CONFIG.songlinkBaseURL + "?url=" + encodeURIComponent(spotifyURL) + "&userCountry=US");
+    var data = callSongLink(
+      CONFIG.songlinkBaseURL +
+        "?url=" +
+        encodeURIComponent(spotifyURL) +
+        "&userCountry=US",
+    );
     url = extractAmazonURLFromSongLink(data);
     if (url) {
       L("info", "[Amazon] Found Amazon URL via Spotify:", url);
@@ -2970,13 +3568,22 @@ function resolveAmazonURL(isrc, spotifyID, deezerID, tidalID, qobuzID) {
   }
   if (isrc) {
     L("info", "[Amazon] Resolving via ISRC:", isrc);
-    var data = callSongLink(CONFIG.songlinkBaseURL + "?isrc=" + encodeURIComponent(isrc) + "&userCountry=US");
+    var data = callSongLink(
+      CONFIG.songlinkBaseURL +
+        "?isrc=" +
+        encodeURIComponent(isrc) +
+        "&userCountry=US",
+    );
     var url = extractAmazonURLFromSongLink(data);
     if (url) {
       L("info", "[Amazon] Found Amazon URL via ISRC:", url);
       return url;
     }
-    L("info", "[Amazon] SongLink ISRC failed, trying Songstats for ISRC:", isrc);
+    L(
+      "info",
+      "[Amazon] SongLink ISRC failed, trying Songstats for ISRC:",
+      isrc,
+    );
     url = callSongstatsForAmazon(isrc);
     if (url) return url;
   }
@@ -2997,7 +3604,9 @@ function qualityToCodec(quality) {
 }
 
 function normalizeAudioCodec(codec) {
-  var c = String(codec || "").toLowerCase().trim();
+  var c = String(codec || "")
+    .toLowerCase()
+    .trim();
   if (c.indexOf(".") >= 0) c = c.split(".")[0];
   if (c === "ec-3") return "eac3";
   if (c === "ac-4") return "ac4";
@@ -3010,7 +3619,11 @@ function normalizeAudioCodec(codec) {
 // lives in Go and is scoped by namespace, base URL, app version, and platform,
 // so each provider must complete its own verification challenge.
 function signedJSON(method, path, body, headers) {
-  if (typeof session === "undefined" || !session || typeof session.signedFetch !== "function") {
+  if (
+    typeof session === "undefined" ||
+    !session ||
+    typeof session.signedFetch !== "function"
+  ) {
     throw new Error("signed session runtime is not available");
   }
   var response = session.signedFetch(method, path, body || null, headers || {});
@@ -3021,7 +3634,9 @@ function signedJSON(method, path, body, headers) {
     throw verr;
   }
   if (!response || response.error) {
-    throw new Error(response && response.error ? response.error : "signed request failed");
+    throw new Error(
+      response && response.error ? response.error : "signed request failed",
+    );
   }
   if (response.statusCode !== 200) {
     throw new Error("HTTP " + response.statusCode + " for " + path);
@@ -3033,11 +3648,13 @@ function signedJSON(method, path, body, headers) {
 // hashes at consume time: the /v2/dl/amazeamazeamaze handler derives it from
 // body.asin, so we hash the alias + asin here.
 function signedTicket(provider, type, id) {
-  var resourceHash = utils.sha256(provider + ":" + (type || "track") + ":" + String(id || "").toLowerCase());
+  var resourceHash = utils.sha256(
+    provider + ":" + (type || "track") + ":" + String(id || "").toLowerCase(),
+  );
   var payload = signedJSON("POST", "/tickets", {
     capability: "download_ticket",
     provider: provider,
-    resource_hash: resourceHash
+    resource_hash: resourceHash,
   });
   var ticketID = String(payload.ticket_id || payload.ticket || "").trim();
   if (!ticketID) {
@@ -3048,14 +3665,25 @@ function signedTicket(provider, type, id) {
 
 function callZarzMedia(asin, codec) {
   if (!codec) codec = "flac";
-  L("info", "[Amazon] Calling v2 signed download API for ASIN:", asin, "codec:", codec);
+  L(
+    "info",
+    "[Amazon] Calling v2 signed download API for ASIN:",
+    asin,
+    "codec:",
+    codec,
+  );
 
   var data;
   try {
     var ticketID = signedTicket("amazeamazeamaze", "track", asin);
-    data = signedJSON("POST", "/dl/amazeamazeamaze", { asin: asin, codec: codec }, {
-      "X-Zarz-Ticket": ticketID
-    });
+    data = signedJSON(
+      "POST",
+      "/dl/amazeamazeamaze",
+      { asin: asin, codec: codec },
+      {
+        "X-Zarz-Ticket": ticketID,
+      },
+    );
   } catch (e) {
     if (e && e.needsVerification) {
       // Surface verification upward so download() can tag the result and the
@@ -3063,7 +3691,11 @@ function callZarzMedia(asin, codec) {
       return { needsVerification: true, authUrl: e.authUrl || "" };
     }
     // Other failures (5xx/429/transient) -> null lets fetchWithRetry retry.
-    L("warn", "[Amazon] v2 download API failed:", String(e && e.message ? e.message : e));
+    L(
+      "warn",
+      "[Amazon] v2 download API failed:",
+      String(e && e.message ? e.message : e),
+    );
     return null;
   }
 
@@ -3082,7 +3714,10 @@ function callZarzMedia(asin, codec) {
   // Build cover URL from template (when present)
   var coverUrl = "";
   if (data.cover) {
-    coverUrl = data.cover.replace("{size}", "1200").replace("{jpegQuality}", "94").replace("{format}", "jpg");
+    coverUrl = data.cover
+      .replace("{size}", "1200")
+      .replace("{jpegQuality}", "94")
+      .replace("{format}", "jpg");
   }
   return {
     streamUrl: data.audio.url,
@@ -3090,7 +3725,7 @@ function callZarzMedia(asin, codec) {
     codec: data.audio.codec || codec,
     sampleRate: data.audio.sampleRate || 0,
     meta: data.meta || null,
-    coverUrl: coverUrl
+    coverUrl: coverUrl,
   };
 }
 
@@ -3101,8 +3736,12 @@ function extractNextPageToken(data) {
   // It contains an InvokeHttpSkillMethod with a URL like:
   //   .../showHomeBrowse?next={"offset":4,"uri":"home","nextToken":"<uuid>","count":4}&userHash=...
   // We extract the "next" query parameter JSON from that URL.
-  var galleries = findAllByInterface(data,
-    "Web.TemplatesInterface.v1_0.Touch.GalleryTemplateInterface.GalleryTemplate", [], 0);
+  var galleries = findAllByInterface(
+    data,
+    "Web.TemplatesInterface.v1_0.Touch.GalleryTemplateInterface.GalleryTemplate",
+    [],
+    0,
+  );
   for (var g = 0; g < galleries.length; g++) {
     var reached = galleries[g].onEndOfWidgetsReached;
     if (!reached || !Array.isArray(reached) || reached.length === 0) continue;
@@ -3118,7 +3757,13 @@ function extractNextPageToken(data) {
           if (parts[p].indexOf("next=") === 0) {
             var nextVal = decodeURIComponent(parts[p].substring(5));
             var parsed = JSON.parse(nextVal);
-            L("info", "[Amazon] Extracted next page token: offset=" + parsed.offset + ", nextToken=" + (parsed.nextToken || "none"));
+            L(
+              "info",
+              "[Amazon] Extracted next page token: offset=" +
+                parsed.offset +
+                ", nextToken=" +
+                (parsed.nextToken || "none"),
+            );
             return parsed;
           }
         }
@@ -3143,14 +3788,22 @@ function fetchHomeFeed() {
       // Extract pagination token and fetch next page
       var nextPage = extractNextPageToken(result.data);
       if (nextPage) {
-        L("info", "[Amazon] Fetching page 2 with offset " + nextPage.offset + "...");
+        L(
+          "info",
+          "[Amazon] Fetching page 2 with offset " + nextPage.offset + "...",
+        );
         var result2 = callShowHomeBrowse(null, nextPage);
         if (result2 && result2.data) {
           var feedData2 = formatHomeFeedData(result2.data);
           for (var s2 = 0; s2 < feedData2.sections.length; s2++) {
             feedData.sections.push(feedData2.sections[s2]);
           }
-          L("info", "[Amazon] Home feed total: " + feedData.sections.length + " sections (page1 + page2)");
+          L(
+            "info",
+            "[Amazon] Home feed total: " +
+              feedData.sections.length +
+              " sections (page1 + page2)",
+          );
         }
       }
       return feedData;
@@ -3158,11 +3811,18 @@ function fetchHomeFeed() {
   }
 
   // Fallback: try original showHome approach (may work on mesk/mobile API)
-  L("info", "[Amazon] showHomeBrowse returned 0 sections, falling back to showHome...");
+  L(
+    "info",
+    "[Amazon] showHomeBrowse returned 0 sections, falling back to showHome...",
+  );
   var fallbackResult = callShowHome("/");
   if (!fallbackResult || !fallbackResult.data) {
     L("error", "[Amazon] Home feed: both showHomeBrowse and showHome failed");
-    return { success: false, error: "Failed to fetch Amazon Music home page", sections: [] };
+    return {
+      success: false,
+      error: "Failed to fetch Amazon Music home page",
+      sections: [],
+    };
   }
 
   return formatHomeFeedData(fallbackResult.data);
@@ -3179,39 +3839,82 @@ function formatHomeFeedData(data) {
   var ifaceNames = Object.keys(ifaces);
   var ifaceSummary = [];
   for (var k = 0; k < ifaceNames.length; k++) {
-    var shortName = ifaceNames[k].replace("Web.TemplatesInterface.v1_0.Touch.WidgetsInterface.", "").replace("Web.TemplatesInterface.v1_0.Touch.", "");
-    if (ifaceNames[k].indexOf("Widget") >= 0 || ifaceNames[k].indexOf("Shoveler") >= 0 ||
-        ifaceNames[k].indexOf("Item") >= 0 || ifaceNames[k].indexOf("Section") >= 0 ||
-        ifaceNames[k].indexOf("Showcase") >= 0 || ifaceNames[k].indexOf("Carousel") >= 0 ||
-        ifaceNames[k].indexOf("Grid") >= 0 || ifaceNames[k].indexOf("Container") >= 0) {
+    var shortName = ifaceNames[k]
+      .replace("Web.TemplatesInterface.v1_0.Touch.WidgetsInterface.", "")
+      .replace("Web.TemplatesInterface.v1_0.Touch.", "");
+    if (
+      ifaceNames[k].indexOf("Widget") >= 0 ||
+      ifaceNames[k].indexOf("Shoveler") >= 0 ||
+      ifaceNames[k].indexOf("Item") >= 0 ||
+      ifaceNames[k].indexOf("Section") >= 0 ||
+      ifaceNames[k].indexOf("Showcase") >= 0 ||
+      ifaceNames[k].indexOf("Carousel") >= 0 ||
+      ifaceNames[k].indexOf("Grid") >= 0 ||
+      ifaceNames[k].indexOf("Container") >= 0
+    ) {
       ifaceSummary.push(shortName + ":" + ifaces[ifaceNames[k]]);
     }
   }
-  L("info", "[Amazon] Home feed ALL interfaces (" + ifaceNames.length + " total): " + ifaceNames.join(", "));
-  L("info", "[Amazon] Home feed widget/item interfaces: " + ifaceSummary.join(", "));
+  L(
+    "info",
+    "[Amazon] Home feed ALL interfaces (" +
+      ifaceNames.length +
+      " total): " +
+      ifaceNames.join(", "),
+  );
+  L(
+    "info",
+    "[Amazon] Home feed widget/item interfaces: " + ifaceSummary.join(", "),
+  );
 
   // Collect all shoveler-type widgets (these are the horizontal sections on the home page)
   // Also dynamically find any interface containing "Shoveler" or "Showcase" as fallback
-  var shovelers = findAllByInterface(data,
-    "Web.TemplatesInterface.v1_0.Touch.WidgetsInterface.VisualShovelerWidgetElement", [], 0);
-  var featuredShovelers = findAllByInterface(data,
-    "Web.TemplatesInterface.v1_0.Touch.WidgetsInterface.FeaturedShovelerWidgetElement", [], 0);
-  var descriptiveShowcases = findAllByInterface(data,
-    "Web.TemplatesInterface.v1_0.Touch.WidgetsInterface.DescriptiveShowcaseWidgetElement", [], 0);
-  var descriptiveShovelers = findAllByInterface(data,
-    "Web.TemplatesInterface.v1_0.Touch.WidgetsInterface.DescriptiveShovelerWidgetElement", [], 0);
-  for (var fs = 0; fs < featuredShovelers.length; fs++) shovelers.push(featuredShovelers[fs]);
-  for (var ds = 0; ds < descriptiveShowcases.length; ds++) shovelers.push(descriptiveShowcases[ds]);
-  for (var dsi = 0; dsi < descriptiveShovelers.length; dsi++) shovelers.push(descriptiveShovelers[dsi]);
+  var shovelers = findAllByInterface(
+    data,
+    "Web.TemplatesInterface.v1_0.Touch.WidgetsInterface.VisualShovelerWidgetElement",
+    [],
+    0,
+  );
+  var featuredShovelers = findAllByInterface(
+    data,
+    "Web.TemplatesInterface.v1_0.Touch.WidgetsInterface.FeaturedShovelerWidgetElement",
+    [],
+    0,
+  );
+  var descriptiveShowcases = findAllByInterface(
+    data,
+    "Web.TemplatesInterface.v1_0.Touch.WidgetsInterface.DescriptiveShowcaseWidgetElement",
+    [],
+    0,
+  );
+  var descriptiveShovelers = findAllByInterface(
+    data,
+    "Web.TemplatesInterface.v1_0.Touch.WidgetsInterface.DescriptiveShovelerWidgetElement",
+    [],
+    0,
+  );
+  for (var fs = 0; fs < featuredShovelers.length; fs++)
+    shovelers.push(featuredShovelers[fs]);
+  for (var ds = 0; ds < descriptiveShowcases.length; ds++)
+    shovelers.push(descriptiveShowcases[ds]);
+  for (var dsi = 0; dsi < descriptiveShovelers.length; dsi++)
+    shovelers.push(descriptiveShovelers[dsi]);
 
   // Fallback: if no known shoveler interfaces found, dynamically discover any widget with "items" array
   if (shovelers.length === 0) {
-    L("info", "[Amazon] No known shoveler interfaces found, trying dynamic discovery...");
+    L(
+      "info",
+      "[Amazon] No known shoveler interfaces found, trying dynamic discovery...",
+    );
     for (var di = 0; di < ifaceNames.length; di++) {
       var ifName = ifaceNames[di];
       // Look for anything that might be a section/shoveler/carousel widget
-      if (ifName.indexOf("Shoveler") >= 0 || ifName.indexOf("Showcase") >= 0 ||
-          ifName.indexOf("Carousel") >= 0 || ifName.indexOf("Grid") >= 0) {
+      if (
+        ifName.indexOf("Shoveler") >= 0 ||
+        ifName.indexOf("Showcase") >= 0 ||
+        ifName.indexOf("Carousel") >= 0 ||
+        ifName.indexOf("Grid") >= 0
+      ) {
         var dynamicWidgets = findAllByInterface(data, ifName, [], 0);
         for (var dw = 0; dw < dynamicWidgets.length; dw++) {
           if (dynamicWidgets[dw].items && dynamicWidgets[dw].items.length > 0) {
@@ -3219,7 +3922,13 @@ function formatHomeFeedData(data) {
           }
         }
         if (dynamicWidgets.length > 0) {
-          L("info", "[Amazon] Dynamic discovery found " + dynamicWidgets.length + " widgets for: " + ifName);
+          L(
+            "info",
+            "[Amazon] Dynamic discovery found " +
+              dynamicWidgets.length +
+              " widgets for: " +
+              ifName,
+          );
         }
       }
     }
@@ -3227,12 +3936,18 @@ function formatHomeFeedData(data) {
 
   // Second fallback: find ANY object with a "header" and "items" array
   if (shovelers.length === 0) {
-    L("info", "[Amazon] Dynamic discovery found nothing, trying deep scan for objects with header+items...");
+    L(
+      "info",
+      "[Amazon] Dynamic discovery found nothing, trying deep scan for objects with header+items...",
+    );
     var candidates = findWidgetsWithItems(data, [], 0);
     for (var ci = 0; ci < candidates.length; ci++) {
       shovelers.push(candidates[ci]);
     }
-    L("info", "[Amazon] Deep scan found " + shovelers.length + " candidate widgets");
+    L(
+      "info",
+      "[Amazon] Deep scan found " + shovelers.length + " candidate widgets",
+    );
   }
 
   for (var s = 0; s < shovelers.length; s++) {
@@ -3290,7 +4005,10 @@ function formatHomeFeedData(data) {
       }
       if (dlType === "albums" && !deeplinkInfo.albumId) {
         itemType = "album";
-      } else if (dlType === "track" || (dlType === "albums" && deeplinkInfo.albumId)) {
+      } else if (
+        dlType === "track" ||
+        (dlType === "albums" && deeplinkInfo.albumId)
+      ) {
         itemType = "track";
         albumId = deeplinkInfo.albumId || "";
       } else if (dlType === "artists") {
@@ -3310,14 +4028,16 @@ function formatHomeFeedData(data) {
 
       // Artist
       if (item.secondaryText1) artistStr = textValue(item.secondaryText1);
-      if (!artistStr && item.secondaryText) artistStr = textValue(item.secondaryText);
+      if (!artistStr && item.secondaryText)
+        artistStr = textValue(item.secondaryText);
 
       // Cover image
       if (item.image) coverUrl = ensureHighResCoverUrl(item.image);
 
       // Duration (for tracks)
       if (itemType === "track") {
-        if (item.secondaryText3) durationMs = parseDurationMMSS(item.secondaryText3) * 1000;
+        if (item.secondaryText3)
+          durationMs = parseDurationMMSS(item.secondaryText3) * 1000;
       }
 
       // Description (for playlists)
@@ -3340,12 +4060,16 @@ function formatHomeFeedData(data) {
         album_id: albumId,
         album_name: albumName,
         duration_ms: durationMs,
-        provider_id: "amazon"
+        provider_id: "amazon",
       });
 
       // Remember context for later resource fetching
       if (itemType === "track" || itemType === "album") {
-        rememberResourceContext(itemType === "track" ? "track" : "album", itemId, _currentContext);
+        rememberResourceContext(
+          itemType === "track" ? "track" : "album",
+          itemId,
+          _currentContext,
+        );
       }
     }
 
@@ -3353,7 +4077,7 @@ function formatHomeFeedData(data) {
       sections.push({
         uri: "",
         title: sectionTitle,
-        items: items
+        items: items,
       });
     }
   }
@@ -3362,7 +4086,7 @@ function formatHomeFeedData(data) {
   return {
     success: true,
     greeting: "",
-    sections: sections
+    sections: sections,
   };
 }
 
@@ -3378,14 +4102,18 @@ function getHomeFeed() {
 // ==================== Extension Registration ====================
 
 function completeGrant() {
-  if (typeof session === "undefined" || !session || typeof session.completeGrant !== "function") {
+  if (
+    typeof session === "undefined" ||
+    !session ||
+    typeof session.completeGrant !== "function"
+  ) {
     return { success: false, error: "signed session runtime is not available" };
   }
   return session.completeGrant();
 }
 
 registerExtension({
-  initialize: function() {
+  initialize: function () {
     L("info", "[Amazon] Extension v2.2.0 init");
     initSession();
     return true;
@@ -3410,8 +4138,14 @@ registerExtension({
 
   getHomeFeed: getHomeFeed,
 
-  customSearch: function(query, options) {
-    L("info", "[Amazon] customSearch:", query, "options:", JSON.stringify(options || {}));
+  customSearch: function (query, options) {
+    L(
+      "info",
+      "[Amazon] customSearch:",
+      query,
+      "options:",
+      JSON.stringify(options || {}),
+    );
     try {
       return customSearchSync(query, options);
     } catch (e) {
@@ -3431,13 +4165,14 @@ registerExtension({
   //   checkAvailability resolve ASIN via SongLink, lalu return {track_id: ASIN}
   //   Go kemudian memanggil download(ASIN).
 
-  checkAvailability: function(isrc, trackName, artistName, options) {
+  checkAvailability: function (isrc, trackName, artistName, options) {
     L("info", "[Amazon] checkAvailability:", isrc, trackName, artistName);
-    var spotifyID = (options && options.spotify_id) ? options.spotify_id : null;
-    var deezerID = (options && options.deezer_id) ? options.deezer_id : null;
-    var tidalID = (options && options.tidal_id) ? options.tidal_id : null;
-    var qobuzID = (options && options.qobuz_id) ? options.qobuz_id : null;
-    var durationMS = (options && options.duration_ms) ? Number(options.duration_ms) || 0 : 0;
+    var spotifyID = options && options.spotify_id ? options.spotify_id : null;
+    var deezerID = options && options.deezer_id ? options.deezer_id : null;
+    var tidalID = options && options.tidal_id ? options.tidal_id : null;
+    var qobuzID = options && options.qobuz_id ? options.qobuz_id : null;
+    var durationMS =
+      options && options.duration_ms ? Number(options.duration_ms) || 0 : 0;
 
     // Cek apakah spotifyID sebenarnya sudah ASIN (dari handleUrl/getAlbum)
     if (spotifyID && ASIN_REGEX.test(spotifyID)) {
@@ -3446,7 +4181,14 @@ registerExtension({
     }
 
     // Fallback: resolve ASIN via SongLink (untuk track dari sumber lain)
-    var amazonURL = resolveAmazonURL(isrc, spotifyID, deezerID, tidalID, qobuzID, durationMS);
+    var amazonURL = resolveAmazonURL(
+      isrc,
+      spotifyID,
+      deezerID,
+      tidalID,
+      qobuzID,
+      durationMS,
+    );
     if (!amazonURL) {
       return { available: false, reason: "not_found_on_amazon" };
     }
@@ -3458,7 +4200,7 @@ registerExtension({
     return { available: true, track_id: asin };
   },
 
-  download: function(trackID, quality, outputPath, onProgress) {
+  download: function (trackID, quality, outputPath, onProgress) {
     L("info", "[Amazon] download called:", trackID, quality);
 
     // trackID bisa berupa:
@@ -3472,22 +4214,33 @@ registerExtension({
     }
 
     if (!asin || !ASIN_REGEX.test(asin)) {
-      return { success: false, error_message: "Invalid track ID / ASIN: " + trackID, error_type: "invalid_input" };
+      return {
+        success: false,
+        error_message: "Invalid track ID / ASIN: " + trackID,
+        error_type: "invalid_input",
+      };
     }
 
     var codec = qualityToCodec(quality);
     L("info", "[Amazon] Downloading ASIN:", asin, "codec:", codec);
 
     // Call Zarz.moe media API — with fallback to FLAC if requested codec unavailable
-    var apiResult = fetchWithRetry(function() {
+    var apiResult = fetchWithRetry(function () {
       return callZarzMedia(asin, codec);
     });
 
     // If non-FLAC codec failed, fallback to FLAC
     if (!apiResult && codec !== "flac") {
-      L("info", "[Amazon] Codec", codec, "unavailable for ASIN:", asin, "— falling back to FLAC");
+      L(
+        "info",
+        "[Amazon] Codec",
+        codec,
+        "unavailable for ASIN:",
+        asin,
+        "— falling back to FLAC",
+      );
       codec = "flac";
-      apiResult = fetchWithRetry(function() {
+      apiResult = fetchWithRetry(function () {
         return callZarzMedia(asin, "flac");
       });
     }
@@ -3497,12 +4250,16 @@ registerExtension({
         success: false,
         error_message: "Verification required",
         error_type: "verification_required",
-        auth_url: apiResult.authUrl || ""
+        auth_url: apiResult.authUrl || "",
       };
     }
 
     if (!apiResult) {
-      return { success: false, error_message: "Download API failed for ASIN: " + asin, error_type: "api_error" };
+      return {
+        success: false,
+        error_message: "Download API failed for ASIN: " + asin,
+        error_type: "api_error",
+      };
     }
 
     var outputExt = "";
@@ -3520,26 +4277,38 @@ registerExtension({
     }
 
     if (onProgress) {
-      try { onProgress(5); } catch (e) {}
+      try {
+        onProgress(5);
+      } catch (e) {}
     }
 
     var downloadResult = file.download(apiResult.streamUrl, actualOutputPath, {
       headers: { "User-Agent": getRandomUA() },
-      onProgress: function(written, total) {
+      onProgress: function (written, total) {
         if (onProgress && total > 0) {
           var percent = Math.min(95, Math.floor((written / total) * 95) + 5);
-          try { onProgress(percent); } catch (e) {}
+          try {
+            onProgress(percent);
+          } catch (e) {}
         }
-      }
+      },
     });
 
     if (!downloadResult || !downloadResult.success) {
-      var errMsg = downloadResult ? downloadResult.error : "file.download returned null";
-      return { success: false, error_message: "Failed to download file: " + errMsg, error_type: "download_error" };
+      var errMsg = downloadResult
+        ? downloadResult.error
+        : "file.download returned null";
+      return {
+        success: false,
+        error_message: "Failed to download file: " + errMsg,
+        error_type: "download_error",
+      };
     }
 
     if (onProgress) {
-      try { onProgress(100); } catch (e) {}
+      try {
+        onProgress(100);
+      } catch (e) {}
     }
 
     L("info", "[Amazon] Download complete for ASIN:", asin);
@@ -3553,7 +4322,7 @@ registerExtension({
         strategy: "ffmpeg.mov_key",
         key: apiResult.decryptionKey,
         input_format: "mov",
-        output_extension: outputExt
+        output_extension: outputExt,
       };
     }
 
@@ -3567,7 +4336,7 @@ registerExtension({
       output_extension: outputExt,
       audio_codec: normalizeAudioCodec(apiResult.codec || codec),
       bit_depth: 0,
-      sample_rate: apiResult.sampleRate || 0
+      sample_rate: apiResult.sampleRate || 0,
     };
 
     // Overlay metadata from /media API for Go backend enrichment
@@ -3594,13 +4363,19 @@ registerExtension({
     return result;
   },
 
-  getDownloadUrl: function() { return null; },
+  getDownloadUrl: function () {
+    return null;
+  },
 
-  matchTrack: function() { return null; },
+  matchTrack: function () {
+    return null;
+  },
 
-  validateTrackForDownload: function() { return true; },
+  validateTrackForDownload: function () {
+    return true;
+  },
 
-  cleanup: function() {
+  cleanup: function () {
     L("info", "[Amazon] Extension cleanup");
     _cache = {};
     _cacheTimes = {};
@@ -3609,5 +4384,5 @@ registerExtension({
     _currentContext = createAmazonContext(CONFIG.musicBaseURL);
     _session.initialized = false;
     return true;
-  }
+  },
 });

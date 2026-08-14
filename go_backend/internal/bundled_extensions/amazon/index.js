@@ -161,6 +161,20 @@ function extractASIN(rawURL) {
       }
     }
     var segments = parsed.pathname.replace(/^\/|\/$/g, "").split("/");
+    // An artist/playlist page is never a downloadable track: the download API
+    // 404s on an artist ASIN. Reject those URLs outright (Songstats sometimes
+    // surfaces the artist's own Amazon page for an ISRC lookup).
+    if (segments.length > 0) {
+      var first = segments[0].toLowerCase();
+      if (
+        first === "artists" ||
+        first === "artist" ||
+        first === "playlists" ||
+        first === "playlist"
+      ) {
+        return null;
+      }
+    }
     for (var j = 0; j < segments.length - 1; j++) {
       var seg = segments[j].toLowerCase();
       if (seg === "track" || seg === "tracks") {
@@ -3441,6 +3455,19 @@ function extractAmazonFromJsonLD(obj) {
     for (var j = 0; j < obj.sameAs.length; j++) {
       var link = obj.sameAs[j];
       if (typeof link === "string" && link.indexOf("music.amazon.") !== -1) {
+        // Reject artist/playlist pages: the download API needs a TRACK (or
+        // album) ASIN, and the Songstats page's JSON-LD lists the artist's own
+        // Amazon page among sameAs. Picking it produced an artist ASIN (e.g.
+        // /artists/B000QJTKWE) that the /dl/ endpoint 404s on.
+        var lower = link.toLowerCase();
+        if (
+          lower.indexOf("/artists/") !== -1 ||
+          lower.indexOf("/artist/") !== -1 ||
+          lower.indexOf("/playlists/") !== -1 ||
+          lower.indexOf("/playlist/") !== -1
+        ) {
+          continue;
+        }
         return link;
       }
     }
