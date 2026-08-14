@@ -4,6 +4,7 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -42,9 +43,13 @@ func DownloadItem(payload string) string {
 	if downloadOrch == nil {
 		return jsonErrorStr("no inicializado")
 	}
-	result := downloadOrch.Download(download.Request{ItemID: params.ItemID})
-	data, _ := json.Marshal(result)
-	return string(data)
+	// Fire-and-forget: the fallback can run for tens of seconds, and the
+	// Android bridge serializes RPCs on one thread — a synchronous download
+	// would stall every search/poll queued behind it (search then times out
+	// and shows "sin resultados"). Progress is tracked; Flutter polls
+	// getAllDownloadProgress for the outcome.
+	go func() { _ = downloadOrch.Download(download.Request{ItemID: params.ItemID}) }()
+	return `{"ok":true}`
 }
 
 // GetAllDownloadProgress returns all active download progress entries.
@@ -104,9 +109,15 @@ func DownloadByStrategy(payload string) string {
 	case "video":
 		return downloadVideoToDisk(req)
 	}
-	result := downloadOrch.Download(req)
-	data, _ := json.Marshal(result)
-	return string(data)
+	// Audio downloads run in the background. The multi-provider fallback can
+	// hold the bridge's single RPC thread for ~50s, and any search/poll queued
+	// behind it exceeded Flutter's 60s RPC timeout and silently returned
+	// "sin resultados". The client already polls getAllDownloadProgress for the
+	// outcome, so nothing here needs the synchronous *Result.
+	go func() {
+		_ = downloadOrch.Download(req)
+	}()
+	return fmt.Sprintf(`{"itemId":%q,"queued":true}`, req.ItemID)
 }
 
 // downloadLyricsToDisk fetches lyrics and writes a .lrc sidecar next to the

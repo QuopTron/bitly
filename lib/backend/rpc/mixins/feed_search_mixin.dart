@@ -30,11 +30,26 @@ mixin FeedSearchMixin on BackendService {
     String type = '', int limit = 20,
   }) async {
     try {
-      final params = <String, dynamic>{'query': query, 'limit': limit};
-      if (source.isNotEmpty) params['source'] = source;
-      if (type.isNotEmpty) params['type'] = type;
-      return BackendHelpers.parseSearchResults(await rpcCall('search', params));
-    } catch (_) { return []; }
+      return await _runSearch(query, source, type, limit);
+    } catch (_) {
+      // The native bridge serializes RPCs on one thread; a search dispatched
+      // while a heavy call (download fallback / stream resolve) is in flight
+      // can exceed the RPC timeout. Retry once — by then the queue drained —
+      // so a transient stall never surfaces as a fake "sin resultados".
+      try {
+        await Future<void>.delayed(const Duration(seconds: 2));
+        return await _runSearch(query, source, type, limit);
+      } catch (_) {
+        return [];
+      }
+    }
+  }
+
+  Future<List<FeedItem>> _runSearch(String query, String source, String type, int limit) async {
+    final params = <String, dynamic>{'query': query, 'limit': limit};
+    if (source.isNotEmpty) params['source'] = source;
+    if (type.isNotEmpty) params['type'] = type;
+    return BackendHelpers.parseSearchResults(await rpcCall('search', params));
   }
 
   @override
