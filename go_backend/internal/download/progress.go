@@ -1,6 +1,7 @@
 package download
 
 import (
+	"encoding/json"
 	"sync"
 )
 
@@ -33,6 +34,16 @@ func (s Status) String() string {
 	default:
 		return "unknown"
 	}
+}
+
+// MarshalJSON serializes the status as its stable string form (e.g.
+// "downloading") instead of the raw integer enum value. The Flutter
+// DownloadCubit polling contract compares status against strings
+// ('completed', 'downloading', 'failed', 'cancelled', ...), so sending the
+// int here made every poll throw a cast error on the client and the dot
+// stayed orange forever even when the download had finished.
+func (s Status) MarshalJSON() ([]byte, error) {
+	return json.Marshal(s.String())
 }
 
 // Progress holds download progress for a single item.

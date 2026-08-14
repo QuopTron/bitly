@@ -1,6 +1,7 @@
 package download
 
 import (
+	"encoding/json"
 	"testing"
 )
 
@@ -148,5 +149,28 @@ func TestStatusStrings(t *testing.T) {
 		if tt.status.String() != tt.str {
 			t.Errorf("expected %s, got %s", tt.str, tt.status.String())
 		}
+	}
+}
+
+// TestStatusMarshalJSON verifies the progress status serializes as its string
+// form (the Flutter DownloadCubit polling contract), NOT the raw int enum.
+func TestStatusMarshalJSON(t *testing.T) {
+	tr := NewTracker()
+	tr.Add("track_1", "Tu Boda", "deezer")
+	tr.Update("track_1", StatusCompleted, 1.0)
+	tr.SetOutputPath("track_1", "/music/song.flac")
+	p := tr.Get("track_1")
+	data, err := json.Marshal(p)
+	if err != nil {
+		t.Fatalf("marshal error: %v", err)
+	}
+	var m map[string]interface{}
+	if err := json.Unmarshal(data, &m); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if got, ok := m["status"]; !ok {
+		t.Fatal("status field missing")
+	} else if got != "completed" {
+		t.Errorf("expected status \"completed\", got %v (%T)", got, got)
 	}
 }

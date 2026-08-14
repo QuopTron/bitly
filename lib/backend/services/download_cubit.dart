@@ -479,6 +479,34 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
     });
   }
 
+  /// Normalizes a Go progress entry's status field into a string. The Go
+  /// tracker used to marshal Status as an integer (0=queued … 5=cancelled),
+  /// so accept BOTH the numeric and the string form. A hard cast here would
+  /// throw on the first item of every poll, get swallowed by the outer catch
+  /// and leave every download stuck orange (inProgress) forever — the file
+  /// existed on disk but the dot never turned green.
+  String _statusOf(Map<String, dynamic> p) {
+    final raw = p['status'];
+    if (raw is String) return raw;
+    if (raw is num) {
+      switch (raw.toInt()) {
+        case 0:
+          return 'queued';
+        case 1:
+          return 'downloading';
+        case 2:
+          return 'processing';
+        case 3:
+          return 'completed';
+        case 4:
+          return 'failed';
+        case 5:
+          return 'cancelled';
+      }
+    }
+    return '';
+  }
+
   Future<void> _pollProgress() async {
     if (_verificationInProgress || _pollingInProgress) return;
     _pollingInProgress = true;
@@ -495,7 +523,7 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
         for (final entry in items.entries) {
           if (entry.value is! Map) continue;
           final p = entry.value as Map<String, dynamic>;
-          final status = (p['status'] ?? '') as String;
+          final status = _statusOf(p);
           if (status == 'verification_required') {
             _log.i('[_pollProgress] Detected verification_required for ${entry.key}');
 
@@ -540,7 +568,7 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
           final stateKey = _itemIdToStateKey[rawId] ?? rawId;
           if (entry.value is! Map) continue;
           final p = entry.value as Map<String, dynamic>;
-          final status = (p['status'] ?? '') as String;
+          final status = _statusOf(p);
           final progress = (p['progress'] ?? 0.0) as num;
           final trackName = (p['track_name'] ?? '') as String;
           final artistName = (p['artist_name'] ?? '') as String;
@@ -652,6 +680,13 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
             changed = true;
           } else if (status == 'downloading' || status == 'preparing') {
             dl[stateKey] = DownloadStateData(state: DownloadState.inProgress, progress: progress.toDouble());
+            changed = true;
+          } else if (status == 'failed' || status == 'cancelled') {
+            // Backend exhausted all providers without producing a file. Surface
+            // a terminal state (interrupted → red/retry) instead of leaving the
+            // card stuck orange (inProgress) forever.
+            dl[stateKey] = const DownloadStateData(state: DownloadState.interrupted, progress: 0.0);
+            _startedAt.remove(stateKey);
             changed = true;
           }
         }
@@ -1378,6 +1413,31 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
     }
 
     emit(state.copyWith(downloads: dl, downloadedFingerprints: fps));
+  }
+
+  /// Deletes a downloaded track even when the card was shown from a DIFFERENT
+  /// extension than the one it was actually downloaded from. If the exact
+  /// source-keyed entry isn't the download, it resolves the real entry by
+  /// fingerprint (source-agnostic, same as the like) and deletes that.
+  Future<void> deleteTrackResolved(FeedItem item) async {
+    final baseId = 'track_${normalizeTrackId(item.id)}_${item.source ?? ''}';
+    final haveExact = _trackMeta.containsKey(baseId) ||
+        state.downloads[baseId]?.state == DownloadState.completed;
+    if (haveExact) {
+      await deleteTrackDownload(item.id, item.source ?? '');
+      return;
+    }
+    final targetFp = fingerprintFromName(item.name, item.artists ?? '');
+    _TrackInfo? match;
+    for (final meta in _trackMeta.values) {
+      if (fingerprintFromName(meta.name, meta.artist ?? '') == targetFp) {
+        match = meta;
+        break;
+      }
+    }
+    if (match != null) {
+      await deleteTrackDownload(match.trackId, match.source);
+    }
   }
 
   /// Returns `FeedItem` for ALL completed track downloads (both batch and individual).

@@ -53,32 +53,17 @@ mixin LikeActions on Cubit<LikeState> {
   }
 
   Future<void> _like(FeedItem item, String fp) async {
-    String? coverPath;
-    if (item.coverUrl != null && item.coverUrl!.isNotEmpty) {
-      if (item.type == 'track') {
-        final localCover = await backend.getCoverPathForTrack(
-          trackId: item.id,
-          isrc: item.isrc,
-          trackName: item.name,
-          artistName: item.artists,
-          coverUrl: item.coverUrl,
-        );
-        if (localCover != null && localCover.isNotEmpty) {
-          coverPath = localCover;
-        } else {
-          coverPath = await _saveCover(item.coverUrl!);
-        }
-      } else {
-        coverPath = await _saveCover(item.coverUrl!);
-      }
-    }
-
+    // Optimistic: pintar el corazón y persistir el like ANTES de tocar la red.
+    // En Android el bridge serializa todos los RPC en un único hilo, así que un
+    // RPC de cover encolado detrás de una descarga larga puede tardar decenas
+    // de segundos o expirar. Esperarlo aquí retrasaría (o bloquearía) el emit
+    // y el usuario vería el corazón sin pintar aunque el like sí se haya dado.
     final newFps = Set<String>.from(state.likedFingerprints)..add(fp);
     final newItems = Map<String, LikedItemData>.from(state.allLiked);
     newItems[item.id] = LikedItemData(
       id: item.id, type: item.type, name: item.name,
       artists: item.artists, coverUrl: item.coverUrl,
-      localCoverPath: coverPath, source: item.source,
+      source: item.source,
       albumName: item.albumName, durationMs: item.durationMs,
       isrc: item.isrc,
     );
@@ -92,7 +77,7 @@ mixin LikeActions on Cubit<LikeState> {
         unawaited(_fav.toggleLovedTrack(
           trackId: item.id, trackName: item.name,
           artistName: item.artists ?? '', albumName: item.albumName,
-          coverUrl: item.coverUrl, coverPath: coverPath,
+          coverUrl: item.coverUrl,
           isrc: item.isrc, durationMs: item.durationMs,
           liked: true, source: item.source,
         ));
@@ -100,7 +85,7 @@ mixin LikeActions on Cubit<LikeState> {
         unawaited(_fav.toggleFavoriteAlbum(
           albumId: item.id, name: item.name,
           artistId: item.artists ?? '', artistName: item.artists ?? '',
-          coverUrl: item.coverUrl ?? '', coverPath: coverPath,
+          coverUrl: item.coverUrl ?? '',
           liked: true, provider: item.source,
         ));
         // Fetch album detail and sync tracks + covers
@@ -110,19 +95,73 @@ mixin LikeActions on Cubit<LikeState> {
       case 'artist':
         unawaited(_fav.toggleFavoriteArtist(
           artistId: item.id, name: item.name,
-          imageUrl: item.coverUrl ?? '', imagePath: coverPath,
-          liked: true,
+          imageUrl: item.coverUrl ?? '', liked: true,
         ));
       case 'playlist':
         unawaited(_fav.toggleFavoritePlaylist(
           playlistId: item.id, name: item.name,
-          coverUrl: item.coverUrl, coverPath: coverPath,
+          coverUrl: item.coverUrl,
           provider: item.source, liked: true,
         ));
         // Fetch playlist detail and sync tracks + covers
         unawaited(_syncPlaylistTracks(item.id, item.source ?? '',
           parentCoverUrl: item.coverUrl,
         ));
+    }
+
+    // Guardar la cover es best-effort y NO bloquea el like: corre en segundo
+    // plano y, si obtiene un path local, lo agrega al estado (y a la fila de
+    // favoritos) cuando esté disponible.
+    unawaited(_saveCoverForLike(item, fp));
+  }
+
+  /// Downloads the cover for a freshly-liked [item] in the background and
+  /// patches the local cover path into the state (and the loved-track row)
+  /// once it's available. No-op if the item was unliked while saving, so a
+  /// stale RPC can never resurrect a removed favorite's cover.
+  Future<void> _saveCoverForLike(FeedItem item, String fp) async {
+    String? coverPath;
+    try {
+      if (item.coverUrl != null && item.coverUrl!.isNotEmpty) {
+        if (item.type == 'track') {
+          final localCover = await backend.getCoverPathForTrack(
+            trackId: item.id,
+            isrc: item.isrc,
+            trackName: item.name,
+            artistName: item.artists,
+            coverUrl: item.coverUrl,
+          );
+          if (localCover != null && localCover.isNotEmpty) {
+            coverPath = localCover;
+          } else {
+            coverPath = await _saveCover(item.coverUrl!);
+          }
+        } else {
+          coverPath = await _saveCover(item.coverUrl!);
+        }
+      }
+    } catch (_) {
+      coverPath = null;
+    }
+    if (coverPath == null || coverPath.isEmpty) return;
+    // Solo parcheamos si el item sigue likeado (pudo quitarse el like mientras
+    // el RPC de cover estaba encolado).
+    if (!state.likedFingerprints.contains(fp)) return;
+    final cur = state.allLiked[item.id];
+    if (cur == null || cur.localCoverPath?.isNotEmpty == true) return;
+    final newItems = Map<String, LikedItemData>.from(state.allLiked);
+    newItems[item.id] = cur.copyWith(localCoverPath: coverPath);
+    emit(state.copyWith(allLiked: newItems));
+    if (item.type == 'track') {
+      // Persistir también el coverPath en la fila de favoritos (upsert) para
+      // que sobreviva al reinicio.
+      unawaited(_fav.toggleLovedTrack(
+        trackId: item.id, trackName: item.name,
+        artistName: item.artists ?? '', albumName: item.albumName,
+        coverUrl: item.coverUrl, coverPath: coverPath,
+        isrc: item.isrc, durationMs: item.durationMs,
+        liked: true, source: item.source,
+      ));
     }
   }
 
