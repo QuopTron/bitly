@@ -4,15 +4,9 @@
   "version": "1.2.0",
   "description": "Deezer metadata and download provider for SpotiFLAC Mobile.",
   "homepage": "https://github.com/zarzet/SpotiFLAC-Mobile",
-  "type": [
-    "metadata_provider",
-    "download_provider"
-  ],
+  "type": ["metadata_provider", "download_provider"],
   "minAppVersion": "4.7.0",
-  "requiredRuntimeFeatures": [
-    "signedSession@1",
-    "sessionGrant@1"
-  ],
+  "requiredRuntimeFeatures": ["signedSession@1", "sessionGrant@1"],
   "signedSession": {
     "namespace": "zarz-v2",
     "baseUrl": "https://api.zarz.moe/v2",

@@ -119,7 +119,7 @@ func (p *ExtensionProvider) callOp(op, method string, args ...interface{}) (inte
 // SearchTracks calls the extension's searchTracks(query, limit) JS function.
 // Falls back to customSearch with filter "song" if searchTracks is not available.
 func (p *ExtensionProvider) SearchTracks(query string, limit int) ([]TrackResult, error) {
-	result, err := p.call("searchTracks", query, limit)
+	result, err := p.callOp("search", "searchTracks", query, limit)
 	if err == nil {
 		if result != nil {
 			return convertToTrackResults(result, p.name)
@@ -129,7 +129,7 @@ func (p *ExtensionProvider) SearchTracks(query string, limit int) ([]TrackResult
 
 	// Fallback: try customSearch with filter "song"
 	opts := map[string]interface{}{"limit": limit, "filter": "song"}
-	result, err = p.call("customSearch", query, opts)
+	result, err = p.callOp("search", "customSearch", query, opts)
 	if err != nil || result == nil {
 		return nil, nil
 	}
@@ -139,7 +139,7 @@ func (p *ExtensionProvider) SearchTracks(query string, limit int) ([]TrackResult
 // SearchAlbums calls the extension's customSearch with filter "album".
 func (p *ExtensionProvider) SearchAlbums(query string, limit int) ([]AlbumResult, error) {
 	opts := map[string]interface{}{"limit": limit, "filter": "album"}
-	result, err := p.call("customSearch", query, opts)
+	result, err := p.callOp("search", "customSearch", query, opts)
 	if err != nil || result == nil {
 		return p.searchTracksAsAlbums(query, limit)
 	}
@@ -149,7 +149,7 @@ func (p *ExtensionProvider) SearchAlbums(query string, limit int) ([]AlbumResult
 // SearchPlaylists calls the extension's customSearch with filter "playlist".
 func (p *ExtensionProvider) SearchPlaylists(query string, limit int) ([]PlaylistResult, error) {
 	opts := map[string]interface{}{"limit": limit, "filter": "playlist"}
-	result, err := p.call("customSearch", query, opts)
+	result, err := p.callOp("search", "customSearch", query, opts)
 	if err != nil || result == nil {
 		return nil, nil
 	}
@@ -159,7 +159,7 @@ func (p *ExtensionProvider) SearchPlaylists(query string, limit int) ([]Playlist
 // SearchArtists calls the extension's customSearch with filter "artist".
 func (p *ExtensionProvider) SearchArtists(query string, limit int) ([]ArtistResult, error) {
 	opts := map[string]interface{}{"limit": limit, "filter": "artist"}
-	result, err := p.call("customSearch", query, opts)
+	result, err := p.callOp("search", "customSearch", query, opts)
 	if err != nil || result == nil {
 		return nil, nil
 	}
@@ -190,7 +190,7 @@ type CombinedResult struct {
 // on this to surface artists/albums/playlists at all.
 func (p *ExtensionProvider) CombinedSearch(query string, limit int) ([]CombinedResult, error) {
 	opts := map[string]interface{}{"limit": limit}
-	result, err := p.call("customSearch", query, opts)
+	result, err := p.callOp("search", "customSearch", query, opts)
 	if err != nil || result == nil {
 		return nil, nil
 	}
@@ -203,7 +203,7 @@ func (p *ExtensionProvider) CombinedSearch(query string, limit int) ([]CombinedR
 // many more results than the capped "all" mix (50 tracks / 20 albums, etc.).
 func (p *ExtensionProvider) SearchFiltered(filter string, query string, limit int) ([]CombinedResult, error) {
 	opts := map[string]interface{}{"limit": limit, "filter": filter}
-	result, err := p.call("customSearch", query, opts)
+	result, err := p.callOp("search", "customSearch", query, opts)
 	if err != nil || result == nil {
 		return nil, nil
 	}

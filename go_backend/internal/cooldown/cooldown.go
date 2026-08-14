@@ -14,6 +14,7 @@
 package cooldown
 
 import (
+	"math/rand"
 	"strings"
 	"sync"
 	"time"
@@ -93,8 +94,12 @@ func markErrorKey(key, errMsg string) {
 		cooled[key] = now.Add(d)
 		return
 	}
-	cooled[key] = now.Add(cooldownDur)
+	cooled[key] = now.Add(cooldownDur + time.Duration(rand.Int63n(int64(maxJitter+1))))
 }
+
+// maxJitter spreads identical initial windows so a burst of 429s across many
+// concurrent tracks doesn't make every provider re-cool and retry in lockstep.
+const maxJitter = 15 * time.Second
 
 // MarkOk removes the provider-wide cooldown for [name] after a successful
 // operation so a recovered provider is used again immediately.

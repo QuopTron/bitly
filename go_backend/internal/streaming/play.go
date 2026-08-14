@@ -4,29 +4,31 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/zarz/bitly/go_backend/internal/cooldown"
 	"github.com/zarz/bitly/go_backend/internal/lyrics"
 	"github.com/zarz/bitly/go_backend/internal/provider"
 )
 
 // StreamPackage is the complete result for playing a track.
 type StreamPackage struct {
-	AudioURL string               `json:"audioUrl"`
-	VideoURL string               `json:"videoUrl,omitempty"`
-	Provider string               `json:"provider"`
-	Quality  string               `json:"quality"`
+	AudioURL string                `json:"audioUrl"`
+	VideoURL string                `json:"videoUrl,omitempty"`
+	Provider string                `json:"provider"`
+	Quality  string                `json:"quality"`
 	Track    *provider.TrackResult `json:"track"`
-	Lyrics   *lyrics.Lyrics       `json:"lyrics,omitempty"`
+	Lyrics   *lyrics.Lyrics        `json:"lyrics,omitempty"`
 }
 
 // streamingProviders can serve actual audio streams. Includes both native
 // names and their bundled -web extension equivalents: after extensions load,
 // qobuz/tidal/etc. register under "qobuz-web"/"tidal-web" (and apple-music,
 // amazon), so the hardcoded native names alone would silently skip real
-// sources during rescue.
+// sources during rescue. Order mirrors SpotiFLAC: exact sources (deezer,
+// qobuz, tidal, amazon — resolve the same track via ISRC) before soundcloud's
+// loose name-search.
 var streamingProviders = []string{
-	"youtube", "deezer", "soundcloud", "qobuz", "tidal",
-	"qobuz-web", "tidal-web", "spotify-web", "apple-music", "amazon",
-	"ytmusic-spotiflac",
+	"youtube", "deezer", "qobuz", "tidal", "qobuz-web", "tidal-web", "amazon",
+	"ytmusic-spotiflac", "apple-music", "spotify-web", "soundcloud",
 }
 
 // isPlayableStreamProvider returns true if the provider can stream audio.
@@ -45,6 +47,148 @@ func isStreamingProvider(name string) bool {
 // that and would loop "Error decoding audio". Only http(s) URLs are playable.
 func isPlayableStreamURL(u string) bool {
 	return strings.HasPrefix(u, "http://") || strings.HasPrefix(u, "https://")
+}
+
+// fullStreamProviders yield full-length http streams. The fast-play path should
+// only be served from these; preview-prone providers (apple-music, spotify-web)
+// return 30s audio clips that would cut playback short, so playback for those
+// goes straight to the produced download instead.
+var fullStreamProviders = []string{"youtube", "ytmusic-spotiflac", "soundcloud", "deezer"}
+
+// IsFullStreamProvider reports whether [name] can serve a full-length stream
+// (as opposed to a 30s preview).
+func IsFullStreamProvider(name string) bool {
+	for _, p := range fullStreamProviders {
+		if p == name {
+			return true
+		}
+	}
+	return false
+}
+
+// trimKnownPrefix strips an "<provider>:" id prefix (feed items carry ids like
+// "amazon:abc" that extensions don't understand).
+func trimKnownPrefix(id string) string {
+	if i := strings.Index(id, ":"); i > 0 {
+		return id[i+1:]
+	}
+	return id
+}
+
+// StreamQuick resolves a playable direct stream for a track using its
+// cross-provider identifiers (spotify/deezer/tidal/qobuz ids + ISRC) via
+// CheckAvailability instead of slow name searches — the same route the download
+// orchestrator uses. When a real http stream exists it is found in ~1-2s, so
+// playback can begin immediately; providers that only expose 30s previews or
+// DRM files fail fast so the caller falls through to the cached, identifier-based
+// download. Returns (url, provider, err).
+//
+// The resolved id is NEVER trusted blindly: when it wasn't obtained from an
+// authoritative identifier (ISRC / cross-provider id), it is verified against
+// the query title/artist so a wrong/similar track (e.g. another feed's id fed to
+// a full-stream provider) is never served — playback falls through instead.
+func StreamQuick(
+	reg *provider.Registry,
+	providerName, trackID, quality, isrc, spotifyID, deezerID, tidalID, qobuzID string,
+	trackName, artistName string,
+) (string, string, error) {
+	if reg == nil {
+		return "", "", fmt.Errorf("no inicializado")
+	}
+	if providerName == "" {
+		return "", "", fmt.Errorf("sin proveedor")
+	}
+	p := reg.Get(providerName)
+	if p == nil {
+		return "", "", fmt.Errorf("proveedor no encontrado: %s", providerName)
+	}
+	// Authoritative identifiers resolve the EXACT track; a plain trackID (often
+	// another provider's native id) does not and must be verified later.
+	authoritative := isrc != "" || spotifyID != "" || deezerID != "" || tidalID != "" || qobuzID != ""
+	id := ""
+	if ep, ok := p.(*provider.ExtensionProvider); ok {
+		if foundID, found := ep.CheckAvailability(isrc, trackName, artistName, spotifyID, deezerID, tidalID, qobuzID, 0); found && foundID != "" {
+			id = foundID
+		}
+	}
+	if id == "" && isrc != "" {
+		if t, err := p.GetTrackByISRC(isrc); err == nil && t != nil && t.ID != "" {
+			id = t.ID
+		}
+	}
+	if id == "" {
+		id = trimKnownPrefix(trackID)
+		authoritative = false
+	}
+	if id == "" {
+		return "", "", fmt.Errorf("no se pudo identificar el track en %s", providerName)
+	}
+	// Always verify the resolved id really is the requested track when we have
+	// its title — even when the id came from an "authoritative" identifier (a
+	// wrong/misreported ISRC or a cross-provider id still produces a wrong song,
+	// which is worse than a moment's extra lookup). We never play a similar song.
+	if trackName != "" {
+		id = verifyStreamMatch(p, id, trackName, artistName, isrc, authoritative)
+		if id == "" {
+			return "", "", fmt.Errorf("no se pudo confirmar la cancion original en %s", providerName)
+		}
+	}
+	for _, q := range availableQualities(quality) {
+		if cooldown.IsCooled(providerName) {
+			break
+		}
+		url, err := p.GetStreamURL(id, q)
+		if err != nil {
+			cooldown.MarkError(providerName, err.Error())
+			continue
+		}
+		if url != "" && isPlayableStreamURL(url) {
+			cooldown.MarkOk(providerName)
+			return url, providerName, nil
+		}
+	}
+	return "", "", fmt.Errorf("sin stream reproducible en %s", providerName)
+}
+
+// verifyStreamMatch confirms that a resolved id actually maps back to the
+// ORIGINAL query track before its stream is served. It returns [id] unchanged
+// when confident, or "" when it cannot be confirmed — so the caller falls
+// through to a path with stricter matching instead of playing a wrong/similar
+// song (remix/live/cover/other track). [isrc] is the ISRC the caller was given
+// (may be empty); [authoritative] reports whether [id] came from an ISRC or a
+// cross-provider id (trusted if it can't be fetched) as opposed to a guessed
+// id (refused if it can't be fetched).
+func verifyStreamMatch(p provider.Provider, id, queryTitle, queryArtist, isrc string, authoritative bool) string {
+	if queryTitle == "" {
+		return id
+	}
+	t, err := p.GetTrack(id)
+	if err != nil || t == nil {
+		// Can't fetch the record to verify: only an authoritative identifier is
+		// trusted; a guessed id is refused rather than guessing a wrong song.
+		if authoritative {
+			return id
+		}
+		return ""
+	}
+	// ISRC mismatch is the strongest, cheapest mismatch signal: when both sides
+	// carry an ISRC and they differ, it is definitely not the requested track.
+	if isrc != "" && t.ISRC != "" && !strings.EqualFold(strings.ToUpper(isrc), strings.ToUpper(t.ISRC)) {
+		return ""
+	}
+	if _, ok := provider.OriginalStrength(queryTitle, queryArtist, *t); ok {
+		return id
+	}
+	// The provider's own record may expose an ISRC: re-resolving through the
+	// same provider's ISRC route is another way to confirm identity.
+	if t.ISRC != "" {
+		if it, err := p.GetTrackByISRC(t.ISRC); err == nil && it != nil {
+			if _, ok := provider.OriginalStrength(queryTitle, queryArtist, *it); ok {
+				return id
+			}
+		}
+	}
+	return ""
 }
 
 // GetStreamPackage busca metadata + stream URL + letras en una sola llamada.
@@ -110,14 +254,14 @@ func GetStreamPackage(
 	if track != nil {
 		pkg.Track = track
 	} else if trackName != "" && artistName != "" {
-p := reg.Get(streamProvider)
-			if p != nil {
-				if results, _ := p.SearchTracks(trackName+" "+artistName, 8); len(results) > 0 {
-					if best := provider.BestOriginal(trackName, artistName, results); best != nil {
-						pkg.Track = best
-					}
+		p := reg.Get(streamProvider)
+		if p != nil {
+			if results, _ := p.SearchTracks(trackName+" "+artistName, 8); len(results) > 0 {
+				if best := provider.BestOriginal(trackName, artistName, results); best != nil {
+					pkg.Track = best
 				}
 			}
+		}
 	}
 
 	if fetchLyrics && lyricsClient != nil && trackName != "" && artistName != "" {

@@ -33,7 +33,10 @@ class _SearchPageState extends State<SearchPage> {
   /// SpotiFLAC keeps the search surface alive. Tapping a bubble narrows to that
   /// single source.
   String _selectedSource = '';
-  String? _selectedType;
+  /// Default category: 'tracks' (canciones). There is NO "all" state — the four
+  /// category bubbles (tracks/albums/artists/playlists) always have exactly one
+  /// active, matching SpotiFLAC minus the "all" bubble. Always non-null.
+  String? _selectedType = 'tracks';
 
   bool _searching = false;
 
@@ -122,7 +125,7 @@ class _SearchPageState extends State<SearchPage> {
     final q = _searchCtrl.text.trim();
     if (q.isEmpty) return;
     final filterId = _activeFilterId;
-    final type = filterId ?? 'all';
+    final type = filterId ?? 'tracks';
     final limit = filterId == null ? 25 : _limitForType(_selectedType!);
     context.read<SearchBloc>().add(
       PerformSearch(query: q, source: _selectedSource, type: type, limit: limit),
@@ -132,11 +135,11 @@ class _SearchPageState extends State<SearchPage> {
   void _onSourceChanged(String src) {
     setState(() {
       _selectedSource = src;
-      // Drop a selected category the new source doesn't declare.
+      // Keep a valid category selected (never drop to "all"). If the new
+      // source doesn't declare the current one, fall back to 'tracks'.
       final state = context.read<SearchBloc>().state;
-      if (_selectedType != null &&
-          !_sourceHasCategory(state, src, _selectedType!)) {
-        _selectedType = null;
+      if (_selectedType == null || !_sourceHasCategory(state, src, _selectedType!)) {
+        _selectedType = 'tracks';
       }
     });
     context.read<SearchBloc>().add(SearchSourceChanged(src));
@@ -160,7 +163,7 @@ class _SearchPageState extends State<SearchPage> {
     _debounceTimer = Timer(const Duration(milliseconds: 600), () {
       if (!mounted) return;
       final filterId = _activeFilterId;
-      final type = filterId ?? 'all';
+      final type = filterId ?? 'tracks';
       final limit = filterId == null ? 25 : _limitForType(_selectedType!);
       context.read<SearchBloc>().add(
         PerformSearch(query: q, source: _selectedSource, type: type, limit: limit),
@@ -226,16 +229,16 @@ class _SearchPageState extends State<SearchPage> {
                   onTextChanged: _onSearchChanged,
                   onClear: _clearSearch,
                   hintText: _searchHint(state),
-                ),
-                SizedBox(height: r.spacingS),
-                // Source selector: 'Todas' + every search-enabled extension as a
-                // bubble (SpotiFLAC style) — no more hidden icon dropdown.
-                SourceAccordion(
-                  sources: _searchSources(state),
-                  selectedSource: _selectedSource,
-                  onBg: onBg,
-                  glowColor: glowColor,
-                  onChanged: _onSourceChanged,
+                  // The source/extension selector lives INSIDE the search bar
+                  // (replacing the search icon), so it takes no extra bubble
+                  // row. Only the 4 category chips remain as bubbles.
+                  sourceTrigger: SourceAccordion(
+                    sources: _searchSources(state),
+                    selectedSource: _selectedSource,
+                    onBg: onBg,
+                    glowColor: glowColor,
+                    onChanged: _onSourceChanged,
+                  ),
                 ),
                 SizedBox(height: r.spacingS),
                 SearchTypeChips(
@@ -254,14 +257,15 @@ class _SearchPageState extends State<SearchPage> {
                         }
                         return showResults
                           ? SearchResultsBody(
-                              selectedType: _selectedType, results: state.results,
+                              selectedType: _selectedType, selectedSource: _selectedSource, results: state.results,
                               loading: _searching || state.loading, hasSearched: state.hasSearched,
                               error: state.error, likedIds: likeState.likedFingerprints,
                               downloadStates: ds,
+                              downloadedFingerprints: dlState.downloadedFingerprints,
                               onToggleLike: _toggleLike, onStartDownload: _startDownload,                              onBatchDownload: _startBatchDownload,
                               onBatchDelete: _onBatchDelete,
                               onExportPlaylist: _onExportPlaylist,
-                              onDeleteTrack: (item) => context.read<DownloadCubit>().deleteTrackDownload(item.id, item.source ?? ''),
+                              onDeleteTrack: (item) => context.read<DownloadCubit>().deleteTrackResolved(item),
                               onShowInfo: _showInfo, onShowMore: _showMore, onNavigateToItem: _navigateToItem,
                             )
                           : showRecents

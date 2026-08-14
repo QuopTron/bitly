@@ -28,7 +28,7 @@ func (p *ExtensionProvider) Download(trackID, quality, outputPath string, onProg
 		}
 	}
 
-	result, err := p.call("download", trackID, quality, outputPath, progressFn)
+	result, err := p.callOp("download", "download", trackID, quality, outputPath, progressFn)
 	if err != nil {
 		// cooldown already marked inside call(); a second mark here would
 		// double the window via the backoff for a single 429 event.
@@ -65,7 +65,7 @@ func (p *ExtensionProvider) Download(trackID, quality, outputPath string, onProg
 }
 
 func (p *ExtensionProvider) searchTracksAsAlbums(query string, limit int) ([]AlbumResult, error) {
-	result, err := p.call("searchTracks", query, limit)
+	result, err := p.callOp("search", "searchTracks", query, limit)
 	if err != nil || result == nil {
 		return nil, nil
 	}

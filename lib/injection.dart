@@ -42,9 +42,6 @@ Future<void> configureDependencies() async {
 
   // ── 2. Database ───────────────────────────────────────────────
   final db = await AppDatabase.create();
-  // Data migration: legacy covers stored as desktop-only loopback URLs
-  // (http://127.0.0.1:55009/cover/...) are cleared so cards fall back to the
-  // remote coverUrl instead of rendering gray. Cheap + idempotent.
   await db.migrateLegacyCoverPaths();
   sl.registerLazySingleton<AppDatabase>(() => db);
 

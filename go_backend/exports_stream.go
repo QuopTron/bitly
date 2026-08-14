@@ -90,13 +90,48 @@ func GetStreamPackage(payload string) string {
 	}
 	fetchL := params.FetchLyrics == "true" || params.FetchLyrics == "1"
 
-	// Real playback (AllowFallback=true): the middleware serves the actual file
-	// downloaded to the stream cache — decrypted from DRM when needed and
-	// transformed to the user's chosen quality — so media_kit plays the
-	// "producida" copy instead of a low-bitrate direct stream. The direct-stream
-	// path below is the fallback for when no provider can yield a high-quality
-	// file.
+	// Enrich a missing ISRC from the source provider / cross-provider ids so the
+	// strict identity matching below can never serve a same-title remix for a
+	// track whose exact ISRC is known (feeds often deliver isrc=null).
+	if params.ISRC == "" {
+		enrich := func(pn string, id string) {
+			if params.ISRC != "" || id == "" {
+				return
+			}
+			if p := reg.Get(pn); p != nil {
+				if t, err := p.GetTrack(id); err == nil && t != nil && t.ISRC != "" {
+					params.ISRC = t.ISRC
+				}
+			}
+		}
+		enrich(params.PreferredProvider, params.TrackID)
+		enrich("spotify-web", params.SpotifyID)
+		enrich("spotify-web", params.TrackID)
+		enrich(params.PreferredProvider, params.SpotifyID)
+		enrich(params.PreferredProvider, params.DeezerID)
+		enrich(params.PreferredProvider, params.TidalID)
+		enrich(params.PreferredProvider, params.QobuzID)
+	}
+
+	// Real playback (AllowFallback=true).
+	//
+	// FULL-STREAM providers (youtube/ytmusic/soundcloud/deezer) serve full-length
+	// http audio: resolve it via identifiers (~1-2s, no slow name search) and play
+	// instantly — media_kit streams it progressively.
+	//
+	// Preview/DRM providers (apple-music, spotify-web, amazon, qobuz, tidal) have
+	// no usable direct stream (30s clips or encrypted files), so playback produces
+	// the actual file (identifier-based + cached) exactly as before.
 	if params.AllowFallback {
+		if streaming.IsFullStreamProvider(params.PreferredProvider) {
+			url, name, err := streaming.StreamQuick(reg, params.PreferredProvider, params.TrackID, params.Quality, params.ISRC, params.SpotifyID, params.DeezerID, params.TidalID, params.QobuzID, params.TrackName, params.ArtistName)
+			if err == nil && url != "" {
+				pkg := &streaming.StreamPackage{AudioURL: url, Provider: name, Quality: params.Quality}
+				data, _ := json.Marshal(pkg)
+				return string(data)
+			}
+		}
+
 		out := streamFallbackDownload(params.TrackID, params.Quality, params.PreferredProvider, params.TrackName, params.ArtistName, params.ISRC, params.DurationMS, params.SpotifyID, params.DeezerID, params.TidalID, params.QobuzID)
 		if out.encrypted != nil {
 			return streamEncryptedJSON(out.encrypted, params.PreferredProvider)
@@ -111,30 +146,6 @@ func GetStreamPackage(payload string) string {
 			return string(data)
 		}
 		if out.err != nil {
-			// The fallback download exhausted every provider and failed.
-			// Before surfacing the structured error, try the direct streaming
-			// path (getDownloadUrl over http(s)) as a genuine LAST resort:
-			// some tracks only exist as a direct web stream and a playable
-			// URL beats silence. Bounded to 40s so the total RPC stays inside
-			// the 180s Android window (the orchestrator already burned up to
-			// maxFallbackDuration).
-			done := make(chan *streaming.StreamPackage, 1)
-			go func() {
-				pkg, err := streaming.GetStreamPackage(reg, lyricsClient, params.PreferredProvider, params.TrackID, params.Quality, fetchL, params.TrackName, params.ArtistName)
-				if err == nil && pkg != nil && pkg.AudioURL != "" {
-					done <- pkg
-				} else {
-					done <- nil
-				}
-			}()
-			select {
-			case pkg := <-done:
-				if pkg != nil {
-					data, _ := json.Marshal(pkg)
-					return string(data)
-				}
-			case <-time.After(40 * time.Second):
-			}
 			// Everything failed. Surface the structured error directly — it
 			// carries errorType/service naming the provider that actually
 			// needs verification (e.g. amazon VERIFY_REQUIRED).
@@ -240,6 +251,11 @@ func streamFallbackDownload(trackID, quality, provider, trackName, artistName, i
 	outDir := streamCacheDirPath()
 	if err := os.MkdirAll(outDir, 0o755); err != nil {
 		return &streamFallbackOutcome{err: err}
+	}
+	// Reuse a previously produced stream-cache file for the same track: the
+	// first tap downloads+converts, later taps play the existing file instantly.
+	if cached := download.StreamCacheFile(outDir, trackID); cached != "" {
+		return &streamFallbackOutcome{fileURL: "file://" + filepath.ToSlash(cached)}
 	}
 	// Pass the item id but keep the source provider: the orchestrator uses it
 	// ONLY on the provider that owns it (so amazon's ASIN isn't fed to deezer

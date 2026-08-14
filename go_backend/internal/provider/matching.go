@@ -27,6 +27,8 @@ var nonOriginalMarkers = []string{
 	"remix", "live", "cover", "acoustic", "karaoke", "instrumental",
 	"sped up", "spedup", "slowed", "acapella", "orchestral", "tribute",
 	"orchestra", "piano", "string quartet", "choir",
+	"extended", "rework", "remake", "nightcore", "dance edit", "radio edit",
+	"club mix", "dub mix", "disco edit", "reprise",
 }
 
 // FoldTrack lowercases and folds common accented characters for fair

@@ -23,6 +23,9 @@ class FeedContent extends StatelessWidget {
   final String currentDisplayName;
   final Set<String> likedIds;
   final Map<String, DownloadState> downloadStates;
+  /// Source-agnostic set of downloaded track fingerprints. Makes a track
+  /// downloaded under one extension read as downloaded under every other one.
+  final Set<String> downloadedFingerprints;
 
   final void Function(String id, [FeedItem? item]) onToggleLike;
   final void Function(FeedItem item) onStartDownload;
@@ -44,6 +47,7 @@ class FeedContent extends StatelessWidget {
     required this.currentDisplayName,
     required this.likedIds,
     required this.downloadStates,
+    this.downloadedFingerprints = const {},
     required this.onToggleLike,
     required this.onStartDownload,
     this.onDeleteTrack,
@@ -113,7 +117,7 @@ class FeedContent extends StatelessWidget {
           title: item.name, subtitle: item.artists ?? '', coverUrl: resolvedCover,
           textScale: 1.2, readyKey: normalizeTrackId(item.id),
           isLiked: likedIds.contains(fp), onLike: () => onToggleLike(id, item),
-          downloadState: downloadStates[id] ?? DownloadState.none,
+          downloadState: _trackDownloadState(fp, id),
                       onDownload: () => onStartDownload(item),
           onDelete: onDeleteTrack != null ? () => onDeleteTrack!(item) : null,
           onInfo: () => onShowInfo(context, item),
@@ -128,6 +132,16 @@ class FeedContent extends StatelessWidget {
       }
     }
     return ws;
+  }
+
+  /// Download state for a track card: exact source-keyed state when present,
+  /// else source-agnostic fingerprint fallback (SpotiFLAC-style detection).
+  DownloadState _trackDownloadState(String fp, String id) {
+    final s = downloadStates[id];
+    if (s != null && s != DownloadState.none) return s;
+    return downloadedFingerprints.contains(fp)
+        ? DownloadState.completed
+        : DownloadState.none;
   }
 
   List<Widget> _buildGridCards(BuildContext context, Responsive r) {

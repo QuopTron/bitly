@@ -6,6 +6,7 @@ import '../../l10n/app_localizations.dart';
 import '../models/download_settings.dart';
 import '../../../backend/cache/settings_cache.dart';
 import '../../../backend/rpc/backend_service.dart';
+import '../../../backend/services/player_cubit.dart';
 import '../../../injection.dart';
 import 'glass_container.dart';
 
@@ -25,6 +26,10 @@ class _SettingsDownloadSectionState extends State<SettingsDownloadSection> {
 
   static const _refDurationMs = 240000;
 
+  // Per-quality size labels are stable for the session; cache them so opening
+  // the sheet doesn't re-fire one estimateTrackFileSize RPC per quality option.
+  static Map<String, String>? _cachedSizes;
+
   @override
   void initState() {
     super.initState();
@@ -33,15 +38,19 @@ class _SettingsDownloadSectionState extends State<SettingsDownloadSection> {
 
   Future<void> _load() async {
     final s = await sl<SettingsCache>().getDownloadSettings();
-    final sizes = <String, String>{};
-    for (final q in DownloadSettings.audioQualityOptions) {
-      try {
-        final raw = await sl<BackendService>().estimateTrackFileSize(_refDurationMs, q);
-        final parsed = jsonDecode(raw) as Map?;
-        final bytes = (parsed?['size_bytes'] as num?)?.toInt() ?? 0;
-        sizes[q] = formatBytes(bytes);
-      } catch (_) {
-        sizes[q] = '';
+    Map<String, String> sizes = _cachedSizes ?? {};
+    if (_cachedSizes == null) {
+      sizes = <String, String>{};
+      _cachedSizes = sizes;
+      for (final q in DownloadSettings.audioQualityOptions) {
+        try {
+          final raw = await sl<BackendService>().estimateTrackFileSize(_refDurationMs, q);
+          final parsed = jsonDecode(raw) as Map?;
+          final bytes = (parsed?['size_bytes'] as num?)?.toInt() ?? 0;
+          sizes[q] = formatBytes(bytes);
+        } catch (_) {
+          sizes[q] = '';
+        }
       }
     }
     if (mounted) setState(() { _settings = s; _sizeLabels = sizes; });
@@ -50,6 +59,17 @@ class _SettingsDownloadSectionState extends State<SettingsDownloadSection> {
   Future<void> _update(DownloadSettings s) async {
     setState(() => _settings = s);
     await sl<SettingsCache>().saveDownloadSettings(s);
+    // Apply quality/video/lyrics choices to live playback (global state) so they
+    // take effect on the next resolved stream. Guarded so DSL/AAR absence doesn't
+    // crash the settings sheet on platforms without a player.
+    try {
+      sl<PlayerCubit>().applyDownloadSettings(
+        audioQuality: s.audioQuality,
+        videoQuality: s.videoQuality,
+        videoEnabled: s.videoEnabled,
+        lyricsEnabled: s.lyricsEnabled,
+      );
+    } catch (_) {}
   }
 
   @override

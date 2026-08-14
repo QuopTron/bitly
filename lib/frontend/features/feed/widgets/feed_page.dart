@@ -95,10 +95,11 @@ class _FeedPageState extends State<FeedPage> {
                         loading: state.loading, currentDisplayName: _currentDisplayName,
                         likedIds: likeState.likedFingerprints,
                         downloadStates: ds,
+                        downloadedFingerprints: dlState.downloadedFingerprints,
                         onToggleLike: _toggleLike, onStartDownload: _startDownload, onBatchDownload: _startBatchDownload,
                         onBatchDelete: _onBatchDelete,
                         onExportPlaylist: _onExportPlaylist,
-                        onDeleteTrack: (item) => context.read<DownloadCubit>().deleteTrackDownload(item.id, item.source ?? ''),
+                        onDeleteTrack: (item) => context.read<DownloadCubit>().deleteTrackResolved(item),
                         onShowInfo: _showInfo, onShowMore: _showMore, onNavigateToItem: _navigateToItem,
                       );
                     },

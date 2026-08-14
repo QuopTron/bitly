@@ -27,11 +27,23 @@ class DownloadDao extends DatabaseAccessor<AppDatabase> with _$DownloadDaoMixin 
   Future<void> removeFromQueue(String id) =>
       (delete(downloadQueue)..where((t) => t.id.equals(id))).go();
 
-  Future<List<DownloadHistoryData>> getHistory({int limit = 100, int offset = 0}) =>
-      (select(downloadHistory)
-            ..orderBy([(t) => OrderingTerm.desc(t.downloadedAt)])
-            ..limit(limit, offset: offset))
-          .get();
+  Future<List<DownloadHistoryData>> getHistory({
+    String? since,
+    int limit = 100,
+    int offset = 0,
+  }) {
+    // Delta loading: only fetch entries newer than [since] so the download
+    // cache doesn't re-read the full history (and re-check every file exists)
+    // on every 30s refresh / track switch.
+    final sinceDt = since == null ? null : DateTime.tryParse(since);
+    final q = select(downloadHistory)
+      ..orderBy([(t) => OrderingTerm.desc(t.downloadedAt)])
+      ..limit(limit, offset: offset);
+    if (sinceDt != null) {
+      q.where((t) => t.downloadedAt.isBiggerThanValue(sinceDt));
+    }
+    return q.get();
+  }
 
   Future<int> getHistoryCount() =>
       select(downloadHistory).get().then((r) => r.length);

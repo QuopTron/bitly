@@ -85,6 +85,15 @@ func GetSignedSessionStatus(extensionID string) string {
 	return string(data)
 }
 
+// SetSignedSessionCallbackURL re-points the Cloudflare challenge callback to a
+// custom URL (desktop: loopback HTTP server so the grant returns without a
+// custom URI scheme). Mobile leaves it empty to use the manifest's
+// spotiflac:// deep link.
+func SetSignedSessionCallbackURL(url string) string {
+	extensions.SetSignedSessionCallbackURL(url)
+	return `{"ok":true}`
+}
+
 // ClearSignedSession wipes the in-memory signed session for an extension.
 func ClearSignedSession(extensionID string) string {
 	sb := signedSessionSandbox(extensionID)

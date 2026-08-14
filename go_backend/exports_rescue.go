@@ -62,9 +62,9 @@ func GetSimilarTracks(payload string) string {
 		return `{"error":"no inicializado"}`
 	}
 	var params struct {
-		TrackTitle  string `json:"trackTitle"`
-		ArtistName  string `json:"artistName"`
-		Limit       int    `json:"limit"`
+		TrackTitle string `json:"trackTitle"`
+		ArtistName string `json:"artistName"`
+		Limit      int    `json:"limit"`
 	}
 	if err := json.Unmarshal([]byte(payload), &params); err != nil {
 		return `{"error":"payload inválido"}`

@@ -34,22 +34,9 @@ class _SourceAccordionState extends State<SourceAccordion> {
   OverlayEntry? _entry;
   bool _open = false;
 
-  static const double _headerHeight = 38;
   static const double _rowHeight = 40;
 
   bool get _isDark => widget.onBg.computeLuminance() > 0.5;
-
-  Color get _glass => _isDark
-      ? Colors.white.withValues(alpha: 0.08)
-      : Colors.white.withValues(alpha: 0.9);
-
-  Color get _glassStrong => _isDark
-      ? Colors.white.withValues(alpha: 0.14)
-      : Colors.white.withValues(alpha: 0.96);
-
-  String get _currentLabel => widget.selectedSource.isEmpty
-      ? 'Todas'
-      : widget.sources[widget.selectedSource] ?? widget.selectedSource;
 
   IconData get _currentIcon => widget.selectedSource.isEmpty
       ? Icons.apps
@@ -67,66 +54,29 @@ class _SourceAccordionState extends State<SourceAccordion> {
   }
 
   Widget _button() {
+    // Circular, borderless, icon-only trigger: it shows the icon of the source
+    // currently in use (or the "apps" icon for Todas) with no visible border,
+    // like a floating snackbar. The source NAME ("Todas"/"Deezer"/...) is only
+    // revealed inside the accordion list when it opens.
     return Material(
       key: _buttonKey,
       color: Colors.transparent,
       child: InkWell(
         onTap: _toggle,
-        borderRadius: BorderRadius.circular(13),
+        customBorder: const CircleBorder(),
         child: Ink(
-          height: _headerHeight,
-          padding: const EdgeInsets.symmetric(horizontal: 10),
+          width: 38,
+          height: 38,
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(13),
-            border: Border.all(
-              color: widget.onBg.withValues(alpha: _isDark ? 0.1 : 0.18),
-              width: 0.8,
+            shape: BoxShape.circle,
+            gradient: RadialGradient(
+              colors: [
+                widget.glowColor.withValues(alpha: _isDark ? 0.16 : 0.12),
+                widget.glowColor.withValues(alpha: 0.02),
+              ],
             ),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [_glassStrong, _glass],
-            ),
-            boxShadow: _isDark
-                ? [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.18),
-                      blurRadius: 10,
-                      offset: const Offset(0, 3),
-                    ),
-                  ]
-                : null,
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _roundIcon(_currentIcon, size: 17),
-              const SizedBox(width: 8),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 120),
-                child: Text(
-                  _currentLabel,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
-                    color: widget.onBg,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 4),
-              AnimatedRotation(
-                turns: _open ? 0.5 : 0,
-                duration: const Duration(milliseconds: 200),
-                child: Icon(
-                  Icons.keyboard_arrow_down,
-                  size: 18,
-                  color: widget.onBg.withValues(alpha: 0.55),
-                ),
-              ),
-            ],
-          ),
+          child: Center(child: _roundIcon(_currentIcon, size: 19)),
         ),
       ),
     );
@@ -157,6 +107,12 @@ class _SourceAccordionState extends State<SourceAccordion> {
         ? buttonRect.bottom + 6
         : math.max(pad, buttonRect.top - panelHeight - 6);
 
+    // Clamp the panel horizontally so it never overflows the screen (the
+    // trigger can sit near the right edge in the feed header, which previously
+    // pushed the accordion off-screen and "lost" it).
+    final panelWidth = math.min(math.max(buttonRect.width, 200), size.width - 2 * pad).toDouble();
+    final left = buttonRect.left.clamp(pad, size.width - panelWidth - pad).toDouble();
+
     final entry = OverlayEntry(builder: (context) {
       return Stack(
         clipBehavior: Clip.none,
@@ -168,9 +124,9 @@ class _SourceAccordionState extends State<SourceAccordion> {
             ),
           ),
           Positioned(
-            left: buttonRect.left,
+            left: left,
             top: top,
-            width: math.max(buttonRect.width, 200),
+            width: panelWidth,
             child: _FloatingPanel(
               isDark: _isDark,
               onBg: widget.onBg,

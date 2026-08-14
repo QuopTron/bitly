@@ -73,6 +73,10 @@ class _HomePageState extends State<HomePage> {
   // signed-session source is verified/skipped, so nothing runs before sessions
   // are provisioned.
   bool _ready = false;
+  // Global safety net: never let session verification block the app for more
+  // than this even if a captcha modal/browser flow drags on or fails silently.
+  Timer? _unlockTimer;
+  bool _feedRequested = false;
 
   late final LikeCubit _likeCubit;
   late final DownloadCubit _downloadCubit;
@@ -160,18 +164,40 @@ class _HomePageState extends State<HomePage> {
   /// and above the overlay), so the user completes each challenge here and the
   /// feed only loads once ALL sources have been provisioned.
   Future<void> _acquireSessions() async {
+    // Hard cap so a stuck captcha (e.g. Cloudflare Turnstile failing to render
+    // on low-end GPUs) can never leave the app locked behind the overlay.
+    _unlockTimer = Timer(const Duration(minutes: 3, seconds: 30), _skipSessions);
     try {
       await VerificationService().provisionSignedSessions();
     } catch (_) {
       // Never trap the UI: if provisioning throws, proceed anyway.
     }
+    _unlockTimer?.cancel();
+    _unlockTimer = null;
+    if (!mounted) return;
+    _unlock();
+  }
+
+  void _unlock() {
+    if (_ready) return;
     if (!mounted) return;
     setState(() => _ready = true);
-    _feedBloc.add(const LoadFeed());
+    if (!_feedRequested) {
+      _feedRequested = true;
+      _feedBloc.add(const LoadFeed());
+    }
+  }
+
+  void _skipSessions() {
+    _unlockTimer?.cancel();
+    _unlockTimer = null;
+    VerificationService().skipAll();
+    _unlock();
   }
 
   @override
   void dispose() {
+    _unlockTimer?.cancel();
     _downloadSub?.cancel();
     _feedSub?.cancel();
     _pageCtrl.dispose();
@@ -244,18 +270,39 @@ class _HomePageState extends State<HomePage> {
               child: AbsorbPointer(
                 child: ColoredBox(
                   color: Colors.black.withValues(alpha: 0.82),
-                  child: const Center(
+                  child: Center(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        CircularProgressIndicator(),
-                        SizedBox(height: 20),
-                        Text(
+                        const CircularProgressIndicator(),
+                        const SizedBox(height: 20),
+                        const Text(
                           'Verificando sesiones firmadas…',
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Si el captcha no aparece, podés omitirlo y verificar después.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 13,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        TextButton.icon(
+                          onPressed: _skipSessions,
+                          icon: const Icon(Icons.skip_next, size: 20),
+                          label: const Text('Omitir verificación'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            backgroundColor: Colors.white12,
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 20, vertical: 10),
                           ),
                         ),
                       ],

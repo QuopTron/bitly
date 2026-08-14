@@ -4,9 +4,7 @@
   "version": "1.9.14",
   "description": "Fetch Spotify metadata via web API. Supports personalized playlists like Daily Mix, Discover Weekly, and more. Includes Home Feed explore and metadata enrichment via Spotify native ISRC plus Deezer.",
   "homepage": "https://github.com/zarzet/spotify-web",
-  "type": [
-    "metadata_provider"
-  ],
+  "type": ["metadata_provider"],
   "minAppVersion": "4.2.3",
   "skipMetadataEnrichment": true,
   "capabilities": {
@@ -61,11 +59,7 @@
   },
   "urlHandler": {
     "enabled": true,
-    "patterns": [
-      "open.spotify.com",
-      "spotify.com",
-      "spotify:"
-    ]
+    "patterns": ["open.spotify.com", "spotify.com", "spotify:"]
   },
   "settings": []
 }

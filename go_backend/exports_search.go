@@ -9,7 +9,7 @@ import (
 	"github.com/zarz/bitly/go_backend/internal/provider"
 )
 
-const searchGlobalTimeout = 15 * time.Second
+const searchGlobalTimeout = 9 * time.Second
 
 // namedResult holds one provider's search results for generic searchByProvider.
 type namedResult[T any] struct {
@@ -19,7 +19,7 @@ type namedResult[T any] struct {
 
 // namedTrack holds one provider's track results (JSON field "tracks").
 type namedTrack struct {
-	Provider string                `json:"provider"`
+	Provider string                 `json:"provider"`
 	Tracks   []provider.TrackResult `json:"tracks"`
 }
 

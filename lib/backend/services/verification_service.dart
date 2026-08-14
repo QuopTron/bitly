@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -9,6 +10,7 @@ import 'package:webview_flutter_android/webview_flutter_android.dart';
 
 import '../rpc/backend_service.dart';
 import '../../injection.dart';
+import 'desktop_callback_server.dart';
 
 final _log = Logger();
 
@@ -59,6 +61,16 @@ class VerificationService with WidgetsBindingObserver {
   Completer<String?>? _pending;
   Timer? _timeout;
   bool _dialogOpen = false;
+  // When the user skips verification the current provisioning run is disabled
+  // (remaining sources return nulls so the app unlocks). Direct callers like
+  // the setup slide still show their modal: the flag only applies while a
+  // provisionSignedSessions run is active.
+  bool _disabled = false;
+  bool _runActive = false;
+  // Set while the desktop browser flow is running (grant arrives via the local
+  // HTTP server, not the deep link). Suppresses the resume auto-cancel so the
+  // user can return to the app before completing the captcha.
+  bool _browserFlow = false;
 
   void init(GlobalKey<NavigatorState> navigatorKey) {
     _navigatorKey = navigatorKey;
@@ -90,27 +102,40 @@ class VerificationService with WidgetsBindingObserver {
   /// token before doing anything else. Sources whose session is genuinely
   /// healthy get an empty URL from the backend and are skipped as a no-op
   /// (no modal), so a healthy setup doesn't force a captcha unnecessarily.
+  /// Skips pending verification and disables further modal/browser prompts for
+  /// this run, so the app never stays blocked on captchas.
+  void skipAll() {
+    _disabled = true;
+    DesktopCallbackServer.instance.cancel();
+    _completePending('');
+  }
+
   Future<void> provisionSignedSessions() async {
     if (!isReady) return;
     final backend = sl<BackendService>();
-
-    for (final source in signedSessionSources) {
-      try {
-        var url = await backend.getPendingVerificationUrl(source);
-        if (url.isEmpty) {
-          url = await backend.triggerExtensionVerification(source);
+    _runActive = true;
+    _disabled = false;
+    try {
+      for (final source in signedSessionSources) {
+        try {
+          var url = await backend.getPendingVerificationUrl(source);
+          if (url.isEmpty) {
+            url = await backend.triggerExtensionVerification(source);
+          }
+          if (url.isEmpty) continue; // session healthy → nothing to verify
+          final grant = await showVerification(
+            extId: source,
+            displayName: sourceDisplayName(source),
+            authUrl: url,
+          );
+          if (grant == null || grant.isEmpty) continue;
+          await backend.completeSignedSessionGrant(source, grant);
+        } catch (e) {
+          _log.w('[VerificationService] Refreshing $source failed: $e');
         }
-        if (url.isEmpty) continue; // session healthy → nothing to verify
-        final grant = await showVerification(
-          extId: source,
-          displayName: sourceDisplayName(source),
-          authUrl: url,
-        );
-        if (grant == null || grant.isEmpty) continue;
-        await backend.completeSignedSessionGrant(source, grant);
-      } catch (e) {
-        _log.w('[VerificationService] Refreshing $source failed: $e');
       }
+    } finally {
+      _runActive = false;
     }
   }
 
@@ -134,7 +159,7 @@ class VerificationService with WidgetsBindingObserver {
     // should keep running in the dialog.
     if (state != AppLifecycleState.resumed) return;
     final pending = _pending;
-    if (pending == null || _dialogOpen) return;
+    if (pending == null || _dialogOpen || _browserFlow) return;
     Timer(_resumeGrace, () {
       if (identical(pending, _pending)) _completePending('');
     });
@@ -148,10 +173,39 @@ class VerificationService with WidgetsBindingObserver {
     required String authUrl,
     Duration? timeout,
   }) async {
+    // Only honor a skip while a provisionSignedSessions run is active; direct
+    // callers (setup slide) always get their modal.
+    if (_disabled && _runActive) return null;
     _completePending(''); // cancel any stale pending completer
     final completer = Completer<String?>();
     _pending = completer;
     NavigatorState? dialogNav;
+
+    // Desktop (Windows/Linux): webview_flutter is unsupported, so open the
+    // challenge in the system browser and receive the grant on the local
+    // loopback server (the backend pointed the challenge callback there). If
+    // the callback server could not bind, skip the source rather than showing
+    // a broken WebView dialog.
+    final isDesktop = Platform.isWindows || Platform.isLinux;
+    final desktopCallback = DesktopCallbackServer.instance;
+    if (isDesktop) {
+      if (!desktopCallback.isReady) {
+        _log.w('[VerificationService] Desktop callback server unavailable, '
+            'skipping $extId verification');
+        _completePending('');
+        return null;
+      }
+      _browserFlow = true;
+      try {
+        unawaited(_launchBrowser(displayName, authUrl));
+        final grant = await desktopCallback.waitForGrant(
+            timeout ?? _grantTimeout);
+        _completePending(grant);
+        return grant;
+      } finally {
+        _browserFlow = false;
+      }
+    }
 
     _timeout = Timer(timeout ?? _grantTimeout, () {
       _log.w('[VerificationService] Verification timed out after '
@@ -215,11 +269,18 @@ class VerificationService with WidgetsBindingObserver {
         Uri.parse(authUrl),
         mode: LaunchMode.externalApplication,
       );
-      if (!ok) _completePending('');
+      if (!ok) _launchFailed();
     } catch (e) {
       _log.e('[VerificationService] Error launching browser: $e');
-      _completePending('');
+      _launchFailed();
     }
+  }
+
+  // Browser could not be opened: end the pending verification immediately and
+  // release the desktop callback server so the wait doesn't drag to timeout.
+  void _launchFailed() {
+    DesktopCallbackServer.instance.cancel();
+    _completePending('');
   }
 
   void _showWaitingHint(String displayName) {

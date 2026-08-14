@@ -80,10 +80,19 @@ class MiniPlayer extends StatelessWidget {
                       ),
                       SizedBox(width: r.spacingS),
                       IconButton(
-                        icon: Icon(
-                          player.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                          color: glowColor,
-                        ),
+                        icon: player.playbackState == PlayerPlaybackState.buffering
+                            ? SizedBox(
+                                width: r.subtitleSize - 2,
+                                height: r.subtitleSize - 2,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.4,
+                                  valueColor: AlwaysStoppedAnimation(glowColor),
+                                ),
+                              )
+                            : Icon(
+                                player.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                                color: glowColor,
+                              ),
                         iconSize: r.subtitleSize + 4,
                         onPressed: () => context.read<PlayerCubit>().togglePlayPause(),
                       ),

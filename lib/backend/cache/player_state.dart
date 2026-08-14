@@ -1,6 +1,6 @@
 import 'package:equatable/equatable.dart';
 
-enum PlayerPlaybackState { playing, paused, error }
+enum PlayerPlaybackState { playing, paused, buffering, error }
 
 class AudioPlayerState extends Equatable {
   final Duration position;

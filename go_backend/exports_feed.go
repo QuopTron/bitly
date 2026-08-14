@@ -34,10 +34,10 @@ type FeedItemGo struct {
 
 // FeedSectionGo is the JSON shape Flutter expects for feed section groups.
 type FeedSectionGo struct {
-	Source      string        `json:"source"`
-	DisplayName string        `json:"display_name"`
-	Title       string        `json:"title"`
-	Items       []FeedItemGo  `json:"items"`
+	Source      string       `json:"source"`
+	DisplayName string       `json:"display_name"`
+	Title       string       `json:"title"`
+	Items       []FeedItemGo `json:"items"`
 }
 
 // =========================================================================
@@ -368,29 +368,66 @@ func orderedSearchProviders() []provider.Provider {
 	return ordered
 }
 
-// searchAllSourceBest searches providers sequentially in primary-first order
-// and stops once enough results are collected. A rate-limited (cooled) source
-// is skipped fast, and a healthy primary fills the screen — the others only
-// step in when the primary returns nothing. This replaces the old
-// fire-all-APIs-in-parallel mix that blanked search results on 429s.
+// searchAllSourceBest searches every provider IN PARALLEL (with a global
+// timeout) and returns the combined results from ALL of them, each capped at
+// [limit]. A rate-limited (cooled) source is skipped fast. The Flutter side
+// groups the returned items by source, so a "Todas" search shows every
+// extension's results in its own section instead of only the primary source's
+// — and no healthy source is ever left out of the results.
 func searchAllSourceBest(query string, limit int, searchType string) string {
-	items := make([]FeedItemGo, 0, limit)
-	sourcesUsed := 0
-	for _, p := range orderedSearchProviders() {
-		if cooldown.IsCooled(p.Name()) {
+	if reg == nil {
+		return `[]`
+	}
+	perSource := limit
+	if perSource < 1 {
+		perSource = 20
+	}
+
+	type namedItems struct {
+		name  string
+		items []FeedItemGo
+	}
+	providers := orderedSearchProviders()
+	ch := make(chan namedItems, len(providers))
+	var wg sync.WaitGroup
+	for _, p := range providers {
+		// Only skip providers cooled *for search*. Downloads/streaming cool their
+		// own op buckets (or the provider-wide one), so a big download that
+		// rate-limits a few providers must never leave the next search looking
+		// "empty" — search always attempts every reachable source.
+		if cooldown.IsCooledOp(p.Name(), "search") {
 			continue
 		}
-		res := searchProvider(p, query, limit, searchType)
-		var batch []FeedItemGo
-		if err := json.Unmarshal([]byte(res), &batch); err == nil && len(batch) > 0 {
-			items = append(items, batch...)
-			sourcesUsed++
-			// Primary source healthy: its results fill the screen (SpotiFLAC
-			// searches a single primary source). Fall through only when the
-			// primary came back empty or a second source is needed to fill.
-			if sourcesUsed >= 2 || len(items) >= limit {
+		wg.Add(1)
+		go func(p provider.Provider) {
+			defer wg.Done()
+			defer func() {
+				if rec := recover(); rec != nil {
+					// Never crash the app if a provider panics mid-search.
+				}
+			}()
+			res := searchProvider(p, query, perSource, searchType)
+			var batch []FeedItemGo
+			if err := json.Unmarshal([]byte(res), &batch); err == nil && len(batch) > 0 {
+				ch <- namedItems{name: p.Name(), items: batch}
+			}
+		}(p)
+	}
+	go func() { wg.Wait(); close(ch) }()
+
+	items := make([]FeedItemGo, 0, len(providers)*perSource)
+	timeout := time.After(searchGlobalTimeout)
+	collecting := true
+	for collecting {
+		select {
+		case n, ok := <-ch:
+			if !ok {
+				collecting = false
 				break
 			}
+			items = append(items, n.items...)
+		case <-timeout:
+			collecting = false
 		}
 	}
 	data, _ := json.Marshal(items)

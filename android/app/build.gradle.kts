@@ -34,16 +34,21 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("debug")
-            isMinifyEnabled = true
-            isShrinkResources = true
+            // Minify/shrink breaks the native Go backend bridge (bitly.aar) and
+            // ffmpeg-kit's JNI registration, leaving the app stuck on the splash
+            // screen in release builds. Disabled so release behaves like debug.
+            isMinifyEnabled = false
+            isShrinkResources = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
 }
 
 afterEvaluate {
-    // Build ALL real device ABIs (incl. armeabi-v7a for low/mid-range 32-bit
-    // phones) in one universal APK, overriding Flutter's default single-ABI.
+    // Build ALL real device ABIs (armeabi-v7a for low/mid-range 32-bit
+    // phones, arm64-v8a for modern phones, x86_64 for emulators) in one
+    // universal APK. Flutter's default is a fat APK, but being explicit
+    // guarantees every release covers all devices.
     android.buildTypes.forEach { buildType ->
         buildType.ndk.abiFilters.clear()
         buildType.ndk.abiFilters.add("armeabi-v7a")

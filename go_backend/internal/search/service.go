@@ -39,8 +39,11 @@ func (e *Engine) SearchTracks(query string, limit int) (Results, error) {
 		wg.Add(1)
 		go func(prov provider.Provider) {
 			defer wg.Done()
-			// Circuit breaker: skip providers cooling down from rate-limits.
-			if cooldown.IsCooled(prov.Name()) {
+			// Only skip providers cooled *for search*. Downloads/streaming cool
+			// their own op buckets or the provider-wide one; a download that
+			// rate-limits some providers must never make the next search come
+			// back empty — every reachable source is still attempted.
+			if cooldown.IsCooledOp(prov.Name(), "search") {
 				return
 			}
 			tracks, err := prov.SearchTracks(query, limit)

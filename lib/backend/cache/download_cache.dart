@@ -9,7 +9,7 @@ class DownloadCache {
   DownloadCache(AppDatabase db) : _d = DownloadDao(db);
 
   Future<String> getDownloadHistory({String? since}) async {
-    final items = await _d.getHistory();
+    final items = await _d.getHistory(since: since);
     final list = items.map((e) => <String, dynamic>{
       'id': e.id, 'track_name': e.trackName,
       'artist_name': e.artistName, 'album_name': e.albumName ?? '',

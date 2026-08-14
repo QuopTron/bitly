@@ -4,15 +4,9 @@
   "version": "1.1.2",
   "description": "TIDAL metadata and search provider for SpotiFLAC Mobile using TIDAL public web endpoints.",
   "homepage": "https://github.com/zarzet/SpotiFLAC-Mobile",
-  "type": [
-    "metadata_provider",
-    "download_provider"
-  ],
+  "type": ["metadata_provider", "download_provider"],
   "minAppVersion": "4.7.0",
-  "requiredRuntimeFeatures": [
-    "signedSession@1",
-    "sessionGrant@1"
-  ],
+  "requiredRuntimeFeatures": ["signedSession@1", "sessionGrant@1"],
   "signedSession": {
     "namespace": "zarz-v2",
     "baseUrl": "https://api.zarz.moe/v2",
@@ -73,9 +67,7 @@
     "homeFeed": true,
     "downloadFallbackTier": "lossless",
     "requiresNativeContainerConversion": true,
-    "replacesBuiltInProviders": [
-      "tidal"
-    ],
+    "replacesBuiltInProviders": ["tidal"],
     "shareUrlTemplates": {
       "album": "https://tidal.com/browse/album/{id}",
       "artist": "https://tidal.com/browse/artist/{id}"
@@ -123,12 +115,7 @@
   },
   "urlHandler": {
     "enabled": true,
-    "patterns": [
-      "tidal.com",
-      "www.tidal.com",
-      "listen.tidal.com",
-      "tidal:"
-    ]
+    "patterns": ["tidal.com", "www.tidal.com", "listen.tidal.com", "tidal:"]
   },
   "settings": [
     {

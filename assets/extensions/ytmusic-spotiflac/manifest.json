@@ -3,10 +3,7 @@
   "displayName": "YouTube Music",
   "version": "2.3.9",
   "description": "YouTube Music metadata & download provider for SpotiFLAC Mobile. Search tracks, albums, playlists on YouTube Music.",
-  "type": [
-    "metadata_provider",
-    "download_provider"
-  ],
+  "type": ["metadata_provider", "download_provider"],
   "icon": "icon.jpg",
   "minAppVersion": "4.5.1",
   "permissions": {
@@ -87,12 +84,7 @@
       "label": "PO Token Mode",
       "type": "select",
       "default": "off",
-      "options": [
-        "off",
-        "auto",
-        "external",
-        "manual"
-      ],
+      "options": ["off", "auto", "external", "manual"],
       "description": "Optional GVS PO Token support. Keep off unless direct YouTube downloads start returning 403."
     },
     {
@@ -115,12 +107,7 @@
       "label": "Log Level",
       "type": "select",
       "default": "warn",
-      "options": [
-        "error",
-        "warn",
-        "info",
-        "debug"
-      ],
+      "options": ["error", "warn", "info", "debug"],
       "description": "Controls extension logging verbosity. Use debug only while diagnosing YouTube Music issues."
     }
   ]

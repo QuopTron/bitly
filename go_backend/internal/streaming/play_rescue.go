@@ -19,7 +19,6 @@ import (
 // with search and the download orchestrator via internal/cooldown so a provider
 // that 429s anywhere is skipped fast everywhere.
 
-
 // availableQualities returns the preferred quality plus a set of fallback
 // qualities a provider is more likely to support (many providers only expose
 // mp3/opus transcodes and fail on FLAC). The preferred one is tried first.

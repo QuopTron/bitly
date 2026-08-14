@@ -7,6 +7,7 @@ import '../../config/secrets.dart';
 import '../services/premium_service.dart';
 import '../../injection.dart';
 import '../services/provider_credential_service.dart';
+import '../services/desktop_callback_server.dart';
 import '../cache/settings_cache.dart';
 import 'backend_service.dart';
 import 'mixins/settings_mixin.dart';
@@ -79,6 +80,23 @@ class DesktopBackend extends BackendService
       if (extDir != null) {
         await rpcCall('initExtensionSystem', {'extensions_dir': extDir, 'data_dir': '$extDir/../ext_data'});
         await rpcCall('loadExtensionsFromDir', {'dir_path': extDir});
+      }
+      // Windows/Linux have no webview_flutter: route Cloudflare grants
+      // through a local loopback HTTP server instead of the spotiflac://
+      // deep link. The backend builds challenge URLs with this cb, so the
+      // browser returns the grant straight to the app after the captcha.
+      // macOS keeps the in-app WebView + spotiflac:// deep link.
+      if (!Platform.isMacOS) {
+        try {
+          if (await DesktopCallbackServer.instance.ensureStarted()) {
+            final port = DesktopCallbackServer.instance.port;
+            if (port != null) {
+              await rpcCall('setSignedSessionCallbackUrl', {
+                'url': 'http://127.0.0.1:$port/session-grant',
+              });
+            }
+          }
+        } catch (_) {}
       }
       PremiumService().setGithubToken(githubToken);
 

@@ -13,6 +13,10 @@ class SearchBarWidget extends StatefulWidget {
   /// Optional per-source hint (e.g. "Search Deezer..." from the manifest).
   /// When null the localized generic search hint is used.
   final String? hintText;
+  /// The source selector trigger rendered where the search icon used to be
+  /// (replacing it). Tapping it opens the source/extension picker. When null a
+  /// plain search icon is shown instead.
+  final Widget? sourceTrigger;
 
   const SearchBarWidget({
     super.key,
@@ -20,6 +24,7 @@ class SearchBarWidget extends StatefulWidget {
     required this.onTextChanged,
     required this.onClear,
     this.hintText,
+    this.sourceTrigger,
   });
 
   @override
@@ -48,7 +53,8 @@ class _SearchBarWidgetState extends State<SearchBarWidget> {
               AppLocalizations.of(context).setup.searchHint,
           hintStyle: TextStyle(fontSize: r.subtitleSize + 3, color: onBg.withValues(alpha: 0.3)),
           border: InputBorder.none,
-          icon: Icon(Icons.search, size: r.footerSize + 5, color: glowColor.withValues(alpha: 0.8)),
+          prefixIcon: widget.sourceTrigger ??
+              Icon(Icons.search, size: r.footerSize + 5, color: glowColor.withValues(alpha: 0.8)),
           suffixIcon: widget.controller.text.isNotEmpty
               ? GestureDetector(onTap: widget.onClear,
                   child: Icon(Icons.clear, size: r.footerSize + 5, color: onBg.withValues(alpha: 0.3)))
@@ -95,7 +101,7 @@ class SearchTypeChips extends StatelessWidget {
           return Padding(
             padding: EdgeInsets.only(right: r.spacingXS),
             child: GestureDetector(
-              onTap: () => onTypeChanged(sel ? null : cat),
+              onTap: () => onTypeChanged(cat),
               child: GlassContainer(
                 borderRadius: 22,
                 borderColor: sel ? glowColor : onBg.withValues(alpha: 0.1),

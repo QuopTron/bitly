@@ -190,6 +190,8 @@ func dispatchRPC(method string, params map[string]interface{}) (interface{}, str
 		return backend.GetSignedSessionStatus(pGet("extension_id")), ""
 	case "clearSignedSession":
 		return backend.ClearSignedSession(pGet("extension_id")), ""
+	case "setSignedSessionCallbackUrl":
+		return backend.SetSignedSessionCallbackURL(pGet("url")), ""
 
 	// ── Premium ─────────────────────────────────────────────
 	case "getPremiumStatus":

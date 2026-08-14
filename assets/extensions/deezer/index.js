@@ -8,7 +8,7 @@ var CONFIG = {
   chunkSize: 2048,
   maxCollectionTracks: 200,
   maxArtistAlbums: 100,
-  maxArtistTopTracks: 20
+  maxArtistTopTracks: 20,
 };
 
 function initialize(settings) {
@@ -51,8 +51,13 @@ function appUserAgent() {
 }
 
 function userAgentForURL(url) {
-  var text = String(url || "").trim().toLowerCase();
-  if (text.indexOf("https://api.zarz.moe") === 0 || text.indexOf("http://api.zarz.moe") === 0) {
+  var text = String(url || "")
+    .trim()
+    .toLowerCase();
+  if (
+    text.indexOf("https://api.zarz.moe") === 0 ||
+    text.indexOf("http://api.zarz.moe") === 0
+  ) {
     return appUserAgent();
   }
   return utils.randomUserAgent();
@@ -61,7 +66,9 @@ function userAgentForURL(url) {
 function getJSON(url, headers) {
   var response = http.get(url, headers || {});
   if (!response || response.error) {
-    throw new Error(response && response.error ? response.error : "request failed");
+    throw new Error(
+      response && response.error ? response.error : "request failed",
+    );
   }
   if (response.statusCode !== 200) {
     throw new Error("HTTP " + response.statusCode + " for " + url);
@@ -70,13 +77,22 @@ function getJSON(url, headers) {
 }
 
 function postJSON(url, body, headers) {
-  var response = http.post(url, JSON.stringify(body), mergeHeaders({
-    "Content-Type": "application/json",
-    "Accept": "application/json",
-    "User-Agent": userAgentForURL(url)
-  }, headers));
+  var response = http.post(
+    url,
+    JSON.stringify(body),
+    mergeHeaders(
+      {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        "User-Agent": userAgentForURL(url),
+      },
+      headers,
+    ),
+  );
   if (!response || response.error) {
-    throw new Error(response && response.error ? response.error : "request failed");
+    throw new Error(
+      response && response.error ? response.error : "request failed",
+    );
   }
   if (response.statusCode !== 200) {
     throw new Error("HTTP " + response.statusCode + " for " + url);
@@ -85,12 +101,17 @@ function postJSON(url, body, headers) {
 }
 
 function signedJSON(method, path, body, headers) {
-  if (typeof session === "undefined" || !session || typeof session.signedFetch !== "function") {
+  if (
+    typeof session === "undefined" ||
+    !session ||
+    typeof session.signedFetch !== "function"
+  ) {
     throw new Error("signed session runtime is not available");
   }
   var response = session.signedFetch(method, path, body || null, headers || {});
   if (!response || response.error || response.needsVerification) {
-    var error = response && response.error ? response.error : "signed request failed";
+    var error =
+      response && response.error ? response.error : "signed request failed";
     throw new Error(error);
   }
   if (response.statusCode !== 200) {
@@ -100,11 +121,13 @@ function signedJSON(method, path, body, headers) {
 }
 
 function signedTicket(provider, type, id) {
-  var resourceHash = utils.sha256(provider + ":" + (type || "track") + ":" + String(id || "").toLowerCase());
+  var resourceHash = utils.sha256(
+    provider + ":" + (type || "track") + ":" + String(id || "").toLowerCase(),
+  );
   var payload = signedJSON("POST", "/tickets", {
     capability: "download_ticket",
     provider: provider,
-    resource_hash: resourceHash
+    resource_hash: resourceHash,
   });
   var ticketID = String(payload.ticket_id || payload.ticket || "").trim();
   if (!ticketID) {
@@ -137,7 +160,10 @@ function ensureOutputExtension(outputPath, extension) {
   if (currentDot < 0) {
     return outputPath + normalizedExt;
   }
-  if (outputPath.substring(currentDot).toLowerCase() === normalizedExt.toLowerCase()) {
+  if (
+    outputPath.substring(currentDot).toLowerCase() ===
+    normalizedExt.toLowerCase()
+  ) {
     return outputPath;
   }
   return outputPath.substring(0, currentDot) + normalizedExt;
@@ -146,7 +172,11 @@ function ensureOutputExtension(outputPath, extension) {
 function buildEncryptedTempPath(outputPath) {
   var dotIndex = outputPath.lastIndexOf(".");
   if (dotIndex < 0) return outputPath + ".encrypted";
-  return outputPath.substring(0, dotIndex) + ".encrypted" + outputPath.substring(dotIndex);
+  return (
+    outputPath.substring(0, dotIndex) +
+    ".encrypted" +
+    outputPath.substring(dotIndex)
+  );
 }
 
 function hexByte(value) {
@@ -158,7 +188,10 @@ function generateBlowfishKeyHex(trackID) {
   var md5hex = utils.md5(String(trackID || "").trim());
   var out = "";
   for (var i = 0; i < 16; i++) {
-    var value = md5hex.charCodeAt(i) ^ md5hex.charCodeAt(i + 16) ^ CONFIG.blowfishSecret.charCodeAt(i);
+    var value =
+      md5hex.charCodeAt(i) ^
+      md5hex.charCodeAt(i + 16) ^
+      CONFIG.blowfishSecret.charCodeAt(i);
     out += hexByte(value);
   }
   return out;
@@ -167,7 +200,7 @@ function generateBlowfishKeyHex(trackID) {
 function normalizedUserAgent() {
   return {
     "User-Agent": userAgentForURL(CONFIG.resolverBaseURL),
-    "Accept": "application/json"
+    Accept: "application/json",
   };
 }
 
@@ -231,7 +264,8 @@ function normalizeArtists(trackData) {
     var seen = {};
     for (var i = 0; i < trackData.contributors.length; i++) {
       var contributor = trackData.contributors[i];
-      var name = contributor && contributor.name ? String(contributor.name).trim() : "";
+      var name =
+        contributor && contributor.name ? String(contributor.name).trim() : "";
       if (!name || seen[name]) continue;
       seen[name] = true;
       names.push(name);
@@ -252,14 +286,14 @@ function coverFromAlbum(album) {
   if (!album) return "";
   return String(
     album.cover_xl ||
-    album.cover_big ||
-    album.cover_medium ||
-    album.cover ||
-    album.picture_xl ||
-    album.picture_big ||
-    album.picture_medium ||
-    album.picture ||
-    ""
+      album.cover_big ||
+      album.cover_medium ||
+      album.cover ||
+      album.picture_xl ||
+      album.picture_big ||
+      album.picture_medium ||
+      album.picture ||
+      "",
   );
 }
 
@@ -267,19 +301,21 @@ function coverFromArtist(artist) {
   if (!artist) return "";
   return String(
     artist.picture_xl ||
-    artist.picture_big ||
-    artist.picture_medium ||
-    artist.picture ||
-    artist.cover_xl ||
-    artist.cover_big ||
-    artist.cover_medium ||
-    artist.cover ||
-    ""
+      artist.picture_big ||
+      artist.picture_medium ||
+      artist.picture ||
+      artist.cover_xl ||
+      artist.cover_big ||
+      artist.cover_medium ||
+      artist.cover ||
+      "",
   );
 }
 
 function albumTypeFromRecordType(value) {
-  var normalized = String(value || "").trim().toLowerCase();
+  var normalized = String(value || "")
+    .trim()
+    .toLowerCase();
   if (!normalized) return "album";
   switch (normalized) {
     case "ep":
@@ -348,12 +384,19 @@ function fetchPlaylistData(playlistID) {
 }
 
 function fetchArtistAlbums(artistID) {
-  var result = deezerGet("/artist/" + encodeURIComponent(artistID) + "/albums?limit=100");
+  var result = deezerGet(
+    "/artist/" + encodeURIComponent(artistID) + "/albums?limit=100",
+  );
   return collectPaginatedItems(result, CONFIG.maxArtistAlbums);
 }
 
 function fetchArtistTopTracks(artistID) {
-  var result = deezerGet("/artist/" + encodeURIComponent(artistID) + "/top?limit=" + CONFIG.maxArtistTopTracks);
+  var result = deezerGet(
+    "/artist/" +
+      encodeURIComponent(artistID) +
+      "/top?limit=" +
+      CONFIG.maxArtistTopTracks,
+  );
   return collectPaginatedItems(result, CONFIG.maxArtistTopTracks);
 }
 
@@ -376,13 +419,29 @@ function formatTrack(trackData, context) {
   }
 
   var albumName = context.albumName || (albumData && albumData.title) || "";
-  var albumArtist = context.albumArtist || (albumData && albumData.artist && albumData.artist.name) || (artistData && artistData.name) || artistName;
-  var coverURL = context.coverURL || coverFromAlbum(albumData) || coverFromArtist(artistData);
-  var releaseDate = context.releaseDate || trackData.release_date || (albumData && albumData.release_date) || "";
-  var totalTracks = context.totalTracks || (albumData && albumData.nb_tracks) || 0;
+  var albumArtist =
+    context.albumArtist ||
+    (albumData && albumData.artist && albumData.artist.name) ||
+    (artistData && artistData.name) ||
+    artistName;
+  var coverURL =
+    context.coverURL ||
+    coverFromAlbum(albumData) ||
+    coverFromArtist(artistData);
+  var releaseDate =
+    context.releaseDate ||
+    trackData.release_date ||
+    (albumData && albumData.release_date) ||
+    "";
+  var totalTracks =
+    context.totalTracks || (albumData && albumData.nb_tracks) || 0;
   var itemID = withPrefix(trackData.id);
-  var albumID = context.albumID || (albumData && albumData.id ? withPrefix(albumData.id) : "");
-  var artistID = context.artistID || (artistData && artistData.id ? withPrefix(artistData.id) : "");
+  var albumID =
+    context.albumID ||
+    (albumData && albumData.id ? withPrefix(albumData.id) : "");
+  var artistID =
+    context.artistID ||
+    (artistData && artistData.id ? withPrefix(artistData.id) : "");
 
   return {
     id: itemID,
@@ -406,12 +465,14 @@ function formatTrack(trackData, context) {
     isrc: String(trackData.isrc || ""),
     provider_id: "deezer",
     item_type: "track",
-    album_type: albumTypeFromRecordType(context.albumType || (albumData && albumData.record_type)),
+    album_type: albumTypeFromRecordType(
+      context.albumType || (albumData && albumData.record_type),
+    ),
     label: String((albumData && albumData.label) || ""),
     copyright: String((albumData && albumData.copyright) || ""),
     genre: String(context.genre || ""),
     composer: String(trackData.composer || ""),
-    audio_quality: "16bit/44.1kHz"
+    audio_quality: "16bit/44.1kHz",
   };
 }
 
@@ -423,7 +484,10 @@ function formatAlbum(albumData) {
     id: withPrefix(albumData.id),
     name: String(albumData.title || ""),
     artists: String((albumData.artist && albumData.artist.name) || ""),
-    artist_id: albumData.artist && albumData.artist.id ? withPrefix(albumData.artist.id) : "",
+    artist_id:
+      albumData.artist && albumData.artist.id
+        ? withPrefix(albumData.artist.id)
+        : "",
     cover_url: coverURL,
     images: coverURL,
     release_date: normalizeDate(albumData.release_date),
@@ -433,7 +497,7 @@ function formatAlbum(albumData) {
     item_type: "album",
     label: String(albumData.label || ""),
     copyright: String(albumData.copyright || ""),
-    audio_traits: ["lossless"]
+    audio_traits: ["lossless"],
   };
 }
 
@@ -449,7 +513,7 @@ function formatArtist(artistData) {
     header_image: imageURL,
     listeners: Number(artistData.nb_fan || 0),
     provider_id: "deezer",
-    item_type: "artist"
+    item_type: "artist",
   };
 }
 
@@ -458,10 +522,10 @@ function formatPlaylist(playlistData) {
 
   var coverURL = String(
     playlistData.picture_xl ||
-    playlistData.picture_big ||
-    playlistData.picture_medium ||
-    playlistData.picture ||
-    ""
+      playlistData.picture_big ||
+      playlistData.picture_medium ||
+      playlistData.picture ||
+      "",
   );
 
   return {
@@ -472,12 +536,17 @@ function formatPlaylist(playlistData) {
     images: coverURL,
     total_tracks: Number(playlistData.nb_tracks || 0),
     provider_id: "deezer",
-    item_type: "playlist"
+    item_type: "playlist",
   };
 }
 
 function extractPrimaryGenre(albumData) {
-  if (!albumData || !albumData.genres || !albumData.genres.data || !albumData.genres.data.length) {
+  if (
+    !albumData ||
+    !albumData.genres ||
+    !albumData.genres.data ||
+    !albumData.genres.data.length
+  ) {
     return "";
   }
   var first = albumData.genres.data[0];
@@ -500,21 +569,40 @@ function fetchTrack(trackID) {
 
   var formatted = formatTrack(trackData, {
     album: albumData || trackData.album,
-    albumName: albumData && albumData.title ? albumData.title : trackData.album && trackData.album.title,
-    albumArtist: albumData && albumData.artist && albumData.artist.name ? albumData.artist.name : trackData.artist && trackData.artist.name,
-    albumID: albumData && albumData.id ? withPrefix(albumData.id) : trackData.album && trackData.album.id ? withPrefix(trackData.album.id) : "",
-    artistID: trackData.artist && trackData.artist.id ? withPrefix(trackData.artist.id) : "",
-    releaseDate: albumData && albumData.release_date ? albumData.release_date : trackData.release_date,
+    albumName:
+      albumData && albumData.title
+        ? albumData.title
+        : trackData.album && trackData.album.title,
+    albumArtist:
+      albumData && albumData.artist && albumData.artist.name
+        ? albumData.artist.name
+        : trackData.artist && trackData.artist.name,
+    albumID:
+      albumData && albumData.id
+        ? withPrefix(albumData.id)
+        : trackData.album && trackData.album.id
+          ? withPrefix(trackData.album.id)
+          : "",
+    artistID:
+      trackData.artist && trackData.artist.id
+        ? withPrefix(trackData.artist.id)
+        : "",
+    releaseDate:
+      albumData && albumData.release_date
+        ? albumData.release_date
+        : trackData.release_date,
     totalTracks: albumData && albumData.nb_tracks ? albumData.nb_tracks : 0,
     totalDiscs: albumData && albumData.nb_disk ? albumData.nb_disk : 0,
     albumType: albumData && albumData.record_type ? albumData.record_type : "",
-    coverURL: albumData ? coverFromAlbum(albumData) : coverFromAlbum(trackData.album),
-    genre: extractPrimaryGenre(albumData)
+    coverURL: albumData
+      ? coverFromAlbum(albumData)
+      : coverFromAlbum(trackData.album),
+    genre: extractPrimaryGenre(albumData),
   });
 
   return {
     track: formatted,
-    album: albumData ? formatAlbum(albumData) : null
+    album: albumData ? formatAlbum(albumData) : null,
   };
 }
 
@@ -531,15 +619,19 @@ function fetchAlbum(albumID) {
     var formatted = formatTrack(trackItems[i], {
       album: albumData,
       albumName: albumData.title,
-      albumArtist: albumData.artist && albumData.artist.name ? albumData.artist.name : "",
+      albumArtist:
+        albumData.artist && albumData.artist.name ? albumData.artist.name : "",
       albumID: info.id,
-      artistID: trackItems[i].artist && trackItems[i].artist.id ? withPrefix(trackItems[i].artist.id) : info.artist_id,
+      artistID:
+        trackItems[i].artist && trackItems[i].artist.id
+          ? withPrefix(trackItems[i].artist.id)
+          : info.artist_id,
       releaseDate: albumData.release_date,
       totalTracks: albumData.nb_tracks,
       totalDiscs: albumData.nb_disk,
       albumType: albumData.record_type,
       coverURL: info.cover_url,
-      genre: genre
+      genre: genre,
     });
     if (formatted) tracks.push(formatted);
   }
@@ -569,9 +661,15 @@ function fetchArtist(artistID) {
       artist: artistData,
       artistID: artistInfo.id,
       coverURL: coverFromAlbum(topTrackItems[j].album),
-      albumID: topTrackItems[j].album && topTrackItems[j].album.id ? withPrefix(topTrackItems[j].album.id) : "",
-      albumName: topTrackItems[j].album && topTrackItems[j].album.title ? topTrackItems[j].album.title : "",
-      albumArtist: artistInfo.name
+      albumID:
+        topTrackItems[j].album && topTrackItems[j].album.id
+          ? withPrefix(topTrackItems[j].album.id)
+          : "",
+      albumName:
+        topTrackItems[j].album && topTrackItems[j].album.title
+          ? topTrackItems[j].album.title
+          : "",
+      albumArtist: artistInfo.name,
     });
     if (trackInfo) topTracks.push(trackInfo);
   }
@@ -593,12 +691,24 @@ function fetchPlaylist(playlistID) {
   for (var i = 0; i < trackItems.length; i++) {
     var formatted = formatTrack(trackItems[i], {
       album: trackItems[i].album,
-      albumName: trackItems[i].album && trackItems[i].album.title ? trackItems[i].album.title : "",
-      albumArtist: trackItems[i].artist && trackItems[i].artist.name ? trackItems[i].artist.name : "",
-      albumID: trackItems[i].album && trackItems[i].album.id ? withPrefix(trackItems[i].album.id) : "",
-      artistID: trackItems[i].artist && trackItems[i].artist.id ? withPrefix(trackItems[i].artist.id) : "",
+      albumName:
+        trackItems[i].album && trackItems[i].album.title
+          ? trackItems[i].album.title
+          : "",
+      albumArtist:
+        trackItems[i].artist && trackItems[i].artist.name
+          ? trackItems[i].artist.name
+          : "",
+      albumID:
+        trackItems[i].album && trackItems[i].album.id
+          ? withPrefix(trackItems[i].album.id)
+          : "",
+      artistID:
+        trackItems[i].artist && trackItems[i].artist.id
+          ? withPrefix(trackItems[i].artist.id)
+          : "",
       coverURL: coverFromAlbum(trackItems[i].album) || playlistInfo.cover_url,
-      trackNumber: i + 1
+      trackNumber: i + 1,
     });
     if (formatted) tracks.push(formatted);
   }
@@ -611,17 +721,25 @@ function resolveURLTarget(url) {
   var resolved = String(url || "").trim();
   if (!resolved) return "";
 
-  if (resolved.indexOf("deezer.page.link") === -1 && resolved.indexOf("link.deezer.com") === -1) {
+  if (
+    resolved.indexOf("deezer.page.link") === -1 &&
+    resolved.indexOf("link.deezer.com") === -1
+  ) {
     return resolved;
   }
 
   try {
     var response = http.get(resolved, {
       "User-Agent": userAgentForURL(resolved),
-      "Accept-Encoding": "identity"
+      "Accept-Encoding": "identity",
     });
 
-    if (response && response.url && response.url.indexOf("deezer.") !== -1 && response.url.indexOf("page.link") === -1) {
+    if (
+      response &&
+      response.url &&
+      response.url.indexOf("deezer.") !== -1 &&
+      response.url.indexOf("page.link") === -1
+    ) {
       return response.url;
     }
 
@@ -634,9 +752,13 @@ function resolveURLTarget(url) {
 
     if (response && response.body) {
       var body = response.body;
-      var canonicalMatch = body.match(/<link[^>]*rel=["']canonical["'][^>]*href=["']([^"']+)["']/i);
+      var canonicalMatch = body.match(
+        /<link[^>]*rel=["']canonical["'][^>]*href=["']([^"']+)["']/i,
+      );
       if (!canonicalMatch) {
-        canonicalMatch = body.match(/<meta[^>]*property=["']og:url["'][^>]*content=["']([^"']+)["']/i);
+        canonicalMatch = body.match(
+          /<meta[^>]*property=["']og:url["'][^>]*content=["']([^"']+)["']/i,
+        );
       }
       if (canonicalMatch && canonicalMatch[1]) {
         return canonicalMatch[1];
@@ -672,7 +794,7 @@ function handleURL(url) {
     if (!parsed) {
       return {
         success: false,
-        error: "Unsupported Deezer URL"
+        error: "Unsupported Deezer URL",
       };
     }
 
@@ -681,7 +803,7 @@ function handleURL(url) {
         var trackResult = fetchTrack(parsed.id);
         return {
           type: "track",
-          track: trackResult.track
+          track: trackResult.track,
         };
       case "album":
         var albumResult = fetchAlbum(parsed.id);
@@ -690,12 +812,12 @@ function handleURL(url) {
           name: albumResult.name,
           cover_url: albumResult.cover_url,
           album: albumResult,
-          tracks: albumResult.tracks
+          tracks: albumResult.tracks,
         };
       case "artist":
         return {
           type: "artist",
-          artist: fetchArtist(parsed.id)
+          artist: fetchArtist(parsed.id),
         };
       case "playlist":
         var playlistResult = fetchPlaylist(parsed.id);
@@ -703,25 +825,29 @@ function handleURL(url) {
           type: "playlist",
           name: playlistResult.name,
           cover_url: playlistResult.cover_url,
-          tracks: playlistResult.tracks
+          tracks: playlistResult.tracks,
         };
       default:
         return {
           success: false,
-          error: "Unsupported Deezer URL type"
+          error: "Unsupported Deezer URL type",
         };
     }
   } catch (e) {
     log.error("[DeezerExt] handleURL failed:", e.message);
     return {
       success: false,
-      error: e.message || "Failed to fetch Deezer URL metadata"
+      error: e.message || "Failed to fetch Deezer URL metadata",
     };
   }
 }
 
 function searchEndpointForFilter(filter) {
-  switch (String(filter || "").trim().toLowerCase()) {
+  switch (
+    String(filter || "")
+      .trim()
+      .toLowerCase()
+  ) {
     case "track":
       return { path: "/search", type: "track" };
     case "album":
@@ -742,8 +868,9 @@ function formatSearchItem(item, itemType) {
         album: item.album,
         albumName: item.album && item.album.title ? item.album.title : "",
         albumID: item.album && item.album.id ? withPrefix(item.album.id) : "",
-        artistID: item.artist && item.artist.id ? withPrefix(item.artist.id) : "",
-        coverURL: coverFromAlbum(item.album)
+        artistID:
+          item.artist && item.artist.id ? withPrefix(item.artist.id) : "",
+        coverURL: coverFromAlbum(item.album),
       });
     case "album":
       return formatAlbum(item);
@@ -760,7 +887,13 @@ function searchOne(query, filter, limit) {
   var endpoint = searchEndpointForFilter(filter);
   if (!endpoint) return [];
 
-  var data = deezerGet(endpoint.path + "?q=" + encodeURIComponent(query) + "&limit=" + encodeURIComponent(limit));
+  var data = deezerGet(
+    endpoint.path +
+      "?q=" +
+      encodeURIComponent(query) +
+      "&limit=" +
+      encodeURIComponent(limit),
+  );
   var items = data && data.data ? data.data : [];
   var results = [];
 
@@ -781,7 +914,9 @@ function customSearch(query, options) {
   if (!limit || limit <= 0) limit = 20;
   if (limit > 50) limit = 50;
 
-  var filter = String(options.filter || "").trim().toLowerCase();
+  var filter = String(options.filter || "")
+    .trim()
+    .toLowerCase();
   if (!filter || filter === "all") {
     filter = "";
   }
@@ -796,7 +931,12 @@ function customSearch(query, options) {
   var albumResults = searchOne(query, "album", 5);
   var playlistResults = searchOne(query, "playlist", 5);
 
-  results = results.concat(trackResults, artistResults, albumResults, playlistResults);
+  results = results.concat(
+    trackResults,
+    artistResults,
+    albumResults,
+    playlistResults,
+  );
   return results;
 }
 
@@ -864,10 +1004,18 @@ function findBestSearchMatch(tracks, trackName, artistName) {
     var artist = track.artist && track.artist.name ? track.artist.name : "";
 
     if (normalizedTrack) {
-      score += matching.compareStrings(normalizedTrack, matching.normalizeString(title)) * 70;
+      score +=
+        matching.compareStrings(
+          normalizedTrack,
+          matching.normalizeString(title),
+        ) * 70;
     }
     if (normalizedArtist) {
-      score += matching.compareStrings(normalizedArtist, matching.normalizeString(artist)) * 30;
+      score +=
+        matching.compareStrings(
+          normalizedArtist,
+          matching.normalizeString(artist),
+        ) * 30;
     }
 
     if (score > bestScore) {
@@ -889,8 +1037,14 @@ function resolveTrackIDBySearch(trackName, artistName) {
   if (!query) return "";
 
   try {
-    var data = deezerGet("/search?q=" + encodeURIComponent(query) + "&limit=10");
-    var best = findBestSearchMatch(data && data.data ? data.data : [], trackName, artistName);
+    var data = deezerGet(
+      "/search?q=" + encodeURIComponent(query) + "&limit=10",
+    );
+    var best = findBestSearchMatch(
+      data && data.data ? data.data : [],
+      trackName,
+      artistName,
+    );
     return best && best.id ? String(best.id) : "";
   } catch (e) {
     log.debug("[DeezerExt] search resolve failed:", e.message);
@@ -901,7 +1055,9 @@ function resolveTrackIDBySearch(trackName, artistName) {
 function resolveTrackID(isrc, trackName, artistName, options) {
   options = options || {};
 
-  var deezerID = parseTrackID(options.deezer_id || options.track_id || options.url || "");
+  var deezerID = parseTrackID(
+    options.deezer_id || options.track_id || options.url || "",
+  );
   if (deezerID) return deezerID;
 
   if (isrc) {
@@ -917,27 +1073,32 @@ function checkAvailability(isrc, trackName, artistName, options) {
   if (!trackID) {
     return {
       available: false,
-      reason: "No Deezer track match found"
+      reason: "No Deezer track match found",
     };
   }
 
   return {
     available: true,
-    track_id: trackID
+    track_id: trackID,
   };
 }
 
 function resolveDownloadDescriptor(trackID) {
   var trackURL = CONFIG.deezerBaseURL + "/track/" + encodeURIComponent(trackID);
   var ticketID = signedTicket("dzr", "track", trackURL);
-  return signedJSON("POST", CONFIG.resolverDownloadPath, {
-    id: String(trackID || ""),
-    type: "track",
-    platform: "deezer",
-    url: trackURL
-  }, {
-    "X-Zarz-Ticket": ticketID
-  });
+  return signedJSON(
+    "POST",
+    CONFIG.resolverDownloadPath,
+    {
+      id: String(trackID || ""),
+      type: "track",
+      platform: "deezer",
+      url: trackURL,
+    },
+    {
+      "X-Zarz-Ticket": ticketID,
+    },
+  );
 }
 
 function resolveDescriptorDownloadURL(descriptor) {
@@ -979,10 +1140,14 @@ function writeChunk(outputPath, dataB64, firstChunk) {
   var writeResult = file.writeBytes(outputPath, dataB64, {
     encoding: "base64",
     truncate: firstChunk,
-    append: !firstChunk
+    append: !firstChunk,
   });
   if (!writeResult || !writeResult.success) {
-    throw new Error(writeResult && writeResult.error ? writeResult.error : "failed to write chunk");
+    throw new Error(
+      writeResult && writeResult.error
+        ? writeResult.error
+        : "failed to write chunk",
+    );
   }
   return writeResult.path || outputPath;
 }
@@ -991,7 +1156,11 @@ function decryptDownloadedFile(encryptedPath, outputPath, trackID, onProgress) {
   var keyHex = generateBlowfishKeyHex(trackID);
   var sizeResult = file.getSize(encryptedPath);
   if (!sizeResult || !sizeResult.success) {
-    throw new Error(sizeResult && sizeResult.error ? sizeResult.error : "failed to stat encrypted file");
+    throw new Error(
+      sizeResult && sizeResult.error
+        ? sizeResult.error
+        : "failed to stat encrypted file",
+    );
   }
 
   var totalSize = Number(sizeResult.size || 0);
@@ -1003,10 +1172,14 @@ function decryptDownloadedFile(encryptedPath, outputPath, trackID, onProgress) {
     var readResult = file.readBytes(encryptedPath, {
       offset: processed,
       length: CONFIG.chunkSize,
-      encoding: "base64"
+      encoding: "base64",
     });
     if (!readResult || !readResult.success) {
-      throw new Error(readResult && readResult.error ? readResult.error : "failed to read encrypted chunk");
+      throw new Error(
+        readResult && readResult.error
+          ? readResult.error
+          : "failed to read encrypted chunk",
+      );
     }
 
     var bytesRead = Number(readResult.bytes_read || 0);
@@ -1023,10 +1196,14 @@ function decryptDownloadedFile(encryptedPath, outputPath, trackID, onProgress) {
         ivEncoding: "hex",
         inputEncoding: "base64",
         outputEncoding: "base64",
-        padding: "none"
+        padding: "none",
       });
       if (!decryptResult || !decryptResult.success) {
-        throw new Error(decryptResult && decryptResult.error ? decryptResult.error : "failed to decrypt chunk");
+        throw new Error(
+          decryptResult && decryptResult.error
+            ? decryptResult.error
+            : "failed to decrypt chunk",
+        );
       }
       chunkB64 = decryptResult.data || "";
     }
@@ -1054,7 +1231,7 @@ function download(trackID, quality, outputPath, onProgress) {
     return {
       success: false,
       error_message: "Invalid Deezer track ID",
-      error_type: "invalid_track"
+      error_type: "invalid_track",
     };
   }
 
@@ -1066,7 +1243,10 @@ function download(trackID, quality, outputPath, onProgress) {
       try {
         albumData = fetchAlbumData(metadata.album.id);
       } catch (albumErr) {
-        log.debug("[DeezerExt] Album fetch during download failed:", albumErr.message);
+        log.debug(
+          "[DeezerExt] Album fetch during download failed:",
+          albumErr.message,
+        );
       }
     }
   } catch (e) {
@@ -1081,7 +1261,10 @@ function download(trackID, quality, outputPath, onProgress) {
     return {
       success: false,
       error_message: "Failed to resolve Deezer download: " + resolveError,
-      error_type: resolveError.indexOf("VERIFY_REQUIRED") >= 0 ? "verification_required" : "api_error"
+      error_type:
+        resolveError.indexOf("VERIFY_REQUIRED") >= 0
+          ? "verification_required"
+          : "api_error",
     };
   }
 
@@ -1089,14 +1272,22 @@ function download(trackID, quality, outputPath, onProgress) {
   if (!descriptor || descriptor.success !== true || !downloadURL) {
     return {
       success: false,
-      error_message: descriptor && descriptor.message ? descriptor.message : "Resolver did not return a download URL",
-      error_type: "api_error"
+      error_message:
+        descriptor && descriptor.message
+          ? descriptor.message
+          : "Resolver did not return a download URL",
+      error_type: "api_error",
     };
   }
 
   var requiresClientDecryption = descriptorRequiresClientDecryption(descriptor);
-  var normalizedOutputPath = ensureOutputExtension(outputPath, (descriptor.deezer_format || "flac").toLowerCase());
-  var encryptedPath = requiresClientDecryption ? buildEncryptedTempPath(normalizedOutputPath) : normalizedOutputPath;
+  var normalizedOutputPath = ensureOutputExtension(
+    outputPath,
+    (descriptor.deezer_format || "flac").toLowerCase(),
+  );
+  var encryptedPath = requiresClientDecryption
+    ? buildEncryptedTempPath(normalizedOutputPath)
+    : normalizedOutputPath;
 
   if (typeof onProgress === "function") {
     onProgress(5);
@@ -1104,14 +1295,18 @@ function download(trackID, quality, outputPath, onProgress) {
 
   var downloadResult = file.download(downloadURL, encryptedPath, {
     headers: {
-      "User-Agent": userAgentForURL(downloadURL)
-    }
+      "User-Agent": userAgentForURL(downloadURL),
+    },
   });
   if (!downloadResult || !downloadResult.success) {
     return {
       success: false,
-      error_message: "Failed to download Deezer stream: " + (downloadResult && downloadResult.error ? downloadResult.error : "unknown error"),
-      error_type: "download_error"
+      error_message:
+        "Failed to download Deezer stream: " +
+        (downloadResult && downloadResult.error
+          ? downloadResult.error
+          : "unknown error"),
+      error_type: "download_error",
     };
   }
 
@@ -1120,16 +1315,25 @@ function download(trackID, quality, outputPath, onProgress) {
   try {
     if (requiresClientDecryption) {
       var encryptedLocalPath = downloadResult.path || encryptedPath;
-      actualOutputPath = decryptDownloadedFile(encryptedLocalPath, normalizedOutputPath, resolvedTrackID, onProgress);
+      actualOutputPath = decryptDownloadedFile(
+        encryptedLocalPath,
+        normalizedOutputPath,
+        resolvedTrackID,
+        onProgress,
+      );
       file.delete(encryptedLocalPath);
     }
   } catch (e3) {
-    try { file.delete(downloadResult.path || encryptedPath); } catch (_) {}
-    try { file.delete(actualOutputPath); } catch (_) {}
+    try {
+      file.delete(downloadResult.path || encryptedPath);
+    } catch (_) {}
+    try {
+      file.delete(actualOutputPath);
+    } catch (_) {}
     return {
       success: false,
       error_message: "Failed to decrypt Deezer stream: " + e3.message,
-      error_type: "decrypt_error"
+      error_type: "decrypt_error",
     };
   }
 
@@ -1140,24 +1344,37 @@ function download(trackID, quality, outputPath, onProgress) {
   return {
     success: true,
     file_path: actualOutputPath,
-    title: metadata && metadata.title ? metadata.title : (descriptor.title || ""),
-    artist: metadata ? normalizeArtists(metadata) : (descriptor.artist || ""),
+    title: metadata && metadata.title ? metadata.title : descriptor.title || "",
+    artist: metadata ? normalizeArtists(metadata) : descriptor.artist || "",
     album: albumData && albumData.title ? albumData.title : "",
-    album_artist: albumData && albumData.artist && albumData.artist.name ? albumData.artist.name : "",
-    track_number: metadata && metadata.track_position ? metadata.track_position : 0,
+    album_artist:
+      albumData && albumData.artist && albumData.artist.name
+        ? albumData.artist.name
+        : "",
+    track_number:
+      metadata && metadata.track_position ? metadata.track_position : 0,
     disc_number: metadata && metadata.disk_number ? metadata.disk_number : 0,
-    release_date: albumData && albumData.release_date ? albumData.release_date : (metadata && metadata.release_date ? metadata.release_date : ""),
-    cover_url: albumData ? coverFromAlbum(albumData) : (metadata && metadata.album ? coverFromAlbum(metadata.album) : ""),
+    release_date:
+      albumData && albumData.release_date
+        ? albumData.release_date
+        : metadata && metadata.release_date
+          ? metadata.release_date
+          : "",
+    cover_url: albumData
+      ? coverFromAlbum(albumData)
+      : metadata && metadata.album
+        ? coverFromAlbum(metadata.album)
+        : "",
     isrc: metadata && metadata.isrc ? metadata.isrc : "",
     bit_depth: 16,
-    sample_rate: 44100
+    sample_rate: 44100,
   };
 }
 
 function searchTracks(query, limit) {
   return customSearch(query, {
     limit: limit || 20,
-    filter: "track"
+    filter: "track",
   });
 }
 
@@ -1173,9 +1390,13 @@ function getHomeFeed() {
     // Section 1: Top tracks.
     try {
       var trackItems = [];
-      var chartTracks = chart.tracks && chart.tracks.data ? chart.tracks.data : [];
+      var chartTracks =
+        chart.tracks && chart.tracks.data ? chart.tracks.data : [];
       for (var i = 0; i < chartTracks.length && trackItems.length < 15; i++) {
-        var t = formatTrack(chartTracks[i], { album: chartTracks[i].album, artist: chartTracks[i].artist });
+        var t = formatTrack(chartTracks[i], {
+          album: chartTracks[i].album,
+          artist: chartTracks[i].artist,
+        });
         if (!t) continue;
         trackItems.push({
           name: t.name,
@@ -1185,18 +1406,25 @@ function getHomeFeed() {
           id: t.id,
           album_id: t.album_id,
           album_name: t.album_name,
-          cover_url: t.cover_url
+          cover_url: t.cover_url,
         });
       }
       if (trackItems.length > 0) {
-        sections.push({ uri: "dz:charts:tracks", title: "Tendencias de Deezer", items: trackItems });
+        sections.push({
+          uri: "dz:charts:tracks",
+          title: "Tendencias de Deezer",
+          items: trackItems,
+        });
       }
-    } catch (e1) { log.debug("[DeezerExt] chart tracks failed:", e1 && e1.message); }
+    } catch (e1) {
+      log.debug("[DeezerExt] chart tracks failed:", e1 && e1.message);
+    }
 
     // Section 2: Top albums.
     try {
       var albumItems = [];
-      var chartAlbums = chart.albums && chart.albums.data ? chart.albums.data : [];
+      var chartAlbums =
+        chart.albums && chart.albums.data ? chart.albums.data : [];
       for (var j = 0; j < chartAlbums.length && albumItems.length < 12; j++) {
         var a = formatAlbum(chartAlbums[j]);
         if (!a) continue;
@@ -1207,19 +1435,30 @@ function getHomeFeed() {
           id: a.id,
           cover_url: a.cover_url,
           release_date: a.release_date,
-          total_tracks: a.total_tracks
+          total_tracks: a.total_tracks,
         });
       }
       if (albumItems.length > 0) {
-        sections.push({ uri: "dz:charts:albums", title: "Álbumes más escuchados", items: albumItems });
+        sections.push({
+          uri: "dz:charts:albums",
+          title: "Álbumes más escuchados",
+          items: albumItems,
+        });
       }
-    } catch (e2) { log.debug("[DeezerExt] chart albums failed:", e2 && e2.message); }
+    } catch (e2) {
+      log.debug("[DeezerExt] chart albums failed:", e2 && e2.message);
+    }
 
     // Section 3: Top playlists.
     try {
       var playlistItems = [];
-      var chartPlaylists = chart.playlists && chart.playlists.data ? chart.playlists.data : [];
-      for (var k = 0; k < chartPlaylists.length && playlistItems.length < 12; k++) {
+      var chartPlaylists =
+        chart.playlists && chart.playlists.data ? chart.playlists.data : [];
+      for (
+        var k = 0;
+        k < chartPlaylists.length && playlistItems.length < 12;
+        k++
+      ) {
         var p = formatPlaylist(chartPlaylists[k]);
         if (!p) continue;
         playlistItems.push({
@@ -1227,16 +1466,26 @@ function getHomeFeed() {
           type: "playlist",
           id: p.id,
           cover_url: p.cover_url,
-          total_tracks: p.total_tracks
+          total_tracks: p.total_tracks,
         });
       }
       if (playlistItems.length > 0) {
-        sections.push({ uri: "dz:charts:playlists", title: "Playlists populares", items: playlistItems });
+        sections.push({
+          uri: "dz:charts:playlists",
+          title: "Playlists populares",
+          items: playlistItems,
+        });
       }
-    } catch (e3) { log.debug("[DeezerExt] chart playlists failed:", e3 && e3.message); }
+    } catch (e3) {
+      log.debug("[DeezerExt] chart playlists failed:", e3 && e3.message);
+    }
   } catch (e) {
     log.debug("[DeezerExt] getHomeFeed failed:", e && e.message);
-    return { success: false, error: String(e && e.message || e), sections: [] };
+    return {
+      success: false,
+      error: String((e && e.message) || e),
+      sections: [],
+    };
   }
 
   if (sections.length > 0) {
@@ -1246,7 +1495,11 @@ function getHomeFeed() {
 }
 
 function completeGrant() {
-  if (typeof session === "undefined" || !session || typeof session.completeGrant !== "function") {
+  if (
+    typeof session === "undefined" ||
+    !session ||
+    typeof session.completeGrant !== "function"
+  ) {
     return { success: false, error: "signed session runtime is not available" };
   }
   return session.completeGrant();
@@ -1263,7 +1516,9 @@ function getDownloadUrl(trackID, quality) {
     // Encrypted (client-decryption) streams cannot be played directly by the
     // media player — skip so the rescue chain can try the next provider.
     if (descriptorRequiresClientDecryption(descriptor)) {
-      log.info("[DeezerExt] getDownloadUrl: stream requires client decryption, skipping");
+      log.info(
+        "[DeezerExt] getDownloadUrl: stream requires client decryption, skipping",
+      );
       return null;
     }
     log.info("[DeezerExt] getDownloadUrl resolved stream for", resolvedTrackID);
@@ -1293,7 +1548,7 @@ registerExtension({
   getHomeFeed: getHomeFeed,
   checkAvailability: checkAvailability,
   download: download,
-  getDownloadUrl: getDownloadUrl
+  getDownloadUrl: getDownloadUrl,
 });
 
 log.info("[DeezerExt] Deezer metadata and download extension loaded");

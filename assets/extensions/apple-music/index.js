@@ -28,7 +28,7 @@ let state = {
   proxyApiKey: "",
   downloadPollIntervalMs: 2500,
   downloadMaxWaitMinutes: 60,
-  trackURLCache: {}
+  trackURLCache: {},
 };
 
 function initialize(config) {
@@ -36,7 +36,7 @@ function initialize(config) {
 
   // The host passes the flat settings object as the argument. Accept both the
   // flat form and a legacy { settings: {...} } wrapper for safety.
-  var s = (config && config.settings) ? config.settings : (config || {});
+  var s = config && config.settings ? config.settings : config || {};
   if (s) {
     var sf = (s.storefront || "").trim().toLowerCase();
     if (sf) {
@@ -44,39 +44,60 @@ function initialize(config) {
     }
     state.mediaUserToken = (s.mediaUserToken || "").trim();
     state.lyricsTranslation = (s.lyricsTranslation || "").trim().toLowerCase();
-    state.lyricsPronunciation = (s.lyricsPronunciation || "").trim().toLowerCase();
+    state.lyricsPronunciation = (s.lyricsPronunciation || "")
+      .trim()
+      .toLowerCase();
     state.proxyApiKey = (s.proxyApiKey || "").trim();
-    state.downloadPollIntervalMs = clampInt(s.downloadPollIntervalMs, 2500, 500, 30000);
-    state.downloadMaxWaitMinutes = clampInt(s.downloadMaxWaitMinutes, 60, 1, 24 * 60);
+    state.downloadPollIntervalMs = clampInt(
+      s.downloadPollIntervalMs,
+      2500,
+      500,
+      30000,
+    );
+    state.downloadMaxWaitMinutes = clampInt(
+      s.downloadMaxWaitMinutes,
+      60,
+      1,
+      24 * 60,
+    );
   }
 
   try {
     const cached = storage.get("am_state");
     if (cached) {
       const parsed = JSON.parse(cached);
-      if (parsed.token && parsed.tokenExpiry && Date.now() < parsed.tokenExpiry) {
+      if (
+        parsed.token &&
+        parsed.tokenExpiry &&
+        Date.now() < parsed.tokenExpiry
+      ) {
         state.token = parsed.token;
         state.tokenExpiry = parsed.tokenExpiry;
-        log.info("Loaded cached token (expires in " +
-          Math.round((state.tokenExpiry - Date.now()) / 60000) + " min)");
+        log.info(
+          "Loaded cached token (expires in " +
+            Math.round((state.tokenExpiry - Date.now()) / 60000) +
+            " min)",
+        );
       }
       if (parsed.trackURLCache && typeof parsed.trackURLCache === "object") {
         state.trackURLCache = parsed.trackURLCache;
       }
     }
-  } catch (e) {
-  }
+  } catch (e) {}
 
   return true;
 }
 
 function persistState() {
   try {
-    return storage.set("am_state", JSON.stringify({
-      token: state.token,
-      tokenExpiry: state.tokenExpiry,
-      trackURLCache: state.trackURLCache
-    }));
+    return storage.set(
+      "am_state",
+      JSON.stringify({
+        token: state.token,
+        tokenExpiry: state.tokenExpiry,
+        trackURLCache: state.trackURLCache,
+      }),
+    );
   } catch (e) {
     log.warn("Failed to persist Apple Music session:", e.message || String(e));
     return false;
@@ -114,8 +135,8 @@ function appUserAgent() {
 
 function proxyHeaders() {
   var headers = {
-    "Accept": "application/json",
-    "User-Agent": appUserAgent()
+    Accept: "application/json",
+    "User-Agent": appUserAgent(),
   };
 
   if (state.proxyApiKey) {
@@ -162,7 +183,9 @@ function ensureOutputExtension(outputPath, extension) {
   if (dotIndex < 0) {
     return outputPath + normalizedExt;
   }
-  if (outputPath.substring(dotIndex).toLowerCase() === normalizedExt.toLowerCase()) {
+  if (
+    outputPath.substring(dotIndex).toLowerCase() === normalizedExt.toLowerCase()
+  ) {
     return outputPath;
   }
   return outputPath.substring(0, dotIndex) + normalizedExt;
@@ -201,22 +224,28 @@ function fetchToken() {
 
   var response = http.get("https://music.apple.com/us/browse", {
     "User-Agent": utils.randomUserAgent(),
-    "Accept-Encoding": "identity"
+    "Accept-Encoding": "identity",
   });
 
   if (!response || response.error || response.statusCode !== 200) {
-    throw new Error("Failed to fetch music.apple.com: HTTP " +
-      (response ? response.statusCode : "no response"));
+    throw new Error(
+      "Failed to fetch music.apple.com: HTTP " +
+        (response ? response.statusCode : "no response"),
+    );
   }
 
   var body = response.body || "";
 
   // Strategy 1: Token in an iframe devToken= parameter (browser-rendered HTML)
-  var tokenMatch = body.match(/devToken=([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)/);
+  var tokenMatch = body.match(
+    /devToken=([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)/,
+  );
 
   // Strategy 2: JWT directly in the HTML (match both header field orderings)
   if (!tokenMatch) {
-    tokenMatch = body.match(/((?:eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IldlYlBsYXlLaWQifQ|eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiIsImtpZCI6IldlYlBsYXlLaWQifQ)\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)/);
+    tokenMatch = body.match(
+      /((?:eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IldlYlBsYXlLaWQifQ|eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiIsImtpZCI6IldlYlBsYXlLaWQifQ)\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)/,
+    );
   }
 
   // Strategy 3: Token is in the main JS bundle — find and fetch it
@@ -237,9 +266,13 @@ function fetchToken() {
         try {
           var bundleResp = http.get(bundleURL, {
             "User-Agent": utils.randomUserAgent(),
-            "Accept-Encoding": "identity"
+            "Accept-Encoding": "identity",
           });
-          if (bundleResp && !bundleResp.error && bundleResp.statusCode === 200) {
+          if (
+            bundleResp &&
+            !bundleResp.error &&
+            bundleResp.statusCode === 200
+          ) {
             var bundleBody = bundleResp.body || "";
             log.debug("Bundle size:", bundleBody.length, "bytes");
             // Use indexOf for speed on large strings instead of regex
@@ -259,7 +292,9 @@ function fetchToken() {
   }
 
   if (!tokenMatch) {
-    throw new Error("Could not find developer token in page HTML or JS bundles");
+    throw new Error(
+      "Could not find developer token in page HTML or JS bundles",
+    );
   }
 
   state.token = tokenMatch[1];
@@ -277,7 +312,7 @@ function extractJWTFromString(str) {
   //   {"typ":"JWT","alg":"ES256","kid":"WebPlayKid"}
   var prefixes = [
     "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IldlYlBsYXlLaWQifQ.",
-    "eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiIsImtpZCI6IldlYlBsYXlLaWQifQ."
+    "eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiIsImtpZCI6IldlYlBsYXlLaWQifQ.",
   ];
   var idx = -1;
   for (var p = 0; p < prefixes.length; p++) {
@@ -289,7 +324,8 @@ function extractJWTFromString(str) {
   // Read from the start of the JWT until we hit a non-JWT character
   var start = idx;
   var end = start;
-  var jwtChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-.";
+  var jwtChars =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-.";
   while (end < str.length && jwtChars.indexOf(str.charAt(end)) !== -1) {
     end++;
   }
@@ -297,7 +333,12 @@ function extractJWTFromString(str) {
   var candidate = str.substring(start, end);
   // A valid JWT has exactly 3 parts separated by dots
   var parts = candidate.split(".");
-  if (parts.length === 3 && parts[0].length > 0 && parts[1].length > 0 && parts[2].length > 0) {
+  if (
+    parts.length === 3 &&
+    parts[0].length > 0 &&
+    parts[1].length > 0 &&
+    parts[2].length > 0
+  ) {
     return candidate;
   }
   return null;
@@ -309,16 +350,19 @@ function parseTokenExpiry() {
     var payload = JSON.parse(decodeBase64URL(parts[1]));
     if (payload.exp) {
       // Expire 5 minutes early to avoid edge cases
-      state.tokenExpiry = (payload.exp * 1000) - 300000;
+      state.tokenExpiry = payload.exp * 1000 - 300000;
     } else {
-      state.tokenExpiry = Date.now() + (12 * 60 * 60 * 1000);
+      state.tokenExpiry = Date.now() + 12 * 60 * 60 * 1000;
     }
   } catch (e) {
-    state.tokenExpiry = Date.now() + (12 * 60 * 60 * 1000);
+    state.tokenExpiry = Date.now() + 12 * 60 * 60 * 1000;
   }
 
-  log.info("Token valid for " +
-    Math.round((state.tokenExpiry - Date.now()) / 60000) + " minutes");
+  log.info(
+    "Token valid for " +
+      Math.round((state.tokenExpiry - Date.now()) / 60000) +
+      " minutes",
+  );
   persistState();
 }
 
@@ -337,14 +381,16 @@ function apiGet(path, allowRetry) {
 
   var url = API_BASE + state.storefront + "/" + path;
   var response = http.get(url, {
-    "Authorization": "Bearer " + state.token,
-    "Origin": "https://music.apple.com",
-    "Referer": "https://music.apple.com/",
-    "User-Agent": utils.randomUserAgent()
+    Authorization: "Bearer " + state.token,
+    Origin: "https://music.apple.com",
+    Referer: "https://music.apple.com/",
+    "User-Agent": utils.randomUserAgent(),
   });
 
   if (!response || response.error) {
-    throw new Error("API request failed: " + (response ? response.error : "no response"));
+    throw new Error(
+      "API request failed: " + (response ? response.error : "no response"),
+    );
   }
 
   if (response.statusCode === 401 && allowRetry !== false) {
@@ -371,11 +417,11 @@ function apiGetWithUserToken(path) {
 
   var url = API_BASE + state.storefront + "/" + path;
   var headers = {
-    "Authorization": "Bearer " + state.token,
+    Authorization: "Bearer " + state.token,
     "Media-User-Token": state.mediaUserToken,
-    "Origin": "https://music.apple.com",
-    "Referer": "https://music.apple.com/",
-    "User-Agent": utils.randomUserAgent()
+    Origin: "https://music.apple.com",
+    Referer: "https://music.apple.com/",
+    "User-Agent": utils.randomUserAgent(),
   };
 
   var response = http.get(url, headers);
@@ -390,7 +436,11 @@ function apiGetWithUserToken(path) {
   }
 
   if (response.statusCode === 401 || response.statusCode === 403) {
-    log.warn("Lyrics API auth failed (HTTP " + response.statusCode + "). Media User Token may be invalid or expired.");
+    log.warn(
+      "Lyrics API auth failed (HTTP " +
+        response.statusCode +
+        "). Media User Token may be invalid or expired.",
+    );
     return null;
   }
 
@@ -426,13 +476,16 @@ function previewURL(attributes) {
  */
 function tallArtworkURL(editorialArtwork, regularArtwork, size) {
   size = size || 3000;
-  var tallSize = Math.round(size * 4 / 3); // 3:4 ratio
+  var tallSize = Math.round((size * 4) / 3); // 3:4 ratio
 
   if (editorialArtwork) {
     // superHeroTall: 1680x2240 (ratio 1.33 = 3:4) — available on albums
-    var tall = editorialArtwork.superHeroTall || editorialArtwork.staticDetailTall;
+    var tall =
+      editorialArtwork.superHeroTall || editorialArtwork.staticDetailTall;
     if (tall && tall.url) {
-      return tall.url.replace("{w}", String(size)).replace("{h}", String(tallSize));
+      return tall.url
+        .replace("{w}", String(size))
+        .replace("{h}", String(tallSize));
     }
   }
 
@@ -455,7 +508,7 @@ var MOTION_VIDEO_KEYS = [
   "motionArtistFullscreen16x9",
   "motionArtistWide16x9",
   "motionArtworkWide16x9",
-  "motionDetailWide"
+  "motionDetailWide",
 ];
 
 function motionArtworkIsTallKey(key) {
@@ -480,18 +533,18 @@ function motionArtworkPreviewHeight(key, entry, width) {
   var frameWidth = frame && Number(frame.width || frame.w || 0);
   var frameHeight = frame && Number(frame.height || frame.h || 0);
   if (frameWidth > 0 && frameHeight > 0) {
-    return Math.round(width * frameHeight / frameWidth);
+    return Math.round((width * frameHeight) / frameWidth);
   }
 
   if (motionArtworkIsTallKey(key)) {
-    return Math.round(width * 4 / 3);
+    return Math.round((width * 4) / 3);
   }
   if (
     key.indexOf("Wide") >= 0 ||
     key.indexOf("Fullscreen") >= 0 ||
     key.indexOf("16x9") >= 0
   ) {
-    return Math.round(width * 9 / 16);
+    return Math.round((width * 9) / 16);
   }
   return width;
 }
@@ -528,7 +581,7 @@ function parseAppleMusicURL(url) {
   // https://music.apple.com/{storefront}/artist/{name}/{id}
   // https://music.apple.com/{storefront}/song/{name}/{id}
   var match = url.match(
-    /music\.apple\.com\/([a-z]{2})\/(album|playlist|artist|song)\/[^/]*\/([a-z0-9.]+)/i
+    /music\.apple\.com\/([a-z]{2})\/(album|playlist|artist|song)\/[^/]*\/([a-z0-9.]+)/i,
   );
   if (!match) return null;
 
@@ -564,7 +617,7 @@ function parseAppleMusicURL(url) {
 
 function formatSong(song, albumData) {
   var attr = song.attributes || {};
-  var albumAttr = albumData ? (albumData.attributes || {}) : {};
+  var albumAttr = albumData ? albumData.attributes || {} : {};
 
   // Use square artwork for images (UI display + download embedding).
   // tallArtworkURL is kept for future use when UI supports tall containers.
@@ -599,25 +652,32 @@ function formatSong(song, albumData) {
     track_number: attr.trackNumber || 0,
     total_tracks: albumAttr.trackCount || 0,
     disc_number: attr.discNumber || 1,
-    external_urls: attr.url || ("https://music.apple.com/" + state.storefront + "/song/" + song.id),
+    external_urls:
+      attr.url ||
+      "https://music.apple.com/" + state.storefront + "/song/" + song.id,
     isrc: attr.isrc || "",
     album_id: albumID,
     album_url: albumID
       ? "https://music.apple.com/" + state.storefront + "/album/" + albumID
       : "",
-    genre: (attr.genreNames || []).filter(function (g) { return g !== "Music"; }).join(", "),
+    genre: (attr.genreNames || [])
+      .filter(function (g) {
+        return g !== "Music";
+      })
+      .join(", "),
     label: albumAttr.recordLabel || "",
     copyright: albumAttr.copyright || "",
     composer: attr.composerName || "",
-    explicit: attr.contentRating === "explicit"
+    explicit: attr.contentRating === "explicit",
   };
 }
 
 function formatAlbumInfo(album) {
   var attr = album.attributes || {};
-  var artistItems = album.relationships && album.relationships.artists
-    ? album.relationships.artists.data
-    : [];
+  var artistItems =
+    album.relationships && album.relationships.artists
+      ? album.relationships.artists.data
+      : [];
   var firstArtistId = artistItems.length > 0 ? artistItems[0].id : "";
 
   // Use square artwork — tall artwork causes 3:4 covers in downloaded files.
@@ -639,9 +699,13 @@ function formatAlbumInfo(album) {
     total_tracks: attr.trackCount || 0,
     record_label: attr.recordLabel || "",
     copyright: attr.copyright || "",
-    genre: (attr.genreNames || []).filter(function (g) { return g !== "Music"; }).join(", "),
+    genre: (attr.genreNames || [])
+      .filter(function (g) {
+        return g !== "Music";
+      })
+      .join(", "),
     audio_traits: attr.audioTraits || [],
-    provider_id: "apple-music"
+    provider_id: "apple-music",
   };
 }
 
@@ -652,7 +716,9 @@ function formatAlbumInfo(album) {
 function fetchTrack(trackID) {
   log.info("Fetching track:", trackID);
 
-  var data = apiGet("songs/" + trackID + "?include=albums&extend=editorialArtwork");
+  var data = apiGet(
+    "songs/" + trackID + "?include=albums&extend=editorialArtwork",
+  );
   var songs = data.data || [];
   if (songs.length === 0) {
     throw new Error("Track not found: " + trackID);
@@ -667,18 +733,29 @@ function fetchTrack(trackID) {
   }
 
   var track = formatSong(song, albumData);
-  log.info("Fetched track:", track.name, "by", track.artists, "ISRC:", track.isrc);
+  log.info(
+    "Fetched track:",
+    track.name,
+    "by",
+    track.artists,
+    "ISRC:",
+    track.isrc,
+  );
 
   return {
     type: "track",
-    track: track
+    track: track,
   };
 }
 
 function fetchAlbum(albumID) {
   log.info("Fetching album:", albumID);
 
-  var data = apiGet("albums/" + albumID + "?include=tracks,artists&extend=editorialArtwork,editorialVideo");
+  var data = apiGet(
+    "albums/" +
+      albumID +
+      "?include=tracks,artists&extend=editorialArtwork,editorialVideo",
+  );
   var albums = data.data || [];
   if (albums.length === 0) {
     throw new Error("Album not found: " + albumID);
@@ -688,14 +765,16 @@ function fetchAlbum(albumID) {
   var albumAttr = album.attributes || {};
   var albumInfo = formatAlbumInfo(album);
 
-  var trackItems = album.relationships && album.relationships.tracks
-    ? album.relationships.tracks.data
-    : [];
+  var trackItems =
+    album.relationships && album.relationships.tracks
+      ? album.relationships.tracks.data
+      : [];
 
   // Handle pagination for large albums
-  var nextURL = album.relationships && album.relationships.tracks
-    ? album.relationships.tracks.next
-    : null;
+  var nextURL =
+    album.relationships && album.relationships.tracks
+      ? album.relationships.tracks.next
+      : null;
   while (nextURL) {
     try {
       // nextURL is relative like /v1/catalog/us/albums/{id}/tracks?offset=X
@@ -721,14 +800,18 @@ function fetchAlbum(albumID) {
   return {
     type: "album",
     album_info: albumInfo,
-    track_list: tracks
+    track_list: tracks,
   };
 }
 
 function fetchPlaylist(playlistID) {
   log.info("Fetching playlist:", playlistID);
 
-  var data = apiGet("playlists/" + playlistID + "?include=tracks&extend=editorialArtwork,editorialVideo");
+  var data = apiGet(
+    "playlists/" +
+      playlistID +
+      "?include=tracks&extend=editorialArtwork,editorialVideo",
+  );
   var playlists = data.data || [];
   if (playlists.length === 0) {
     throw new Error("Playlist not found: " + playlistID);
@@ -739,8 +822,11 @@ function fetchPlaylist(playlistID) {
   var description = "";
   if (attr.description) {
     // Strip HTML tags from description
-    description = (attr.description.standard || attr.description.short || "")
-      .replace(/<[^>]+>/g, "");
+    description = (
+      attr.description.standard ||
+      attr.description.short ||
+      ""
+    ).replace(/<[^>]+>/g, "");
   }
 
   var playlistInfo = {
@@ -748,20 +834,23 @@ function fetchPlaylist(playlistID) {
     description: description,
     owner: attr.curatorName || "",
     cover: artworkURL(attr.artwork),
-    header_image: motionArtworkPreviewURL(attr.editorialVideo) || artworkURL(attr.artwork),
+    header_image:
+      motionArtworkPreviewURL(attr.editorialVideo) || artworkURL(attr.artwork),
     header_video: motionArtworkVideoURL(attr.editorialVideo),
     totalTracks: 0,
-    followers: 0
+    followers: 0,
   };
 
-  var trackItems = playlist.relationships && playlist.relationships.tracks
-    ? playlist.relationships.tracks.data
-    : [];
+  var trackItems =
+    playlist.relationships && playlist.relationships.tracks
+      ? playlist.relationships.tracks.data
+      : [];
 
   // Handle pagination
-  var nextURL = playlist.relationships && playlist.relationships.tracks
-    ? playlist.relationships.tracks.next
-    : null;
+  var nextURL =
+    playlist.relationships && playlist.relationships.tracks
+      ? playlist.relationships.tracks.next
+      : null;
   while (nextURL) {
     try {
       var nextPath = nextURL.replace(/^\/v1\/catalog\/[a-z]{2}\//, "");
@@ -788,14 +877,18 @@ function fetchPlaylist(playlistID) {
   return {
     type: "playlist",
     playlist_info: playlistInfo,
-    track_list: tracks
+    track_list: tracks,
   };
 }
 
 function fetchArtist(artistID) {
   log.info("Fetching artist:", artistID);
 
-  var data = apiGet("artists/" + artistID + "?include=albums&views=top-songs&extend=editorialVideo");
+  var data = apiGet(
+    "artists/" +
+      artistID +
+      "?include=albums&views=top-songs&extend=editorialVideo",
+  );
   var artists = data.data || [];
   if (artists.length === 0) {
     throw new Error("Artist not found: " + artistID);
@@ -821,18 +914,20 @@ function fetchArtist(artistID) {
         images: artworkURL(songAttr.artwork),
         provider_id: "apple-music",
         isrc: songAttr.isrc || "",
-        explicit: songAttr.contentRating === "explicit"
+        explicit: songAttr.contentRating === "explicit",
       });
     }
   }
 
   // Collect all albums with pagination
-  var albumItems = artist.relationships && artist.relationships.albums
-    ? artist.relationships.albums.data
-    : [];
-  var albumNext = artist.relationships && artist.relationships.albums
-    ? artist.relationships.albums.next
-    : null;
+  var albumItems =
+    artist.relationships && artist.relationships.albums
+      ? artist.relationships.albums.data
+      : [];
+  var albumNext =
+    artist.relationships && artist.relationships.albums
+      ? artist.relationships.albums.next
+      : null;
   while (albumNext) {
     try {
       var nextPath = albumNext.replace(/^\/v1\/catalog\/[a-z]{2}\//, "");
@@ -856,21 +951,28 @@ function fetchArtist(artistID) {
     albums.push({
       id: alb.id || "",
       name: albAttr.name || "",
-      album_type: (albAttr.isSingle ? "single" : "album"),
+      album_type: albAttr.isSingle ? "single" : "album",
       release_date: releaseDate,
       total_tracks: albAttr.trackCount || 0,
       artists: albAttr.artistName || attr.name || "",
       cover_url: artworkURL(albAttr.artwork),
       external_urls: albAttr.url || "",
-      provider_id: "apple-music"
+      provider_id: "apple-music",
     });
   }
 
-  log.info("Fetched artist with", albums.length, "releases and", topTracks.length, "top tracks");
+  log.info(
+    "Fetched artist with",
+    albums.length,
+    "releases and",
+    topTracks.length,
+    "top tracks",
+  );
 
   var editorialVideo = attr.editorialVideo;
   var headerVideo = motionArtworkVideoURL(editorialVideo);
-  var headerImage = motionArtworkPreviewURL(editorialVideo) || artworkURL(attr.artwork);
+  var headerImage =
+    motionArtworkPreviewURL(editorialVideo) || artworkURL(attr.artwork);
 
   return {
     type: "artist",
@@ -883,8 +985,8 @@ function fetchArtist(artistID) {
       listeners: 0,
       albums: albums,
       top_tracks: topTracks,
-      provider_id: "apple-music"
-    }
+      provider_id: "apple-music",
+    },
   };
 }
 
@@ -907,18 +1009,23 @@ function customSearch(searchQuery, options) {
   var types = "songs,albums,artists,playlists";
   if (isFiltered) {
     var typeMap = {
-      "tracks": "songs",
-      "albums": "albums",
-      "artists": "artists",
-      "playlists": "playlists"
+      tracks: "songs",
+      albums: "albums",
+      artists: "artists",
+      playlists: "playlists",
     };
     types = typeMap[filter] || types;
   }
 
-  var path = "search?term=" + encodeURIComponent(searchQuery) +
-    "&types=" + types +
-    "&limit=" + limit +
-    "&offset=" + offset;
+  var path =
+    "search?term=" +
+    encodeURIComponent(searchQuery) +
+    "&types=" +
+    types +
+    "&limit=" +
+    limit +
+    "&offset=" +
+    offset;
 
   var data = apiGet(path);
   var searchResults = data.results || {};
@@ -950,7 +1057,7 @@ function customSearch(searchQuery, options) {
         source: "apple-music",
         item_type: "track",
         provider_id: "apple-music",
-        explicit: songAttr.contentRating === "explicit"
+        explicit: songAttr.contentRating === "explicit",
       });
     }
   }
@@ -969,9 +1076,9 @@ function customSearch(searchQuery, options) {
         cover_url: artworkURL(albAttr.artwork),
         images: artworkURL(albAttr.artwork),
         release_date: albAttr.releaseDate || "",
-        album_type: (albAttr.isSingle ? "single" : "album"),
+        album_type: albAttr.isSingle ? "single" : "album",
         item_type: "album",
-        provider_id: "apple-music"
+        provider_id: "apple-music",
       });
     }
   }
@@ -989,7 +1096,7 @@ function customSearch(searchQuery, options) {
         image_url: artworkURL(artAttr.artwork),
         images: artworkURL(artAttr.artwork),
         item_type: "artist",
-        provider_id: "apple-music"
+        provider_id: "apple-music",
       });
     }
   }
@@ -1008,7 +1115,7 @@ function customSearch(searchQuery, options) {
         cover_url: artworkURL(plAttr.artwork),
         images: artworkURL(plAttr.artwork),
         item_type: "playlist",
-        provider_id: "apple-music"
+        provider_id: "apple-music",
       });
     }
   }
@@ -1029,14 +1136,17 @@ function enrichTrack(track) {
   // If the ID looks like an Apple Music numeric ID, fetch directly
   if (amTrackID && /^\d+$/.test(amTrackID)) {
     try {
-      var data = apiGet("songs/" + amTrackID + "?include=albums&extend=editorialArtwork");
+      var data = apiGet(
+        "songs/" + amTrackID + "?include=albums&extend=editorialArtwork",
+      );
       var songs = data.data || [];
       if (songs.length > 0) {
         var songAttr = songs[0].attributes || {};
         var albumRel = songs[0].relationships && songs[0].relationships.albums;
-        var albumData = albumRel && albumRel.data && albumRel.data.length > 0
-          ? albumRel.data[0]
-          : null;
+        var albumData =
+          albumRel && albumRel.data && albumRel.data.length > 0
+            ? albumRel.data[0]
+            : null;
         var fullTrack = formatSong(songs[0], albumData);
 
         if (songAttr.isrc) {
@@ -1059,7 +1169,9 @@ function enrichTrack(track) {
           track.album_artist = fullTrack.album_artist;
         }
         if (songAttr.genreNames) {
-          var genres = songAttr.genreNames.filter(function (g) { return g !== "Music"; });
+          var genres = songAttr.genreNames.filter(function (g) {
+            return g !== "Music";
+          });
           if (genres.length > 0) track.genre = genres.join(", ");
         }
         if (songAttr.composerName) {
@@ -1088,11 +1200,14 @@ function enrichTrack(track) {
     if (searchTerm) {
       try {
         var searchData = apiGet(
-          "search?term=" + encodeURIComponent(searchTerm) + "&types=songs&limit=5"
+          "search?term=" +
+            encodeURIComponent(searchTerm) +
+            "&types=songs&limit=5",
         );
-        var searchSongs = searchData.results && searchData.results.songs
-          ? searchData.results.songs.data
-          : [];
+        var searchSongs =
+          searchData.results && searchData.results.songs
+            ? searchData.results.songs.data
+            : [];
 
         // Find best match
         var bestMatch = findBestMatch(searchSongs, track.name, track.artists);
@@ -1109,7 +1224,9 @@ function enrichTrack(track) {
             track.disc_number = mAttr.discNumber;
           }
           if (!track.genre && mAttr.genreNames) {
-            var g = mAttr.genreNames.filter(function (x) { return x !== "Music"; });
+            var g = mAttr.genreNames.filter(function (x) {
+              return x !== "Music";
+            });
             if (g.length > 0) track.genre = g.join(", ");
           }
           if (!track.release_date && mAttr.releaseDate) {
@@ -1130,7 +1247,8 @@ function enrichTrack(track) {
     var deezerMeta = getMetadataFromDeezerByISRC(track.isrc);
     if (deezerMeta) {
       if (!track.label && deezerMeta.label) track.label = deezerMeta.label;
-      if (!track.copyright && deezerMeta.copyright) track.copyright = deezerMeta.copyright;
+      if (!track.copyright && deezerMeta.copyright)
+        track.copyright = deezerMeta.copyright;
       if (!track.genre && deezerMeta.genre) track.genre = deezerMeta.genre;
       if (!track.release_date && deezerMeta.release_date) {
         track.release_date = deezerMeta.release_date;
@@ -1162,8 +1280,10 @@ function findBestMatch(songs, targetName, targetArtist) {
     var n = normalizeText(attr2.name || "");
     var a = normalizeText(attr2.artistName || "");
 
-    if ((n.indexOf(normTarget) !== -1 || normTarget.indexOf(n) !== -1) &&
-        (a.indexOf(normArtist) !== -1 || normArtist.indexOf(a) !== -1)) {
+    if (
+      (n.indexOf(normTarget) !== -1 || normTarget.indexOf(n) !== -1) &&
+      (a.indexOf(normArtist) !== -1 || normArtist.indexOf(a) !== -1)
+    ) {
       return songs[j];
     }
   }
@@ -1173,8 +1293,12 @@ function findBestMatch(songs, targetName, targetArtist) {
 
 function normalizeText(text) {
   if (!text) return "";
-  return text.toLowerCase()
-    .replace(/[^a-z0-9\u00c0-\u024f\u0400-\u04ff\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]+/g, " ")
+  return text
+    .toLowerCase()
+    .replace(
+      /[^a-z0-9\u00c0-\u024f\u0400-\u04ff\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]+/g,
+      " ",
+    )
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -1187,9 +1311,10 @@ function getMetadataFromDeezerByISRC(isrc) {
   try {
     if (!isrc) return null;
 
-    var directURL = "https://api.deezer.com/track/isrc:" + encodeURIComponent(isrc);
+    var directURL =
+      "https://api.deezer.com/track/isrc:" + encodeURIComponent(isrc);
     var directResp = http.get(directURL, {
-      "User-Agent": utils.randomUserAgent()
+      "User-Agent": utils.randomUserAgent(),
     });
 
     if (directResp && !directResp.error && directResp.statusCode === 200) {
@@ -1212,14 +1337,14 @@ function extractDeezerMetadata(trackData) {
     release_date: trackData.release_date || null,
     genre: null,
     label: null,
-    copyright: null
+    copyright: null,
   };
 
   if (trackData.album && trackData.album.id) {
     try {
       var albumResp = http.get(
         "https://api.deezer.com/album/" + trackData.album.id,
-        { "User-Agent": utils.randomUserAgent() }
+        { "User-Agent": utils.randomUserAgent() },
       );
 
       if (albumResp && !albumResp.error && albumResp.statusCode === 200) {
@@ -1229,8 +1354,16 @@ function extractDeezerMetadata(trackData) {
           var year = albumData.release_date.substring(0, 4);
           result.copyright = year + " " + albumData.label;
         }
-        if (albumData.genres && albumData.genres.data && albumData.genres.data.length > 0) {
-          result.genre = albumData.genres.data.map(function (g) { return g.name; }).join(", ");
+        if (
+          albumData.genres &&
+          albumData.genres.data &&
+          albumData.genres.data.length > 0
+        ) {
+          result.genre = albumData.genres.data
+            .map(function (g) {
+              return g.name;
+            })
+            .join(", ");
         }
         if (!result.release_date && albumData.release_date) {
           result.release_date = albumData.release_date;
@@ -1270,7 +1403,7 @@ function handleURL(url) {
         return {
           success: true,
           type: "track",
-          track: result.track
+          track: result.track,
         };
 
       case "album":
@@ -1288,14 +1421,14 @@ function handleURL(url) {
             audio_traits: result.album_info.audio_traits,
             release_date: result.album_info.release_date,
             total_tracks: result.album_info.total_tracks,
-            tracks: result.track_list
+            tracks: result.track_list,
           },
           tracks: result.track_list,
           name: result.album_info.name,
           cover_url: result.album_info.images,
           header_image: result.album_info.header_image,
           header_video: result.album_info.header_video,
-          audio_traits: result.album_info.audio_traits
+          audio_traits: result.album_info.audio_traits,
         };
 
       case "playlist":
@@ -1307,7 +1440,7 @@ function handleURL(url) {
           name: result.playlist_info.name,
           cover_url: result.playlist_info.cover,
           header_image: result.playlist_info.header_image,
-          header_video: result.playlist_info.header_video
+          header_video: result.playlist_info.header_video,
         };
 
       case "artist":
@@ -1315,11 +1448,14 @@ function handleURL(url) {
         return {
           success: true,
           type: "artist",
-          artist: result.artist
+          artist: result.artist,
         };
 
       default:
-        return { success: false, error: "Unsupported URL type: " + parsed.type };
+        return {
+          success: false,
+          error: "Unsupported URL type: " + parsed.type,
+        };
     }
   } catch (e) {
     log.error("URL handling failed:", e.message);
@@ -1359,7 +1495,7 @@ function getAlbum(albumId) {
       header_video: result.album_info.header_video,
       audio_traits: result.album_info.audio_traits,
       tracks: tracks,
-      provider_id: "apple-music"
+      provider_id: "apple-music",
     };
   } catch (e) {
     log.error("getAlbum failed:", e.message);
@@ -1395,7 +1531,7 @@ function getPlaylist(playlistId) {
       header_video: result.playlist_info.header_video,
       total_tracks: result.playlist_info.totalTracks,
       tracks: tracks,
-      provider_id: "apple-music"
+      provider_id: "apple-music",
     };
   } catch (e) {
     log.error("getPlaylist failed:", e.message);
@@ -1408,7 +1544,9 @@ function searchTracks(searchQuery, limit) {
 }
 
 function normalizeRequestedCodec(quality) {
-  var normalized = String(quality || "").trim().toLowerCase();
+  var normalized = String(quality || "")
+    .trim()
+    .toLowerCase();
   switch (normalized) {
     case "alac":
     case "atmos":
@@ -1463,7 +1601,9 @@ function inferDownloadExtension(codec, payload, streamURL) {
     return filename.substring(dotIndex);
   }
 
-  codec = String(codec || "").trim().toLowerCase();
+  codec = String(codec || "")
+    .trim()
+    .toLowerCase();
   if (codec === "ac3") {
     return ".m4a";
   }
@@ -1507,12 +1647,17 @@ function scoreAppleSearchSong(song, trackName, artistName, isrc) {
   var attr = song.attributes || {};
   var score = 0;
 
-  if (isrc && attr.isrc && String(isrc).toUpperCase() === String(attr.isrc).toUpperCase()) {
+  if (
+    isrc &&
+    attr.isrc &&
+    String(isrc).toUpperCase() === String(attr.isrc).toUpperCase()
+  ) {
     score += 100;
   }
 
   score += matching.compareStrings(trackName || "", attr.name || "") * 60;
-  score += matching.compareStrings(artistName || "", attr.artistName || "") * 40;
+  score +=
+    matching.compareStrings(artistName || "", attr.artistName || "") * 40;
   return score;
 }
 
@@ -1526,11 +1671,12 @@ function resolveTrackURLByAppleSearch(trackName, artistName, isrc) {
   }
 
   var searchData = apiGet(
-    "search?term=" + encodeURIComponent(query) + "&types=songs&limit=10"
+    "search?term=" + encodeURIComponent(query) + "&types=songs&limit=10",
   );
-  var songs = searchData.results && searchData.results.songs
-    ? searchData.results.songs.data
-    : [];
+  var songs =
+    searchData.results && searchData.results.songs
+      ? searchData.results.songs.data
+      : [];
 
   if (!songs || songs.length === 0) {
     return "";
@@ -1565,19 +1711,23 @@ function queueAppleProxyDownload(trackURL, codec) {
     DOWNLOAD_PROXY_BASE + "/download",
     JSON.stringify({
       url: trackURL,
-      codec: codec
+      codec: codec,
     }),
-    proxyHeaders()
+    proxyHeaders(),
   );
 
   if (!response || response.error) {
-    throw new Error(response && response.error ? response.error : "proxy request failed");
+    throw new Error(
+      response && response.error ? response.error : "proxy request failed",
+    );
   }
   if (response.statusCode < 200 || response.statusCode >= 300) {
-    throw new Error(proxyErrorMessage(
-      response,
-      "Apple downloader queue failed: HTTP " + response.statusCode
-    ));
+    throw new Error(
+      proxyErrorMessage(
+        response,
+        "Apple downloader queue failed: HTTP " + response.statusCode,
+      ),
+    );
   }
 
   var payload = parseJSONSafe(response.body || "");
@@ -1593,19 +1743,23 @@ function requestAppleProxyFallbackDownload(trackURL, codec) {
     DOWNLOAD_PROXY_FALLBACK_BASE,
     JSON.stringify({
       url: trackURL,
-      codec: codec
+      codec: codec,
     }),
-    proxyHeaders()
+    proxyHeaders(),
   );
 
   if (!response || response.error) {
-    throw new Error(response && response.error ? response.error : "fallback request failed");
+    throw new Error(
+      response && response.error ? response.error : "fallback request failed",
+    );
   }
   if (response.statusCode < 200 || response.statusCode >= 300) {
-    throw new Error(proxyErrorMessage(
-      response,
-      "Apple downloader fallback failed: HTTP " + response.statusCode
-    ));
+    throw new Error(
+      proxyErrorMessage(
+        response,
+        "Apple downloader fallback failed: HTTP " + response.statusCode,
+      ),
+    );
   }
 
   var payload = parseJSONSafe(response.body || "");
@@ -1613,9 +1767,13 @@ function requestAppleProxyFallbackDownload(trackURL, codec) {
     throw new Error("Apple downloader fallback returned invalid JSON");
   }
   if (payload.success !== true || !payload.stream_url) {
-    throw new Error(String(
-      payload.error || payload.message || "Apple downloader fallback returned no stream URL"
-    ));
+    throw new Error(
+      String(
+        payload.error ||
+          payload.message ||
+          "Apple downloader fallback returned no stream URL",
+      ),
+    );
   }
 
   return payload;
@@ -1624,17 +1782,21 @@ function requestAppleProxyFallbackDownload(trackURL, codec) {
 function fetchAppleProxyStatus(jobID) {
   var response = http.get(
     DOWNLOAD_PROXY_BASE + "/status/" + encodeURIComponent(jobID),
-    proxyHeaders()
+    proxyHeaders(),
   );
 
   if (!response || response.error) {
-    throw new Error(response && response.error ? response.error : "status request failed");
+    throw new Error(
+      response && response.error ? response.error : "status request failed",
+    );
   }
   if (response.statusCode < 200 || response.statusCode >= 300) {
-    throw new Error(proxyErrorMessage(
-      response,
-      "Apple downloader status failed: HTTP " + response.statusCode
-    ));
+    throw new Error(
+      proxyErrorMessage(
+        response,
+        "Apple downloader status failed: HTTP " + response.statusCode,
+      ),
+    );
   }
 
   var payload = parseJSONSafe(response.body || "");
@@ -1649,7 +1811,7 @@ function cancelledDownloadResult() {
   return {
     success: false,
     error_message: "Download cancelled",
-    error_type: "cancelled"
+    error_type: "cancelled",
   };
 }
 
@@ -1657,12 +1819,12 @@ function failedDownloadResult(message, type) {
   return {
     success: false,
     error_message: message || "Apple Music download failed",
-    error_type: type || "api_error"
+    error_type: type || "api_error",
   };
 }
 
 function waitForAppleProxyJob(jobID, onProgress) {
-  var deadline = Date.now() + (state.downloadMaxWaitMinutes * 60 * 1000);
+  var deadline = Date.now() + state.downloadMaxWaitMinutes * 60 * 1000;
 
   while (Date.now() < deadline) {
     if (utils.isDownloadCancelled()) {
@@ -1670,19 +1832,21 @@ function waitForAppleProxyJob(jobID, onProgress) {
     }
 
     var payload = fetchAppleProxyStatus(jobID);
-    var status = String(payload.status || "").trim().toLowerCase();
+    var status = String(payload.status || "")
+      .trim()
+      .toLowerCase();
 
     if (status === "completed") {
       return {
         success: true,
-        payload: payload
+        payload: payload,
       };
     }
 
     if (status === "failed") {
       return {
         success: false,
-        error: String(payload.error || "Apple downloader job failed")
+        error: String(payload.error || "Apple downloader job failed"),
       };
     }
 
@@ -1703,33 +1867,36 @@ function waitForAppleProxyJob(jobID, onProgress) {
 
   return {
     success: false,
-    error: "Timed out while waiting for Apple downloader job"
+    error: "Timed out while waiting for Apple downloader job",
   };
 }
 
-function downloadFromStreamURL(streamURL, outputPath, codec, payload, onProgress, headers) {
+function downloadFromStreamURL(
+  streamURL,
+  outputPath,
+  codec,
+  payload,
+  onProgress,
+  headers,
+) {
   var actualOutputPath = ensureOutputExtension(
     outputPath,
-    inferDownloadExtension(codec, payload, streamURL)
+    inferDownloadExtension(codec, payload, streamURL),
   );
 
-  var downloadResult = file.download(
-    streamURL,
-    actualOutputPath,
-    {
-      headers: headers || {
-        "User-Agent": utils.randomUserAgent()
-      },
-      onProgress: function(written, total) {
-        if (typeof onProgress === "function" && total > 0) {
-          var ratio = written / total;
-          if (ratio < 0) ratio = 0;
-          if (ratio > 1) ratio = 1;
-          onProgress(20 + Math.round(ratio * 80));
-        }
+  var downloadResult = file.download(streamURL, actualOutputPath, {
+    headers: headers || {
+      "User-Agent": utils.randomUserAgent(),
+    },
+    onProgress: function (written, total) {
+      if (typeof onProgress === "function" && total > 0) {
+        var ratio = written / total;
+        if (ratio < 0) ratio = 0;
+        if (ratio > 1) ratio = 1;
+        onProgress(20 + Math.round(ratio * 80));
       }
-    }
-  );
+    },
+  });
 
   if (!downloadResult || !downloadResult.success) {
     return failedDownloadResult(
@@ -1738,7 +1905,7 @@ function downloadFromStreamURL(streamURL, outputPath, codec, payload, onProgress
         : "Failed to download Apple Music file",
       downloadResult && downloadResult.error === "download cancelled"
         ? "cancelled"
-        : "download_error"
+        : "download_error",
     );
   }
 
@@ -1748,7 +1915,7 @@ function downloadFromStreamURL(streamURL, outputPath, codec, payload, onProgress
     bit_depth: 0,
     sample_rate: 0,
     title: payload && payload.title ? payload.title : "",
-    artist: payload && payload.artist ? payload.artist : ""
+    artist: payload && payload.artist ? payload.artist : "",
   };
 }
 
@@ -1768,14 +1935,28 @@ function attemptQueuedAppleDownload(trackURL, codec, outputPath, onProgress) {
       return cancelledDownloadResult();
     }
     if (!waitResult.success) {
-      return failedDownloadResult(waitResult.error || "Apple downloader job failed", "api_error");
+      return failedDownloadResult(
+        waitResult.error || "Apple downloader job failed",
+        "api_error",
+      );
     }
 
     var statusPayload = waitResult.payload || {};
-    var fileURL = DOWNLOAD_PROXY_BASE + "/file/" + encodeURIComponent(queuePayload.job_id);
-    return downloadFromStreamURL(fileURL, outputPath, codec, statusPayload, onProgress, proxyHeaders());
+    var fileURL =
+      DOWNLOAD_PROXY_BASE + "/file/" + encodeURIComponent(queuePayload.job_id);
+    return downloadFromStreamURL(
+      fileURL,
+      outputPath,
+      codec,
+      statusPayload,
+      onProgress,
+      proxyHeaders(),
+    );
   } catch (e) {
-    return failedDownloadResult(e && e.message ? e.message : String(e), "api_error");
+    return failedDownloadResult(
+      e && e.message ? e.message : String(e),
+      "api_error",
+    );
   }
 }
 
@@ -1790,30 +1971,49 @@ function attemptDirectAppleDownload(trackURL, codec, outputPath, onProgress) {
       onProgress(15);
     }
 
-    return downloadFromStreamURL(payload.stream_url, outputPath, codec, payload, onProgress);
+    return downloadFromStreamURL(
+      payload.stream_url,
+      outputPath,
+      codec,
+      payload,
+      onProgress,
+    );
   } catch (e) {
-    return failedDownloadResult(e && e.message ? e.message : String(e), "api_error");
+    return failedDownloadResult(
+      e && e.message ? e.message : String(e),
+      "api_error",
+    );
   }
 }
 
 function shouldRetryWithAppleFallback(result) {
-  return !!(result && result.success !== true && result.error_type !== "cancelled");
+  return !!(
+    result &&
+    result.success !== true &&
+    result.error_type !== "cancelled"
+  );
 }
 
 function mergeDownloadFailures(primaryResult, fallbackResult) {
-  var primaryMessage = primaryResult && primaryResult.error_message
-    ? String(primaryResult.error_message)
-    : "Primary Apple downloader failed";
-  var fallbackMessage = fallbackResult && fallbackResult.error_message
-    ? String(fallbackResult.error_message)
-    : "Fallback Apple downloader failed";
+  var primaryMessage =
+    primaryResult && primaryResult.error_message
+      ? String(primaryResult.error_message)
+      : "Primary Apple downloader failed";
+  var fallbackMessage =
+    fallbackResult && fallbackResult.error_message
+      ? String(fallbackResult.error_message)
+      : "Fallback Apple downloader failed";
 
   return {
     success: false,
-    error_message: "app2 failed: " + primaryMessage + "; app failed: " + fallbackMessage,
-    error_type: fallbackResult && fallbackResult.error_type
-      ? fallbackResult.error_type
-      : (primaryResult && primaryResult.error_type ? primaryResult.error_type : "api_error")
+    error_message:
+      "app2 failed: " + primaryMessage + "; app failed: " + fallbackMessage,
+    error_type:
+      fallbackResult && fallbackResult.error_type
+        ? fallbackResult.error_type
+        : primaryResult && primaryResult.error_type
+          ? primaryResult.error_type
+          : "api_error",
   };
 }
 
@@ -1823,19 +2023,19 @@ function checkAvailability(isrc, trackName, artistName) {
     if (!resolvedURL) {
       return {
         available: false,
-        reason: "not_found_on_apple_music"
+        reason: "not_found_on_apple_music",
       };
     }
 
     return {
       available: true,
-      track_id: resolvedURL
+      track_id: resolvedURL,
     };
   } catch (e) {
     log.warn("checkAvailability failed:", e.message);
     return {
       available: false,
-      reason: e.message || "apple_music_search_failed"
+      reason: e.message || "apple_music_search_failed",
     };
   }
 }
@@ -1852,23 +2052,42 @@ function download(trackID, quality, outputPath, onProgress) {
       return {
         success: false,
         error_message: "Could not resolve Apple Music track URL",
-        error_type: "not_found"
+        error_type: "not_found",
       };
     }
 
-    var primaryResult = attemptDirectAppleDownload(trackURL, codec, outputPath, onProgress);
-    if (primaryResult.success === true || primaryResult.error_type === "cancelled") {
+    var primaryResult = attemptDirectAppleDownload(
+      trackURL,
+      codec,
+      outputPath,
+      onProgress,
+    );
+    if (
+      primaryResult.success === true ||
+      primaryResult.error_type === "cancelled"
+    ) {
       return primaryResult;
     }
 
-    log.warn("Primary /v1/dl/app2 download failed, trying /v1/dl/app fallback:", primaryResult.error_message);
+    log.warn(
+      "Primary /v1/dl/app2 download failed, trying /v1/dl/app fallback:",
+      primaryResult.error_message,
+    );
 
     if (!shouldRetryWithAppleFallback(primaryResult)) {
       return primaryResult;
     }
 
-    var fallbackResult = attemptQueuedAppleDownload(trackURL, codec, outputPath, onProgress);
-    if (fallbackResult.success === true || fallbackResult.error_type === "cancelled") {
+    var fallbackResult = attemptQueuedAppleDownload(
+      trackURL,
+      codec,
+      outputPath,
+      onProgress,
+    );
+    if (
+      fallbackResult.success === true ||
+      fallbackResult.error_type === "cancelled"
+    ) {
       return fallbackResult;
     }
 
@@ -1877,7 +2096,7 @@ function download(trackID, quality, outputPath, onProgress) {
     return {
       success: false,
       error_message: e.message || String(e),
-      error_type: "runtime_error"
+      error_type: "runtime_error",
     };
   }
 }
@@ -1895,7 +2114,8 @@ function decodeBase64URL(str) {
 }
 
 function atob(str) {
-  var chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
+  var chars =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
   var result = "";
   var i = 0;
 
@@ -1932,14 +2152,19 @@ function parseTTMLTime(value) {
   value = value.trim();
 
   // Format: "12.3s" (seconds with s suffix)
-  if (value.charAt(value.length - 1) === "s" || value.charAt(value.length - 1) === "S") {
+  if (
+    value.charAt(value.length - 1) === "s" ||
+    value.charAt(value.length - 1) === "S"
+  ) {
     var secs = parseFloat(value.substring(0, value.length - 1));
     if (isNaN(secs)) return -1;
     return Math.round(secs * 1000);
   }
 
   var parts = value.split(":");
-  var hours = 0, minutes = 0, seconds = 0;
+  var hours = 0,
+    minutes = 0,
+    seconds = 0;
 
   if (parts.length === 3) {
     hours = parseInt(parts[0], 10);
@@ -1976,8 +2201,8 @@ function msToInlineLRC(ms) {
 function extractAttr(tag, attrName) {
   // Handle both ns:attr and plain attr
   var patterns = [
-    new RegExp('\\b' + attrName + '="([^"]*)"'),
-    new RegExp('\\b' + attrName + "='([^']*)'")
+    new RegExp("\\b" + attrName + '="([^"]*)"'),
+    new RegExp("\\b" + attrName + "='([^']*)'"),
   ];
   for (var i = 0; i < patterns.length; i++) {
     var m = tag.match(patterns[i]);
@@ -2055,7 +2280,7 @@ function extractNestedSpan(str, role) {
           start: tagStart,
           end: nextClose + 7, // past "</span>"
           inner: str.substring(contentStart, nextClose),
-          openTag: openTag
+          openTag: openTag,
         };
       }
       pos = nextClose + 7;
@@ -2072,7 +2297,8 @@ function extractNestedSpan(str, role) {
  */
 function collectRoleSpans(content) {
   var results = [];
-  var re = /<span\s+([^>]*ttm:role="(x-translation|x-roman)"[^>]*)>([^<]*)<\/span>/gi;
+  var re =
+    /<span\s+([^>]*ttm:role="(x-translation|x-roman)"[^>]*)>([^<]*)<\/span>/gi;
   var m;
   while ((m = re.exec(content)) !== null) {
     var lang = "";
@@ -2081,7 +2307,7 @@ function collectRoleSpans(content) {
     results.push({
       role: m[2],
       lang: lang,
-      text: decodeXMLEntities(m[3]).trim()
+      text: decodeXMLEntities(m[3]).trim(),
     });
   }
   return results;
@@ -2093,7 +2319,10 @@ function collectRoleSpans(content) {
  * without affecting other spans.
  */
 function removeRoleSpans(content) {
-  return content.replace(/<span\s+[^>]*ttm:role="(?:x-translation|x-roman)"[^>]*>[^<]*<\/span>/gi, "");
+  return content.replace(
+    /<span\s+[^>]*ttm:role="(?:x-translation|x-roman)"[^>]*>[^<]*<\/span>/gi,
+    "",
+  );
 }
 
 /**
@@ -2115,7 +2344,7 @@ function parseTTML(ttml) {
     lines: [],
     headerTranslations: {},
     headerTransliterations: {},
-    timingMode: "Word"
+    timingMode: "Word",
   };
 
   // Detect timing mode from root <tt> element
@@ -2132,14 +2361,20 @@ function parseTTML(ttml) {
 
     // Extract translations from <iTunesMetadata> or similar container
     // <translation ...><text for="L1">translated text</text></translation>
-    var translationBlocks = headContent.match(/<translation\b[^>]*>([\s\S]*?)<\/translation>/gi);
+    var translationBlocks = headContent.match(
+      /<translation\b[^>]*>([\s\S]*?)<\/translation>/gi,
+    );
     if (translationBlocks) {
       for (var ti = 0; ti < translationBlocks.length; ti++) {
         var block = translationBlocks[ti];
-        var blockLang = extractAttr(block.match(/<translation[^>]*>/)[0], "xml:lang") || "";
+        var blockLang =
+          extractAttr(block.match(/<translation[^>]*>/)[0], "xml:lang") || "";
 
         // Check if this translation matches the user's preferred language
-        if (state.lyricsTranslation && blockLang.toLowerCase().indexOf(state.lyricsTranslation) !== 0) {
+        if (
+          state.lyricsTranslation &&
+          blockLang.toLowerCase().indexOf(state.lyricsTranslation) !== 0
+        ) {
           continue; // Skip non-matching languages
         }
 
@@ -2150,14 +2385,20 @@ function parseTTML(ttml) {
             var forKey = extractAttr(textTag.match(/<text[^>]*>/)[0], "for");
             if (forKey) {
               // Strip inner tags and get plain text
-              var innerText = textTag.replace(/^<text[^>]*>/, "").replace(/<\/text>$/, "");
+              var innerText = textTag
+                .replace(/^<text[^>]*>/, "")
+                .replace(/<\/text>$/, "");
               // Handle background vocal text inside <span ttm:role="x-bg">
-              var bgMatch = innerText.match(/<span[^>]*ttm:role="x-bg"[^>]*>([\s\S]*?)<\/span>/i);
+              var bgMatch = innerText.match(
+                /<span[^>]*ttm:role="x-bg"[^>]*>([\s\S]*?)<\/span>/i,
+              );
               var mainText = innerText;
               if (bgMatch) {
                 mainText = innerText.replace(bgMatch[0], "");
               }
-              result.headerTranslations[forKey] = decodeXMLEntities(stripXMLTags(mainText)).trim();
+              result.headerTranslations[forKey] = decodeXMLEntities(
+                stripXMLTags(mainText),
+              ).trim();
             }
           }
         }
@@ -2165,13 +2406,20 @@ function parseTTML(ttml) {
     }
 
     // Extract transliterations
-    var translitBlocks = headContent.match(/<transliteration\b[^>]*>([\s\S]*?)<\/transliteration>/gi);
+    var translitBlocks = headContent.match(
+      /<transliteration\b[^>]*>([\s\S]*?)<\/transliteration>/gi,
+    );
     if (translitBlocks) {
       for (var ri = 0; ri < translitBlocks.length; ri++) {
         var rBlock = translitBlocks[ri];
-        var rBlockLang = extractAttr(rBlock.match(/<transliteration[^>]*>/)[0], "xml:lang") || "";
+        var rBlockLang =
+          extractAttr(rBlock.match(/<transliteration[^>]*>/)[0], "xml:lang") ||
+          "";
 
-        if (state.lyricsPronunciation && rBlockLang.toLowerCase().indexOf(state.lyricsPronunciation) !== 0) {
+        if (
+          state.lyricsPronunciation &&
+          rBlockLang.toLowerCase().indexOf(state.lyricsPronunciation) !== 0
+        ) {
           continue;
         }
 
@@ -2181,13 +2429,19 @@ function parseTTML(ttml) {
             var rTextTag = rTextEntries[rj];
             var rForKey = extractAttr(rTextTag.match(/<text[^>]*>/)[0], "for");
             if (rForKey) {
-              var rInnerText = rTextTag.replace(/^<text[^>]*>/, "").replace(/<\/text>$/, "");
-              var rBgMatch = rInnerText.match(/<span[^>]*ttm:role="x-bg"[^>]*>([\s\S]*?)<\/span>/i);
+              var rInnerText = rTextTag
+                .replace(/^<text[^>]*>/, "")
+                .replace(/<\/text>$/, "");
+              var rBgMatch = rInnerText.match(
+                /<span[^>]*ttm:role="x-bg"[^>]*>([\s\S]*?)<\/span>/i,
+              );
               var rMainText = rInnerText;
               if (rBgMatch) {
                 rMainText = rInnerText.replace(rBgMatch[0], "");
               }
-              result.headerTransliterations[rForKey] = decodeXMLEntities(stripXMLTags(rMainText)).trim();
+              result.headerTransliterations[rForKey] = decodeXMLEntities(
+                stripXMLTags(rMainText),
+              ).trim();
             }
           }
         }
@@ -2224,7 +2478,7 @@ function parseTTML(ttml) {
       bgSyllables: [],
       bgTranslation: "",
       bgRoman: "",
-      plainText: ""
+      plainText: "",
     };
 
     // First, extract background vocal span using nesting-aware extraction.
@@ -2234,8 +2488,9 @@ function parseTTML(ttml) {
     var bgExtracted = extractNestedSpan(pContent, "x-bg");
     if (bgExtracted) {
       bgContent = bgExtracted.inner;
-      mainContent = pContent.substring(0, bgExtracted.start) +
-                    pContent.substring(bgExtracted.end);
+      mainContent =
+        pContent.substring(0, bgExtracted.start) +
+        pContent.substring(bgExtracted.end);
     }
 
     // Collect all role-based spans from main content (don't modify while iterating).
@@ -2243,11 +2498,17 @@ function parseTTML(ttml) {
     for (var ri = 0; ri < roleSpans.length; ri++) {
       var rs = roleSpans[ri];
       if (rs.role === "x-translation") {
-        if (!state.lyricsTranslation || rs.lang.indexOf(state.lyricsTranslation) === 0) {
+        if (
+          !state.lyricsTranslation ||
+          rs.lang.indexOf(state.lyricsTranslation) === 0
+        ) {
           line.translation = rs.text;
         }
       } else if (rs.role === "x-roman") {
-        if (!state.lyricsPronunciation || rs.lang.indexOf(state.lyricsPronunciation) === 0) {
+        if (
+          !state.lyricsPronunciation ||
+          rs.lang.indexOf(state.lyricsPronunciation) === 0
+        ) {
           line.roman = rs.text;
         }
       }
@@ -2267,7 +2528,9 @@ function parseTTML(ttml) {
       // together (e.g. "Brownguiltyeyes"). Syllables within a single word have
       // no gap and stay joined.
       if (tsPrevEnd >= 0 && line.syllables.length > 0) {
-        var gap = decodeXMLEntities(mainContent.substring(tsPrevEnd, tsMatch.index));
+        var gap = decodeXMLEntities(
+          mainContent.substring(tsPrevEnd, tsMatch.index),
+        );
         if (/\s/.test(gap)) {
           var prevSyl = line.syllables[line.syllables.length - 1];
           if (!/\s$/.test(prevSyl.text)) prevSyl.text += " ";
@@ -2310,11 +2573,17 @@ function parseTTML(ttml) {
       for (var bri = 0; bri < bgRoles.length; bri++) {
         var br = bgRoles[bri];
         if (br.role === "x-translation") {
-          if (!state.lyricsTranslation || br.lang.indexOf(state.lyricsTranslation) === 0) {
+          if (
+            !state.lyricsTranslation ||
+            br.lang.indexOf(state.lyricsTranslation) === 0
+          ) {
             line.bgTranslation = br.text;
           }
         } else if (br.role === "x-roman") {
-          if (!state.lyricsPronunciation || br.lang.indexOf(state.lyricsPronunciation) === 0) {
+          if (
+            !state.lyricsPronunciation ||
+            br.lang.indexOf(state.lyricsPronunciation) === 0
+          ) {
             line.bgRoman = br.text;
           }
         }
@@ -2326,7 +2595,9 @@ function parseTTML(ttml) {
       var bgPrevEnd = -1;
       while ((bgTsMatch = bgTimedRe.exec(bgClean)) !== null) {
         if (bgPrevEnd >= 0 && line.bgSyllables.length > 0) {
-          var bgGap = decodeXMLEntities(bgClean.substring(bgPrevEnd, bgTsMatch.index));
+          var bgGap = decodeXMLEntities(
+            bgClean.substring(bgPrevEnd, bgTsMatch.index),
+          );
           if (/\s/.test(bgGap)) {
             var prevBg = line.bgSyllables[line.bgSyllables.length - 1];
             if (!/\s$/.test(prevBg.text)) prevBg.text += " ";
@@ -2339,7 +2610,11 @@ function parseTTML(ttml) {
         var bgEnd = parseTTMLTime(extractAttr(bgTag, "end"));
         var bgText = decodeXMLEntities(bgTsMatch[2]);
         if (bgBegin >= 0) {
-          line.bgSyllables.push({ startMs: bgBegin, endMs: bgEnd, text: bgText });
+          line.bgSyllables.push({
+            startMs: bgBegin,
+            endMs: bgEnd,
+            text: bgText,
+          });
         }
       }
     }
@@ -2424,7 +2699,7 @@ function ttmlToLyricsResult(parsed) {
     lines.push({
       startTimeMs: line.startMs,
       words: words,
-      endTimeMs: line.endMs
+      endTimeMs: line.endMs,
     });
 
     plainParts.push(line.plainText || words);
@@ -2435,7 +2710,7 @@ function ttmlToLyricsResult(parsed) {
       translationLines.push({
         startTimeMs: line.startMs,
         words: line.translation,
-        endTimeMs: line.endMs
+        endTimeMs: line.endMs,
       });
     }
 
@@ -2445,7 +2720,7 @@ function ttmlToLyricsResult(parsed) {
       romanLines.push({
         startTimeMs: line.startMs,
         words: line.roman,
-        endTimeMs: line.endMs
+        endTimeMs: line.endMs,
       });
     }
   }
@@ -2474,7 +2749,7 @@ function ttmlToLyricsResult(parsed) {
     syncType: "LINE_SYNCED",
     instrumental: false,
     plainLyrics: plainParts.join("\n"),
-    provider: "Apple Music"
+    provider: "Apple Music",
   };
 }
 
@@ -2531,7 +2806,9 @@ function fetchLyrics(trackName, artistName, albumName, durationSec) {
     return null;
   }
 
-  log.info("fetchLyrics: Got TTML lyrics (" + ttml.length + " bytes), parsing...");
+  log.info(
+    "fetchLyrics: Got TTML lyrics (" + ttml.length + " bytes), parsing...",
+  );
 
   // Parse the TTML
   var parsed = parseTTML(ttml);
@@ -2540,14 +2817,24 @@ function fetchLyrics(trackName, artistName, albumName, durationSec) {
     return null;
   }
 
-  log.info("fetchLyrics: Parsed " + parsed.lines.length + " lines (timing: " + parsed.timingMode + ")");
+  log.info(
+    "fetchLyrics: Parsed " +
+      parsed.lines.length +
+      " lines (timing: " +
+      parsed.timingMode +
+      ")",
+  );
 
   // Convert to ExtLyricsResult
   var result = ttmlToLyricsResult(parsed);
   if (result) {
-    log.info("fetchLyrics: Returning " + result.lines.length + " lyrics lines" +
-      (state.lyricsTranslation ? " (with translation)" : "") +
-      (state.lyricsPronunciation ? " (with pronunciation)" : ""));
+    log.info(
+      "fetchLyrics: Returning " +
+        result.lines.length +
+        " lyrics lines" +
+        (state.lyricsTranslation ? " (with translation)" : "") +
+        (state.lyricsPronunciation ? " (with pronunciation)" : ""),
+    );
   }
 
   return result;
@@ -2563,11 +2850,12 @@ function findTrackId(trackName, artistName, albumName, durationSec) {
 
   try {
     var searchData = apiGet(
-      "search?term=" + encodeURIComponent(searchTerm) + "&types=songs&limit=10"
+      "search?term=" + encodeURIComponent(searchTerm) + "&types=songs&limit=10",
     );
-    var songs = searchData.results && searchData.results.songs
-      ? searchData.results.songs.data
-      : [];
+    var songs =
+      searchData.results && searchData.results.songs
+        ? searchData.results.songs.data
+        : [];
 
     if (songs.length === 0) return null;
 
@@ -2584,7 +2872,10 @@ function findTrackId(trackName, artistName, albumName, durationSec) {
       score += titleSim * 50;
 
       // Artist match
-      var artistSim = matching.compareStrings(artistName || "", attr.artistName || "");
+      var artistSim = matching.compareStrings(
+        artistName || "",
+        attr.artistName || "",
+      );
       score += artistSim * 30;
 
       // Album match (if provided)
@@ -2597,7 +2888,7 @@ function findTrackId(trackName, artistName, albumName, durationSec) {
       if (durationSec > 0 && attr.durationInMillis) {
         var durationMatch = matching.compareDuration(
           durationSec * 1000,
-          attr.durationInMillis
+          attr.durationInMillis,
         );
         score += durationMatch * 10;
       }
@@ -2610,7 +2901,11 @@ function findTrackId(trackName, artistName, albumName, durationSec) {
 
     // Require a minimum match quality
     if (bestScore < 40) {
-      log.debug("findTrackId: Best score too low (" + bestScore.toFixed(1) + "), rejecting match.");
+      log.debug(
+        "findTrackId: Best score too low (" +
+          bestScore.toFixed(1) +
+          "), rejecting match.",
+      );
       return null;
     }
 
@@ -2639,11 +2934,13 @@ function getHomeFeed() {
     try {
       var songItems = [];
       // results.songs is an array of chart objects, each with its own .data.
-      var songCharts = charts.results.songs && Array.isArray(charts.results.songs)
-        ? charts.results.songs
-        : [];
+      var songCharts =
+        charts.results.songs && Array.isArray(charts.results.songs)
+          ? charts.results.songs
+          : [];
       for (var c = 0; c < songCharts.length && songItems.length < 15; c++) {
-        var chartData = songCharts[c] && songCharts[c].data ? songCharts[c].data : [];
+        var chartData =
+          songCharts[c] && songCharts[c].data ? songCharts[c].data : [];
         for (var i = 0; i < chartData.length && songItems.length < 15; i++) {
           var s = formatSong(chartData[i], null);
           if (!s || !s.id) continue;
@@ -2655,23 +2952,35 @@ function getHomeFeed() {
             id: s.id,
             album_id: s.album_id,
             album_name: s.album_name,
-            cover_url: s.images || s.cover_url
+            cover_url: s.images || s.cover_url,
           });
         }
       }
       if (songItems.length > 0) {
-        sections.push({ uri: "am:charts:songs", title: "Canciones del momento", items: songItems });
+        sections.push({
+          uri: "am:charts:songs",
+          title: "Canciones del momento",
+          items: songItems,
+        });
       }
-    } catch (e1) { log.debug("Apple getHomeFeed songs failed:", e1.message); }
+    } catch (e1) {
+      log.debug("Apple getHomeFeed songs failed:", e1.message);
+    }
 
     // Section 2: Top albums.
     try {
       var albumItems = [];
-      var albumCharts = charts.results.albums && Array.isArray(charts.results.albums)
-        ? charts.results.albums
-        : [];
-      for (var c2 = 0; c2 < albumCharts.length && albumItems.length < 12; c2++) {
-        var chartAlbums = albumCharts[c2] && albumCharts[c2].data ? albumCharts[c2].data : [];
+      var albumCharts =
+        charts.results.albums && Array.isArray(charts.results.albums)
+          ? charts.results.albums
+          : [];
+      for (
+        var c2 = 0;
+        c2 < albumCharts.length && albumItems.length < 12;
+        c2++
+      ) {
+        var chartAlbums =
+          albumCharts[c2] && albumCharts[c2].data ? albumCharts[c2].data : [];
         for (var j = 0; j < chartAlbums.length && albumItems.length < 12; j++) {
           var al = formatAlbumInfo(chartAlbums[j]);
           if (!al || !al.id) continue;
@@ -2682,24 +2991,42 @@ function getHomeFeed() {
             id: al.id,
             cover_url: al.cover_url,
             release_date: al.release_date,
-            total_tracks: al.total_tracks
+            total_tracks: al.total_tracks,
           });
         }
       }
       if (albumItems.length > 0) {
-        sections.push({ uri: "am:charts:albums", title: "Álbumes más escuchados", items: albumItems });
+        sections.push({
+          uri: "am:charts:albums",
+          title: "Álbumes más escuchados",
+          items: albumItems,
+        });
       }
-    } catch (e2) { log.debug("Apple getHomeFeed albums failed:", e2.message); }
+    } catch (e2) {
+      log.debug("Apple getHomeFeed albums failed:", e2.message);
+    }
 
     // Section 3: Top playlists.
     try {
       var playlistItems = [];
-      var playlistCharts = charts.results.playlists && Array.isArray(charts.results.playlists)
-        ? charts.results.playlists
-        : [];
-      for (var c3 = 0; c3 < playlistCharts.length && playlistItems.length < 12; c3++) {
-        var chartPlaylists = playlistCharts[c3] && playlistCharts[c3].data ? playlistCharts[c3].data : [];
-        for (var k = 0; k < chartPlaylists.length && playlistItems.length < 12; k++) {
+      var playlistCharts =
+        charts.results.playlists && Array.isArray(charts.results.playlists)
+          ? charts.results.playlists
+          : [];
+      for (
+        var c3 = 0;
+        c3 < playlistCharts.length && playlistItems.length < 12;
+        c3++
+      ) {
+        var chartPlaylists =
+          playlistCharts[c3] && playlistCharts[c3].data
+            ? playlistCharts[c3].data
+            : [];
+        for (
+          var k = 0;
+          k < chartPlaylists.length && playlistItems.length < 12;
+          k++
+        ) {
           var pl = chartPlaylists[k] || {};
           var plAttr = pl.attributes || {};
           var plCover = artworkURL(plAttr.artwork);
@@ -2708,14 +3035,20 @@ function getHomeFeed() {
             type: "playlist",
             id: String(pl.id || ""),
             cover_url: plCover,
-            total_tracks: Number(plAttr.trackCount || 0)
+            total_tracks: Number(plAttr.trackCount || 0),
           });
         }
       }
       if (playlistItems.length > 0) {
-        sections.push({ uri: "am:charts:playlists", title: "Playlists populares", items: playlistItems });
+        sections.push({
+          uri: "am:charts:playlists",
+          title: "Playlists populares",
+          items: playlistItems,
+        });
       }
-    } catch (e3) { log.debug("Apple getHomeFeed playlists failed:", e3.message); }
+    } catch (e3) {
+      log.debug("Apple getHomeFeed playlists failed:", e3.message);
+    }
   } catch (e) {
     log.debug("Apple getHomeFeed failed:", e.message);
     return { success: false, error: String(e.message || e), sections: [] };
@@ -2740,7 +3073,7 @@ registerExtension({
   getHomeFeed: getHomeFeed,
   enrichTrack: enrichTrack,
   fetchLyrics: fetchLyrics,
-  checkAvailability: checkAvailability
+  checkAvailability: checkAvailability,
 });
 
 log.info("Apple Music Extension loaded!");

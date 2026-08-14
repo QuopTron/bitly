@@ -153,7 +153,8 @@ function signedPandoraDownload(payload) {
     {},
   );
   if (!ticket || ticket.error || ticket.needsVerification) {
-    var ticketErr = ticket && ticket.error ? ticket.error : "ticket request failed";
+    var ticketErr =
+      ticket && ticket.error ? ticket.error : "ticket request failed";
     throw new Error(ticketErr);
   }
   var ticketID = "";
@@ -164,18 +165,17 @@ function signedPandoraDownload(payload) {
   if (!ticketID) {
     throw new Error("signed ticket response missing ticket_id");
   }
-  var response = session.signedFetch(
-    "POST",
-    CONFIG.downloadPath,
-    payload,
-    { "X-Zarz-Ticket": ticketID },
-  );
+  var response = session.signedFetch("POST", CONFIG.downloadPath, payload, {
+    "X-Zarz-Ticket": ticketID,
+  });
   if (!response || response.error || response.needsVerification) {
     var error = response && response.error ? response.error : "request failed";
     throw new Error(error);
   }
   if (response.statusCode !== 200) {
-    throw new Error("HTTP " + response.statusCode + " for " + CONFIG.downloadPath);
+    throw new Error(
+      "HTTP " + response.statusCode + " for " + CONFIG.downloadPath,
+    );
   }
   return JSON.parse(response.body || "{}");
 }

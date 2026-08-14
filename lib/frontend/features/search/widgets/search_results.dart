@@ -13,15 +13,24 @@ import '../../../shared/widgets/track_card.dart';
 import '../../../shared/widgets/grid_card.dart';
 import '../../../shared/widgets/glass_container.dart';
 import '../../../shared/widgets/download_indicator.dart';
+import '../../../shared/constants/source_constants.dart';
 
 class SearchResultsBody extends StatelessWidget {
   final String? selectedType;
+  /// The active search source; empty means "Todas" (every extension). In that
+  /// mode results are grouped by source (extension) so each one shows its own
+  /// section — matching SpotiFLAC's "separado entre extensiones".
+  final String selectedSource;
   final List<FeedItem> results;
   final bool loading;
   final bool hasSearched;
   final String? error;
   final Set<String> likedIds;
   final Map<String, DownloadState> downloadStates;
+  /// Source-agnostic set of downloaded track fingerprints. Lets a track
+  /// downloaded under one extension show as downloaded under every other
+  /// extension too (SpotiFLAC behavior).
+  final Set<String> downloadedFingerprints;
 
   final void Function(String id, [FeedItem? item]) onToggleLike;
   final void Function(FeedItem item) onStartDownload;
@@ -36,12 +45,14 @@ class SearchResultsBody extends StatelessWidget {
   const SearchResultsBody({
     super.key,
     required this.selectedType,
+    required this.selectedSource,
     required this.results,
     required this.loading,
     required this.hasSearched,
     this.error,
     required this.likedIds,
     required this.downloadStates,
+    this.downloadedFingerprints = const {},
     required this.onToggleLike,
     required this.onStartDownload,
     this.onDeleteTrack,
@@ -97,6 +108,38 @@ class SearchResultsBody extends StatelessWidget {
         children.add(cat == 'tracks' ? _trackList(context, items, r)
             : _gridSection(context, items, r,
                 glowColor: glowColor, onBg: onBg, title: null));
+      }
+      if (children.isEmpty) {
+        return Center(child: Text(loc.setup.noResults, style: TextStyle(fontSize: r.subtitleSize, color: onBg.withValues(alpha: 0.4))));
+      }
+      return ListView(
+        padding: EdgeInsets.symmetric(vertical: r.spacingS),
+        children: children,
+      );
+    }
+
+    // "Todas": group results by SOURCE (extension), each in its own labelled
+    // section, so every extension that returned something is visible instead of
+    // getting lost behind a single primary source. Within each source the items
+    // of the active category (selectedType) are shown — tracks as a list, the
+    // rest as a grid.
+    if (selectedSource.isEmpty) {
+      final bySource = <String, List<FeedItem>>{};
+      for (final it in results) {
+        if (selectedType != null && _category(it.type) != selectedType) continue;
+        final src = it.source ?? 'unknown';
+        (bySource[src] ??= []).add(it);
+      }
+      final children = <Widget>[];
+      for (final entry in bySource.entries) {
+        if (entry.value.isEmpty) continue;
+        children.add(_sourceHeader(context, entry.key, entry.value.length, r, glowColor, onBg));
+        children.add(
+          selectedType == 'tracks'
+              ? _trackList(context, entry.value, r)
+              : _gridSection(context, entry.value, r,
+                  glowColor: glowColor, onBg: onBg, title: null),
+        );
       }
       if (children.isEmpty) {
         return Center(child: Text(loc.setup.noResults, style: TextStyle(fontSize: r.subtitleSize, color: onBg.withValues(alpha: 0.4))));
@@ -172,6 +215,34 @@ class SearchResultsBody extends StatelessWidget {
     }
   }
 
+  /// Header for a "Todas" source section (extension name + result count).
+  Widget _sourceHeader(BuildContext context, String source, int count,
+      Responsive r, Color glowColor, Color onBg) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(r.spacingS + 4, r.spacingM, r.spacingS, r.spacingS),
+      child: Row(children: [
+        Container(
+          width: 28, height: 28,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: RadialGradient(colors: [
+              glowColor.withValues(alpha: 0.3),
+              glowColor.withValues(alpha: 0.06),
+            ]),
+            border: Border.all(color: glowColor.withValues(alpha: 0.3), width: 0.8),
+          ),
+          child: Icon(sourceIcons[source] ?? Icons.cloud_outlined, size: 16, color: glowColor),
+        ),
+        SizedBox(width: r.spacingS),
+        Text(sourceDisplayName(source),
+          style: TextStyle(fontSize: r.subtitleSize + 4, fontWeight: FontWeight.bold, color: onBg)),
+        SizedBox(width: r.spacingXS),
+        Text('($count)', style: TextStyle(fontSize: r.footerSize + 1,
+          color: onBg.withValues(alpha: 0.4), fontWeight: FontWeight.w500)),
+      ]),
+    );
+  }
+
   static String _category(String raw) {
     switch (raw) {
       case 'track': case 'tracks': return 'tracks';
@@ -180,6 +251,18 @@ class SearchResultsBody extends StatelessWidget {
       case 'playlist': case 'playlists': return 'playlists';
       default: return raw;
     }
+  }
+
+  /// Download state for a track card. Uses the exact source-keyed state when
+  /// present (in-progress/interrupted/completed), else falls back to the
+  /// source-agnostic fingerprint so the same track downloaded under another
+  /// extension still reads as "downloaded" here.
+  DownloadState _trackDownloadState(String fp, String id) {
+    final s = downloadStates[id];
+    if (s != null && s != DownloadState.none) return s;
+    return downloadedFingerprints.contains(fp)
+        ? DownloadState.completed
+        : DownloadState.none;
   }
 
   Widget _trackList(BuildContext context, List<FeedItem> items, Responsive r) {
@@ -196,7 +279,7 @@ class SearchResultsBody extends StatelessWidget {
             title: item.name, subtitle: item.artists ?? '', coverUrl: resolvedCover,
             textScale: 1.2, readyKey: normalizeTrackId(item.id),
             isLiked: likedIds.contains(fp), onLike: () => onToggleLike(id, item),
-            downloadState: downloadStates[id] ?? DownloadState.none,
+            downloadState: _trackDownloadState(fp, id),
             onDownload: () => onStartDownload(item),
             onDelete: onDeleteTrack != null ? () => onDeleteTrack!(item) : null,
             onInfo: () => onShowInfo(context, item),
