@@ -780,8 +780,19 @@ func (o *Orchestrator) attemptDownload(req Request, name string, p provider.Prov
 		// SoundCloud HLS streams disguised as .mp3 pass the extension check
 		// but fail here - they start with 0x47 (MPEG-TS), not real MP3.
 		if !isPlayableAudioFile(result.FilePath) {
+			// Don't delete — the file may be a DRM-encrypted container (e.g.
+			// Apple Music .m4a) that the client can decrypt via ffmpeg-kit.
+			// Return as encrypted so Dart's download_cubit attempts client-side
+			// decryption instead of giving up.
+			info, serr := os.Stat(result.FilePath)
+			if serr == nil && info.Size() > 1024 {
+				log.Printf("[orchestrator] %s: file not decodable but exists (%d bytes), marking encrypted for client decrypt", name, info.Size())
+				cooldown.MarkOpOk(name, downloadCooldownOp)
+				o.tracker.SetEncryptedOutput(req.ItemID, result.FilePath, "", "", "")
+				return &Result{ItemID: req.ItemID, Success: true, Provider: name, FilePath: result.FilePath, Encrypted: true, ClientDecrypt: true}
+			}
 			_ = os.Remove(result.FilePath)
-			return &Result{ItemID: req.ItemID, Success: false, Error: fmt.Sprintf("%s: archivo no es audio playable", name)}
+			return &Result{ItemID: req.ItemID, Success: false, Error: fmt.Sprintf("%s: archivo corrupto o muy pequeno", name)}
 		}
 		cooldown.MarkOpOk(name, downloadCooldownOp)
 		o.tracker.SetOutputPath(req.ItemID, result.FilePath)
@@ -809,8 +820,16 @@ func (o *Orchestrator) attemptDownload(req Request, name string, p provider.Prov
 		filePath = finalizeDownloadFile(outDir, req.ItemID, filePath)
 		// Validate the file is actually playable audio.
 		if !isPlayableAudioFile(filePath) {
+			// Don't delete — may be DRM-encrypted; let client decrypt.
+			info, serr := os.Stat(filePath)
+			if serr == nil && info.Size() > 1024 {
+				log.Printf("[orchestrator] %s native: file not decodable but exists (%d bytes), marking encrypted", name, info.Size())
+				cooldown.MarkOpOk(name, downloadCooldownOp)
+				o.tracker.SetEncryptedOutput(req.ItemID, filePath, "", "", "")
+				return &Result{ItemID: req.ItemID, Success: true, Provider: name, FilePath: filePath, StreamURL: streamURL, Encrypted: true, ClientDecrypt: true}
+			}
 			_ = os.Remove(filePath)
-			return &Result{ItemID: req.ItemID, Success: false, Error: fmt.Sprintf("%s: archivo no es audio playable", name)}
+			return &Result{ItemID: req.ItemID, Success: false, Error: fmt.Sprintf("%s: archivo corrupto o muy pequeno", name)}
 		}
 		cooldown.MarkOpOk(name, downloadCooldownOp)
 		o.tracker.SetOutputPath(req.ItemID, filePath)

@@ -104,19 +104,21 @@ func isPlainAudioFile(path string) bool {
 		return false
 	}
 	defer f.Close()
-	buf := make([]byte, 4)
+	buf := make([]byte, 12)
 	n, _ := f.Read(buf)
 	if n < 4 {
 		return false
 	}
-	head := string(buf[:n])
+	head := string(buf[:4])
 	switch {
 	case strings.HasPrefix(head, "fLaC"),
 		strings.HasPrefix(head, "ID3"),
 		strings.HasPrefix(head, "OggS"),
-		strings.HasPrefix(head, "RIFF"),
-		// MP4/M4A container (Apple Music .m4a, Amazon encrypted .m4a)
-		strings.HasPrefix(head, "ftyp"):
+		strings.HasPrefix(head, "RIFF"):
+		return true
+	}
+	// MP4/M4A container: [size:4][ftyp:4][brand:...] — ftyp is at offset 4.
+	if n >= 8 && string(buf[4:8]) == "ftyp" {
 		return true
 	}
 	return false
@@ -129,19 +131,26 @@ func isPlainAudioFile(path string) bool {
 func isPlayableAudioFile(path string) bool {
 	f, err := os.Open(path)
 	if err != nil {
+		log.Printf("[playable-check] %s: open error: %v", path, err)
 		return false
 	}
 	defer f.Close()
 	buf := make([]byte, 12)
 	n, _ := f.Read(buf)
 	if n < 4 {
+		log.Printf("[playable-check] %s: file too small (%d bytes)", path, n)
 		return false
 	}
 	head := string(buf[:n])
 	// Known playable containers
 	if strings.HasPrefix(head, "fLaC") || strings.HasPrefix(head, "ID3") ||
-		strings.HasPrefix(head, "OggS") || strings.HasPrefix(head, "RIFF") ||
-		strings.HasPrefix(head, "ftyp") {
+		strings.HasPrefix(head, "OggS") || strings.HasPrefix(head, "RIFF") {
+		log.Printf("[playable-check] %s: ACCEPTED (head=%q, n=%d)", path, head, n)
+		return true
+	}
+	// MP4/M4A: [size:4][ftyp:4][brand:...] — ftyp is at offset 4, not 0.
+	if n >= 8 && string(buf[4:8]) == "ftyp" {
+		log.Printf("[playable-check] %s: ACCEPTED (ftyp at offset 4, n=%d)", path, n)
 		return true
 	}
 	// WebM/Matroska (TIDAL .opus)
@@ -154,6 +163,7 @@ func isPlayableAudioFile(path string) bool {
 	}
 	// MPEG-TS starts with 0x47 (sync byte) — this is NOT a standalone
 	// playable file, it's a transport stream fragment (SoundCloud HLS).
+	log.Printf("[playable-check] %s: REJECTED (head=%q hex=%02x%02x%02x%02x, n=%d)", path, head, buf[0], buf[1], buf[2], buf[3], n)
 	return false
 }
 

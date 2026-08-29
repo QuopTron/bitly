@@ -2,6 +2,7 @@ package download
 
 import (
 	"encoding/json"
+	"log"
 	"sync"
 )
 
@@ -131,14 +132,15 @@ func (t *Tracker) SetError(itemID, errMsg string) {
 	t.mu.Lock()
 	if p, ok := t.items[itemID]; ok {
 		if p.Status == StatusCompleted {
-			// A provider already succeeded — don't let a losing goroutine
-			// overwrite the completed status. Store the error for diagnostics
-			// but keep the item marked as completed.
+			log.Printf("[tracker] SetError(%s, %s) BLOCKED (completed, path=%s)", itemID, errMsg, p.OutputPath)
 			t.mu.Unlock()
 			return
 		}
+		log.Printf("[tracker] SetError(%s, %s) prevStatus=%v outputPath=%s", itemID, errMsg, p.Status, p.OutputPath)
 		p.Status = StatusFailed
 		p.Error = errMsg
+	} else {
+		log.Printf("[tracker] SetError(%s, %s) — item NOT found!", itemID, errMsg)
 	}
 	t.mu.Unlock()
 }
@@ -156,13 +158,17 @@ func (t *Tracker) SetOutputPath(itemID, path string) {
 			// output. A last-resort provider finalizing later must NOT
 			// overwrite the path — keep the encrypted file so the client
 			// can decrypt it. Only update the status.
+			log.Printf("[tracker] SetOutputPath(%s, %s) BLOCKED (encrypted already set)", itemID, path)
 			p.Status = StatusCompleted
 			p.Progress = 1.0
 		} else {
+			log.Printf("[tracker] SetOutputPath(%s, %s)", itemID, path)
 			p.OutputPath = path
 			p.Status = StatusCompleted
 			p.Progress = 1.0
 		}
+	} else {
+		log.Printf("[tracker] SetOutputPath(%s, %s) — item NOT found in tracker!", itemID, path)
 	}
 	t.mu.Unlock()
 }
