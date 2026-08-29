@@ -891,7 +891,13 @@ function enrichTrack(track) {
 // ============================================
 
 function checkAvailability(isrc, trackName, artistName, options) {
-  log.info("[SC] checkAvailability:", trackName, "-", artistName);
+  log.info(
+    "[SC] checkAvailability:",
+    trackName,
+    "-",
+    artistName,
+    isrc ? "(ISRC:" + isrc + ")" : "",
+  );
 
   // If we have a SoundCloud track ID in options
   var scId = options && options.spotify_id;
@@ -922,7 +928,29 @@ function checkAvailability(isrc, trackName, artistName, options) {
     }
   }
 
-  // Search by name + artist
+  // Search by ISRC first (authoritative identifier — avoids fuzzy name+artist mismatches)
+  if (isrc) {
+    try {
+      var isrcData = scGet(
+        "search/tracks?q=" + encodeURIComponent("isrc:" + isrc),
+        "limit=5&access=playable",
+      );
+      var isrcTracks = isrcData.collection || [];
+      if (isrcTracks.length > 0) {
+        var isrcBest = isrcTracks.find(function (t) {
+          return t.access === "playable" && t.streamable !== false;
+        });
+        if (isrcBest) {
+          log.info("[SC] ISRC match found:", isrcBest.id, isrcBest.title || "");
+          return { available: true, track_id: String(isrcBest.id) };
+        }
+      }
+    } catch (e) {
+      log.debug("[SC] ISRC search failed:", e.message);
+    }
+  }
+
+  // Search by name + artist (fallback)
   var query = (trackName || "") + " " + (artistName || "");
   query = query.trim();
   if (!query) {
@@ -1003,11 +1031,13 @@ function resolveStreamURL(trackID, audioFormat, allowHls, allowPreview) {
     allowPreview,
   );
   if (!bestTranscoding) {
-    log.warn(
+    log.debug(
       "[SC] no transcoding for " +
         audioFormat +
         " (allowHls=" +
         allowHls +
+        ", allowPreview=" +
+        allowPreview +
         "); tracks with protocol/mime: " +
         JSON.stringify(
           transcodings
@@ -1101,6 +1131,17 @@ function download(trackID, quality, outputPath, onProgress) {
   var downloadURL = resolved.url;
   var downloadError = resolved.error;
   var actualFormat = resolved.format || audioFormat;
+
+  // If no stream found (e.g. all transcodings are preview-only and
+  // allowPreview was false), retry once with preview allowed. This
+  // avoids 8 cascading "no transcoding" warnings for each quality
+  // level and gets the user at least a preview instead of a hard failure.
+  if (!downloadURL) {
+    resolved = resolveStreamURL(trackID, audioFormat, true, true);
+    downloadURL = resolved.url;
+    downloadError = resolved.error;
+    actualFormat = resolved.format || actualFormat;
+  }
 
   if (!downloadURL) {
     return {
@@ -1323,11 +1364,22 @@ function getDownloadUrl(trackID, quality) {
       true,
       false,
     );
+    // If no stream found with preview disabled, retry with preview
+    // allowed to avoid cascading warnings and provide at least a
+    // preview for tracks that only have snipped transcodings.
+    if (!resolved || !resolved.url) {
+      resolved = resolveStreamURL(
+        String(trackID || "").trim(),
+        audioFormat,
+        true,
+        true,
+      );
+    }
     if (resolved && resolved.url) {
       log.info("[SC] getDownloadUrl resolved stream for", trackID);
       return resolved.url;
     }
-    log.warn(
+    log.debug(
       "[SC] getDownloadUrl failed:",
       resolved && resolved.error ? resolved.error : "no stream",
     );

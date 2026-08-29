@@ -82,6 +82,10 @@ func dispatchRPC(method string, params map[string]interface{}) (interface{}, str
 		return backend.GetSources(), ""
 	case "search":
 		return backend.Search(p()), ""
+	case "searchStream":
+		return backend.SearchStream(p()), ""
+	case "getSearchStreamResults":
+		return backend.GetSearchStreamResults(), ""
 
 	// ── Detail views ────────────────────────────────────────
 	case "fetchAlbumDetail":
@@ -250,6 +254,10 @@ func dispatchRPC(method string, params map[string]interface{}) (interface{}, str
 		return backend.ParseCUE(p()), ""
 	case "readFileMetadata":
 		return backend.ReadFileMetadata(pGet("path")), ""
+	case "writeFileMetadata":
+		return backend.WriteFileMetadata(p()), ""
+	case "getProviderHealthStatus":
+		return backend.GetProviderHealthStatus(), ""
 
 	// ── Library ─────────────────────────────────────────────
 	case "scanLibrary":

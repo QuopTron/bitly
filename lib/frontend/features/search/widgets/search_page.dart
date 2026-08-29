@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../shared/models/feed_models.dart';
 import '../../../shared/theme/app_colors.dart';
 import '../../../shared/utils/responsive.dart';
@@ -25,25 +26,50 @@ class SearchPage extends StatefulWidget {
 
 class _SearchPageState extends State<SearchPage> {
   final TextEditingController _searchCtrl = TextEditingController();
-  Timer? _debounceTimer;
-
-  /// Default source: empty = "Todas" (search every search-enabled extension at
-  /// once). One rate-limited source (e.g. deezer 429 on the emulator IP) never
-  /// blanks the whole screen — the others still fill the results, matching how
-  /// SpotiFLAC keeps the search surface alive. Tapping a bubble narrows to that
-  /// single source.
+  Timer? _debounceTimer;  /// The active search source. Always non-empty — every search targets a
+  /// single extension (no "Todas" mode). Defaults to the first available
+  /// source; persisted across sessions so the user doesn't re-select every time.
   String _selectedSource = '';
   /// Default category: 'tracks' (canciones). There is NO "all" state — the four
   /// category bubbles (tracks/albums/artists/playlists) always have exactly one
   /// active, matching SpotiFLAC minus the "all" bubble. Always non-null.
   String? _selectedType = 'tracks';
 
+
   bool _searching = false;
+
+  static const _prefKey = 'search_source';
 
   @override
   void initState() {
     super.initState();
-    context.read<SearchBloc>().add(SearchSourceChanged(_selectedSource));
+    _loadPersistedSource();
+  }
+
+  Future<void> _loadPersistedSource() async {
+    final bloc = context.read<SearchBloc>();
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString(_prefKey);
+    if (saved != null && saved.isNotEmpty && mounted) {
+      setState(() => _selectedSource = saved);
+    } else {
+      // First time: default to the first available source
+      final sources = _searchSources(bloc.state);
+      if (sources.isNotEmpty) {
+        final first = sources.keys.first;
+        if (mounted) {
+          setState(() => _selectedSource = first);
+        }
+      }
+    }
+    if (mounted) {
+      bloc.add(SearchSourceChanged(_selectedSource));
+    }
+  }
+
+  Future<void> _savePersistedSource(String src) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_prefKey, src);
   }
 
   /// The manifest-declared category bubbles for the current source, or a
@@ -64,9 +90,12 @@ class _SearchPageState extends State<SearchPage> {
   /// primary source (deezer — SpotiFLAC's defaultSearchExtension) is listed
   /// first, then the rest. Falls back to a curated list while loading.
   Map<String, String> _searchSources(SearchState state) {
+    // "Todas" (empty source) searches ALL providers in parallel — like
+    // SpotiFLAC. The Go backend handles source="" by running every search
+    // extension concurrently and streaming merged results.
+    final ordered = <String, String>{'': 'Todas'};
     final cfg = state.searchConfig;
     if (cfg.isNotEmpty) {
-      final ordered = <String, String>{};
       final primary = cfg.entries.where((e) => e.value.primary).toList();
       final rest = cfg.entries.where((e) => !e.value.primary).toList();
       for (final e in [...primary, ...rest]) {
@@ -74,13 +103,13 @@ class _SearchPageState extends State<SearchPage> {
       }
       return ordered;
     }
-    return {
-      for (final s in const [
-        'deezer', 'spotify-web', 'apple-music', 'soundcloud', 'amazon',
-        'qobuz-web', 'tidal-web', 'ytmusic-spotiflac',
-      ])
-        s: sourceDisplayName(s),
-    };
+    for (final s in const [
+      'deezer', 'spotify-web', 'apple-music', 'soundcloud', 'amazon',
+      'qobuz-web', 'tidal-web', 'ytmusic-spotiflac',
+    ]) {
+      ordered[s] = sourceDisplayName(s);
+    }
+    return ordered;
   }
 
   /// Placeholder hint for the search bar: the active source's manifest
@@ -121,15 +150,29 @@ class _SearchPageState extends State<SearchPage> {
   /// category. The "all" mix uses a lighter 25 (extension caps albums/artists).
   int _limitForType(String cat) => cat == 'tracks' ? 50 : 20;
 
+  /// When "Todas" is active, we always search with source="" (all providers
+  /// in parallel) and request a high limit so every category has results.
+  /// The type chips then filter CLIENT-SIDE from the cached results — no
+  /// re-query, just like SpotiFLAC.
   void _performSearch() {
     final q = _searchCtrl.text.trim();
     if (q.isEmpty) return;
-    final filterId = _activeFilterId;
-    final type = filterId ?? 'tracks';
-    final limit = filterId == null ? 25 : _limitForType(_selectedType!);
-    context.read<SearchBloc>().add(
-      PerformSearch(query: q, source: _selectedSource, type: type, limit: limit),
-    );
+    final isTodas = _selectedSource.isEmpty;
+    if (isTodas) {
+      // "Todas": search ALL providers, no type filter. Use a lighter limit
+      // so results appear fast; the streaming poll will append more items.
+      context.read<SearchBloc>().add(
+        PerformSearch(query: q, source: '', type: '', limit: 40),
+      );
+    } else {
+      // Single provider: use the manifest filter id for the active category.
+      final filterId = _activeFilterId;
+      final type = filterId ?? 'tracks';
+      final limit = filterId == null ? 25 : _limitForType(_selectedType!);
+      context.read<SearchBloc>().add(
+        PerformSearch(query: q, source: _selectedSource, type: type, limit: limit),
+      );
+    }
   }
 
   void _onSourceChanged(String src) {
@@ -142,12 +185,16 @@ class _SearchPageState extends State<SearchPage> {
         _selectedType = 'tracks';
       }
     });
+    _savePersistedSource(src);
     context.read<SearchBloc>().add(SearchSourceChanged(src));
     _performSearch();
   }
 
   void _onTypeChanged(String? t) {
     setState(() => _selectedType = t);
+    // When "Todas" is active, the type chips filter client-side from the
+    // cached multi-source results — no need to re-query the backend.
+    if (_selectedSource.isEmpty) return;
     _performSearch();
   }
 
@@ -160,7 +207,7 @@ class _SearchPageState extends State<SearchPage> {
     }
     setState(() => _searching = true);
     final q = value.trim();
-    _debounceTimer = Timer(const Duration(milliseconds: 600), () {
+    _debounceTimer = Timer(const Duration(milliseconds: 200), () {
       if (!mounted) return;
       final filterId = _activeFilterId;
       final type = filterId ?? 'tracks';

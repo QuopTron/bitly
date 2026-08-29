@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 const sourceIcons = <String, IconData>{
+  '': Icons.dashboard_outlined, // Todas: search all providers
   'deezer': Icons.library_music,
   'apple-music': Icons.apple,
   'soundcloud': Icons.cloud_queue,
@@ -19,6 +20,7 @@ const allSources = [
 ];
 
 const sourceLabels = {
+  '': 'Todas',
   'deezer': 'Deezer',
   'spotify-web': 'Spotify',
   'spotify': 'Spotify API',

@@ -4,9 +4,14 @@ import (
 	"crypto/hmac"
 	"crypto/sha1"
 	"math/rand"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/dop251/goja"
+	"github.com/zarz/bitly/go_backend/internal/audio"
+	"github.com/zarz/bitly/go_backend/internal/lyrics"
 )
 
 func registerGlobal(sandbox *Sandbox) {
@@ -74,6 +79,69 @@ func registerGlobal(sandbox *Sandbox) {
 		}
 	})
 
+	// getAudioQuality(path) reads audio quality metadata from a downloaded file.
+	// Extensions (Tidal, Qobuz) use it to verify the acquired quality before
+	// finalizing a download.
+	_ = gobackendObj.Set("getAudioQuality", func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) < 1 {
+			return vm.ToValue(map[string]interface{}{"error": "file path is required"})
+		}
+		path := call.Argument(0).String()
+		meta, err := audio.ReadFileMetadata(path)
+		if err != nil {
+			return vm.ToValue(map[string]interface{}{"error": err.Error()})
+		}
+		return vm.ToValue(map[string]interface{}{
+			"bitDepth":   meta.BitDepth,
+			"sampleRate": meta.SampleRate,
+			"duration":   meta.DurationMs,
+			"codec":      meta.Format,
+		})
+	})
+
+	// getLyricsLRC(spotifyID, trackName, artistName, filePath, durationMs)
+	// returns synced (or plain) lyrics for the track, embedding the instrumental
+	// sentinel when there are none — the same contract the player consumes.
+	_ = gobackendObj.Set("getLyricsLRC", func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) < 3 {
+			return vm.ToValue(map[string]interface{}{"error": "spotifyID, trackName and artistName are required"})
+		}
+		trackName := strings.TrimSpace(call.Arguments[1].String())
+		artistName := strings.TrimSpace(call.Arguments[2].String())
+		var durationMs int
+		if len(call.Arguments) > 4 && !goja.IsUndefined(call.Arguments[4]) && !goja.IsNull(call.Arguments[4]) {
+			durationMs = int(call.Arguments[4].ToInteger())
+		}
+		lyr, err := lyrics.NewClient().GetLyrics(trackName, artistName, durationMs)
+		if err != nil || lyr == nil {
+			return vm.ToValue(map[string]interface{}{"lyrics": "[instrumental:true]"})
+		}
+		text := lyr.SyncedLyrics
+		if text == "" {
+			text = lyr.PlainLyrics
+		}
+		if text == "" {
+			text = "[instrumental:true]"
+		}
+		return vm.ToValue(map[string]interface{}{"lyrics": text})
+	})
+
+	// checkISRCExists(outputDir, isrc) returns the path of an already-downloaded
+	// file in [outputDir] whose metadata ISRC matches, so extensions can skip
+	// re-downloading duplicates.
+	_ = gobackendObj.Set("checkISRCExists", func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) < 2 {
+			return vm.ToValue(map[string]interface{}{"error": "outputDir and isrc are required"})
+		}
+		outputDir := strings.TrimSpace(call.Arguments[0].String())
+		isrc := strings.TrimSpace(call.Arguments[1].String())
+		if outputDir == "" || isrc == "" {
+			return vm.ToValue(map[string]interface{}{"error": "outputDir and isrc are required"})
+		}
+		filePath, exists := checkISRCExistsInDir(outputDir, isrc)
+		return vm.ToValue(map[string]interface{}{"exists": exists, "filePath": filePath})
+	})
+
 	vm.Set("gobackend", gobackendObj)
 
 	// utils global - provides SpotiFLAC-Mobile compatible utility functions
@@ -104,6 +172,55 @@ func registerGlobal(sandbox *Sandbox) {
 	// appUserAgent() returns the app user agent
 	_ = utilsObj.Set("appUserAgent", func() string {
 		return "Bitly/1.0"
+	})
+
+	// appVersion() returns the app version (extensions build user agents / cache
+	// keys from it). Kept stable so extension cache-busting works across builds.
+	_ = utilsObj.Set("appVersion", func() string {
+		return "1.0.0"
+	})
+
+	// isDownloadCancelled() reports whether the active download was cancelled.
+	// The current runtime has no per-item cancel tracking, so it returns false —
+	// extensions (Apple Music, Tidal) call it at the top of download() and would
+	// throw a ReferenceError if it were absent, failing the whole download.
+	_ = utilsObj.Set("isDownloadCancelled", func() bool { return false })
+
+	// sleep(ms) blocks for the requested time, polling a (currently never-set)
+	// cancel flag so future cancellation support is a drop-in. Returns false if
+	// cancelled, true otherwise — Apple Music gates its download loop on this.
+	_ = utilsObj.Set("sleep", func(call goja.FunctionCall) goja.Value {
+		sleepMs := 0
+		switch v := call.Argument(0).Export().(type) {
+		case int64:
+			sleepMs = int(v)
+		case int32:
+			sleepMs = int(v)
+		case int:
+			sleepMs = v
+		case float64:
+			sleepMs = int(v)
+		default:
+			sleepMs = 0
+		}
+		if sleepMs <= 0 {
+			return vm.ToValue(true)
+		}
+		if sleepMs > 5*60*1000 {
+			sleepMs = 5 * 60 * 1000
+		}
+		deadline := time.Now().Add(time.Duration(sleepMs) * time.Millisecond)
+		for {
+			remaining := time.Until(deadline)
+			if remaining <= 0 {
+				return vm.ToValue(true)
+			}
+			step := 100 * time.Millisecond
+			if remaining < step {
+				step = remaining
+			}
+			time.Sleep(step)
+		}
 	})
 
 	// hmacSHA1(key, data) returns HMAC-SHA1 byte array for TOTP generation
@@ -149,6 +266,34 @@ func toByteArray(v interface{}) []byte {
 		return result
 	}
 	return nil
+}
+
+// checkISRCExistsInDir scans audio files in [dir] and returns the path of the
+// first file whose embedded ISRC metadata equals [isrc] (case-insensitive),
+// plus whether one was found. Used by extensions to skip duplicate downloads.
+func checkISRCExistsInDir(dir, isrc string) (string, bool) {
+	isrc = strings.ToUpper(strings.TrimSpace(isrc))
+	if isrc == "" {
+		return "", false
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return "", false
+	}
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		path := filepath.Join(dir, e.Name())
+		meta, err := audio.ReadFileMetadata(path)
+		if err != nil || meta.ISRC == "" {
+			continue
+		}
+		if strings.ToUpper(strings.TrimSpace(meta.ISRC)) == isrc {
+			return path, true
+		}
+	}
+	return "", false
 }
 
 // sandboxURLConstructor returns a goja-compatible URL constructor.

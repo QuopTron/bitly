@@ -1,4 +1,3 @@
-import 'dart:collection';
 import '../../frontend/shared/models/detail_models.dart';
 
 class _Entry<T> {
@@ -11,11 +10,11 @@ class DetailMemoryCache {
   static const int _defaultTtlMs = 5 * 60 * 1000;
   static const int _maxEntries = 50;
 
-  final _playlists = LinkedHashMap<String, _Entry<PlaylistDetail>>();
-  final _albums = LinkedHashMap<String, _Entry<AlbumDetail>>();
-  final _artists = LinkedHashMap<String, _Entry<ArtistDetail>>();
+  final _playlists = <String, _Entry<PlaylistDetail>>{};
+  final _albums = <String, _Entry<AlbumDetail>>{};
+  final _artists = <String, _Entry<ArtistDetail>>{};
 
-  void _evictIfNeeded(LinkedHashMap map) {
+  void _evictIfNeeded(Map map) {
     while (map.length > _maxEntries) {
       final key = map.keys.first;
       map.remove(key);

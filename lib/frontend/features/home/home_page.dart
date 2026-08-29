@@ -1,9 +1,12 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../../l10n/app_localizations.dart';
 import '../../shared/theme/app_colors.dart';
 import '../../shared/widgets/particle_background.dart';
+import '../../shared/widgets/app_navigator_observer.dart';
 import '../../../backend/rpc/backend_service.dart';
 import '../../../backend/services/like_cubit.dart';
 import '../../../backend/services/download_cubit.dart';
@@ -63,18 +66,14 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage>
+    with SingleTickerProviderStateMixin {
   late final PageController _pageCtrl;
   late final BackendService _backend;
   late final FeedBloc _feedBloc;
   late final SearchBloc _searchBloc;
   int _tab = 1;
-  // Blocks the whole home UI (feed, search, downloads, playback) until every
-  // signed-session source is verified/skipped, so nothing runs before sessions
-  // are provisioned.
   bool _ready = false;
-  // Global safety net: never let session verification block the app for more
-  // than this even if a captcha modal/browser flow drags on or fails silently.
   Timer? _unlockTimer;
   bool _feedRequested = false;
 
@@ -87,6 +86,21 @@ class _HomePageState extends State<HomePage> {
   StreamSubscription<FeedState>? _feedSub;
   bool _feedPrecached = false;
 
+  /// Animation controller for sliding MiniPlayer + Navbar in/out.
+  late final AnimationController _chromeAnimCtrl;
+  late final Animation<double> _chromeSlideAnim;
+
+  /// Listener that reacts to modal visibility changes.
+  void _onModalChanged() {
+    if (!mounted) return;
+    final observer = sl<AppNavigatorObserver>();
+    if (observer.isModalShowing.value) {
+      _chromeAnimCtrl.forward();
+    } else {
+      _chromeAnimCtrl.reverse();
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -98,13 +112,22 @@ class _HomePageState extends State<HomePage> {
     _searchBloc = SearchBloc(_backend, sl<SearchCache>());
     _pageCtrl = PageController(initialPage: 1);
 
-    // Gate the app behind signed-session verification BEFORE anything can run.
-    // A blocking overlay stays up while every source is verified/skipped, and
-    // only then the feed (and everything else) is unlocked.
-    _acquireSessions();
+    // Chrome animation: slides the miniplayer + navbar down (off-screen) when
+    // a modal is showing so the modal properly covers them.
+    _chromeAnimCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 280),
+    );
+    _chromeSlideAnim = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _chromeAnimCtrl, curve: Curves.easeOutCubic),
+    );
 
-    // Preload stream URLs for the visible feed context so the first track the
-    // user taps plays instantly (see PlayerCubit.precacheContext).
+    // Listen to modal visibility changes from the navigator observer.
+    sl<AppNavigatorObserver>().isModalShowing.addListener(_onModalChanged);
+
+    _acquireSessions();
+    _requestNotificationPermission();
+
     _feedSub = _feedBloc.stream.listen((state) {
       if (_feedPrecached || state.sections.isEmpty) return;
       final tracks = <FeedItem>[];
@@ -118,11 +141,10 @@ class _HomePageState extends State<HomePage> {
       sl<PlayerCubit>().precacheContext(tracks);
     });
 
-    // Watch for backend restart while downloads were in-progress and for
-    // decrypt failures (encrypted/DRM download, no ffmpeg-kit).
     _downloadSub = _downloadCubit.stream.listen((state) {
+      if (!mounted) return;
       final loc = AppLocalizations.of(context);
-      if (state.backendRestarted && !_restartSnackShown && mounted) {
+      if (state.backendRestarted && !_restartSnackShown) {
         _restartSnackShown = true;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -139,7 +161,7 @@ class _HomePageState extends State<HomePage> {
           ),
         );
       }
-      if (state.decryptError != null && !_decryptSnackShown && mounted) {
+      if (state.decryptError != null && !_decryptSnackShown) {
         _decryptSnackShown = true;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -159,23 +181,25 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  /// Verifies/skips every signed-session source before unlocking the app.
-  /// The verification modals are pushed on the root navigator (above this page
-  /// and above the overlay), so the user completes each challenge here and the
-  /// feed only loads once ALL sources have been provisioned.
   Future<void> _acquireSessions() async {
-    // Hard cap so a stuck captcha (e.g. Cloudflare Turnstile failing to render
-    // on low-end GPUs) can never leave the app locked behind the overlay.
     _unlockTimer = Timer(const Duration(minutes: 3, seconds: 30), _skipSessions);
     try {
       await VerificationService().provisionSignedSessions();
-    } catch (_) {
-      // Never trap the UI: if provisioning throws, proceed anyway.
-    }
+    } catch (_) {}
     _unlockTimer?.cancel();
     _unlockTimer = null;
     if (!mounted) return;
     _unlock();
+  }
+
+  Future<void> _requestNotificationPermission() async {
+    try {
+      if (!Platform.isAndroid) return;
+      final status = await Permission.notification.status;
+      if (!status.isGranted && !status.isPermanentlyDenied) {
+        await Permission.notification.request();
+      }
+    } catch (_) {}
   }
 
   void _unlock() {
@@ -203,6 +227,8 @@ class _HomePageState extends State<HomePage> {
     _pageCtrl.dispose();
     _feedBloc.close();
     _searchBloc.close();
+    _chromeAnimCtrl.dispose();
+    sl<AppNavigatorObserver>().isModalShowing.removeListener(_onModalChanged);
     super.dispose();
   }
 
@@ -243,28 +269,43 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
                 ),
+                // MiniPlayer + Navbar — slide down when modals are showing.
                 Positioned(
                   left: 0, right: 0, bottom: 0,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      BlocProvider.value(value: queueCubit,
-                        child: BlocProvider.value(value: playerCubit,
-                          child: BlocProvider.value(value: _likeCubit,
-                            child: const MiniPlayer(),
+                  child: AnimatedBuilder(
+                    animation: _chromeSlideAnim,
+                    builder: (context, child) {
+                      // Translate the chrome down by 120% of its height when
+                      // the animation is at 1.0 (modal showing).
+                      final offset = _chromeSlideAnim.value;
+                      return Transform.translate(
+                        offset: Offset(0, offset * 120),
+                        child: Opacity(
+                          opacity: (1.0 - offset).clamp(0.0, 1.0),
+                          child: child,
+                        ),
+                      );
+                    },
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        BlocProvider.value(value: queueCubit,
+                          child: BlocProvider.value(value: playerCubit,
+                            child: BlocProvider.value(value: _likeCubit,
+                              child: const MiniPlayer(),
+                            ),
                           ),
                         ),
-                      ),
-                      FloatingNavbar(isDark: isDark, currentIndex: _tab, onTap: _onNavTap),
-                    ],
+                        FloatingNavbar(isDark: isDark, currentIndex: _tab, onTap: _onNavTap),
+                      ],
+                    ),
                   ),
                 ),
               ],
             ),
           ),
           // Hard gate: nothing is interactive until all signed sessions are
-          // ready. The verification modal opens above this overlay on the root
-          // navigator.
+          // ready.
           if (!_ready)
             Positioned.fill(
               child: AbsorbPointer(
@@ -320,4 +361,3 @@ class _HomePageState extends State<HomePage> {
     _pageCtrl.animateToPage(i, duration: const Duration(milliseconds: 300), curve: Curves.easeOutCubic);
   }
 }
-

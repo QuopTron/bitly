@@ -33,6 +33,8 @@ class DownloadIndicator extends StatelessWidget {
         return const Color(0xFFFF9800); // naranja
       case DownloadState.interrupted:
         return const Color(0xFFE53935); // rojo (error)
+      case DownloadState.queued:
+        return const Color(0xFFBDBDBD); // gris claro (en cola)
       case DownloadState.none:
         return const Color(0xFF808080); // gris
     }

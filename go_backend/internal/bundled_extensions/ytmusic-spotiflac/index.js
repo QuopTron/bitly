@@ -23,6 +23,8 @@ const CONFIG = {
   innerTubeUserAgent:
     "com.google.android.youtube/21.02.35 (Linux; U; Android 11) gzip",
   directAudioChunkSize: 1024 * 1024,
+  odesliApiKey: "",
+  odesliFailureTtlMs: 30 * 60 * 1000,
 };
 
 const USER_AGENTS = [
@@ -95,14 +97,15 @@ const _cache = new Map();
 function cacheGet(k) {
   const e = _cache.get(k);
   if (!e) return null;
-  if (now() - e.t > CONFIG.cacheTtlMs) {
+  var ttl = e.ttl || CONFIG.cacheTtlMs;
+  if (now() - e.t > ttl) {
     _cache.delete(k);
     return null;
   }
   return e.v;
 }
-function cacheSet(k, v) {
-  _cache.set(k, { v, t: now() });
+function cacheSet(k, v, ttlMs) {
+  _cache.set(k, { v, t: now(), ttl: ttlMs || 0 });
 }
 
 const _poTokenCache = new Map();
@@ -1001,6 +1004,30 @@ function buildYouTubeFormatURL(fmt, playerUrl) {
   }
 }
 
+var _innerTubeClientCooldown = {};
+
+function _isInnerTubeClientOnCooldown(clientName) {
+  var cd = _innerTubeClientCooldown[clientName];
+  if (!cd) return false;
+  return now() < cd;
+}
+
+function _setInnerTubeClientCooldown(clientName, httpStatus) {
+  var baseMs = 60 * 1000;
+  if (httpStatus === 429) baseMs = 5 * 60 * 1000;
+  else if (httpStatus === 403) baseMs = 2 * 60 * 1000;
+  _innerTubeClientCooldown[clientName] = now() + baseMs;
+  L(
+    "info",
+    "[InnerTube] Client",
+    clientName,
+    "on cooldown for",
+    baseMs / 1000,
+    "s (HTTP",
+    httpStatus + ")",
+  );
+}
+
 function _tryInnerTubeClient(videoID, clientConfig, pageInfo, options) {
   options = options || {};
   pageInfo = pageInfo || {};
@@ -1040,6 +1067,10 @@ function _tryInnerTubeClient(videoID, clientConfig, pageInfo, options) {
   });
 
   if (!res || !res.ok) {
+    var httpStatus = res ? res.status : 0;
+    if (httpStatus === 429 || httpStatus === 403) {
+      _setInnerTubeClientCooldown(clientConfig.name, httpStatus);
+    }
     return { error: "HTTP " + (res ? res.status : "no response") };
   }
 
@@ -1141,6 +1172,10 @@ function requestInnerTubeAudioDownload(videoID) {
 
   for (var ci = 0; ci < INNERTUBE_CLIENTS.length; ci++) {
     var client = INNERTUBE_CLIENTS[ci];
+    if (_isInnerTubeClientOnCooldown(client.name)) {
+      L("info", "[InnerTube] Skipping " + client.name + " (on cooldown)");
+      continue;
+    }
     L("info", "[InnerTube] Trying " + client.name + " for " + videoID);
 
     var result = _tryInnerTubeClient(videoID, client, pageInfo);
@@ -1175,6 +1210,13 @@ function getInnerTubeAudioCandidates(videoID, pageInfo) {
   pageInfo = pageInfo || getYouTubePageInfo(videoID);
   for (var ci = 0; ci < INNERTUBE_CLIENTS.length; ci++) {
     var client = INNERTUBE_CLIENTS[ci];
+    if (_isInnerTubeClientOnCooldown(client.name)) {
+      L(
+        "info",
+        "[InnerTube] Skipping " + client.name + " candidate (on cooldown)",
+      );
+      continue;
+    }
     L(
       "info",
       "[InnerTube] Getting candidate from " + client.name + " for " + videoID,
@@ -4302,20 +4344,43 @@ function enrichTrack(track) {
     return Object.assign({}, track, cached);
   }
 
+  var failKey = "odesli-fail:" + track.id;
+  var failedCache = cacheGet(failKey);
+  if (failedCache) {
+    L(
+      "debug",
+      "enrichTrack: Odesli previously failed for",
+      track.id,
+      "- skipping",
+    );
+    return track;
+  }
+
   try {
+    var headers = { "User-Agent": getRandomUserAgent() };
+    if (CONFIG.odesliApiKey) {
+      headers["x-api-key"] = CONFIG.odesliApiKey;
+    }
     var res = fetch(odesliUrl, {
       method: "GET",
-      headers: {
-        "User-Agent": getRandomUserAgent(),
-      },
+      headers: headers,
     });
 
     if (!res || !res.ok) {
+      var status = res ? res.status : "null";
       L(
         "warn",
         "enrichTrack: Odesli API returned status",
-        res ? res.status : "null",
+        status,
+        "- caching failure",
       );
+      if (status === 401 || status === 429 || status === 400) {
+        cacheSet(
+          failKey,
+          { failed: true, status: status },
+          CONFIG.odesliFailureTtlMs,
+        );
+      }
       return track;
     }
 
@@ -4461,7 +4526,7 @@ function enrichTrack(track) {
       (enrichment.external_links &&
         Object.keys(enrichment.external_links).length > 0)
     ) {
-      cacheSet(cacheKey, enrichment);
+      cacheSet(cacheKey, enrichment, CONFIG.odesliFailureTtlMs);
     }
 
     var enrichedTrack = Object.assign({}, track, enrichment);

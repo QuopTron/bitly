@@ -98,6 +98,12 @@ func GetStreamPackage(payload string) string {
 			if params.ISRC != "" || id == "" {
 				return
 			}
+			// spotify-web can only resolve native Spotify IDs; feeding it a
+			// deezer/tidal prefixed id ("deezer:3733293352") throws inside the
+			// extension and wastes an API call.
+			if pn == "spotify-web" && !download.IsSpotifyTrackID(id) {
+				return
+			}
 			if p := reg.Get(pn); p != nil {
 				if t, err := p.GetTrack(id); err == nil && t != nil && t.ISRC != "" {
 					params.ISRC = t.ISRC
@@ -203,9 +209,10 @@ func streamFallbackErrorJSON(err error, out *streamFallbackOutcome) string {
 // decryption (e.g. amazon FLAC with a decryption key, when no CLI ffmpeg is
 // available on the platform). The file is kept on disk.
 type streamEncryptedInfo struct {
-	FilePath  string
-	Key       string
-	OutputExt string
+	FilePath    string
+	Key         string
+	OutputExt   string
+	InputFormat string
 }
 
 // streamEncryptedJSON builds the RPC response telling the client an encrypted
@@ -216,6 +223,7 @@ func streamEncryptedJSON(info *streamEncryptedInfo, provider string) string {
 		"filePath":        info.FilePath,
 		"decryptionKey":   info.Key,
 		"outputExtension": info.OutputExt,
+		"inputFormat":     info.InputFormat,
 		"provider":        provider,
 	}
 	data, _ := json.Marshal(mp)
@@ -298,11 +306,12 @@ func streamFallbackDownload(trackID, quality, provider, trackName, artistName, i
 	// A provider handed back an encrypted/DRM file with a key but no CLI ffmpeg
 	// to decrypt it here: keep it and let the client decrypt (ffmpeg-kit).
 	if res.Encrypted && res.ClientDecrypt && res.DecryptionKey != "" {
-		return &streamFallbackOutcome{encrypted: &streamEncryptedInfo{
-			FilePath:  res.FilePath,
-			Key:       res.DecryptionKey,
-			OutputExt: res.OutputExtension,
-		}}
+return &streamFallbackOutcome{encrypted: &streamEncryptedInfo{
+		FilePath:    res.FilePath,
+		Key:         res.DecryptionKey,
+		OutputExt:   res.OutputExtension,
+		InputFormat: res.InputFormat,
+	}}
 	}
 	// A provider that only has an encrypted/DRM stream (and no usable decrypt
 	// path) would leave a file the player cannot decode. Never serve it as a

@@ -45,7 +45,15 @@ func registerFileDownload(s *Sandbox, fileObj *goja.Object) {
 			req.Header.Set(k, v)
 		}
 
-		client := &http.Client{Timeout: 120 * time.Second, Transport: &http.Transport{DialContext: httpclient.NewDoHDialContext()}}
+		// Audio files can be large (lossless FLAC ~50-100 MB) and downloads from
+		// slow CDNs legitimately exceed a minute, so no tight overall cap. A
+		// response-header timeout still stops dead servers from hanging forever.
+		client := &http.Client{
+			Transport: &http.Transport{
+				DialContext:           httpclient.NewDoHDialContext(),
+				ResponseHeaderTimeout: 30 * time.Second,
+			},
+		}
 		resp, err := client.Do(req)
 		if err != nil {
 			return vm.ToValue(map[string]interface{}{"success": false, "error": fmt.Sprintf("http: %v", err)})
@@ -67,8 +75,16 @@ func registerFileDownload(s *Sandbox, fileObj *goja.Object) {
 		}
 		defer f.Close()
 
-		if _, err := io.Copy(f, resp.Body); err != nil {
+		written, err := io.Copy(f, resp.Body)
+		if err != nil {
 			return vm.ToValue(map[string]interface{}{"success": false, "error": fmt.Sprintf("copy: %v", err)})
+		}
+		// A connection that closes early (chunked/CDN truncation) can end io.Copy
+		// cleanly while the file is incomplete — the encrypted MP4 then lacks its
+		// moov atom and can never be decrypted. Verify against Content-Length.
+		if resp.ContentLength >= 0 && written != resp.ContentLength {
+			_ = os.Remove(fullPath)
+			return vm.ToValue(map[string]interface{}{"success": false, "error": fmt.Sprintf("truncated download: got %d of %d bytes", written, resp.ContentLength)})
 		}
 
 		return vm.ToValue(map[string]interface{}{"success": true, "path": fullPath})

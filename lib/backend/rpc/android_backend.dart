@@ -11,6 +11,7 @@ import 'mixins/feed_search_mixin.dart';
 import 'mixins/actions_mixin.dart';
 import 'mixins/detail_mixin.dart';
 import 'mixins/infra_mixin.dart';
+import 'mixins/tag_editor_mixin.dart';
 import 'rpc_backend_mixin.dart';
 import '../../injection.dart' as inj;
 
@@ -21,6 +22,7 @@ class AndroidBackend extends BackendService
         ActionsMixin,
         DetailMixin,
         InfraMixin,
+        TagEditorMixin,
         RpcBackendMixin {
   static const _channel = MethodChannel('com.bitly/backend');
   bool _initialized = false;
@@ -39,7 +41,6 @@ class AndroidBackend extends BackendService
 
   Future<void> _ensureExtensions(String extDir) async {
     try {
-      final root = Directory(extDir);
       for (final entry in _extFiles.entries) {
         for (final file in entry.value) {
           try {
@@ -84,6 +85,10 @@ class AndroidBackend extends BackendService
           if (setupData != null) {
             await syncBackendConfig(mode: setupData.mode);
           }
+          // Sync the persisted download provider priority so restored sessions
+          // keep the user's chosen fallback order (mirrors SpotiFLAC priority).
+          final dlPriority = await inj.sl<SettingsCache>().getDownloadProviderPriority();
+          if (dlPriority.isNotEmpty) await syncDownloadProviderPriority(dlPriority);
         } catch (_) {}
 
               // Push saved provider credentials to extensions

@@ -15,6 +15,7 @@ import 'mixins/feed_search_mixin.dart';
 import 'mixins/actions_mixin.dart';
 import 'mixins/detail_mixin.dart';
 import 'mixins/infra_mixin.dart';
+import 'mixins/tag_editor_mixin.dart';
 import 'rpc_backend_mixin.dart';
 
 class DesktopBackend extends BackendService
@@ -24,6 +25,7 @@ class DesktopBackend extends BackendService
         ActionsMixin,
         DetailMixin,
         InfraMixin,
+        TagEditorMixin,
         RpcBackendMixin {
   final String baseUrl;
   final String? executablePath;

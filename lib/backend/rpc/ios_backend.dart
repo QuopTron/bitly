@@ -8,6 +8,7 @@ import 'mixins/feed_search_mixin.dart';
 import 'mixins/actions_mixin.dart';
 import 'mixins/detail_mixin.dart';
 import 'mixins/infra_mixin.dart';
+import 'mixins/tag_editor_mixin.dart';
 import 'rpc_backend_mixin.dart';
 import '../../injection.dart' as inj;
 
@@ -18,6 +19,7 @@ class IOSBackend extends BackendService
         ActionsMixin,
         DetailMixin,
         InfraMixin,
+        TagEditorMixin,
         RpcBackendMixin {
   static const _channel = MethodChannel('com.bitly/backend');
   bool _initialized = false;

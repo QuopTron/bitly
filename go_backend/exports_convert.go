@@ -2,6 +2,7 @@ package gobackend
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/zarz/bitly/go_backend/internal/audio"
 	"github.com/zarz/bitly/go_backend/internal/convert"
@@ -98,6 +99,42 @@ func EmbedCover(payload string) string {
 		return `{"error":"payload inválido"}`
 	}
 	if err := audio.WriteCover(params.FilePath, params.CoverData); err != nil {
+		return jsonError(err)
+	}
+	return `{"ok":true}`
+}
+
+func WriteFileMetadata(payload string) string {
+	var params struct {
+		FilePath string            `json:"filePath"`
+		Meta     map[string]string `json:"meta"`
+	}
+	if err := json.Unmarshal([]byte(payload), &params); err != nil {
+		return `{"error":"payload inválido"}`
+	}
+	trackNum := 0
+	discNum := 0
+	year := 0
+	if v, ok := params.Meta["trackNumber"]; ok {
+		fmt.Sscanf(v, "%d", &trackNum)
+	}
+	if v, ok := params.Meta["discNumber"]; ok {
+		fmt.Sscanf(v, "%d", &discNum)
+	}
+	if v, ok := params.Meta["year"]; ok {
+		fmt.Sscanf(v, "%d", &year)
+	}
+	meta := &audio.Metadata{
+		Title:       params.Meta["title"],
+		Artist:      params.Meta["artist"],
+		Album:       params.Meta["album"],
+		AlbumArtist: params.Meta["albumArtist"],
+		Genre:       params.Meta["genre"],
+		TrackNumber: trackNum,
+		DiscNumber:  discNum,
+		Year:        year,
+	}
+	if err := audio.WriteMetadata(params.FilePath, meta); err != nil {
 		return jsonError(err)
 	}
 	return `{"ok":true}`

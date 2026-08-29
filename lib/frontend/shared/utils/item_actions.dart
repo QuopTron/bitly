@@ -109,7 +109,7 @@ class ItemActions {
             child: BlocProvider.value(
               value: context.read<DownloadCubit>(),
               child: BlocProvider.value(
-                value: context.read<QueueCubit>(),
+                value: sl<QueueCubit>(),
                 child: AlbumDetailPage(albumId: item.id, source: src, coverUrl: item.coverUrl)),
           ))));
       case 'playlist':
@@ -127,7 +127,7 @@ class ItemActions {
             child: BlocProvider.value(
               value: context.read<DownloadCubit>(),
               child: BlocProvider.value(
-                value: context.read<QueueCubit>(),
+                value: sl<QueueCubit>(),
                 child: ArtistDetailPage(artistId: item.id, artistName: item.name, source: src)),
           ))));
     }

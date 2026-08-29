@@ -1,21 +1,51 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide RepeatMode;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import '../utils/responsive.dart';
 import '../../../backend/services/like_cubit.dart';
 import '../../../backend/services/player_cubit.dart';
 import '../../../backend/services/queue_cubit.dart';
+import '../../../router/route_names.dart';
+import '../utils/responsive.dart';
 import '../theme/app_colors.dart';
 import 'cover_image.dart';
 import 'glass_container.dart';
 
-class MiniPlayer extends StatelessWidget {
-  const MiniPlayer({super.key});
+String _fmtDuration(Duration d) {
+  final total = d.inSeconds < 0 ? 0 : d.inSeconds;
+  final m = total ~/ 60;
+  final s = total % 60;
+  return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+}
+
+class MiniPlayer extends StatefulWidget {
+  const MiniPlayer({super.key, this.onOpenPlayer});
+
+  /// Optional navigation callback (used by the global overlay so it can push
+  /// the full player without depending on a go_router context underneath).
+  final VoidCallback? onOpenPlayer;
+
+  @override
+  State<MiniPlayer> createState() => _MiniPlayerState();
+}
+
+class _MiniPlayerState extends State<MiniPlayer> {
+  bool _expanded = false;
+
+  void _openFull() {
+    if (widget.onOpenPlayer != null) {
+      widget.onOpenPlayer!();
+    } else {
+      context.push(RouteNames.nowPlaying.path);
+    }
+  }
+
+  void _toggleExpanded() => setState(() => _expanded = !_expanded);
 
   @override
   Widget build(BuildContext context) {
     final r = Responsive(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final fg = isDark ? Colors.white : Colors.black;
     final glowColor = isDark ? AppColors.greenBright : AppColors.greenMedium;
 
     return BlocBuilder<QueueCubit, QueueState>(
@@ -25,77 +55,164 @@ class MiniPlayer extends StatelessWidget {
         return BlocBuilder<PlayerCubit, AudioPlayerState>(
           builder: (context, player) {
             final resolvedCover = context.read<LikeCubit>().resolveCoverFor(track);
-            return GestureDetector(
-              onTap: () {
-                context.push('/now_playing');
-              },
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: r.spacingXL, vertical: r.spacingXS),
-                child: GlassContainer(
-                  borderRadius: 16,
-                  borderColor: glowColor.withValues(alpha: 0.15),
-                  bgColor: (isDark ? const Color(0xFF1A1A1A) : Colors.white).withValues(alpha: 0.85),
-                  padding: EdgeInsets.symmetric(horizontal: r.spacingM, vertical: r.spacingXS),
-                  child: Row(
+            final dur = player.duration;
+            final onActiveColor = glowColor;
+            final idleColor = (isDark ? Colors.white : Colors.black).withValues(alpha: 0.55);
+            final totalMs = dur.inMilliseconds;
+            final progress =
+                totalMs > 0 ? (player.position.inMilliseconds / totalMs).clamp(0.0, 1.0) : 0.0;
+
+            final controlSize = r.subtitleSize + 2;
+            final shuffleOn = queue.shuffle;
+            final repeatMode = queue.repeatMode;
+
+            return Padding(
+              padding: EdgeInsets.symmetric(horizontal: r.spacingXL, vertical: r.spacingXS),
+              child: GlassContainer(
+                borderRadius: 16,
+                borderColor: glowColor.withValues(alpha: 0.15),
+                bgColor: (isDark ? const Color(0xFF1A1A1A) : Colors.white).withValues(alpha: 0.88),
+                padding: const EdgeInsets.fromLTRB(10, 8, 6, 8),
+                child: Material(
+                  type: MaterialType.transparency,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(6),
-                        child: SizedBox(
-                          width: 40,
-                          height: 40,
-                          child: CoverImage(
-                            coverUrl: resolvedCover,
-                            localPath: null,
-                          ),
+                      InkWell(
+                        onTap: _toggleExpanded,
+                        customBorder: const RoundedRectangleBorder(
+                          borderRadius: BorderRadius.all(Radius.circular(16)),
                         ),
-                      ),
-                      SizedBox(width: r.spacingM),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
+                        splashColor: Colors.white.withValues(alpha: 0.14),
+                        highlightColor: Colors.white.withValues(alpha: 0.06),
+                        child: Row(
                           children: [
-                            Text(
-                              track.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: r.subtitleSize,
-                                fontWeight: FontWeight.w600,
-                                color: isDark ? Colors.white : Colors.black,
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(6),
+                              child: SizedBox(
+                                width: 38,
+                                height: 38,
+                                child: CoverImage(coverUrl: resolvedCover, localPath: null),
                               ),
                             ),
-                            if (track.artists != null && track.artists!.isNotEmpty)
-                              Text(
-                                track.artists!,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: r.footerSize,
-                                  color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.5),
-                                ),
+                            SizedBox(width: r.spacingM),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    track.name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: r.subtitleSize,
+                                      fontWeight: FontWeight.w600,
+                                      color: fg,
+                                    ),
+                                  ),
+                                  if (track.artists != null && track.artists!.isNotEmpty)
+                                    Text(
+                                      track.artists!,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: r.footerSize,
+                                        color: fg.withValues(alpha: 0.5),
+                                      ),
+                                    ),
+                                ],
                               ),
+                            ),
+                            // Compact media controls: shuffle, previous, play/pause,
+                            // next, repeat — small and tightly grouped.
+                            _IconBtn(
+                              icon: shuffleOn ? Icons.shuffle_rounded : Icons.shuffle,
+                              color: shuffleOn ? onActiveColor : idleColor,
+                              size: controlSize,
+                              onTap: () => context.read<QueueCubit>().toggleShuffle(),
+                            ),
+                            _IconBtn(
+                              icon: Icons.skip_previous_rounded,
+                              color: idleColor,
+                              size: controlSize,
+                              onTap: () => context.read<PlayerCubit>().previous(),
+                            ),
+                            _IconBtn(
+                              icon: player.playbackState == PlayerPlaybackState.buffering
+                                  ? Icons.hourglass_empty_rounded
+                                  : (player.isPlaying
+                                      ? Icons.pause_rounded
+                                      : Icons.play_arrow_rounded),
+                              color: onActiveColor,
+                              size: controlSize + 6,
+                              emphasized: true,
+                              onTap: () => context.read<PlayerCubit>().togglePlayPause(),
+                            ),
+                            _IconBtn(
+                              icon: Icons.skip_next_rounded,
+                              color: idleColor,
+                              size: controlSize,
+                              onTap: () => context.read<PlayerCubit>().next(),
+                            ),
+                            _IconBtn(
+                              icon: repeatMode == RepeatMode.one
+                                  ? Icons.repeat_one_rounded
+                                  : Icons.repeat_rounded,
+                              color: repeatMode == RepeatMode.none ? idleColor : onActiveColor,
+                              size: controlSize,
+                              onTap: () => context.read<QueueCubit>().cycleRepeatMode(),
+                            ),
+                            _IconBtn(
+                              icon: _expanded
+                                  ? Icons.keyboard_arrow_down_rounded
+                                  : Icons.keyboard_arrow_up_rounded,
+                              color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.7),
+                              size: controlSize - 2,
+                              onTap: _openFull,
+                            ),
                           ],
                         ),
                       ),
-                      SizedBox(width: r.spacingS),
-                      IconButton(
-                        icon: player.playbackState == PlayerPlaybackState.buffering
-                            ? SizedBox(
-                                width: r.subtitleSize - 2,
-                                height: r.subtitleSize - 2,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2.4,
-                                  valueColor: AlwaysStoppedAnimation(glowColor),
-                                ),
-                              )
-                            : Icon(
-                                player.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                                color: glowColor,
+                      if (_expanded) ...[
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(4, 2, 10, 2),
+                          child: Row(
+                            children: [
+                              Text(
+                                _fmtDuration(player.position),
+                                style: TextStyle(
+                                    fontSize: r.footerSize, color: fg.withValues(alpha: 0.6)),
                               ),
-                        iconSize: r.subtitleSize + 4,
-                        onPressed: () => context.read<PlayerCubit>().togglePlayPause(),
-                      ),
+                              Expanded(
+                                child: SliderTheme(
+                                  data: SliderThemeData(
+                                    trackHeight: 3,
+                                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                                    overlayShape:
+                                        const RoundSliderOverlayShape(overlayRadius: 12),
+                                    activeTrackColor: glowColor,
+                                    inactiveTrackColor:
+                                        (isDark ? Colors.white : Colors.black).withValues(alpha: 0.12),
+                                    thumbColor: glowColor,
+                                  ),
+                                  child: Slider(
+                                    value: progress,
+                                    onChangeEnd: (v) =>
+                                        context.read<PlayerCubit>().seekToProgress(v),
+                                    onChanged: (_) {},
+                                  ),
+                                ),
+                              ),
+                              Text(
+                                _fmtDuration(dur),
+                                style: TextStyle(
+                                    fontSize: r.footerSize, color: fg.withValues(alpha: 0.6)),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -108,4 +225,41 @@ class MiniPlayer extends StatelessWidget {
   }
 }
 
+class _IconBtn extends StatelessWidget {
+  const _IconBtn({
+    required this.icon,
+    required this.color,
+    required this.size,
+    required this.onTap,
+    this.emphasized = false,
+  });
 
+  final IconData icon;
+  final Color color;
+  final double size;
+  final VoidCallback onTap;
+  final bool emphasized;
+
+  @override
+  Widget build(BuildContext context) {
+    final base = InkResponse(
+      onTap: onTap,
+      radius: size * 1.4,
+      child: Padding(
+        padding: const EdgeInsets.all(2),
+        child: Icon(icon, color: color, size: size),
+      ),
+    );
+    if (!emphasized) return base;
+    return Padding(
+      padding: const EdgeInsets.all(2),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: color.withValues(alpha: 0.18),
+        ),
+        child: InkResponse(onTap: onTap, child: Icon(icon, color: color, size: size)),
+      ),
+    );
+  }
+}

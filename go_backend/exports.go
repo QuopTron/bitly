@@ -12,9 +12,11 @@ import (
 
 	"github.com/zarz/bitly/go_backend/internal/bin"
 	"github.com/zarz/bitly/go_backend/internal/bundled_extensions"
+	"github.com/zarz/bitly/go_backend/internal/cache"
 	"github.com/zarz/bitly/go_backend/internal/download"
 	"github.com/zarz/bitly/go_backend/internal/extensions"
 	core "github.com/zarz/bitly/go_backend/internal/gobackend"
+	"github.com/zarz/bitly/go_backend/internal/httpclient"
 	"github.com/zarz/bitly/go_backend/internal/library"
 	"github.com/zarz/bitly/go_backend/internal/lyrics"
 	"github.com/zarz/bitly/go_backend/internal/playback"
@@ -30,8 +32,8 @@ import (
 	"github.com/zarz/bitly/go_backend/internal/provider/youtube"
 	"github.com/zarz/bitly/go_backend/internal/recommend"
 	"github.com/zarz/bitly/go_backend/internal/rescue"
-	"github.com/zarz/bitly/go_backend/internal/search"
 	"github.com/zarz/bitly/go_backend/internal/scrobble"
+	"github.com/zarz/bitly/go_backend/internal/search"
 )
 
 // Global instances initialized on first use.
@@ -60,13 +62,34 @@ var (
 	flutterCallbackID  string
 	bundledExts        []bundled_extensions.RegisteredExtension
 
+	// ISRC index for library scanning and fast duplicate detection.
+	isrcIndex *cache.ISRCIndex
+
+	// Download staging for atomic writes via .partial files.
+	staging *download.StagingManager
+
+	// Cancel registry for context-based download cancellation.
+	cancelReg *download.CancelRegistry
+
+	// Download prep cache for repeated preparation of the same track.
+	prepCache *download.PrepCache
+
+	// Extension store for remote registry, verification, install/uninstall.
+	extStore *extensions.ExtensionStore
+
+	// Cross-extension collection sharing.
+	crossShare *extensions.CrossExtensionShare
+
+	// DNS manager for DNS-over-HTTPS resolution.
+	dnsMgr *httpclient.DNSManager
+
 	// Runtime state synced from Flutter (config / covers / stream cache)
 	downloadDir      string
 	userMode         string
 	streamCacheMaxMB int
 	extSettings      map[string]map[string]string
 
-	// recoeredInitError holds the panic message from InitGlobalState so Flutter
+	// recoveredInitError holds the panic message from InitGlobalState so Flutter
 	// can surface root-cause instead of a silent crash.
 	recoveredInitError string
 )
@@ -164,6 +187,27 @@ func InitGlobalState() string {
 	sessionMgr = extensions.NewSessionManager()
 	sessionConfigs = make(map[string]*extensions.SignedSessionConfig)
 	extSettings = make(map[string]map[string]string)
+
+	// Initialize ISRC index (used for library duplicate detection and fast lookup).
+	isrcIndex = cache.NewISRCIndex()
+
+	// Initialize download staging (atomic writes via .partial files).
+	staging = download.NewStagingManager()
+
+	// Initialize cancel registry (context-based download cancellation).
+	cancelReg = download.NewCancelRegistry()
+
+	// Initialize prep cache (128-entry LRU for repeated download preparation).
+	prepCache = download.NewPrepCache()
+
+	// Initialize extension store (remote registry, verification, install/uninstall).
+	extStore = extensions.NewExtensionStore(extensionsDir(), extensionsDir())
+
+	// Initialize cross-extension sharing (collection search across extensions).
+	crossShare = extensions.NewCrossExtensionShare(extRegistry)
+
+	// Initialize DNS manager (DNS-over-HTTPS with Cloudflare + Google).
+	dnsMgr = httpclient.GetDNSManager()
 
 	go func() {
 		// Background tool-binary download must never crash the app: a panic

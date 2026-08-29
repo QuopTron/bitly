@@ -113,9 +113,9 @@ class _VerificationSlideState extends State<VerificationSlide> {
       }
     }
 
-    if (mounted && _allVerified) {
-      context.read<SetupBloc>().add(const VerificationCompleted());
-    }
+    // Don't auto-advance — let the user see debug output and manually
+    // tap Continue.  The VerificationCompleted event is dispatched from
+    // the button's onPressed handler instead.
   }
 
   // WebView logic is handled by VerificationService (shared with download flow).
@@ -130,7 +130,6 @@ class _VerificationSlideState extends State<VerificationSlide> {
       padding: EdgeInsets.only(bottom: widget.r.bottomPadding),
       child: Column(children: [
         const Spacer(),
-        SizedBox(height: widget.r.spacingXL),
         _icon(onBg),
         SizedBox(height: widget.r.spacingS),
         Text(widget.loc.setup.verificationTitle,
@@ -141,8 +140,12 @@ class _VerificationSlideState extends State<VerificationSlide> {
             letterSpacing: 1,
           )),
         SizedBox(height: widget.r.spacingM),
-        _providerList(onBg, glowColor),
-        const Spacer(),
+        Expanded(
+          child: SingleChildScrollView(
+            child: _providerList(onBg, glowColor),
+          ),
+        ),
+        SizedBox(height: widget.r.spacingM),
         _actions(onBg, glowColor),
         SizedBox(height: widget.r.spacingM),
       ]),

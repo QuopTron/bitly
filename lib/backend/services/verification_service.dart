@@ -90,7 +90,7 @@ class VerificationService with WidgetsBindingObserver {
   /// WebView. Provisioning them at startup avoids VERIFY_REQUIRED failures
   /// during streaming/search/downloads.
   static const signedSessionSources = <String>[
-    'qobuz-web', 'amazon', 'deezer', 'pandora',
+    'qobuz-web', 'amazon', 'deezer', 'pandora', 'tidal-web',
   ];
 
   /// Provisions signed sessions for every Cloudflare/auth source at app start.
@@ -123,10 +123,25 @@ class VerificationService with WidgetsBindingObserver {
             url = await backend.triggerExtensionVerification(source);
           }
           if (url.isEmpty) continue; // session healthy → nothing to verify
+          // Give the Cloudflare challenge a generous window to complete,
+          // mirroring SpotiFLAC's long grant wait (it allows up to 5 minutes).
+          // A too-short cap (the previous 45s) silently skips sources whose
+          // Turnstile renders slowly (emulators, slow WebViews) leaving their
+          // session unverified — which resurfaces later as VERIFY_REQUIRED
+          // spam during streams/downloads. Only a truly stuck challenge is
+          // skipped, and re-probed on the next launch / on demand.
           final grant = await showVerification(
             extId: source,
             displayName: sourceDisplayName(source),
             authUrl: url,
+            timeout: const Duration(minutes: 3),
+          ).timeout(
+            const Duration(minutes: 3, seconds: 30),
+            onTimeout: () {
+              _log.w('[VerificationService] $source timed out during provision');
+              _completePending('');
+              return null;
+            },
           );
           if (grant == null || grant.isEmpty) continue;
           await backend.completeSignedSessionGrant(source, grant);
@@ -145,6 +160,7 @@ class VerificationService with WidgetsBindingObserver {
       case 'amazon': return 'Amazon Music';
       case 'deezer': return 'Deezer';
       case 'pandora': return 'Pandora';
+      case 'tidal-web': return 'TIDAL';
       default: return s;
     }
   }
@@ -351,6 +367,8 @@ class VerificationDialog extends StatefulWidget {
 class _VerificationDialogState extends State<VerificationDialog> {
   late final WebViewController _controller;
   bool _failed = false;
+  bool _pageLoaded = false;
+  Timer? _loadTimer;
   // The grant callback can fire from multiple navigation delegates for the
   // same URL (onUrlChange, onNavigationRequest, onPageStarted, onPageFinished).
   // Fire it exactly once so the dialog is popped exactly once.
@@ -359,6 +377,17 @@ class _VerificationDialogState extends State<VerificationDialog> {
   @override
   void initState() {
     super.initState();
+
+    // If the challenge page doesn't load within 15 seconds, surface the
+    // failure view so the user can retry or open in the external browser.
+    // Without this timeout the dialog hangs indefinitely on emulators or
+    // slow networks where Turnstile never renders.
+    _loadTimer = Timer(const Duration(seconds: 15), () {
+      if (mounted && !_pageLoaded && !_failed && !_grantFired) {
+        _log.w('[VerificationService] Page load timeout — showing failure view');
+        setState(() => _failed = true);
+      }
+    });
 
     // Cloudflare Turnstile delivers the grant to the in-app WebView through
     // Path 1 of the challenge page: a JS bridge named `window.SpotiflacGrant`.
@@ -390,14 +419,21 @@ class _VerificationDialogState extends State<VerificationDialog> {
         onPageStarted: (url) => _check(url),
         onPageFinished: (url) {
           _check(url);
-          if (mounted) setState(() => _failed = false);
+          if (mounted) {
+            setState(() {
+              _failed = false;
+              _pageLoaded = true;
+            });
+          }
           _applyBranding(url);
         },
         onWebResourceError: (error) {
           // Sub-resource failures (scripts, CSS, fonts, images) are normal —
           // a blocked analytics/tracker script must NOT blank the dialog.
           // Only surface the failure view for real errors on the main frame.
-          if (error.isForMainFrame == true) {
+          // Note: isForMainFrame can be null on some platforms, so treat null
+          // the same as true (surface the error).
+          if (error.isForMainFrame != false) {
             _log.e('[VerificationService] WebView error: '
                 '${error.description} code=${error.errorCode} url=${error.url}');
 
@@ -423,6 +459,12 @@ class _VerificationDialogState extends State<VerificationDialog> {
     _controller.loadRequest(Uri.parse(widget.authUrl));
   }
 
+  @override
+  void dispose() {
+    _loadTimer?.cancel();
+    super.dispose();
+  }
+
   void _check(String? url) {
     if (url == null) return;
     final grant = verificationGrantFromUrl(url);
@@ -432,6 +474,7 @@ class _VerificationDialogState extends State<VerificationDialog> {
   void _fireGrant(String grant) {
     if (_grantFired) return;
     _grantFired = true;
+    _loadTimer?.cancel();
     widget.onGrant(grant);
   }
 
@@ -526,7 +569,17 @@ class _VerificationDialogState extends State<VerificationDialog> {
               height: 320,
               child: _failed
                   ? _failureView(isDark, primary)
-                  : WebViewWidget(controller: _controller),
+                  : Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        WebViewWidget(controller: _controller),
+                        if (!_pageLoaded)
+                          CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: primary,
+                          ),
+                      ],
+                    ),
             ),
             // Footer actions
             Padding(

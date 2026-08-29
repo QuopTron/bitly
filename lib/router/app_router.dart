@@ -1,17 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'route_names.dart';
 import '../frontend/features/splash/splash_page.dart';
 import '../frontend/features/setup/setup_page.dart';
 import '../frontend/features/home/home_page.dart';
 import '../frontend/features/player/now_playing_page.dart';
+import '../frontend/features/tutorial/tutorial_page.dart';
 
 class AppRouter {
   final GlobalKey<NavigatorState>? navigatorKey;
-  AppRouter({this.navigatorKey});
+  final List<NavigatorObserver>? navigatorObservers;
+  AppRouter({this.navigatorKey, this.navigatorObservers});
 
   GoRouter get router => GoRouter(
     navigatorKey: navigatorKey,
+    observers: navigatorObservers,
     initialLocation: RouteNames.splash.path,
     routes: [
       GoRoute(
@@ -38,6 +42,11 @@ class AppRouter {
         path: RouteNames.nowPlaying.path,
         name: 'now_playing',
         builder: (_, _) => const NowPlayingPage(),
+      ),
+      GoRoute(
+        path: RouteNames.tutorial.path,
+        name: 'tutorial',
+        builder: (_, _) => const TutorialPage(),
       ),
     ],
   );

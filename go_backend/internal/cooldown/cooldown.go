@@ -112,10 +112,36 @@ func MarkOpOk(name, op string) {
 	markOkKey(opKey(name, op))
 }
 
+// markOkKey removes the cooldown for [key] after a successful operation so a
+// recovered provider is used again immediately.
 func markOkKey(key string) {
 	mu.Lock()
 	defer mu.Unlock()
 	delete(cooled, key)
+}
+
+// ProviderStatus holds cooldown information for a single provider.
+type ProviderStatus struct {
+	Name    string `json:"name"`
+	Cooled  bool   `json:"cooled"`
+	Seconds int    `json:"seconds"` // remaining cooldown seconds
+}
+
+// GetAllStatus returns the cooldown status of all currently-cooled providers.
+func GetAllStatus() []ProviderStatus {
+	mu.Lock()
+	defer mu.Unlock()
+	now := time.Now()
+	var result []ProviderStatus
+	for key, until := range cooled {
+		if now.Before(until) {
+			secs := int(time.Until(until).Seconds()) + 1
+			result = append(result, ProviderStatus{Name: key, Cooled: true, Seconds: secs})
+		} else {
+			delete(cooled, key)
+		}
+	}
+	return result
 }
 
 // rateLimitedOrBlocked reports whether [errMsg] matches a condition that

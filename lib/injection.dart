@@ -28,6 +28,7 @@ import 'backend/services/playlist_domain_service.dart';
 import 'frontend/shared/models/performance_profile.dart';
 import 'frontend/features/splash/bloc/splash_bloc.dart';
 import 'frontend/features/setup/bloc/setup_bloc.dart';
+import 'frontend/shared/widgets/app_navigator_observer.dart';
 
 final sl = GetIt.instance;
 
@@ -92,7 +93,10 @@ Future<void> configureDependencies() async {
   sl.registerLazySingleton<LikeCubit>(() => LikeCubit(backend));
   sl.registerLazySingleton<PlaylistCubit>(() => PlaylistCubit(sl<PlaylistDomainService>()));
 
-  // ── 7. Blocs (factory para que cada screen tenga su instancia) ─
+  // ── 7. Navigation ───────────────────────────────────────────
+  sl.registerLazySingleton<AppNavigatorObserver>(() => AppNavigatorObserver());
+
+  // ── 8. Blocs (factory para que cada screen tenga su instancia) ─
   sl.registerFactory(() => SplashBloc(backend));
   sl.registerFactory(() => SetupBloc(
     sl<ValueNotifier<Locale>>(),

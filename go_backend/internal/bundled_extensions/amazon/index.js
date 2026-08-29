@@ -2840,11 +2840,15 @@ function parseSearchResults(data, filter) {
   var results = [];
   if (!data || !data.methods) return results;
 
-  // Determine which widget types to look for based on filter
-  var wantTracks = !filter || filter === "songs";
-  var wantAlbums = !filter || filter === "albums";
-  var wantArtists = !filter || filter === "artists";
-  var wantPlaylists = !filter || filter === "playlists";
+  // Determine which widget types to look for based on filter.
+  // Dart sends singular forms (track/album/artist/playlist); Amazon
+  // manifest uses "songs" for tracks. Accept both singular and plural.
+  var wantTracks =
+    !filter || filter === "songs" || filter === "track" || filter === "tracks";
+  var wantAlbums = !filter || filter === "album" || filter === "albums";
+  var wantArtists = !filter || filter === "artist" || filter === "artists";
+  var wantPlaylists =
+    !filter || filter === "playlist" || filter === "playlists";
 
   // Find all VisualShovelerWidgetElement - they contain categorized results
   var shovelers = findAllByInterface(
@@ -3267,7 +3271,21 @@ function callZarzMoeResolve(spotifyID) {
 
 // ==================== SongLink Resolution ====================
 
+// Cache of ISRCs that returned 400 from SongLink (invalid/unrecognized by
+// the API). Avoids wasting a request on every re-download attempt.
+var songlink400Cache = {};
+
 function callSongLink(lookupURL) {
+  // Skip known-bad SongLink URLs (ISRC lookups that return 400)
+  if (lookupURL && lookupURL.indexOf("?isrc=") !== -1) {
+    var cachedISRC = decodeURIComponent(
+      lookupURL.split("?isrc=")[1].split("&")[0],
+    );
+    if (songlink400Cache[cachedISRC]) {
+      L("debug", "[Amazon] Skipping SongLink for cached-400 ISRC:", cachedISRC);
+      return null;
+    }
+  }
   var res;
   try {
     res = fetch(lookupURL, {
@@ -3279,8 +3297,28 @@ function callSongLink(lookupURL) {
     return null;
   }
   if (!res || !res.ok) {
+    // Cache 400 errors per ISRC to skip future lookups instantly.
+    if (
+      res &&
+      res.status === 400 &&
+      lookupURL &&
+      lookupURL.indexOf("?isrc=") !== -1
+    ) {
+      var failedISRC = decodeURIComponent(
+        lookupURL.split("?isrc=")[1].split("&")[0],
+      );
+      if (failedISRC) {
+        songlink400Cache[failedISRC] = true;
+        L(
+          "info",
+          "[Amazon] SongLink 400 cached for ISRC:",
+          failedISRC,
+          "(will skip SongLink on future calls)",
+        );
+      }
+    }
     L(
-      "warn",
+      "debug",
       "[Amazon] SongLink returned status:",
       res ? res.status : "no response",
     );
@@ -3580,8 +3618,8 @@ function resolveAmazonURL(isrc, spotifyID, deezerID, tidalID, qobuzID) {
       return url;
     }
     L(
-      "info",
-      "[Amazon] SongLink ISRC failed, trying Songstats for ISRC:",
+      "debug",
+      "[Amazon] SongLink ISRC lookup empty, trying Songstats for ISRC:",
       isrc,
     );
     url = callSongstatsForAmazon(isrc);

@@ -52,6 +52,45 @@ mixin FeedSearchMixin on BackendService {
     return BackendHelpers.parseSearchResults(await rpcCall('search', params));
   }
 
+  // ── Streaming search ──────────────────────────────────────────────
+
+  @override
+  Future<int> searchStreaming({
+    required String query, String source = '',
+    String type = '', int limit = 20,
+  }) async {
+    final params = <String, dynamic>{'query': query, 'limit': limit};
+    if (source.isNotEmpty) params['source'] = source;
+    if (type.isNotEmpty) params['type'] = type;
+    try {
+      final result = await rpcCall('searchStream', params);
+      final raw = result is String ? jsonDecode(result) : result;
+      if (raw is Map) {
+        return (raw['generation'] as num?)?.toInt() ?? 0;
+      }
+      return 0;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  @override
+  Future<SearchStreamResults> getSearchStreamResults() async {
+    try {
+      final result = await rpcCall('getSearchStreamResults');
+      final raw = result is String ? jsonDecode(result) : result;
+      if (raw is Map) {
+        final items = BackendHelpers.parseSearchResults(raw['items']);
+        final done = raw['done'] == true;
+        final gen = (raw['generation'] as num?)?.toInt() ?? 0;
+        return SearchStreamResults(items: items, done: done, generation: gen);
+      }
+      return const SearchStreamResults(items: [], done: true, generation: 0);
+    } catch (_) {
+      return const SearchStreamResults(items: [], done: true, generation: 0);
+    }
+  }
+
   @override
   Future<List<SourceSearchConfig>> getSearchConfig() async {
     try {

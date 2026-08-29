@@ -107,5 +107,23 @@ class DownloadDao extends DatabaseAccessor<AppDatabase> with _$DownloadDaoMixin 
       await (delete(downloadBatches)..where((t) => t.batchKey.equals(k))).go();
     }
   }
+
+  Future<String?> getFilePathById(String id) async {
+    final rows = await (select(downloadHistory)
+          ..where((t) => t.id.equals(id))
+          ..limit(1))
+        .get();
+    return rows.isEmpty ? null : rows.first.filePath;
+  }
+
+  /// Updates the file_path for a download history entry.
+  /// Used when the actual file on disk differs from what was stored
+  /// (e.g. after decrypt renames .flac to .dec.flac).
+  Future<void> updateFilePath(String id, String newFilePath) =>
+      (update(downloadHistory)..where((t) => t.id.equals(id))).write(
+        DownloadHistoryCompanion(
+          filePath: Value(newFilePath),
+        ),
+      );
 }
 

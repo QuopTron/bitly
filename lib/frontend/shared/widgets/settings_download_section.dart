@@ -124,6 +124,16 @@ class _SettingsDownloadSectionState extends State<SettingsDownloadSection> {
         ],
         SizedBox(height: r.spacingM),
         _cacheTtlSlider(r),
+        SizedBox(height: r.spacingM),
+        // ── Sequential download info ──
+        Row(children: [
+          Icon(Icons.info_outline, size: r.footerSize, color: widget.glowColor.withValues(alpha: 0.5)),
+          SizedBox(width: 6),
+          Expanded(child: Text(
+            'Downloads run one at a time for stability. '
+            'Parallel downloads may cause failures on slow connections.',
+            style: TextStyle(fontSize: r.footerSize - 1, color: widget.onBg.withValues(alpha: 0.45), height: 1.3))),
+        ]),
       ]),
     );
   }

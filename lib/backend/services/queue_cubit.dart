@@ -127,6 +127,29 @@ class QueueCubit extends Cubit<QueueState> {
     emit(state.copyWith(shuffle: !state.shuffle));
   }
 
+  /// Sets shuffle on/off to a specific value (from the OS media controls).
+  void setShuffleMode(bool value) {
+    if (state.shuffle != value) {
+      emit(state.copyWith(shuffle: value));
+    }
+  }
+
+  /// Sets the repeat mode from the OS media controls ('none' | 'one' | 'all').
+  void setRepeatModeStr(String mode) {
+    final RepeatMode next;
+    switch (mode) {
+      case 'one':
+        next = RepeatMode.one;
+      case 'all':
+        next = RepeatMode.all;
+      default:
+        next = RepeatMode.none;
+    }
+    if (state.repeatMode != next) {
+      emit(state.copyWith(repeatMode: next));
+    }
+  }
+
   void cycleRepeatMode() {
     final modes = RepeatMode.values;
     final next = (modes.indexOf(state.repeatMode) + 1) % modes.length;

@@ -45,6 +45,7 @@ func registerFileOps(s *Sandbox) {
 	})
 
 	registerFileReadOps(s, fileObj)
+	registerFileWriteOps(s, fileObj)
 	registerFileDownload(s, fileObj)
 
 	vm.Set("file", fileObj)

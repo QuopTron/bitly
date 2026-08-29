@@ -4,8 +4,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:ffmpeg_kit_flutter_new_full/ffmpeg_kit.dart';
-import 'package:ffmpeg_kit_flutter_new_full/return_code.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:media_kit/media_kit.dart';
@@ -19,8 +17,10 @@ import '../../frontend/shared/models/feed_models.dart';
 import '../../frontend/shared/utils/download_strategy.dart';
 import '../cache/playback_cache.dart';
 import '../cache/player_state.dart';
+import 'item_fingerprint.dart';
 import 'queue_cubit.dart';
 import 'scrobble_service.dart';
+import 'stream_decrypt.dart';
 import 'verification_service.dart';
 
 class PlayerCubit extends Cubit<AudioPlayerState> {
@@ -34,9 +34,11 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
   StreamSubscription? _errorSub;
   StreamSubscription? _queueSub;
   VoidCallback? _perfSub;
+
   /// Map of trackId → actual file path from download history.
   final Map<String, String> _localFiles = {};
   String? _downloadPath;
+
   /// Set of normalized track IDs that are being streamed (not local).
   /// Used to clean up cached files after playback completes.
   final Set<String> _streamedTrackIds = {};
@@ -57,7 +59,9 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
   /// Normalized track IDs that are ready to play instantly (stream already
   /// resolved or a local file available). Backs the "ready" indicator shown on
   /// track cards so the user can tell at a glance what plays with zero wait.
-  final ValueNotifier<Set<String>> readyTracks = ValueNotifier(const <String>{});
+  final ValueNotifier<Set<String>> readyTracks = ValueNotifier(
+    const <String>{},
+  );
 
   /// Marks [normalizedId] as ready-to-play and notifies listeners of the set.
   void _markReady(String normalizedId) {
@@ -77,12 +81,15 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
   /// Consecutive decode errors for the current track. Used to break libmpv's
   /// infinite retry loop on a resource the player can't decode.
   int _consecutiveErrors = 0;
+
   /// While true, player errors are ignored: we are falling back from a local
   /// file that failed to decode to its streaming URL, and the old media may
   /// keep emitting a few residual errors until it is stopped.
   bool _recovering = false;
+
   /// The URI last handed to the player (for diagnostics / broken tracking).
   String? _lastOpenedUri;
+
   /// Stream URLs that already failed to decode (normalized trackId → url),
   /// so a re-resolve can avoid handing the same dead URL back to the player.
   final Map<String, String> _brokenUrlByTrack = {};
@@ -143,6 +150,7 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
   /// Default 30s si no hay settings cargados aún.
   Duration _localFilesTTL = const Duration(seconds: 30);
   DateTime? _localFilesLoadedAt;
+
   /// Almacena el timestamp ISO 8601 de la última carga de _localFiles.
   /// En cargas delta posteriores, se pasa como 'since' al backend para
   /// obtener solo los cambios desde esta fecha.
@@ -157,6 +165,7 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
 
   /// Preloaded lyrics (LRC) for the current track — loaded when track starts.
   String? preloadedLyrics;
+
   /// Preloaded video URL for the current track — resolved when track starts.
   String? preloadedVideoUrl;
   bool preloadingLyrics = false;
@@ -257,15 +266,32 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
 
         for (final e in list) {
           final m = e as Map<String, dynamic>;
-          final tid = (m['id'] ?? m['trackId'] ?? m['track_id'] ?? '').toString();
+          final tid =
+              (m['id'] ?? m['trackId'] ?? m['track_id'] ?? '').toString();
           final fp = (m['filePath'] ?? m['file_path'] ?? '') as String;
           if (tid.isNotEmpty && fp.isNotEmpty && await File(fp).exists()) {
             _localFiles[tid] = fp;
           }
 
           final providerTrackId = (m['providerTrackId'] ?? '').toString();
-          if (providerTrackId.isNotEmpty && providerTrackId != tid && await File(fp).exists()) {
+          if (providerTrackId.isNotEmpty &&
+              providerTrackId != tid &&
+              await File(fp).exists()) {
             _localFiles[providerTrackId] = fp;
+          }
+
+          // Index by name-fingerprint so a downloaded track is found even when
+          // it's played from a DIFFERENT extension's feed (same song, other
+          // provider's id). This makes the local file win over streaming
+          // regardless of the file's actual name (e.g. an amazon decrypted
+          // "unknown.flac").
+          final name =
+              (m['trackName'] ?? m['track_name'] ?? m['trackName'] ?? '')
+                  .toString();
+          final artist =
+              (m['artistName'] ?? m['artist_name'] ?? '') as String;
+          if (name.isNotEmpty && fp.isNotEmpty && await File(fp).exists()) {
+            _localFiles[fingerprintFromName(name, artist)] = fp;
           }
         }
       }
@@ -342,7 +368,8 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
         // track so a provider that keeps producing undecodable files ends in
         // an error state instead of an infinite retry loop.
         if (failed != null && deadUri.startsWith('file://')) {
-          final retries = (_deadFileRetries[normalizeTrackId(failed.id)] ?? 0) + 1;
+          final retries =
+              (_deadFileRetries[normalizeTrackId(failed.id)] ?? 0) + 1;
           _deadFileRetries[normalizeTrackId(failed.id)] = retries;
           if (retries > 2) {
             _recovering = true;
@@ -407,11 +434,13 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
       // verification modal NOW so the token is refreshed instead of failing
       // mid-playback (the user must complete it before this song can play).
       if (!await _ensureSignedForSource(track)) {
-        final display = VerificationService()
-            .sourceDisplayName(track.source ?? '');
+        final display = VerificationService().sourceDisplayName(
+          track.source ?? '',
+        );
         VerificationService().showNotice(
           'Sesión de $display no verificada — completa la verificación '
-              'para reproducir esta canción.');
+          'para reproducir esta canción.',
+        );
         return;
       }
       // Switch to a non-local track: stop the previous track's audio right now
@@ -430,22 +459,24 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
       _switchPending = false;
       final raw = _lastStreamError.trim();
       final rawLower = raw.toLowerCase();
-      final needsVerification = _lastStreamErrorType.toLowerCase() == 'verification_required' ||
+      final needsVerification =
+          _lastStreamErrorType.toLowerCase() == 'verification_required' ||
           rawLower.contains('verify_required') ||
           rawLower.contains('verification required') ||
           rawLower.contains('verify required');
       String? msg;
       if (needsVerification) {
-        final service = _lastStreamService.isNotEmpty
-            ? _lastStreamService
-            : (track.source ?? '');
-        final display = VerificationService()
-            .sourceDisplayName(service);
-        msg = display.isNotEmpty
-            ? 'Sesión de $display no verificada — completa la verificación '
-                'para reproducir esta canción.'
-            : 'Sesión no verificada — completa la verificación para '
-                'reproducir esta canción.';
+        final service =
+            _lastStreamService.isNotEmpty
+                ? _lastStreamService
+                : (track.source ?? '');
+        final display = VerificationService().sourceDisplayName(service);
+        msg =
+            display.isNotEmpty
+                ? 'Sesión de $display no verificada — completa la verificación '
+                    'para reproducir esta canción.'
+                : 'Sesión no verificada — completa la verificación para '
+                    'reproducir esta canción.';
         // Open the verification modal for the provider that actually needs it
         // (e.g. amazon reached during fallback), so the session can be
         // refreshed right away instead of leaving playback dead.
@@ -453,16 +484,19 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
       } else if (raw.contains('429') ||
           rawLower.contains('rate limit') ||
           rawLower.contains('too many')) {
-        msg = 'Proveedor temporalmente saturado (429) — inténtalo de nuevo '
+        msg =
+            'Proveedor temporalmente saturado (429) — inténtalo de nuevo '
             'en unos segundos.';
       } else if (raw.isNotEmpty) {
         msg = 'No se pudo obtener un stream original para esta canción.';
       }
       if (msg != null) {
-        emit(state.copyWith(
-          playbackState: PlayerPlaybackState.error,
-          errorMessage: msg,
-        ));
+        emit(
+          state.copyWith(
+            playbackState: PlayerPlaybackState.error,
+            errorMessage: msg,
+          ),
+        );
         // ignore: avoid_print
         print('[PlayerCubit] Could not resolve URI for ${track.id}: $msg');
         if (!needsVerification) VerificationService().showNotice(msg);
@@ -478,8 +512,10 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
     print('[PlayerCubit] Opening: $uri');
     // TEMP diagnostic: confirm the playing track matches the displayed one
     // ignore: avoid_print
-    print('[PLAYSYNC] open id=${track.id} name=${track.name} artists=${track.artists} '
-        'coverUrl=${track.coverUrl} isrc=${track.isrc} uri=$uri');
+    print(
+      '[PLAYSYNC] open id=${track.id} name=${track.name} artists=${track.artists} '
+      'coverUrl=${track.coverUrl} isrc=${track.isrc} uri=$uri',
+    );
     _lastOpenedUri = uri;
     _consecutiveErrors = 0;
     // A track that opened (or at least resolved) cleanly resets its dead-file
@@ -507,11 +543,13 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
 
     final scrobble = ScrobbleService();
     if (scrobble.hasLastfm || scrobble.hasListenBrainz) {
-      unawaited(scrobble.updateNowPlaying(
-        artist: track.artists ?? '',
-        track: track.name,
-        album: track.albumName,
-      ));
+      unawaited(
+        scrobble.updateNowPlaying(
+          artist: track.artists ?? '',
+          track: track.name,
+          album: track.albumName,
+        ),
+      );
     }
   }
 
@@ -521,7 +559,8 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
   /// deezer, pandora) and that session is NOT currently usable, this opens the
   /// Cloudflare verification modal so the token is refreshed right then.
   /// Returns true only when playback may proceed.
-  Future<bool> _ensureSignedForSource(FeedItem track) async {    final source = track.source ?? '';
+  Future<bool> _ensureSignedForSource(FeedItem track) async {
+    final source = track.source ?? '';
     if (!VerificationService.signedSessionSources.contains(source)) {
       return true; // source doesn't need a signed session
     }
@@ -638,8 +677,10 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
     try {
       if (DateTime.now().millisecondsSinceEpoch - _cacheThen > 30000) {
         final conns = await Connectivity().checkConnectivity();
-        _lastIsWifi = conns.any((c) =>
-            c == ConnectivityResult.wifi || c == ConnectivityResult.ethernet);
+        _lastIsWifi = conns.any(
+          (c) =>
+              c == ConnectivityResult.wifi || c == ConnectivityResult.ethernet,
+        );
         _cacheThen = DateTime.now().millisecondsSinceEpoch;
       }
       return _lastIsWifi;
@@ -658,18 +699,25 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
     if (q == 'flac' || q == 'hi_res' || q == 'lossless' || q == 'flac_high') {
       return 'high';
     }
-return requested;
+    return requested;
   }
 
   Future<void> _preloadLyrics(FeedItem track) async {
-    if (!_lyricsEnabled || track.name.isEmpty || (track.artists ?? '').isEmpty) return;
+    if (!_lyricsEnabled ||
+        track.name.isEmpty ||
+        (track.artists ?? '').isEmpty) {
+      return;
+    }
     preloadingLyrics = true;
     try {
-      final result = await sl<BackendService>().rpcCall('getLyricsLRCWithSource', {
-        'track_name': track.name,
-        'artist_name': track.artists ?? '',
-        'duration_ms': 0,
-      });
+      final result = await sl<BackendService>().rpcCall(
+        'getLyricsLRCWithSource',
+        {
+          'track_name': track.name,
+          'artist_name': track.artists ?? '',
+          'duration_ms': 0,
+        },
+      );
       final data = _decodeRpcResult(result);
       if (data != null) {
         final lyrics = data['lyrics'] as String? ?? '';
@@ -689,9 +737,7 @@ return requested;
     preloadingVideo = true;
     try {
       String? videoUrl = _resolveLocalVideoUrl(track);
-      if (videoUrl == null) {
-        videoUrl = await downloadVideoToTemp(track);
-      }
+      videoUrl ??= await downloadVideoToTemp(track);
       preloadedVideoUrl = videoUrl;
     } catch (_) {
       preloadedVideoUrl = null;
@@ -702,7 +748,9 @@ return requested;
   /// Returns the stream cache directory, creating it if needed.
   Future<Directory> _getStreamCacheDir() async {
     final appCacheDir = await getApplicationCacheDirectory();
-    final dir = Directory('${appCacheDir.path}${Platform.pathSeparator}stream_cache');
+    final dir = Directory(
+      '${appCacheDir.path}${Platform.pathSeparator}stream_cache',
+    );
     if (!await dir.exists()) {
       await dir.create(recursive: true);
     }
@@ -740,7 +788,10 @@ return requested;
   /// If [track] was already being prefetched (in-flight future), the same
   /// future is awaited so playback serves whatever is already resolved instead
   /// of starting the resolution from scratch.
-  Future<String?> _resolveStreamUrl(FeedItem track, {bool isPreload = false}) async {
+  Future<String?> _resolveStreamUrl(
+    FeedItem track, {
+    bool isPreload = false,
+  }) async {
     final key = normalizeTrackId(track.id);
     final cached = _streamUrlCache[key];
     // A preload may reuse any cached URL. A real tap may only reuse a result
@@ -793,7 +844,10 @@ return requested;
     }
   }
 
-  Future<String?> _resolveStreamUrlInner(FeedItem track, {bool isPreload = false}) async {
+  Future<String?> _resolveStreamUrlInner(
+    FeedItem track, {
+    bool isPreload = false,
+  }) async {
     final name = track.name.trim();
     if (name.isEmpty) return null;
     try {
@@ -863,41 +917,32 @@ return requested;
   /// Decrypts an encrypted/DRM stream file returned by the backend via
   /// ffmpeg-kit, writing the playable file into the stream cache, and returns a
   /// `file://` URL for it (or null on failure).
-  Future<String?> _decryptForPlayback(Map<String, dynamic> data, FeedItem track) async {
+  Future<String?> _decryptForPlayback(
+    Map<String, dynamic> data,
+    FeedItem track,
+  ) async {
     final src = (data['filePath'] ?? '').toString();
     final key = (data['decryptionKey'] ?? '').toString();
     if (src.isEmpty || key.isEmpty) return null;
-    final srcFile = File(src);
-    if (!await srcFile.exists()) return null;
 
-    var ext = (data['outputExtension'] ?? '').toString().trim();
-    if (ext.isEmpty) ext = '.flac';
-    if (!ext.startsWith('.')) ext = '.$ext';
     final normalized = normalizeTrackId(track.id);
     final cacheDir = await _getStreamCacheDir();
-    final outPath = '${cacheDir.path}${Platform.pathSeparator}$normalized.dec$ext';
-
-    final args = '-decryption_key $key -y -i ${_q(src)} -c copy ${_q(outPath)}';
-    try {
-      final session = await FFmpegKit.execute(args);
-      if (ReturnCode.isSuccess(await session.getReturnCode()) && await File(outPath).exists()) {
-        _tempStreamFiles.add(normalized);
-        return 'file://${outPath.replaceAll('\\', '/')}';
-      }
-      // ignore: avoid_print
-      print('[PlayerCubit] ffmpeg-kit decrypt failed: ${await session.getAllLogsAsString()}');
-    } catch (e) {
-      // ignore: avoid_print
-      print('[PlayerCubit] ffmpeg-kit error: $e');
+    final result = await decryptMovKeyFile(
+      srcPath: src,
+      key: key,
+      inputFormat: (data['inputFormat'] ?? '').toString(),
+      outputExtension: (data['outputExtension'] ?? '').toString(),
+      outputDir: cacheDir.path,
+      outputBaseName: normalized,
+    );
+    if (result.success && result.filePath != null) {
+      _tempStreamFiles.add(normalized);
+      return 'file://${result.filePath!.replaceAll('\\', '/')}';
     }
-    try {
-      if (await File(outPath).exists()) await File(outPath).delete();
-    } catch (_) {}
+    // ignore: avoid_print
+    print('[PlayerCubit] ffmpeg-kit decrypt failed: ${result.output}');
     return null;
   }
-
-  /// Quotes a path for the ffmpeg-kit command line.
-  String _q(String p) => "'${p.replaceAll("'", "\\'")}'";
 
   /// Pre-resolves stream URLs for an observed context (e.g. the visible feed)
   /// so the first track the user taps plays instantly. Fire-and-forget, capped
@@ -958,20 +1003,29 @@ return requested;
     final videoExts = ['mp4', 'webm', 'mkv', 'avi'];
     for (final ext in videoExts) {
       final path = '$_downloadPath\\${track.id}.$ext';
-      if (File(path).existsSync()) return 'file://${path.replaceAll('\\', '/')}';
+      if (File(path).existsSync()) {
+        return 'file://${path.replaceAll('\\', '/')}';
+      }
     }
-    if ((track.name.isNotEmpty && track.artists != null && track.artists!.isNotEmpty)) {
+    if ((track.name.isNotEmpty &&
+        track.artists != null &&
+        track.artists!.isNotEmpty)) {
       const invalid = ['/', '\\', ':', '*', '?', '"', '<', '>', '|'];
       String sanitize(String s) {
         var r = s;
-        for (final ch in invalid) r = r.replaceAll(ch, '_');
+        for (final ch in invalid) {
+          r = r.replaceAll(ch, '_');
+        }
         r = r.replaceAll(RegExp(r'[. ]+$'), '');
         return r.isEmpty ? 'unknown' : r;
       }
+
       final stem = '${sanitize(track.artists!)} - ${sanitize(track.name)}';
       for (final ext in videoExts) {
         final path = '$_downloadPath\\$stem.$ext';
-        if (File(path).existsSync()) return 'file://${path.replaceAll('\\', '/')}';
+        if (File(path).existsSync()) {
+          return 'file://${path.replaceAll('\\', '/')}';
+        }
       }
     }
     return null;
@@ -991,6 +1045,7 @@ return requested;
         r = r.replaceAll(RegExp(r'[. ]+$'), '');
         return r.isEmpty ? 'unknown' : r;
       }
+
       candidates.add(
         '${cacheDir.path}$sep${sanitize(track.artists!)} - ${sanitize(track.name)}.mp4',
       );
@@ -1008,7 +1063,9 @@ return requested;
   Future<String?> downloadVideoToTemp(FeedItem track) async {
     try {
       final appCacheDir = await getApplicationCacheDirectory();
-      final cacheDir = Directory('${appCacheDir.path}${Platform.pathSeparator}stream_cache');
+      final cacheDir = Directory(
+        '${appCacheDir.path}${Platform.pathSeparator}stream_cache',
+      );
       if (!await cacheDir.exists()) await cacheDir.create(recursive: true);
 
       final existing = _existingCachedVideo(track, cacheDir);
@@ -1025,7 +1082,9 @@ return requested;
         'quality': _videoQuality,
         'output_dir': cacheDir.path,
       };
-      final res = await sl<BackendService>().downloadByStrategy(jsonEncode(strategy));
+      final res = await sl<BackendService>().downloadByStrategy(
+        jsonEncode(strategy),
+      );
       final data = _decodeRpcResult(res);
       final fp = (data?['filePath'] ?? data?['file_path'] ?? '').toString();
       if (fp.isEmpty || !await File(fp).exists()) return null;
@@ -1058,6 +1117,18 @@ return requested;
       }
     }
 
+    // 1.5 Cross-source match by name-fingerprint (same song, any provider).
+    // Indexed in _loadLocalFiles for each history row, so a track downloaded
+    // from deezer/amazon plays locally even when selected from a soundcloud/
+    // spotify feed whose ids differ.
+    if (track.name.isNotEmpty) {
+      final fp = fingerprintFromName(track.name, track.artists ?? '');
+      final localPath = _localFiles[fp];
+      if (localPath != null && File(localPath).existsSync()) {
+        return 'file://${localPath.replaceAll('\\', '/')}';
+      }
+    }
+
     // 2. Try guessing by track.id + extension
     final sep = Platform.pathSeparator;
     final exts = ['flac', 'mp3', 'm4a', 'ogg', 'wav', 'aac', 'opus'];
@@ -1085,7 +1156,8 @@ return requested;
           final candidates = dir.listSync().whereType<File>();
           final idLower = idsToTry.map((e) => e.toLowerCase()).toSet();
           for (final f in candidates) {
-            final fname = f.path.split(Platform.pathSeparator).last.toLowerCase();
+            final fname =
+                f.path.split(Platform.pathSeparator).last.toLowerCase();
             if (idLower.any((id) => fname.startsWith(id))) {
               return 'file://${f.path.replaceAll('\\', '/')}';
             }
@@ -1110,7 +1182,9 @@ return requested;
     final posMs = state.position.inMilliseconds;
     if (durMs <= 0 || posMs < durMs - 1500) {
       // ignore: avoid_print
-      print('[PlayerCubit] Ignoring premature completed (pos=$posMs/${durMs}ms)');
+      print(
+        '[PlayerCubit] Ignoring premature completed (pos=$posMs/${durMs}ms)',
+      );
       return;
     }
 
@@ -1119,26 +1193,30 @@ return requested;
     if (completedTrack != null && _playbackCache != null) {
       final trackId = normalizeTrackId(completedTrack.id);
       final durMs = state.duration.inMilliseconds;
-      unawaited(_playbackCache!.logPlay(
-        trackId: trackId,
-        trackName: completedTrack.name,
-        artistName: completedTrack.artists ?? '',
-        albumName: completedTrack.albumName,
-        durationMs: durMs > 0 ? durMs : null,
-        percentage: 100,
-      ));
+      unawaited(
+        _playbackCache!.logPlay(
+          trackId: trackId,
+          trackName: completedTrack.name,
+          artistName: completedTrack.artists ?? '',
+          albumName: completedTrack.albumName,
+          durationMs: durMs > 0 ? durMs : null,
+          percentage: 100,
+        ),
+      );
     }
 
     if (completedTrack != null) {
       final scrobble = ScrobbleService();
       if (scrobble.hasLastfm || scrobble.hasListenBrainz) {
-        unawaited(scrobble.scrobble(
-          artist: completedTrack.artists ?? '',
-          track: completedTrack.name,
-          timestamp: DateTime.now().millisecondsSinceEpoch ~/ 1000,
-          album: completedTrack.albumName,
-          duration: state.duration.inMilliseconds ~/ 1000,
-        ));
+        unawaited(
+          scrobble.scrobble(
+            artist: completedTrack.artists ?? '',
+            track: completedTrack.name,
+            timestamp: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+            album: completedTrack.albumName,
+            duration: state.duration.inMilliseconds ~/ 1000,
+          ),
+        );
       }
     }
 
@@ -1163,7 +1241,13 @@ return requested;
   /// (ej. canonical hash que comparte path con un providerTrackId).
   /// Llamado desde DownloadCubit después de borrar descargas.
   /// [deleteFiles] si es true, también borra los archivos físicos del disco.
-  void removeLocalFilesProviderIds(List<String> providerIds, {bool deleteFiles = false}) {
+  void removeLocalFilesProviderIds(
+    List<String> providerIds, {
+    bool deleteFiles = false,
+  }) {
+    final wanted = providerIds.toSet();
+    if (wanted.isEmpty) return;
+
     final pathsToRemove = <String>{};
     for (final id in providerIds) {
       final path = _localFiles.remove(id);
@@ -1171,13 +1255,59 @@ return requested;
     }
     if (pathsToRemove.isNotEmpty) {
       _localFiles.removeWhere((_, v) => pathsToRemove.contains(v));
-      if (deleteFiles) {
-        for (final path in pathsToRemove) {
-          _deleteLocalFile(path);
+    }
+
+    if (deleteFiles) {
+      // Respaldo a disco: si el mapa en memoria aún no indexó un archivo (app
+      // recién abierta / TTL no refrescado), se resuelven los stems directamente
+      // escaneando el directorio de descargas, para que ningún audio quede
+      // huérfano en disco tras el borrado aunque la caché esté vacía.
+      for (final path in _downloadFilesMatching(wanted)) {
+        if (pathsToRemove.add(path)) {
+          _localFiles.removeWhere((_, v) => v == path);
         }
+      }
+      for (final path in pathsToRemove) {
+        _deleteLocalFile(path);
       }
     }
   }
+
+  /// Escanea una vez el directorio de descargas y devuelve las rutas de los
+  /// archivos cuyo nombre (sin extensión) coincide con alguno de [stems].
+  Set<String> _downloadFilesMatching(Set<String> stems) {
+    final out = <String>{};
+    final dirPath = _downloadPath;
+    if (dirPath == null) return out;
+    try {
+      final dir = Directory(dirPath);
+      if (!dir.existsSync()) return out;
+      for (final f in dir.listSync(followLinks: false)) {
+        if (f is! File) continue;
+        final stem = _fileStem(f.path);
+        if (stems.contains(stem)) {
+          out.add(f.path);
+          continue;
+        }
+        // Los descargas se guardan como "{id}_audio" y tras el decrypt pueden
+        // quedar "{id}_audio.dec". El borrado sólo recibe el id base, así que
+        // también matchean prefix con frontera "_" o "." (evita {id}Otro).
+        for (final w in stems) {
+          if (stem.startsWith('${w}_') || stem.startsWith('$w.')) {
+            out.add(f.path);
+            break;
+          }
+        }
+      }
+    } catch (_) {}
+    return out;
+  }
+
+  /// Nombre de archivo sin extension (stem).
+  String _fileStem(String path) => path
+      .split(Platform.pathSeparator)
+      .last
+      .replaceAll(RegExp(r'\.[^.]+$'), '');
 
   /// Borra un archivo local del disco y sus sidecars (.lrc, .jpg, .png).
   void _deleteLocalFile(String path) {
@@ -1246,19 +1376,20 @@ return requested;
       final list = jsonDecode(json.toString()) as List;
       if (list.isEmpty) return;
 
-      final similarTracks = list.map((e) {
-        final m = e as Map<String, dynamic>;
-        return FeedItem(
-          id: (m['id'] ?? '').toString(),
-          type: 'track',
-          name: (m['name'] ?? '').toString(),
-          artists: (m['artistName'] ?? '').toString(),
-          coverUrl: (m['coverUrl'] ?? '').toString(),
-          albumName: (m['albumName'] ?? '').toString(),
-          isrc: (m['isrc'] ?? '').toString(),
-          source: (m['source'] ?? 'deezer').toString(),
-        );
-      }).toList();
+      final similarTracks =
+          list.map((e) {
+            final m = e as Map<String, dynamic>;
+            return FeedItem(
+              id: (m['id'] ?? '').toString(),
+              type: 'track',
+              name: (m['name'] ?? '').toString(),
+              artists: (m['artistName'] ?? '').toString(),
+              coverUrl: (m['coverUrl'] ?? '').toString(),
+              albumName: (m['albumName'] ?? '').toString(),
+              isrc: (m['isrc'] ?? '').toString(),
+              source: (m['source'] ?? 'deezer').toString(),
+            );
+          }).toList();
 
       // Reemplazar toda la cola con tracks similares (modo radio)
       _queueCubit.replaceQueue(similarTracks);
@@ -1286,9 +1417,11 @@ return requested;
   Future<void> seekToProgress(double fraction) async {
     final dur = state.duration;
     if (dur.inMilliseconds > 0) {
-      await _player.seek(Duration(
-        milliseconds: (dur.inMilliseconds * fraction.clamp(0.0, 1.0)).round(),
-      ));
+      await _player.seek(
+        Duration(
+          milliseconds: (dur.inMilliseconds * fraction.clamp(0.0, 1.0)).round(),
+        ),
+      );
     }
   }
 
@@ -1320,8 +1453,3 @@ return requested;
     return super.close();
   }
 }
-
-
-
-
-

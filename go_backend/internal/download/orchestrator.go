@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -56,6 +57,7 @@ type Result struct {
 	ClientDecrypt   bool   `json:"clientDecrypt,omitempty"`
 	DecryptionKey   string `json:"decryptionKey,omitempty"`
 	OutputExtension string `json:"outputExtension,omitempty"`
+	InputFormat     string `json:"inputFormat,omitempty"`
 	// ErrorType classifies failures (e.g. "verification_required") so the
 	// client can react (open a Cloudflare challenge) instead of failing blindly.
 	ErrorType string `json:"errorType,omitempty"`
@@ -74,12 +76,16 @@ type Orchestrator struct {
 	mu            sync.Mutex
 	active        map[string]bool
 	fallbackOrder []string
+	// priorityOrder is the user-configurable provider preference (best-first),
+	// mirroring SpotiFLAC's SetProviderPriority. Empty means the built-in
+	// default [preferredStreamOrder]. Rebuilt into fallbackOrder on set.
+	priorityOrder []string
 	concurrency   chan struct{}
 }
 
 // maxConcurrentDownloads caps how many downloads run at once to avoid
 // overwhelming low-end devices. Overridable via SetConcurrency.
-const maxConcurrentDownloads = 3
+const maxConcurrentDownloads = 1
 
 // maxParallelCandidates bounds how many resolved providers are raced in
 // parallel for a single download. The warm resolve already surfaced the fastest
@@ -138,7 +144,7 @@ func NewOrchestrator(reg *provider.Registry) *Orchestrator {
 		tracker:       NewTracker(),
 		active:        make(map[string]bool),
 		concurrency:   make(chan struct{}, maxConcurrentDownloads),
-		fallbackOrder: buildFallbackOrder(reg),
+		fallbackOrder: buildFallbackOrder(reg, preferredStreamOrder),
 	}
 }
 
@@ -159,10 +165,10 @@ var preferredStreamOrder = []string{
 }
 
 // buildFallbackOrder derives the fallback order from the providers actually
-// registered, preferring [preferredStreamOrder] and appending any remaining
+// registered, preferring [priority] (best-first) and appending any remaining
 // streaming-capable providers. Metadata-only providers (musicbrainz, and
 // extensions without a download capability) are excluded.
-func buildFallbackOrder(reg *provider.Registry) []string {
+func buildFallbackOrder(reg *provider.Registry, priority []string) []string {
 	var order []string
 	seen := map[string]bool{}
 	// Native-only non-streamers that may still be registered.
@@ -171,7 +177,7 @@ func buildFallbackOrder(reg *provider.Registry) []string {
 		"spotify":     true,
 		"apple":       true,
 	}
-	for _, name := range preferredStreamOrder {
+	for _, name := range priority {
 		p := reg.Get(name)
 		if p == nil || neverStream[name] {
 			continue
@@ -207,10 +213,65 @@ func (o *Orchestrator) SetConcurrency(n int) {
 	o.mu.Unlock()
 }
 
+// SetDownloadProviderPriority configures the fallback order used by Download.
+// providerIDs are best-first, mirroring SpotiFLAC's SetProviderPriority: they
+// are deduplicated and invalid/non-streaming-capable names are dropped.
+//
+// Semantics:
+//   - nil/empty slice → restores the built-in default order (which appends any
+//     remaining registered providers after the preferred list).
+//   - non-empty slice → the fallback order is EXACTLY the given (sanitized)
+//     list, so providers the user disabled are truly excluded and never tried
+//     (e.g. a rate-limited or bot-blocked source the user wants to avoid).
+func (o *Orchestrator) SetDownloadProviderPriority(providerIDs []string) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if len(providerIDs) == 0 {
+		o.priorityOrder = preferredStreamOrder
+		o.fallbackOrder = buildFallbackOrder(o.providers, preferredStreamOrder)
+		log.Printf("[orchestrator] download provider priority reset to default: %v", o.fallbackOrder)
+		return
+	}
+	prio := sanitizeDownloadProviderPriority(providerIDs, o.providers)
+	o.priorityOrder = prio
+	o.fallbackOrder = prio
+	log.Printf("[orchestrator] download provider priority set (exact): %v", o.fallbackOrder)
+}
+
+// sanitizeDownloadProviderPriority drops duplicates, non-registered, and
+// non-streaming-capable providers while preserving order. Invalid entries are
+// ignored rather than deleting later names, matching SpotiFLAC's sanitizer.
+func sanitizeDownloadProviderPriority(providerIDs []string, reg *provider.Registry) []string {
+	seen := map[string]bool{}
+	neverStream := map[string]bool{
+		"musicbrainz": true,
+		"spotify":     true,
+		"apple":       true,
+	}
+	out := make([]string, 0, len(providerIDs))
+	for _, name := range providerIDs {
+		name = strings.TrimSpace(name)
+		if name == "" || seen[name] || neverStream[name] {
+			continue
+		}
+		p := reg.Get(name)
+		if p == nil {
+			continue
+		}
+		if ep, ok := p.(*provider.ExtensionProvider); ok && !ep.DownloadCapable() {
+			continue
+		}
+		seen[name] = true
+		out = append(out, name)
+	}
+	return out
+}
+
 // Download executes a single download with provider fallback.
 // It acquires a concurrency slot so bursts of batch downloads don't
 // saturate the device's CPU, network or disk.
 func (o *Orchestrator) Download(req Request) *Result {
+	log.Printf("[orchestrator] Download itemID=%q trackID=%q isrc=%q title=%q provider=%q", req.ItemID, req.TrackID, req.ISRC, req.Title, req.Provider)
 	o.mu.Lock()
 	if o.active[req.ItemID] {
 		o.mu.Unlock()
@@ -253,6 +314,12 @@ func (o *Orchestrator) Download(req Request) *Result {
 			if req.ISRC != "" || id == "" || pn == "" {
 				return
 			}
+			// spotify-web can only resolve native Spotify IDs; feeding it a
+			// deezer/tidal numeric id wastes an API call and returns an empty
+			// track.
+			if pn == "spotify-web" && !IsSpotifyTrackID(id) {
+				return
+			}
 			if sp := o.providers.Get(pn); sp != nil {
 				if t, err := sp.GetTrack(stripTrackPrefix(id)); err == nil && t != nil && t.ISRC != "" {
 					req.ISRC = t.ISRC
@@ -268,6 +335,37 @@ func (o *Orchestrator) Download(req Request) *Result {
 		enrich("spotify-web", req.SpotifyID)
 		enrich(req.Provider, req.SpotifyID)
 		enrich("spotify-web", req.TrackID)
+
+		// Last resort: extensions that don't expose getTrack (e.g. ytmusic-spotiflac)
+		// may still have enrichTrack() which resolves ISRC + cross-provider IDs
+		// via Odesli/SongLink using the YouTube Music URL.
+		if req.ISRC == "" {
+			if sp := o.providers.Get(req.Provider); sp != nil {
+				if ep, ok := sp.(*provider.ExtensionProvider); ok {
+					enriched := ep.EnrichTrack(map[string]interface{}{
+						"id":   req.TrackID,
+						"name": req.Title,
+					})
+					if enriched != nil {
+						if enriched.ISRC != "" {
+							req.ISRC = enriched.ISRC
+						}
+						if enriched.DeezerID != "" && req.DeezerID == "" {
+							req.DeezerID = enriched.DeezerID
+						}
+						if enriched.TidalID != "" && req.TidalID == "" {
+							req.TidalID = enriched.TidalID
+						}
+						if enriched.QobuzID != "" && req.QobuzID == "" {
+							req.QobuzID = enriched.QobuzID
+						}
+						if enriched.SpotifyID != "" && req.SpotifyID == "" {
+							req.SpotifyID = enriched.SpotifyID
+						}
+					}
+				}
+			}
+		}
 	}
 
 	var lastErr string
@@ -281,7 +379,13 @@ func (o *Orchestrator) Download(req Request) *Result {
 	// to be repeated for the others.
 	lookKey := req.ISRC
 	if lookKey == "" {
-		lookKey = strings.Join([]string{req.SpotifyID, req.DeezerID, req.TidalID, req.QobuzID}, "|")
+		var nonEmpty []string
+		for _, id := range []string{req.SpotifyID, req.DeezerID, req.TidalID, req.QobuzID} {
+			if id != "" {
+				nonEmpty = append(nonEmpty, id)
+			}
+		}
+		lookKey = strings.Join(nonEmpty, "|")
 	}
 	if lookKey == "" && req.Title != "" {
 		lookKey = strings.ToLower(req.Title + "|" + req.Artist)
@@ -523,6 +627,16 @@ func (o *Orchestrator) Download(req Request) *Result {
 				if strings.Contains(res.Error, "encriptado") {
 					encryptedSeen = true
 				}
+				// Storage write failures (no space, permission denied, read-only fs)
+				// mean the file cannot be written regardless of the provider — stop
+				// the fallback loop immediately instead of wasting the remaining
+				// budget on providers that will all fail the same way.
+				if isOutputStorageWriteFailure(res.Error) {
+					if graceTimer != nil {
+						graceTimer.Stop()
+					}
+					return res
+				}
 				if !isLastResortProvider(res.Provider) {
 					exactInFlight--
 					if exactInFlight == 0 && lastResort != nil {
@@ -553,12 +667,16 @@ func (o *Orchestrator) Download(req Request) *Result {
 	if encryptedSeen {
 		lastErr = "solo stream encriptado no reproducible en todos los providers"
 	}
+	errType := classifyVerificationError(lastErr)
+	if errType == "" && isOutputStorageWriteFailure(lastErr) {
+		errType = "storage_write_failure"
+	}
 	return &Result{
 		ItemID:    req.ItemID,
 		Success:   false,
 		Provider:  verificationService,
 		Error:     lastErr,
-		ErrorType: classifyVerificationError(lastErr),
+		ErrorType: errType,
 		Service:   verificationService,
 	}
 }
@@ -595,6 +713,11 @@ func (o *Orchestrator) attemptDownload(req Request, name string, p provider.Prov
 				o.tracker.SetError(req.ItemID, "verification required")
 				return &Result{ItemID: req.ItemID, Success: false, Error: "Download failed: " + result.Error, ErrorType: vt, Service: name}
 			}
+			// Storage write failures cannot be solved by trying another provider —
+			// propagate the error so the fallback loop stops immediately.
+			if isOutputStorageWriteFailure(result.Error) {
+				return &Result{ItemID: req.ItemID, Success: false, Error: result.Error, ErrorType: "storage_write_failure", Service: name}
+			}
 			return &Result{ItemID: req.ItemID, Success: false, Error: result.Error}
 		}
 		if result.FilePath == "" {
@@ -615,7 +738,18 @@ func (o *Orchestrator) attemptDownload(req Request, name string, p provider.Prov
 		// (real, high-quality audio). Only when no key/ffmpeg is available do we
 		// treat it as a failure and let another provider try.
 		if result.Encrypted && result.DecryptionKey != "" {
-			if dec, derr := decryptStream(result.FilePath, result.DecryptionKey, outDir, result.OutputExtension); derr == nil && dec != "" {
+			// Trust the file over the flag: a provider may mark a download as
+			// encrypted yet actually serve a plain, playable container (zarz
+			// returning a plain FLAC with a stale key). In that case serve it
+			// directly instead of forcing a doomed mov-key decrypt.
+			if isPlainAudioFile(result.FilePath) {
+				result.FilePath = o.applyQuality(req.ItemID, result.FilePath, outDir, req.Quality)
+				result.FilePath = finalizeDownloadFile(outDir, req.ItemID, result.FilePath)
+				cooldown.MarkOpOk(name, downloadCooldownOp)
+				o.tracker.SetOutputPath(req.ItemID, result.FilePath)
+				return &Result{ItemID: req.ItemID, Success: true, Provider: name, FilePath: result.FilePath, Encrypted: false}
+			}
+			if dec, derr := decryptStream(result.FilePath, result.DecryptionKey, outDir, result.OutputExtension, result.InputFormat); derr == nil && dec != "" {
 				_ = os.Remove(result.FilePath)
 				dec = o.applyQuality(req.ItemID, dec, outDir, req.Quality)
 				dec = finalizeDownloadFile(outDir, req.ItemID, dec)
@@ -625,9 +759,14 @@ func (o *Orchestrator) attemptDownload(req Request, name string, p provider.Prov
 			} else if FFmpegPath() == "" && result.FilePath != "" {
 				// No CLI ffmpeg (e.g. Android). Keep the encrypted file on disk
 				// and hand it to the client so it can decrypt via ffmpeg-kit.
-				o.tracker.SetEncryptedOutput(req.ItemID, result.FilePath, result.DecryptionKey, result.OutputExtension)
+				// Give it a stable {item_id}{ext} name (the extension may have
+				// left a ".tmp.<provider>" basename) so the persisted DB path
+				// stays meaningful and reusable on later plays.
+				result.FilePath = finalizeDownloadFile(outDir, req.ItemID, result.FilePath)
+				o.tracker.SetEncryptedOutput(req.ItemID, result.FilePath, result.DecryptionKey, result.OutputExtension, result.InputFormat)
+				log.Printf("[orchestrator] encrypted itemID=%q path=%q key=%q ext=%q inFmt=%q provider=%q", req.ItemID, result.FilePath, result.DecryptionKey, result.OutputExtension, result.InputFormat, name)
 				cooldown.MarkOpOk(name, downloadCooldownOp)
-				return &Result{ItemID: req.ItemID, Success: true, Provider: name, FilePath: result.FilePath, Encrypted: true, ClientDecrypt: true, DecryptionKey: result.DecryptionKey, OutputExtension: result.OutputExtension}
+				return &Result{ItemID: req.ItemID, Success: true, Provider: name, FilePath: result.FilePath, Encrypted: true, ClientDecrypt: true, DecryptionKey: result.DecryptionKey, OutputExtension: result.OutputExtension, InputFormat: result.InputFormat}
 			}
 			// Fall through to rejection (ffmpeg present but decrypt failed).
 		}
@@ -768,7 +907,8 @@ func effectiveQuality(q string) string {
 // recognizes. Extensions declare qualityOptions in their manifest; when the
 // requested quality isn't one of them (a source provider's token that doesn't
 // map to this provider), it uses the extension's own highest quality — mirroring
-// the reference middleware's per-provider quality selection.
+// the reference middleware's per-provider quality selection. When the requested
+// quality is unavailable, the best available quality is used (quality fallback).
 func qualityForProvider(p provider.Provider, requested string) string {
 	if ep, ok := p.(*provider.ExtensionProvider); ok {
 		opts := ep.QualityOptions()
@@ -780,6 +920,10 @@ func qualityForProvider(p provider.Provider, requested string) string {
 						return o // canonical id the extension recognizes
 					}
 				}
+				// Requested quality not available: fall back to the extension's
+				// best quality (opts[0]) so the download never fails due to a
+				// quality mismatch — matching SpotiFLAC's quality fallback.
+				log.Printf("[orchestrator] quality fallback: requested=%q not in %v for provider=%s, using best=%q", req, opts, ep.Name(), opts[0])
 			}
 			return opts[0] // fall back to the extension's best quality
 		}
@@ -800,13 +944,54 @@ func classifyVerificationError(errMsg string) string {
 		"verification_required", "verify_required", "verification required",
 		"needs verification", "needs_verification", "challenge", "cloudflare",
 		"captcha", "signed session", "session not verified", "session expired",
-		"zarz", "not verified",
+		"session is not authenticated", "unauthorized", "precondition required",
+		"http 401", "http 428", "http status 401", "http status 428",
+		"status 401", "status 428", "zarz", "not verified",
 	} {
 		if strings.Contains(e, marker) {
 			return "verification_required"
 		}
 	}
 	return ""
+}
+
+// isOutputStorageWriteFailure reports whether an error indicates the output
+// directory is unwritable (no space left, permission denied, read-only fs).
+// When this is the case there is no point trying more providers — the file
+// cannot be written regardless of the source — so the fallback loop should
+// stop immediately instead of burning the remaining budget.
+func isOutputStorageWriteFailure(errMsg string) bool {
+	e := strings.ToLower(errMsg)
+	for _, marker := range []string{
+		"no space left on device", "disk full", "enospc",
+		"permission denied", "eacces", "read-only file system", "erofs",
+		"unable to create", "cannot create", "mkdir",
+		"input/output error", "eio",
+	} {
+		if strings.Contains(e, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+// isRateLimitError reports whether an error is a rate-limit / quota / bot
+// detection that should pause fallback for this provider (via cooldown)
+// instead of immediately trying the next source. Helps avoid burning the
+// budget on a provider that will keep 429ing.
+func isRateLimitError(errMsg string) bool {
+	e := strings.ToLower(errMsg)
+	for _, marker := range []string{
+		"429", "rate limit", "rate_limit", "ratelimit",
+		"too many requests", "quota exceeded", "throttl",
+		"bot detection", "bot_detection", "captcha",
+		"blocked", "forbidden",
+	} {
+		if strings.Contains(e, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 // resolveProviderTrackID maps a track request to a provider-specific track id
@@ -978,6 +1163,18 @@ func stripTrackPrefix(id string) string {
 	return id
 }
 
+// spotifyTrackIDRe matches Spotify's canonical 22-char base62 track IDs.
+var spotifyTrackIDRe = regexp.MustCompile(`^[0-9A-Za-z]{22}$`)
+
+// IsSpotifyTrackID reports whether [id] (optionally with a provider prefix
+// like "spotify:" or "deezer:") is a well-formed Spotify track ID. Used to
+// skip wasted spotify-web getTrack calls when a cross-provider id belongs to
+// another service (a deezer/tidal numeric id always throws "Invalid Spotify
+// ID character" inside the extension and returns an empty track).
+func IsSpotifyTrackID(id string) bool {
+	return spotifyTrackIDRe.MatchString(stripTrackPrefix(strings.TrimSpace(id)))
+}
+
 var invalidFileChars = regexp.MustCompile(`[<>:"/\\|?*\x00-\x1F]`)
 
 func sanitizeFilename(s string) string {
@@ -1007,6 +1204,7 @@ func finalizeDownloadFile(outDir, itemID, filePath string) string {
 		return filePath
 	}
 	clean := filepath.Join(outDir, sanitizeFilename(itemID)+ext)
+	log.Printf("[finalize] itemID=%q src=%q -> %q", itemID, filePath, clean)
 	if clean == filePath {
 		return filePath
 	}
@@ -1165,14 +1363,73 @@ func detectExt(urlStr string) string {
 }
 
 // downloadToFile streams [url] to disk under [outDir] using a temp file +
-// atomic rename, reporting progress via [onProgress].
+// atomic rename, reporting progress via [onProgress]. Supports HTTP Range
+// resume: if a partial download exists for the same URL, it sends a Range
+// header to resume from where it left off instead of restarting from zero.
 func downloadToFile(url, outDir string, req Request, title, artist string, onProgress func(done, total int64)) (string, error) {
 	if err := os.MkdirAll(outDir, 0755); err != nil {
 		return "", err
 	}
 
+	ext := detectExt(url)
+	base := req.TrackID
+	if base == "" {
+		base = req.ItemID
+	}
+	dest := filepath.Join(outDir, sanitizeFilename(base)+ext)
+
+	// Look for a partial download file to resume from. The temp file pattern
+	// is "dl-*{ext}" in the output directory. We scan for existing partials
+	// that match the destination base name so concurrent companion downloads
+	// for different tracks don't interfere.
+	var partialPath string
+	var existingSize int64
+	if entries, err := os.ReadDir(outDir); err == nil {
+		for _, e := range entries {
+			if e.IsDir() {
+				continue
+			}
+			name := e.Name()
+			// Match dl-*{ext} temp files (our own partials from previous attempts)
+			if strings.HasPrefix(name, "dl-") && strings.HasSuffix(name, ext) {
+				info, err := e.Info()
+				if err == nil && info.Size() > 0 {
+					partialPath = filepath.Join(outDir, name)
+					existingSize = info.Size()
+					break
+				}
+			}
+		}
+	}
+
 	client := &http.Client{Timeout: 0}
-	resp, err := client.Get(url)
+	var resp *http.Response
+	var err error
+
+	if partialPath != "" && existingSize > 0 {
+		// Attempt resume with Range header.
+		reqHTTP, _ := http.NewRequest("GET", url, nil)
+		reqHTTP.Header.Set("Range", fmt.Sprintf("bytes=%d-", existingSize))
+		resp, err = client.Do(reqHTTP)
+		if err == nil && resp.StatusCode == http.StatusPartialContent {
+			// Server supports Range: append to the existing partial file.
+			log.Printf("[download] resuming from byte %d for %s", existingSize, base)
+			return appendToFile(partialPath, resp, existingSize, onProgress)
+		}
+		// Server doesn't support Range or returned an error — fall through to
+		// a full download, discarding the partial.
+		if resp != nil {
+			resp.Body.Close()
+		}
+		log.Printf("[download] resume not supported (status=%d), restarting from zero for %s",
+			func() int { if resp != nil { return resp.StatusCode }; return 0 }(), base)
+		_ = os.Remove(partialPath)
+		partialPath = ""
+		existingSize = 0
+	}
+
+	// Full download from zero.
+	resp, err = client.Get(url)
 	if err != nil {
 		return "", err
 	}
@@ -1180,14 +1437,6 @@ func downloadToFile(url, outDir string, req Request, title, artist string, onPro
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("HTTP %d al obtener stream", resp.StatusCode)
 	}
-
-	ext := detectExt(url)
-	// Prefer a file named {trackID}{ext} so the Flutter player can find it.
-	base := req.TrackID
-	if base == "" {
-		base = req.ItemID
-	}
-	dest := filepath.Join(outDir, sanitizeFilename(base)+ext)
 
 	tmp, err := os.CreateTemp(outDir, "dl-*"+ext)
 	if err != nil {
@@ -1242,6 +1491,74 @@ func downloadToFile(url, outDir string, req Request, title, artist string, onPro
 
 	_ = title
 	_ = artist
+	return dest, nil
+}
+
+// appendToFile resumes writing to an existing partial file [path] from a
+// 206 Partial Content response. The HTTP response body is appended after
+// [existingSize] bytes, progress is reported via [onProgress], and the
+// destination file is atomically renamed when complete.
+func appendToFile(path string, resp *http.Response, existingSize int64, onProgress func(done, total int64)) (string, error) {
+	defer resp.Body.Close()
+
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		// Can't append — fall through to full download on next attempt.
+		return "", err
+	}
+
+	var done int64
+	buf := make([]byte, 64*1024)
+	for {
+		n, rerr := resp.Body.Read(buf)
+		if n > 0 {
+			if _, werr := f.Write(buf[:n]); werr != nil {
+				f.Close()
+				return "", werr
+			}
+			done += int64(n)
+			// Content-Length in a 206 response is the size of THIS range,
+			// not the total file. Total = existingSize + Content-Length.
+			total := existingSize + resp.ContentLength
+			onProgress(existingSize+done, total)
+		}
+		if rerr == io.EOF {
+			break
+		}
+		if rerr != nil {
+			f.Close()
+			return "", rerr
+		}
+	}
+	f.Close()
+
+	// Atomic rename: the partial "dl-*" file becomes the final destination.
+	// Extract the base name from the partial filename to build the dest path.
+	dir := filepath.Dir(path)
+	// The dest path is the same as what downloadToFile would produce — use
+	// the parent directory + the partial's base name minus "dl-" prefix.
+	base := strings.TrimPrefix(filepath.Base(path), "dl-")
+	// base starts with "-" (e.g. "-abc123.flac"), strip the leading dash.
+	base = strings.TrimPrefix(base, "-")
+	dest := filepath.Join(dir, base)
+	if err := os.Rename(path, dest); err != nil {
+		// Cross-device rename fallback.
+		if in, inErr := os.Open(path); inErr == nil {
+			out, outErr := os.Create(dest)
+			if outErr == nil {
+				_, _ = io.Copy(out, in)
+				out.Close()
+				in.Close()
+				os.Remove(path)
+			} else {
+				in.Close()
+				return "", outErr
+			}
+		} else {
+			return "", inErr
+		}
+	}
+
 	return dest, nil
 }
 

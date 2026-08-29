@@ -35,7 +35,8 @@ class LikeCubit extends Cubit<LikeState> with LikeActions {
           final m = e as Map<String, dynamic>;
           final id = (m['trackId'] ?? m['track_id'] ?? '').toString();
           items[id] = LikedItemData(
-            id: id, type: 'track',
+            id: id,
+            type: 'track',
             name: (m['trackName'] ?? m['track_name'] ?? '') as String,
             artists: (m['artistName'] ?? m['artist_name'] ?? '') as String,
             coverUrl: (m['coverUrl'] ?? m['cover_url'] ?? '') as String,
@@ -55,7 +56,8 @@ class LikeCubit extends Cubit<LikeState> with LikeActions {
           final m = e as Map<String, dynamic>;
           final id = (m['albumId'] ?? m['album_id'] ?? '').toString();
           items[id] = LikedItemData(
-            id: id, type: 'album',
+            id: id,
+            type: 'album',
             name: (m['name'] ?? '') as String,
             artists: (m['artistName'] ?? m['artist_name'] ?? '') as String,
             coverUrl: (m['coverUrl'] ?? m['cover_url'] ?? '') as String,
@@ -72,7 +74,8 @@ class LikeCubit extends Cubit<LikeState> with LikeActions {
           final m = e as Map<String, dynamic>;
           final id = (m['artistId'] ?? m['artist_id'] ?? '').toString();
           items[id] = LikedItemData(
-            id: id, type: 'artist',
+            id: id,
+            type: 'artist',
             name: (m['name'] ?? '') as String,
             coverUrl: (m['imageUrl'] ?? m['image_url'] ?? '') as String,
             localCoverPath: cleanLocalCoverPath(m['imagePath'] as String?),
@@ -87,7 +90,8 @@ class LikeCubit extends Cubit<LikeState> with LikeActions {
           final m = e as Map<String, dynamic>;
           final id = (m['playlistId'] ?? m['playlist_id'] ?? '').toString();
           items[id] = LikedItemData(
-            id: id, type: 'playlist',
+            id: id,
+            type: 'playlist',
             name: (m['name'] ?? '') as String,
             coverUrl: (m['coverUrl'] ?? m['cover_url'] ?? '') as String,
             localCoverPath: cleanLocalCoverPath(m['coverPath'] as String?),
@@ -98,10 +102,15 @@ class LikeCubit extends Cubit<LikeState> with LikeActions {
 
       for (final item in items.values) {
         final feedItem = FeedItem(
-          id: item.id, type: item.type, name: item.name,
-          artists: item.artists, coverUrl: item.coverUrl,
-          albumName: item.albumName, durationMs: item.durationMs,
-          isrc: item.isrc, source: item.source,
+          id: item.id,
+          type: item.type,
+          name: item.name,
+          artists: item.artists,
+          coverUrl: item.coverUrl,
+          albumName: item.albumName,
+          durationMs: item.durationMs,
+          isrc: item.isrc,
+          source: item.source,
         );
         final fp = fingerprintItem(feedItem);
         fingerprints.add(fp);
@@ -113,11 +122,13 @@ class LikeCubit extends Cubit<LikeState> with LikeActions {
         }
       }
 
-      emit(state.copyWith(
-        likedFingerprints: fingerprints,
-        allLiked: items,
-        loading: false,
-      ));
+      emit(
+        state.copyWith(
+          likedFingerprints: fingerprints,
+          allLiked: items,
+          loading: false,
+        ),
+      );
       _initialized = true;
     } catch (e) {
       emit(state.copyWith(loading: false, error: e.toString()));
@@ -143,15 +154,21 @@ class LikeCubit extends Cubit<LikeState> with LikeActions {
 
   String? localCoverFor(FeedItem item) {
     final fp = fingerprintItem(item);
-    final matched = state.allLiked.values.where((v) {
-      final feedItem = FeedItem(
-        id: v.id, type: v.type, name: v.name,
-        artists: v.artists, coverUrl: v.coverUrl,
-        albumName: v.albumName, durationMs: v.durationMs,
-        isrc: v.isrc, source: v.source,
-      );
-      return fingerprintItem(feedItem) == fp;
-    }).firstOrNull;
+    final matched =
+        state.allLiked.values.where((v) {
+          final feedItem = FeedItem(
+            id: v.id,
+            type: v.type,
+            name: v.name,
+            artists: v.artists,
+            coverUrl: v.coverUrl,
+            albumName: v.albumName,
+            durationMs: v.durationMs,
+            isrc: v.isrc,
+            source: v.source,
+          );
+          return fingerprintItem(feedItem) == fp;
+        }).firstOrNull;
     return cleanLocalCoverPath(matched?.localCoverPath);
   }
 
@@ -159,7 +176,8 @@ class LikeCubit extends Cubit<LikeState> with LikeActions {
   /// local cover path (if liked) → network coverUrl (original).
   /// Use this everywhere instead of raw [FeedItem.coverUrl] to
   /// ensure liked items show their locally cached covers.
-  String? resolveCoverFor(FeedItem item) => localCoverFor(item) ?? item.coverUrl;
+  String? resolveCoverFor(FeedItem item) =>
+      localCoverFor(item) ?? item.coverUrl;
 
   List<LikedItemData> get tracks =>
       state.allLiked.values.where((i) => i.type == 'track').toList();
@@ -174,7 +192,3 @@ class LikeCubit extends Cubit<LikeState> with LikeActions {
   int get albumsCount => albums.length;
   int get artistsCount => artists.length;
 }
-
-
-
-

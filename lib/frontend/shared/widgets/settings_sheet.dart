@@ -17,6 +17,7 @@ import 'settings_download_section.dart';
 import 'settings_cache_section.dart';
 import 'settings_provider_section.dart';
 import 'settings_performance_section.dart';
+import 'settings_download_priority_section.dart';
 
 class SettingsSheet extends StatefulWidget {
   final String username;
@@ -137,6 +138,8 @@ class _SettingsSheetState extends State<SettingsSheet> {
             SettingsDownloadSection(onBg: onBg, glowColor: glowColor),
             SizedBox(height: r.spacingM),
             SettingsPerformanceSection(onBg: onBg, glowColor: glowColor),
+            SizedBox(height: r.spacingM),
+            SettingsDownloadPrioritySection(onBg: onBg, glowColor: glowColor),
             SizedBox(height: r.spacingM),
             SettingsProviderSection(onBg: onBg, glowColor: glowColor),
             SizedBox(height: r.spacingM),

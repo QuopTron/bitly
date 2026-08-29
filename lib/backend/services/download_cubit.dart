@@ -4,8 +4,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:crypto/crypto.dart';
-import 'package:ffmpeg_kit_flutter_new_full/ffmpeg_kit.dart';
-import 'package:ffmpeg_kit_flutter_new_full/return_code.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:logger/logger.dart';
 import '../rpc/backend_service.dart';
@@ -15,7 +13,9 @@ import '../../frontend/shared/utils/download_strategy.dart';
 import '../../injection.dart';
 import '../cache/settings_cache.dart';
 import '../cache/download_cache.dart';
+import '../cache/detail_cache.dart';
 import 'item_fingerprint.dart';
+import 'stream_decrypt.dart';
 import 'verification_service.dart';
 import '../cache/download_state.dart';
 import '../cache/library_cache.dart';
@@ -33,6 +33,18 @@ class _BatchData {
   const _BatchData(this.tracks, this.settings, this.source, [this.qualityOverride]);
 }
 
+/// A single track waiting in the sequential download queue.
+class _QueuedTrack {
+  final Map<String, dynamic> trackMap;
+  final String trackId;
+  final String source;
+  final DownloadSettings settings;
+  final String? qualityOverride;
+  final String? batchKey;
+  const _QueuedTrack(this.trackMap, this.trackId, this.source, this.settings,
+      [this.qualityOverride, this.batchKey]);
+}
+
 /// Persistent metadata for a downloaded track (survives restart via DB).
 class _TrackInfo {
   final String trackId;
@@ -41,7 +53,10 @@ class _TrackInfo {
   final String? coverUrl;
   final String? coverPath;
   final String source;
-  const _TrackInfo(this.trackId, this.name, this.artist, this.coverUrl, this.source, [this.coverPath]);
+  /// ISRC when known at dispatch (survives empty provider ids — amazon/other
+  /// providers resolve real ASINs by ISRC even when the feed track has no id).
+  final String isrc;
+  const _TrackInfo(this.trackId, this.name, this.artist, this.coverUrl, this.source, [this.coverPath, this.isrc = '']);
 }
 
 class _BatchMeta {
@@ -73,6 +88,17 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
   /// Key: batchKey (e.g. "album_123_spotify"), Value: original track maps + metadata.
   /// Persists after batch completes so retry is possible later.
   final Map<String, _BatchData> _batchData = {};
+  /// Batches already persisted as completed ({key, item_type, item_id, source})
+  /// so [_finalizeCompletedBatch] only saves/invalidates once per batch.
+  final Set<String> _batchCompletedSaved = {};
+  /// Auto-retry counter per batch. When a batch reaches allDone with stragglers,
+  /// we schedule a delayed retry up to [_maxBatchAutoRetries] times so the
+  /// album/playlist eventually flips to green without manual intervention.
+  final Map<String, int> _batchAutoRetryCount = {};
+  static const int _maxBatchAutoRetries = 2;
+  /// Track IDs that have already been retried and failed in this batch.
+  /// Prevents infinite retry loops for tracks that consistently fail.
+  final Map<String, Set<String>> _batchRetryFailed = {};
   /// Key: "track_{id}_{source}" → metadata, populated from DB and batch data.
   final Map<String, _TrackInfo> _trackMeta = {};
   /// Set of normalized track IDs that already exist in download history.
@@ -87,6 +113,27 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
   /// client-side decryption (ffmpeg-kit). Prevents reprocessing the same
   /// completed tracker entry on later polls.
   final Set<String> _clientDecryptDone = {};
+  /// Raw Go item IDs whose client-side decrypt FAILED. Without this the Go
+  /// tracker (which reports completed items forever) triggers a new ffmpeg-kit
+  /// attempt on every3s poll cycle, flooding the log with identical errors.
+  final Set<String> _clientDecryptSkipped = {};
+  /// Raw Go item IDs whose completion was already persisted (DB row, cover,
+  /// fingerprint) on an earlier poll. The Go tracker reports completed items
+  /// forever, so without this the 3s poller re-saves every finished download
+  /// (saveCover RPC + DB upsert) on every cycle — a 42-track album means ~42
+  /// redundant RPCs every 3 seconds indefinitely.
+  final Set<String> _completedPersisted = {};
+  /// Raw Go item IDs whose download was user-deleted. Prevents the 3s poll
+  /// from resurrecting a deleted track before the Go cancel RPC takes effect.
+  final Set<String> _pendingDeletes = {};
+  /// Raw Go item IDs where a provider-race was already resolved (alternative
+  /// playable file found). Without this, every 3s poll re-checks the same
+  /// completed+encrypted tracker entries and floods the log.
+  final Set<String> _raceResolved = {};
+
+  /// Tracks that are being re-dispatched after a failed verification.
+  /// Prevents infinite re-dispatch loops.
+  final Set<String> _redownloadQueue = {};
 
   /// Non-null when a decrypt-failure snackbar is pending (shown once, cleared
   /// by [acknowledgeDecryptError]).
@@ -99,6 +146,26 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
   /// True once the startup repair of broken (encrypted) downloads has been run,
   /// so the scan only executes once per app session.
   bool _repairAttempted = false;
+
+  /// Decrypt failure counts per raw Go item id. A failed decrypt is retried on
+  /// subsequent polls up to [_maxDecryptRetries] times before being marked
+  /// skipped (transient ffmpeg-kit failures are common on emulators).
+  final Map<String, int> _decryptFailCounts = {};
+  static const int _maxDecryptRetries = 3;
+
+  /// Poll cycles where Go reports `failed` + queue active + no file found.
+  /// After [_maxFailedNoFilePolls] cycles (~15s at 3s intervals), the queue
+  /// gives up and moves to the next track instead of looping forever.
+  final Map<String, int> _failedNoFileCount = {};
+  static const int _maxFailedNoFilePolls = 5;
+
+  // ── Sequential download queue with batch awareness ──────────
+  /// Global queue of batches. Batches are processed in FIFO order.
+  /// Within each batch, tracks are sequential (1 at a time).
+  final List<_QueuedTrack> _downloadQueue = [];
+  bool _isProcessingQueue = false;
+  Completer<void>? _currentTrackDone;
+  String? _currentQueueTrackId;
 
   /// Maps extension IDs to user-friendly display names.
   static const Map<String, String> _providerDisplayNames = {
@@ -189,7 +256,51 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
           final normalizedId = normalizeTrackId(rawId);
           _downloadedTrackIds.add(normalizedId);
           final key = 'track_${normalizedId}_$src';
-          completedItems[key] = const DownloadStateData(state: DownloadState.completed, progress: 1.0);
+          // Verify file exists AND is playable audio before marking as completed.
+          // An encrypted Amazon FLAC file exists on disk but is NOT playable —
+          // marking it completed would show a false green dot.
+          final filePath = (m['file_path'] ?? '').toString();
+          if (filePath.isNotEmpty) {
+            final file = File(filePath);
+            final fileExists = await file.exists().catchError((_) => false);
+            if (!fileExists) {
+              // File path from DB doesn't exist — try to find an alternative.
+              // During decrypt, files may be renamed (e.g. .flac → .dec.flac)
+              // or a racing provider may have saved a different extension.
+              final altPath = await _findAlternativePlayableFile(key, filePath);
+              if (altPath != null) {
+                _log.i('[loadHistory] file missing at $filePath but found alternative: $altPath for $key');
+                completedItems[key] = const DownloadStateData(state: DownloadState.completed, progress: 1.0);
+                // Update the DB path to point to the actual file on disk.
+                try {
+                  await _downloadCache.updateFilePath(normalizedId, altPath);
+                } catch (_) {}
+              } else {
+                completedItems[key] = const DownloadStateData(state: DownloadState.interrupted, progress: 0.0);
+                _downloadedTrackIds.remove(normalizedId);
+                _log.w('[loadHistory] file missing on disk: $filePath for $key — removed from downloadedIds so re-download is possible');
+              }
+            } else if (!await _isDecodableAudioFile(file)) {
+              // File exists but is not playable (encrypted DRM stream, corrupt, etc.)
+              // Check for an alternative playable file before giving up.
+              final altPath = await _findAlternativePlayableFile(key, filePath);
+              if (altPath != null) {
+                _log.i('[loadHistory] file not playable at $filePath but found alternative: $altPath for $key');
+                completedItems[key] = const DownloadStateData(state: DownloadState.completed, progress: 1.0);
+                try {
+                  await _downloadCache.updateFilePath(normalizedId, altPath);
+                } catch (_) {}
+              } else {
+                completedItems[key] = const DownloadStateData(state: DownloadState.interrupted, progress: 0.0);
+                _downloadedTrackIds.remove(normalizedId);
+                _log.w('[loadHistory] file not playable: $filePath for $key — removed from downloadedIds so re-download is possible');
+              }
+            } else {
+              completedItems[key] = const DownloadStateData(state: DownloadState.completed, progress: 1.0);
+            }
+          } else {
+            completedItems[key] = const DownloadStateData(state: DownloadState.completed, progress: 1.0);
+          }
           changed = true;
           final coverUrl = (m['cover_url'] ?? m['coverUrl'] ?? '') as String;
           final coverPath = (m['cover_path'] ?? m['coverPath'] ?? '') as String;
@@ -289,44 +400,148 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
     }
   }
 
+  /// Looks for a non-encrypted playable file (m4a, mp3) on disk for the
+  /// same track when the encrypted FLAC decrypt failed. Uses the encrypted
+  /// file's parent directory to scan for alternative playable files.
+  Future<String?> _findAlternativePlayableFile(String stateKey, [String encryptedPath = '']) async {
+    // stateKey: track_{normalizedId}_{source}
+    final parts = stateKey.split('_');
+    if (parts.length < 3) return null;
+    final normId = parts.sublist(1, parts.length - 1).join('_');
+    // Determine directory: use the encrypted file's parent, or fall back to
+    // the configured download directory.
+    String dirPath;
+    if (encryptedPath.isNotEmpty) {
+      dirPath = encryptedPath.substring(0, encryptedPath.lastIndexOf(Platform.pathSeparator));
+    } else {
+      // Fall back to the configured download directory
+      try {
+        final downloadDir = await sl<SettingsCache>().getDownloadPath();
+        if (downloadDir == null || downloadDir.isEmpty) return null;
+        dirPath = downloadDir;
+      } catch (_) {
+        return null;
+      }
+    }
+    try {
+      final dir = Directory(dirPath);
+      if (!dir.existsSync()) {
+        _log.w('[findAlt] dir does not exist: $dirPath for $stateKey');
+        return null;
+      }
+      for (final f in dir.listSync(followLinks: false)) {
+        if (f is! File) continue;
+        final filename = f.path.split(Platform.pathSeparator).last;
+        if (!filename.toLowerCase().startsWith('${normId.toLowerCase()}_audio.')) continue;
+        // Skip encrypted / tmp / non-playable files
+        if (filename.contains('.tmp.') || filename.contains('.enc.')) continue;
+        final ext = filename.substring(filename.lastIndexOf('.'));
+        // Accept m4a, mp3, mp4, ogg, wav, opus as playable
+        if ({'.m4a', '.mp3', '.mp4', '.ogg', '.wav', '.opus'}.contains(ext)) {
+          if (f.existsSync() && f.lengthSync() > 1024) {
+            // For .mp3 files, validate magic bytes to avoid returning
+            // broken MPEG-TS files as "playable" alternatives.
+            if (ext == '.mp3') {
+              try {
+                final raf = f.openSync(mode: FileMode.read);
+                try {
+                  final head = raf.readSync(4);
+                  if (head.length < 4) continue;
+                  final isID3 = head[0] == 0x49 && head[1] == 0x44 && head[2] == 0x33;
+                  final isMPEG = head[0] == 0xFF && (head[1] & 0xE0) == 0xE0;
+                  final isTS = head[0] == 0x47;
+                  if (!isID3 && !isMPEG && !isTS) continue;
+                } finally {
+                  raf.closeSync();
+                }
+              } catch (_) {
+                continue;
+              }
+            }
+            return f.path;
+          }
+        }
+        // Accept .flac (decrypted) and .dec.flac (ffmpeg-kit renamed)
+        if ((ext == '.flac' || ext == '.dec.flac') && f.existsSync() && f.lengthSync() > 1024) {
+          try {
+            final raf = f.openSync(mode: FileMode.read);
+            try {
+              final head = raf.readSync(4);
+              if (head.length >= 4 &&
+                  head[0] == 0x66 && head[1] == 0x4C &&
+                  head[2] == 0x61 && head[3] == 0x43) {
+                return f.path;
+              }
+            } finally {
+              raf.closeSync();
+            }
+          } catch (_) {}
+        }
+      }
+    } catch (e) {
+      _log.w('[findAlt] error scanning dir $dirPath for $stateKey: $e');
+    }
+    _log.w('[findAlt] no playable file found for $stateKey in $dirPath (normId=$normId)');
+    return null;
+  }
+
   /// Decrypts an encrypted/DRM downloaded file (e.g. amazon FLAC with a
   /// mov_key) via ffmpeg-kit when the Go backend had no CLI ffmpeg to do it
   /// (Android). Writes the playable file next to the encrypted one, deletes
   /// the encrypted original on success and returns the decrypted path (or
   /// null on failure). Mirrors the streaming path in [PlayerCubit].
-  Future<String?> _decryptDownloadedFile(String srcPath, String key, String ext) async {
+  Future<String?> _decryptDownloadedFile(String srcPath, String key, String ext, [String inputFormat = '']) async {
     final srcFile = File(srcPath);
     if (!await srcFile.exists()) return null;
-    var outExt = ext.trim();
-    if (outExt.isEmpty) outExt = '.flac';
-    if (!outExt.startsWith('.')) outExt = '.$outExt';
-    final dir = srcFile.parent.path;
-    final base = srcFile.uri.pathSegments.last;
-    final baseName = base.replaceFirst(RegExp(r'\.[^.]+$'), '');
-    final outPath = '$dir${Platform.pathSeparator}$baseName.dec$outExt';
-    final args = '-decryption_key $key -y -i ${_q(srcPath)} -c copy ${_q(outPath)}';
-    try {
-      final session = await FFmpegKit.execute(args);
-      if (ReturnCode.isSuccess(await session.getReturnCode()) && await File(outPath).exists()) {
-        try {
-          await srcFile.delete();
-        } catch (_) {}
-        return outPath;
-      }
-      // ignore: avoid_print
-      _log.e('[DownloadCubit] ffmpeg-kit decrypt failed: ${await session.getAllLogsAsString()}');
-    } catch (e) {
-      // ignore: avoid_print
-      _log.e('[DownloadCubit] ffmpeg-kit decrypt error: $e');
+
+    // Trust the file over the provider flag: the stream may be marked as
+    // encrypted while actually being a plain, playable container (zarz serving
+    // a plain FLAC with a stale key). Decrypting it as mov_key would always
+    // fail with "moov atom not found".
+    if (await _isPlainAudioFile(srcFile)) {
+      _log.i('[DownloadCubit] marcado como encriptado pero es audio plano, se usa directo: $srcPath');
+      return srcPath;
     }
-    try {
-      if (await File(outPath).exists()) await File(outPath).delete();
-    } catch (_) {}
+
+    // Pass the original extension to decryptMovKeyFile so its full fallback
+    // chain is available: .flac → .mp4 → .m4a → re-encode → nuclear. Remapping
+    // .flac to .m4a here would skip the re-encode and nuclear fallbacks that
+    // are gated on `preferredExt == '.flac'`, leaving us without a recovery
+    // path when -c copy fails on FLAC-in-MP4 containers.
+    _log.i('[DownloadCubit] decrypt src=$srcPath key=$key ext=$ext inputFormat=$inputFormat');
+    final result = await decryptMovKeyFile(
+      srcPath: srcPath,
+      key: key,
+      outputExtension: ext,
+      inputFormat: inputFormat.isNotEmpty ? inputFormat : null,
+    );
+
+    if (result.success && result.filePath != null) {
+      try {
+        await srcFile.delete();
+      } catch (_) {}
+      return result.filePath;
+    }
+    _log.e('[DownloadCubit] ffmpeg-kit decrypt failed: ${result.output}');
     return null;
   }
 
-  /// Quotes a path for the ffmpeg-kit command line.
-  String _q(String p) => "'${p.replaceAll("'", "\\'")}'";
+  /// True when [f] starts with a plain audio container magic (FLAC/MP3/Ogg/WAV)
+  /// instead of an MP4 box — i.e. it was never really an encrypted stream.
+  Future<bool> _isPlainAudioFile(File f) async {
+    try {
+      final raf = await f.open();
+      try {
+        final head = await raf.read(4);
+        final magic = String.fromCharCodes(head);
+        return magic == 'fLaC' || magic == 'ID3' || magic == 'OggS' || magic == 'RIFF';
+      } finally {
+        await raf.close();
+      }
+    } catch (_) {
+      return false;
+    }
+  }
 
   /// One-time startup scan that detects downloaded files that are NOT playable
   /// audio (e.g. the encrypted amazon streams that were saved before downloads
@@ -433,14 +648,29 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
         case 'mp3':
           if (magic[0] == 0x49 && magic[1] == 0x44 && magic[2] == 0x33) return true; // ID3
           if (magic[0] == 0xFF && (magic[1] & 0xE0) == 0xE0) return true; // MPEG frame
+          // MPEG-TS container: SoundCloud HLS streams saved as .mp3 start
+          // with the TS sync byte 0x47 instead of ID3/MPEG frame headers.
+          // MPEG-TS packets are 188 bytes; the sync byte only appears at the
+          // START of each packet, so checking magic[1]/magic[2] == 0x47 is
+          // wrong — verify at offset 188 instead.
+          if (magic[0] == 0x47) {
+            return true;
+          }
           return false;
         case 'wav':
           return magic[0] == 0x52 && magic[1] == 0x49 &&
               magic[2] == 0x46 && magic[3] == 0x46; // "RIFF"
         case 'ogg':
-        case 'opus':
           return magic[0] == 0x4F && magic[1] == 0x67 &&
               magic[2] == 0x67 && magic[3] == 0x53; // "OggS"
+        case 'opus':
+          // Opus can be in Ogg container (OggS) or WebM/Matroska (0x1A 0x45 0xDF 0xA3)
+          if (magic[0] == 0x4F && magic[1] == 0x67 &&
+              magic[2] == 0x67 && magic[3] == 0x53) return true; // OggS
+          if (magic[0] == 0x1A && magic[1] == 0x45 &&
+              magic[2] == 0xDF && magic[3] == 0xA3) return true; // WebM/Matroska
+          // Raw Opus: just accept if file is large enough (>10KB)
+          return true;
         default:
           // mp4/m4a/aac and unknown extensions are structurally valid MP4
           // containers even when encrypted, so they can't be sniffed cheaply.
@@ -477,6 +707,24 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
     _historyTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       _loadHistory().catchError((_) {});
     });
+  }
+
+  /// Re-starts history refresh with adaptive interval: 10s during active downloads.
+  void _adjustHistoryRefreshRate() {
+    final hasActive = state.downloads.values
+        .any((d) => d.state == DownloadState.inProgress);
+    final currentInterval = _historyTimer != null && _historyTimer!.isActive
+        ? const Duration(seconds: 30)
+        : Duration.zero;
+    final desiredInterval = hasActive
+        ? const Duration(seconds: 10)
+        : const Duration(seconds: 30);
+    if (currentInterval != desiredInterval) {
+      _historyTimer?.cancel();
+      _historyTimer = Timer.periodic(desiredInterval, (_) {
+        _loadHistory().catchError((_) {});
+      });
+    }
   }
 
   /// Normalizes a Go progress entry's status field into a string. The Go
@@ -527,18 +775,19 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
           if (status == 'verification_required') {
             _log.i('[_pollProgress] Detected verification_required for ${entry.key}');
 
-            // Mark all in-progress downloads as interrupted so retryAllInterrupted
-            // picks them up after verification completes
+            // Mark only the specific verification-needing track as interrupted,
+            // not ALL in-progress tracks — other tracks may still be downloading
+            // successfully and must not be disrupted.
+            final rawId = entry.key.toString();
+            final stateKey = _itemIdToStateKey[rawId] ?? rawId;
             final dl = Map<String, DownloadStateData>.from(state.downloads);
-            bool changed = false;
-            for (final k in dl.keys) {
-              if (dl[k]!.state == DownloadState.inProgress) {
-                dl[k] = const DownloadStateData(state: DownloadState.interrupted, progress: 0.0);
-                changed = true;
-              }
-            }
-            if (changed) {
+            if (dl[stateKey]?.state == DownloadState.inProgress) {
+              dl[stateKey] = const DownloadStateData(state: DownloadState.interrupted, progress: 0.0);
               emit(state.copyWith(downloads: dl));
+            }
+            // Signal the queue so it doesn't block on a verification-stuck track
+            if (!stateKey.endsWith('_lyrics') && !stateKey.endsWith('_video')) {
+              _signalTrackDone(stateKey);
             }
 
             _progressTimer?.cancel();
@@ -555,6 +804,9 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
       bool hasLiveItems = false;
 
       final dl = Map<String, DownloadStateData>.from(state.downloads);
+      // Snapshot before processing — used to detect queue modifications during
+      // decrypt awaits or other async gaps inside this poll cycle.
+      final initialPollDl = Map<String, DownloadStateData>.from(dl);
       final fps = Set<String>.from(state.downloadedFingerprints);
       bool changed = false;
 
@@ -566,6 +818,12 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
           final rawId = entry.key.toString();
           // Translate Go backend item_id to our state key
           final stateKey = _itemIdToStateKey[rawId] ?? rawId;
+          // Skip entries that the user just deleted — the Go cancel RPC may
+          // not have taken effect yet, preventing ghost resurrection.
+          if (_pendingDeletes.contains(rawId)) continue;
+          // Note: _currentQueueTrackId is NOT skipped here — the poll must
+          // still process it to signal _signalTrackDone. Instead, the
+          // 'mark interrupted' paths below check _currentQueueTrackId.
           if (entry.value is! Map) continue;
           final p = entry.value as Map<String, dynamic>;
           final status = _statusOf(p);
@@ -578,12 +836,68 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
           final clientDecrypt = (p['clientDecrypt'] ?? false) == true;
           final decKey = (p['decryptionKey'] ?? '').toString();
           final outExt = (p['outputExtension'] ?? '').toString();
+          final inputFormat = (p['inputFormat'] ?? '').toString();
           if (status == 'completed' || status == 'finalizing') {
             // Only persist to DB and save cover for the BASE (audio) completion.
             // Lyrics/video subtasks have their own completion events but their
             // stateKey is a subtask key (e.g. track_123_deezer_lyrics) where
             // _trackMeta has no entry — would produce a wrong trackId.
             final isSubTask = stateKey.endsWith('_lyrics') || stateKey.endsWith('_video');
+
+            // Ya persistido en un poll anterior (Go reporta los items
+            // completados indefinidamente): solo mantener el estado visual. El
+            // path del tracker ya es el definitivo (Go marca "completed"
+            // después del finalize), así que no hace falta re-guardar nada.
+            //
+            // Provider race fix: when SoundCloud completes first (non-encrypted)
+            // and Amazon later overwrites the file with an encrypted FLAC, the
+            // poll must re-process the item so the decrypt runs. Without this,
+            // the encrypted file sits on disk but the track stays "completed"
+            // with an unplayable file.
+            if (!isSubTask && _completedPersisted.contains(rawId)) {
+              // Fast path: provider race was already resolved on an earlier poll.
+              if (_raceResolved.contains(rawId)) continue;
+              if (encrypted && clientDecrypt && decKey.isNotEmpty &&
+                  !_clientDecryptDone.contains(rawId) &&
+                  !_clientDecryptSkipped.contains(rawId)) {
+                // Before re-processing, check if the current file on disk is
+                // still playable. If SoundCloud's .mp3 is still valid, don't
+                // let Amazon's encrypted overwrite trigger a re-decrypt that
+                // could downgrade the track to interrupted.
+                if (outputPath.isNotEmpty) {
+                  try {
+                    final curFile = File(outputPath);
+                    if (await curFile.exists() && await _isDecodableAudioFile(curFile)) {
+                      _log.i('[poll] $rawId: provider race but current file is still playable — skipping re-process');
+                      _raceResolved.add(rawId);
+                      continue;
+                    }
+                  } catch (_) {}
+                }
+                // File was overwritten by a racing provider with an encrypted
+                // version — but first check if an alternative playable file
+                // exists before triggering a (potentially failing) decrypt cycle.
+                final raceAlt = await _findAlternativePlayableFile(stateKey, outputPath);
+                if (raceAlt != null) {
+                  _log.i('[poll] $rawId: provider race but alternative file found: $raceAlt — keeping completed');
+                  _raceResolved.add(rawId);
+                  // Update the DB path so _verifyDownloadedFile in the queue
+                  // doesn't fail when it checks the (now-stale) encrypted path.
+                  try {
+                    final meta = _trackMeta[stateKey];
+                    final nid = meta != null && meta.trackId.isNotEmpty
+                        ? meta.trackId : stateKey;
+                    await _downloadCache.updateFilePath(nid, raceAlt);
+                  } catch (_) {}
+                  continue;
+                }
+                // No alternative — remove from persisted so decrypt runs below.
+                _log.i('[poll] re-processing $rawId: file overwritten with encrypted version (provider race)');
+                _completedPersisted.remove(rawId);
+              } else {
+                continue;
+              }
+            }
 
             // Encrypted/DRM download with a decryption key and no CLI ffmpeg
             // in the backend (Android): decrypt here via ffmpeg-kit — the
@@ -592,30 +906,174 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
             // encrypted stream ("Error decoding audio" on every tap).
             var playablePath = outputPath;
             if (!isSubTask && playablePath.isNotEmpty && encrypted && clientDecrypt && decKey.isNotEmpty) {
-              if (_clientDecryptDone.contains(rawId)) {
-                // Already decrypted & persisted on an earlier poll — never
-                // re-save the (now deleted) encrypted path.
-                continue;
+              if (_clientDecryptDone.contains(rawId) || _clientDecryptSkipped.contains(rawId)) {
+                // Already decrypted (or failed) on an earlier poll — never
+                // re-process the same tracker entry.
+              } else {
+                // FAST PATH: Before attempting a potentially slow decrypt,
+                // check if the file at outputPath is already playable
+                // (e.g. Apple Music .m4a while encrypted flag is from Amazon).
+                try {
+                  final probeFile = File(playablePath);
+                  if (await probeFile.exists() && await _isDecodableAudioFile(probeFile)) {
+                    _log.i('[poll] $rawId: encrypted flag set but file is already playable: $playablePath - skipping decrypt');
+                    _clientDecryptDone.add(rawId);
+                    _decryptFailCounts.remove(rawId);
+                  }
+                } catch (_) {}
+                // FAST PATH 2: If the encrypted file is NOT playable,
+                // check if another provider already saved a playable file
+                // (e.g. Apple Music .m4a, SoundCloud .mp3) BEFORE attempting
+                // the slow ffmpeg-kit decrypt. This avoids 90s×3 decrypt
+                // timeouts on emulators when a perfectly good alternative exists.
+                if (!_clientDecryptDone.contains(rawId)) {
+                  final altPath = await _findAlternativePlayableFile(stateKey, playablePath);
+                  if (altPath != null) {
+                    _log.i('[poll] $rawId: encrypted file not playable but alternative found: $altPath — skipping decrypt');
+                    playablePath = altPath;
+                    _clientDecryptDone.add(rawId);
+                    _decryptFailCounts.remove(rawId);
+                    try {
+                      final meta = _trackMeta[stateKey];
+                      final nid = meta != null && meta.trackId.isNotEmpty
+                          ? meta.trackId : stateKey;
+                      await _downloadCache.updateFilePath(nid, altPath);
+                    } catch (_) {}
+                  }
+                }
+                // SLOW PATH: Only attempt decrypt if no playable file found.
+                if (!_clientDecryptDone.contains(rawId)) {
+                  final decrypted = await _decryptDownloadedFile(playablePath, decKey, outExt, inputFormat)
+                      .timeout(const Duration(seconds: 90), onTimeout: () {
+                    _log.e('[poll] decrypt timed out after 90s for $rawId');
+                    return null;
+                  });
+                  if (decrypted == null || decrypted.isEmpty) {
+                    final attempts = (_decryptFailCounts[rawId] ?? 0) + 1;
+                    _decryptFailCounts[rawId] = attempts;
+                    _startedAt.remove(stateKey);
+                    if (attempts < _maxDecryptRetries) {
+                      _log.w('[poll] decrypt failed for $rawId (attempt $attempts/$_maxDecryptRetries), will retry next poll');
+                      dl[stateKey] = const DownloadStateData(state: DownloadState.inProgress, progress: 0.95);
+                      changed = true;
+                      continue;
+                    }
+                    // Retries exhausted — find alternative or flag interrupted.
+                    if (!isSubTask) _signalTrackDone(stateKey);
+                    _clientDecryptSkipped.add(rawId);
+                    _decryptFailCounts.remove(rawId);
+                    final altPath = await _findAlternativePlayableFile(stateKey, playablePath);
+                    if (altPath != null) {
+                      _log.i('[poll] decrypt failed for $rawId but alternative file exists: $altPath — keeping completed');
+                      playablePath = altPath;
+                      _completedPersisted.add(rawId);
+                      try {
+                        final meta = _trackMeta[stateKey];
+                        final nid = meta != null && meta.trackId.isNotEmpty
+                            ? meta.trackId : stateKey;
+                        await _downloadCache.updateFilePath(nid, altPath);
+                      } catch (_) {}
+                    } else {
+                      // Don't mark interrupted if the FIFO queue is waiting on
+                      // this track — the new download is still in progress.
+                      if (stateKey == _currentQueueTrackId) {
+                        _log.i('[poll] $rawId: decrypt failed but queue is active — keeping inProgress');
+                        dl[stateKey] = const DownloadStateData(state: DownloadState.inProgress, progress: 0.95);
+                      } else {
+                        dl[stateKey] = const DownloadStateData(state: DownloadState.interrupted, progress: 0.0);
+                      }
+                      _pendingDecryptError = 'decrypt';
+                      changed = true;
+                      continue;
+                    }
+                  } else {
+                    _clientDecryptDone.add(rawId);
+                    _decryptFailCounts.remove(rawId);
+                    playablePath = decrypted;
+                  }
+                }
               }
-              final decrypted = await _decryptDownloadedFile(playablePath, decKey, outExt);
-              if (decrypted == null || decrypted.isEmpty) {
-                // Decryption failed — don't persist a broken file. Flag the
-                // item as interrupted so the user can retry the download.
-                dl[stateKey] = const DownloadStateData(state: DownloadState.interrupted, progress: 0.0);
-                _startedAt.remove(stateKey);
-                _pendingDecryptError = 'decrypt';
-                changed = true;
-                continue;
-              }
-              _clientDecryptDone.add(rawId);
-              playablePath = decrypted;
             }
 
-            dl[stateKey] = const DownloadStateData(state: DownloadState.completed, progress: 1.0);
+            // Before marking completed, verify the file on disk is actually
+            // playable audio. Prevents false green dots when Go reports
+            // completed but the file is corrupt / still encrypted.
+            var filePlayable = true;
+            if (!isSubTask && playablePath.isNotEmpty) {
+              try {
+                final pf = File(playablePath);
+                if (await pf.exists()) {
+                  filePlayable = await _isDecodableAudioFile(pf);
+                  if (!filePlayable) {
+                    _log.w('[poll] $rawId: Go says completed but file not playable: $playablePath');
+                  }
+                } else {
+                  filePlayable = false;
+                  _log.w('[poll] $rawId: Go says completed but file missing: $playablePath');
+                }
+              } catch (_) {}
+            }
+            if (!filePlayable) {
+              // Go's tracker stores .tmp.XXX as outputPath before finalize
+              // renames to .XXX. Check the non-tmp path first.
+              if (playablePath.isNotEmpty) {
+                final tmpIdx = playablePath.indexOf('.tmp.');
+                if (tmpIdx >= 0) {
+                  final nonTmpPath = playablePath.replaceFirst('.tmp.', '.');
+                  try {
+                    final ntFile = File(nonTmpPath);
+                    if (await ntFile.exists() && await _isDecodableAudioFile(ntFile)) {
+                      _log.i('[poll] $rawId: .tmp file missing but non-tmp exists: $nonTmpPath — using it');
+                      playablePath = nonTmpPath;
+                      filePlayable = true;
+                      try {
+                        final meta = _trackMeta[stateKey];
+                        final nid = meta != null && meta.trackId.isNotEmpty ? meta.trackId : stateKey;
+                        await _downloadCache.updateFilePath(nid, nonTmpPath);
+                      } catch (_) {}
+                    }
+                  } catch (_) {}
+                }
+              }
+            }
+            if (!filePlayable) {
+              // File not playable — check for alternative files from other
+              // providers before flagging as interrupted. A racing provider
+              // (e.g. Apple Music .m4a or a decrypted Amazon .flac) may have
+              // saved a valid file alongside the broken one.
+              final altPath = await _findAlternativePlayableFile(stateKey, playablePath);
+              if (altPath != null) {
+                _log.i('[poll] $rawId: file not playable but alternative exists: $altPath — using it');
+                playablePath = altPath;
+                filePlayable = true;
+                // Update DB path so _verifyDownloadedFile in the queue
+                // doesn't fail when it checks the broken path.
+                try {
+                  final meta = _trackMeta[stateKey];
+                  final nid = meta != null && meta.trackId.isNotEmpty
+                      ? meta.trackId : stateKey;
+                  await _downloadCache.updateFilePath(nid, altPath);
+                } catch (_) {}
+              }
+            }
+            if (filePlayable) {
+              dl[stateKey] = const DownloadStateData(state: DownloadState.completed, progress: 1.0);
+            } else {
+              if (stateKey == _currentQueueTrackId) {
+                _log.i('[poll] $rawId: file not playable but queue is active — keeping inProgress');
+                dl[stateKey] = const DownloadStateData(state: DownloadState.inProgress, progress: 0.95);
+              } else {
+                dl[stateKey] = const DownloadStateData(state: DownloadState.interrupted, progress: 0.0);
+              }
+              _pendingDecryptError = 'decrypt';
+            }
+            changed = true;
             // Also update sibling subtask keys (audio/lyrics/video) if they exist
             final audioKey = '${stateKey}_audio';
             if (dl.containsKey(audioKey)) {
-              dl[audioKey] = const DownloadStateData(state: DownloadState.completed, progress: 1.0);
+              dl[audioKey] = filePlayable
+                  ? const DownloadStateData(state: DownloadState.completed, progress: 1.0)
+                  : const DownloadStateData(state: DownloadState.interrupted, progress: 0.0);
             }
             final lyricsKey = '${stateKey}_lyrics';
             if (dl.containsKey(lyricsKey)) {
@@ -626,12 +1084,24 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
               dl[videoKey] = const DownloadStateData(state: DownloadState.completed, progress: 1.0);
             }
 
+            // Signal the sequential queue that this track finished
+            if (!isSubTask) _signalTrackDone(stateKey);
+
             if (!isSubTask) {
               final meta = _trackMeta[stateKey];
-              final trackId = meta?.trackId ?? (stateKey.startsWith('track_') && stateKey.length > 6
+              var trackId = meta?.trackId ?? (stateKey.startsWith('track_') && stateKey.length > 6
                   ? stateKey.substring(6, stateKey.lastIndexOf('_'))
                   : rawId);
               final src = meta?.source ?? (stateKey.contains('_') ? stateKey.split('_').last : '');
+
+              // A feed track may arrive with an empty provider id (but a valid
+              // ISRC) — amazon/others still resolve a real file by ISRC. Fall
+              // back to the ISRC so we persist an identifiable, deletable,
+              // playable row instead of an all-empty `unknown` entry.
+              final isrc = meta?.isrc ?? '';
+              if (trackId.isEmpty && isrc.isNotEmpty) {
+                trackId = isrc;
+              }
 
               // Save cover locally for offline persistence (like liked tracks).
               // saveCover returns the absolute path so covers also render on
@@ -656,8 +1126,9 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
 
               unawaited(_downloadCache.saveDownloadedTrack(
                 id: trackId,
-                trackName: trackName.isNotEmpty ? trackName : rawId,
+                trackName: trackName.isNotEmpty ? trackName : (isrc.isNotEmpty ? isrc : rawId),
                 artistName: artistName.isNotEmpty ? artistName : '',
+                isrc: isrc.isNotEmpty ? isrc : null,
                 service: src,
                 filePath: playablePath.isNotEmpty ? playablePath : null,
                 providerTrackId: rawId.endsWith('_audio')
@@ -672,22 +1143,98 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
                 coverPath: coverPath,
               ));
 
-              final fpName = trackName.isNotEmpty ? trackName : rawId;
+              final fpName = trackName.isNotEmpty ? trackName : (isrc.isNotEmpty ? isrc : rawId);
               final fpArtist = trackName.isNotEmpty ? artistName : '';
               fps.add(fingerprintFromName(fpName, fpArtist));
+              _completedPersisted.add(rawId);
             }
             _startedAt.remove(stateKey);
             changed = true;
           } else if (status == 'downloading' || status == 'preparing') {
-            dl[stateKey] = DownloadStateData(state: DownloadState.inProgress, progress: progress.toDouble());
-            changed = true;
+            // Don't resurrect tracks that were marked interrupted by the hard
+            // timeout or user cancellation — the Go tracker may still show them
+            // as 'downloading' because the goroutine hasn't finished yet.
+            final curState = dl[stateKey]?.state;
+            if (curState != DownloadState.interrupted) {
+              dl[stateKey] = DownloadStateData(state: DownloadState.inProgress, progress: progress.toDouble());
+              changed = true;
+            }
           } else if (status == 'failed' || status == 'cancelled') {
-            // Backend exhausted all providers without producing a file. Surface
-            // a terminal state (interrupted → red/retry) instead of leaving the
-            // card stuck orange (inProgress) forever.
-            dl[stateKey] = const DownloadStateData(state: DownloadState.interrupted, progress: 0.0);
-            _startedAt.remove(stateKey);
-            changed = true;
+            // Skip if already processed on an earlier poll cycle.
+            if (_completedPersisted.contains(rawId)) continue;
+            if (stateKey == _currentQueueTrackId) {
+              // Go reports failed but the FIFO queue is still waiting.
+              // Check if a provider already wrote a playable file on disk.
+              //
+              // Fast path 1: if outputPath points to an existing playable file,
+              // persist it directly without scanning the directory.
+              String? playableAlt;
+              if (outputPath.isNotEmpty) {
+                try {
+                  final opFile = File(outputPath);
+                  if (await opFile.exists() && await _isDecodableAudioFile(opFile)) {
+                    playableAlt = outputPath;
+                    _log.i('[poll] $rawId: Go reports $status but outputPath is playable: $outputPath — persisting');
+                  }
+                } catch (_) {}
+                // Fast path 1b: outputPath might be .tmp.XXX (before finalize rename).
+                // Try the non-tmp version.
+                if (playableAlt == null && outputPath.contains('.tmp.')) {
+                  try {
+                    final nonTmp = outputPath.replaceFirst('.tmp.', '.');
+                    final ntFile = File(nonTmp);
+                    if (await ntFile.exists() && await _isDecodableAudioFile(ntFile)) {
+                      playableAlt = nonTmp;
+                      _log.i('[poll] $rawId: Go reports $status but non-tmp path playable: $nonTmp — persisting');
+                    }
+                  } catch (_) {}
+                }
+              }
+              // Fast path 2: scan the directory for an alternative playable file.
+              if (playableAlt == null) {
+                playableAlt = await _findAlternativePlayableFile(stateKey, outputPath);
+              }
+              if (playableAlt != null) {
+                _failedNoFileCount.remove(rawId);
+                _log.i('[poll] $rawId: Go reports $status but alternative found: $playableAlt — persisting as completed');
+                try {
+                  final meta = _trackMeta[stateKey];
+                  final nid = meta != null && meta.trackId.isNotEmpty ? meta.trackId : stateKey;
+                  // Use saveDownloadedTrack (INSERT OR REPLACE) to ensure
+                  // the row exists — updateFilePath would silently no-op if
+                  // no row exists yet (first download, poll persisted before
+                  // the normal completed path ran).
+                  await _downloadCache.saveDownloadedTrack(
+                    id: nid, trackName: meta?.name ?? '', artistName: meta?.artist ?? '',
+                    filePath: playableAlt, service: meta?.source ?? '',
+                  );
+                } catch (_) {}
+                _completedPersisted.add(rawId);
+                dl[stateKey] = const DownloadStateData(state: DownloadState.completed, progress: 1.0);
+                changed = true;
+                _signalTrackDone(stateKey);
+              } else {
+                // No playable file yet — a provider may still be writing.
+                // Track consecutive "no file" cycles to avoid infinite loop.
+                final count = (_failedNoFileCount[rawId] ?? 0) + 1;
+                _failedNoFileCount[rawId] = count;
+                if (count >= _maxFailedNoFilePolls) {
+                  // Exhausted retries — no provider produced a playable file.
+                  _log.w('[poll] $rawId: Go reports $status after $count polls — no file found, giving up');
+                  _failedNoFileCount.remove(rawId);
+                  dl[stateKey] = const DownloadStateData(state: DownloadState.interrupted, progress: 0.0);
+                  _signalTrackDone(stateKey);
+                } else {
+                  _log.i('[poll] $rawId: Go reports $status but queue is active — no playable file found yet ($count/$_maxFailedNoFilePolls), keeping inProgress (outputPath=$outputPath)');
+                  dl[stateKey] = const DownloadStateData(state: DownloadState.inProgress, progress: 0.95);
+                }
+                changed = true;
+              }
+            } else {
+              dl[stateKey] = const DownloadStateData(state: DownloadState.interrupted, progress: 0.0);
+              _startedAt.remove(stateKey);
+              _signalTrackDone(stateKey);
+            }
           }
         }
       }
@@ -713,24 +1260,40 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
         final allDone = (completed + stopped) >= total;
 
         if (allDone) {
-          final completedState = completed == total ? DownloadState.completed : DownloadState.none;
-          dl[batchKey] = DownloadStateData(state: completedState, progress: progress);
-          _batchTrackIds.remove(batchKey);
-          if (completedState == DownloadState.completed) {
-            final parts = batchKey.split('_');
-            if (parts.length >= 2) {
-              final itemType = parts[0];
-              final src = parts.last;
-              final itemId = parts.sublist(1, parts.length - 1).join('_');
-              final batchData = _batchData[batchKey];
-              final batchName = (batchData?.tracks.isNotEmpty == true)
-                  ? (batchData!.tracks.first['album_name'] as String? ?? '')
-                  : '';
-              _batchMeta[batchKey] = _BatchMeta(batchName, itemType, itemId, src);
-              _downloadCache.saveDownloadedBatch(batchKey, itemType, itemId, src, batchName,
-                trackIds: trackIds,
-              );
-              sl<LibraryCache>().invalidateAll();
+          if (completed == total) {
+            dl[batchKey] = const DownloadStateData(state: DownloadState.completed, progress: 1.0);
+            await _finalizeCompletedBatch(batchKey, trackIds);
+            _batchTrackIds.remove(batchKey);
+            _batchAutoRetryCount.remove(batchKey);
+            _batchRetryFailed.remove(batchKey);
+          } else {
+            // Incompleto: mantener el batch vivo para que completar el/los
+            // rezagados más tarde (manual o vía retry) pueda elevarlo a
+            // "completed" y persistirlo. Auto-retry up to _maxBatchAutoRetries
+            // times so the batch flips to green without manual intervention.
+            dl[batchKey] = DownloadStateData(state: DownloadState.none, progress: progress);
+            final retryCount = _batchAutoRetryCount[batchKey] ?? 0;
+            // Collect failed track IDs for this batch
+            final failedIds = <String>{};
+            for (final id in trackIds) {
+              final st = dl[id]?.state;
+              if (st == DownloadState.interrupted || st == DownloadState.none) {
+                failedIds.add(id);
+              }
+            }
+            // Only retry if there are failed tracks NOT already in _batchRetryFailed
+            final alreadyFailed = _batchRetryFailed[batchKey] ?? {};
+            final newFailures = failedIds.difference(alreadyFailed);
+            if (retryCount < _maxBatchAutoRetries && _batchData.containsKey(batchKey) && newFailures.isNotEmpty) {
+              _batchAutoRetryCount[batchKey] = retryCount + 1;
+              _batchRetryFailed[batchKey] = alreadyFailed.union(newFailures);
+              _log.i('[batch] auto-retry #$retryCount for $batchKey (${newFailures.length} new failures, ${alreadyFailed.length} previously failed)');
+              final bk = batchKey;
+              Future.delayed(const Duration(seconds: 15), () {
+                if (_batchTrackIds.containsKey(bk) && _batchData.containsKey(bk)) {
+                  retryFailedBatchTracks(bk);
+                }
+              });
             }
           }
           changed = true;
@@ -741,16 +1304,36 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
       }
 
       if (changed) {
+        // Merge poll changes into the CURRENT state so we don't overwrite
+        // states modified by _processDownloadQueue during async gaps (e.g.
+        // decrypt await).  Only apply our change when the key's state hasn't
+        // been touched since the snapshot we took at the start of this poll.
+        final currentDl = Map<String, DownloadStateData>.from(state.downloads);
+        for (final entry in dl.entries) {
+          final current = currentDl[entry.key];
+          final initial = initialPollDl[entry.key];
+          // Apply if: key is new, or current state still matches our snapshot
+          // (meaning the queue didn't modify it while we were processing).
+          if (initial == null ||
+              current == null ||
+              current.state == initial.state) {
+            currentDl[entry.key] = entry.value;
+          }
+        }
         emit(state.copyWith(
-          downloads: dl,
+          downloads: currentDl,
           downloadedFingerprints: fps,
           decryptError: _pendingDecryptError,
         ));
+        _pendingDecryptError = null;
+        _adjustHistoryRefreshRate();
       }
 
       // ── 3. Timeout detection ──────────────────────────────
       // If we have in-progress items but no live progress from backend
-      // for ~12s (4 polls), mark them as interrupted.
+      // for ~12s (4 polls), mark them as interrupted — BUT never kill
+      // the track the FIFO queue is currently waiting on (it has its
+      // own 300s timeout and may be in decrypt phase).
       final hasInProgress = state.downloads.values
           .any((d) => d.state == DownloadState.inProgress);
       if (hasInProgress && !hasLiveItems) {
@@ -760,6 +1343,8 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
           bool changed = false;
           for (final key in dl.keys) {
             if (dl[key]!.state == DownloadState.inProgress) {
+              // CRITICAL: never kill the track the FIFO queue is waiting on
+              if (key == _currentQueueTrackId) continue;
               dl[key] = const DownloadStateData(state: DownloadState.interrupted, progress: 0.0);
               changed = true;
             }
@@ -771,7 +1356,9 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
         _emptyProgressStreak = 0;
       }
 
-      // ── 4. Hard timeout: mark items stuck over 120s as none ──
+      // ── 4. Hard timeout: mark items stuck over 120s as interrupted ──
+      // Skip the current queue track — it has its own 300s timeout in
+      // _processDownloadQueue. Only orphaned tracks get hard-timed-out.
       final now = DateTime.now();
       final hardDl = Map<String, DownloadStateData>.from(state.downloads);
       bool hardTimedOut = false;
@@ -780,13 +1367,79 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
           _startedAt.remove(id);
           continue;
         }
+        // Skip the track currently being processed by the FIFO queue
+        if (id == _currentQueueTrackId) continue;
         if (now.difference(_startedAt[id]!) > const Duration(seconds: 120)) {
-          hardDl[id] = const DownloadStateData(state: DownloadState.none, progress: 0.0);
-          _startedAt.remove(id);
-          hardTimedOut = true;
+          // Check the live tracker map for this item's current status
+          String? liveStatus;
+          // Reverse-lookup: stateKey → raw Go tracker ID
+          for (final entry in _itemIdToStateKey.entries) {
+            if (entry.value == id) {
+              final rawItem = items[entry.key];
+              if (rawItem is Map) {
+                liveStatus = _statusOf(rawItem as Map<String, dynamic>);
+              }
+              break;
+            }
+          }
+          if (liveStatus == 'completed') {
+            _log.i('[poll] hard-timeout for $id but Go reports completed — marking completed');
+            hardDl[id] = const DownloadStateData(state: DownloadState.completed, progress: 1.0);
+            _startedAt.remove(id);
+            hardTimedOut = true;
+            if (!id.endsWith('_lyrics') && !id.endsWith('_video')) {
+              _signalTrackDone(id);
+            }
+          } else if (liveStatus == 'failed' || liveStatus == 'cancelled') {
+            _log.i('[poll] hard-timeout for $id but Go reports $liveStatus — marking interrupted');
+            hardDl[id] = const DownloadStateData(state: DownloadState.interrupted, progress: 0.0);
+            _startedAt.remove(id);
+            hardTimedOut = true;
+            if (!id.endsWith('_lyrics') && !id.endsWith('_video')) {
+              _signalTrackDone(id);
+            }
+          } else if (liveStatus == 'downloading' || liveStatus == 'preparing') {
+            // Go is still actively working on this item — extend the timeout
+            _log.d('[poll] hard-timeout for $id but Go still reports $liveStatus — extending');
+            _startedAt[id] = now; // reset the timer
+          } else {
+            // Item gone from tracker — download completed while poll was busy.
+            // Check for a playable file on disk.
+            final altPath = await _findAlternativePlayableFile(id);
+            if (altPath != null) {
+              _log.i('[poll] hard-timeout for $id but file exists on disk: $altPath — marking completed');
+              hardDl[id] = const DownloadStateData(state: DownloadState.completed, progress: 1.0);
+              _startedAt.remove(id);
+              hardTimedOut = true;
+              if (!id.endsWith('_lyrics') && !id.endsWith('_video')) {
+                _signalTrackDone(id);
+              }
+            } else {
+              _log.i('[poll] hard-timeout for $id — no tracker, no file — marking interrupted');
+              hardDl[id] = const DownloadStateData(state: DownloadState.interrupted, progress: 0.0);
+              _startedAt.remove(id);
+              hardTimedOut = true;
+              if (!id.endsWith('_lyrics') && !id.endsWith('_video')) {
+                _signalTrackDone(id);
+              }
+            }
+          }
         }
       }
       if (hardTimedOut) emit(state.copyWith(downloads: hardDl));
+
+      // Clean up _pendingDeletes for tracker IDs that Go no longer reports
+      // (confirming the cancel RPC took effect). This allows future
+      // re-downloads of the same track.
+      if (_pendingDeletes.isNotEmpty) {
+        if (items.isNotEmpty) {
+          final liveIds = items.keys.toSet();
+          _pendingDeletes.removeWhere((id) => !liveIds.contains(id));
+        } else {
+          // Go reports nothing → all cancels took effect
+          _pendingDeletes.clear();
+        }
+      }
     } catch (_) {
     } finally {
       _pollingInProgress = false;
@@ -822,33 +1475,40 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
 
     try {
       for (final extId in _providerDisplayNames.keys) {
-        // Only process providers that have a pending verification URL.
-        // Skip proactively triggering — avoids corrupting public API
-        // extensions (e.g. Deezer) that don't need auth.
-        var url = await _backend.getPendingVerificationUrl(extId);
-        _log.i('[$extId] getPendingVerificationUrl -> "$url"');
-        if (url.isEmpty) {
-          _log.i('[$extId] no pending auth URL, skipping');
-          continue;
+        try {
+          // Check for a pending verification URL; if none, trigger the
+          // Cloudflare challenge for this provider.
+          var url = await _backend.getPendingVerificationUrl(extId);
+          _log.i('[$extId] getPendingVerificationUrl -> "$url"');
+          if (url.isEmpty) {
+            url = await _backend.triggerExtensionVerification(extId);
+            _log.i('[$extId] triggerExtensionVerification -> "$url"');
+          }
+          if (url.isEmpty) {
+            _log.i('[$extId] no pending auth URL, skipping');
+            continue;
+          }
+
+          final displayName = _providerDisplayNames[extId] ?? extId;
+          _log.i('[$extId] showing WebView for $displayName');
+
+          final grant = await service.showVerification(
+            extId: extId,
+            displayName: displayName,
+            authUrl: url,
+          );
+
+          if (grant == null || grant.isEmpty) {
+            _log.w('[$extId] no grant obtained');
+            continue;
+          }
+
+          _log.i('[$extId] completing grant (len=${grant.length})');
+          final ok = await _backend.completeSignedSessionGrant(extId, grant);
+          _log.i('[$extId] grant result: $ok');
+        } catch (e) {
+          _log.w('[$extId] verification error: $e');
         }
-
-        final displayName = _providerDisplayNames[extId] ?? extId;
-        _log.i('[$extId] showing WebView for $displayName');
-
-        final grant = await service.showVerification(
-          extId: extId,
-          displayName: displayName,
-          authUrl: url,
-        );
-
-        if (grant == null || grant.isEmpty) {
-          _log.w('[$extId] no grant obtained');
-          continue;
-        }
-
-        _log.i('[$extId] completing grant (len=${grant.length})');
-        final ok = await _backend.completeSignedSessionGrant(extId, grant);
-        _log.i('[$extId] grant result: $ok');
       }
 
       // After all verifications, retry interrupted batch tracks
@@ -882,6 +1542,37 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
 
   DownloadStateData downloadStateFor(String id) =>
       state.downloads[id] ?? const DownloadStateData();
+
+  /// Persists a fully-completed album/playlist batch and refreshes the library
+  /// cache. Idempotent per batch (guarded by [_batchCompletedSaved]) so a
+  /// straggler completed manually after the batch "looked" finished only saves
+  /// once, and on restart the batch is restored as green instead of stuck.
+  Future<void> _finalizeCompletedBatch(String batchKey, List<String> trackIds) async {
+    if (_batchCompletedSaved.contains(batchKey)) return;
+    _batchCompletedSaved.add(batchKey);
+    final parts = batchKey.split('_');
+    if (parts.length < 2) return;
+    final itemType = parts[0];
+    final src = parts.last;
+    final itemId = parts.sublist(1, parts.length - 1).join('_');
+    final batchData = _batchData[batchKey];
+    final batchName = (batchData?.tracks.isNotEmpty == true)
+        ? (batchData!.tracks.first['album_name'] as String? ?? '')
+        : '';
+    _batchMeta[batchKey] = _BatchMeta(batchName, itemType, itemId, src);
+    await _downloadCache.saveDownloadedBatch(
+      batchKey, itemType, itemId, src, batchName,
+      trackIds: trackIds,
+    );
+    sl<LibraryCache>().invalidateAll();
+    // Invalidate detail cache so album/playlist pages reload with fresh data
+    final detailCache = sl<DetailCache>();
+    if (itemType == 'album') {
+      await detailCache.invalidateAlbum(itemId);
+    } else if (itemType == 'playlist') {
+      await detailCache.invalidatePlaylist(itemId);
+    }
+  }
 
   /// SHA-1 hex digest, matches Go's [utils.HashString].
   String _sha1Hex(String input) => sha1.convert(utf8.encode(input)).toString();
@@ -938,10 +1629,23 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
       final normalizedTid = normalizeTrackId(tid);
       final audioId = 'track_${normalizedTid}_${data.source}';
       audioIds.add(audioId);
-      // Pre-seed so retryFailedBatchTracks' final emit doesn't overwrite
-      // dispatchSingleTrack's entries (same race as Bug 4 in startPlaylistDownload).
-      dl[audioId] = const DownloadStateData(state: DownloadState.inProgress, progress: 0.0);
-      _dispatchBatchTrack(t, tid, data.source, data.settings, qualityOverride: data.qualityOverride);
+      // Pre-seed as queued; _processDownloadQueue flips it to inProgress when
+      // the track reaches the front of the FIFO row.
+      dl[audioId] = const DownloadStateData(state: DownloadState.queued, progress: 0.0);
+      // Clear ALL poll state so the retried download processes from scratch.
+      // Without this, _completedPersisted makes the poll skip the new tracker
+      // entry (same rawId), and _redownloadQueue prevents re-dispatch on
+      // verify failure.
+      final retryRawId = '${normalizedTid}_audio';
+      _clientDecryptSkipped.remove(retryRawId);
+      _clientDecryptDone.remove(retryRawId);
+      _decryptFailCounts.remove(retryRawId);
+      _completedPersisted.remove(retryRawId);
+      _raceResolved.remove(retryRawId);
+      _redownloadQueue.remove(audioId);
+      // Route through the global FIFO queue — dispatching directly here used
+      // to fire retried tracks in parallel, breaking the one-at-a-time order.
+      _downloadQueue.add(_QueuedTrack(t, tid, data.source, data.settings, data.qualityOverride, batchKey));
     }
 
     _batchTrackIds[batchKey] = audioIds;
@@ -949,26 +1653,89 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
     // Reset batch state to inProgress (dl already has the pre-seeded tracks)
     dl[batchKey] = const DownloadStateData(state: DownloadState.inProgress, progress: 0.0);
     emit(state.copyWith(downloads: dl));
+    _processDownloadQueue();
   }
 
   Future<bool> _checkAllSessionsBeforeDownload() async {
     return true;
   }
 
+  /// Check that the download folder is accessible (exists, is a directory,
+  /// and is writable). When the folder is lost (e.g. SAF grant revoked,
+  /// directory deleted, permission denied), emits a state that triggers the
+  /// UI recovery dialog. Returns true if the folder is OK.
+  Future<bool> _checkDownloadFolder() async {
+    final path = await sl<SettingsCache>().getDownloadPath();
+    if (path == null || path.isEmpty) {
+      emit(state.copyWith(folderLost: true));
+      return false;
+    }
+    final dir = Directory(path);
+    try {
+      if (!await dir.exists()) {
+        _log.w('[download] folder lost — path does not exist: $path');
+        emit(state.copyWith(folderLost: true));
+        return false;
+      }
+      // Try creating a temp file to verify write access.
+      final testFile = File('$path/.access_test');
+      await testFile.writeAsString('ok');
+      await testFile.delete();
+    } catch (e) {
+      _log.w('[download] folder lost — cannot access $path: $e');
+      emit(state.copyWith(folderLost: true));
+      return false;
+    }
+    return true;
+  }
+
+  /// Clear the folder-lost flag after the user re-selects the download folder.
+  void acknowledgeFolderRestored() {
+    emit(state.copyWith(clearFolderLost: true));
+  }
+
+  /// Starts downloading a single track through the FIFO queue.
+  /// The track is enqueued and processed in order — it will NOT run
+  /// in parallel with any ongoing batch (album/playlist) downloads.
   void startDownload(String id, {Map<String, dynamic>? strategy}) async {
     if (state.downloads[id]?.state == DownloadState.inProgress) return;
-    if (!await _checkAllSessionsBeforeDownload()) return;
-    final dl = Map<String, DownloadStateData>.from(state.downloads);
-    dl[id] = const DownloadStateData(state: DownloadState.inProgress, progress: 0.0);
-    emit(state.copyWith(downloads: dl));
-    _startedAt[id] = DateTime.now();
-
+    if (state.downloads[id]?.state == DownloadState.completed) return;
+    // Check if track ID is already in download history (skip re-download)
     final s = strategy ?? {'type': 'audio'};
-    // Include user_id for free/premium quota enforcement
-    s['user_id'] = _userId;
-    _backend.downloadByStrategy(jsonEncode(s));
-    // (progress tracking is handled by the Go backend via item_id in the strategy map)
+    final trackId = (s['track_id'] ?? s['item_id'] ?? '').toString();
+    if (trackId.isNotEmpty) {
+      final normalizedId = normalizeTrackId(trackId);
+      if (_downloadedTrackIds.contains(normalizedId)) {
+        _log.i('[startDownload] skip duplicate by ID: $normalizedId');
+        return;
+      }
+    }
+    // Check fingerprint for source-agnostic duplicate detection
+    final trackName = (s['track_title'] ?? '') as String;
+    final artistName = (s['artist_name'] ?? '') as String;
+    if (trackName.isNotEmpty && state.downloadedFingerprints.contains(
+        fingerprintFromName(trackName, artistName))) {
+      _log.i('[startDownload] skip duplicate by fingerprint: $trackName by $artistName');
+      return;
+    }
+    if (!await _checkDownloadFolder()) return;
+    if (!await _checkAllSessionsBeforeDownload()) return;
+    // Allow retry of a previously failed client-side decrypt by clearing
+    // the skip marker for the item being re-dispatched.
+    final retryItemId = (s['item_id'] ?? s['track_id'] ?? '').toString();
+    if (retryItemId.isNotEmpty) _clientDecryptSkipped.remove(retryItemId);
+
+    // Route through the FIFO queue — dispatching directly used to fire
+    // single tracks in parallel with batch downloads, breaking the
+    // one-at-a-time order and showing multiple orange dots.
+    final source = (s['source'] ?? '').toString();
+    final dl = Map<String, DownloadStateData>.from(state.downloads);
+    dl[id] = const DownloadStateData(state: DownloadState.queued, progress: 0.0);
+    emit(state.copyWith(downloads: dl));
+    _log.i('[startDownload] enqueuing single track: $id source=$source');
+    _downloadQueue.add(_QueuedTrack(s, trackId, source, const DownloadSettings(), null, '_singles'));
     _ensurePolling();
+    _processDownloadQueue();
   }
 
   /// Start downloading an album — each track one by one with user settings.
@@ -989,11 +1756,13 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
     final batchKey = 'album_${normalizeTrackId(albumId)}_$source';
     if (state.downloads[batchKey]?.state == DownloadState.inProgress) return;
     if (tracks.isEmpty) return;
+    if (!await _checkDownloadFolder()) return;
     if (!await _checkAllSessionsBeforeDownload()) return;
 
     final s = settings ?? const DownloadSettings();
     final audioIds = <String>[];
     final dl = Map<String, DownloadStateData>.from(state.downloads);
+    final seenIsrcs = <String>{}; // Dedup by ISRC within the batch
 
     for (final t in tracks) {
       final tid = (t['track_id'] as String?) ?? '';
@@ -1010,8 +1779,16 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
         continue;
       }
 
-      dl[baseId] = const DownloadStateData(state: DownloadState.inProgress, progress: 0.0);
-      _dispatchBatchTrack(t, tid, source, s, qualityOverride: qualityOverride);
+      // Dedup by ISRC within the same batch (bonus tracks from multiple editions)
+      final isrc = (t['isrc'] ?? '').toString();
+      if (isrc.isNotEmpty && !seenIsrcs.add(isrc)) {
+        _log.i('[startAlbumDownload] skip ISRC duplicate in batch: $isrc');
+        dl[baseId] = const DownloadStateData(state: DownloadState.completed, progress: 1.0);
+        continue;
+      }
+
+      dl[baseId] = const DownloadStateData(state: DownloadState.queued, progress: 0.0);
+      _downloadQueue.add(_QueuedTrack(t, tid, source, s, qualityOverride, batchKey));
     }
 
     if (audioIds.isEmpty) return;
@@ -1019,9 +1796,17 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
     _batchData[batchKey] = _BatchData(tracks, s, source, qualityOverride);
     _ensurePolling();
 
-    // Create batch-level entry so the grid shows an orange ring
     dl[batchKey] = const DownloadStateData(state: DownloadState.inProgress, progress: 0.0);
     emit(state.copyWith(downloads: dl));
+
+    // Persist batch as in_progress so it survives restart
+    final batchName = (tracks.isNotEmpty) ? (tracks.first['album_name'] as String? ?? '') : '';
+    await _downloadCache.saveDownloadedBatch(
+      batchKey, 'album', albumId, source, batchName,
+      trackIds: audioIds,
+    );
+
+    _processDownloadQueue();
   }
 
   void startPlaylistDownload(
@@ -1039,6 +1824,7 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
     final s = settings ?? const DownloadSettings();
     final audioIds = <String>[];
     final dl = Map<String, DownloadStateData>.from(state.downloads);
+    final seenIsrcs = <String>{}; // Dedup by ISRC within the batch
 
     _log.i('[startPlaylistDownload] batchKey=$batchKey tracks=${tracks.length} source=$source');
 
@@ -1058,13 +1844,17 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
         continue;
       }
 
-      _log.i('[startPlaylistDownload] DISPATCH tid=$tid baseId=$baseId');
-      // Pre-seed state so startPlaylistDownload's final emit includes
-      // this track.  Without this, dispatchSingleTrack's own emit is
-      // overwritten by startPlaylistDownload's final emit because the
-      // dl snapshot was taken before the dispatch.
-      dl[baseId] = const DownloadStateData(state: DownloadState.inProgress, progress: 0.0);
-      _dispatchBatchTrack(t, tid, source, s, qualityOverride: qualityOverride);
+      // Dedup by ISRC within the same batch (duplicate tracks across playlists)
+      final isrc = (t['isrc'] ?? '').toString();
+      if (isrc.isNotEmpty && !seenIsrcs.add(isrc)) {
+        _log.i('[startPlaylistDownload] skip ISRC duplicate in batch: $isrc');
+        dl[baseId] = const DownloadStateData(state: DownloadState.completed, progress: 1.0);
+        continue;
+      }
+
+      _log.i('[startPlaylistDownload] ENQUEUE tid=$tid baseId=$baseId');
+      dl[baseId] = const DownloadStateData(state: DownloadState.queued, progress: 0.0);
+      _downloadQueue.add(_QueuedTrack(t, tid, source, s, qualityOverride, batchKey));
     }
 
     _log.i('[startPlaylistDownload] loop done: audioIds=${audioIds.length}');
@@ -1074,9 +1864,17 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
     _log.i('[startPlaylistDownload] batch registered, _batchTrackIds.size=${_batchTrackIds.length}');
     _ensurePolling();
 
-    // Create batch-level entry so the grid shows an orange ring
     dl[batchKey] = const DownloadStateData(state: DownloadState.inProgress, progress: 0.0);
     emit(state.copyWith(downloads: dl));
+
+    // Persist batch as in_progress so it survives restart
+    final batchName = (tracks.isNotEmpty) ? (tracks.first['album_name'] as String? ?? '') : '';
+    await _downloadCache.saveDownloadedBatch(
+      batchKey, 'playlist', playlistId, source, batchName,
+      trackIds: audioIds,
+    );
+
+    _processDownloadQueue();
   }
 
   /// Deletes all downloaded tracks for an album batch.
@@ -1103,6 +1901,7 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
       // and also try original formats for robust DB deletion
       final allIds = <String>{};
       final fileStems = <String>{};
+      final coversToDelete = <String>{};
       for (final stateKey in stateKeys) {
         allIds.add(stateKey);
         final parts = stateKey.split('_');
@@ -1119,9 +1918,20 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
               fileStems.add('${_sanitizeFilename(meta.artist!)} - ${_sanitizeFilename(meta.name)}');
             }
             if (meta.coverUrl != null && meta.coverUrl!.isNotEmpty) {
-              try { await _backend.deleteCover(meta.coverUrl!); } catch (_) {}
+              coversToDelete.add(meta.coverUrl!);
             }
           }
+          // Clear the in-memory downloaded-track-ID cache so
+          // startAlbumDownload no longer skips these tracks as
+          // "already downloaded".
+          _downloadedTrackIds.remove(extractedId);
+        }
+      }
+      // Portadas: borrar cada URL una sola vez y solo si el álbum ya no está
+      // likeado (el like muestra la misma portada en Mi Espacio).
+      if (coversToDelete.isNotEmpty && !_isParentLiked(batchKey)) {
+        for (final coverUrl in coversToDelete) {
+          try { await _backend.deleteCover(coverUrl); } catch (_) {}
         }
       }
       await _downloadCache.deleteDownloadedTracks(allIds.toList());
@@ -1130,8 +1940,40 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
     await _downloadCache.removeDownloadedBatchByItem('album', albumId, effectiveSource);
     sl<LibraryCache>().invalidateAll();
     final dl = Map<String, DownloadStateData>.from(state.downloads);
+    final fps = Set<String>.from(state.downloadedFingerprints);
     dl.remove(batchKey);
-    emit(state.copyWith(downloads: dl));
+    // Remove individual track entries from state.downloads so completedTracks
+    // no longer returns them in the "Canciones" tab of Mi Espacio.
+    final trackerIds = <String>[];
+    for (final stateKey in stateKeys) {
+      dl.remove(stateKey);
+      final meta = _trackMeta[stateKey];
+      if (meta != null) {
+        final fpName = meta.name.isNotEmpty ? meta.name : normalizeTrackId(meta.trackId);
+        final fpArtist = meta.artist ?? '';
+        fps.remove(fingerprintFromName(fpName, fpArtist));
+      }
+      _trackMeta.remove(stateKey);
+      // Clear downloadedTrackIds so re-download is possible
+      final parts = stateKey.split('_');
+      if (parts.length >= 3) {
+        final normId = parts.sublist(1, parts.length - 1).join('_');
+        _downloadedTrackIds.remove(normId);
+      }
+      trackerIds.addAll(_itemIdToStateKey.entries
+          .where((e) => e.value == stateKey)
+          .map((e) => e.key));
+      _itemIdToStateKey.removeWhere((k, v) => v == stateKey);
+      dl.remove('${stateKey}_video');
+      dl.remove('${stateKey}_lyrics');
+      _itemIdToStateKey.removeWhere((k, v) =>
+          v == '${stateKey}_video' || v == '${stateKey}_lyrics');
+    }
+    _pendingDeletes.addAll(trackerIds);
+    for (final tid in trackerIds) {
+      unawaited(_backend.cancelDownload(tid));
+    }
+    emit(state.copyWith(downloads: dl, downloadedFingerprints: fps));
   }
 
   /// Deletes all downloaded tracks for a playlist batch.
@@ -1155,6 +1997,7 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
     if (stateKeys.isNotEmpty) {
       final allIds = <String>{};
       final fileStems = <String>{};
+      final coversToDelete = <String>{};
       for (final stateKey in stateKeys) {
         allIds.add(stateKey);
         final parts = stateKey.split('_');
@@ -1170,9 +2013,20 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
               fileStems.add('${_sanitizeFilename(meta.artist!)} - ${_sanitizeFilename(meta.name)}');
             }
             if (meta.coverUrl != null && meta.coverUrl!.isNotEmpty) {
-              try { await _backend.deleteCover(meta.coverUrl!); } catch (_) {}
+              coversToDelete.add(meta.coverUrl!);
             }
           }
+          // Clear the in-memory downloaded-track-ID cache so
+          // startPlaylistDownload no longer skips these tracks as
+          // "already downloaded".
+          _downloadedTrackIds.remove(extractedId);
+        }
+      }
+      // Portadas: borrar cada URL una sola vez y solo si la playlist ya no
+      // está likeada (el like muestra la misma portada en Mi Espacio).
+      if (coversToDelete.isNotEmpty && !_isParentLiked(batchKey)) {
+        for (final coverUrl in coversToDelete) {
+          try { await _backend.deleteCover(coverUrl); } catch (_) {}
         }
       }
       await _downloadCache.deleteDownloadedTracks(allIds.toList());
@@ -1181,8 +2035,39 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
     await _downloadCache.removeDownloadedBatchByItem('playlist', playlistId, effectiveSource);
     sl<LibraryCache>().invalidateAll();
     final dl = Map<String, DownloadStateData>.from(state.downloads);
+    final fps = Set<String>.from(state.downloadedFingerprints);
     dl.remove(batchKey);
-    emit(state.copyWith(downloads: dl));
+    // Remove individual track entries from state.downloads so completedTracks
+    // no longer returns them in the "Canciones" tab of Mi Espacio.
+    final trackerIds = <String>[];
+    for (final stateKey in stateKeys) {
+      dl.remove(stateKey);
+      final meta = _trackMeta[stateKey];
+      if (meta != null) {
+        final fpName = meta.name.isNotEmpty ? meta.name : normalizeTrackId(meta.trackId);
+        final fpArtist = meta.artist ?? '';
+        fps.remove(fingerprintFromName(fpName, fpArtist));
+      }
+      _trackMeta.remove(stateKey);
+      final parts = stateKey.split('_');
+      if (parts.length >= 3) {
+        final normId = parts.sublist(1, parts.length - 1).join('_');
+        _downloadedTrackIds.remove(normId);
+      }
+      trackerIds.addAll(_itemIdToStateKey.entries
+          .where((e) => e.value == stateKey)
+          .map((e) => e.key));
+      _itemIdToStateKey.removeWhere((k, v) => v == stateKey);
+      dl.remove('${stateKey}_video');
+      dl.remove('${stateKey}_lyrics');
+      _itemIdToStateKey.removeWhere((k, v) =>
+          v == '${stateKey}_video' || v == '${stateKey}_lyrics');
+    }
+    _pendingDeletes.addAll(trackerIds);
+    for (final tid in trackerIds) {
+      unawaited(_backend.cancelDownload(tid));
+    }
+    emit(state.copyWith(downloads: dl, downloadedFingerprints: fps));
   }
 
   Future<void> _deleteBatch(String batchKey) async {
@@ -1192,6 +2077,7 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
     final allIdsToDelete = <String>{};
     final audioIdsInBatch = <String>[];
     final fileStems = <String>{};
+    final coversToDelete = <String>{};
     for (final t in data.tracks) {
       final originalId = (t['track_id'] as String?) ?? '';
       if (originalId.isEmpty) continue;
@@ -1210,18 +2096,25 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
       if (title.isNotEmpty && artist.isNotEmpty) {
         fileStems.add('${_sanitizeFilename(artist)} - ${_sanitizeFilename(title)}');
       }
-      // cover in coversDir – only delete if track is NOT also liked
+      // cover in coversDir – collect (deduped) track covers; the actual
+      // deletion happens once per unique URL after the loop.
       final coverUrl = (t['cover_url'] as String?) ?? '';
       if (coverUrl.isNotEmpty) {
         final likeCubit = sl<LikeCubit>();
         final isLiked = [originalId, normalizedId]
             .any((id) => id.isNotEmpty && likeCubit.isItemIdLiked(id));
-        if (!isLiked) {
-          try { await _backend.deleteCover(coverUrl); } catch (_) {}
-        }
+        if (!isLiked) coversToDelete.add(coverUrl);
       }
     }
     if (allIdsToDelete.isEmpty) return;
+
+    // Portadas: borrar cada URL una sola vez y solo si el álbum/playlist padre
+    // ya no está likeado (el like muestra la misma portada en Mi Espacio).
+    if (coversToDelete.isNotEmpty && !_isParentLiked(batchKey)) {
+      for (final coverUrl in coversToDelete) {
+        try { await _backend.deleteCover(coverUrl); } catch (_) {}
+      }
+    }
 
     await _downloadCache.deleteDownloadedTracks(allIdsToDelete.toList());
     await _downloadCache.removeDownloadedBatches([batchKey]);
@@ -1230,19 +2123,68 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
     sl<LibraryCache>().invalidateAll();
 
     final dl = Map<String, DownloadStateData>.from(state.downloads);
+    final fps = Set<String>.from(state.downloadedFingerprints);
     dl.remove(batchKey);
+    final trackerIds = <String>[];
     for (final audioId in audioIdsInBatch) {
       dl.remove(audioId);
+      // Remove fingerprint so _trackStateFor no longer reports "completed"
+      final meta = _trackMeta[audioId];
+      if (meta != null) {
+        final fpName = meta.name.isNotEmpty ? meta.name : normalizeTrackId(meta.trackId);
+        final fpArtist = meta.artist ?? '';
+        fps.remove(fingerprintFromName(fpName, fpArtist));
+      }
       _trackMeta.remove(audioId);
+      // Clear the downloaded-track-ID cache so startAlbumDownload
+      // no longer skips this track as "already downloaded".
+      // audioId format: track_{normalizedId}_{source}
+      final parts = audioId.split('_');
+      if (parts.length >= 3) {
+        final normId = parts.sublist(1, parts.length - 1).join('_');
+        _downloadedTrackIds.remove(normId);
+      }
+      trackerIds.addAll(_itemIdToStateKey.entries
+          .where((e) => e.value == audioId)
+          .map((e) => e.key));
       _itemIdToStateKey.removeWhere((k, v) => v == audioId);
       // Limpiar state keys de video y letra
       dl.remove('${audioId}_video');
       dl.remove('${audioId}_lyrics');
-      _itemIdToStateKey.removeWhere((k, v) => v == '${audioId}_video' || v == '${audioId}_lyrics');
+      trackerIds.addAll(_itemIdToStateKey.entries
+          .where((e) =>
+              e.value == '${audioId}_video' || e.value == '${audioId}_lyrics')
+          .map((e) => e.key));
+      _itemIdToStateKey.removeWhere((k, v) =>
+          v == '${audioId}_video' || v == '${audioId}_lyrics');
+    }
+    // Olvidar la persistencia y sacar la entrada del tracker de Go para que
+    // el próximo poll no resucite la descarga borrada.
+    _pendingDeletes.addAll(trackerIds);
+    for (final tid in trackerIds) {
+      unawaited(_backend.cancelDownload(tid));
     }
     _batchData.remove(batchKey);
     _batchTrackIds.remove(batchKey);
-    emit(state.copyWith(downloads: dl));
+    _batchAutoRetryCount.remove(batchKey);
+    _batchRetryFailed.remove(batchKey);
+    emit(state.copyWith(downloads: dl, downloadedFingerprints: fps));
+  }
+
+  /// True when the album/playlist that owns [batchKey] is still liked. Its
+  /// cover must NOT be deleted when removing the download, because Mi Espacio
+  /// still displays that same cover for the liked item.
+  bool _isParentLiked(String batchKey) {
+    final parts = batchKey.split('_');
+    if (parts.length < 3) return false;
+    final type = parts.first;
+    if (type != 'album' && type != 'playlist') return false;
+    final parentId = parts.sublist(1, parts.length - 1).join('_');
+    if (parentId.isEmpty) return false;
+    final likeCubit = sl<LikeCubit>();
+    return likeCubit.state.allLiked.values.any(
+      (i) => i.type == type && normalizeTrackId(i.id) == parentId,
+    );
   }
 
   /// Called from [dispatchDownloads] to dispatch audio/video/lyrics downloads
@@ -1256,12 +2198,12 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
     if (!await _checkAllSessionsBeforeDownload()) return;
     final backend = sl<BackendService>();
     final itemId = commonMeta['item_id'] as String? ?? '';
-    final audioKey = '${baseId}_audio';
 
     final dl = Map<String, DownloadStateData>.from(state.downloads);
-    // Store by baseId so the feed can find it
+    // Store ONLY by baseId — do NOT add audioKey to the downloads map
+    // because the UI's prefix scan would match it as a separate entry,
+    // showing multiple orange dots for the same track.
     dl[baseId] = const DownloadStateData(state: DownloadState.inProgress, progress: 0.0);
-    dl[audioKey] = const DownloadStateData(state: DownloadState.inProgress, progress: 0.0);
     if (itemId.isNotEmpty) _itemIdToStateKey[itemId] = baseId;
     // Store metadata so completedTracks returns a proper FeedItem
     // Use normalized ID for consistency with DB storage and deletion
@@ -1272,9 +2214,12 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
       commonMeta['artist_name'] as String?,
       commonMeta['cover_url'] as String?,
       (commonMeta['source'] as String?) ?? '',
+      null,
+      (commonMeta['isrc'] as String?) ?? '',
     );
     _startedAt[baseId] = DateTime.now();
-    emit(state.copyWith(downloads: dl));
+    _log.i('[dispatchSingleTrack] baseId=$baseId itemId="$itemId" title="${commonMeta['track_title']}" '
+        'artist="${commonMeta['artist_name']}" isrc="${commonMeta['isrc']}" source="${commonMeta['source']}"');
     _ensurePolling();
 
     final audioStrategy = <String, dynamic>{
@@ -1288,7 +2233,8 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
 
     if (settings.videoEnabled) {
       final videoKey = '${baseId}_video';
-      dl[videoKey] = const DownloadStateData(state: DownloadState.inProgress, progress: 0.0);
+      // Track video internally but do NOT add to downloads map —
+      // the UI prefix scan would match it as a separate orange dot.
       final videoStrategy = <String, dynamic>{
         ...commonMeta,
         'type': 'video',
@@ -1301,8 +2247,7 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
 
     if (settings.lyricsEnabled) {
       final lyricsKey = '${baseId}_lyrics';
-      dl[lyricsKey] = const DownloadStateData(state: DownloadState.inProgress, progress: 0.0);
-      _startedAt[lyricsKey] = DateTime.now();
+      // Track lyrics internally but do NOT add to downloads map.
       final lyricsStrategy = <String, dynamic>{
         ...commonMeta,
         'type': 'lyrics',
@@ -1313,7 +2258,220 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
       backend.downloadByStrategy(jsonEncode(lyricsStrategy));
     }
 
+    // Single emit after all RPC dispatches — avoids a race where _pollProgress
+    // reads intermediate state between the old two-emit pattern.
     emit(state.copyWith(downloads: dl));
+  }
+
+  // ── Sequential download queue ──────────────────────────────
+
+  /// Processes the global queue one track at a time. Batches are processed
+  /// in FIFO order: all tracks from batch1 first, then batch2, etc.
+  ///
+  /// Guarantees:
+  ///  • Only ONE track is dispatched at any time (strict FIFO).
+  ///  • Before advancing to the next track the queue verifies the
+  ///    previous download actually produced a playable file on disk.
+  ///  • A failed/missing file marks the track as interrupted and
+  ///    immediately advances (no infinite retry inside the queue).
+  Future<void> _processDownloadQueue() async {
+    if (_isProcessingQueue || _downloadQueue.isEmpty) return;
+    _isProcessingQueue = true;
+
+    while (_downloadQueue.isNotEmpty) {
+      final track = _downloadQueue.removeAt(0);
+      _currentTrackDone = Completer<void>();
+
+      final normalizedId = normalizeTrackId(track.trackId);
+      final baseId = 'track_${normalizedId}_${track.source}';
+      _currentQueueTrackId = baseId;
+
+      _log.i('[queue] ▶ START track=$baseId title="${track.trackMap['track_title']}" '  
+          'queue_remaining=${_downloadQueue.length}');
+
+      final dl = Map<String, DownloadStateData>.from(state.downloads);
+      dl[baseId] = const DownloadStateData(state: DownloadState.inProgress, progress: 0.0);
+      // Mark the batch this track belongs to as inProgress
+      final bk = track.batchKey;
+      if (bk != null) {
+        dl[bk] = const DownloadStateData(
+          state: DownloadState.inProgress,
+          progress: 0.0,
+        );
+      }
+      emit(state.copyWith(downloads: dl));
+
+      _dispatchBatchTrack(track.trackMap, track.trackId, track.source, track.settings,
+          qualityOverride: track.qualityOverride);
+
+      try {
+        await _currentTrackDone!.future.timeout(const Duration(seconds: 600));
+      } catch (_) {
+        _log.w('[queue] ⏰ TIMEOUT for $baseId after 600s — moving to next track');
+        // Do NOT cancel the Go tracker — the download may still be running.
+        // The poll will detect completion later and mark it as completed.
+        // Move to the next track so the queue isn't blocked.
+      }
+
+      // Yield to let _pollProgress's emit propagate the state update
+      // (completed/interrupted) before we read it below.
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+
+      // ── Verify the download actually produced a file ──
+      final currentDl = state.downloads[baseId]?.state;
+      if (currentDl == DownloadState.completed) {
+        var fileOk = await _verifyDownloadedFile(baseId);
+        if (fileOk) {
+          _redownloadQueue.remove(baseId);
+        } else {
+          // Wait briefly for other providers (Apple Music .m4a) to finalize.
+          for (var attempt = 1; attempt <= 3 && !fileOk; attempt++) {
+            _log.i('[queue] $baseId: verify attempt $attempt — waiting 3s...');
+            await Future<void>.delayed(const Duration(seconds: 3));
+            final recheckDl = state.downloads[baseId]?.state;
+            if (recheckDl == DownloadState.completed) {
+              fileOk = await _verifyDownloadedFile(baseId);
+            }
+          }
+          if (!fileOk) {
+            // Do NOT re-dispatch here — it would break FIFO by starting a
+            // concurrent download. Just mark interrupted; the batch auto-retry
+            // mechanism will pick this up after the album finishes.
+            _log.w('[queue] ⚠ file missing/corrupt for $baseId — marking interrupted');
+            final tdl = Map<String, DownloadStateData>.from(state.downloads);
+            tdl[baseId] = const DownloadStateData(state: DownloadState.interrupted, progress: 0.0);
+            emit(state.copyWith(downloads: tdl));
+          }
+        }
+      } else if (currentDl == DownloadState.inProgress) {
+        // Track still in-progress (Go didn't report done yet, e.g. timeout).
+        // Give it one more chance — the poll may have just persisted the file.
+        await Future<void>.delayed(const Duration(seconds: 3));
+        final finalCheck = state.downloads[baseId]?.state;
+        if (finalCheck == DownloadState.completed) {
+          final fileOk = await _verifyDownloadedFile(baseId);
+          if (fileOk) _redownloadQueue.remove(baseId);
+        }
+      }
+
+      _log.i('[queue] ✔ DONE track=$baseId result=${state.downloads[baseId]?.state}');
+    }
+
+    _currentQueueTrackId = null;
+    _isProcessingQueue = false;
+    _log.i('[queue] ═══ QUEUE EMPTY ═══');
+  }
+
+  /// Verifies that a completed track actually has a playable file on disk.
+  /// Returns false if the file is missing, too small, or doesn't start
+  /// with valid audio magic bytes. Also searches for alternative playable
+  /// files when the stored path is broken (e.g. after provider race).
+  Future<bool> _verifyDownloadedFile(String baseId) async {
+    final meta = _trackMeta[baseId];
+    if (meta == null) return false;
+    final filePath = await _downloadCache.getFilePathById(meta.trackId);
+    if (filePath == null || filePath.isEmpty) {
+      // Try the normalized ID as fallback
+      final altPath = await _downloadCache.getFilePathById(baseId);
+      if (altPath != null && altPath.isNotEmpty) {
+        if (await _isDecodableAudioFile(File(altPath))) return true;
+        // File from DB is not playable — search for an alternative on disk
+        final diskAlt = await _findAlternativePlayableFile(baseId, altPath);
+        if (diskAlt != null) {
+          _log.i('[verify] alternative found for $baseId: $diskAlt');
+          try {
+            final nid = meta.trackId.isNotEmpty ? meta.trackId : baseId;
+            await _downloadCache.saveDownloadedTrack(
+              id: nid, trackName: meta.name, artistName: meta.artist ?? '',
+              filePath: diskAlt, service: meta.source,
+            );
+          } catch (_) {}
+          return true;
+        }
+      }
+      // DB has no row for this track — search disk directly for a playable
+      // file (Apple Music .m4a or SoundCloud .mp3 may exist even though
+      // the DB was never updated by the poll's failed→persist path).
+      final diskAlt = await _findAlternativePlayableFile(baseId);
+      if (diskAlt != null) {
+        _log.i('[verify] no DB row but found on disk: $diskAlt for $baseId');
+        try {
+          final nid = meta.trackId.isNotEmpty ? meta.trackId : baseId;
+          await _downloadCache.saveDownloadedTrack(
+            id: nid, trackName: meta.name, artistName: meta.artist ?? '',
+            filePath: diskAlt, service: meta.source,
+          );
+        } catch (_) {}
+        return true;
+      }
+      return false;
+    }
+    if (await _isDecodableAudioFile(File(filePath))) return true;
+    // Stored file exists but is not playable — search for alternative
+    final diskAlt = await _findAlternativePlayableFile(baseId, filePath);
+    if (diskAlt != null) {
+      _log.i('[verify] alternative found for $baseId: $diskAlt');
+      try {
+        final nid = meta.trackId.isNotEmpty ? meta.trackId : baseId;
+        await _downloadCache.updateFilePath(nid, diskAlt);
+      } catch (_) {}
+      return true;
+    }
+    return false;
+  }
+
+  /// Cancels a tracker entry that belongs to [stateKey] so Go stops
+  /// reporting it. Prevents ghost resurrection on the next poll cycle.
+  void _cancelOrphanedTracker(String stateKey) {
+    final trackerIds = _itemIdToStateKey.entries
+        .where((e) => e.value == stateKey)
+        .map((e) => e.key)
+        .toList();
+    _pendingDeletes.addAll(trackerIds);
+    for (final tid in trackerIds) {
+      unawaited(_backend.cancelDownload(tid));
+    }
+  }
+
+  /// Signals the queue that the current track has finished.
+  void _signalTrackDone(String stateKey) {
+    if (_currentTrackDone != null && !_currentTrackDone!.isCompleted && stateKey == _currentQueueTrackId) {
+      _currentTrackDone!.complete();
+    }
+  }
+
+  /// Enqueues a single track. Uses the global queue so it respects batch order.
+  void enqueueSingleTrack({
+    required Map<String, dynamic> commonMeta,
+    required DownloadSettings settings,
+    required String baseId,
+    String? qualityOverride,
+  }) {
+    final itemId = commonMeta['item_id'] as String? ?? commonMeta['track_id'] as String? ?? '';
+    final source = commonMeta['source'] as String? ?? '';
+
+    final dl = Map<String, DownloadStateData>.from(state.downloads);
+    dl[baseId] = const DownloadStateData(state: DownloadState.queued, progress: 0.0);
+    emit(state.copyWith(downloads: dl));
+
+    _downloadQueue.add(_QueuedTrack(commonMeta, itemId, source, settings, qualityOverride, '_singles'));
+    _processDownloadQueue();
+  }
+
+  /// Returns the local file path for a downloaded track, or null if not found.
+  Future<String?> getTrackFilePath(String trackId, String source) async {
+    final normalizedId = normalizeTrackId(trackId);
+    final audioId = 'track_${normalizedId}_$source';
+    final meta = _trackMeta[audioId];
+    final idsToTry = <String>{};
+    if (meta != null && meta.trackId.isNotEmpty) idsToTry.add(meta.trackId);
+    idsToTry.add(normalizedId);
+    if (trackId.isNotEmpty) idsToTry.add(trackId);
+    for (final id in idsToTry) {
+      final path = await _downloadCache.getFilePathById(id);
+      if (path != null && path.isNotEmpty) return path;
+    }
+    return null;
   }
 
   /// Deletes a single downloaded track by its ID and source.
@@ -1368,9 +2526,24 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
     dl.remove(videoKey);
     dl.remove(lyricsKey);
 
-    // Limpiar mapeo de item IDs del backend
-    _itemIdToStateKey.removeWhere((k, v) =>
-        v == audioId || v == videoKey || v == lyricsKey);
+    // Limpiar mapeo de item IDs del backend y olvidar la persistencia para que
+    // re-descargar el mismo track vuelva a guardarlo. Además pedirle a Go que
+    // deje de reportar la entrada: si no, el próximo poll la volvería a guardar
+    // (resurrección fantasma de la descarga borrada).
+    final trackerIds = _itemIdToStateKey.entries
+        .where((e) =>
+            e.value == audioId || e.value == videoKey || e.value == lyricsKey)
+        .map((e) => e.key)
+        .toList();
+    _itemIdToStateKey.removeWhere((k, v) => trackerIds.contains(k));
+    // Keep in _completedPersisted to block resurrection; add to _pendingDeletes
+    // so the poll skips these IDs even after _completedPersisted is cleaned up
+    // for re-download purposes. The poll will clean _pendingDeletes once the
+    // Go tracker entry disappears (confirming the cancel took effect).
+    _pendingDeletes.addAll(trackerIds);
+    for (final tid in trackerIds) {
+      unawaited(_backend.cancelDownload(tid));
+    }
 
     // Limpiar fingerprints para que no reaparezca
     if (meta != null) {
@@ -1379,11 +2552,35 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
       fps.remove(fingerprintFromName(fpName, fpArtist));
     }
 
-    // If this track belongs to a batch, update the batch state accordingly
+    // If this track belongs to a batch, update the batch state accordingly.
+    // The audioId in _batchTrackIds may use a different source than `source`
+    // (e.g., batch used "spotify-web" but track shows "apple-music" from poll).
+    // Match by normalized ID to handle source mismatches.
     for (final batchKey in _batchTrackIds.keys.toList()) {
       final trackIds = _batchTrackIds[batchKey]!;
-      if (trackIds.contains(audioId)) {
-        trackIds.remove(audioId);
+      // Find the audioId in this batch that matches the normalized ID
+      String? matchedAudioId;
+      for (final tid in trackIds) {
+        // audioId format: track_{normalizedId}_{source}
+        final tidParts = tid.split('_');
+        if (tidParts.length >= 3) {
+          final tidNormId = tidParts.sublist(1, tidParts.length - 1).join('_');
+          if (tidNormId == normalizedId) {
+            matchedAudioId = tid;
+            break;
+          }
+        }
+      }
+      if (matchedAudioId != null) {
+        trackIds.remove(matchedAudioId);
+        // Also remove from _batchData.tracks to keep batch metadata consistent
+        final batchData = _batchData[batchKey];
+        if (batchData != null) {
+          batchData.tracks.removeWhere((t) {
+            final tNormId = normalizeTrackId((t['track_id'] as String?) ?? '');
+            return tNormId == normalizedId;
+          });
+        }
         if (trackIds.isNotEmpty) {
           int completed = 0;
           int stopped = 0;
@@ -1397,16 +2594,20 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
           }
           final total = trackIds.length;
           final allDone = (completed + stopped) >= total;
-          dl[batchKey] = DownloadStateData(
-            state: allDone
-                ? (completed == total ? DownloadState.completed : DownloadState.none)
-                : DownloadState.inProgress,
-            progress: total > 0 ? completed / total : 0.0,
-          );
-          if (allDone && completed < total) _batchTrackIds.remove(batchKey);
+          if (allDone && completed == total) {
+            dl[batchKey] = const DownloadStateData(state: DownloadState.completed, progress: 1.0);
+            await _finalizeCompletedBatch(batchKey, trackIds);
+            _batchTrackIds.remove(batchKey);
+          } else {
+            dl[batchKey] = DownloadStateData(
+              state: allDone ? DownloadState.none : (completed > 0 ? DownloadState.inProgress : DownloadState.none),
+              progress: total > 0 ? completed / total : 0.0,
+            );
+          }
         } else {
           dl.remove(batchKey);
           _batchTrackIds.remove(batchKey);
+          _batchData.remove(batchKey);
         }
         break;
       }
@@ -1530,12 +2731,9 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
       trackMap['artist_name'] as String?,
       trackMap['cover_url'] as String?,
       source,
+      null,
+      (trackMap['isrc'] as String?) ?? '',
     );
-    dispatchDownloads(cubit: this, commonMeta: commonMeta, settings: settings, baseId: baseId, qualityOverride: qualityOverride);
+    dispatchDownloads(cubit: this, commonMeta: commonMeta, settings: settings, baseId: baseId, qualityOverride: qualityOverride, isBatchDispatch: true);
   }
 }
-
-
-
-
-

@@ -17,6 +17,11 @@ type DownloadResult struct {
 	// the download is already playable or the provider cannot decrypt.
 	DecryptionKey  string `json:"decryption_key,omitempty"`
 	OutputExtension string `json:"output_extension,omitempty"`
+	// InputFormat is the container the encrypted stream uses (e.g. "mov"),
+	// informing the decrypt step which demuxer to force. Read from the nested
+	// `decryption` object (or a top-level `input_format`) so any provider with
+	// an encrypted/DRM download can be decrypted correctly, not just amazon.
+	InputFormat string `json:"input_format,omitempty"`
 	Error    string `json:"error,omitempty"`
 }
 
@@ -56,6 +61,20 @@ func (p *ExtensionProvider) Download(trackID, quality, outputPath string, onProg
 	}
 	dr.DecryptionKey = getString(m, "decryption_key")
 	dr.OutputExtension = getString(m, "output_extension")
+	if dec, ok := m["decryption"].(map[string]interface{}); ok {
+		// Nested descriptor (strategy/key/input_format/output_extension) is the
+		// richer form most providers emit; fall back to it for input_format.
+		if dr.DecryptionKey == "" {
+			dr.DecryptionKey = getString(dec, "key")
+		}
+		if dr.OutputExtension == "" {
+			dr.OutputExtension = getString(dec, "output_extension")
+		}
+		dr.InputFormat = getString(dec, "input_format")
+	}
+	if dr.InputFormat == "" {
+		dr.InputFormat = getString(m, "input_format")
+	}
 	if e, ok := m["error_message"].(string); ok && e != "" {
 		dr.Error = e
 	} else if e, ok := m["error"].(string); ok && e != "" {

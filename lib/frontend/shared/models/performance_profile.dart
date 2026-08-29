@@ -1,4 +1,17 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import '../../../injection.dart';
+
+/// Current global "heavy effects" flag from the performance profile. Kept in
+/// one place so every render widget reads the same value instead of each file
+/// re-declaring its own copied getter.
+bool get heavyEffects {
+  try {
+    return sl<ValueNotifier<PerformanceProfile>>().value.heavyEffects;
+  } catch (_) {
+    return true;
+  }
+}
 
 /// Niveles de perfil de rendimiento del dispositivo.
 enum PerfLevel { low, medium, high }

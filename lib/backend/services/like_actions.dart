@@ -6,18 +6,17 @@ import '../../injection.dart' as inj;
 import '../rpc/backend_service.dart';
 import '../../frontend/shared/models/feed_models.dart';
 import '../../frontend/shared/models/detail_models.dart';
+import '../../frontend/shared/utils/download_strategy.dart';
 import '../cache/detail_cache.dart';
 import '../cache/favorite_cache.dart';
 import '../cache/playback_cache.dart';
-import '../cache/settings_cache.dart';
 import '../database/daos/download_dao.dart';
 import '../database/daos/content_dao.dart';
 import '../database/app_database.dart';
-import 'album_domain_service.dart';
-import 'download_cubit.dart';
 import 'item_fingerprint.dart';
-import 'playlist_domain_service.dart';
 import '../cache/like_state.dart';
+import 'download_cubit.dart';
+import 'package:bitly/frontend/shared/utils/download_strategy.dart' show normalizeTrackId;
 
 mixin LikeActions on Cubit<LikeState> {
   BackendService get backend;
@@ -102,10 +101,6 @@ mixin LikeActions on Cubit<LikeState> {
         unawaited(_syncAlbumTracks(item.id, item.source ?? '', item.artists ?? '',
           parentCoverUrl: item.coverUrl,
         ));
-        // Estilo SpotiFLAC: like de álbum → descarga en fila de todo el álbum
-        // con la configuración guardada (el dot de la tarjeta pasa gris →
-        // naranja → verde y el álbum aparece en Mi Espacio).
-        unawaited(_queueAlbumDownload(item));
       case 'artist':
         unawaited(_fav.toggleFavoriteArtist(
           artistId: item.id, name: item.name,
@@ -121,8 +116,6 @@ mixin LikeActions on Cubit<LikeState> {
         unawaited(_syncPlaylistTracks(item.id, item.source ?? '',
           parentCoverUrl: item.coverUrl,
         ));
-        // Like de playlist → descarga en fila (igual que álbum).
-        unawaited(_queuePlaylistDownload(item));
     }
 
     // Guardar la cover es best-effort y NO bloquea el like: corre en segundo
@@ -179,59 +172,6 @@ mixin LikeActions on Cubit<LikeState> {
         liked: true, source: item.source,
       ));
     }
-  }
-
-  /// Like de álbum → descarga en fila de todas sus tracks (estilo SpotiFLAC),
-  /// en silencio y con la configuración de descarga guardada del usuario. El
-  /// progreso aparece en el dot de la tarjeta (gris → naranja → verde) y el
-  /// álbum queda registrado en Mi Espacio vía el batch de descarga.
-  Future<void> _queueAlbumDownload(FeedItem item) async {
-    final src = item.source ?? '';
-    try {
-      final detail = await inj.sl<AlbumDomainService>().getDetail(item.id, source: src);
-      if (detail == null || detail.tracks.isEmpty) return;
-      final settings = await inj.sl<SettingsCache>().getDownloadSettings();
-      final albumCover =
-          (detail.coverUrl?.isNotEmpty == true) ? detail.coverUrl : item.coverUrl;
-      final artistFallback =
-          (detail.artistName?.isNotEmpty == true) ? detail.artistName! : (item.artists ?? '');
-      final tracks = detail.tracks.map((t) => <String, dynamic>{
-            'track_id': t.trackId,
-            'track_title': t.name,
-            'artist_name': (t.artistName?.isNotEmpty == true) ? t.artistName! : artistFallback,
-            'album_name': (t.albumName?.isNotEmpty == true) ? t.albumName! : detail.name,
-            'source': src,
-            'isrc': t.isrc,
-            'duration_ms': t.durationMs,
-            'cover_url': (t.coverUrl?.isNotEmpty == true) ? t.coverUrl! : albumCover,
-          }).toList();
-      inj.sl<DownloadCubit>().startAlbumDownload(
-        item.id, tracks, settings: settings, source: src);
-    } catch (_) {}
-  }
-
-  /// Like de playlist → descarga en fila de todas sus tracks, igual que álbum.
-  Future<void> _queuePlaylistDownload(FeedItem item) async {
-    final src = item.source ?? '';
-    try {
-      final detail = await inj.sl<PlaylistDomainService>().getDetail(item.id, source: src);
-      if (detail == null || detail.tracks.isEmpty) return;
-      final settings = await inj.sl<SettingsCache>().getDownloadSettings();
-      final playlistCover =
-          (detail.coverPath?.isNotEmpty == true) ? detail.coverPath : item.coverUrl;
-      final tracks = detail.tracks.map((t) => <String, dynamic>{
-            'track_id': t.trackId,
-            'track_title': t.name,
-            'artist_name': t.artistName ?? '',
-            'album_name': t.albumName ?? '',
-            'source': src,
-            'isrc': t.isrc,
-            'duration_ms': t.durationMs,
-            'cover_url': (t.coverUrl?.isNotEmpty == true) ? t.coverUrl! : (playlistCover ?? ''),
-          }).toList();
-      inj.sl<DownloadCubit>().startPlaylistDownload(
-        item.id, tracks, settings: settings, source: src);
-    } catch (_) {}
   }
 
   /// Fetches album detail from Go backend and saves all tracks
@@ -314,8 +254,15 @@ mixin LikeActions on Cubit<LikeState> {
 
   Future<void> _unlike(FeedItem item, String fp) async {
     if (item.coverUrl != null && item.coverUrl!.isNotEmpty) {
-      // Only delete cover if track is NOT downloaded
-      if (!await _isTrackDownloaded(item)) {
+      // Solo borra la portada si nada la sigue mostrando: los tracks miran el
+      // historial de descargas, y los álbumes/playlists miran si aún existe el
+      // batch descargado (un like de un álbum descargado conserva su portada
+      // en Mi Espacio aunque se quite el corazón).
+      final stillNeeded = item.type == 'track'
+          ? await _isTrackDownloaded(item)
+          : await _isCollectionDownloaded(
+              item.type, item.id, item.source ?? '');
+      if (!stillNeeded) {
         unawaited(backend.deleteCover(item.coverUrl!));
       }
     }
@@ -366,15 +313,43 @@ mixin LikeActions on Cubit<LikeState> {
     }
   }
 
-  /// Checks if a track has been downloaded (exists in download history).
+  /// Checks if a track has been downloaded. Uses DownloadCubit's in-memory
+  /// state (source-agnostic, matches by normalized ID) which is more reliable
+  /// than the DB lookup that depends on exact name/artist match.
   Future<bool> _isTrackDownloaded(FeedItem item) async {
     try {
-        final existing = await _downloadDao.findExisting(
-        isrc: item.isrc,
-        trackName: item.name,
-        artistName: item.artists,
-      );
-      return existing.isNotEmpty;
+      final dlCubit = inj.sl<DownloadCubit>();
+      final normId = normalizeTrackId(item.id);
+      // Check any completed track entry with this normalized ID, regardless of source
+      for (final entry in dlCubit.state.downloads.entries) {
+        if (entry.value.state != DownloadState.completed) continue;
+        if (!entry.key.startsWith('track_')) continue;
+        // entry.key format: track_{normalizedId}_{source}
+        final parts = entry.key.split('_');
+        if (parts.length >= 3) {
+          final entryNormId = parts.sublist(1, parts.length - 1).join('_');
+          if (entryNormId == normId) return true;
+        }
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// True when the album/playlist [type] [id] still has a downloaded batch
+  /// (its cover is still shown in Mi Espacio). Retries with an empty source
+  /// because the batch may be stored under a different extension name.
+  Future<bool> _isCollectionDownloaded(
+    String type, String id, String source,
+  ) async {
+    try {
+      final normalized = normalizeTrackId(id);
+      var batch = await _downloadDao.getBatchByItem(type, normalized, source);
+      if (batch == null && source.isNotEmpty) {
+        batch = await _downloadDao.getBatchByItem(type, normalized, '');
+      }
+      return batch != null;
     } catch (_) {
       return false;
     }
@@ -389,16 +364,30 @@ mixin LikeActions on Cubit<LikeState> {
 
     if (originalCoverUrl != null && originalCoverUrl.isNotEmpty) {
       if (type == 'track') {
-        // Match the same check as _isTrackDownloaded: use isrc from state
-        final existing = await _downloadDao.findExisting(
-          isrc: likedItem?.isrc,
-          trackName: name, artistName: artists,
-        );
-        if (existing.isEmpty) {
+        // Use the same in-memory check as _isTrackDownloaded
+        final dlCubit = inj.sl<DownloadCubit>();
+        final normId = normalizeTrackId(id);
+        bool found = false;
+        for (final entry in dlCubit.state.downloads.entries) {
+          if (entry.value.state != DownloadState.completed) continue;
+          if (!entry.key.startsWith('track_')) continue;
+          final parts = entry.key.split('_');
+          if (parts.length >= 3) {
+            final entryNormId = parts.sublist(1, parts.length - 1).join('_');
+            if (entryNormId == normId) { found = true; break; }
+          }
+        }
+        if (!found) {
           unawaited(backend.deleteCover(originalCoverUrl));
         }
       } else {
-        unawaited(backend.deleteCover(originalCoverUrl));
+        // Álbum/playlist: conservar la portada si todavía hay un batch
+        // descargado que la muestra en Mi Espacio.
+        final stillDownloaded = await _isCollectionDownloaded(
+          type, id, likedItem?.source ?? '');
+        if (!stillDownloaded) {
+          unawaited(backend.deleteCover(originalCoverUrl));
+        }
       }
     }
 

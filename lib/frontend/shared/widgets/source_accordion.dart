@@ -38,9 +38,8 @@ class _SourceAccordionState extends State<SourceAccordion> {
 
   bool get _isDark => widget.onBg.computeLuminance() > 0.5;
 
-  IconData get _currentIcon => widget.selectedSource.isEmpty
-      ? Icons.apps
-      : (sourceIcons[widget.selectedSource] ?? Icons.music_video);
+  IconData get _currentIcon =>
+      sourceIcons[widget.selectedSource] ?? Icons.music_video;
 
   @override
   void dispose() {
@@ -162,7 +161,6 @@ class _SourceAccordionState extends State<SourceAccordion> {
     // Preserve the caller's insertion order (search config lists the primary
     // source first, e.g. deezer) instead of re-sorting alphabetically.
     return [
-      _SourceRow('', Icons.apps, 'Todas'),
       for (final e in widget.sources.entries)
         _SourceRow(e.key, sourceIcons[e.key] ?? Icons.music_video, e.value),
     ];

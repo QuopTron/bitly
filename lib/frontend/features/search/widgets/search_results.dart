@@ -8,6 +8,7 @@ import '../../../shared/models/feed_models.dart';
 import '../../../../backend/services/item_fingerprint.dart';
 import '../../../../backend/services/like_cubit.dart';
 import '../../../../backend/services/queue_cubit.dart';
+import '../../../../injection.dart';
 import '../../../shared/theme/app_colors.dart';
 import '../../../shared/widgets/track_card.dart';
 import '../../../shared/widgets/grid_card.dart';
@@ -271,7 +272,7 @@ class SearchResultsBody extends StatelessWidget {
       children: items.map((item) {
         final fp = fingerprintItem(item);
         final id = '${item.type}_${normalizeTrackId(item.id)}_${item.source}';
-        void play() => context.read<QueueCubit>().playWithContext(items, item);
+        void play() => sl<QueueCubit>().playWithContext(items, item);
         final resolvedCover = context.read<LikeCubit>().resolveCoverFor(item);
         return Padding(
           padding: EdgeInsets.only(bottom: r.spacingXS),
@@ -300,7 +301,9 @@ class SearchResultsBody extends StatelessWidget {
       {Color? glowColor, Color? onBg, String? title}) {
     return LayoutBuilder(
       builder: (_, constraints) {
-        final avail = constraints.maxWidth;
+        // Mismo ancho disponible que el grid del Feed para que las tarjetas
+        // tengan exactamente el mismo tamaño en Search que en Home.
+        final avail = constraints.maxWidth - 2 * r.spacingS;
         final crossAxisCount = avail > 700 ? 4 : avail > 340 ? 3 : 2;
         final gap = r.spacingXS;
         // Uniform square cells -> every card same size, no ragged rows.
@@ -327,12 +330,13 @@ class SearchResultsBody extends StatelessWidget {
           GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            padding: EdgeInsets.symmetric(horizontal: r.spacingS, vertical: r.spacingS),
+            padding: EdgeInsets.symmetric(horizontal: r.spacingS),
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: crossAxisCount,
               mainAxisSpacing: gap,
               crossAxisSpacing: gap,
-              childAspectRatio: 0.68,
+              // Misma proporción que el grid del Feed.
+              childAspectRatio: 0.72,
             ),
             itemCount: items.length,
             itemBuilder: (_, index) {

@@ -8,8 +8,10 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
+	"github.com/zarz/bitly/go_backend/internal/cooldown"
 	"github.com/zarz/bitly/go_backend/internal/download"
 	"github.com/zarz/bitly/go_backend/internal/extensions"
 	"github.com/zarz/bitly/go_backend/internal/streaming"
@@ -76,29 +78,37 @@ func DownloadByStrategy(payload string) string {
 	if err := json.Unmarshal([]byte(payload), &params); err != nil || params.Request == "" {
 		return jsonErrorStr("falta request")
 	}
-	var req download.Request
-	if err := json.Unmarshal([]byte(params.Request), &req); err != nil || (req.ItemID == "" && req.TrackID == "" && req.ISRC == "") {
-		// The strategy payload uses snake_case keys from Flutter; retry with mapping.
-		var raw map[string]interface{}
-		if err2 := json.Unmarshal([]byte(params.Request), &raw); err2 != nil {
-			return jsonErrorStr("request inválido")
-		}
-		outDir := strOf(raw, "output_dir", "outputDir")
-		if outDir == "" {
-			outDir = downloadDir
-		}
-		req = download.Request{
-			ItemID:    strOf(raw, "item_id", "itemId"),
-			Title:     strOf(raw, "track_title", "title", "track_name", "name"),
-			Artist:    strOf(raw, "artist_name", "artist"),
-			ISRC:      strOf(raw, "isrc"),
-			Provider:  strOf(raw, "source", "provider"),
-			TrackID:   strOf(raw, "track_id", "trackId"),
-			Quality:   strOf(raw, "quality"),
-			OutputDir: outDir,
-			Type:      strOf(raw, "type"),
-			LyricsSrc: strOf(raw, "source"),
-		}
+	var raw map[string]interface{}
+	if err := json.Unmarshal([]byte(params.Request), &raw); err != nil {
+		return jsonErrorStr("request inválido")
+	}
+	outDir := strOf(raw, "output_dir", "outputDir")
+	if outDir == "" {
+		outDir = downloadDir
+	}
+	// Always map from the raw (snake_case) strategy payload. The strategy keys
+	// ("item_id", "track_title", ...) never match the Request camelCase struct
+	// tags, so a direct unmarshal only fills fields whose tags collide (e.g.
+	// "isrc") and silently drops item_id/track_id/title/source — which then
+	// downloads as a nameless "unknown" file. Building from raw keeps every
+	// field intact regardless of key casing.
+	req := download.Request{
+		ItemID:    strOf(raw, "item_id", "itemId"),
+		Title:     strOf(raw, "track_title", "title", "track_name", "name"),
+		Artist:    strOf(raw, "artist_name", "artist"),
+		Album:     strOf(raw, "album_name", "album"),
+		ISRC:      strOf(raw, "isrc"),
+		Provider:  strOf(raw, "source", "provider"),
+		TrackID:   strOf(raw, "track_id", "trackId"),
+		Quality:   strOf(raw, "quality"),
+		OutputDir: outDir,
+		Type:      strOf(raw, "type"),
+		LyricsSrc: strOf(raw, "source"),
+		SpotifyID: strOf(raw, "spotify_id", "spotifyId"),
+		DeezerID:  strOf(raw, "deezer_id", "deezerId"),
+		TidalID:   strOf(raw, "tidal_id", "tidalId"),
+		QobuzID:   strOf(raw, "qobuz_id", "qobuzId"),
+		DurationMS: strInt(raw, "duration_ms", "durationMs"),
 	}
 	if downloadOrch == nil {
 		return jsonErrorStr("no inicializado")
@@ -309,6 +319,27 @@ func SetBackendConfig(payload string) string {
 	return `{"ok":true}`
 }
 
+// SetDownloadProviderPriority configures the ordered list of download providers
+// used for fallback (best-first), mirroring SpotiFLAC's SetProviderPriority.
+// payload: {"providers": ["amazon", "deezer", ...]}. Omitted/empty restores the
+// built-in default order.
+func SetDownloadProviderPriority(payload string) string {
+	var params struct {
+		Providers []string `json:"providers"`
+	}
+	if payload == "" {
+		return `{"ok":true}`
+	}
+	if err := json.Unmarshal([]byte(payload), &params); err != nil {
+		return jsonErrorStr("payload inválido")
+	}
+	if downloadOrch == nil {
+		return `{"ok":false,"error":"orchestrator no inicializado"}`
+	}
+	downloadOrch.SetDownloadProviderPriority(params.Providers)
+	return `{"ok":true}`
+}
+
 // strOf reads the first non-empty string from a set of JSON keys.
 func strOf(m map[string]interface{}, keys ...string) string {
 	for _, k := range keys {
@@ -319,6 +350,27 @@ func strOf(m map[string]interface{}, keys ...string) string {
 		}
 	}
 	return ""
+}
+
+// strInt reads the first non-zero int from a set of JSON keys.
+func strInt(m map[string]interface{}, keys ...string) int {
+	for _, k := range keys {
+		if v, ok := m[k]; ok && v != nil {
+			switch n := v.(type) {
+			case float64:
+				return int(n)
+			case int64:
+				return int(n)
+			case int:
+				return n
+			case string:
+				if out, err := strconv.Atoi(n); err == nil {
+					return out
+				}
+			}
+		}
+	}
+	return 0
 }
 
 // bitrateForQuality returns the approximate bitrate (kbps) for a quality label.
@@ -337,4 +389,14 @@ func bitrateForQuality(q string) int {
 	default:
 		return 1000
 	}
+}
+
+// GetProviderHealthStatus returns cooldown status of all providers.
+func GetProviderHealthStatus() string {
+	status := cooldown.GetAllStatus()
+	data, _ := json.Marshal(status)
+	if data == nil {
+		return "[]"
+	}
+	return string(data)
 }

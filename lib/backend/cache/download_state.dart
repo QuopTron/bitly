@@ -1,6 +1,6 @@
 import 'package:equatable/equatable.dart';
 
-enum DownloadState { none, inProgress, completed, interrupted }
+enum DownloadState { none, queued, inProgress, completed, interrupted }
 
 class DownloadStateData {
   final DownloadState state;
@@ -28,12 +28,18 @@ class DownloadCubitState extends Equatable {
   /// notice while this is set, then clears it via [DownloadCubit.acknowledgeDecryptError].
   final String? decryptError;
 
+  /// Set to true when the download folder is no longer accessible (revoked SAF
+  /// grant, deleted directory, permission denied). The UI shows a recovery
+  /// dialog prompting the user to re-select the folder.
+  final bool folderLost;
+
   const DownloadCubitState({
     this.downloads = const {},
     this.downloadedFingerprints = const {},
     this.loading = false,
     this.backendRestarted = false,
     this.decryptError,
+    this.folderLost = false,
   });
 
   DownloadCubitState copyWith({
@@ -43,6 +49,8 @@ class DownloadCubitState extends Equatable {
     bool? backendRestarted,
     String? decryptError,
     bool clearDecryptError = false,
+    bool? folderLost,
+    bool clearFolderLost = false,
   }) =>
       DownloadCubitState(
         downloads: downloads ?? this.downloads,
@@ -50,8 +58,9 @@ class DownloadCubitState extends Equatable {
         loading: loading ?? this.loading,
         backendRestarted: backendRestarted ?? this.backendRestarted,
         decryptError: clearDecryptError ? null : (decryptError ?? this.decryptError),
+        folderLost: clearFolderLost ? false : (folderLost ?? this.folderLost),
       );
 
   @override
-  List<Object?> get props => [downloads, downloadedFingerprints, loading, backendRestarted, decryptError];
+  List<Object?> get props => [downloads, downloadedFingerprints, loading, backendRestarted, decryptError, folderLost];
 }

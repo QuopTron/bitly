@@ -15,8 +15,8 @@ class PlaylistDomainService {
   final FavoriteCache _fav;
 
   PlaylistDomainService(this._backend)
-      : _collections = inj.sl<CollectionCache>(),
-        _fav = inj.sl<FavoriteCache>();
+    : _collections = inj.sl<CollectionCache>(),
+      _fav = inj.sl<FavoriteCache>();
 
   /// Create a new playlist. Returns the created [PlaylistDomain] on success,
   /// or `null` if the backend rejected the request.
@@ -60,8 +60,7 @@ class PlaylistDomainService {
       if (json.isEmpty || json == '[]') return [];
       final list = jsonDecode(json) as List<dynamic>;
       return list
-          .map((e) =>
-              PlaylistDomain.fromJson(e as Map<String, dynamic>))
+          .map((e) => PlaylistDomain.fromJson(e as Map<String, dynamic>))
           .toList();
     } catch (_) {
       return [];
@@ -95,7 +94,8 @@ class PlaylistDomainService {
       final json = await cache.getPlaylistDetail(playlistId);
       if (json == null || json.isEmpty || json == '{}') return [];
       final detail = PlaylistDetail.fromJson(
-          jsonDecode(json) as Map<String, dynamic>);
+        jsonDecode(json) as Map<String, dynamic>,
+      );
       return detail.tracks;
     } catch (_) {
       return [];
@@ -110,6 +110,29 @@ class PlaylistDomainService {
     } catch (_) {
       return false;
     }
+  }
+
+  /// Ensures a created playlist has a cover: tries [covers] in order, saving
+  /// the first resolvable URL to disk and persisting it to the collection so
+  /// the card/detail never render a gray cover. No-op if a cover already
+  /// exists. Returns the persisted absolute path, or null if none resolved.
+  Future<String?> ensureCover(String playlistId, List<String?> covers) async {
+    try {
+      final existing = await _collections.getPlaylistCover(playlistId);
+      if (existing != null && existing.isNotEmpty) return existing;
+    } catch (_) {}
+    for (final c in covers) {
+      final url = c?.trim() ?? '';
+      if (url.isEmpty) continue;
+      try {
+        final path = await _backend.saveCover(url);
+        if (path != null && path.isNotEmpty) {
+          await _collections.updateCollectionCover(playlistId, path);
+          return path;
+        }
+      } catch (_) {}
+    }
+    return null;
   }
 
   /// Delete a playlist and all its items.
@@ -128,8 +151,7 @@ class PlaylistDomainService {
       final cache = inj.sl<DetailCache>();
       final json = await cache.getUserStats();
       if (json == null || json.isEmpty || json == '{}') return null;
-      return UserStats.fromJson(
-          jsonDecode(json) as Map<String, dynamic>);
+      return UserStats.fromJson(jsonDecode(json) as Map<String, dynamic>);
     } catch (_) {
       return null;
     }
@@ -138,12 +160,10 @@ class PlaylistDomainService {
   // ── Internal helpers ──────────────────────────────────────────────
 
   static PlaylistDomain _fromDetail(PlaylistDetail d) => PlaylistDomain(
-        id: d.id,
-        name: d.name,
-        trackCount: d.itemCount,
-        createdAt: d.createdAt != null ? DateTime.tryParse(d.createdAt!) : null,
-        updatedAt: d.updatedAt != null ? DateTime.tryParse(d.updatedAt!) : null,
-      );
+    id: d.id,
+    name: d.name,
+    trackCount: d.itemCount,
+    createdAt: d.createdAt != null ? DateTime.tryParse(d.createdAt!) : null,
+    updatedAt: d.updatedAt != null ? DateTime.tryParse(d.updatedAt!) : null,
+  );
 }
-
-

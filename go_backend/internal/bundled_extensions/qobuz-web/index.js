@@ -362,7 +362,24 @@ function signedJSON(method, path, body, headers) {
     throw new Error("signed session runtime is not available");
   }
   var response = session.signedFetch(method, path, body || null, headers || {});
+  // A transient session error (expired nonce, stale token) is common on
+  // cold starts. Retry once — if the session re-negotiates internally the
+  // second call succeeds and the user never sees the failure.
   if (!response || response.error || response.needsVerification) {
+    var response2 = session.signedFetch(
+      method,
+      path,
+      body || null,
+      headers || {},
+    );
+    if (
+      response2 &&
+      !response2.error &&
+      !response2.needsVerification &&
+      response2.statusCode === 200
+    ) {
+      return JSON.parse(response2.body || "{}");
+    }
     var error =
       response && response.error ? response.error : "signed request failed";
     throw new Error(error);
@@ -1639,16 +1656,20 @@ function searchTracksWithFallback(query, limit) {
     if (isVerificationRequiredError(e)) throw e;
   }
 
-  try {
-    tracks = searchTracksViaAlbumSearch(query, limit);
-    if (tracks && tracks.length) return tracks;
-  } catch (albumError) {
-    if (isVerificationRequiredError(albumError)) throw albumError;
-    if (apiError) {
-      log.warn(
-        "[QobuzWeb] Album search fallback failed after API error: " +
-          albumError.message,
-      );
+  // If the initial API call failed with a session error (signed request
+  // failed), skip the album search fallback — it uses the same broken
+  // session and will fail identically. Go straight to the store fallback.
+  var isSessionError =
+    apiError &&
+    apiError.message &&
+    (apiError.message.indexOf("signed request failed") !== -1 ||
+      apiError.message.indexOf("session runtime is not available") !== -1);
+  if (!isSessionError) {
+    try {
+      tracks = searchTracksViaAlbumSearch(query, limit);
+      if (tracks && tracks.length) return tracks;
+    } catch (albumError) {
+      if (isVerificationRequiredError(albumError)) throw albumError;
     }
   }
 

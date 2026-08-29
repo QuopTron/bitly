@@ -77,6 +77,8 @@ class DownloadCache {
     for (final id in ids) { await _d.removeById(id); }
   }
 
+  Future<String?> getFilePathById(String id) => _d.getFilePathById(id);
+
   Future<DownloadBatche?> getBatchByItem(
     String itemType, String itemId, String source,
   ) => _d.getBatchByItem(itemType, itemId, source);
@@ -87,5 +89,11 @@ class DownloadCache {
 
   Future<void> removeDownloadedBatches(List<String> keys) =>
       _d.removeBatches(keys);
+
+  /// Updates the file_path for a download history entry.
+  /// Used when the actual file on disk differs from what was stored
+  /// (e.g. after decrypt renames .flac to .dec.flac).
+  Future<void> updateFilePath(String id, String newFilePath) =>
+      _d.updateFilePath(id, newFilePath);
 }
 

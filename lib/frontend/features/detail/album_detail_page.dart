@@ -251,8 +251,16 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
     _resolvedAlbumCover = albumCover ?? album.coverUrl ?? widget.coverUrl;
 
     // Visible tracks as FeedItems (reused for queue seeding + neighbor preload).
+    // Offline filter: show track if online OR if it's downloaded (check both
+    // DetailTrack.isDownloaded and DownloadCubit state for freshness).
     final albumFeedItems = album.tracks
-        .where((t) => _isOnline || t.isDownloaded)
+        .where((t) {
+          if (_isOnline) return true;
+          if (t.isDownloaded) return true;
+          // Check DownloadCubit for up-to-date download status
+          final dID = 'track_${normalizeTrackId(t.trackId)}_$src';
+          return dlCubit.downloadStateFor(dID).state == DownloadState.completed;
+        })
         .map((t) {
           final trackCoverUrl = t.coverUrl;
           final effectiveCoverUrl = (trackCoverUrl?.isNotEmpty == true)
@@ -271,7 +279,7 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
         leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.pop(context)),
       ),
       body: ListView(
-        padding: EdgeInsets.all(r.spacingM),
+        padding: EdgeInsets.fromLTRB(r.spacingM, r.spacingM, r.spacingM, r.spacingM + 90),
         children: [
           Row(children: [
             ClipRRect(
@@ -318,7 +326,9 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
                           ? '${loc.setup.downloaded} ✓'
                           : batchState.state == DownloadState.inProgress
                               ? '${(batchState.progress * 100).toInt()}%'
-                              : loc.setup.downloaded,
+                              : batchState.state == DownloadState.interrupted
+                                  ? loc.setup.retry
+                                  : loc.setup.downloaded,
                       style: TextStyle(fontSize: r.footerSize, color: onBg.withValues(alpha: 0.7)),
                     ),
                   ),
@@ -348,12 +358,13 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
                 ? likedCubit.resolveCoverFor(feedItem)
                 : albumCover;
             final isLiked = likedCubit.isLiked(feedItem);
-            void play() => context.read<QueueCubit>().playWithContext(albumFeedItems, feedItem);
+            void play() => sl<QueueCubit>().playWithContext(albumFeedItems, feedItem);
             return Padding(
               padding: EdgeInsets.only(bottom: r.spacingXS),
               child: TrackCard(
                 title: feedItem.name, subtitle: (feedItem.artists?.isNotEmpty == true) ? feedItem.artists! : ((album.artistName?.isNotEmpty == true) ? album.artistName! : ''),
                 coverUrl: displayCover, isLiked: isLiked, readyKey: normalizeTrackId(feedItem.id),
+                textScale: 1.2,
                 onLike: () => likedCubit.toggleLike(feedItem),
                 downloadState: dlCubit.downloadStateFor(dID).state,
                 onDownload: () => showDownloadOptions(context, feedItem, isDark),

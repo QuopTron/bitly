@@ -46,21 +46,21 @@ func TransformQuality(filePath, outDir, quality string) (string, error) {
 	return out.OutputPath, nil
 }
 
-// applyQuality transforms a freshly downloaded/decrypted playable file to the
-// user's requested quality and records the final path in the tracker. Returns
-// the final file path. It must only be called on playable (non-encrypted)
-// files.
+// applyQuality converts the freshly downloaded/decrypted file to the requested
+// quality format when lossy (high/medium/low → mp3 bitrate) using ffmpeg,
+// returning the converted path. Lossless picks (flac/hifi) keep the original
+// file as-is. The file is only touched if it is already playable (non-encrypted).
 func (o *Orchestrator) applyQuality(itemID, filePath, outDir, quality string) string {
 	if filePath == "" {
 		return ""
 	}
-	final, err := TransformQuality(filePath, outDir, quality)
-	if err == nil && final != "" && final != filePath {
+	// Transform to lossy format if quality is not lossless
+	converted, err := TransformQuality(filePath, outDir, quality)
+	if err == nil && converted != filePath && converted != "" {
+		// Remove original file after successful conversion
 		_ = os.Remove(filePath)
+		filePath = converted
 	}
-	if final == "" {
-		final = filePath
-	}
-	o.tracker.SetOutputPath(itemID, final)
-	return final
+	o.tracker.SetOutputPath(itemID, filePath)
+	return filePath
 }

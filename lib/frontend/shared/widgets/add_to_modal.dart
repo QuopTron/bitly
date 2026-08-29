@@ -6,6 +6,7 @@ import '../models/feed_models.dart';
 import '../../../backend/services/like_cubit.dart';
 import '../../../backend/services/queue_cubit.dart';
 import '../../../backend/services/playlist_cubit.dart';
+import '../../../injection.dart';
 
 void showAddToModal(BuildContext context, FeedItem item) {
   final r = Responsive(context);
@@ -62,7 +63,7 @@ class _AddToSheet extends StatelessWidget {
             Divider(height: 1, color: onBg.withValues(alpha: 0.08)),
             _option(r, onBg, Icons.queue_music, loc.setup.playNext, () {
               Navigator.pop(context);
-              context.read<QueueCubit>().addNext(item);
+              sl<QueueCubit>().addNext(item);
             }),
           ],
           SizedBox(height: r.bottomPadding),
@@ -72,7 +73,7 @@ class _AddToSheet extends StatelessWidget {
   }
 
   void _addToPlaylist(BuildContext context, FeedItem item) {
-    final cubit = context.read<PlaylistCubit>();
+    final cubit = sl<PlaylistCubit>();
     final state = cubit.state;
     if (state.playlists.isEmpty) {
       _showCreatePlaylistDialog(context, cubit, item);

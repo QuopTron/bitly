@@ -5,17 +5,8 @@ import '../../l10n/app_localizations.dart';
 import '../theme/app_colors.dart';
 import '../utils/responsive.dart';
 import '../models/performance_profile.dart';
-import '../../../injection.dart';
 import 'cover_image.dart';
 import 'download_indicator.dart';
-
-bool get heavyEffects {
-  try {
-    return sl<ValueNotifier<PerformanceProfile>>().value.heavyEffects;
-  } catch (_) {
-    return true;
-  }
-}
 
 class GridCard extends StatelessWidget {
   final String type;
@@ -36,6 +27,19 @@ class GridCard extends StatelessWidget {
   final bool actionsEnabled;
   final double textScale;
 
+  /// Optional badge rendered on the cover's top-left corner (e.g. an origin
+  /// indicator for liked/downloaded/own items in "Mi Espacio").
+  final Widget? cornerBadge;
+
+  /// Whether the trailing (export / more) action is shown. Set false in
+  /// "Mi Espacio" so album/playlist cards only expose like + download.
+  final bool showThirdAction;
+
+  /// Whether the download action is shown. Set false when an item can't be
+  /// downloaded (e.g. an own/local playlist with no provider source) so the
+  /// card doesn't render a dead download button.
+  final bool showDownloadAction;
+
   const GridCard({
     super.key,
     required this.type,
@@ -55,6 +59,9 @@ class GridCard extends StatelessWidget {
     this.showActions = true,
     this.actionsEnabled = true,
     this.textScale = 1.0,
+    this.cornerBadge,
+    this.showThirdAction = true,
+    this.showDownloadAction = true,
   });
 
   IconData get _icon {
@@ -89,141 +96,178 @@ class GridCard extends StatelessWidget {
     final r = Responsive(context);
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final fallbackBg = isDark ? const Color(0xFF2A2A2A) : const Color(0xFFE0E0E0);
+    final fallbackBg =
+        isDark ? const Color(0xFF2A2A2A) : const Color(0xFFE0E0E0);
     final ts = textScale;
 
     return RepaintBoundary(
-      child: GestureDetector(
-        onTap: onTap,
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final w = constraints.maxWidth;
-            final h = constraints.maxHeight;
-            final pad = r.spacingS;
-            // Reserve the info block FIRST so text/icons are always readable,
-            // then give the cover whatever vertical space is left. Never the
-            // other way around (that's what squashed covers + hidden text).
-            final wrapW = w - 2 * pad;
-            final infoH = _infoHeight(r, ts, showActions);
-            final coverSide = math.min(wrapW, math.max(40.0, h - infoH - pad)).toDouble();
-            final hasCoverSpace = coverSide >= 40;
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final w = constraints.maxWidth;
+          final h = constraints.maxHeight;
+          final pad = r.spacingS;
+          // Reserve the info block FIRST so text/icons are always readable,
+          // then give the cover whatever vertical space is left. Never the
+          // other way around (that's what squashed covers + hidden text).
+          final wrapW = w - 2 * pad;
+          final infoH = _infoHeight(r, ts, showActions);
+          final coverSide =
+              math.min(wrapW, math.max(40.0, h - infoH - pad)).toDouble();
+          final hasCoverSpace = coverSide >= 40;
 
-            return Container(
-              width: w,
-              clipBehavior: Clip.antiAlias,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.1), width: 0.6),
-                color: fallbackBg,
+          return GestureDetector(
+            onTap: onTap,
+            behavior: HitTestBehavior.translucent,
+            child: Container(
+            width: w,
+            height: h.isFinite ? h : w + infoH + pad,
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.1),
+                width: 0.6,
               ),
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  // Blurred cover fills the whole card as background.
-                  Positioned.fill(
-                    child: coverUrl != null && coverUrl!.isNotEmpty
-                        ? ImageFiltered(
-                            imageFilter: heavyEffects
-                                ? ImageFilter.blur(sigmaX: 18, sigmaY: 18)
-                                : ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+              color: fallbackBg,
+            ),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                // Blurred cover fills the whole card as background.
+                Positioned.fill(
+                  child:
+                      coverUrl != null && coverUrl!.isNotEmpty
+                          ? ImageFiltered(
+                            imageFilter:
+                                heavyEffects
+                                    ? ImageFilter.blur(sigmaX: 18, sigmaY: 18)
+                                    : ImageFilter.blur(sigmaX: 6, sigmaY: 6),
                             child: imageFromUrl(coverUrl, fit: BoxFit.cover),
                           )
-                        : Container(
+                          : Container(
                             decoration: BoxDecoration(
                               gradient: _placeholderGradient(context),
                             ),
                           ),
-                  ),
-                  // Scrim so foreground stays readable over any artwork.
-                  Positioned.fill(
-                    child: Container(color: Colors.black.withValues(alpha: 0.38)),
-                  ),
-                  // Bottom-up gradient so the info block always stays legible.
-                  Positioned.fill(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.bottomCenter,
-                          end: Alignment.topCenter,
-                          colors: [
-                            Colors.black.withValues(alpha: 0.9),
-                            Colors.black.withValues(alpha: 0.4),
-                            Colors.transparent,
-                          ],
-                          stops: const [0.0, 0.6, 1.0],
-                        ),
+                ),
+                // Scrim so foreground stays readable over any artwork.
+                Positioned.fill(
+                  child: Container(color: Colors.black.withValues(alpha: 0.38)),
+                ),
+                // Bottom-up gradient so the info block always stays legible.
+                Positioned.fill(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.bottomCenter,
+                        end: Alignment.topCenter,
+                        colors: [
+                          Colors.black.withValues(alpha: 0.9),
+                          Colors.black.withValues(alpha: 0.4),
+                          Colors.transparent,
+                        ],
+                        stops: const [0.0, 0.6, 1.0],
                       ),
                     ),
                   ),
-                  // Foreground: sharp cover + info block below it.
-                  Padding(
-                    padding: EdgeInsets.all(pad),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.max,
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        if (hasCoverSpace)
-                          Container(
-                            width: coverSide,
-                            height: coverSide,
-                            clipBehavior: Clip.antiAlias,
-                            decoration: BoxDecoration(
-                              shape: _isArtist ? BoxShape.circle : BoxShape.rectangle,
-                              borderRadius: _isArtist ? null : BorderRadius.circular(14),
-                              color: coverUrl == null ? fallbackBg : null,
-                              border: Border.all(
-                                color: isDark
-                                    ? Colors.white.withValues(alpha: 0.3)
-                                    : Colors.black.withValues(alpha: 0.15),
-                                width: 0.8,
-                              ),
-                              boxShadow: heavyEffects ? [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.45),
-                                  blurRadius: 16,
-                                  offset: const Offset(0, 6),
-                                ),
-                              ] : null,
+                ),
+                // Foreground: sharp cover + info block below it.
+                Padding(
+                  padding: EdgeInsets.all(pad),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.max,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      if (hasCoverSpace)
+                        Container(
+                          width: coverSide,
+                          height: coverSide,
+                          clipBehavior: Clip.antiAlias,
+                          decoration: BoxDecoration(
+                            shape:
+                                _isArtist
+                                    ? BoxShape.circle
+                                    : BoxShape.rectangle,
+                            borderRadius:
+                                _isArtist ? null : BorderRadius.circular(14),
+                            color: coverUrl == null ? fallbackBg : null,
+                            border: Border.all(
+                              color:
+                                  isDark
+                                      ? Colors.white.withValues(alpha: 0.3)
+                                      : Colors.black.withValues(alpha: 0.15),
+                              width: 0.8,
                             ),
-                            child: Stack(
-                              fit: StackFit.expand,
-                              children: [
-                                if (coverUrl != null && coverUrl!.isNotEmpty)
-                                  imageFromUrl(coverUrl, fit: BoxFit.cover, fallback: _placeholderIcon(coverSide, context))
-                                else
-                                  _placeholderIcon(coverSide, context),
-                                if (!_isArtist && downloadState != DownloadState.none)
-                                  Positioned(
-                                    top: 6, right: 6,
-                                    child: DownloadIndicator(
-                                      state: showDeleteAnimation ? DownloadState.completed : downloadState,
-                                      size: 12,
-                                    ),
-                                  ),
-                              ],
-                            ),
+                            boxShadow:
+                                heavyEffects
+                                    ? [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(
+                                          alpha: 0.45,
+                                        ),
+                                        blurRadius: 16,
+                                        offset: const Offset(0, 6),
+                                      ),
+                                    ]
+                                    : null,
                           ),
-                        if (hasCoverSpace) SizedBox(height: r.spacingS),
-                        // Info block: fully visible, never clipped. Flexible so it
-                        // shrinks within the card instead of overflowing when the
-                        // rendered text is taller than the height estimate.
-                        Expanded(
-                          child: Center(
-                            child: SingleChildScrollView(
-                              key: ValueKey('info_$type'),
-                              physics: const NeverScrollableScrollPhysics(),
-                              child: _infoBlock(context, r, ts),
-                            ),
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              if (coverUrl != null && coverUrl!.isNotEmpty)
+                                imageFromUrl(
+                                  coverUrl,
+                                  fit: BoxFit.cover,
+                                  fallback: _placeholderIcon(
+                                    coverSide,
+                                    context,
+                                  ),
+                                )
+                              else
+                                _placeholderIcon(coverSide, context),
+                              if (!_isArtist &&
+                                  downloadState != DownloadState.none)
+                                Positioned(
+                                  top: 6,
+                                  right: 6,
+                                  child: DownloadIndicator(
+                                    state:
+                                        showDeleteAnimation
+                                            ? DownloadState.completed
+                                            : downloadState,
+                                    size: 12,
+                                  ),
+                                ),
+                              if (cornerBadge != null)
+                                Positioned(
+                                  top: 6,
+                                  left: 6,
+                                  child: cornerBadge!,
+                                ),
+                            ],
                           ),
                         ),
-                      ],
-                    ),
+                      if (hasCoverSpace) SizedBox(height: r.spacingS),
+                      // Info block: fully visible, never clipped. Flexible so it
+                      // shrinks within the card instead of overflowing when the
+                      // rendered text is taller than the height estimate.
+                      Expanded(
+                        child: Center(
+                          child: SingleChildScrollView(
+                            key: ValueKey('info_$type'),
+                            physics: const NeverScrollableScrollPhysics(),
+                            child: _infoBlock(context, r, ts),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            );
-          },
-        ),
+                ),
+              ],
+            ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -273,52 +317,76 @@ class GridCard extends StatelessWidget {
       spacing: r.spacingM * 0.8,
       runSpacing: 2,
       children: <Widget>[
-        GestureDetector(
-          onTap: onLike,
-          child: Icon(
-            isLiked ? Icons.favorite : Icons.favorite_border,
-            color: isLiked ? Colors.red : Colors.white.withValues(alpha: 0.8),
-            size: iconSize,
+        Semantics(
+          button: true,
+          label: isLiked ? loc.setup.a11yUnlike : loc.setup.a11yLike,
+          child: GestureDetector(
+            onTap: onLike,
+            child: Icon(
+              isLiked ? Icons.favorite : Icons.favorite_border,
+              color: isLiked ? Colors.red : Colors.white.withValues(alpha: 0.8),
+              size: iconSize,
+            ),
           ),
         ),
-        if (!_isArtist)
+        if (!_isArtist && showDownloadAction)
           Tooltip(
-            message: downloadState == DownloadState.interrupted
-                ? loc.setup.downloadTooltipRetry
-                : downloadState == DownloadState.completed
+            message:
+                downloadState == DownloadState.interrupted
+                    ? loc.setup.downloadTooltipRetry
+                    : downloadState == DownloadState.completed
                     ? loc.setup.downloadTooltipDelete
                     : downloadState == DownloadState.inProgress
-                        ? loc.setup.downloadTooltipInProgress
-                        : loc.setup.downloadTooltipDownload,
+                    ? loc.setup.downloadTooltipInProgress
+                    : loc.setup.downloadTooltipDownload,
             child: GestureDetector(
-                onTap: downloadState == DownloadState.completed
-                    ? (onDelete ?? onDownload)
-                    : onDownload,
+              onTap:
+                  downloadState == DownloadState.completed
+                      ? (onDelete ?? onDownload)
+                      : onDownload,
               child: Icon(
                 downloadState == DownloadState.completed
                     ? Icons.delete_outline
                     : downloadState == DownloadState.interrupted
-                        ? Icons.refresh
-                        : Icons.download,
+                    ? Icons.refresh
+                    : Icons.download,
                 size: iconSize,
-                color: downloadState == DownloadState.completed
-                    ? Colors.red.withValues(alpha: 0.6)
-                    : downloadState == DownloadState.interrupted
+                color:
+                    downloadState == DownloadState.completed
+                        ? Colors.red.withValues(alpha: 0.6)
+                        : downloadState == DownloadState.interrupted
                         ? const Color(0xFFE53935)
                         : Colors.white.withValues(alpha: 0.6),
               ),
             ),
           ),
-        if ((type == 'playlist' || type == 'album') && onExport != null)
-          GestureDetector(
-            onTap: onExport,
-            child: Icon(Icons.file_download_outlined, size: iconSize + 1, color: Colors.white.withValues(alpha: 0.7)),
-          )
-        else
-          GestureDetector(
-            onTap: onMore,
-            child: Icon(Icons.more_horiz, size: iconSize + 2, color: Colors.white.withValues(alpha: 0.6)),
-          ),
+        if (showThirdAction)
+          if ((type == 'playlist' || type == 'album') && onExport != null)
+            Semantics(
+              button: true,
+              label: loc.setup.a11yExport,
+              child: GestureDetector(
+                onTap: onExport,
+                child: Icon(
+                  Icons.file_download_outlined,
+                  size: iconSize + 1,
+                  color: Colors.white.withValues(alpha: 0.7),
+                ),
+              ),
+            )
+          else
+            Semantics(
+              button: true,
+              label: loc.setup.a11yMore,
+              child: GestureDetector(
+                onTap: onMore,
+                child: Icon(
+                  Icons.more_horiz,
+                  size: iconSize + 2,
+                  color: Colors.white.withValues(alpha: 0.6),
+                ),
+              ),
+            ),
       ],
     );
 
@@ -352,14 +420,15 @@ class GridCard extends StatelessWidget {
         shape: BoxShape.circle,
         gradient: RadialGradient(
           center: Alignment.center,
-          colors: [
-            c.withValues(alpha: 0.4),
-            c.withValues(alpha: 0.06),
-          ],
+          colors: [c.withValues(alpha: 0.4), c.withValues(alpha: 0.06)],
         ),
       ),
       alignment: Alignment.center,
-      child: Icon(_icon, size: size * 0.34, color: Colors.white.withValues(alpha: 0.85)),
+      child: Icon(
+        _icon,
+        size: size * 0.34,
+        color: Colors.white.withValues(alpha: 0.85),
+      ),
     );
   }
 }

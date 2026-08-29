@@ -29,12 +29,12 @@ class PlaybackCache {
   final ContentDao _ct;
 
   PlaybackCache(AppDatabase db)
-      : _ph = PlayHistoryDao(db),
-        _pm = PremiumDao(db),
-        _dl = DownloadDao(db),
-        _fv = FavoritesDao(db),
-        _cl = CollectionsDao(db),
-        _ct = ContentDao(db);
+    : _ph = PlayHistoryDao(db),
+      _pm = PremiumDao(db),
+      _dl = DownloadDao(db),
+      _fv = FavoritesDao(db),
+      _cl = CollectionsDao(db),
+      _ct = ContentDao(db);
 
   /// Record a play in local Drift tables:
   /// 1. Insert into `play_history`
@@ -51,15 +51,17 @@ class PlaybackCache {
     final now = DateTime.now();
 
     // 1. Insert play history entry
-    await _ph.logPlay(PlayHistoryCompanion(
-      trackId: Value(trackId),
-      trackName: Value(trackName),
-      artistName: Value(artistName),
-      albumName: Value(albumName ?? ''),
-      playedAt: Value(now),
-      durationMs: Value(durationMs),
-      percentage: Value(percentage),
-    ));
+    await _ph.logPlay(
+      PlayHistoryCompanion(
+        trackId: Value(trackId),
+        trackName: Value(trackName),
+        artistName: Value(artistName),
+        albumName: Value(albumName ?? ''),
+        playedAt: Value(now),
+        durationMs: Value(durationMs),
+        percentage: Value(percentage),
+      ),
+    );
 
     // 2. Increment play aggregates for track
     await _ph.incrementPlayCount(trackId, 'track');
@@ -83,8 +85,10 @@ class PlaybackCache {
   /// {level, totalPlays, dailyLimit, playsToday, playsRemaining, blocked}
   Future<Map<String, dynamic>> getListeningLevel() async {
     final topTracks = await _ph.getTop('track');
-    final totalPlays =
-        topTracks.fold<int>(0, (sum, t) => sum + (t.playCount ?? 0));
+    final totalPlays = topTracks.fold<int>(
+      0,
+      (sum, t) => sum + (t.playCount ?? 0),
+    );
 
     final today = DateTime.now().toUtc().toIso8601String().substring(0, 10);
     final playsToday = await _pm.getDailyPlayCount(today);
@@ -127,7 +131,9 @@ class PlaybackCache {
       }
     }
 
-    _log.i('[PlaybackCache] level=$level totalPlays=$totalPlays dailyLimit=$dailyLimit playsToday=$playsToday isPremium=$isPremium');
+    _log.i(
+      '[PlaybackCache] level=$level totalPlays=$totalPlays dailyLimit=$dailyLimit playsToday=$playsToday isPremium=$isPremium',
+    );
 
     return {
       'level': level,
@@ -192,58 +198,78 @@ class PlaybackCache {
   // ── Artist Stats (local Drift) ─────────────────────────────────
 
   /// Get top tracks for an artist, sorted by play count descending.
-  Future<List<DetailTrack>> getArtistTopTracks(String artistId, {int limit = 20}) async {
+  Future<List<DetailTrack>> getArtistTopTracks(
+    String artistId, {
+    int limit = 20,
+  }) async {
     final tracks = await _ct.getTracksByArtist(artistId);
     final playAggs = await _ph.getTop('track', limit: 1000);
     final playMap = {for (final a in playAggs) a.itemId: a.playCount ?? 0};
 
-    final sorted = tracks.map((t) {
-      final pc = playMap[t.id] ?? 0;
-      return (track: t, playCount: pc);
-    }).toList()
-      ..sort((a, b) {
-        final cmp = b.playCount.compareTo(a.playCount);
-        if (cmp != 0) return cmp;
-        return a.track.name.compareTo(b.track.name);
-      });
+    final sorted =
+        tracks.map((t) {
+            final pc = playMap[t.id] ?? 0;
+            return (track: t, playCount: pc);
+          }).toList()
+          ..sort((a, b) {
+            final cmp = b.playCount.compareTo(a.playCount);
+            if (cmp != 0) return cmp;
+            return a.track.name.compareTo(b.track.name);
+          });
 
-    return sorted.take(limit).map((e) => DetailTrack(
-      trackId: e.track.id,
-      name: e.track.name,
-      durationMs: e.track.durationMs ?? 0,
-      trackNumber: e.track.trackNumber ?? 0,
-      isrc: e.track.isrc ?? '',
-      coverUrl: e.track.coverUrl,
-      coverPath: e.track.coverPath,
-      provider: e.track.source,
-    )).toList();
+    return sorted
+        .take(limit)
+        .map(
+          (e) => DetailTrack(
+            trackId: e.track.id,
+            name: e.track.name,
+            durationMs: e.track.durationMs ?? 0,
+            trackNumber: e.track.trackNumber ?? 0,
+            isrc: e.track.isrc ?? '',
+            coverUrl: e.track.coverUrl,
+            coverPath: e.track.coverPath,
+            provider: e.track.source,
+          ),
+        )
+        .toList();
   }
 
   /// Get top albums for an artist, sorted by play count descending.
-  Future<List<DetailAlbum>> getArtistTopAlbums(String artistId, {int limit = 10}) async {
+  Future<List<DetailAlbum>> getArtistTopAlbums(
+    String artistId, {
+    int limit = 10,
+  }) async {
     final albums = await _ct.getAlbumsByArtist(artistId);
     final playAggs = await _ph.getTop('album', limit: 1000);
     final playMap = {for (final a in playAggs) a.itemId: a.playCount ?? 0};
 
-    final sorted = albums.map((a) {
-      final pc = playMap[a.id] ?? 0;
-      return (album: a, playCount: pc);
-    }).toList()
-      ..sort((a, b) {
-        final cmp = b.playCount.compareTo(a.playCount);
-        if (cmp != 0) return cmp;
-        return (a.album.releaseDate ?? '').compareTo(b.album.releaseDate ?? '');
-      });
+    final sorted =
+        albums.map((a) {
+            final pc = playMap[a.id] ?? 0;
+            return (album: a, playCount: pc);
+          }).toList()
+          ..sort((a, b) {
+            final cmp = b.playCount.compareTo(a.playCount);
+            if (cmp != 0) return cmp;
+            return (a.album.releaseDate ?? '').compareTo(
+              b.album.releaseDate ?? '',
+            );
+          });
 
-    return sorted.take(limit).map((e) => DetailAlbum(
-      albumId: e.album.id,
-      name: e.album.name,
-      coverUrl: e.album.coverUrl,
-      coverPath: e.album.coverPath,
-      releaseDate: e.album.releaseDate,
-      totalTracks: e.album.totalTracks ?? 0,
-      playCount: e.playCount,
-    )).toList();
+    return sorted
+        .take(limit)
+        .map(
+          (e) => DetailAlbum(
+            albumId: e.album.id,
+            name: e.album.name,
+            coverUrl: e.album.coverUrl,
+            coverPath: e.album.coverPath,
+            releaseDate: e.album.releaseDate,
+            totalTracks: e.album.totalTracks ?? 0,
+            playCount: e.playCount,
+          ),
+        )
+        .toList();
   }
 
   /// Get similar artists from local Drift SimilarArtists table.
@@ -291,18 +317,23 @@ class PlaybackCache {
     final albumTracks = await _ct.getTracksByAlbum(albumId);
     final artist = await _ct.getArtist(album.artistId);
 
-    final tracks = albumTracks.map((t) => DetailTrack(
-      trackId: t.id,
-      name: t.name,
-      durationMs: t.durationMs ?? 0,
-      trackNumber: t.trackNumber ?? 0,
-      isrc: t.isrc ?? '',
-      coverUrl: t.coverUrl,
-      coverPath: t.coverPath,
-      artistName: artist?.name,
-      albumName: album.name,
-      provider: t.source,
-    )).toList();
+    final tracks =
+        albumTracks
+            .map(
+              (t) => DetailTrack(
+                trackId: t.id,
+                name: t.name,
+                durationMs: t.durationMs ?? 0,
+                trackNumber: t.trackNumber ?? 0,
+                isrc: t.isrc ?? '',
+                coverUrl: t.coverUrl,
+                coverPath: t.coverPath,
+                artistName: artist?.name,
+                albumName: album.name,
+                provider: t.source,
+              ),
+            )
+            .toList();
 
     return AlbumDetail(
       id: album.id,
@@ -321,43 +352,51 @@ class PlaybackCache {
   Future<void> syncAlbumDetail(AlbumDetail detail, {String? source}) async {
     // Upsert artist if name available
     if (detail.artistName != null && detail.artistName!.isNotEmpty) {
-      await _ct.upsertArtist(ArtistsCompanion(
-        id: Value(detail.id), // album ID used as artist placeholder; real ID unknown
-        name: Value(detail.artistName!),
-        normalizedName: Value(detail.artistName!.trim().toLowerCase()),
-        provider: Value(source ?? ''),
-        createdAt: Value(DateTime.now()),
-      ));
+      await _ct.upsertArtist(
+        ArtistsCompanion(
+          id: Value(
+            detail.id,
+          ), // album ID used as artist placeholder; real ID unknown
+          name: Value(detail.artistName!),
+          normalizedName: Value(detail.artistName!.trim().toLowerCase()),
+          provider: Value(source ?? ''),
+          createdAt: Value(DateTime.now()),
+        ),
+      );
     }
 
-    await _ct.upsertAlbum(AlbumsCompanion(
-      id: Value(detail.id),
-      name: Value(detail.name),
-      normalizedName: Value(detail.name.trim().toLowerCase()),
-      artistId: Value(detail.id), // placeholder; real artist ID unknown
-      coverUrl: Value(detail.coverUrl ?? ''),
-      coverPath: Value(detail.coverPath ?? ''),
-      releaseDate: Value(detail.releaseDate ?? ''),
-      albumType: Value(detail.albumType ?? ''),
-      totalTracks: Value(detail.totalTracks),
-      provider: Value(source ?? ''),
-      createdAt: Value(DateTime.now()),
-    ));
+    await _ct.upsertAlbum(
+      AlbumsCompanion(
+        id: Value(detail.id),
+        name: Value(detail.name),
+        normalizedName: Value(detail.name.trim().toLowerCase()),
+        artistId: Value(detail.id), // placeholder; real artist ID unknown
+        coverUrl: Value(detail.coverUrl ?? ''),
+        coverPath: Value(detail.coverPath ?? ''),
+        releaseDate: Value(detail.releaseDate ?? ''),
+        albumType: Value(detail.albumType ?? ''),
+        totalTracks: Value(detail.totalTracks),
+        provider: Value(source ?? ''),
+        createdAt: Value(DateTime.now()),
+      ),
+    );
 
     for (final t in detail.tracks) {
-      await _ct.upsertTrack(TracksCompanion(
-        id: Value(t.trackId),
-        name: Value(t.name),
-        artistId: Value(detail.id), // placeholder
-        albumId: Value(detail.id),
-        isrc: Value(t.isrc),
-        durationMs: Value(t.durationMs),
-        trackNumber: Value(t.trackNumber),
-        coverUrl: Value(t.coverUrl ?? ''),
-        coverPath: Value(t.coverPath ?? ''),
-        source: Value(t.provider ?? source ?? ''),
-        createdAt: Value(DateTime.now()),
-      ));
+      await _ct.upsertTrack(
+        TracksCompanion(
+          id: Value(t.trackId),
+          name: Value(t.name),
+          artistId: Value(detail.id), // placeholder
+          albumId: Value(detail.id),
+          isrc: Value(t.isrc),
+          durationMs: Value(t.durationMs),
+          trackNumber: Value(t.trackNumber),
+          coverUrl: Value(t.coverUrl ?? ''),
+          coverPath: Value(t.coverPath ?? ''),
+          source: Value(t.provider ?? source ?? ''),
+          createdAt: Value(DateTime.now()),
+        ),
+      );
     }
   }
 
@@ -374,23 +413,35 @@ class PlaybackCache {
       final trackId = item.trackId ?? item.itemId;
       final track = await _ct.getTrack(trackId);
       if (track != null) {
-        tracks.add(DetailTrack(
-          trackId: track.id,
-          name: track.name,
-          durationMs: track.durationMs ?? 0,
-          trackNumber: track.trackNumber ?? 0,
-          isrc: track.isrc ?? '',
-          coverUrl: track.coverUrl,
-          coverPath: track.coverPath,
-          provider: track.source,
-        ));
+        tracks.add(
+          DetailTrack(
+            trackId: track.id,
+            name: track.name,
+            durationMs: track.durationMs ?? 0,
+            trackNumber: track.trackNumber ?? 0,
+            isrc: track.isrc ?? '',
+            coverUrl: track.coverUrl,
+            coverPath: track.coverPath,
+            provider: track.source,
+          ),
+        );
       }
+    }
+
+    // Fall back to the first track's cover so a freshly-created playlist with
+    // no persisted coverPath still shows artwork in the detail header.
+    var coverPath = collection.coverPath;
+    if ((coverPath == null || coverPath.isEmpty) && tracks.isNotEmpty) {
+      coverPath =
+          (tracks.first.coverPath?.isNotEmpty ?? false)
+              ? tracks.first.coverPath
+              : tracks.first.coverUrl;
     }
 
     return PlaylistDetail(
       id: collection.id,
       name: collection.name,
-      coverPath: collection.coverPath,
+      coverPath: coverPath,
       createdAt: collection.createdAt.toIso8601String(),
       updatedAt: collection.updatedAt.toIso8601String(),
       itemCount: tracks.length,
@@ -399,32 +450,39 @@ class PlaybackCache {
   }
 
   /// Save extension-fetched playlist detail to local Drift tables.
-  Future<void> syncPlaylistDetail(PlaylistDetail detail, {String? source}) async {
+  Future<void> syncPlaylistDetail(
+    PlaylistDetail detail, {
+    String? source,
+  }) async {
     // Upsert collection (playlist) with the actual ID so getPlaylistDetailLocal finds it
-    await _cl.upsert(CollectionsCompanion(
-      id: Value(detail.id),
-      name: Value(detail.name),
-      coverPath: Value(detail.coverPath ?? ''),
-      type: const Value('playlist'),
-      createdAt: Value(DateTime.now()),
-      updatedAt: Value(DateTime.now()),
-    ));
+    await _cl.upsert(
+      CollectionsCompanion(
+        id: Value(detail.id),
+        name: Value(detail.name),
+        coverPath: Value(detail.coverPath ?? ''),
+        type: const Value('playlist'),
+        createdAt: Value(DateTime.now()),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
 
     // Upsert tracks and add as collection items
     for (int i = 0; i < detail.tracks.length; i++) {
       final t = detail.tracks[i];
-      await _ct.upsertTrack(TracksCompanion(
-        id: Value(t.trackId),
-        name: Value(t.name),
-        artistId: Value(t.trackId), // placeholder
-        isrc: Value(t.isrc),
-        durationMs: Value(t.durationMs),
-        trackNumber: Value(t.trackNumber),
-        coverUrl: Value(t.coverUrl ?? ''),
-        coverPath: Value(t.coverPath ?? ''),
-        source: Value(t.provider ?? source ?? ''),
-        createdAt: Value(DateTime.now()),
-      ));
+      await _ct.upsertTrack(
+        TracksCompanion(
+          id: Value(t.trackId),
+          name: Value(t.name),
+          artistId: Value(t.trackId), // placeholder
+          isrc: Value(t.isrc),
+          durationMs: Value(t.durationMs),
+          trackNumber: Value(t.trackNumber),
+          coverUrl: Value(t.coverUrl ?? ''),
+          coverPath: Value(t.coverPath ?? ''),
+          source: Value(t.provider ?? source ?? ''),
+          createdAt: Value(DateTime.now()),
+        ),
+      );
       await _cl.addTrack(detail.id, t.trackId);
     }
   }
@@ -432,47 +490,50 @@ class PlaybackCache {
   /// Save extension-fetched artist detail data to local Drift tables.
   /// Called after successful fetchArtistDetail to populate the local cache.
   Future<void> syncArtistDetail(ArtistDetail detail, {String? source}) async {
-    await _ct.upsertArtist(ArtistsCompanion(
-      id: Value(detail.id),
-      name: Value(detail.name),
-      normalizedName: Value(detail.name.trim().toLowerCase()),
-      imageUrl: Value(detail.imageUrl ?? ''),
-      imagePath: Value(detail.imagePath ?? ''),
-      provider: Value(source ?? ''),
-      createdAt: Value(DateTime.now()),
-    ));
+    await _ct.upsertArtist(
+      ArtistsCompanion(
+        id: Value(detail.id),
+        name: Value(detail.name),
+        normalizedName: Value(detail.name.trim().toLowerCase()),
+        imageUrl: Value(detail.imageUrl ?? ''),
+        imagePath: Value(detail.imagePath ?? ''),
+        provider: Value(source ?? ''),
+        createdAt: Value(DateTime.now()),
+      ),
+    );
 
     for (final t in detail.topTracks) {
-      await _ct.upsertTrack(TracksCompanion(
-        id: Value(t.trackId),
-        name: Value(t.name),
-        artistId: Value(detail.id),
-        isrc: Value(t.isrc),
-        durationMs: Value(t.durationMs),
-        trackNumber: Value(t.trackNumber),
-        coverUrl: Value(t.coverUrl ?? ''),
-        coverPath: Value(t.coverPath ?? ''),
-        source: Value(t.provider ?? source ?? ''),
-        createdAt: Value(DateTime.now()),
-      ));
+      await _ct.upsertTrack(
+        TracksCompanion(
+          id: Value(t.trackId),
+          name: Value(t.name),
+          artistId: Value(detail.id),
+          isrc: Value(t.isrc),
+          durationMs: Value(t.durationMs),
+          trackNumber: Value(t.trackNumber),
+          coverUrl: Value(t.coverUrl ?? ''),
+          coverPath: Value(t.coverPath ?? ''),
+          source: Value(t.provider ?? source ?? ''),
+          createdAt: Value(DateTime.now()),
+        ),
+      );
     }
 
     for (final a in detail.topAlbums) {
-      await _ct.upsertAlbum(AlbumsCompanion(
-        id: Value(a.albumId),
-        name: Value(a.name),
-        normalizedName: Value(a.name.trim().toLowerCase()),
-        artistId: Value(detail.id),
-        coverUrl: Value(a.coverUrl ?? ''),
-        coverPath: Value(a.coverPath ?? ''),
-        releaseDate: Value(a.releaseDate ?? ''),
-        totalTracks: Value(a.totalTracks),
-        provider: Value(source ?? ''),
-        createdAt: Value(DateTime.now()),
-      ));
+      await _ct.upsertAlbum(
+        AlbumsCompanion(
+          id: Value(a.albumId),
+          name: Value(a.name),
+          normalizedName: Value(a.name.trim().toLowerCase()),
+          artistId: Value(detail.id),
+          coverUrl: Value(a.coverUrl ?? ''),
+          coverPath: Value(a.coverPath ?? ''),
+          releaseDate: Value(a.releaseDate ?? ''),
+          totalTracks: Value(a.totalTracks),
+          provider: Value(source ?? ''),
+          createdAt: Value(DateTime.now()),
+        ),
+      );
     }
   }
 }
-
-
-

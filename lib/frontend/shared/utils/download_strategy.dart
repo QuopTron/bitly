@@ -43,17 +43,32 @@ Map<String, dynamic> buildTrackMeta({
 /// Dispatches audio (and optionally video/lyrics) downloads for a single track.
 /// Delegates to [DownloadCubit.dispatchSingleTrack] so state updates happen
 /// inside the cubit where `emit` is accessible.
+///
+/// When [isBatchDispatch] is true (called from a batch queue), dispatches
+/// directly. When false (single track from UI), enqueues via the singles batch.
 void dispatchDownloads({
   required DownloadCubit cubit,
   required Map<String, dynamic> commonMeta,
   required DownloadSettings settings,
   required String baseId,
   String? qualityOverride,
+  bool isBatchDispatch = false,
 }) {
-  cubit.dispatchSingleTrack(
-    commonMeta: commonMeta,
-    settings: settings,
-    baseId: baseId,
-    qualityOverride: qualityOverride,
-  );
+  if (isBatchDispatch) {
+    // Already in a batch queue — dispatch directly
+    cubit.dispatchSingleTrack(
+      commonMeta: commonMeta,
+      settings: settings,
+      baseId: baseId,
+      qualityOverride: qualityOverride,
+    );
+  } else {
+    // Single track from UI — enqueue in the singles batch
+    cubit.enqueueSingleTrack(
+      commonMeta: commonMeta,
+      settings: settings,
+      baseId: baseId,
+      qualityOverride: qualityOverride,
+    );
+  }
 }

@@ -9,6 +9,7 @@ import '../../../shared/models/feed_models.dart';
 import '../../../../backend/services/item_fingerprint.dart';
 import '../../../../backend/services/like_cubit.dart';
 import '../../../../backend/services/queue_cubit.dart';
+import '../../../../injection.dart';
 import '../../../shared/widgets/track_card.dart';
 import '../../../shared/widgets/grid_card.dart';
 import '../../../shared/widgets/download_indicator.dart';
@@ -112,7 +113,7 @@ class FeedContent extends StatelessWidget {
         final fp = fingerprintItem(item);
         final id = 'track_${normalizeTrackId(item.id)}_${item.source}';
         final resolvedCover = context.read<LikeCubit>().resolveCoverFor(item);
-        void play() => context.read<QueueCubit>().playWithContext(tracks, item);
+        void play() => sl<QueueCubit>().playWithContext(tracks, item);
         ws.add(TrackCard(
           title: item.name, subtitle: item.artists ?? '', coverUrl: resolvedCover,
           textScale: 1.2, readyKey: normalizeTrackId(item.id),

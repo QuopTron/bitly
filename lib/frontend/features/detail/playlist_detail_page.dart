@@ -284,8 +284,16 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
         detail.tracks.any((t) => t.filePath != null && t.filePath!.isNotEmpty);
 
     // Visible tracks as FeedItems (reused for queue seeding + neighbor preload).
+    // Offline filter: show track if online OR if it's downloaded (check both
+    // DetailTrack.isDownloaded and DownloadCubit state for freshness).
     final playlistFeedItems = detail.tracks
-        .where((t) => _isOnline || t.isDownloaded)
+        .where((t) {
+          if (_isOnline) return true;
+          if (t.isDownloaded) return true;
+          // Check DownloadCubit for up-to-date download status
+          final dID = 'track_${normalizeTrackId(t.trackId)}_$src';
+          return dlCubit.downloadStateFor(dID).state == DownloadState.completed;
+        })
         .map((t) {
           final effectiveCoverUrl = (t.coverUrl?.isNotEmpty == true)
               ? t.coverUrl!
@@ -314,7 +322,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
       body: detail.tracks.isEmpty
         ? Center(child: Text(loc.setup.miSpaceEmptyPlaylists, style: TextStyle(color: onBg.withValues(alpha: 0.4))))
         : ListView(
-            padding: EdgeInsets.all(r.spacingM),
+            padding: EdgeInsets.fromLTRB(r.spacingM, r.spacingM, r.spacingM, r.spacingM + 90),
             children: [
               Row(children: [
                 Text('${detail.itemCount} ${loc.setup.miSpaceSongCount}',
@@ -341,7 +349,9 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
                               ? '✓'
                               : batchState.state == DownloadState.inProgress
                                   ? '${(batchState.progress * 100).toInt()}%'
-                                  : loc.setup.downloaded,
+                                  : batchState.state == DownloadState.interrupted
+                                      ? loc.setup.retry
+                                      : loc.setup.downloaded,
                           style: TextStyle(fontSize: r.footerSize - 1, color: onBg.withValues(alpha: 0.7)),
                         ),
                       ]),
@@ -368,7 +378,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
                 final dID = 'track_${normalizeTrackId(feedItem.id)}_$src';
                 final trackCover = likedCubit.resolveCoverFor(feedItem);
                 final isLiked = likedCubit.isLiked(feedItem);
-                void play() => context.read<QueueCubit>().playWithContext(playlistFeedItems, feedItem);
+                void play() => sl<QueueCubit>().playWithContext(playlistFeedItems, feedItem);
                 return Padding(
                   padding: EdgeInsets.only(bottom: r.spacingXS),
                   child: TrackCard(
@@ -377,6 +387,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
                     coverUrl: trackCover,
                     readyKey: normalizeTrackId(feedItem.id),
                     isLiked: isLiked,
+                    textScale: 1.2,
                     onLike: () => likedCubit.toggleLike(feedItem),
                     downloadState: dlCubit.downloadStateFor(dID).state,
                     onDownload: () => showDownloadOptions(context, feedItem, isDark),

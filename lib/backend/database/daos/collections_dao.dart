@@ -5,27 +5,49 @@ import '../tables/collections_table.dart';
 part 'collections_dao.g.dart';
 
 @DriftAccessor(tables: [Collections, CollectionItems])
-class CollectionsDao extends DatabaseAccessor<AppDatabase> with _$CollectionsDaoMixin {
+class CollectionsDao extends DatabaseAccessor<AppDatabase>
+    with _$CollectionsDaoMixin {
   CollectionsDao(super.db);
 
   Future<List<Collection>> getAll() => select(collections).get();
 
+  /// Playlists CREATED by the user, not the synced provider playlists that
+  /// `syncPlaylistDetail` also upserts into `collections`. Created playlists use
+  /// the `col_` id prefix, so only those are real "own" playlists.
+  Future<List<Collection>> getAllPlaylists() =>
+      (select(collections)
+            ..where((t) => t.type.equals('playlist') & t.id.like('col_%'))
+            ..orderBy([(t) => OrderingTerm.desc(t.updatedAt)]))
+          .get();
+
   Future<Collection?> get(String id) =>
       (select(collections)..where((t) => t.id.equals(id))).getSingleOrNull();
+
+  Future<String?> getCover(String id) async {
+    final row =
+        await (select(collections)
+          ..where((t) => t.id.equals(id))).getSingleOrNull();
+    final cover = row?.coverPath;
+    return (cover == null || cover.isEmpty) ? null : cover;
+  }
 
   Future<void> upsert(CollectionsCompanion entry) =>
       into(collections).insert(entry, mode: InsertMode.insertOrReplace);
 
   Future<String> create(String name, {String? coverPath, String? type}) {
     final id = 'col_${DateTime.now().millisecondsSinceEpoch}';
-    return into(collections).insert(CollectionsCompanion(
-      id: Value(id),
-      name: Value(name),
-      coverPath: Value(coverPath ?? ''),
-      type: Value(type ?? 'playlist'),
-      createdAt: Value(DateTime.now()),
-      updatedAt: Value(DateTime.now()),
-    )).then((_) => id);
+    return into(collections)
+        .insert(
+          CollectionsCompanion(
+            id: Value(id),
+            name: Value(name),
+            coverPath: Value(coverPath ?? ''),
+            type: Value(type ?? 'playlist'),
+            createdAt: Value(DateTime.now()),
+            updatedAt: Value(DateTime.now()),
+          ),
+        )
+        .then((_) => id);
   }
 
   Future<void> updateCollection(String id, String name, String coverPath) =>
@@ -55,20 +77,21 @@ class CollectionsDao extends DatabaseAccessor<AppDatabase> with _$CollectionsDao
           .get();
 
   Future<void> addTrack(String collectionId, String trackId) =>
-      into(collectionItems).insert(CollectionItemsCompanion(
-        collectionId: Value(collectionId),
-        itemId: Value(trackId),
-        trackId: Value(trackId),
-        addedAt: Value(DateTime.now()),
-      ), mode: InsertMode.insertOrIgnore);
+      into(collectionItems).insert(
+        CollectionItemsCompanion(
+          collectionId: Value(collectionId),
+          itemId: Value(trackId),
+          trackId: Value(trackId),
+          addedAt: Value(DateTime.now()),
+        ),
+        mode: InsertMode.insertOrIgnore,
+      );
 
   Future<void> removeTrack(String collectionId, String trackId) =>
-      (delete(collectionItems)
-            ..where((t) =>
-                t.collectionId.equals(collectionId) &
-                t.itemId.equals(trackId)))
-          .go();
+      (delete(collectionItems)..where(
+        (t) => t.collectionId.equals(collectionId) & t.itemId.equals(trackId),
+      )).go();
 
-  Future<int> getCollectionItemsCount() => select(collectionItems).get().then((r) => r.length);
+  Future<int> getCollectionItemsCount() =>
+      select(collectionItems).get().then((r) => r.length);
 }
-

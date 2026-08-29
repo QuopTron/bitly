@@ -103,7 +103,7 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
       const invalid = ['/', '\\', ':', '*', '?', '"', '<', '>', '|'];
       String sanitize(String s) {
         var r = s;
-        for (final ch in invalid) r = r.replaceAll(ch, '_');
+        for (final ch in invalid) { r = r.replaceAll(ch, '_'); }
         r = r.replaceAll(RegExp(r'[. ]+$'), '');
         return r.isEmpty ? 'unknown' : r;
       }
@@ -122,9 +122,7 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
   Future<void> _toggleVideo(FeedItem track, String? downloadPath) async {
     if (!_showVideo) {
       String? videoUrl = _resolveLocalVideoUrl(track, downloadPath);
-      if (videoUrl == null) {
-        videoUrl = await sl<PlayerCubit>().downloadVideoToTemp(track);
-      }
+      videoUrl ??= await sl<PlayerCubit>().downloadVideoToTemp(track);
       if (videoUrl == null) return;
       await _videoPlayer.setVolume(0.0);
       try {

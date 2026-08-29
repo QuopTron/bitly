@@ -18,7 +18,11 @@ class CollectionCache {
   Future<void> updateCollectionCover(String collectionId, String coverPath) =>
       _c.updateCover(collectionId, coverPath);
 
+  Future<String?> getPlaylistCover(String collectionId) =>
+      _c.getCover(collectionId);
+
   Future<void> deleteCollection(String collectionId) =>
       _c.removeCollection(collectionId);
-}
 
+  Future<List<Collection>> getAllPlaylists() => _c.getAllPlaylists();
+}

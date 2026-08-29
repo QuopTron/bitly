@@ -112,7 +112,7 @@ func TestTrackerSetOutputPath(t *testing.T) {
 func TestTrackerSetEncryptedOutput(t *testing.T) {
 	tr := NewTracker()
 	tr.Add("track_1", "Song", "amazon")
-	tr.SetEncryptedOutput("track_1", "/music/song.flac", "deadbeef", ".flac")
+	tr.SetEncryptedOutput("track_1", "/music/song.flac", "deadbeef", ".flac", "mov")
 
 	p := tr.Get("track_1")
 	if p.Status != StatusCompleted {

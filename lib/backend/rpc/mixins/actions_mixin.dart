@@ -25,6 +25,10 @@ mixin ActionsMixin on BackendService {
     try { return await rpcCall('getAllDownloadProgress') as String; } catch (_) { return ''; }
   }
   @override
+  Future<void> cancelDownload(String itemId) async {
+    try { await rpcCall('cancelDownload', {'item_id': itemId}); } catch (_) {}
+  }
+  @override
   Future<dynamic> downloadByStrategy(String json) async {
     try {
       return await rpcCall('downloadByStrategy', {'request': json});
@@ -68,18 +72,20 @@ mixin ActionsMixin on BackendService {
     } catch (_) {}
   }
 
+  @override
+  Future<void> syncDownloadProviderPriority(List<String> providers) async {
+    try {
+      await rpcCall('setDownloadProviderPriority', {'providers': providers});
+    } catch (_) {}
+  }
+
   // ── Signed Session ───────────────────────────────────────────────────
 
   @override
   Future<String> getPendingVerificationUrl(String extensionId) async {
     try {
       final result = await rpcCall('getPendingVerificationUrl', {'extension_id': extensionId});
-      if (result is Map) return result['auth_url'] as String? ?? '';
-      if (result is String && result.isNotEmpty) {
-        final decoded = jsonDecode(result);
-        if (decoded is Map) return decoded['auth_url'] as String? ?? '';
-      }
-      return '';
+      return _extractAuthUrl(result);
     } catch (_) { return ''; }
   }
 
@@ -87,13 +93,36 @@ mixin ActionsMixin on BackendService {
   Future<String> triggerExtensionVerification(String extensionId) async {
     try {
       final result = await rpcCall('triggerExtensionVerification', {'extension_id': extensionId});
-      if (result is Map) return result['auth_url'] as String? ?? '';
-      if (result is String && result.isNotEmpty) {
-        final decoded = jsonDecode(result);
-        if (decoded is Map) return decoded['auth_url'] as String? ?? '';
-      }
-      return '';
+      return _extractAuthUrl(result);
     } catch (_) { return ''; }
+  }
+
+  /// Extracts auth_url from a Go signed-session response. Returns empty
+  /// string when the extension doesn't need verification (not loaded,
+  /// signedSession not configured, healthy session). Throws when the
+  /// extension needs verification but the URL couldn't be obtained
+  /// (e.g. bootstrap network failure).
+  String _extractAuthUrl(dynamic result) {
+    Map<String, dynamic>? map;
+    if (result is Map) {
+      map = result.cast<String, dynamic>();
+    } else if (result is String && result.isNotEmpty) {
+      final decoded = jsonDecode(result);
+      if (decoded is Map) map = decoded.cast<String, dynamic>();
+    }
+    if (map == null) return '';
+    // Errors that mean "no verification needed" → return empty.
+    final error = map['error'] as String?;
+    if (error != null) {
+      final lower = error.toLowerCase();
+      if (lower.contains('not configured') || lower.contains('no cargada')) {
+        return ''; // extension doesn't have signed session support
+      }
+      // Other errors (bootstrap failure, network, etc.) → throw so the
+      // caller can show the verification as "failed" and retry.
+      throw Exception(error);
+    }
+    return map['auth_url'] as String? ?? '';
   }
 
   @override

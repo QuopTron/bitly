@@ -63,11 +63,13 @@ type Progress struct {
 	// playable). ClientDecrypt is true when the backend could not decrypt it
 	// here (no CLI ffmpeg, e.g. Android) so the client must decrypt it
 	// (ffmpeg-kit) before playback; DecryptionKey / OutputExtension carry the
-	// key and the container extension of the decrypted output.
+	// key and the container extension of the decrypted output; InputFormat is
+	// the encrypted source container (e.g. "mov") for the decrypt step.
 	Encrypted       bool   `json:"encrypted,omitempty"`
 	ClientDecrypt   bool   `json:"clientDecrypt,omitempty"`
 	DecryptionKey   string `json:"decryptionKey,omitempty"`
 	OutputExtension string `json:"outputExtension,omitempty"`
+	InputFormat     string `json:"inputFormat,omitempty"`
 }
 
 // Tracker maintains progress of all active downloads.
@@ -121,10 +123,20 @@ func (t *Tracker) Update(itemID string, status Status, progress float64) {
 	t.mu.Unlock()
 }
 
-// SetError sets error on a download.
+// SetError sets error on a download. If the item is already StatusCompleted
+// (a winning provider already finalized a playable or encrypted file), the
+// error is recorded but the status is NOT downgraded — background goroutines
+// for losing providers may call SetError after the winner already succeeded.
 func (t *Tracker) SetError(itemID, errMsg string) {
 	t.mu.Lock()
 	if p, ok := t.items[itemID]; ok {
+		if p.Status == StatusCompleted {
+			// A provider already succeeded — don't let a losing goroutine
+			// overwrite the completed status. Store the error for diagnostics
+			// but keep the item marked as completed.
+			t.mu.Unlock()
+			return
+		}
 		p.Status = StatusFailed
 		p.Error = errMsg
 	}
@@ -132,12 +144,25 @@ func (t *Tracker) SetError(itemID, errMsg string) {
 }
 
 // SetOutputPath sets the final file path.
+// If the item is already marked as encrypted (a higher-quality provider
+// already won the race), do NOT overwrite — a last-resort provider
+// (soundcloud) finalizing later would replace the encrypted FLAC path
+// with an MP3, causing the client-side decrypt to fail on the wrong file.
 func (t *Tracker) SetOutputPath(itemID, path string) {
 	t.mu.Lock()
 	if p, ok := t.items[itemID]; ok {
-		p.OutputPath = path
-		p.Status = StatusCompleted
-		p.Progress = 1.0
+		if p.Encrypted && p.DecryptionKey != "" {
+			// An exact provider (amazon/qobuz) already set an encrypted
+			// output. A last-resort provider finalizing later must NOT
+			// overwrite the path — keep the encrypted file so the client
+			// can decrypt it. Only update the status.
+			p.Status = StatusCompleted
+			p.Progress = 1.0
+		} else {
+			p.OutputPath = path
+			p.Status = StatusCompleted
+			p.Progress = 1.0
+		}
 	}
 	t.mu.Unlock()
 }
@@ -145,7 +170,7 @@ func (t *Tracker) SetOutputPath(itemID, path string) {
 // SetEncryptedOutput marks the item completed with an encrypted/DRM file that
 // the client must decrypt (ffmpeg-kit) before playback — used when the backend
 // has no CLI ffmpeg to decrypt it (e.g. Android).
-func (t *Tracker) SetEncryptedOutput(itemID, path, key, ext string) {
+func (t *Tracker) SetEncryptedOutput(itemID, path, key, ext, inFmt string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if p, ok := t.items[itemID]; ok {
@@ -156,6 +181,7 @@ func (t *Tracker) SetEncryptedOutput(itemID, path, key, ext string) {
 		p.ClientDecrypt = true
 		p.DecryptionKey = key
 		p.OutputExtension = ext
+		p.InputFormat = inFmt
 	}
 }
 

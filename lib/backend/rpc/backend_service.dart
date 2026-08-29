@@ -11,12 +11,27 @@ abstract class BackendService {
     String type = '',
     int limit = 20,
   });
+  /// Starts a streaming search (providers run in parallel, results accumulate
+  /// incrementally). Returns a generation ID for this search session.
+  Future<int> searchStreaming({
+    required String query,
+    String source = '',
+    String type = '',
+    int limit = 20,
+  });
+  /// Returns accumulated results from the current streaming search session.
+  Future<SearchStreamResults> getSearchStreamResults();
   /// Returns the search category bubbles declared by each source's manifest
   /// (searchBehavior.filters), the SpotiFLAC source of truth for the search UI.
   Future<List<SourceSearchConfig>> getSearchConfig();
   Future<void> likeItem(String itemId, bool liked);
   Future<void> downloadItem(String itemId);
   Future<String> getAllDownloadProgress();
+  /// Removes a download progress entry from the Go tracker so it stops being
+  /// reported by [getAllDownloadProgress]. Called after the client deletes a
+  /// download (otherwise the completed entry stays in the tracker forever and
+  /// the next poll re-saves it).
+  Future<void> cancelDownload(String itemId);
   /// Dispatches a download (audio/video/lyrics) to the Go backend.
   /// Returns the backend JSON result (a String or Map) or null on failure;
   /// fire-and-forget callers may ignore the return value.
@@ -62,6 +77,10 @@ abstract class BackendService {
   /// Syncs user mode (free/premium) and other config to Go's in-memory config.
   Future<void> syncBackendConfig({String? mode, int? streamCacheMaxMb, int? downloadConcurrency, int? streamChunkSize});
 
+  /// Sets the ordered list of download providers used for fallback (best-first),
+  /// mirroring SpotiFLAC's SetProviderPriority. Empty restores the default order.
+  Future<void> syncDownloadProviderPriority(List<String> providers);
+
   // ── Signed Session ───────────────────────────────────────────────────
   /// Returns the pending verification auth URL for an extension, or empty string.
   Future<String> getPendingVerificationUrl(String extensionId);
@@ -88,6 +107,17 @@ abstract class BackendService {
   /// Deletes ALL data (DB, settings, favorites, downloads, library) and
   /// resets the app to factory state. User will need to go through setup.
   Future<bool> resetAllData();
+
+  // ── Tag Editor ────────────────────────────────────────────────────────
+  /// Reads metadata tags from an audio file. Returns JSON string.
+  Future<String> readFileMetadata(String filePath);
+
+  /// Writes metadata tags to an audio file. [meta] is a map of field→value.
+  Future<bool> writeFileMetadata(String filePath, Map<String, String> meta);
+
+  // ── Provider Health ───────────────────────────────────────────────────
+  /// Returns cooldown status of all providers as JSON string.
+  Future<String> getProviderHealthStatus();
 }
 
 /// Snapshot of an extension's signed-session record as reported by the Go
@@ -117,5 +147,22 @@ class SignedSessionStatus {
       error: json['error'] as String?,
     );
   }
+}
+
+/// Result of a streaming search poll. [items] are accumulated results from
+/// all providers that have finished so far. [done] is true when the search
+/// is complete (all providers finished or timed out). [generation] matches
+/// the generation returned by [searchStreaming] — if it changes, the results
+/// belong to a superseded search and should be discarded.
+class SearchStreamResults {
+  final List<FeedItem> items;
+  final bool done;
+  final int generation;
+
+  const SearchStreamResults({
+    required this.items,
+    required this.done,
+    required this.generation,
+  });
 }
 

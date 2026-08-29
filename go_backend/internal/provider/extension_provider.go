@@ -368,3 +368,42 @@ func (p *ExtensionProvider) GetHomeFeed() ([]HomeFeedSection, error) {
 
 	return feedResult.Sections, nil
 }
+
+// EnrichTrackResult holds the extra fields resolved by an extension's
+// enrichTrack() call (ISRC and cross-provider IDs from Odesli/SongLink).
+type EnrichTrackResult struct {
+	ISRC      string
+	DeezerID  string
+	TidalID   string
+	QobuzID   string
+	SpotifyID string
+}
+
+// EnrichTrack calls the extension's enrichTrack(trackObj) JS function, which
+// resolves ISRC and cross-provider IDs via Odesli/SongLink. The trackObj
+// must contain at minimum { id: "<video-id>" } for ytmusic-spotiflac.
+// Returns nil if the extension doesn't export enrichTrack or if enrichment fails.
+func (p *ExtensionProvider) EnrichTrack(trackObj map[string]interface{}) *EnrichTrackResult {
+	if trackObj == nil || trackObj["id"] == nil {
+		return nil
+	}
+	res, err := p.call("enrichTrack", trackObj)
+	if err != nil || res == nil {
+		return nil
+	}
+	m, ok := res.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	out := &EnrichTrackResult{
+		ISRC:      getString(m, "isrc"),
+		DeezerID:  getString(m, "deezer_id"),
+		TidalID:   getString(m, "tidal_id"),
+		QobuzID:   getString(m, "qobuz_id"),
+		SpotifyID: getString(m, "spotify_id"),
+	}
+	if out.ISRC == "" && out.DeezerID == "" && out.TidalID == "" && out.QobuzID == "" && out.SpotifyID == "" {
+		return nil
+	}
+	return out
+}

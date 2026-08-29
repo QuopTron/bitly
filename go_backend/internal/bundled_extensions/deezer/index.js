@@ -11,6 +11,11 @@ var CONFIG = {
   maxArtistTopTracks: 20,
 };
 
+// Cooldown for server errors (5xx) to avoid hammering a down gateway.
+// After a 522 from /tickets, skip getDownloadUrl for 60 seconds.
+var _lastServerError = 0;
+var _cooldownMs = 60000;
+
 function initialize(settings) {
   settings = settings || {};
   var configuredBase = String(settings.apiBaseUrl || "").trim();
@@ -849,12 +854,18 @@ function searchEndpointForFilter(filter) {
       .toLowerCase()
   ) {
     case "track":
+    case "tracks":
+    case "song":
+    case "songs":
       return { path: "/search", type: "track" };
     case "album":
+    case "albums":
       return { path: "/search/album", type: "album" };
     case "artist":
+    case "artists":
       return { path: "/search/artist", type: "artist" };
     case "playlist":
+    case "playlists":
       return { path: "/search/playlist", type: "playlist" };
     default:
       return null;
@@ -1506,6 +1517,16 @@ function completeGrant() {
 }
 
 function getDownloadUrl(trackID, quality) {
+  // Skip if we recently got a 5xx from the resolver gateway (e.g. 522 =
+  // origin down). Without this, every concurrent stream request hammers
+  // the failing endpoint, flooding the log with identical warnings.
+  var now = Date.now ? Date.now() : 0;
+  if (now > 0 && now - _lastServerError < _cooldownMs) {
+    log.debug(
+      "[DeezerExt] getDownloadUrl: in cooldown after server error, skipping",
+    );
+    return null;
+  }
   try {
     var resolvedTrackID = parseTrackID(trackID);
     if (!resolvedTrackID) return null;
@@ -1529,6 +1550,21 @@ function getDownloadUrl(trackID, quality) {
     // rate-limited gateway. Returning null hid the error as a generic
     // "stream not available", so the circuit breaker never engaged.
     var _errMsg = e && e.message ? e.message : String(e);
+    // Engage cooldown on server errors (5xx) so subsequent calls short-
+    // circuit above instead of hammering the failing gateway.
+    if (
+      _errMsg.indexOf("522") !== -1 ||
+      _errMsg.indexOf("502") !== -1 ||
+      _errMsg.indexOf("503") !== -1 ||
+      _errMsg.indexOf("504") !== -1
+    ) {
+      _lastServerError = Date.now ? Date.now() : 0;
+      log.warn(
+        "[DeezerExt] getDownloadUrl: server error, cooling down for",
+        _cooldownMs / 1000,
+        "s",
+      );
+    }
     log.warn("[DeezerExt] getDownloadUrl failed:", _errMsg);
     throw new Error(_errMsg);
   }

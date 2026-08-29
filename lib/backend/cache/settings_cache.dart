@@ -63,6 +63,23 @@ class SettingsCache {
 
   Future<void> savePerfLevel(PerfLevel level) => _s.set(_perfKey, level.key);
 
+  static const _dlPriorityKey = 'download_provider_priority';
+
+  /// Persisted ordered list of download providers (best-first). Returns an empty
+  /// list when unset, meaning the backend's built-in default order is used.
+  Future<List<String>> getDownloadProviderPriority() async {
+    final raw = await _s.get(_dlPriorityKey);
+    if (raw == null || raw.isEmpty) return const [];
+    try {
+      final list = jsonDecode(raw);
+      if (list is List) return list.whereType<String>().toList();
+    } catch (_) {}
+    return const [];
+  }
+
+  Future<void> saveDownloadProviderPriority(List<String> order) =>
+      _s.set(_dlPriorityKey, jsonEncode(order));
+
   static dynamic _parseVal(String v) {
     if (v == 'true') return true;
     if (v == 'false') return false;
