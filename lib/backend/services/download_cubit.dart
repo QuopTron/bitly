@@ -136,6 +136,10 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
   /// but the file isn't playable (e.g. SoundCloud .mp3 arrived before
   /// Apple Music .m4a), we wait up to 4 cycles (~12s) for the alt file.
   final Map<String, int> _completedNoFileCount = {};
+  /// Track IDs whose files were confirmed missing from disk during _loadHistory.
+  /// Prevents the infinite loop where _loadHistory re-processes the same
+  /// missing-file entry every 10-30s.
+  final Set<String> _loadHistorySkipped = {};
 
   /// Tracks that are being re-dispatched after a failed verification.
   /// Prevents infinite re-dispatch loops.
@@ -260,8 +264,11 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
           // Normalizar el providerTrackId para que coincida con las keys
           // usadas por startAlbumDownload / startPlaylistDownload.
           final normalizedId = normalizeTrackId(rawId);
-          _downloadedTrackIds.add(normalizedId);
           final key = 'track_${normalizedId}_$src';
+          // Skip tracks already confirmed missing — prevents infinite loop
+          // where _loadHistory re-processes the same missing-file entry.
+          if (_loadHistorySkipped.contains(key)) continue;
+          _downloadedTrackIds.add(normalizedId);
           // Verify file exists AND is playable audio before marking as completed.
           // An encrypted Amazon FLAC file exists on disk but is NOT playable —
           // marking it completed would show a false green dot.
@@ -284,6 +291,7 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
               } else {
                 completedItems[key] = const DownloadStateData(state: DownloadState.interrupted, progress: 0.0);
                 _downloadedTrackIds.remove(normalizedId);
+                _loadHistorySkipped.add(key);
                 _log.w('[loadHistory] file missing on disk: $filePath for $key — removed from downloadedIds so re-download is possible');
               }
             } else if (!await _isDecodableAudioFile(file)) {
@@ -299,6 +307,7 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
               } else {
                 completedItems[key] = const DownloadStateData(state: DownloadState.interrupted, progress: 0.0);
                 _downloadedTrackIds.remove(normalizedId);
+                _loadHistorySkipped.add(key);
                 _log.w('[loadHistory] file not playable: $filePath for $key — removed from downloadedIds so re-download is possible');
               }
             } else {
@@ -1135,6 +1144,9 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
                   // ~12s elapsed — give up, mark interrupted
                   _log.w('[poll] $rawId: file not playable after ${noFileCount + 1} polls, giving up');
                   _completedNoFileCount.remove(rawId);
+                  dl[stateKey] = const DownloadStateData(state: DownloadState.interrupted, progress: 0.0);
+                  changed = true;
+                  _completedPersisted.add(rawId);
                   _signalTrackDone(stateKey);
                 } else {
                   _log.i('[poll] $rawId: file not playable, waiting for alt (${noFileCount + 1}/4)');
@@ -1278,6 +1290,7 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
                   _log.w('[poll] $rawId: Go reports $status after $count polls — no file found, giving up');
                   _failedNoFileCount.remove(rawId);
                   dl[stateKey] = const DownloadStateData(state: DownloadState.interrupted, progress: 0.0);
+                  _completedPersisted.add(rawId);
                   _signalTrackDone(stateKey);
                 } else {
                   _log.i('[poll] $rawId: Go reports $status but queue is active — no playable file found yet ($count/$_maxFailedNoFilePolls), keeping inProgress (outputPath=$outputPath)');
@@ -2397,9 +2410,9 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
           qualityOverride: track.qualityOverride);
 
       try {
-        await _currentTrackDone!.future.timeout(const Duration(seconds: 600));
+        await _currentTrackDone!.future.timeout(const Duration(seconds: 90));
       } catch (_) {
-        _log.w('[queue] ⏰ TIMEOUT for $baseId after 600s — moving to next track');
+        _log.w('[queue] ⏰ TIMEOUT for $baseId after 90s — moving to next track');
         // Do NOT cancel the Go tracker — the download may still be running.
         // The poll will detect completion later and mark it as completed.
         // Move to the next track so the queue isn't blocked.
