@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../injection.dart';
 import '../../frontend/shared/models/performance_profile.dart';
 import '../rpc/backend_service.dart';
@@ -117,7 +118,7 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
   /// once. Background prefetches can otherwise fire a dozen concurrent heavy
   /// cross-provider searches that saturate the executor and make real playback
   /// wait >60s (RPC timeout). Excess tracks queue up and drain as slots free.
-  static const int prefetchSlots = 2;
+  static const int prefetchSlots = 3;
   int _prefetchUsed = 0;
   final List<FeedItem> _prefetchQueue = [];
 
@@ -183,6 +184,56 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
     _listenQueue();
     _perfSub = _onPerfChanged;
     sl<ValueNotifier<PerformanceProfile>>().addListener(_onPerfChanged);
+    _loadPersistentStreamCache();
+  }
+
+  /// Persistent stream URL cache: survives app restarts.
+  /// Key: normalized trackId → (url, timestamp). URLs older than 4 hours
+  /// are discarded (providers expire tokens).
+  static const _persistentCacheKey = 'stream_url_cache_v2';
+  static const _cacheMaxAge = Duration(hours: 4);
+  static const _cacheMaxEntries = 50;
+
+  Future<void> _loadPersistentStreamCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_persistentCacheKey);
+      if (raw == null || raw.isEmpty) return;
+      final map = jsonDecode(raw) as Map<String, dynamic>;
+      final now = DateTime.now();
+      var loaded = 0;
+      for (final entry in map.entries) {
+        final data = entry.value as Map<String, dynamic>; 
+        final url = data['url'] as String? ?? '';
+        final ts = DateTime.tryParse(data['ts'] as String? ?? '');
+        if (url.isNotEmpty && ts != null && now.difference(ts) < _cacheMaxAge) {
+          _streamUrlCache[entry.key] = (url, true);
+          loaded++;
+        }
+      }
+      if (loaded > 0) {
+        // ignore: avoid_print
+        print('[PlayerCubit] Loaded $loaded persistent stream URLs from cache');
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _savePersistentStreamCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final now = DateTime.now();
+      final map = <String, dynamic>{};
+      var count = 0;
+      for (final entry in _streamUrlCache.entries) {
+        if (count >= _cacheMaxEntries) break;
+        // Only cache http(s) URLs (not local file:// paths)
+        final url = entry.value.$1;
+        if (!url.startsWith('http')) continue;
+        map[entry.key] = {'url': url, 'ts': now.toIso8601String()};
+        count++;
+      }
+      await prefs.setString(_persistentCacheKey, jsonEncode(map));
+    } catch (_) {}
   }
 
   /// Reflects the selected performance profile's quality on live streaming
@@ -825,6 +876,8 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
           _streamUrlCache[key] = (url, !isPreload);
         }
         _markReady(key);
+        // Persist to disk cache (fire-and-forget)
+        unawaited(_savePersistentStreamCache());
         return url;
       }
       // A real tap that could not produce a download-quality copy still has
