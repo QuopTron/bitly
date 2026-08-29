@@ -173,6 +173,9 @@ List<Item> itemsForTab(
                 name.isNotEmpty ? name : playlistId,
                 src,
                 ItemType.playlist,
+                coverUrl: downloadCubit.batchCoverFor(entry.key).isNotEmpty
+                    ? downloadCubit.batchCoverFor(entry.key)
+                    : null,
                 realId: playlistId,
                 source: src,
                 origin:
@@ -243,6 +246,9 @@ List<Item> itemsForTab(
                 name.isNotEmpty ? name : albumId,
                 src,
                 ItemType.album,
+                coverUrl: downloadCubit.batchCoverFor(entry.key).isNotEmpty
+                    ? downloadCubit.batchCoverFor(entry.key)
+                    : null,
                 realId: albumId,
                 source: src,
                 origin:

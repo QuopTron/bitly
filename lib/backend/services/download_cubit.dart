@@ -64,7 +64,9 @@ class _BatchMeta {
   final String itemType;
   final String itemId;
   final String source;
-  const _BatchMeta(this.name, this.itemType, this.itemId, this.source);
+  final String coverUrl;
+  final String coverPath;
+  const _BatchMeta(this.name, this.itemType, this.itemId, this.source, {this.coverUrl = '', this.coverPath = ''});
 }
 
 class DownloadCubit extends Cubit<DownloadCubitState> {
@@ -381,6 +383,34 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
           );
           changed = true;
         }
+      }
+    }
+
+    // ── 3b. Backfill: for batches without covers, adopt first track's cover ──
+    if (batchTrackMap.isNotEmpty) {
+      final seenBatchKeys = <String>{};
+      for (final entry in _trackMeta.entries) {
+        final meta = entry.value;
+        final batchKey = batchTrackMap[meta.trackId];
+        if (batchKey == null || seenBatchKeys.contains(batchKey)) continue;
+        final bm = _batchMeta[batchKey];
+        if (bm == null || bm.coverUrl.isNotEmpty) {
+          seenBatchKeys.add(batchKey);
+          continue;
+        }
+        // Adopt cover from first track that has one
+        final cover = (meta.coverPath != null && meta.coverPath!.isNotEmpty)
+            ? meta.coverPath!
+            : (meta.coverUrl ?? '');
+        if (cover.isNotEmpty) {
+          _batchMeta[batchKey] = _BatchMeta(
+            bm.name, bm.itemType, bm.itemId, bm.source,
+            coverUrl: bm.coverUrl.isNotEmpty ? bm.coverUrl : cover,
+            coverPath: bm.coverPath.isNotEmpty ? bm.coverPath : cover,
+          );
+          changed = true;
+        }
+        seenBatchKeys.add(batchKey);
       }
     }
 
@@ -1559,7 +1589,20 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
     final batchName = (batchData?.tracks.isNotEmpty == true)
         ? (batchData!.tracks.first['album_name'] as String? ?? '')
         : '';
-    _batchMeta[batchKey] = _BatchMeta(batchName, itemType, itemId, src);
+    // Extract cover URL from the first track's metadata for the album/playlist.
+    final batchCover = (batchData?.tracks.isNotEmpty == true)
+        ? (batchData!.tracks.first['cover_url'] as String? ?? '')
+        : '';
+    // Save album/playlist cover locally for offline persistence.
+    String batchCoverPath = '';
+    if (batchCover.isNotEmpty) {
+      try {
+        final saved = await _backend.saveCover(batchCover);
+        if (saved != null && saved.isNotEmpty) batchCoverPath = saved;
+      } catch (_) {}
+    }
+    _batchMeta[batchKey] = _BatchMeta(batchName, itemType, itemId, src,
+        coverUrl: batchCover, coverPath: batchCoverPath);
     await _downloadCache.saveDownloadedBatch(
       batchKey, itemType, itemId, src, batchName,
       trackIds: trackIds,
@@ -1599,6 +1642,30 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
   /// Returns the stored name for a batch key (album/playlist name),
   /// or empty string if not available.
   String batchNameFor(String batchKey) => _batchMeta[batchKey]?.name ?? '';
+
+  /// Returns the best cover path for a batch key (album/playlist):
+  /// local path first, then network URL, or empty string if not available.
+  String batchCoverFor(String batchKey) {
+    final meta = _batchMeta[batchKey];
+    if (meta == null) return '';
+    if (meta.coverPath.isNotEmpty) return meta.coverPath;
+    return meta.coverUrl;
+  }
+
+  /// Returns true if there is a completed batch (album/playlist) with the
+  /// given [type] and normalized [id] in the in-memory download state.
+  bool isCollectionDownloaded(String type, String id) {
+    final normalized = normalizeTrackId(id);
+    for (final entry in state.downloads.entries) {
+      if (entry.value.state != DownloadState.completed) continue;
+      if (!entry.key.startsWith('${type}_')) continue;
+      final parts = entry.key.split('_');
+      if (parts.length < 3) continue;
+      final entryId = parts.sublist(1, parts.length - 1).join('_');
+      if (normalizeTrackId(entryId) == normalized) return true;
+    }
+    return false;
+  }
 
   /// Retry only the failed (non-completed) tracks from a previous batch.
   /// [batchKey] should match the key used in [startAlbumDownload] or [startPlaylistDownload]
@@ -2653,10 +2720,14 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
       if (entry.key.endsWith('_audio') || entry.key.endsWith('_lyrics') || entry.key.endsWith('_video')) continue;
       final meta = _trackMeta[entry.key];
       if (meta != null) {
+        // Prefer local coverPath (JPG saved to disk) over network URL
+        final cover = (meta.coverPath != null && meta.coverPath!.isNotEmpty)
+            ? meta.coverPath
+            : meta.coverUrl;
         result.add(FeedItem(
           id: meta.trackId,
           type: 'track', name: meta.name,
-          artists: meta.artist, coverUrl: meta.coverUrl,
+          artists: meta.artist, coverUrl: cover,
           source: meta.source,
         ));
         continue;

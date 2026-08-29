@@ -344,6 +344,12 @@ mixin LikeActions on Cubit<LikeState> {
     String type, String id, String source,
   ) async {
     try {
+      // Fast path: check DownloadCubit's in-memory state first (most reliable,
+      // covers source mismatches and after-restart restoration).
+      final dlCubit = inj.sl<DownloadCubit>();
+      if (dlCubit.isCollectionDownloaded(type, id)) return true;
+      // Fallback: check DB batches (handles edge cases where in-memory state
+      // was cleared but DB still has the batch).
       final normalized = normalizeTrackId(id);
       var batch = await _downloadDao.getBatchByItem(type, normalized, source);
       if (batch == null && source.isNotEmpty) {
