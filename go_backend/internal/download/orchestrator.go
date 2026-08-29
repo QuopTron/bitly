@@ -776,6 +776,13 @@ func (o *Orchestrator) attemptDownload(req Request, name string, p provider.Prov
 		}
 		result.FilePath = o.applyQuality(req.ItemID, result.FilePath, outDir, req.Quality)
 		result.FilePath = finalizeDownloadFile(outDir, req.ItemID, result.FilePath)
+		// Validate the file is actually playable audio before accepting.
+		// SoundCloud HLS streams disguised as .mp3 pass the extension check
+		// but fail here - they start with 0x47 (MPEG-TS), not real MP3.
+		if !isPlayableAudioFile(result.FilePath) {
+			_ = os.Remove(result.FilePath)
+			return &Result{ItemID: req.ItemID, Success: false, Error: fmt.Sprintf("%s: archivo no es audio playable", name)}
+		}
 		cooldown.MarkOpOk(name, downloadCooldownOp)
 		o.tracker.SetOutputPath(req.ItemID, result.FilePath)
 		return &Result{ItemID: req.ItemID, Success: true, Provider: name, FilePath: result.FilePath, Encrypted: false}
@@ -800,6 +807,11 @@ func (o *Orchestrator) attemptDownload(req Request, name string, p provider.Prov
 		}
 		filePath = o.applyQuality(req.ItemID, filePath, outDir, req.Quality)
 		filePath = finalizeDownloadFile(outDir, req.ItemID, filePath)
+		// Validate the file is actually playable audio.
+		if !isPlayableAudioFile(filePath) {
+			_ = os.Remove(filePath)
+			return &Result{ItemID: req.ItemID, Success: false, Error: fmt.Sprintf("%s: archivo no es audio playable", name)}
+		}
 		cooldown.MarkOpOk(name, downloadCooldownOp)
 		o.tracker.SetOutputPath(req.ItemID, filePath)
 		return &Result{ItemID: req.ItemID, Success: true, Provider: name, FilePath: filePath, StreamURL: streamURL}

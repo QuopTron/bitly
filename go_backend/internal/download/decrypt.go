@@ -110,15 +110,50 @@ func isPlainAudioFile(path string) bool {
 		return false
 	}
 	head := string(buf[:n])
-	// Prefix match: ID3's 4th byte is the tag version, and MP4 ("ftyp") must
-	// never match these plain-audio magics.
 	switch {
 	case strings.HasPrefix(head, "fLaC"),
 		strings.HasPrefix(head, "ID3"),
 		strings.HasPrefix(head, "OggS"),
-		strings.HasPrefix(head, "RIFF"):
+		strings.HasPrefix(head, "RIFF"),
+		// MP4/M4A container (Apple Music .m4a, Amazon encrypted .m4a)
+		strings.HasPrefix(head, "ftyp"):
 		return true
 	}
+	return false
+}
+
+// isPlayableAudioFile validates that a file on disk is a real playable audio
+// container. Rejects MPEG-TS streams disguised as .mp3 (SoundCloud HLS),
+// zero-byte files, and other garbage. Must be called after the file is
+// finalized (renamed from .tmp) so the file is complete.
+func isPlayableAudioFile(path string) bool {
+	f, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	buf := make([]byte, 12)
+	n, _ := f.Read(buf)
+	if n < 4 {
+		return false
+	}
+	head := string(buf[:n])
+	// Known playable containers
+	if strings.HasPrefix(head, "fLaC") || strings.HasPrefix(head, "ID3") ||
+		strings.HasPrefix(head, "OggS") || strings.HasPrefix(head, "RIFF") ||
+		strings.HasPrefix(head, "ftyp") {
+		return true
+	}
+	// WebM/Matroska (TIDAL .opus)
+	if n >= 4 && buf[0] == 0x1A && buf[1] == 0x45 && buf[2] == 0xDF && buf[3] == 0xA3 {
+		return true
+	}
+	// MPEG sync word (MP3 frame sync: 0xFF 0xFB/0xF3/0xF2)
+	if n >= 2 && buf[0] == 0xFF && (buf[1]&0xE0) == 0xE0 {
+		return true
+	}
+	// MPEG-TS starts with 0x47 (sync byte) — this is NOT a standalone
+	// playable file, it's a transport stream fragment (SoundCloud HLS).
 	return false
 }
 
