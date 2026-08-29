@@ -61,6 +61,9 @@ func (o *Orchestrator) applyQuality(itemID, filePath, outDir, quality string) st
 		_ = os.Remove(filePath)
 		filePath = converted
 	}
-	o.tracker.SetOutputPath(itemID, filePath)
+	// NOTE: Do NOT call tracker.SetOutputPath here. The file path changes
+	// again in finalizeDownloadFile (renames .tmp.XXX → .XXX). Setting
+	// the tracker path here would store a stale .tmp path — the caller
+	// sets the final path after finalizeDownloadFile.
 	return filePath
 }
