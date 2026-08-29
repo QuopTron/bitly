@@ -132,6 +132,10 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
   /// playable file found). Without this, every 3s poll re-checks the same
   /// completed+encrypted tracker entries and floods the log.
   final Set<String> _raceResolved = {};
+  /// Counter for completed-but-not-playable polls. When Go says 'completed'
+  /// but the file isn't playable (e.g. SoundCloud .mp3 arrived before
+  /// Apple Music .m4a), we wait up to 4 cycles (~12s) for the alt file.
+  final Map<String, int> _completedNoFileCount = {};
 
   /// Tracks that are being re-dispatched after a failed verification.
   /// Prevents infinite re-dispatch loops.
@@ -1056,6 +1060,7 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
                       _log.i('[poll] $rawId: .tmp file missing but non-tmp exists: $nonTmpPath — using it');
                       playablePath = nonTmpPath;
                       filePlayable = true;
+                      _completedNoFileCount.remove(rawId);
                       try {
                         final meta = _trackMeta[stateKey];
                         final nid = meta != null && meta.trackId.isNotEmpty ? meta.trackId : stateKey;
@@ -1076,6 +1081,7 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
                 _log.i('[poll] $rawId: file not playable but alternative exists: $altPath — using it');
                 playablePath = altPath;
                 filePlayable = true;
+                _completedNoFileCount.remove(rawId);
                 // Update DB path so _verifyDownloadedFile in the queue
                 // doesn't fail when it checks the broken path.
                 try {
@@ -1115,7 +1121,26 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
             }
 
             // Signal the sequential queue that this track finished
-            if (!isSubTask) _signalTrackDone(stateKey);
+            // BUT: if the file exists but isn't playable yet (e.g. SoundCloud
+            // .mp3 arrived but Apple Music .m4a hasn't been finalized), don't
+            // signal — keep polling so the .m4a has time to appear.
+            if (!isSubTask) {
+              if (filePlayable) {
+                _signalTrackDone(stateKey);
+              } else {
+                // Counter: give Apple Music etc. time to finalize the .m4a
+                final noFileCount = _completedNoFileCount[rawId] ?? 0;
+                _completedNoFileCount[rawId] = noFileCount + 1;
+                if (noFileCount >= 4) {
+                  // ~12s elapsed — give up, mark interrupted
+                  _log.w('[poll] $rawId: file not playable after ${noFileCount + 1} polls, giving up');
+                  _completedNoFileCount.remove(rawId);
+                  _signalTrackDone(stateKey);
+                } else {
+                  _log.i('[poll] $rawId: file not playable, waiting for alt (${noFileCount + 1}/4)');
+                }
+              }
+            }
 
             if (!isSubTask) {
               final meta = _trackMeta[stateKey];
