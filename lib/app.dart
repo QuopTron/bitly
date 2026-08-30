@@ -11,6 +11,7 @@ import 'backend/services/oauth_callback_service.dart';
 import 'backend/services/verification_service.dart';
 import 'frontend/shared/widgets/app_navigator_observer.dart';
 import 'frontend/shared/widgets/global_mini_player_overlay.dart';
+import 'backend/cache/settings_cache.dart';
 import 'injection.dart';
 
 class BitlyApp extends StatefulWidget {
@@ -22,6 +23,7 @@ class BitlyApp extends StatefulWidget {
 
 class _BitlyAppState extends State<BitlyApp> {
   late final ValueNotifier<Locale> _locale = sl<ValueNotifier<Locale>>();
+  late final ValueNotifier<ThemeMode> _themeMode = sl<ValueNotifier<ThemeMode>>();
   final _navigatorKey = GlobalKey<NavigatorState>();
   late final AppNavigatorObserver _navigatorObserver = sl<AppNavigatorObserver>();
   late final GoRouter _router =
@@ -30,20 +32,38 @@ class _BitlyAppState extends State<BitlyApp> {
   @override
   void initState() {
     super.initState();
-    _locale.addListener(_onLocaleChanged);
+    _locale.addListener(_onSettingChanged);
+    _themeMode.addListener(_onSettingChanged);
+    // Load saved preferences from DB
+    _loadSavedSettings();
     // Initialize the shared verification service with the root navigator key
     // so the Cloudflare WebView flow works from setup, search AND downloads.
     VerificationService().init(_navigatorKey);
     OAuthCallbackService().init();
   }
 
-  void _onLocaleChanged() {
+  Future<void> _loadSavedSettings() async {
+    try {
+      final cache = sl<SettingsCache>();
+      final savedTheme = await cache.getSetting('theme_mode');
+      if (savedTheme != null && mounted) {
+        _themeMode.value = savedTheme == 'dark' ? ThemeMode.dark : ThemeMode.light;
+      }
+      final savedLocale = await cache.getSetting('locale');
+      if (savedLocale != null && mounted) {
+        _locale.value = Locale(savedLocale);
+      }
+    } catch (_) {}
+  }
+
+  void _onSettingChanged() {
     setState(() {});
   }
 
   @override
   void dispose() {
-    _locale.removeListener(_onLocaleChanged);
+    _locale.removeListener(_onSettingChanged);
+    _themeMode.removeListener(_onSettingChanged);
     _navigatorObserver.dispose();
     super.dispose();
   }
@@ -62,7 +82,7 @@ class _BitlyAppState extends State<BitlyApp> {
             debugShowCheckedModeBanner: false,
             theme: lightTheme,
             darkTheme: darkTheme,
-            themeMode: themeMode,
+            themeMode: _themeMode.value,
             locale: _locale.value,
             supportedLocales: const [Locale('es'), Locale('en')],
             localizationsDelegates: [

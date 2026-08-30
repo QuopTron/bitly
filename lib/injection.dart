@@ -37,6 +37,9 @@ Future<void> configureDependencies() async {
   sl.registerLazySingleton<ValueNotifier<Locale>>(
     () => ValueNotifier(const Locale('es')),
   );
+  sl.registerLazySingleton<ValueNotifier<ThemeMode>>(
+    () => ValueNotifier(ThemeMode.dark),
+  );
   sl.registerLazySingleton<ValueNotifier<PerformanceProfile>>(
     () => ValueNotifier(PerformanceProfile.medium),
   );
