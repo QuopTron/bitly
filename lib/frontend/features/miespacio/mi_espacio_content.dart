@@ -112,6 +112,14 @@ class MiEspacioContent extends StatelessWidget {
       if (local != null && local.isNotEmpty) return local;
       final resolved = likeCubit.resolveCoverFor(feed);
       if (resolved != null && resolved.isNotEmpty) return resolved;
+      // Fallback: check DownloadCubit's batch cover (for downloaded albums
+      // whose like was removed — the cover persists in download metadata).
+      if (item.type == ItemType.album || item.type == ItemType.playlist) {
+        final dlCubit = context.read<DownloadCubit>();
+        final batchKey = '${item.type == ItemType.album ? 'album' : 'playlist'}_${item.realId}_${item.source}';
+        final batchCover = dlCubit.batchCoverFor(batchKey);
+        if (batchCover.isNotEmpty) return batchCover;
+      }
       return null;
     } catch (_) {
       return null;
