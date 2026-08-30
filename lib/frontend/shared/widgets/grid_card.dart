@@ -6,7 +6,7 @@ import '../theme/app_colors.dart';
 import '../utils/responsive.dart';
 import '../models/performance_profile.dart';
 import 'cover_image.dart';
-import 'download_indicator.dart';
+import '../../../backend/cache/download_state.dart';
 
 class GridCard extends StatelessWidget {
   final String type;
@@ -237,19 +237,8 @@ class GridCard extends StatelessWidget {
                                 )
                               else
                                 _placeholderIcon(coverSide, context),
-                              if (!_isArtist &&
-                                  downloadState != DownloadState.none)
-                                Positioned(
-                                  top: 6,
-                                  right: 6,
-                                  child: DownloadIndicator(
-                                    state:
-                                        showDeleteAnimation
-                                            ? DownloadState.completed
-                                            : downloadState,
-                                    size: 12,
-                                  ),
-                                ),
+                              // Download state is shown via the action row icons —
+                              // no redundant dot on the cover.
                               if (cornerBadge != null)
                                 Positioned(
                                   top: 6,
