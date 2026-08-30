@@ -125,9 +125,20 @@ class GridCard extends StatelessWidget {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: Colors.white.withValues(alpha: 0.1),
-                width: 0.6,
+                color: downloadState == DownloadState.completed
+                    ? AppColors.greenBright.withValues(alpha: 0.35)
+                    : Colors.white.withValues(alpha: 0.1),
+                width: downloadState == DownloadState.completed ? 1.2 : 0.6,
               ),
+              boxShadow: downloadState == DownloadState.completed
+                  ? [
+                      BoxShadow(
+                        color: _glowColor(context).withValues(alpha: 0.25),
+                        blurRadius: 12,
+                        spreadRadius: 2,
+                      ),
+                    ]
+                  : null,
               color: fallbackBg,
             ),
             child: Stack(
@@ -152,7 +163,7 @@ class GridCard extends StatelessWidget {
                 ),
                 // Scrim so foreground stays readable over any artwork.
                 Positioned.fill(
-                  child: Container(color: Colors.black.withValues(alpha: 0.38)),
+                  child: Container(color: Colors.black.withValues(alpha: 0.42)),
                 ),
                 // Bottom-up gradient so the info block always stays legible.
                 Positioned.fill(
@@ -285,20 +296,22 @@ class GridCard extends StatelessWidget {
           title,
           textAlign: TextAlign.center,
           style: TextStyle(
-            fontSize: (r.footerSize + 4) * ts,
+            fontSize: (r.footerSize + 5) * ts,
             fontWeight: FontWeight.w700,
+            letterSpacing: -0.2,
             color: textColor,
-            shadows: const [Shadow(color: Colors.black, blurRadius: 6)],
+            shadows: const [Shadow(color: Colors.black, blurRadius: 8)],
           ),
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
         ),
-        SizedBox(height: 3),
+        SizedBox(height: 2),
         Text(
           subtitle,
           textAlign: TextAlign.center,
           style: TextStyle(
-            fontSize: (r.footerSize + 1) * ts,
+            fontSize: (r.footerSize) * ts,
+            fontWeight: FontWeight.w400,
             color: mutedColor,
             shadows: const [Shadow(color: Colors.black, blurRadius: 4)],
           ),
@@ -314,7 +327,7 @@ class GridCard extends StatelessWidget {
     final iconSize = r.footerSize * 1.2;
     Widget row = Wrap(
       alignment: WrapAlignment.center,
-      spacing: r.spacingM * 0.8,
+      spacing: r.spacingM * 0.6,
       runSpacing: 2,
       children: <Widget>[
         Semantics(

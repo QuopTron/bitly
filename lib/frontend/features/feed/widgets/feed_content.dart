@@ -65,35 +65,59 @@ class FeedContent extends StatelessWidget {
     final loc = AppLocalizations.of(context);
     final r = Responsive(context);
 
-    if (loading) return const Center(child: CircularProgressIndicator());
+    if (loading) return _buildLoadingPlaceholder(r);
     if (!hasContent) {
       return Center(child: Padding(
         padding: EdgeInsets.all(r.spacingXL),
-        child: Text(loc.setup.feedNoContent, style: TextStyle(fontSize: r.footerSize, color: onBg.withValues(alpha: 0.4))),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.wifi_tethering_off, size: 48, color: onBg.withValues(alpha: 0.15)),
+            SizedBox(height: r.spacingM),
+            Text(loc.setup.feedNoContent, style: TextStyle(fontSize: r.footerSize, color: onBg.withValues(alpha: 0.4))),
+          ],
+        ),
       ));
     }
 
     final children = <Widget>[
-      if (currentDisplayName.isNotEmpty && sections.any((s) => s.items.isNotEmpty))
-        Padding(
-          padding: EdgeInsets.only(left: r.spacingXS, bottom: r.spacingS),
-          child: Row(children: [
-            Icon(Icons.wifi_tethering, size: r.footerSize, color: glowColor.withValues(alpha: 0.6)),
-            SizedBox(width: r.spacingXS),
-            Text(currentDisplayName, style: TextStyle(fontSize: r.footerSize, fontWeight: FontWeight.w600, color: glowColor.withValues(alpha: 0.7))),
-          ]),
-        ),
       ..._buildTrackCards(context, r),
       ..._buildGridCards(context, r),
     ];
 
-    // Lazy builder + shrinkWrap grids avoid the RenderSliverList scroll-extent
-    // assertion that crashes when a Wrap (variable-height layout) is placed
-    // directly inside a SliverList.
     return ListView.builder(
-      padding: EdgeInsets.all(r.spacingS),
+      padding: EdgeInsets.symmetric(horizontal: r.spacingS, vertical: r.spacingXS),
       itemCount: children.length,
       itemBuilder: (context, index) => children[index],
+    );
+  }
+
+  /// Shimmer loading placeholder — a few ghost rows.
+  Widget _buildLoadingPlaceholder(Responsive r) {
+    return ListView.builder(
+      padding: EdgeInsets.symmetric(horizontal: r.spacingS, vertical: r.spacingXS),
+      itemCount: 6,
+      itemBuilder: (context, index) {
+        final isTrack = index < 3;
+        if (isTrack) {
+          return Container(
+            height: 72,
+            margin: EdgeInsets.symmetric(vertical: r.spacingXS),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              color: Colors.white.withValues(alpha: 0.04),
+            ),
+          );
+        }
+        return Container(
+          height: 220,
+          margin: EdgeInsets.symmetric(vertical: r.spacingXS),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            color: Colors.white.withValues(alpha: 0.03),
+          ),
+        );
+      },
     );
   }
 
@@ -104,10 +128,13 @@ class FeedContent extends StatelessWidget {
     for (final section in ts) {
       final tracks = section.items.where((i) => i.type == 'track').take(10).toList();
       if (tracks.isEmpty) continue;
+      // Section header
       if (section.title.isNotEmpty && ts.length > 1) {
-        ws.add(Padding(
-          padding: EdgeInsets.only(left: r.spacingXS, top: r.spacingXS, bottom: r.spacingXS),
-          child: Text(localizeFeedTitle(loc, section.title), style: TextStyle(fontSize: r.subtitleSize, fontWeight: FontWeight.w600, color: onBg))));
+        ws.add(_SectionHeader(
+          title: localizeFeedTitle(loc, section.title),
+          glowColor: glowColor,
+          icon: Icons.wifi_tethering,
+        ));
       }
       for (final item in tracks) {
         final fp = fingerprintItem(item);
@@ -119,7 +146,7 @@ class FeedContent extends StatelessWidget {
           textScale: 1.2, readyKey: normalizeTrackId(item.id),
           isLiked: likedIds.contains(fp), onLike: () => onToggleLike(id, item),
           downloadState: _trackDownloadState(fp, id),
-                      onDownload: () => onStartDownload(item),
+          onDownload: () => onStartDownload(item),
           onDelete: onDeleteTrack != null ? () => onDeleteTrack!(item) : null,
           onInfo: () => onShowInfo(context, item),
           onMore: () => onShowMore(context, item),
@@ -152,8 +179,11 @@ class FeedContent extends StatelessWidget {
         return Padding(
           padding: EdgeInsets.only(bottom: r.spacingM),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-            Padding(padding: EdgeInsets.only(left: r.spacingXS, bottom: r.spacingXS),
-              child: Text(localizeFeedTitle(AppLocalizations.of(context), s.title), style: TextStyle(fontSize: r.subtitleSize, fontWeight: FontWeight.w600, color: onBg))),
+            _SectionHeader(
+              title: localizeFeedTitle(AppLocalizations.of(context), s.title),
+              glowColor: glowColor,
+              icon: s.items.firstOrNull?.type == 'album' ? Icons.album : Icons.queue_music,
+            ),
             LayoutBuilder(builder: (context, constraints) {
               final avail = constraints.maxWidth - 2 * r.spacingS;
               final crossAxisCount = avail > 700 ? 4 : avail > 340 ? 3 : 2;
@@ -204,4 +234,57 @@ class FeedContent extends StatelessWidget {
   }
 }
 
+/// Glass section header with icon + title.
+class _SectionHeader extends StatelessWidget {
+  final String title;
+  final Color glowColor;
+  final IconData icon;
 
+  const _SectionHeader({
+    required this.title,
+    required this.glowColor,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final r = Responsive(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Padding(
+      padding: EdgeInsets.only(
+        left: r.spacingXS,
+        right: r.spacingXS,
+        top: r.spacingM,
+        bottom: r.spacingS,
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: RadialGradient(
+                colors: [
+                  glowColor.withValues(alpha: isDark ? 0.25 : 0.15),
+                  glowColor.withValues(alpha: 0.02),
+                ],
+              ),
+            ),
+            child: Icon(icon, size: r.footerSize, color: glowColor.withValues(alpha: 0.7)),
+          ),
+          SizedBox(width: r.spacingS),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: r.subtitleSize,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.2,
+              color: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

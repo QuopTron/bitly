@@ -23,9 +23,9 @@ class _FloatingNavbarState extends State<FloatingNavbar> {
   late int _selected;
 
   static const _items = [
-    _NavItem(Icons.search_rounded),
-    _NavItem(Icons.home_rounded),
-    _NavItem(Icons.grid_view_rounded),
+    _NavItem(Icons.search_rounded, 'Search'),
+    _NavItem(Icons.home_rounded, 'Home'),
+    _NavItem(Icons.grid_view_rounded, 'My Space'),
   ];
 
   @override
@@ -43,10 +43,14 @@ class _FloatingNavbarState extends State<FloatingNavbar> {
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: r.spacingXL, vertical: r.spacingS),
       child: GlassContainer(
-        borderRadius: 28,
-        borderColor: glowColor.withValues(alpha: 0.15),
-        bgColor: (widget.isDark ? AppColors.surfaceDark : Colors.white).withValues(alpha: 0.85),
-        padding: EdgeInsets.symmetric(horizontal: r.spacingM, vertical: r.spacingXS),
+        borderRadius: 24,
+        blurSigma: 20,
+        borderColor: glowColor.withValues(alpha: 0.12),
+        bgColor: (widget.isDark ? AppColors.surfaceDark : Colors.white).withValues(alpha: 0.80),
+        glowBorder: true,
+        glowSpread: 2,
+        glowBlur: 16,
+        padding: EdgeInsets.symmetric(horizontal: r.spacingS, vertical: r.spacingXS * 0.8),
         child: Row(
           children: List.generate(_items.length, (i) => Expanded(child: _navItem(i, r, onBg, glowColor))),
         ),
@@ -61,27 +65,47 @@ class _FloatingNavbarState extends State<FloatingNavbar> {
         setState(() => _selected = i);
         widget.onTap?.call(i);
       },
+      behavior: HitTestBehavior.opaque,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
+        duration: const Duration(milliseconds: 300),
         curve: Curves.easeOutCubic,
-        padding: EdgeInsets.symmetric(vertical: r.spacingS),
+        padding: EdgeInsets.symmetric(vertical: r.spacingS * 0.7),
         decoration: BoxDecoration(
-          color: sel ? glowColor.withValues(alpha: 0.12) : Colors.transparent,
-          borderRadius: BorderRadius.circular(18),
+          color: sel ? glowColor.withValues(alpha: 0.10) : Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(_items[i].icon, size: r.subtitleSize + 2,
-              color: sel ? glowColor : onBg.withValues(alpha: 0.4)),
-            AnimatedContainer(
+            AnimatedScale(
+              scale: sel ? 1.1 : 1.0,
               duration: const Duration(milliseconds: 200),
-              margin: EdgeInsets.only(top: r.spacingXS),
-              width: sel ? 16 : 0,
-              height: 2,
+              curve: Curves.easeOutBack,
+              child: Icon(
+                _items[i].icon,
+                size: r.subtitleSize + 2,
+                color: sel ? glowColor : onBg.withValues(alpha: 0.35),
+              ),
+            ),
+            SizedBox(height: r.spacingXS * 0.6),
+            // Glow dot indicator
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOutCubic,
+              width: sel ? 5 : 0,
+              height: sel ? 5 : 0,
               decoration: BoxDecoration(
-                color: sel ? glowColor : Colors.transparent,
-                borderRadius: BorderRadius.circular(1),
+                color: glowColor,
+                shape: BoxShape.circle,
+                boxShadow: sel
+                    ? [
+                        BoxShadow(
+                          color: glowColor.withValues(alpha: 0.5),
+                          blurRadius: 6,
+                          spreadRadius: 1,
+                        ),
+                      ]
+                    : null,
               ),
             ),
           ],
@@ -93,6 +117,6 @@ class _FloatingNavbarState extends State<FloatingNavbar> {
 
 class _NavItem {
   final IconData icon;
-  const _NavItem(this.icon);
+  final String label;
+  const _NavItem(this.icon, this.label);
 }
-

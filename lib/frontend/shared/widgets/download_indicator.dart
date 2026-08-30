@@ -13,6 +13,13 @@ class DownloadIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // When in progress, use an animated pulsing dot.
+    if (state == DownloadState.inProgress) {
+      return _PulsingDot(size: size, color: _color);
+    }
+
+    final hasGlow = state == DownloadState.completed;
+
     return AnimatedContainer(
       duration: const Duration(milliseconds: 400),
       curve: Curves.easeInOut,
@@ -21,6 +28,15 @@ class DownloadIndicator extends StatelessWidget {
       decoration: BoxDecoration(
         color: _color,
         shape: BoxShape.circle,
+        boxShadow: hasGlow
+            ? [
+                BoxShadow(
+                  color: _color.withValues(alpha: 0.5),
+                  blurRadius: size * 1.5,
+                  spreadRadius: size * 0.3,
+                ),
+              ]
+            : null,
       ),
     );
   }
@@ -34,11 +50,67 @@ class DownloadIndicator extends StatelessWidget {
       case DownloadState.interrupted:
         return const Color(0xFFE53935); // rojo (error)
       case DownloadState.queued:
-        return const Color(0xFFBDBDBD); // gris claro (en cola)
+        return const Color(0xFF9E9E9E); // gris medio
       case DownloadState.none:
         return const Color(0xFF808080); // gris
     }
   }
 }
 
+/// A dot that gently pulses while the download is in progress.
+class _PulsingDot extends StatefulWidget {
+  final double size;
+  final Color color;
 
+  const _PulsingDot({required this.size, required this.color});
+
+  @override
+  State<_PulsingDot> createState() => _PulsingDotState();
+}
+
+class _PulsingDotState extends State<_PulsingDot>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (context, _) {
+        final t = _ctrl.value;
+        final glowAlpha = 0.15 + t * 0.25; // 0.15 → 0.4
+        final scale = 0.85 + t * 0.15; // 0.85 → 1.0
+        return Container(
+          width: widget.size * scale,
+          height: widget.size * scale,
+          decoration: BoxDecoration(
+            color: widget.color,
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: widget.color.withValues(alpha: glowAlpha),
+                blurRadius: widget.size * 2,
+                spreadRadius: widget.size * 0.5,
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}

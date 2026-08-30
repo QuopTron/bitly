@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../utils/responsive.dart';
+import '../theme/app_colors.dart';
 import '../../l10n/app_localizations.dart';
 import '../models/performance_profile.dart';
 import '../../../injection.dart';
@@ -76,19 +77,22 @@ class TrackCard extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
-            color: Colors.white.withValues(alpha: 0.1),
-            width: 0.7,
+            color: downloadState == DownloadState.completed
+                ? AppColors.greenBright.withValues(alpha: 0.3)
+                : Colors.white.withValues(alpha: 0.1),
+            width: downloadState == DownloadState.completed ? 1.0 : 0.7,
           ),
-          boxShadow:
-              heavyEffects
-                  ? [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.3),
-                      blurRadius: 14,
-                      offset: const Offset(0, 5),
-                    ),
-                  ]
-                  : null,
+          boxShadow: [
+            if (heavyEffects)
+              BoxShadow(
+                color: downloadState == DownloadState.completed
+                    ? AppColors.greenBright.withValues(alpha: 0.12)
+                    : Colors.black.withValues(alpha: 0.3),
+                blurRadius: downloadState == DownloadState.completed ? 16 : 14,
+                spreadRadius: downloadState == DownloadState.completed ? 1 : 0,
+                offset: const Offset(0, 5),
+              ),
+          ],
         ),
         clipBehavior: Clip.antiAlias,
         child: Stack(
@@ -183,8 +187,8 @@ class TrackCard extends StatelessWidget {
                   ClipRRect(
                     borderRadius: BorderRadius.circular(8),
                     child: Container(
-                      width: r.subtitleSize * 5.2,
-                      height: r.subtitleSize * 5.2,
+                      width: r.subtitleSize * 5.5,
+                      height: r.subtitleSize * 5.5,
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(10),
                         color: coverUrl == null ? fallbackBg : null,
@@ -231,7 +235,8 @@ class TrackCard extends StatelessWidget {
                           title,
                           style: TextStyle(
                             fontSize: r.subtitleSize * ts,
-                            fontWeight: FontWeight.w600,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: -0.3,
                             color: textColor,
                           ),
                           maxLines: 1,
@@ -284,23 +289,6 @@ class TrackCard extends StatelessWidget {
           size: 8,
         ),
         SizedBox(width: r.spacingS),
-        Container(
-          padding: EdgeInsets.symmetric(horizontal: r.spacingS, vertical: 3),
-          decoration: BoxDecoration(
-            color: textColor.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(6),
-          ),
-          child: Text(
-            loc.setup.hifi,
-            style: TextStyle(
-              fontSize: iSize - 1,
-              fontWeight: FontWeight.w700,
-              color: textColor.withValues(alpha: 0.5),
-              letterSpacing: 0.5,
-            ),
-          ),
-        ),
-        SizedBox(width: r.spacingXS),
         Semantics(
           button: true,
           label: isLiked ? loc.setup.a11yUnlike : loc.setup.a11yLike,

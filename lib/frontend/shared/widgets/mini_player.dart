@@ -70,8 +70,12 @@ class _MiniPlayerState extends State<MiniPlayer> {
               padding: EdgeInsets.symmetric(horizontal: r.spacingXL, vertical: r.spacingXS),
               child: GlassContainer(
                 borderRadius: 16,
-                borderColor: glowColor.withValues(alpha: 0.15),
-                bgColor: (isDark ? const Color(0xFF1A1A1A) : Colors.white).withValues(alpha: 0.88),
+                blurSigma: 18,
+                borderColor: glowColor.withValues(alpha: 0.12),
+                bgColor: (isDark ? const Color(0xFF1A1A1A) : Colors.white).withValues(alpha: 0.85),
+                glowBorder: player.isPlaying,
+                glowSpread: 1,
+                glowBlur: 12,
                 padding: const EdgeInsets.fromLTRB(10, 8, 6, 8),
                 child: Material(
                   type: MaterialType.transparency,
@@ -87,11 +91,30 @@ class _MiniPlayerState extends State<MiniPlayer> {
                         highlightColor: Colors.white.withValues(alpha: 0.06),
                         child: Row(
                           children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(6),
-                              child: SizedBox(
-                                width: 38,
-                                height: 38,
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 400),
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: player.isPlaying
+                                      ? glowColor.withValues(alpha: 0.4)
+                                      : Colors.transparent,
+                                  width: 1.5,
+                                ),
+                                boxShadow: player.isPlaying
+                                    ? [
+                                        BoxShadow(
+                                          color: glowColor.withValues(alpha: 0.2),
+                                          blurRadius: 8,
+                                          spreadRadius: 1,
+                                        ),
+                                      ]
+                                    : null,
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(7),
                                 child: CoverImage(coverUrl: resolvedCover, localPath: null),
                               ),
                             ),
@@ -193,8 +216,9 @@ class _MiniPlayerState extends State<MiniPlayer> {
                                         const RoundSliderOverlayShape(overlayRadius: 12),
                                     activeTrackColor: glowColor,
                                     inactiveTrackColor:
-                                        (isDark ? Colors.white : Colors.black).withValues(alpha: 0.12),
+                                        (isDark ? Colors.white : Colors.black).withValues(alpha: 0.08),
                                     thumbColor: glowColor,
+                                    overlayColor: glowColor.withValues(alpha: 0.12),
                                   ),
                                   child: Slider(
                                     value: progress,
