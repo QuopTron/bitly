@@ -359,21 +359,22 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
             var batchCoverPath = (m['cover_path'] ?? '') as String;
             // If DB batch has no covers (old data saved before schema v4),
             // try to adopt from the first track in _trackMeta.
+            // track_ids are full state keys like "track_1470146792_apple-music"
+            // (same format used as _trackMeta keys).
             if (batchCoverUrl.isEmpty && batchCoverPath.isEmpty) {
               final trackIdsRaw = (m['track_ids'] ?? '') as String;
               if (trackIdsRaw.isNotEmpty) {
                 try {
                   final parsedIds = jsonDecode(trackIdsRaw) as List;
-                  if (parsedIds.isNotEmpty) {
-                    final firstTrackId = parsedIds.first.toString();
-                    final stateKey = 'track_${firstTrackId}_$source';
+                  for (final tid in parsedIds) {
+                    final stateKey = tid.toString();
                     final trackMeta = _trackMeta[stateKey];
-                    if (trackMeta != null) {
-                      if (trackMeta.coverPath != null && trackMeta.coverPath!.isNotEmpty) {
-                        batchCoverPath = trackMeta.coverPath!;
-                      } else if (trackMeta.coverUrl != null && trackMeta.coverUrl!.isNotEmpty) {
-                        batchCoverUrl = trackMeta.coverUrl!;
-                      }
+                    if (trackMeta != null && (
+                        (trackMeta.coverPath != null && trackMeta.coverPath!.isNotEmpty) ||
+                        (trackMeta.coverUrl != null && trackMeta.coverUrl!.isNotEmpty))) {
+                      batchCoverPath = trackMeta.coverPath ?? '';
+                      batchCoverUrl = trackMeta.coverUrl ?? '';
+                      break;
                     }
                   }
                 } catch (_) {}
@@ -1718,9 +1719,23 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
   /// local path first, then network URL, or empty string if not available.
   String batchCoverFor(String batchKey) {
     final meta = _batchMeta[batchKey];
-    if (meta == null) return '';
-    if (meta.coverPath.isNotEmpty) return meta.coverPath;
-    return meta.coverUrl;
+    if (meta != null) {
+      if (meta.coverPath.isNotEmpty) return meta.coverPath;
+      if (meta.coverUrl.isNotEmpty) return meta.coverUrl;
+    }
+    // Runtime fallback: search _trackMeta for the first track belonging
+    // to this batch using _batchTrackIds which maps batch → track state keys.
+    final trackIds = _batchTrackIds[batchKey];
+    if (trackIds != null && trackIds.isNotEmpty) {
+      for (final tid in trackIds) {
+        final tm = _trackMeta[tid];
+        if (tm != null) {
+          if (tm.coverPath != null && tm.coverPath!.isNotEmpty) return tm.coverPath!;
+          if (tm.coverUrl != null && tm.coverUrl!.isNotEmpty) return tm.coverUrl!;
+        }
+      }
+    }
+    return '';
   }
 
   /// Returns true if there is a completed batch (album/playlist) with the
