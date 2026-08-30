@@ -98,8 +98,12 @@ class DetailHeader extends StatefulWidget {
 class _DetailHeaderState extends State<DetailHeader>
     with SingleTickerProviderStateMixin {
   Color? _dominantColor;
+  String? _lastExtractedUrl;
   late final AnimationController _animCtrl;
   late final Animation<double> _anim;
+
+  // Global cache: url -> dominant color (avoids re-extraction across rebuilds)
+  static final Map<String, Color> _colorCache = {};
 
   @override
   void initState() {
@@ -110,13 +114,13 @@ class _DetailHeaderState extends State<DetailHeader>
     );
     _anim = CurvedAnimation(parent: _animCtrl, curve: Curves.easeOut);
     _animCtrl.forward();
-    _extractColor();
+    _loadCachedColor();
   }
 
   @override
   void didUpdateWidget(covariant DetailHeader oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.coverUrl != widget.coverUrl) _extractColor();
+    if (oldWidget.coverUrl != widget.coverUrl) _loadCachedColor();
   }
 
   @override
@@ -141,15 +145,31 @@ class _DetailHeaderState extends State<DetailHeader>
     return NetworkImage(url);
   }
 
-  /// Extract color using Flutter's image pipeline (reuses cache, no raw HTTP).
+  void _loadCachedColor() {
+    final url = widget.coverUrl;
+    if (url == null || url.isEmpty) return;
+    _lastExtractedUrl = url;
+    // Check global cache first — instant, no decode needed
+    if (_colorCache.containsKey(url)) {
+      final cached = _colorCache[url]!;
+      if (_dominantColor != cached) {
+        _dominantColor = cached;
+        // Don't setState — animation already playing from initState
+      }
+      return;
+    }
+    // Not cached: extract async
+    _extractColor();
+  }
+
   Future<void> _extractColor() async {
     final url = widget.coverUrl;
     if (url == null || url.isEmpty) return;
     try {
-      // Use a small decode size for color extraction only
       final provider = _makeProvider();
       final color = await _extractDominantColor(provider);
-      if (mounted && color != null) {
+      if (mounted && color != null && _lastExtractedUrl == url) {
+        _colorCache[url] = color;
         setState(() => _dominantColor = color);
       }
     } catch (_) {}
@@ -232,37 +252,41 @@ class _DetailHeaderState extends State<DetailHeader>
             // ── Layer 1: Base ──
             Positioned.fill(child: Container(color: bgColor)),
 
-            // ── Layer 2: Blurred cover (tiny decode = fast) ──
+            // ── Layer 2: Blurred cover (isolated repaint) ──
             if (widget.coverUrl != null && widget.coverUrl!.isNotEmpty)
               Positioned.fill(
-                child: Opacity(
-                  opacity: t * 0.65,
-                  child: ImageFiltered(
-                    imageFilter: ui.ImageFilter.blur(sigmaX: 50, sigmaY: 50),
-                    child: Transform.scale(
-                      scale: 1.5,
-                      child: _blurredBg(),
+                child: RepaintBoundary(
+                  child: Opacity(
+                    opacity: t * 0.65,
+                    child: ImageFiltered(
+                      imageFilter: ui.ImageFilter.blur(sigmaX: 50, sigmaY: 50),
+                      child: Transform.scale(
+                        scale: 1.5,
+                        child: _blurredBg(),
+                      ),
                     ),
                   ),
                 ),
               ),
 
-            // ── Layer 3: Gradient ──
+            // ── Layer 3: Gradient (RepaintBoundary) ──
             Positioned.fill(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      accent.withValues(alpha: 0.85 * t),
-                      accent.withValues(alpha: 0.6 * t),
+              child: RepaintBoundary(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        accent.withValues(alpha: 0.85 * t),
+                        accent.withValues(alpha: 0.6 * t),
                       bgColor.withValues(alpha: 0.95),
                       bgColor,
                     ],
                     stops: const [0.0, 0.35, 0.7, 1.0],
                   ),
                 ),
+              ),
               ),
             ),
 
