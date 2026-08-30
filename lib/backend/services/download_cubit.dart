@@ -2476,6 +2476,19 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
       // (completed/interrupted) before we read it below.
       await Future<void>.delayed(const Duration(milliseconds: 200));
 
+      // ── If still inProgress after signal, check file on disk directly ──
+      // Go's finalize may fire _signalTrackDone before the Dart poll processes
+      // the completion. Look for the file immediately to avoid the orange dot.
+      if (state.downloads[baseId]?.state == DownloadState.inProgress) {
+        final altFile = await _findAlternativePlayableFile(baseId, '');
+        if (altFile != null && altFile.isNotEmpty) {
+          _log.i('[queue] $baseId: file found on disk after signal: $altFile — marking completed');
+          final tdl = Map<String, DownloadStateData>.from(state.downloads);
+          tdl[baseId] = const DownloadStateData(state: DownloadState.completed, progress: 1.0);
+          emit(state.copyWith(downloads: tdl));
+        }
+      }
+
       // ── Verify the download actually produced a file ──
       final currentDl = state.downloads[baseId]?.state;
       if (currentDl == DownloadState.completed) {
