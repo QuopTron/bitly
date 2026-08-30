@@ -316,7 +316,7 @@ class GridCard extends StatelessWidget {
 
   Widget _actionRow(BuildContext context, Responsive r) {
     final loc = AppLocalizations.of(context);
-    final iconSize = r.footerSize * 1.4;
+    final iconSize = r.footerSize * 1.8;
     Widget row = Wrap(
       alignment: WrapAlignment.center,
       spacing: r.spacingM * 0.6,
@@ -340,7 +340,7 @@ class GridCard extends StatelessWidget {
             children: [
               DownloadIndicator(
                 state: downloadState,
-                size: 8,
+                size: 10,
               ),
               SizedBox(width: 4),
               // Download action: gray dot → ⬇️, orange → ⏸️, green → 🗑️, red → 🔄

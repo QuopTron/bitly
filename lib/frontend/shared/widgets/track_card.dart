@@ -66,7 +66,7 @@ class TrackCard extends StatelessWidget {
         isDark ? const Color(0xFF2A2A2A) : const Color(0xFFD0D0D0);
     final fallbackIconColor =
         isDark ? const Color(0xFF888888) : const Color(0xFF666666);
-    final iSize = r.footerSize * 1.35 * textScale;
+    final iSize = r.footerSize * 1.6 * textScale;
     final ts = textScale;
 
     return RepaintBoundary(
@@ -288,7 +288,7 @@ class TrackCard extends StatelessWidget {
       children: [
         DownloadIndicator(
           state: showDeleteAnimation ? DownloadState.completed : downloadState,
-          size: 8,
+          size: 10,
         ),
         SizedBox(width: r.spacingS),
         Semantics(
