@@ -371,13 +371,35 @@ class MiEspacioContent extends StatelessWidget {
             final id =
                 'track_${normalizeTrackId(feedItem.id)}_${feedItem.source ?? ''}';
             // Prefer download's local cover (saveCover) over remote URL
-            final downloadCover = context.read<DownloadCubit>().localTrackCover(
+            final dlCubit = context.read<DownloadCubit>();
+            final downloadCover = dlCubit.localTrackCover(
               feedItem.id,
               feedItem.source ?? '',
             );
             final likedCover = likeCubit.resolveCoverFor(feedItem);
+            // Fallback: find the album/playlist batch that owns this track
+            // and use its cover (handles tracks from downloaded albums).
+            String? batchCover;
+            if (downloadCover == null && likedCover == null && feedItem.coverUrl == null) {
+              final normId = normalizeTrackId(feedItem.id);
+              for (final bKey in dlCubit.state.downloads.keys) {
+                if (!bKey.startsWith('album_') && !bKey.startsWith('playlist_')) continue;
+                if (dlCubit.state.downloads[bKey]?.state != DownloadState.completed) continue;
+                final bc = dlCubit.batchCoverFor(bKey);
+                if (bc.isEmpty) continue;
+                // Check if this batch contains our track
+                final batchTracks = dlCubit.batchTrackIdsFor(bKey);
+                for (final bt in batchTracks) {
+                  if (normalizeTrackId(bt).contains(normId) || bt.contains(normId)) {
+                    batchCover = bc;
+                    break;
+                  }
+                }
+                if (batchCover != null) break;
+              }
+            }
             final resolvedCover =
-                downloadCover ?? likedCover ?? feedItem.coverUrl;
+                downloadCover ?? likedCover ?? batchCover ?? feedItem.coverUrl;
             return Padding(
               padding: EdgeInsets.only(bottom: r.spacingXS),
               child: TrackCard(

@@ -391,6 +391,9 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
           if (trackIdsRaw.isNotEmpty) {
             try {
               final parsedIds = jsonDecode(trackIdsRaw) as List;
+              // Also populate _batchTrackIds so batchCoverFor's runtime fallback
+              // can search _trackMeta for covers even after app restart.
+              _batchTrackIds[batchKey] = parsedIds.map((e) => e.toString()).toList();
               for (final tid in parsedIds) {
                 final ntid = normalizeTrackId(tid.toString());
                 batchTrackMap[ntid] = batchKey;
@@ -1714,6 +1717,9 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
   /// Returns the stored name for a batch key (album/playlist name),
   /// or empty string if not available.
   String batchNameFor(String batchKey) => _batchMeta[batchKey]?.name ?? '';
+
+  /// Returns the list of track state keys that belong to a batch.
+  List<String> batchTrackIdsFor(String batchKey) => _batchTrackIds[batchKey] ?? const [];
 
   /// Returns the best cover path for a batch key (album/playlist):
   /// local path first, then network URL, or empty string if not available.
