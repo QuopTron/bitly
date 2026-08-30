@@ -86,7 +86,7 @@ class FeedContent extends StatelessWidget {
     ];
 
     return ListView.builder(
-      padding: EdgeInsets.symmetric(horizontal: r.spacingS, vertical: r.spacingXS),
+      padding: EdgeInsets.symmetric(vertical: r.spacingXS),
       itemCount: children.length,
       itemBuilder: (context, index) => children[index],
     );
@@ -189,7 +189,7 @@ class FeedContent extends StatelessWidget {
               final crossAxisCount = avail > 700 ? 4 : avail > 340 ? 3 : 2;
               final gap = r.spacingXS;
               return Padding(
-                padding: EdgeInsets.symmetric(horizontal: r.spacingS),
+                padding: EdgeInsets.symmetric(horizontal: r.spacingS * 0.5),
                 child: GridView.builder(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),

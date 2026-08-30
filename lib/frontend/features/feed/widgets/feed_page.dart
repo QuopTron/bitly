@@ -7,7 +7,6 @@ import '../../../shared/utils/item_actions.dart';
 import '../../../../backend/services/like_cubit.dart';
 import '../../../../backend/services/download_cubit.dart';
 import '../../../shared/constants/source_constants.dart';
-import '../../../shared/widgets/glass_container.dart';
 import '../bloc/feed_bloc.dart';
 import '../bloc/feed_state.dart';
 import 'feed_header.dart';
@@ -76,37 +75,30 @@ class _FeedPageState extends State<FeedPage> {
         FeedHeader(onBg: onBg, glowColor: glowColor, sources: _availableSources),
         SizedBox(height: r.spacingM),
         Expanded(
-          child: GlassContainer(
-            borderRadius: 16,
-            borderColor: glowColor.withValues(alpha: 0.15),
-            bgColor: onBg.withValues(alpha: 0.02),
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              Expanded(child: BlocBuilder<LikeCubit, LikeState>(
-                builder: (context, likeState) {
-                  return BlocBuilder<DownloadCubit, DownloadCubitState>(
-                    builder: (context, dlState) {
-                      final ds = <String, DownloadState>{};
-                      for (final e in dlState.downloads.entries) {
-                        ds[e.key] = e.value.state;
-                      }
-                      return FeedContent(
-                        onBg: onBg, glowColor: glowColor,
-                        sections: sections, hasContent: hasContent,
-                        loading: state.loading, currentDisplayName: _currentDisplayName,
-                        likedIds: likeState.likedFingerprints,
-                        downloadStates: ds,
-                        downloadedFingerprints: dlState.downloadedFingerprints,
-                        onToggleLike: _toggleLike, onStartDownload: _startDownload, onBatchDownload: _startBatchDownload,
-                        onBatchDelete: _onBatchDelete,
-                        onExportPlaylist: _onExportPlaylist,
-                        onDeleteTrack: (item) => context.read<DownloadCubit>().deleteTrackResolved(item),
-                        onShowInfo: _showInfo, onShowMore: _showMore, onNavigateToItem: _navigateToItem,
-                      );
-                    },
+          child: BlocBuilder<LikeCubit, LikeState>(
+            builder: (context, likeState) {
+              return BlocBuilder<DownloadCubit, DownloadCubitState>(
+                builder: (context, dlState) {
+                  final ds = <String, DownloadState>{};
+                  for (final e in dlState.downloads.entries) {
+                    ds[e.key] = e.value.state;
+                  }
+                  return FeedContent(
+                    onBg: onBg, glowColor: glowColor,
+                    sections: sections, hasContent: hasContent,
+                    loading: state.loading, currentDisplayName: _currentDisplayName,
+                    likedIds: likeState.likedFingerprints,
+                    downloadStates: ds,
+                    downloadedFingerprints: dlState.downloadedFingerprints,
+                    onToggleLike: _toggleLike, onStartDownload: _startDownload, onBatchDownload: _startBatchDownload,
+                    onBatchDelete: _onBatchDelete,
+                    onExportPlaylist: _onExportPlaylist,
+                    onDeleteTrack: (item) => context.read<DownloadCubit>().deleteTrackResolved(item),
+                    onShowInfo: _showInfo, onShowMore: _showMore, onNavigateToItem: _navigateToItem,
                   );
                 },
-              )),
-            ]),
+              );
+            },
           ),
         ),
       ]);
