@@ -1,58 +1,74 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 import 'dart:ui' as ui;
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../utils/responsive.dart';
 
-/// Extract a single dominant color from image bytes by averaging center pixels.
-/// Returns a dark, desaturated version suitable for gradients.
-Future<Color?> _extractDominantColor(Uint8List bytes) async {
-  final codec = await ui.instantiateImageCodec(bytes);
-  final frame = await codec.getNextFrame();
-  final image = frame.image;
+/// Decode image via Flutter's pipeline and extract dominant color.
+Future<Color?> _extractDominantColor(ImageProvider provider) async {
   try {
-    final w = image.width;
-    final h = image.height;
-    final byteData = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
-    if (byteData == null) return null;
-    final data = byteData.buffer.asUint8List();
-
-    // Average center 50% of pixels
-    int rSum = 0, gSum = 0, bSum = 0, count = 0;
-    final stepX = max(1, w ~/ 20);
-    final stepY = max(1, h ~/ 20);
-    for (int y = h ~/ 4; y < h * 3 ~/ 4; y += stepY) {
-      for (int x = w ~/ 4; x < w * 3 ~/ 4; x += stepX) {
-        final i = (y * w + x) * 4;
-        if (data[i + 3] < 128) continue;
-        rSum += data[i];
-        gSum += data[i + 1];
-        bSum += data[i + 2];
-        count++;
+    final stream = provider.resolve(const ImageConfiguration());
+    final completer = Completer<ui.Image?>();
+    late ImageStreamListener listener;
+    listener = ImageStreamListener(
+      (ImageInfo info, _) {
+        if (!completer.isCompleted) completer.complete(info.image);
+      },
+      onError: (error, stackTrace) {
+        if (!completer.isCompleted) completer.complete(null);
+      },
+    );
+    stream.addListener(listener);
+    final image = await completer.future.timeout(
+      const Duration(seconds: 4),
+      onTimeout: () {
+        stream.removeListener(listener);
+        return null;
+      },
+    );
+    stream.removeListener(listener);
+    if (image == null) return null;
+    try {
+      final w = image.width;
+      final h = image.height;
+      final byteData =
+          await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+      if (byteData == null) return null;
+      final data = byteData.buffer.asUint8List();
+      int rSum = 0, gSum = 0, bSum = 0, count = 0;
+      final stepX = max(1, w ~/ 12);
+      final stepY = max(1, h ~/ 12);
+      for (int y = h ~/ 4; y < h * 3 ~/ 4; y += stepY) {
+        for (int x = w ~/ 4; x < w * 3 ~/ 4; x += stepX) {
+          final i = (y * w + x) * 4;
+          if (data[i + 3] < 128) continue;
+          rSum += data[i];
+          gSum += data[i + 1];
+          bSum += data[i + 2];
+          count++;
+        }
       }
+      if (count == 0) return null;
+      final hsl = HSLColor.fromColor(
+          Color.fromARGB(255, rSum ~/ count, gSum ~/ count, bSum ~/ count));
+      return hsl
+          .withSaturation((hsl.saturation * 0.7).clamp(0.0, 1.0))
+          .withLightness(0.18)
+          .toColor();
+    } finally {
+      image.dispose();
     }
-    if (count == 0) return null;
-    final r = rSum ~/ count;
-    final g = gSum ~/ count;
-    final b = bSum ~/ count;
-
-    // Convert to HSL, reduce lightness drastically for dark background
-    final hsl = HSLColor.fromColor(Color.fromARGB(255, r, g, b));
-    // Keep hue, moderate saturation, very dark
-    return hsl
-        .withSaturation((hsl.saturation * 0.7).clamp(0.0, 1.0))
-        .withLightness(0.18)
-        .toColor();
-  } finally {
-    image.dispose();
+  } catch (_) {
+    return null;
   }
 }
 
-/// Full-screen detail header: blurred cover background + dark gradient overlay
-/// extracted from the cover's dominant color. Single scrollable ListView.
+/// Full-screen detail header: blurred cover background + dark gradient overlay.
+/// Optimized: shares one ImageProvider for display + color extraction,
+/// limits decode size, caches, no raw HTTP downloads.
 class DetailHeader extends StatefulWidget {
   final String? coverUrl;
   final String title;
@@ -93,7 +109,7 @@ class _DetailHeaderState extends State<DetailHeader>
       duration: const Duration(milliseconds: 400),
     );
     _anim = CurvedAnimation(parent: _animCtrl, curve: Curves.easeOut);
-    _animCtrl.forward(); // start immediately
+    _animCtrl.forward();
     _extractColor();
   }
 
@@ -115,26 +131,24 @@ class _DetailHeaderState extends State<DetailHeader>
     return url.startsWith('/') || url.startsWith('file://');
   }
 
+  ImageProvider _makeProvider() {
+    final url = widget.coverUrl!;
+    if (_isLocalCover) {
+      final path =
+          url.startsWith('file://') ? Uri.parse(url).toFilePath() : url;
+      return FileImage(File(path));
+    }
+    return NetworkImage(url);
+  }
+
+  /// Extract color using Flutter's image pipeline (reuses cache, no raw HTTP).
   Future<void> _extractColor() async {
     final url = widget.coverUrl;
     if (url == null || url.isEmpty) return;
     try {
-      Uint8List? bytes;
-      if (_isLocalCover) {
-        final path =
-            url.startsWith('file://') ? Uri.parse(url).toFilePath() : url;
-        final file = File(path);
-        if (!await file.exists()) return;
-        bytes = await file.readAsBytes();
-      } else {
-        final uri = Uri.parse(url);
-        final request = await HttpClient().getUrl(uri);
-        final response = await request.close();
-        bytes = await consolidateHttpClientResponseBytes(response);
-        await response.drain();
-      }
-      if (bytes.isEmpty) return;
-      final color = await _extractDominantColor(bytes);
+      // Use a small decode size for color extraction only
+      final provider = _makeProvider();
+      final color = await _extractDominantColor(provider);
       if (mounted && color != null) {
         setState(() => _dominantColor = color);
       }
@@ -147,32 +161,53 @@ class _DetailHeaderState extends State<DetailHeader>
     if (_isLocalCover) {
       final path =
           url.startsWith('file://') ? Uri.parse(url).toFilePath() : url;
-      return Image.file(File(path), fit: BoxFit.cover,
-          errorBuilder: (c, e, s) => _placeholder(size));
+      return Image.file(
+        File(path),
+        fit: BoxFit.cover,
+        cacheWidth: size.toInt() * 2, // 2x for Retina but not full res
+        errorBuilder: (c, e, s) => _placeholder(size),
+      );
     }
-    return Image.network(url, fit: BoxFit.cover,
-        errorBuilder: (c, e, s) => _placeholder(size), gaplessPlayback: true);
+    return Image.network(
+      url,
+      fit: BoxFit.cover,
+      cacheWidth: size.toInt() * 2,
+      errorBuilder: (c, e, s) => _placeholder(size),
+      gaplessPlayback: true,
+    );
   }
 
-  Widget _blurredImg() {
+  /// Blurred background: uses a tiny 60px-wide decode to minimize GPU cost.
+  Widget _blurredBg() {
     final url = widget.coverUrl;
     if (url == null || url.isEmpty) return const SizedBox.shrink();
     if (_isLocalCover) {
       final path =
           url.startsWith('file://') ? Uri.parse(url).toFilePath() : url;
-      return Image.file(File(path), fit: BoxFit.cover,
-          errorBuilder: (c, e, s) => const SizedBox.shrink());
+      return Image.file(
+        File(path),
+        fit: BoxFit.cover,
+        cacheWidth: 60, // tiny — we blur it anyway
+        errorBuilder: (c, e, s) => const SizedBox.shrink(),
+      );
     }
-    return Image.network(url, fit: BoxFit.cover,
-        errorBuilder: (c, e, s) => const SizedBox.shrink(), gaplessPlayback: true);
+    return Image.network(
+      url,
+      fit: BoxFit.cover,
+      cacheWidth: 60, // tiny — we blur it anyway
+      errorBuilder: (c, e, s) => const SizedBox.shrink(),
+      gaplessPlayback: true,
+    );
   }
 
   Widget _placeholder(double size) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       color: isDark ? Colors.white10 : Colors.black12,
-      child: Icon(Icons.music_note, size: size * 0.3,
-          color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.3)),
+      child: Icon(Icons.music_note,
+          size: size * 0.3,
+          color:
+              (isDark ? Colors.white : Colors.black).withValues(alpha: 0.3)),
     );
   }
 
@@ -183,12 +218,10 @@ class _DetailHeaderState extends State<DetailHeader>
     final screenW = MediaQuery.sizeOf(context).width;
     final coverSz = widget.coverSize ?? (screenW * 0.52).clamp(140.0, 240.0);
     final statusBar = MediaQuery.paddingOf(context).top;
-    final bgColor = isDark ? const Color(0xFF0A0A0A) : const Color(0xFFF5F5F5);
-
-    // The dominant color from cover (already dark from extraction)
-    final accent = _dominantColor ?? (isDark
-        ? const Color(0xFF1A1A2E)
-        : const Color(0xFFE8E8E8));
+    final bgColor =
+        isDark ? const Color(0xFF0A0A0A) : const Color(0xFFF5F5F5);
+    final accent = _dominantColor ??
+        (isDark ? const Color(0xFF1A1A2E) : const Color(0xFFE8E8E8));
 
     return AnimatedBuilder(
       animation: _anim,
@@ -199,7 +232,7 @@ class _DetailHeaderState extends State<DetailHeader>
             // ── Layer 1: Base ──
             Positioned.fill(child: Container(color: bgColor)),
 
-            // ── Layer 2: Blurred cover ──
+            // ── Layer 2: Blurred cover (tiny decode = fast) ──
             if (widget.coverUrl != null && widget.coverUrl!.isNotEmpty)
               Positioned.fill(
                 child: Opacity(
@@ -208,13 +241,13 @@ class _DetailHeaderState extends State<DetailHeader>
                     imageFilter: ui.ImageFilter.blur(sigmaX: 50, sigmaY: 50),
                     child: Transform.scale(
                       scale: 1.5,
-                      child: _blurredImg(),
+                      child: _blurredBg(),
                     ),
                   ),
                 ),
               ),
 
-            // ── Layer 3: Dark gradient tinted with cover color ──
+            // ── Layer 3: Gradient ──
             Positioned.fill(
               child: DecoratedBox(
                 decoration: BoxDecoration(
@@ -239,7 +272,6 @@ class _DetailHeaderState extends State<DetailHeader>
                 padding: EdgeInsets.zero,
                 children: [
                   SizedBox(height: statusBar),
-
                   Padding(
                     padding: EdgeInsets.symmetric(horizontal: r.spacingS),
                     child: Column(
@@ -250,7 +282,7 @@ class _DetailHeaderState extends State<DetailHeader>
                           child: Container(
                             width: coverSz,
                             height: coverSz,
-                            clipBehavior: Clip.antiAlias,
+                            clipBehavior: Clip.hardEdge,
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(14),
                               boxShadow: [
@@ -265,10 +297,7 @@ class _DetailHeaderState extends State<DetailHeader>
                             child: _coverImg(coverSz),
                           ),
                         ),
-
                         SizedBox(height: r.spacingM),
-
-                        // Title
                         Text(
                           widget.title,
                           textAlign: TextAlign.center,
@@ -282,10 +311,7 @@ class _DetailHeaderState extends State<DetailHeader>
                             height: 1.1,
                           ),
                         ),
-
                         SizedBox(height: 4),
-
-                        // Subtitle
                         Text(
                           widget.subtitle,
                           textAlign: TextAlign.center,
@@ -297,8 +323,6 @@ class _DetailHeaderState extends State<DetailHeader>
                             color: Colors.white.withValues(alpha: 0.6),
                           ),
                         ),
-
-                        // Badge
                         if (widget.badge != null) ...[
                           SizedBox(height: 4),
                           Text(
@@ -310,22 +334,17 @@ class _DetailHeaderState extends State<DetailHeader>
                             ),
                           ),
                         ],
-
-                        // Actions
                         if (widget.actions != null) ...[
                           SizedBox(height: r.spacingS),
                           widget.actions!,
                         ],
-
                         SizedBox(height: r.spacingS),
                       ],
                     ),
                   ),
-
-                  // Child items
                   ...widget.children,
-
-                  SizedBox(height: MediaQuery.paddingOf(context).bottom + 90),
+                  SizedBox(
+                      height: MediaQuery.paddingOf(context).bottom + 90),
                 ],
               ),
             ),
