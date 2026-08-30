@@ -6,7 +6,7 @@ import '../theme/app_colors.dart';
 import '../utils/responsive.dart';
 import '../models/performance_profile.dart';
 import 'cover_image.dart';
-import '../../../backend/cache/download_state.dart';
+import 'download_indicator.dart';
 
 class GridCard extends StatelessWidget {
   final String type;
@@ -333,63 +333,50 @@ class GridCard extends StatelessWidget {
           ),
         ),
         if (!_isArtist && showDownloadAction)
-          Tooltip(
-            message:
-                downloadState == DownloadState.interrupted
-                    ? loc.setup.downloadTooltipRetry
-                    : downloadState == DownloadState.completed
-                    ? loc.setup.downloadTooltipDelete
-                    : downloadState == DownloadState.inProgress
-                    ? loc.setup.downloadTooltipInProgress
-                    : loc.setup.downloadTooltipDownload,
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DownloadIndicator(
+                state: downloadState,
+                size: 8,
+              ),
+              SizedBox(width: 4),
+              Tooltip(
+                message:
+                    downloadState == DownloadState.interrupted
+                        ? loc.setup.downloadTooltipRetry
+                        : downloadState == DownloadState.inProgress
+                        ? loc.setup.downloadTooltipInProgress
+                        : loc.setup.downloadTooltipDownload,
+                child: GestureDetector(
+                  onTap: onDownload,
+                  child: Icon(
+                    downloadState == DownloadState.inProgress
+                        ? Icons.hourglass_top_rounded
+                        : Icons.download,
+                    size: iconSize,
+                    color:
+                        downloadState == DownloadState.inProgress
+                            ? AppColors.greenBright.withValues(alpha: 0.8)
+                            : Colors.white.withValues(alpha: 0.6),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        if (showThirdAction)
+          Semantics(
+            button: true,
+            label: loc.setup.a11yMore,
             child: GestureDetector(
-              onTap:
-                  downloadState == DownloadState.completed
-                      ? (onDelete ?? onDownload)
-                      : onDownload,
+              onTap: onMore,
               child: Icon(
-                downloadState == DownloadState.completed
-                    ? Icons.delete_outline
-                    : downloadState == DownloadState.interrupted
-                    ? Icons.refresh
-                    : Icons.download,
-                size: iconSize,
-                color:
-                    downloadState == DownloadState.completed
-                        ? Colors.red.withValues(alpha: 0.6)
-                        : downloadState == DownloadState.interrupted
-                        ? const Color(0xFFE53935)
-                        : Colors.white.withValues(alpha: 0.6),
+                Icons.more_horiz,
+                size: iconSize + 2,
+                color: Colors.white.withValues(alpha: 0.6),
               ),
             ),
           ),
-        if (showThirdAction)
-          if ((type == 'playlist' || type == 'album') && onExport != null)
-            Semantics(
-              button: true,
-              label: loc.setup.a11yExport,
-              child: GestureDetector(
-                onTap: onExport,
-                child: Icon(
-                  Icons.file_download_outlined,
-                  size: iconSize + 1,
-                  color: Colors.white.withValues(alpha: 0.7),
-                ),
-              ),
-            )
-          else
-            Semantics(
-              button: true,
-              label: loc.setup.a11yMore,
-              child: GestureDetector(
-                onTap: onMore,
-                child: Icon(
-                  Icons.more_horiz,
-                  size: iconSize + 2,
-                  color: Colors.white.withValues(alpha: 0.6),
-                ),
-              ),
-            ),
       ],
     );
 
