@@ -17,6 +17,7 @@ class TrackCard extends StatelessWidget {
   final VoidCallback? onLike;
   final DownloadState downloadState;
   final VoidCallback? onDownload;
+  final VoidCallback? onPause;
   final VoidCallback? onDelete;
   final VoidCallback? onInfo;
   final VoidCallback? onMore;
@@ -41,6 +42,7 @@ class TrackCard extends StatelessWidget {
     this.onLike,
     this.downloadState = DownloadState.none,
     this.onDownload,
+    this.onPause,
     this.onDelete,
     this.onInfo,
     this.onMore,
@@ -302,33 +304,15 @@ class TrackCard extends StatelessWidget {
           ),
         ),
         SizedBox(width: r.spacingXS),
+        // Download action: gray dot → ⬇️, orange → ⏸️, green → 🗑️, red → 🔄
         Tooltip(
-          message:
-              downloadState == DownloadState.interrupted
-                  ? loc.setup.downloadTooltipRetry
-                  : downloadState == DownloadState.completed
-                  ? loc.setup.downloadTooltipDelete
-                  : downloadState == DownloadState.inProgress
-                  ? loc.setup.downloadTooltipInProgress
-                  : loc.setup.downloadTooltipDownload,
+          message: _trackDownloadTooltip(loc),
           child: GestureDetector(
-            onTap:
-                downloadState == DownloadState.completed && onDelete != null
-                    ? onDelete
-                    : onDownload,
+            onTap: _trackDownloadAction,
             child: Icon(
-              downloadState == DownloadState.completed
-                  ? Icons.delete_outline
-                  : downloadState == DownloadState.interrupted
-                  ? Icons.refresh
-                  : Icons.download,
+              _trackDownloadIcon,
               size: iSize,
-              color:
-                  downloadState == DownloadState.completed
-                      ? Colors.red.withValues(alpha: 0.6)
-                      : downloadState == DownloadState.interrupted
-                      ? const Color(0xFFE53935)
-                      : textColor.withValues(alpha: 0.5),
+              color: _trackDownloadIconColor,
             ),
           ),
         ),
@@ -379,6 +363,64 @@ class TrackCard extends StatelessWidget {
 
     if (actionsEnabled) return cluster;
     return IgnorePointer(child: Opacity(opacity: 0.4, child: cluster));
+  }
+
+  // ── Download state helpers ──
+
+  String _trackDownloadTooltip(AppLocalizations loc) {
+    final ds = showDeleteAnimation ? DownloadState.completed : downloadState;
+    switch (ds) {
+      case DownloadState.interrupted:
+        return loc.setup.downloadTooltipRetry;
+      case DownloadState.inProgress:
+        return 'Pausar descarga';
+      case DownloadState.completed:
+        return loc.setup.downloadTooltipDelete;
+      default:
+        return loc.setup.downloadTooltipDownload;
+    }
+  }
+
+  VoidCallback? get _trackDownloadAction {
+    final ds = showDeleteAnimation ? DownloadState.completed : downloadState;
+    switch (ds) {
+      case DownloadState.inProgress:
+        return onPause ?? onDelete;
+      case DownloadState.completed:
+        return onDelete ?? onDownload;
+      case DownloadState.interrupted:
+        return onDownload; // retry
+      default:
+        return onDownload;
+    }
+  }
+
+  IconData get _trackDownloadIcon {
+    final ds = showDeleteAnimation ? DownloadState.completed : downloadState;
+    switch (ds) {
+      case DownloadState.inProgress:
+        return Icons.pause_circle_filled;
+      case DownloadState.completed:
+        return Icons.delete_outline;
+      case DownloadState.interrupted:
+        return Icons.refresh;
+      default:
+        return Icons.download;
+    }
+  }
+
+  Color get _trackDownloadIconColor {
+    final ds = showDeleteAnimation ? DownloadState.completed : downloadState;
+    switch (ds) {
+      case DownloadState.inProgress:
+        return const Color(0xFFFF9800); // orange
+      case DownloadState.completed:
+        return Colors.red.withValues(alpha: 0.6);
+      case DownloadState.interrupted:
+        return const Color(0xFFE53935);
+      default:
+        return Colors.white.withValues(alpha: 0.5);
+    }
   }
 
   // Static helpers removed — use isLocalUrl/imageFromUrl from cover_image.dart instead.

@@ -18,8 +18,9 @@ class GridCard extends StatelessWidget {
   final VoidCallback? onLike;
   final DownloadState downloadState;
   final VoidCallback? onDownload;
-  final VoidCallback? onRetry;
+  final VoidCallback? onPause;
   final VoidCallback? onDelete;
+  final VoidCallback? onRetry;
   final VoidCallback? onMore;
   final VoidCallback? onExport;
   final bool showDeleteAnimation;
@@ -51,8 +52,9 @@ class GridCard extends StatelessWidget {
     this.onLike,
     this.downloadState = DownloadState.none,
     this.onDownload,
-    this.onRetry,
+    this.onPause,
     this.onDelete,
+    this.onRetry,
     this.onMore,
     this.onExport,
     this.showDeleteAnimation = false,
@@ -341,24 +343,15 @@ class GridCard extends StatelessWidget {
                 size: 8,
               ),
               SizedBox(width: 4),
+              // Download action: gray dot → ⬇️, orange → ⏸️, green → 🗑️, red → 🔄
               Tooltip(
-                message:
-                    downloadState == DownloadState.interrupted
-                        ? loc.setup.downloadTooltipRetry
-                        : downloadState == DownloadState.inProgress
-                        ? loc.setup.downloadTooltipInProgress
-                        : loc.setup.downloadTooltipDownload,
+                message: _downloadTooltip(loc),
                 child: GestureDetector(
-                  onTap: onDownload,
+                  onTap: _downloadAction,
                   child: Icon(
-                    downloadState == DownloadState.inProgress
-                        ? Icons.hourglass_top_rounded
-                        : Icons.download,
+                    _downloadIcon,
                     size: iconSize,
-                    color:
-                        downloadState == DownloadState.inProgress
-                            ? AppColors.greenBright.withValues(alpha: 0.8)
-                            : Colors.white.withValues(alpha: 0.6),
+                    color: _downloadIconColor,
                   ),
                 ),
               ),
@@ -382,6 +375,60 @@ class GridCard extends StatelessWidget {
 
     if (actionsEnabled) return row;
     return IgnorePointer(child: Opacity(opacity: 0.4, child: row));
+  }
+
+  // ── Download state helpers ──
+
+  String _downloadTooltip(AppLocalizations loc) {
+    switch (downloadState) {
+      case DownloadState.interrupted:
+        return loc.setup.downloadTooltipRetry;
+      case DownloadState.inProgress:
+        return 'Pausar descarga';
+      case DownloadState.completed:
+        return loc.setup.downloadTooltipDelete;
+      default:
+        return loc.setup.downloadTooltipDownload;
+    }
+  }
+
+  VoidCallback? get _downloadAction {
+    switch (downloadState) {
+      case DownloadState.inProgress:
+        return onPause ?? onDelete;
+      case DownloadState.completed:
+        return onDelete ?? onDownload;
+      case DownloadState.interrupted:
+        return onRetry ?? onDownload;
+      default:
+        return onDownload;
+    }
+  }
+
+  IconData get _downloadIcon {
+    switch (downloadState) {
+      case DownloadState.inProgress:
+        return Icons.pause_circle_filled;
+      case DownloadState.completed:
+        return Icons.delete_outline;
+      case DownloadState.interrupted:
+        return Icons.refresh;
+      default:
+        return Icons.download;
+    }
+  }
+
+  Color get _downloadIconColor {
+    switch (downloadState) {
+      case DownloadState.inProgress:
+        return const Color(0xFFFF9800); // orange
+      case DownloadState.completed:
+        return Colors.red.withValues(alpha: 0.6);
+      case DownloadState.interrupted:
+        return const Color(0xFFE53935);
+      default:
+        return Colors.white.withValues(alpha: 0.6);
+    }
   }
 
   LinearGradient _placeholderGradient(BuildContext context) {
