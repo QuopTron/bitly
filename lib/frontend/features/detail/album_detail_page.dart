@@ -19,9 +19,9 @@ import '../../../backend/services/like_cubit.dart';
 import '../../../backend/services/download_cubit.dart';
 import '../../../backend/services/queue_cubit.dart';
 import '../../shared/widgets/track_card.dart';
-import '../../shared/widgets/cover_image.dart';
-import '../../shared/widgets/download_indicator.dart';
+import '../../shared/widgets/detail_header.dart';
 import '../../shared/widgets/download_options_sheet.dart';
+import '../../shared/theme/app_colors.dart';
 import '../../../backend/services/connectivity_service.dart';
 import '../../../injection.dart';
 
@@ -274,119 +274,184 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
         .toList();
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(album.name, overflow: TextOverflow.ellipsis),
-        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.pop(context)),
-      ),
-      body: ListView(
-        padding: EdgeInsets.fromLTRB(r.spacingM, r.spacingM, r.spacingM, r.spacingM + 90),
-        children: [
-          Row(children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: SizedBox(
-                width: r.titleSize * 2, height: r.titleSize * 2,
-                child: albumCover != null && albumCover.isNotEmpty
-                  ? imageFromUrl(albumCover, fit: BoxFit.cover, fallback: _placeholder(r, onBg))
-                  : _placeholder(r, onBg),
-              ),
+      body: CustomScrollView(
+        slivers: [
+          SliverAppBar(
+            expandedHeight: 0,
+            pinned: true,
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () => Navigator.pop(context),
             ),
-            SizedBox(width: r.spacingM),
-            Expanded(child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(album.name, style: TextStyle(fontSize: r.subtitleSize, fontWeight: FontWeight.w600, color: onBg)),
-                SizedBox(height: 4),
-                Text(album.artistName ?? '', style: TextStyle(fontSize: r.footerSize, color: onBg.withValues(alpha: 0.5))),
-                Text('${album.totalTracks} ${loc.setup.miSpaceSongCount}  •  ${album.albumType ?? ''}',
-                  style: TextStyle(fontSize: r.footerSize - 1, color: onBg.withValues(alpha: 0.35))),
-              ],
-            )),
-          ]),
-          SizedBox(height: r.spacingM),
-          if (_isOnline)
-            GestureDetector(
-              onTap: _downloadAll,
-              child: Container(
-                padding: EdgeInsets.symmetric(horizontal: r.spacingM, vertical: r.spacingS),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: onBg.withValues(alpha: 0.1)),
-                  color: onBg.withValues(alpha: 0.03),
-                ),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  DownloadIndicator(
-                    state: batchState.state,
-                    size: 12,
+            title: Text(album.name, overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontWeight: FontWeight.w700)),
+          ),
+          SliverToBoxAdapter(
+            child: DetailHeader(
+              coverUrl: _resolvedAlbumCover,
+              title: album.name,
+              subtitle: album.artistName ?? '',
+              heroTag: 'album_${album.id}',
+              badge: '${album.totalTracks} ${loc.setup.miSpaceSongCount}  •  ${album.albumType ?? ''}',
+              actions: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Like button
+                  _CircleActionButton(
+                    icon: likedCubit.isLiked(FeedItem(
+                      id: album.id, type: 'album', name: album.name,
+                    )) ? Icons.favorite : Icons.favorite_border,
+                    color: likedCubit.isLiked(FeedItem(
+                      id: album.id, type: 'album', name: album.name,
+                    )) ? Colors.red : null,
+                    onTap: () => likedCubit.toggleLike(FeedItem(
+                      id: album.id, type: 'album', name: album.name,
+                      artists: album.artistName, coverUrl: _resolvedAlbumCover,
+                    )),
                   ),
                   SizedBox(width: r.spacingS),
-                  Expanded(
-                    child: Text(
-                      batchState.state == DownloadState.completed
-                          ? '${loc.setup.downloaded} ✓'
-                          : batchState.state == DownloadState.inProgress
-                              ? '${(batchState.progress * 100).toInt()}%'
-                              : batchState.state == DownloadState.interrupted
-                                  ? loc.setup.retry
-                                  : loc.setup.downloaded,
-                      style: TextStyle(fontSize: r.footerSize, color: onBg.withValues(alpha: 0.7)),
-                    ),
+                  // Download button
+                  _CircleActionButton(
+                    icon: batchState.state == DownloadState.completed
+                        ? Icons.check_circle
+                        : batchState.state == DownloadState.inProgress
+                            ? Icons.hourglass_top_rounded
+                            : Icons.download,
+                    color: batchState.state == DownloadState.completed
+                        ? AppColors.greenBright
+                        : batchState.state == DownloadState.inProgress
+                            ? const Color(0xFFFF9800)
+                            : null,
+                    onTap: _isOnline ? _downloadAll : null,
                   ),
-                  Icon(Icons.download, size: r.footerSize + 2, color: onBg.withValues(alpha: 0.4)),
-                ]),
+                  SizedBox(width: r.spacingS),
+                  // Play all button
+                  _CircleActionButton(
+                    icon: Icons.play_arrow_rounded,
+                    filled: true,
+                    onTap: albumFeedItems.isNotEmpty
+                        ? () => sl<QueueCubit>().playWithContext(albumFeedItems, albumFeedItems.first)
+                        : null,
+                  ),
+                ],
               ),
             ),
+          ),
           if (!_isOnline)
-            Container(
-              margin: EdgeInsets.only(bottom: r.spacingS),
-              padding: EdgeInsets.symmetric(horizontal: r.spacingS, vertical: 6),
-              decoration: BoxDecoration(
-                color: onBg.withValues(alpha: 0.06),
-                borderRadius: BorderRadius.circular(8),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: r.spacingM),
+                child: Container(
+                  margin: EdgeInsets.only(bottom: r.spacingS),
+                  padding: EdgeInsets.symmetric(horizontal: r.spacingS, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? Colors.white.withValues(alpha: 0.06)
+                        : Colors.black.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.cloud_off, size: r.footerSize - 2,
+                      color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.4)),
+                    SizedBox(width: 6),
+                    Text('${loc.setup.downloaded} ${loc.setup.miSpaceSongs.toLowerCase()}',
+                      style: TextStyle(fontSize: r.footerSize - 1,
+                        color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.4))),
+                  ]),
+                ),
               ),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.cloud_off, size: r.footerSize - 2, color: onBg.withValues(alpha: 0.4)),
-                SizedBox(width: 6),
-                Text('${loc.setup.downloaded} ${loc.setup.miSpaceSongs.toLowerCase()}',
-                  style: TextStyle(fontSize: r.footerSize - 1, color: onBg.withValues(alpha: 0.4))),
-              ]),
             ),
-          ...albumFeedItems.map((feedItem) {
-            final dID = 'track_${normalizeTrackId(feedItem.id)}_$src';
-            final trackCoverUrl = feedItem.coverUrl;
-            final displayCover = (trackCoverUrl?.isNotEmpty == true)
-                ? likedCubit.resolveCoverFor(feedItem)
-                : albumCover;
-            final isLiked = likedCubit.isLiked(feedItem);
-            void play() => sl<QueueCubit>().playWithContext(albumFeedItems, feedItem);
-            return Padding(
-              padding: EdgeInsets.only(bottom: r.spacingXS),
-              child: TrackCard(
-                title: feedItem.name, subtitle: (feedItem.artists?.isNotEmpty == true) ? feedItem.artists! : ((album.artistName?.isNotEmpty == true) ? album.artistName! : ''),
-                coverUrl: displayCover, isLiked: isLiked, readyKey: normalizeTrackId(feedItem.id),
-                textScale: 1.2,
-                onLike: () => likedCubit.toggleLike(feedItem),
-                downloadState: dlCubit.downloadStateFor(dID).state,
-                onDownload: () => showDownloadOptions(context, feedItem, isDark),
-                onDelete: () => dlCubit.deleteTrackDownload(feedItem.id, src),
-                onTap: play,
-                onShare: () => SharePlus.instance.share(ShareParams(
-                  text: feedItem.albumName != null
-                      ? '🎵 ${feedItem.name} — ${feedItem.artists ?? ''}\n💿 ${feedItem.albumName}'
-                      : '🎵 ${feedItem.name} — ${feedItem.artists ?? ''}',
-                )),
-              ),
-            );
-          }),
+          SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (context, i) {
+                final feedItem = albumFeedItems[i];
+                final dID = 'track_${normalizeTrackId(feedItem.id)}_$src';
+                final trackCoverUrl = feedItem.coverUrl;
+                final displayCover = (trackCoverUrl?.isNotEmpty == true)
+                    ? likedCubit.resolveCoverFor(feedItem)
+                    : albumCover;
+                final isLiked = likedCubit.isLiked(feedItem);
+                void play() => sl<QueueCubit>().playWithContext(albumFeedItems, feedItem);
+                return Padding(
+                  padding: EdgeInsets.symmetric(horizontal: r.spacingM, vertical: r.spacingXS * 0.5),
+                  child: TrackCard(
+                    title: feedItem.name,
+                    subtitle: (feedItem.artists?.isNotEmpty == true)
+                        ? feedItem.artists!
+                        : ((album.artistName?.isNotEmpty == true) ? album.artistName! : ''),
+                    coverUrl: displayCover, isLiked: isLiked,
+                    readyKey: normalizeTrackId(feedItem.id),
+                    textScale: 1.2,
+                    onLike: () => likedCubit.toggleLike(feedItem),
+                    downloadState: dlCubit.downloadStateFor(dID).state,
+                    onDownload: () => showDownloadOptions(context, feedItem, isDark),
+                    onDelete: () => dlCubit.deleteTrackDownload(feedItem.id, src),
+                    onTap: play,
+                    onShare: () => SharePlus.instance.share(ShareParams(
+                      text: feedItem.albumName != null
+                          ? '🎵 ${feedItem.name} — ${feedItem.artists ?? ''}\n💿 ${feedItem.albumName}'
+                          : '🎵 ${feedItem.name} — ${feedItem.artists ?? ''}',
+                    )),
+                  ),
+                );
+              },
+              childCount: albumFeedItems.length,
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: SizedBox(height: r.spacingM + 90),
+          ),
         ],
       ),
     );
   }
-
-  Widget _placeholder(Responsive r, Color onBg) => Container(
-    color: onBg.withValues(alpha: 0.06),
-    child: Icon(Icons.album, color: onBg.withValues(alpha: 0.2), size: r.titleSize),
-  );
 }
 
+/// Compact circular action button used in the detail header actions row.
+class _CircleActionButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback? onTap;
+  final Color? color;
+  final bool filled;
 
+  const _CircleActionButton({
+    required this.icon,
+    this.onTap,
+    this.color,
+    this.filled = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = filled
+        ? AppColors.greenBright
+        : (color ?? (isDark ? Colors.white : Colors.black)).withValues(alpha: 0.12);
+    final fgColor = filled
+        ? Colors.black
+        : color ?? (isDark ? Colors.white : Colors.black);
+
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: onTap != null ? bgColor : bgColor.withValues(alpha: 0.4),
+          boxShadow: filled ? [
+            BoxShadow(
+              color: AppColors.greenBright.withValues(alpha: 0.4),
+              blurRadius: 16,
+              spreadRadius: 2,
+            ),
+          ] : null,
+        ),
+        child: Icon(icon, size: 24, color: fgColor),
+      ),
+    );
+  }
+}
