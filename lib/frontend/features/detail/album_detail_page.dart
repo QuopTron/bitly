@@ -318,7 +318,8 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
           ),
         ],
       ),
-      child: Column(
+      child: ListView(
+        padding: EdgeInsets.symmetric(horizontal: r.spacingS),
         children: [
           if (!_isOnline)
             Container(
