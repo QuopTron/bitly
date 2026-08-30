@@ -112,13 +112,25 @@ class MiEspacioContent extends StatelessWidget {
       if (local != null && local.isNotEmpty) return local;
       final resolved = likeCubit.resolveCoverFor(feed);
       if (resolved != null && resolved.isNotEmpty) return resolved;
-      // Fallback: check DownloadCubit's batch cover (for downloaded albums
-      // whose like was removed — the cover persists in download metadata).
+      // Fallback: search DownloadCubit's batch covers by normalized ID.
+      // The batchKey stored in downloads may not match our constructed key,
+      // so we iterate to find the right one.
       if (item.type == ItemType.album || item.type == ItemType.playlist) {
         final dlCubit = context.read<DownloadCubit>();
-        final batchKey = '${item.type == ItemType.album ? 'album' : 'playlist'}_${item.realId}_${item.source}';
-        final batchCover = dlCubit.batchCoverFor(batchKey);
-        if (batchCover.isNotEmpty) return batchCover;
+        final normId = normalizeTrackId(item.realId);
+        final prefix = item.type == ItemType.album ? 'album_' : 'playlist_';
+        for (final entry in dlCubit.state.downloads.entries) {
+          if (!entry.key.startsWith(prefix)) continue;
+          if (entry.value.state != DownloadState.completed) continue;
+          // Parse the ID from the batch key
+          final parts = entry.key.split('_');
+          if (parts.length < 3) continue;
+          final keyNormId = normalizeTrackId(parts.sublist(1, parts.length - 1).join('_'));
+          if (keyNormId == normId) {
+            final batchCover = dlCubit.batchCoverFor(entry.key);
+            if (batchCover.isNotEmpty) return batchCover;
+          }
+        }
       }
       return null;
     } catch (_) {
