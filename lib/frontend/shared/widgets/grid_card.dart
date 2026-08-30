@@ -151,8 +151,8 @@ class GridCard extends StatelessWidget {
                           ? ImageFiltered(
                             imageFilter:
                                 heavyEffects
-                                    ? ImageFilter.blur(sigmaX: 18, sigmaY: 18)
-                                    : ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+                                    ? ImageFilter.blur(sigmaX: 24, sigmaY: 24)
+                                    : ImageFilter.blur(sigmaX: 8, sigmaY: 8),
                             child: imageFromUrl(coverUrl, fit: BoxFit.cover),
                           )
                           : Container(
@@ -163,7 +163,7 @@ class GridCard extends StatelessWidget {
                 ),
                 // Scrim so foreground stays readable over any artwork.
                 Positioned.fill(
-                  child: Container(color: Colors.black.withValues(alpha: 0.42)),
+                  child: Container(color: Colors.black.withValues(alpha: 0.35)),
                 ),
                 // Bottom-up gradient so the info block always stays legible.
                 Positioned.fill(
@@ -173,11 +173,12 @@ class GridCard extends StatelessWidget {
                         begin: Alignment.bottomCenter,
                         end: Alignment.topCenter,
                         colors: [
-                          Colors.black.withValues(alpha: 0.9),
-                          Colors.black.withValues(alpha: 0.4),
+                          Colors.black.withValues(alpha: 0.95),
+                          Colors.black.withValues(alpha: 0.5),
+                          Colors.black.withValues(alpha: 0.1),
                           Colors.transparent,
                         ],
-                        stops: const [0.0, 0.6, 1.0],
+                        stops: const [0.0, 0.35, 0.7, 1.0],
                       ),
                     ),
                   ),
@@ -205,9 +206,9 @@ class GridCard extends StatelessWidget {
                             border: Border.all(
                               color:
                                   isDark
-                                      ? Colors.white.withValues(alpha: 0.3)
-                                      : Colors.black.withValues(alpha: 0.15),
-                              width: 0.8,
+                                      ? Colors.white.withValues(alpha: 0.2)
+                                      : Colors.black.withValues(alpha: 0.1),
+                              width: 0.6,
                             ),
                             boxShadow:
                                 heavyEffects
@@ -324,7 +325,7 @@ class GridCard extends StatelessWidget {
 
   Widget _actionRow(BuildContext context, Responsive r) {
     final loc = AppLocalizations.of(context);
-    final iconSize = r.footerSize * 1.2;
+    final iconSize = r.footerSize * 1.4;
     Widget row = Wrap(
       alignment: WrapAlignment.center,
       spacing: r.spacingM * 0.6,
@@ -430,17 +431,31 @@ class GridCard extends StatelessWidget {
     final c = _glowColor(context);
     return Container(
       decoration: BoxDecoration(
-        shape: BoxShape.circle,
         gradient: RadialGradient(
           center: Alignment.center,
-          colors: [c.withValues(alpha: 0.4), c.withValues(alpha: 0.06)],
+          colors: [
+            c.withValues(alpha: 0.35),
+            c.withValues(alpha: 0.10),
+            c.withValues(alpha: 0.02),
+          ],
+          stops: const [0.0, 0.5, 1.0],
         ),
       ),
       alignment: Alignment.center,
-      child: Icon(
-        _icon,
-        size: size * 0.34,
-        color: Colors.white.withValues(alpha: 0.85),
+      child: Container(
+        padding: EdgeInsets.all(size * 0.12),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: c.withValues(alpha: 0.3),
+            width: 1.2,
+          ),
+        ),
+        child: Icon(
+          _icon,
+          size: size * 0.42,
+          color: Colors.white.withValues(alpha: 0.9),
+        ),
       ),
     );
   }
