@@ -113,8 +113,6 @@ class MiEspacioContent extends StatelessWidget {
       final resolved = likeCubit.resolveCoverFor(feed);
       if (resolved != null && resolved.isNotEmpty) return resolved;
       // Fallback: search DownloadCubit's batch covers by normalized ID.
-      // The batchKey stored in downloads may not match our constructed key,
-      // so we iterate to find the right one.
       if (item.type == ItemType.album || item.type == ItemType.playlist) {
         final dlCubit = context.read<DownloadCubit>();
         final normId = normalizeTrackId(item.realId);
@@ -122,7 +120,6 @@ class MiEspacioContent extends StatelessWidget {
         for (final entry in dlCubit.state.downloads.entries) {
           if (!entry.key.startsWith(prefix)) continue;
           if (entry.value.state != DownloadState.completed) continue;
-          // Parse the ID from the batch key
           final parts = entry.key.split('_');
           if (parts.length < 3) continue;
           final keyNormId = normalizeTrackId(parts.sublist(1, parts.length - 1).join('_'));

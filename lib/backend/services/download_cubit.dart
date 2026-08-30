@@ -355,8 +355,30 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
           final itemId = (m['item_id'] ?? '') as String;
           final source = (m['source'] ?? '') as String;
           if (name.isNotEmpty) {
-            final batchCoverUrl = (m['cover_url'] ?? '') as String;
-            final batchCoverPath = (m['cover_path'] ?? '') as String;
+            var batchCoverUrl = (m['cover_url'] ?? '') as String;
+            var batchCoverPath = (m['cover_path'] ?? '') as String;
+            // If DB batch has no covers (old data saved before schema v4),
+            // try to adopt from the first track in _trackMeta.
+            if (batchCoverUrl.isEmpty && batchCoverPath.isEmpty) {
+              final trackIdsRaw = (m['track_ids'] ?? '') as String;
+              if (trackIdsRaw.isNotEmpty) {
+                try {
+                  final parsedIds = jsonDecode(trackIdsRaw) as List;
+                  if (parsedIds.isNotEmpty) {
+                    final firstTrackId = parsedIds.first.toString();
+                    final stateKey = 'track_${firstTrackId}_$source';
+                    final trackMeta = _trackMeta[stateKey];
+                    if (trackMeta != null) {
+                      if (trackMeta.coverPath != null && trackMeta.coverPath!.isNotEmpty) {
+                        batchCoverPath = trackMeta.coverPath!;
+                      } else if (trackMeta.coverUrl != null && trackMeta.coverUrl!.isNotEmpty) {
+                        batchCoverUrl = trackMeta.coverUrl!;
+                      }
+                    }
+                  }
+                } catch (_) {}
+              }
+            }
             _batchMeta[batchKey] = _BatchMeta(
               name, itemType, itemId, source,
               coverUrl: batchCoverUrl,
