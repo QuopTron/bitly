@@ -9320,6 +9320,28 @@ class $DownloadBatchesTable extends DownloadBatches
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _coverUrlMeta = const VerificationMeta(
+    'coverUrl',
+  );
+  @override
+  late final GeneratedColumn<String> coverUrl = GeneratedColumn<String>(
+    'cover_url',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _coverPathMeta = const VerificationMeta(
+    'coverPath',
+  );
+  @override
+  late final GeneratedColumn<String> coverPath = GeneratedColumn<String>(
+    'cover_path',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _downloadedAtMeta = const VerificationMeta(
     'downloadedAt',
   );
@@ -9339,6 +9361,8 @@ class $DownloadBatchesTable extends DownloadBatches
     source,
     name,
     trackIds,
+    coverUrl,
+    coverPath,
     downloadedAt,
   ];
   @override
@@ -9391,6 +9415,18 @@ class $DownloadBatchesTable extends DownloadBatches
         trackIds.isAcceptableOrUnknown(data['track_ids']!, _trackIdsMeta),
       );
     }
+    if (data.containsKey('cover_url')) {
+      context.handle(
+        _coverUrlMeta,
+        coverUrl.isAcceptableOrUnknown(data['cover_url']!, _coverUrlMeta),
+      );
+    }
+    if (data.containsKey('cover_path')) {
+      context.handle(
+        _coverPathMeta,
+        coverPath.isAcceptableOrUnknown(data['cover_path']!, _coverPathMeta),
+      );
+    }
     if (data.containsKey('downloaded_at')) {
       context.handle(
         _downloadedAtMeta,
@@ -9436,6 +9472,14 @@ class $DownloadBatchesTable extends DownloadBatches
         DriftSqlType.string,
         data['${effectivePrefix}track_ids'],
       ),
+      coverUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}cover_url'],
+      ),
+      coverPath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}cover_path'],
+      ),
       downloadedAt:
           attachedDatabase.typeMapping.read(
             DriftSqlType.dateTime,
@@ -9457,6 +9501,8 @@ class DownloadBatche extends DataClass implements Insertable<DownloadBatche> {
   final String? source;
   final String? name;
   final String? trackIds;
+  final String? coverUrl;
+  final String? coverPath;
   final DateTime downloadedAt;
   const DownloadBatche({
     required this.batchKey,
@@ -9465,6 +9511,8 @@ class DownloadBatche extends DataClass implements Insertable<DownloadBatche> {
     this.source,
     this.name,
     this.trackIds,
+    this.coverUrl,
+    this.coverPath,
     required this.downloadedAt,
   });
   @override
@@ -9486,6 +9534,12 @@ class DownloadBatche extends DataClass implements Insertable<DownloadBatche> {
     if (!nullToAbsent || trackIds != null) {
       map['track_ids'] = Variable<String>(trackIds);
     }
+    if (!nullToAbsent || coverUrl != null) {
+      map['cover_url'] = Variable<String>(coverUrl);
+    }
+    if (!nullToAbsent || coverPath != null) {
+      map['cover_path'] = Variable<String>(coverPath);
+    }
     map['downloaded_at'] = Variable<DateTime>(downloadedAt);
     return map;
   }
@@ -9506,6 +9560,14 @@ class DownloadBatche extends DataClass implements Insertable<DownloadBatche> {
           trackIds == null && nullToAbsent
               ? const Value.absent()
               : Value(trackIds),
+      coverUrl:
+          coverUrl == null && nullToAbsent
+              ? const Value.absent()
+              : Value(coverUrl),
+      coverPath:
+          coverPath == null && nullToAbsent
+              ? const Value.absent()
+              : Value(coverPath),
       downloadedAt: Value(downloadedAt),
     );
   }
@@ -9522,6 +9584,8 @@ class DownloadBatche extends DataClass implements Insertable<DownloadBatche> {
       source: serializer.fromJson<String?>(json['source']),
       name: serializer.fromJson<String?>(json['name']),
       trackIds: serializer.fromJson<String?>(json['trackIds']),
+      coverUrl: serializer.fromJson<String?>(json['coverUrl']),
+      coverPath: serializer.fromJson<String?>(json['coverPath']),
       downloadedAt: serializer.fromJson<DateTime>(json['downloadedAt']),
     );
   }
@@ -9535,6 +9599,8 @@ class DownloadBatche extends DataClass implements Insertable<DownloadBatche> {
       'source': serializer.toJson<String?>(source),
       'name': serializer.toJson<String?>(name),
       'trackIds': serializer.toJson<String?>(trackIds),
+      'coverUrl': serializer.toJson<String?>(coverUrl),
+      'coverPath': serializer.toJson<String?>(coverPath),
       'downloadedAt': serializer.toJson<DateTime>(downloadedAt),
     };
   }
@@ -9546,6 +9612,8 @@ class DownloadBatche extends DataClass implements Insertable<DownloadBatche> {
     Value<String?> source = const Value.absent(),
     Value<String?> name = const Value.absent(),
     Value<String?> trackIds = const Value.absent(),
+    Value<String?> coverUrl = const Value.absent(),
+    Value<String?> coverPath = const Value.absent(),
     DateTime? downloadedAt,
   }) => DownloadBatche(
     batchKey: batchKey ?? this.batchKey,
@@ -9554,6 +9622,8 @@ class DownloadBatche extends DataClass implements Insertable<DownloadBatche> {
     source: source.present ? source.value : this.source,
     name: name.present ? name.value : this.name,
     trackIds: trackIds.present ? trackIds.value : this.trackIds,
+    coverUrl: coverUrl.present ? coverUrl.value : this.coverUrl,
+    coverPath: coverPath.present ? coverPath.value : this.coverPath,
     downloadedAt: downloadedAt ?? this.downloadedAt,
   );
   DownloadBatche copyWithCompanion(DownloadBatchesCompanion data) {
@@ -9564,6 +9634,8 @@ class DownloadBatche extends DataClass implements Insertable<DownloadBatche> {
       source: data.source.present ? data.source.value : this.source,
       name: data.name.present ? data.name.value : this.name,
       trackIds: data.trackIds.present ? data.trackIds.value : this.trackIds,
+      coverUrl: data.coverUrl.present ? data.coverUrl.value : this.coverUrl,
+      coverPath: data.coverPath.present ? data.coverPath.value : this.coverPath,
       downloadedAt:
           data.downloadedAt.present
               ? data.downloadedAt.value
@@ -9580,6 +9652,8 @@ class DownloadBatche extends DataClass implements Insertable<DownloadBatche> {
           ..write('source: $source, ')
           ..write('name: $name, ')
           ..write('trackIds: $trackIds, ')
+          ..write('coverUrl: $coverUrl, ')
+          ..write('coverPath: $coverPath, ')
           ..write('downloadedAt: $downloadedAt')
           ..write(')'))
         .toString();
@@ -9593,6 +9667,8 @@ class DownloadBatche extends DataClass implements Insertable<DownloadBatche> {
     source,
     name,
     trackIds,
+    coverUrl,
+    coverPath,
     downloadedAt,
   );
   @override
@@ -9605,6 +9681,8 @@ class DownloadBatche extends DataClass implements Insertable<DownloadBatche> {
           other.source == this.source &&
           other.name == this.name &&
           other.trackIds == this.trackIds &&
+          other.coverUrl == this.coverUrl &&
+          other.coverPath == this.coverPath &&
           other.downloadedAt == this.downloadedAt);
 }
 
@@ -9615,6 +9693,8 @@ class DownloadBatchesCompanion extends UpdateCompanion<DownloadBatche> {
   final Value<String?> source;
   final Value<String?> name;
   final Value<String?> trackIds;
+  final Value<String?> coverUrl;
+  final Value<String?> coverPath;
   final Value<DateTime> downloadedAt;
   final Value<int> rowid;
   const DownloadBatchesCompanion({
@@ -9624,6 +9704,8 @@ class DownloadBatchesCompanion extends UpdateCompanion<DownloadBatche> {
     this.source = const Value.absent(),
     this.name = const Value.absent(),
     this.trackIds = const Value.absent(),
+    this.coverUrl = const Value.absent(),
+    this.coverPath = const Value.absent(),
     this.downloadedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -9634,6 +9716,8 @@ class DownloadBatchesCompanion extends UpdateCompanion<DownloadBatche> {
     this.source = const Value.absent(),
     this.name = const Value.absent(),
     this.trackIds = const Value.absent(),
+    this.coverUrl = const Value.absent(),
+    this.coverPath = const Value.absent(),
     required DateTime downloadedAt,
     this.rowid = const Value.absent(),
   }) : batchKey = Value(batchKey),
@@ -9645,6 +9729,8 @@ class DownloadBatchesCompanion extends UpdateCompanion<DownloadBatche> {
     Expression<String>? source,
     Expression<String>? name,
     Expression<String>? trackIds,
+    Expression<String>? coverUrl,
+    Expression<String>? coverPath,
     Expression<DateTime>? downloadedAt,
     Expression<int>? rowid,
   }) {
@@ -9655,6 +9741,8 @@ class DownloadBatchesCompanion extends UpdateCompanion<DownloadBatche> {
       if (source != null) 'source': source,
       if (name != null) 'name': name,
       if (trackIds != null) 'track_ids': trackIds,
+      if (coverUrl != null) 'cover_url': coverUrl,
+      if (coverPath != null) 'cover_path': coverPath,
       if (downloadedAt != null) 'downloaded_at': downloadedAt,
       if (rowid != null) 'rowid': rowid,
     });
@@ -9667,6 +9755,8 @@ class DownloadBatchesCompanion extends UpdateCompanion<DownloadBatche> {
     Value<String?>? source,
     Value<String?>? name,
     Value<String?>? trackIds,
+    Value<String?>? coverUrl,
+    Value<String?>? coverPath,
     Value<DateTime>? downloadedAt,
     Value<int>? rowid,
   }) {
@@ -9677,6 +9767,8 @@ class DownloadBatchesCompanion extends UpdateCompanion<DownloadBatche> {
       source: source ?? this.source,
       name: name ?? this.name,
       trackIds: trackIds ?? this.trackIds,
+      coverUrl: coverUrl ?? this.coverUrl,
+      coverPath: coverPath ?? this.coverPath,
       downloadedAt: downloadedAt ?? this.downloadedAt,
       rowid: rowid ?? this.rowid,
     );
@@ -9703,6 +9795,12 @@ class DownloadBatchesCompanion extends UpdateCompanion<DownloadBatche> {
     if (trackIds.present) {
       map['track_ids'] = Variable<String>(trackIds.value);
     }
+    if (coverUrl.present) {
+      map['cover_url'] = Variable<String>(coverUrl.value);
+    }
+    if (coverPath.present) {
+      map['cover_path'] = Variable<String>(coverPath.value);
+    }
     if (downloadedAt.present) {
       map['downloaded_at'] = Variable<DateTime>(downloadedAt.value);
     }
@@ -9721,6 +9819,8 @@ class DownloadBatchesCompanion extends UpdateCompanion<DownloadBatche> {
           ..write('source: $source, ')
           ..write('name: $name, ')
           ..write('trackIds: $trackIds, ')
+          ..write('coverUrl: $coverUrl, ')
+          ..write('coverPath: $coverPath, ')
           ..write('downloadedAt: $downloadedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -19793,6 +19893,8 @@ typedef $$DownloadBatchesTableCreateCompanionBuilder =
       Value<String?> source,
       Value<String?> name,
       Value<String?> trackIds,
+      Value<String?> coverUrl,
+      Value<String?> coverPath,
       required DateTime downloadedAt,
       Value<int> rowid,
     });
@@ -19804,6 +19906,8 @@ typedef $$DownloadBatchesTableUpdateCompanionBuilder =
       Value<String?> source,
       Value<String?> name,
       Value<String?> trackIds,
+      Value<String?> coverUrl,
+      Value<String?> coverPath,
       Value<DateTime> downloadedAt,
       Value<int> rowid,
     });
@@ -19844,6 +19948,16 @@ class $$DownloadBatchesTableFilterComposer
 
   ColumnFilters<String> get trackIds => $composableBuilder(
     column: $table.trackIds,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get coverUrl => $composableBuilder(
+    column: $table.coverUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get coverPath => $composableBuilder(
+    column: $table.coverPath,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -19892,6 +20006,16 @@ class $$DownloadBatchesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get coverUrl => $composableBuilder(
+    column: $table.coverUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get coverPath => $composableBuilder(
+    column: $table.coverPath,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get downloadedAt => $composableBuilder(
     column: $table.downloadedAt,
     builder: (column) => ColumnOrderings(column),
@@ -19924,6 +20048,12 @@ class $$DownloadBatchesTableAnnotationComposer
 
   GeneratedColumn<String> get trackIds =>
       $composableBuilder(column: $table.trackIds, builder: (column) => column);
+
+  GeneratedColumn<String> get coverUrl =>
+      $composableBuilder(column: $table.coverUrl, builder: (column) => column);
+
+  GeneratedColumn<String> get coverPath =>
+      $composableBuilder(column: $table.coverPath, builder: (column) => column);
 
   GeneratedColumn<DateTime> get downloadedAt => $composableBuilder(
     column: $table.downloadedAt,
@@ -19981,6 +20111,8 @@ class $$DownloadBatchesTableTableManager
                 Value<String?> source = const Value.absent(),
                 Value<String?> name = const Value.absent(),
                 Value<String?> trackIds = const Value.absent(),
+                Value<String?> coverUrl = const Value.absent(),
+                Value<String?> coverPath = const Value.absent(),
                 Value<DateTime> downloadedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => DownloadBatchesCompanion(
@@ -19990,6 +20122,8 @@ class $$DownloadBatchesTableTableManager
                 source: source,
                 name: name,
                 trackIds: trackIds,
+                coverUrl: coverUrl,
+                coverPath: coverPath,
                 downloadedAt: downloadedAt,
                 rowid: rowid,
               ),
@@ -20001,6 +20135,8 @@ class $$DownloadBatchesTableTableManager
                 Value<String?> source = const Value.absent(),
                 Value<String?> name = const Value.absent(),
                 Value<String?> trackIds = const Value.absent(),
+                Value<String?> coverUrl = const Value.absent(),
+                Value<String?> coverPath = const Value.absent(),
                 required DateTime downloadedAt,
                 Value<int> rowid = const Value.absent(),
               }) => DownloadBatchesCompanion.insert(
@@ -20010,6 +20146,8 @@ class $$DownloadBatchesTableTableManager
                 source: source,
                 name: name,
                 trackIds: trackIds,
+                coverUrl: coverUrl,
+                coverPath: coverPath,
                 downloadedAt: downloadedAt,
                 rowid: rowid,
               ),

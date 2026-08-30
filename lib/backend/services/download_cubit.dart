@@ -355,7 +355,13 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
           final itemId = (m['item_id'] ?? '') as String;
           final source = (m['source'] ?? '') as String;
           if (name.isNotEmpty) {
-            _batchMeta[batchKey] = _BatchMeta(name, itemType, itemId, source);
+            final batchCoverUrl = (m['cover_url'] ?? '') as String;
+            final batchCoverPath = (m['cover_path'] ?? '') as String;
+            _batchMeta[batchKey] = _BatchMeta(
+              name, itemType, itemId, source,
+              coverUrl: batchCoverUrl,
+              coverPath: batchCoverPath,
+            );
           }
           // Build reverse map: trackId → batchKey for cover backfill
           final trackIdsRaw = (m['track_ids'] ?? '') as String;
@@ -1647,6 +1653,8 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
     await _downloadCache.saveDownloadedBatch(
       batchKey, itemType, itemId, src, batchName,
       trackIds: trackIds,
+      coverUrl: batchCover,
+      coverPath: batchCoverPath,
     );
     sl<LibraryCache>().invalidateAll();
     // Invalidate detail cache so album/playlist pages reload with fresh data

@@ -44,6 +44,8 @@ class DownloadBatches extends Table {
   TextColumn? get source => text().nullable()();
   TextColumn? get name => text().nullable()();
   TextColumn? get trackIds => text().nullable()();
+  TextColumn? get coverUrl => text().nullable()();
+  TextColumn? get coverPath => text().nullable()();
   DateTimeColumn get downloadedAt => dateTime()();
 
   @override

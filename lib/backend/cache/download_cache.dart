@@ -30,6 +30,8 @@ class DownloadCache {
       'item_id': e.itemId ?? '', 'source': e.source ?? '',
       'name': e.name ?? '', 'downloaded_at': e.downloadedAt.toIso8601String(),
       'track_ids': e.trackIds ?? '',
+      'cover_url': e.coverUrl ?? '',
+      'cover_path': e.coverPath ?? '',
     }).toList();
     return jsonEncode(list);
   }
@@ -37,11 +39,15 @@ class DownloadCache {
   Future<void> saveDownloadedBatch(
     String key, String type, String id, String source, String name, {
     List<String>? trackIds,
+    String? coverUrl,
+    String? coverPath,
   }) => _d.saveBatch(DownloadBatchesCompanion(
     batchKey: Value(key), itemType: Value(type),
     itemId: Value(id), source: Value(source), name: Value(name),
     trackIds: trackIds != null ? Value(jsonEncode(trackIds)) : const Value.absent(),
     downloadedAt: Value(DateTime.now()),
+    coverUrl: coverUrl != null ? Value(coverUrl) : const Value.absent(),
+    coverPath: coverPath != null ? Value(coverPath) : const Value.absent(),
   ));
 
   Future<void> saveDownloadedTrack({

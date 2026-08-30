@@ -77,7 +77,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -88,6 +88,10 @@ class AppDatabase extends _$AppDatabase {
       }
       if (from < 3) {
         m.addColumn(downloadBatches, downloadBatches.trackIds);
+      }
+      if (from < 4) {
+        m.addColumn(downloadBatches, downloadBatches.coverUrl);
+        m.addColumn(downloadBatches, downloadBatches.coverPath);
       }
     },
   );
