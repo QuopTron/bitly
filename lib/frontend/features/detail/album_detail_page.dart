@@ -273,136 +273,102 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
         })
         .toList();
 
-    return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            expandedHeight: 0,
-            pinned: true,
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back),
-              onPressed: () => Navigator.pop(context),
-            ),
-            title: Text(album.name, overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontWeight: FontWeight.w700)),
+    final isLikedAlbum = likedCubit.isLiked(FeedItem(
+      id: album.id, type: 'album', name: album.name,
+    ));
+
+    return DetailHeader(
+      coverUrl: _resolvedAlbumCover,
+      title: album.name,
+      subtitle: album.artistName ?? '',
+      heroTag: 'album_${album.id}',
+      badge: '${album.totalTracks} ${loc.setup.miSpaceSongCount}  •  ${album.albumType ?? ''}',
+      actions: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _CircleActionButton(
+            icon: isLikedAlbum ? Icons.favorite : Icons.favorite_border,
+            color: isLikedAlbum ? Colors.red : null,
+            onTap: () => likedCubit.toggleLike(FeedItem(
+              id: album.id, type: 'album', name: album.name,
+              artists: album.artistName, coverUrl: _resolvedAlbumCover,
+            )),
           ),
-          SliverToBoxAdapter(
-            child: DetailHeader(
-              coverUrl: _resolvedAlbumCover,
-              title: album.name,
-              subtitle: album.artistName ?? '',
-              heroTag: 'album_${album.id}',
-              badge: '${album.totalTracks} ${loc.setup.miSpaceSongCount}  •  ${album.albumType ?? ''}',
-              actions: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Like button
-                  _CircleActionButton(
-                    icon: likedCubit.isLiked(FeedItem(
-                      id: album.id, type: 'album', name: album.name,
-                    )) ? Icons.favorite : Icons.favorite_border,
-                    color: likedCubit.isLiked(FeedItem(
-                      id: album.id, type: 'album', name: album.name,
-                    )) ? Colors.red : null,
-                    onTap: () => likedCubit.toggleLike(FeedItem(
-                      id: album.id, type: 'album', name: album.name,
-                      artists: album.artistName, coverUrl: _resolvedAlbumCover,
-                    )),
-                  ),
-                  SizedBox(width: r.spacingS),
-                  // Download button
-                  _CircleActionButton(
-                    icon: batchState.state == DownloadState.completed
-                        ? Icons.check_circle
-                        : batchState.state == DownloadState.inProgress
-                            ? Icons.hourglass_top_rounded
-                            : Icons.download,
-                    color: batchState.state == DownloadState.completed
-                        ? AppColors.greenBright
-                        : batchState.state == DownloadState.inProgress
-                            ? const Color(0xFFFF9800)
-                            : null,
-                    onTap: _isOnline ? _downloadAll : null,
-                  ),
-                  SizedBox(width: r.spacingS),
-                  // Play all button
-                  _CircleActionButton(
-                    icon: Icons.play_arrow_rounded,
-                    filled: true,
-                    onTap: albumFeedItems.isNotEmpty
-                        ? () => sl<QueueCubit>().playWithContext(albumFeedItems, albumFeedItems.first)
-                        : null,
-                  ),
-                ],
-              ),
-            ),
+          SizedBox(width: r.spacingS),
+          _CircleActionButton(
+            icon: batchState.state == DownloadState.completed
+                ? Icons.check_circle
+                : batchState.state == DownloadState.inProgress
+                    ? Icons.hourglass_top_rounded
+                    : Icons.download,
+            color: batchState.state == DownloadState.completed
+                ? AppColors.greenBright
+                : batchState.state == DownloadState.inProgress
+                    ? const Color(0xFFFF9800)
+                    : null,
+            onTap: _isOnline ? _downloadAll : null,
           ),
+          SizedBox(width: r.spacingS),
+          _CircleActionButton(
+            icon: Icons.play_arrow_rounded,
+            filled: true,
+            onTap: albumFeedItems.isNotEmpty
+                ? () => sl<QueueCubit>().playWithContext(albumFeedItems, albumFeedItems.first)
+                : null,
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
           if (!_isOnline)
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: r.spacingM),
-                child: Container(
-                  margin: EdgeInsets.only(bottom: r.spacingS),
-                  padding: EdgeInsets.symmetric(horizontal: r.spacingS, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).brightness == Brightness.dark
-                        ? Colors.white.withValues(alpha: 0.06)
-                        : Colors.black.withValues(alpha: 0.06),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.cloud_off, size: r.footerSize - 2,
-                      color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.4)),
-                    SizedBox(width: 6),
-                    Text('${loc.setup.downloaded} ${loc.setup.miSpaceSongs.toLowerCase()}',
-                      style: TextStyle(fontSize: r.footerSize - 1,
-                        color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.4))),
-                  ]),
-                ),
+            Container(
+              margin: EdgeInsets.only(bottom: r.spacingS),
+              padding: EdgeInsets.symmetric(horizontal: r.spacingS, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(8),
               ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.cloud_off, size: r.footerSize - 2,
+                  color: Colors.white.withValues(alpha: 0.4)),
+                SizedBox(width: 6),
+                Text('${loc.setup.downloaded} ${loc.setup.miSpaceSongs.toLowerCase()}',
+                  style: TextStyle(fontSize: r.footerSize - 1,
+                    color: Colors.white.withValues(alpha: 0.4))),
+              ]),
             ),
-          SliverList(
-            delegate: SliverChildBuilderDelegate(
-              (context, i) {
-                final feedItem = albumFeedItems[i];
-                final dID = 'track_${normalizeTrackId(feedItem.id)}_$src';
-                final trackCoverUrl = feedItem.coverUrl;
-                final displayCover = (trackCoverUrl?.isNotEmpty == true)
-                    ? likedCubit.resolveCoverFor(feedItem)
-                    : albumCover;
-                final isLiked = likedCubit.isLiked(feedItem);
-                void play() => sl<QueueCubit>().playWithContext(albumFeedItems, feedItem);
-                return Padding(
-                  padding: EdgeInsets.symmetric(horizontal: r.spacingM, vertical: r.spacingXS * 0.5),
-                  child: TrackCard(
-                    title: feedItem.name,
-                    subtitle: (feedItem.artists?.isNotEmpty == true)
-                        ? feedItem.artists!
-                        : ((album.artistName?.isNotEmpty == true) ? album.artistName! : ''),
-                    coverUrl: displayCover, isLiked: isLiked,
-                    readyKey: normalizeTrackId(feedItem.id),
-                    textScale: 1.2,
-                    onLike: () => likedCubit.toggleLike(feedItem),
-                    downloadState: dlCubit.downloadStateFor(dID).state,
-                    onDownload: () => showDownloadOptions(context, feedItem, isDark),
-                    onDelete: () => dlCubit.deleteTrackDownload(feedItem.id, src),
-                    onTap: play,
-                    onShare: () => SharePlus.instance.share(ShareParams(
-                      text: feedItem.albumName != null
-                          ? '🎵 ${feedItem.name} — ${feedItem.artists ?? ''}\n💿 ${feedItem.albumName}'
-                          : '🎵 ${feedItem.name} — ${feedItem.artists ?? ''}',
-                    )),
-                  ),
-                );
-              },
-              childCount: albumFeedItems.length,
-            ),
-          ),
-          SliverToBoxAdapter(
-            child: SizedBox(height: r.spacingM + 90),
-          ),
+          ...albumFeedItems.map((feedItem) {
+            final dID = 'track_${normalizeTrackId(feedItem.id)}_$src';
+            final trackCoverUrl = feedItem.coverUrl;
+            final displayCover = (trackCoverUrl?.isNotEmpty == true)
+                ? likedCubit.resolveCoverFor(feedItem)
+                : albumCover;
+            final isLiked = likedCubit.isLiked(feedItem);
+            void play() => sl<QueueCubit>().playWithContext(albumFeedItems, feedItem);
+            return Padding(
+              padding: EdgeInsets.symmetric(horizontal: r.spacingS, vertical: r.spacingXS * 0.5),
+              child: TrackCard(
+                title: feedItem.name,
+                subtitle: (feedItem.artists?.isNotEmpty == true)
+                    ? feedItem.artists!
+                    : ((album.artistName?.isNotEmpty == true) ? album.artistName! : ''),
+                coverUrl: displayCover, isLiked: isLiked,
+                readyKey: normalizeTrackId(feedItem.id),
+                textScale: 1.2,
+                onLike: () => likedCubit.toggleLike(feedItem),
+                downloadState: dlCubit.downloadStateFor(dID).state,
+                onDownload: () => showDownloadOptions(context, feedItem, isDark),
+                onDelete: () => dlCubit.deleteTrackDownload(feedItem.id, src),
+                onTap: play,
+                onShare: () => SharePlus.instance.share(ShareParams(
+                  text: feedItem.albumName != null
+                      ? '🎵 ${feedItem.name} — ${feedItem.artists ?? ''}\n💿 ${feedItem.albumName}'
+                      : '🎵 ${feedItem.name} — ${feedItem.artists ?? ''}',
+                )),
+              ),
+            );
+          }),
+          SizedBox(height: r.spacingL + 90),
         ],
       ),
     );
