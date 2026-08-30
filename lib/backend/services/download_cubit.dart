@@ -1222,7 +1222,10 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
             // timeout or user cancellation — the Go tracker may still show them
             // as 'downloading' because the goroutine hasn't finished yet.
             final curState = dl[stateKey]?.state;
-            if (curState != DownloadState.interrupted) {
+            // Don't overwrite completed tracks — a losing provider (e.g.
+            // Amazon encrypted .flac) may still report 'downloading' after
+            // the winning provider (Apple Music .m4a) already finished.
+            if (curState != DownloadState.interrupted && curState != DownloadState.completed) {
               dl[stateKey] = DownloadStateData(state: DownloadState.inProgress, progress: progress.toDouble());
               changed = true;
             }
