@@ -13,7 +13,6 @@ import '../../shared/widgets/track_card.dart';
 import '../../shared/widgets/grid_card.dart';
 import '../../shared/widgets/song_info_modal.dart';
 import '../../shared/widgets/add_to_modal.dart';
-import '../../shared/widgets/tag_editor_sheet.dart';
 import '../../shared/widgets/create_playlist_modal.dart';
 import '../../shared/models/feed_models.dart';
 import '../../l10n/app_localizations.dart';
@@ -446,23 +445,6 @@ class MiEspacioContent extends StatelessWidget {
                     () => SharePlus.instance.share(
                       ShareParams(text: '🎵 ${s.title} — ${s.subtitle}'),
                     ),
-                onEditTags:
-                    context.read<DownloadCubit>().downloadStateFor(id).state ==
-                            DownloadState.completed
-                        ? () async {
-                            final path = await context
-                                .read<DownloadCubit>()
-                                .getTrackFilePath(s.realId, s.source);
-                            if (path != null && context.mounted) {
-                              showTagEditor(
-                                context,
-                                filePath: path,
-                                title: s.title,
-                                artist: s.subtitle,
-                              );
-                            }
-                          }
-                        : null,
               ),
             );
           }).toList(),
