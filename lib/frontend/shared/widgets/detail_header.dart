@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 import 'dart:ui' as ui;
@@ -6,78 +5,54 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-import '../theme/app_colors.dart';
 import '../utils/responsive.dart';
 
-/// Fast color extraction from image bytes — no PaletteGenerator overhead.
-/// Samples a grid of pixels from the decoded image and clusters by hue.
-Future<List<Color>> _extractColorsFast(Uint8List bytes, {int count = 5}) async {
+/// Extract a single dominant color from image bytes by averaging center pixels.
+/// Returns a dark, desaturated version suitable for gradients.
+Future<Color?> _extractDominantColor(Uint8List bytes) async {
   final codec = await ui.instantiateImageCodec(bytes);
   final frame = await codec.getNextFrame();
   final image = frame.image;
   try {
     final w = image.width;
     final h = image.height;
-    // Read a small region (center 50%)
     final byteData = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
-    if (byteData == null) return [];
+    if (byteData == null) return null;
     final data = byteData.buffer.asUint8List();
 
-    // Sample a grid of pixels
-    final colors = <Color>[];
-    final stepX = max(1, w ~/ 16);
-    final stepY = max(1, h ~/ 16);
+    // Average center 50% of pixels
+    int rSum = 0, gSum = 0, bSum = 0, count = 0;
+    final stepX = max(1, w ~/ 20);
+    final stepY = max(1, h ~/ 20);
     for (int y = h ~/ 4; y < h * 3 ~/ 4; y += stepY) {
       for (int x = w ~/ 4; x < w * 3 ~/ 4; x += stepX) {
         final i = (y * w + x) * 4;
-        final r = data[i];
-        final g = data[i + 1];
-        final b = data[i + 2];
-        final a = data[i + 3];
-        if (a < 128) continue; // skip transparent
-        final c = Color.fromARGB(255, r, g, b);
-        // Skip near-black and near-white
-        if (c.computeLuminance() < 0.05 || c.computeLuminance() > 0.92) continue;
-        colors.add(c);
+        if (data[i + 3] < 128) continue;
+        rSum += data[i];
+        gSum += data[i + 1];
+        bSum += data[i + 2];
+        count++;
       }
     }
+    if (count == 0) return null;
+    final r = rSum ~/ count;
+    final g = gSum ~/ count;
+    final b = bSum ~/ count;
 
-    if (colors.isEmpty) return [];
-
-    // Sort by saturation descending, pick top N most vibrant
-    colors.sort((a, b) {
-      final hslA = HSLColor.fromColor(a);
-      final hslB = HSLColor.fromColor(b);
-      return (hslB.saturation * 0.7 + hslB.lightness * 0.3)
-          .compareTo(hslA.saturation * 0.7 + hslA.lightness * 0.3);
-    });
-
-    // Pick diverse colors (different hue buckets)
-    final picked = <Color>[];
-    final usedHues = <int>{};
-    for (final c in colors) {
-      if (picked.length >= count) break;
-      final hue = HSLColor.fromColor(c).hue.toInt() ~/ 30; // 12 buckets
-      if (usedHues.contains(hue)) continue;
-      usedHues.add(hue);
-      picked.add(c);
-    }
-    // Fill remaining from top if not enough diverse colors
-    for (final c in colors) {
-      if (picked.length >= count) break;
-      if (!picked.contains(c)) picked.add(c);
-    }
-
-    return picked;
+    // Convert to HSL, reduce lightness drastically for dark background
+    final hsl = HSLColor.fromColor(Color.fromARGB(255, r, g, b));
+    // Keep hue, moderate saturation, very dark
+    return hsl
+        .withSaturation((hsl.saturation * 0.7).clamp(0.0, 1.0))
+        .withLightness(0.18)
+        .toColor();
   } finally {
     image.dispose();
   }
 }
 
-/// Full-screen detail page background that extracts dominant colors from
-/// the cover image instantly, renders a blurred version as background with
-/// a vibrant gradient overlay, and places everything in a single scrollable
-/// ListView with a back button.
+/// Full-screen detail header: blurred cover background + dark gradient overlay
+/// extracted from the cover's dominant color. Single scrollable ListView.
 class DetailHeader extends StatefulWidget {
   final String? coverUrl;
   final String title;
@@ -106,7 +81,7 @@ class DetailHeader extends StatefulWidget {
 
 class _DetailHeaderState extends State<DetailHeader>
     with SingleTickerProviderStateMixin {
-  List<Color> _colors = [];
+  Color? _dominantColor;
   late final AnimationController _animCtrl;
   late final Animation<double> _anim;
 
@@ -115,18 +90,17 @@ class _DetailHeaderState extends State<DetailHeader>
     super.initState();
     _animCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 500),
+      duration: const Duration(milliseconds: 400),
     );
     _anim = CurvedAnimation(parent: _animCtrl, curve: Curves.easeOut);
-    // Start animation IMMEDIATELY — don't wait for color extraction
-    _animCtrl.forward();
-    _extractColors();
+    _animCtrl.forward(); // start immediately
+    _extractColor();
   }
 
   @override
   void didUpdateWidget(covariant DetailHeader oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.coverUrl != widget.coverUrl) _extractColors();
+    if (oldWidget.coverUrl != widget.coverUrl) _extractColor();
   }
 
   @override
@@ -141,7 +115,7 @@ class _DetailHeaderState extends State<DetailHeader>
     return url.startsWith('/') || url.startsWith('file://');
   }
 
-  Future<void> _extractColors() async {
+  Future<void> _extractColor() async {
     final url = widget.coverUrl;
     if (url == null || url.isEmpty) return;
     try {
@@ -160,9 +134,9 @@ class _DetailHeaderState extends State<DetailHeader>
         await response.drain();
       }
       if (bytes.isEmpty) return;
-      final colors = await _extractColorsFast(bytes);
-      if (mounted && colors.isNotEmpty) {
-        setState(() => _colors = colors);
+      final color = await _extractDominantColor(bytes);
+      if (mounted && color != null) {
+        setState(() => _dominantColor = color);
       }
     } catch (_) {}
   }
@@ -211,19 +185,10 @@ class _DetailHeaderState extends State<DetailHeader>
     final statusBar = MediaQuery.paddingOf(context).top;
     final bgColor = isDark ? const Color(0xFF0A0A0A) : const Color(0xFFF5F5F5);
 
-    // Extract colors from our fast extraction
-    final primary = _colors.isNotEmpty ? _colors[0] : null;
-    final secondary = _colors.length > 1 ? _colors[1] : null;
-    final tertiary = _colors.length > 2 ? _colors[2] : null;
-
-    final topColor = _boostColor(primary ?? AppColors.greenBright, isDark);
-    final midColor = _boostColor(
-        secondary ?? primary ?? AppColors.greenBright, isDark, muted: true);
-    final bottomColor = _boostColor(
-        tertiary ?? secondary ?? primary ?? AppColors.greenBright,
-        isDark,
-        muted: true);
-    final textColor = _bestTextColor(topColor, isDark);
+    // The dominant color from cover (already dark from extraction)
+    final accent = _dominantColor ?? (isDark
+        ? const Color(0xFF1A1A2E)
+        : const Color(0xFFE8E8E8));
 
     return AnimatedBuilder(
       animation: _anim,
@@ -234,13 +199,13 @@ class _DetailHeaderState extends State<DetailHeader>
             // ── Layer 1: Base ──
             Positioned.fill(child: Container(color: bgColor)),
 
-            // ── Layer 2: Blurred cover (starts immediately) ──
+            // ── Layer 2: Blurred cover ──
             if (widget.coverUrl != null && widget.coverUrl!.isNotEmpty)
               Positioned.fill(
                 child: Opacity(
-                  opacity: t * 0.7,
+                  opacity: t * 0.65,
                   child: ImageFiltered(
-                    imageFilter: ui.ImageFilter.blur(sigmaX: 55, sigmaY: 55),
+                    imageFilter: ui.ImageFilter.blur(sigmaX: 50, sigmaY: 50),
                     child: Transform.scale(
                       scale: 1.5,
                       child: _blurredImg(),
@@ -249,7 +214,7 @@ class _DetailHeaderState extends State<DetailHeader>
                 ),
               ),
 
-            // ── Layer 3: Gradient ──
+            // ── Layer 3: Dark gradient tinted with cover color ──
             Positioned.fill(
               child: DecoratedBox(
                 decoration: BoxDecoration(
@@ -257,13 +222,12 @@ class _DetailHeaderState extends State<DetailHeader>
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: [
-                      topColor.withValues(alpha: 0.9 * t),
-                      midColor.withValues(alpha: 0.6 * t),
-                      bottomColor.withValues(alpha: 0.3 * t),
-                      bgColor.withValues(alpha: 0.9),
+                      accent.withValues(alpha: 0.85 * t),
+                      accent.withValues(alpha: 0.6 * t),
+                      bgColor.withValues(alpha: 0.95),
                       bgColor,
                     ],
-                    stops: const [0.0, 0.25, 0.5, 0.75, 1.0],
+                    stops: const [0.0, 0.35, 0.7, 1.0],
                   ),
                 ),
               ),
@@ -274,15 +238,13 @@ class _DetailHeaderState extends State<DetailHeader>
               child: ListView(
                 padding: EdgeInsets.zero,
                 children: [
-                  // Top spacer + back button area
                   SizedBox(height: statusBar),
 
-                  // Content with horizontal padding
                   Padding(
                     padding: EdgeInsets.symmetric(horizontal: r.spacingS),
                     child: Column(
                       children: [
-                        // Cover with Hero + glow shadow
+                        // Cover with Hero + glow
                         Hero(
                           tag: widget.heroTag ?? widget.title,
                           child: Container(
@@ -293,18 +255,10 @@ class _DetailHeaderState extends State<DetailHeader>
                               borderRadius: BorderRadius.circular(14),
                               boxShadow: [
                                 BoxShadow(
-                                  color: (primary ?? Colors.black)
-                                      .withValues(alpha: 0.7 * t),
+                                  color: accent.withValues(alpha: 0.7 * t),
                                   blurRadius: 50,
-                                  spreadRadius: 6,
+                                  spreadRadius: 4,
                                   offset: const Offset(0, 14),
-                                ),
-                                BoxShadow(
-                                  color: (secondary ?? primary ?? Colors.black)
-                                      .withValues(alpha: 0.35 * t),
-                                  blurRadius: 90,
-                                  spreadRadius: 12,
-                                  offset: const Offset(0, 20),
                                 ),
                               ],
                             ),
@@ -323,7 +277,7 @@ class _DetailHeaderState extends State<DetailHeader>
                           style: TextStyle(
                             fontSize: r.subtitleSize * 1.3,
                             fontWeight: FontWeight.w800,
-                            color: textColor,
+                            color: Colors.white,
                             letterSpacing: -0.5,
                             height: 1.1,
                           ),
@@ -340,7 +294,7 @@ class _DetailHeaderState extends State<DetailHeader>
                           style: TextStyle(
                             fontSize: r.footerSize,
                             fontWeight: FontWeight.w500,
-                            color: textColor.withValues(alpha: 0.6),
+                            color: Colors.white.withValues(alpha: 0.6),
                           ),
                         ),
 
@@ -352,7 +306,7 @@ class _DetailHeaderState extends State<DetailHeader>
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontSize: r.footerSize - 1,
-                              color: textColor.withValues(alpha: 0.35),
+                              color: Colors.white.withValues(alpha: 0.35),
                             ),
                           ),
                         ],
@@ -368,34 +322,31 @@ class _DetailHeaderState extends State<DetailHeader>
                     ),
                   ),
 
-                  // Child content items (full width)
+                  // Child items
                   ...widget.children,
 
-                  // Bottom safe area
                   SizedBox(height: MediaQuery.paddingOf(context).bottom + 90),
                 ],
               ),
             ),
 
-            // ── Layer 5: Back button (fixed position) ──
+            // ── Layer 5: Back button ──
             Positioned(
               top: statusBar + 4,
               left: 8,
-              child: SafeArea(
-                child: GestureDetector(
-                  onTap: () => Navigator.of(context).maybePop(),
-                  child: Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.black.withValues(alpha: 0.35),
-                    ),
-                    child: const Icon(
-                      Icons.arrow_back_rounded,
-                      color: Colors.white,
-                      size: 22,
-                    ),
+              child: GestureDetector(
+                onTap: () => Navigator.of(context).maybePop(),
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.black.withValues(alpha: 0.35),
+                  ),
+                  child: const Icon(
+                    Icons.arrow_back_rounded,
+                    color: Colors.white,
+                    size: 22,
                   ),
                 ),
               ),
@@ -404,26 +355,5 @@ class _DetailHeaderState extends State<DetailHeader>
         );
       },
     );
-  }
-
-  /// Boost saturation/lightness to make gradient vibrant.
-  Color _boostColor(Color c, bool isDark, {bool muted = false}) {
-    var hsl = HSLColor.fromColor(c);
-    if (muted) {
-      // Muted variant: lower saturation, slightly darker
-      hsl = hsl.withSaturation((hsl.saturation * 0.5).clamp(0.0, 1.0))
-          .withLightness(isDark ? 0.3 : 0.7);
-    } else {
-      // Primary: boost saturation, ensure visible
-      hsl = hsl.withSaturation((hsl.saturation * 1.2).clamp(0.0, 1.0))
-          .withLightness(isDark ? 0.45 : 0.55);
-    }
-    return hsl.toColor();
-  }
-
-  Color _bestTextColor(Color bg, bool isDark) {
-    final luminance = bg.computeLuminance();
-    if (isDark) return luminance > 0.35 ? Colors.black : Colors.white;
-    return luminance > 0.55 ? Colors.black87 : Colors.white;
   }
 }
