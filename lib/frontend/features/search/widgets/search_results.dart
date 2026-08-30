@@ -357,10 +357,7 @@ class SearchResultsBody extends StatelessWidget {
                 onDelete: (item.type == 'album' || item.type == 'playlist')
                     ? (onBatchDelete != null ? () => onBatchDelete!(item) : null)
                     : null,
-                onExport: (item.type == 'playlist' || item.type == 'album') && onExportPlaylist != null
-                    ? () => onExportPlaylist!(item)
-                    : null,
-                onMore: () => onShowMore(context, item),
+                showThirdAction: item.type == 'track',
                 onTap: item.type != 'track' ? () => onNavigateToItem(item) : null,
               );
             },
