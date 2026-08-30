@@ -500,11 +500,11 @@ class MiEspacioContent extends StatelessWidget {
   ) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final avail = constraints.maxWidth - 2 * r.spacingS;
+        final avail = constraints.maxWidth - 2 * r.spacingS * 0.5;
         final crossAxisCount =
             avail > 700
                 ? 4
-                : avail > 380
+                : avail > 340
                 ? 3
                 : 2;
         final gap = r.spacingXS;
@@ -527,7 +527,7 @@ class MiEspacioContent extends StatelessWidget {
             (r.footerSize + 1) * ts * 1.18;
         final cardHeight = cardWidth + infoH;
         return SingleChildScrollView(
-          padding: EdgeInsets.all(r.spacingS),
+          padding: EdgeInsets.symmetric(horizontal: r.spacingS * 0.5, vertical: r.spacingS),
           child: Column(
             children: [
               if (type == 'playlist')
