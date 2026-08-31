@@ -18,6 +18,7 @@ import '../../../backend/services/download_cubit.dart';
 import '../../../backend/services/queue_cubit.dart';
 import '../../shared/widgets/track_card.dart';
 import '../../shared/widgets/cover_image.dart';
+import '../../shared/widgets/detail_header.dart';
 import '../../shared/widgets/download_options_sheet.dart';
 import '../../../backend/services/connectivity_service.dart';
 import '../../../injection.dart';
@@ -51,10 +52,7 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
   }
 
   Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = false;
-    });
+    setState(() { _loading = true; _error = false; });
     _isOnline = await ConnectivityService.isOnline();
 
     final memCache = sl<DetailMemoryCache>();
@@ -64,35 +62,20 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
 
     ArtistDetail? detail;
 
-    // Session memory cache (fastest — avoids any I/O within same session)
     detail = memCache.getArtist(widget.artistId);
-    if (detail != null &&
-        (detail.topTracks.isNotEmpty || detail.topAlbums.isNotEmpty)) {
-      if (mounted) {
-        setState(() {
-          _artist = detail;
-          _loading = false;
-        });
-      }
+    if (detail != null && (detail.topTracks.isNotEmpty || detail.topAlbums.isNotEmpty)) {
+      if (mounted) setState(() { _artist = detail; _loading = false; });
       return;
     }
 
-    // Try local Drift DB first (survives restarts, populated by syncArtistDetail)
     detail = await pb.getArtistDetailLocal(widget.artistId);
-    if (detail != null &&
-        (detail.topTracks.isNotEmpty || detail.topAlbums.isNotEmpty)) {
-      if (mounted) {
-        setState(() {
-          _artist = detail;
-          _loading = false;
-        });
-      }
+    if (detail != null && (detail.topTracks.isNotEmpty || detail.topAlbums.isNotEmpty)) {
+      if (mounted) setState(() { _artist = detail; _loading = false; });
       memCache.setArtist(widget.artistId, detail);
       if (_isOnline) _refreshFromApi(cache, backend, pb);
       return;
     }
 
-    // No local data: try DetailCache (JSON TTL cache) then API
     try {
       detail = await loadDetailWithFallback(
         id: widget.artistId,
@@ -104,38 +87,18 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
       if (detail != null) memCache.setArtist(widget.artistId, detail);
     } catch (_) {}
 
-    if (mounted) {
-      setState(() {
-        _artist = detail;
-        _loading = false;
-        _error = detail == null;
-      });
-    }
+    if (mounted) setState(() { _artist = detail; _loading = false; _error = detail == null; });
   }
 
-  Future<void> _refreshFromApi(
-    DetailCache cache,
-    BackendService backend,
-    PlaybackCache pb,
-  ) async {
+  Future<void> _refreshFromApi(DetailCache cache, BackendService backend, PlaybackCache pb) async {
     try {
-      final json = await backend.fetchArtistDetail(
-        widget.artistId,
-        widget.source,
-      );
+      final json = await backend.fetchArtistDetail(widget.artistId, widget.source);
       if (json.isNotEmpty && json != '{}') {
-        final fresh = ArtistDetail.fromJson(
-          jsonDecode(json) as Map<String, dynamic>,
-        );
+        final fresh = ArtistDetail.fromJson(jsonDecode(json) as Map<String, dynamic>);
         sl<DetailMemoryCache>().setArtist(widget.artistId, fresh);
         await pb.syncArtistDetail(fresh, source: widget.source);
         await cache.setArtistDetail(widget.artistId, json);
-        if (mounted) {
-          setState(() {
-            _artist = fresh;
-            _error = false;
-          });
-        }
+        if (mounted) setState(() { _artist = fresh; _error = false; });
       }
     } catch (_) {}
   }
@@ -144,52 +107,31 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
   Widget build(BuildContext context) {
     final r = Responsive(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final onBg = isDark ? Colors.white : Colors.black;
     final loc = AppLocalizations.of(context);
 
     if (_loading) {
       return Scaffold(
-        appBar: AppBar(
-          title: Text(
-            widget.artistName.isNotEmpty
-                ? widget.artistName
-                : loc.setup.miSpaceArtist,
-          ),
-        ),
-        body: Center(
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            color: onBg.withValues(alpha: 0.3),
-          ),
-        ),
+        backgroundColor: isDark ? const Color(0xFF0A0A0A) : const Color(0xFFF5F5F5),
+        body: Center(child: CircularProgressIndicator(strokeWidth: 2,
+          color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.3))),
       );
     }
     if (_artist == null) {
       return Scaffold(
-        appBar: AppBar(title: Text(loc.setup.miSpaceArtist)),
+        backgroundColor: isDark ? const Color(0xFF0A0A0A) : const Color(0xFFF5F5F5),
         body: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                loc.setup.feedEmpty,
-                style: TextStyle(color: onBg.withValues(alpha: 0.4)),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Text(loc.setup.feedEmpty,
+              style: TextStyle(color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.4))),
+            if (_error)
+              TextButton.icon(
+                onPressed: _load,
+                icon: Icon(Icons.refresh, size: 18,
+                  color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.6)),
+                label: Text(loc.setup.retry,
+                  style: TextStyle(color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.6))),
               ),
-              if (_error)
-                TextButton.icon(
-                  onPressed: _load,
-                  icon: Icon(
-                    Icons.refresh,
-                    size: 18,
-                    color: onBg.withValues(alpha: 0.6),
-                  ),
-                  label: Text(
-                    loc.setup.retry,
-                    style: TextStyle(color: onBg.withValues(alpha: 0.6)),
-                  ),
-                ),
-            ],
-          ),
+          ]),
         ),
       );
     }
@@ -197,98 +139,55 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
     final artist = _artist!;
     final likedCubit = context.watch<LikeCubit>();
     final dlCubit = context.watch<DownloadCubit>();
-    // Prefer locally cached image (imagePath) over network imageUrl.
-    final artistImage =
-        (artist.imagePath?.isNotEmpty == true)
-            ? artist.imagePath
-            : (artist.imageUrl?.isNotEmpty == true ? artist.imageUrl : null);
+    final artistImage = (artist.imagePath?.isNotEmpty == true)
+        ? artist.imagePath
+        : (artist.imageUrl?.isNotEmpty == true ? artist.imageUrl : null);
 
-    // Visible top tracks as FeedItems (reused for queue seeding + neighbor preload).
-    final artistTracks =
-        artist.topTracks.map((t) {
-          final src =
-              widget.source.isNotEmpty ? widget.source : (t.provider ?? '');
-          return FeedItem(
-            id: t.trackId,
-            type: 'track',
-            name: t.name,
-            coverUrl: t.coverUrl,
-            artists: artist.name,
-            source: src,
-            albumName: t.albumName,
-            durationMs: t.durationMs,
-            isrc: t.isrc,
-            spotifyId: t.spotifyId,
-            deezerId: t.deezerId,
-            tidalId: t.tidalId,
-            qobuzId: t.qobuzId,
-          );
-        }).toList();
+    final artistTracks = artist.topTracks.map((t) {
+      final src = widget.source.isNotEmpty ? widget.source : (t.provider ?? '');
+      return FeedItem(
+        id: t.trackId, type: 'track', name: t.name,
+        coverUrl: t.coverUrl, artists: artist.name, source: src,
+        albumName: t.albumName, durationMs: t.durationMs, isrc: t.isrc,
+        spotifyId: t.spotifyId, deezerId: t.deezerId,
+        tidalId: t.tidalId, qobuzId: t.qobuzId,
+      );
+    }).toList();
+
+    final subtitle = [
+      if (artist.topTracks.isNotEmpty) '${artist.topTracks.length} ${loc.setup.searchTracks}',
+      if (artist.topAlbums.isNotEmpty) '${artist.topAlbums.length} ${loc.setup.searchAlbums}',
+    ].join(' • ');
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(artist.name, overflow: TextOverflow.ellipsis),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: ListView(
-        padding: EdgeInsets.fromLTRB(r.spacingM, r.spacingM, r.spacingM, r.spacingM + 90),
+      backgroundColor: isDark ? const Color(0xFF0A0A0A) : const Color(0xFFF5F5F5),
+      body: DetailHeader(
+        coverUrl: artistImage,
+        title: artist.name,
+        subtitle: subtitle.isNotEmpty ? subtitle : '',
+        heroTag: 'artist_${artist.id}',
+        coverSize: 160,
         children: [
-          Row(
-            children: [
-              ClipOval(
-                child: SizedBox(
-                  width: r.titleSize * 2,
-                  height: r.titleSize * 2,
-                  child:
-                      artistImage != null && artistImage.isNotEmpty
-                          ? imageFromUrl(
-                            artistImage,
-                            fit: BoxFit.cover,
-                            fallback: _artistPlaceholder(r, onBg),
-                          )
-                          : _artistPlaceholder(r, onBg),
-                ),
-              ),
-              SizedBox(width: r.spacingM),
-              Expanded(
-                child: Text(
-                  artist.name,
-                  style: TextStyle(
-                    fontSize: r.subtitleSize,
-                    fontWeight: FontWeight.w600,
-                    color: onBg,
-                  ),
-                ),
-              ),
-            ],
-          ),
+          // Top tracks
           if (_isOnline && artist.topTracks.isNotEmpty) ...[
-            SizedBox(height: r.spacingM),
-            Row(
-              children: [
-                Text(
-                  loc.setup.searchTracks,
-                  style: TextStyle(
-                    fontSize: r.footerSize + 1,
-                    fontWeight: FontWeight.w600,
-                    color: onBg,
-                  ),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: r.spacingS),
+              child: Text(
+                loc.setup.searchTracks,
+                style: TextStyle(
+                  fontSize: r.footerSize + 1,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
                 ),
-              ],
+              ),
             ),
             SizedBox(height: r.spacingS),
             ...artistTracks.map((feedItem) {
               final src = feedItem.source ?? '';
               final dID = 'track_${normalizeTrackId(feedItem.id)}_$src';
-              void play() => sl<QueueCubit>().playWithContext(
-                artistTracks,
-                feedItem,
-              );
+              void play() => sl<QueueCubit>().playWithContext(artistTracks, feedItem);
               return Padding(
-                padding: EdgeInsets.only(bottom: r.spacingXS),
+                padding: EdgeInsets.symmetric(horizontal: r.spacingS, vertical: r.spacingXS * 0.5),
                 child: TrackCard(
                   title: feedItem.name,
                   subtitle: artist.name,
@@ -298,31 +197,31 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
                   textScale: 1.2,
                   onLike: () => likedCubit.toggleLike(feedItem),
                   downloadState: dlCubit.downloadStateFor(dID).state,
-                  onDownload:
-                      () => showDownloadOptions(context, feedItem, isDark),
+                  onDownload: () => showDownloadOptions(context, feedItem, isDark),
                   onDelete: () => dlCubit.deleteTrackDownload(feedItem.id, src),
                   onTap: play,
-                  onShare:
-                      () => SharePlus.instance.share(
-                        ShareParams(
-                          text:
-                              feedItem.albumName != null
-                                  ? '🎵 ${feedItem.name} — ${feedItem.artists ?? ''}\n💿 ${feedItem.albumName}'
-                                  : '🎵 ${feedItem.name} — ${feedItem.artists ?? ''}',
-                        ),
-                      ),
+                  onShare: () => SharePlus.instance.share(ShareParams(
+                    text: feedItem.albumName != null
+                        ? '🎵 ${feedItem.name} — ${feedItem.artists ?? ''}\n💿 ${feedItem.albumName}'
+                        : '🎵 ${feedItem.name} — ${feedItem.artists ?? ''}',
+                  )),
                 ),
               );
             }),
           ],
+
+          // Top albums horizontal grid
           if (_isOnline && artist.topAlbums.isNotEmpty) ...[
             SizedBox(height: r.spacingM),
-            Text(
-              loc.setup.searchAlbums,
-              style: TextStyle(
-                fontSize: r.footerSize + 1,
-                fontWeight: FontWeight.w600,
-                color: onBg,
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: r.spacingS),
+              child: Text(
+                loc.setup.searchAlbums,
+                style: TextStyle(
+                  fontSize: r.footerSize + 1,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
               ),
             ),
             SizedBox(height: r.spacingS),
@@ -330,106 +229,111 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
               height: 180,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
+                padding: EdgeInsets.symmetric(horizontal: r.spacingS),
                 itemCount: artist.topAlbums.length,
                 separatorBuilder: (_, _) => SizedBox(width: r.spacingXS),
                 itemBuilder: (_, i) {
                   final a = artist.topAlbums[i];
                   final albumItem = FeedItem(
-                    id: a.albumId,
-                    type: 'album',
-                    name: a.name,
-                    coverUrl: a.coverUrl,
-                    source: widget.source,
+                    id: a.albumId, type: 'album', name: a.name,
+                    coverUrl: a.coverUrl, source: widget.source,
                   );
                   final albumCover = likedCubit.resolveCoverFor(albumItem);
                   final isAlbumLiked = likedCubit.isLiked(albumItem);
-                  return SizedBox(
-                    width: 140,
-                    child: Material(
-                      type: MaterialType.transparency,
-                      child: InkWell(
-                        onTap:
-                            () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder:
-                                    (_) => BlocProvider.value(
-                                      value: context.read<LikeCubit>(),
-                                      child: BlocProvider.value(
-                                        value: context.read<DownloadCubit>(),
-                                        child: BlocProvider.value(
-                                          value: sl<QueueCubit>(),
-                                          child: AlbumDetailPage(
-                                            albumId: a.albumId,
-                                            source: widget.source,
-                                            coverUrl: a.coverUrl,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                              ),
-                            ),
-                        customBorder: const RoundedRectangleBorder(
-                          borderRadius: BorderRadius.all(Radius.circular(8)),
+                  return GestureDetector(
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => MultiBlocProvider(
+                          providers: [
+                            BlocProvider.value(value: context.read<LikeCubit>()),
+                            BlocProvider.value(value: context.read<DownloadCubit>()),
+                            BlocProvider.value(value: sl<QueueCubit>()),
+                          ],
+                          child: AlbumDetailPage(
+                            albumId: a.albumId,
+                            source: widget.source,
+                            coverUrl: a.coverUrl,
+                          ),
                         ),
-                        splashColor: Colors.white.withValues(alpha: 0.14),
-                        highlightColor: Colors.white.withValues(alpha: 0.06),
-                        child: Column(
-                          children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: SizedBox(
-                                width: 140,
-                                height: 140,
-                                child: Stack(
-                                  fit: StackFit.expand,
-                                  children: [
-                                    albumCover != null && albumCover.isNotEmpty
-                                        ? imageFromUrl(
+                      ),
+                    ),
+                    child: SizedBox(
+                      width: 140,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: SizedBox(
+                              width: 140,
+                              height: 140,
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  albumCover != null && albumCover.isNotEmpty
+                                      ? imageFromUrl(
                                           albumCover,
                                           fit: BoxFit.cover,
-                                          fallback: _placeholder(r, onBg),
+                                          fallback: _placeholder(r),
                                         )
-                                        : _placeholder(r, onBg),
-                                    Positioned(
-                                      top: 4,
-                                      right: 4,
-                                      child: GestureDetector(
-                                        onTap:
-                                            () => likedCubit.toggleLike(
-                                              albumItem,
-                                            ),
-                                        child: Icon(
-                                          isAlbumLiked
-                                              ? Icons.favorite
-                                              : Icons.favorite_border,
-                                          color:
-                                              isAlbumLiked
-                                                  ? Colors.red
-                                                  : Colors.white70,
-                                          size: 20,
-                                          shadows: const [
-                                            Shadow(blurRadius: 4),
+                                      : _placeholder(r),
+                                  // Glass overlay on hover
+                                  Positioned(
+                                    bottom: 0,
+                                    left: 0,
+                                    right: 0,
+                                    child: Container(
+                                      height: 40,
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          begin: Alignment.topCenter,
+                                          end: Alignment.bottomCenter,
+                                          colors: [
+                                            Colors.transparent,
+                                            Colors.black.withValues(alpha: 0.5),
                                           ],
                                         ),
                                       ),
                                     ),
-                                  ],
-                                ),
+                                  ),
+                                  // Like badge
+                                  Positioned(
+                                    top: 6,
+                                    right: 6,
+                                    child: GestureDetector(
+                                      onTap: () => likedCubit.toggleLike(albumItem),
+                                      child: Container(
+                                        width: 28,
+                                        height: 28,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          color: Colors.black.withValues(alpha: 0.35),
+                                        ),
+                                        child: Icon(
+                                          isAlbumLiked ? Icons.favorite : Icons.favorite_border,
+                                          color: isAlbumLiked ? Colors.red : Colors.white,
+                                          size: 16,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                            SizedBox(height: 4),
-                            Text(
-                              a.name,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: r.footerSize - 1,
-                                color: onBg,
-                              ),
+                          ),
+                          SizedBox(height: 6),
+                          Text(
+                            a.name,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: r.footerSize - 1,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.white.withValues(alpha: 0.85),
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
                   );
@@ -437,91 +341,49 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
               ),
             ),
           ],
+
+          // Offline tracks
           if (!_isOnline) ...[
             SizedBox(height: r.spacingM),
-            Row(
-              children: [
-                Icon(
-                  Icons.cloud_off,
-                  size: r.footerSize,
-                  color: onBg.withValues(alpha: 0.4),
-                ),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: r.spacingS),
+              child: Row(children: [
+                Icon(Icons.cloud_off, size: r.footerSize,
+                  color: Colors.white.withValues(alpha: 0.4)),
                 SizedBox(width: 6),
-                Text(
-                  '${loc.setup.downloaded} ${loc.setup.miSpaceSongs.toLowerCase()}',
-                  style: TextStyle(
-                    fontSize: r.footerSize,
-                    color: onBg.withValues(alpha: 0.4),
-                  ),
-                ),
-              ],
+                Text('${loc.setup.downloaded} ${loc.setup.miSpaceSongs.toLowerCase()}',
+                  style: TextStyle(fontSize: r.footerSize,
+                    color: Colors.white.withValues(alpha: 0.4))),
+              ]),
             ),
             SizedBox(height: r.spacingS),
-            ..._offlineTracks(likedCubit, dlCubit, r, onBg, isDark),
+            ..._offlineTracks(likedCubit, dlCubit, r, isDark),
           ],
         ],
       ),
     );
   }
 
-  List<Widget> _offlineTracks(
-    LikeCubit likedCubit,
-    DownloadCubit dlCubit,
-    Responsive r,
-    Color onBg,
-    bool isDark,
-  ) {
-    final tracks =
-        likedCubit.tracks.where((t) {
-          final matches =
-              t.artists?.toLowerCase().contains(
-                widget.artistName.toLowerCase(),
-              ) ??
-              false;
-          return matches;
-        }).toList();
+  List<Widget> _offlineTracks(LikeCubit likedCubit, DownloadCubit dlCubit, Responsive r, bool isDark) {
+    final tracks = likedCubit.tracks.where((t) {
+      return t.artists?.toLowerCase().contains(widget.artistName.toLowerCase()) ?? false;
+    }).toList();
 
-    if (tracks.isEmpty) {
-      return [
-        Padding(
-          padding: EdgeInsets.symmetric(vertical: r.spacingL),
-          child: Center(
-            child: Text(
-              'No hay canciones guardadas de este artista',
-              style: TextStyle(
-                fontSize: r.footerSize,
-                color: onBg.withValues(alpha: 0.4),
-              ),
-            ),
-          ),
-        ),
-      ];
-    }
+    if (tracks.isEmpty) return [];
 
-    final feedItems =
-        tracks
-            .map(
-              (t) => FeedItem(
-                id: t.id,
-                type: 'track',
-                name: t.name,
-                artists: t.artists,
-                coverUrl: t.coverUrl,
-                albumName: t.albumName,
-                durationMs: t.durationMs,
-                source: t.source ?? widget.source,
-              ),
-            )
-            .toList();
+    final feedItems = tracks.map((t) => FeedItem(
+      id: t.id, type: 'track', name: t.name, artists: t.artists,
+      coverUrl: t.coverUrl, albumName: t.albumName,
+      durationMs: t.durationMs, source: t.source ?? widget.source,
+    )).toList();
+
     return feedItems.asMap().entries.map((entry) {
       final feedItem = entry.value;
       final t = tracks[entry.key];
-      final dID =
-          'track_${normalizeTrackId(t.id)}_${t.source ?? widget.source}';
-      void play() =>
-          sl<QueueCubit>().playWithContext(feedItems, feedItem);
+      final dID = 'track_${normalizeTrackId(t.id)}_${t.source ?? widget.source}';
+      void play() => sl<QueueCubit>().playWithContext(feedItems, feedItem);
       return Padding(
-        padding: EdgeInsets.only(bottom: r.spacingXS),
+        padding: EdgeInsets.symmetric(horizontal: r.spacingS, vertical: r.spacingXS * 0.5),
         child: TrackCard(
           title: t.name,
           subtitle: t.artists ?? widget.artistName,
@@ -532,39 +394,20 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
           onLike: () => likedCubit.toggleLike(feedItem),
           downloadState: dlCubit.downloadStateFor(dID).state,
           onDownload: () => showDownloadOptions(context, feedItem, isDark),
-          onDelete:
-              () =>
-                  dlCubit.deleteTrackDownload(t.id, t.source ?? widget.source),
+          onDelete: () => dlCubit.deleteTrackDownload(t.id, t.source ?? widget.source),
           onTap: play,
-          onShare:
-              () => SharePlus.instance.share(
-                ShareParams(
-                  text:
-                      feedItem.albumName != null
-                          ? '🎵 ${feedItem.name} — ${feedItem.artists ?? ''}\n💿 ${feedItem.albumName}'
-                          : '🎵 ${feedItem.name} — ${feedItem.artists ?? ''}',
-                ),
-              ),
+          onShare: () => SharePlus.instance.share(ShareParams(
+            text: feedItem.albumName != null
+                ? '🎵 ${feedItem.name} — ${feedItem.artists ?? ''}\n💿 ${feedItem.albumName}'
+                : '🎵 ${feedItem.name} — ${feedItem.artists ?? ''}',
+          )),
         ),
       );
     }).toList();
   }
 
-  Widget _placeholder(Responsive r, Color onBg) => Container(
-    color: onBg.withValues(alpha: 0.06),
-    child: Icon(
-      Icons.album,
-      color: onBg.withValues(alpha: 0.2),
-      size: r.titleSize * 0.5,
-    ),
-  );
-
-  Widget _artistPlaceholder(Responsive r, Color onBg) => Container(
-    color: onBg.withValues(alpha: 0.06),
-    child: Icon(
-      Icons.person,
-      color: onBg.withValues(alpha: 0.2),
-      size: r.titleSize,
-    ),
+  Widget _placeholder(Responsive r) => Container(
+    color: Colors.white.withValues(alpha: 0.06),
+    child: Icon(Icons.album, color: Colors.white.withValues(alpha: 0.2), size: r.titleSize * 0.5),
   );
 }

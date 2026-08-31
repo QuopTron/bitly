@@ -8,19 +8,20 @@ import 'package:flutter/material.dart';
 /// Falls back to a fixed color scheme on older devices or unsupported platforms.
 class DynamicColorWrapper extends StatelessWidget {
   final Widget Function(ThemeData lightTheme, ThemeData darkTheme, ThemeMode themeMode) builder;
+  final ThemeMode? themeModeOverride;
 
-  const DynamicColorWrapper({super.key, required this.builder});
+  const DynamicColorWrapper({super.key, required this.builder, this.themeModeOverride});
 
   @override
   Widget build(BuildContext context) {
-    // Use a simple builder approach without dynamic_color package
-    // to avoid adding a new dependency. The existing app_theme.dart
-    // already handles Material 3 theming.
-    final brightness = MediaQuery.platformBrightnessOf(context);
-
     final lightTheme = _buildLightTheme();
     final darkTheme = _buildDarkTheme();
-    final themeMode = brightness == Brightness.dark ? ThemeMode.dark : ThemeMode.light;
+    // Respect the user's explicit preference if provided,
+    // otherwise fall back to system brightness.
+    final themeMode = themeModeOverride ??
+        (MediaQuery.platformBrightnessOf(context) == Brightness.dark
+            ? ThemeMode.dark
+            : ThemeMode.light);
 
     return builder(lightTheme, darkTheme, themeMode);
   }

@@ -19,8 +19,9 @@ import '../../../backend/services/like_cubit.dart';
 import '../../../backend/services/download_cubit.dart';
 import '../../../backend/services/queue_cubit.dart';
 import '../../shared/widgets/track_card.dart';
-import '../../shared/widgets/download_indicator.dart';
+import '../../shared/widgets/detail_header.dart';
 import '../../shared/widgets/download_options_sheet.dart';
+import '../../shared/theme/app_colors.dart';
 import '../../../backend/services/connectivity_service.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path/path.dart' as p;
@@ -43,6 +44,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
   bool _loading = true;
   bool _error = false;
   bool _isOnline = true;
+  String? _resolvedCover;
 
   Future<void> _exportPlaylist(PlaylistDetail detail, bool isDark) async {
     final result = await PlaylistExportService.exportPlaylist(
@@ -93,25 +95,20 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
 
     PlaylistDetail? detail;
 
-    // Session memory cache (fastest — avoids any I/O within same session)
     detail = memCache.getPlaylist(widget.collectionId);
     if (detail != null && detail.tracks.isNotEmpty) {
       if (mounted) setState(() { _detail = detail; _loading = false; });
       return;
     }
 
-    // Try local Drift DB first (survives restarts, populated by syncPlaylistDetail)
     detail = await pb.getPlaylistDetailLocal(widget.collectionId);
     if (detail != null && detail.tracks.isNotEmpty) {
       if (mounted) setState(() { _detail = detail; _loading = false; });
       memCache.setPlaylist(widget.collectionId, detail);
-      if (_isOnline) {
-        _refreshFromApi(cache, backend, pb);
-      }
+      if (_isOnline) _refreshFromApi(cache, backend, pb);
       return;
     }
 
-    // No local data (or stale with empty tracks): try DetailCache (JSON TTL cache) then API
     try {
       detail = await loadDetailWithFallback(
         id: widget.collectionId,
@@ -122,16 +119,11 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
       );
       if (detail == null) {
         final local = await pb.getPlaylistDetailLocal(widget.collectionId);
-        if (local != null && local.tracks.isNotEmpty) {
-          detail = local;
-        }
+        if (local != null && local.tracks.isNotEmpty) detail = local;
       }
-      if (detail != null) {
-        memCache.setPlaylist(widget.collectionId, detail);
-      }
+      if (detail != null) memCache.setPlaylist(widget.collectionId, detail);
     } catch (_) {}
 
-    // Last resort: build from batch download data
     detail ??= await _buildFromBatch();
 
     if (mounted) setState(() { _detail = detail; _loading = false; _error = detail == null; });
@@ -149,7 +141,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
       }
     } catch (_) {}
   }
-  /// Build a [PlaylistDetail] from batch download data when API/local cache unavailable.
+
   Future<PlaylistDetail?> _buildFromBatch() async {
     final dlCache = sl<DownloadCache>();
     var batch = await dlCache.getBatchByItem('playlist', widget.collectionId, widget.source);
@@ -159,11 +151,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
     if (batch == null || batch.trackIds == null || batch.trackIds!.isEmpty) return null;
 
     final List<dynamic> rawIds;
-    try {
-      rawIds = jsonDecode(batch.trackIds!) as List<dynamic>;
-    } catch (_) {
-      return null;
-    }
+    try { rawIds = jsonDecode(batch.trackIds!) as List<dynamic>; } catch (_) { return null; }
 
     final history = jsonDecode(await dlCache.getDownloadHistory()) as List<dynamic>;
     final trackMap = <String, Map<String, dynamic>>{};
@@ -221,7 +209,6 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
       'cover_url': (t.coverUrl?.isNotEmpty == true) ? t.coverUrl! : (detail.coverPath ?? widget.coverUrl),
     }).toList();
 
-    // Show quality selector before starting batch
     if (!mounted) return;
     showModalBottomSheet(
       context: context,
@@ -246,27 +233,29 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
   Widget build(BuildContext context) {
     final r = Responsive(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final onBg = isDark ? Colors.white : Colors.black;
     final loc = AppLocalizations.of(context);
 
     if (_loading) {
       return Scaffold(
-        appBar: AppBar(title: Text(widget.playlistName.isNotEmpty ? widget.playlistName : loc.setup.miSpacePlaylists)),
-        body: Center(child: CircularProgressIndicator(strokeWidth: 2, color: onBg.withValues(alpha: 0.3))),
+        backgroundColor: isDark ? const Color(0xFF0A0A0A) : const Color(0xFFF5F5F5),
+        body: Center(child: CircularProgressIndicator(strokeWidth: 2,
+          color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.3))),
       );
     }
     if (_detail == null) {
       return Scaffold(
-        appBar: AppBar(title: Text(widget.playlistName.isNotEmpty ? widget.playlistName : loc.setup.miSpacePlaylists)),
+        backgroundColor: isDark ? const Color(0xFF0A0A0A) : const Color(0xFFF5F5F5),
         body: Center(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             Text(_error ? loc.setup.miSpaceEmptyPlaylists : loc.setup.miSpaceEmptyPlaylists,
-              style: TextStyle(color: onBg.withValues(alpha: 0.4))),
+              style: TextStyle(color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.4))),
             if (_error)
               TextButton.icon(
                 onPressed: _load,
-                icon: Icon(Icons.refresh, size: 18, color: onBg.withValues(alpha: 0.6)),
-                label: Text(loc.setup.retry, style: TextStyle(color: onBg.withValues(alpha: 0.6))),
+                icon: Icon(Icons.refresh, size: 18,
+                  color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.6)),
+                label: Text(loc.setup.retry,
+                  style: TextStyle(color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.6))),
               ),
           ]),
         ),
@@ -280,17 +269,16 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
     final batchKey = 'playlist_${normalizeTrackId(detail.id)}_$src';
     final batchState = dlCubit.downloadStateFor(batchKey);
 
-    final hasLocalFiles =
-        detail.tracks.any((t) => t.filePath != null && t.filePath!.isNotEmpty);
+    final hasLocalFiles = detail.tracks.any((t) => t.filePath != null && t.filePath!.isNotEmpty);
 
-    // Visible tracks as FeedItems (reused for queue seeding + neighbor preload).
-    // Offline filter: show track if online OR if it's downloaded (check both
-    // DetailTrack.isDownloaded and DownloadCubit state for freshness).
+    // Resolve cover from likes or widget
+    final likedPlaylist = likedCubit.state.allLiked[detail.id];
+    final likedCover = likedPlaylist?.localCoverPath ?? likedPlaylist?.coverUrl;
+    _resolvedCover = likedCover ?? widget.coverUrl;
+
     final playlistFeedItems = detail.tracks
         .where((t) {
           if (_isOnline) return true;
-          if (t.isDownloaded) return true;
-          // Check DownloadCubit for up-to-date download status
           final dID = 'track_${normalizeTrackId(t.trackId)}_$src';
           return dlCubit.downloadStateFor(dID).state == DownloadState.completed;
         })
@@ -307,104 +295,193 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
         .toList();
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(detail.name, overflow: TextOverflow.ellipsis),
-        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.pop(context)),
-        actions: [
-          if (hasLocalFiles)
-            IconButton(
-              icon: Icon(Icons.file_download_outlined, color: onBg.withValues(alpha: 0.7)),
-              tooltip: 'Exportar playlist',
-              onPressed: () => _exportPlaylist(detail, isDark),
+      backgroundColor: isDark ? const Color(0xFF0A0A0A) : const Color(0xFFF5F5F5),
+      body: DetailHeader(
+        coverUrl: _resolvedCover,
+        title: detail.name,
+        subtitle: '${detail.itemCount} ${loc.setup.miSpaceSongCount}',
+        heroTag: 'playlist_${detail.id}',
+        actions: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _GlassActionButton(
+              icon: batchState.state == DownloadState.completed
+                  ? Icons.check_circle_outline
+                  : batchState.state == DownloadState.inProgress
+                      ? Icons.hourglass_top_rounded
+                      : Icons.download_rounded,
+              color: batchState.state == DownloadState.completed
+                  ? AppColors.greenBright
+                  : batchState.state == DownloadState.inProgress
+                      ? const Color(0xFFFF9800)
+                      : null,
+              onTap: _isOnline ? _downloadAll : null,
             ),
+            SizedBox(width: r.spacingS),
+            _GlassActionButton(
+              icon: Icons.play_arrow_rounded,
+              filled: true,
+              onTap: playlistFeedItems.isNotEmpty
+                  ? () => sl<QueueCubit>().playWithContext(playlistFeedItems, playlistFeedItems.first)
+                  : null,
+            ),
+            if (hasLocalFiles) ...[
+              SizedBox(width: r.spacingS),
+              _GlassActionButton(
+                icon: Icons.file_download_outlined,
+                onTap: () => _exportPlaylist(detail, isDark),
+              ),
+            ],
+          ],
+        ),
+        children: [
+          if (!_isOnline)
+            Container(
+              margin: EdgeInsets.symmetric(horizontal: r.spacingS),
+              padding: EdgeInsets.symmetric(horizontal: r.spacingS, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.cloud_off, size: r.footerSize - 2,
+                  color: Colors.white.withValues(alpha: 0.4)),
+                SizedBox(width: 6),
+                Text('${loc.setup.downloaded} ${loc.setup.miSpaceSongs.toLowerCase()}',
+                  style: TextStyle(fontSize: r.footerSize - 1,
+                    color: Colors.white.withValues(alpha: 0.4))),
+              ]),
+            ),
+          ...playlistFeedItems.map((feedItem) {
+            final dID = 'track_${normalizeTrackId(feedItem.id)}_$src';
+            final trackCover = likedCubit.resolveCoverFor(feedItem);
+            final isLiked = likedCubit.isLiked(feedItem);
+            void play() => sl<QueueCubit>().playWithContext(playlistFeedItems, feedItem);
+            return Padding(
+              padding: EdgeInsets.symmetric(horizontal: r.spacingS, vertical: r.spacingXS * 0.5),
+              child: TrackCard(
+                title: feedItem.name,
+                subtitle: feedItem.artists ?? '',
+                coverUrl: trackCover,
+                readyKey: normalizeTrackId(feedItem.id),
+                isLiked: isLiked,
+                textScale: 1.2,
+                onLike: () => likedCubit.toggleLike(feedItem),
+                downloadState: dlCubit.downloadStateFor(dID).state,
+                onDownload: () => showDownloadOptions(context, feedItem, isDark),
+                onDelete: () => dlCubit.deleteTrackDownload(feedItem.id, src),
+                onTap: play,
+                onShare: () => SharePlus.instance.share(ShareParams(
+                  text: feedItem.albumName != null
+                      ? '🎵 ${feedItem.name} — ${feedItem.artists ?? ''}\n💿 ${feedItem.albumName}'
+                      : '🎵 ${feedItem.name} — ${feedItem.artists ?? ''}',
+                )),
+              ),
+            );
+          }),
         ],
       ),
-      body: detail.tracks.isEmpty
-        ? Center(child: Text(loc.setup.miSpaceEmptyPlaylists, style: TextStyle(color: onBg.withValues(alpha: 0.4))))
-        : ListView(
-            padding: EdgeInsets.fromLTRB(r.spacingM, r.spacingM, r.spacingM, r.spacingM + 90),
-            children: [
-              Row(children: [
-                Text('${detail.itemCount} ${loc.setup.miSpaceSongCount}',
-                  style: TextStyle(fontSize: r.footerSize, color: onBg.withValues(alpha: 0.4))),
-                const Spacer(),
-                if (_isOnline)
-                  GestureDetector(
-                    onTap: _downloadAll,
-                    child: Container(
-                      padding: EdgeInsets.symmetric(horizontal: r.spacingM, vertical: r.spacingXS),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: onBg.withValues(alpha: 0.1)),
-                        color: onBg.withValues(alpha: 0.03),
-                      ),
-                      child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        DownloadIndicator(
-                          state: batchState.state,
-                          size: 12,
-                        ),
-                        SizedBox(width: r.spacingXS),
-                        Text(
-                          batchState.state == DownloadState.completed
-                              ? '✓'
-                              : batchState.state == DownloadState.inProgress
-                                  ? '${(batchState.progress * 100).toInt()}%'
-                                  : batchState.state == DownloadState.interrupted
-                                      ? loc.setup.retry
-                                      : loc.setup.downloaded,
-                          style: TextStyle(fontSize: r.footerSize - 1, color: onBg.withValues(alpha: 0.7)),
-                        ),
-                      ]),
-                    ),
-                  ),
-              ]),
-              SizedBox(height: r.spacingM),
-              if (!_isOnline)
-                Container(
-                  margin: EdgeInsets.only(bottom: r.spacingS),
-                  padding: EdgeInsets.symmetric(horizontal: r.spacingS, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: onBg.withValues(alpha: 0.06),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.cloud_off, size: r.footerSize - 2, color: onBg.withValues(alpha: 0.4)),
-                    SizedBox(width: 6),
-                    Text('${loc.setup.downloaded} ${loc.setup.miSpaceSongs.toLowerCase()}',
-                      style: TextStyle(fontSize: r.footerSize - 1, color: onBg.withValues(alpha: 0.4))),
-                  ]),
-                ),
-              ...playlistFeedItems.map((feedItem) {
-                final dID = 'track_${normalizeTrackId(feedItem.id)}_$src';
-                final trackCover = likedCubit.resolveCoverFor(feedItem);
-                final isLiked = likedCubit.isLiked(feedItem);
-                void play() => sl<QueueCubit>().playWithContext(playlistFeedItems, feedItem);
-                return Padding(
-                  padding: EdgeInsets.only(bottom: r.spacingXS),
-                  child: TrackCard(
-                    title: feedItem.name,
-                    subtitle: feedItem.artists ?? '',
-                    coverUrl: trackCover,
-                    readyKey: normalizeTrackId(feedItem.id),
-                    isLiked: isLiked,
-                    textScale: 1.2,
-                    onLike: () => likedCubit.toggleLike(feedItem),
-                    downloadState: dlCubit.downloadStateFor(dID).state,
-                    onDownload: () => showDownloadOptions(context, feedItem, isDark),
-                    onDelete: () => dlCubit.deleteTrackDownload(feedItem.id, src),
-                    onTap: play,
-                    onShare: () => SharePlus.instance.share(ShareParams(
-                      text: feedItem.albumName != null
-                          ? '🎵 ${feedItem.name} — ${feedItem.artists ?? ''}\n💿 ${feedItem.albumName}'
-                          : '🎵 ${feedItem.name} — ${feedItem.artists ?? ''}',
-                    )),
-                  ),
-                );
-              }),
-            ],
-          ),
     );
   }
 }
 
+/// Futuristic glassmorphism action button.
+class _GlassActionButton extends StatefulWidget {
+  final IconData icon;
+  final VoidCallback? onTap;
+  final Color? color;
+  final bool filled;
+  const _GlassActionButton({
+    required this.icon,
+    this.onTap,
+    this.color,
+    this.filled = false,
+  });
 
+  @override
+  State<_GlassActionButton> createState() => _GlassActionButtonState();
+}
+
+class _GlassActionButtonState extends State<_GlassActionButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _scaleCtrl;
+  late final Animation<double> _scaleAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _scaleCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 120),
+      lowerBound: 0,
+      upperBound: 1,
+    );
+    _scaleAnim = Tween(begin: 1.0, end: 0.88).animate(
+      CurvedAnimation(parent: _scaleCtrl, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _scaleCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accent = widget.color ?? (isDark ? AppColors.greenBright : AppColors.greenDeep);
+    final enabled = widget.onTap != null;
+
+    final bgAlpha = widget.filled ? 0.22 : 0.08;
+    final bgColor = widget.filled
+        ? accent.withValues(alpha: bgAlpha)
+        : (isDark ? Colors.white : Colors.black).withValues(alpha: bgAlpha);
+
+    final borderColor = widget.filled
+        ? accent.withValues(alpha: 0.5)
+        : (isDark ? Colors.white : Colors.black).withValues(alpha: 0.12);
+
+    final fgColor = widget.filled
+        ? accent
+        : widget.color ?? (isDark ? Colors.white : Colors.black);
+
+    return GestureDetector(
+      onTapDown: enabled ? (_) => _scaleCtrl.forward() : null,
+      onTapUp: enabled ? (_) => _scaleCtrl.reverse() : null,
+      onTapCancel: enabled ? () => _scaleCtrl.reverse() : null,
+      onTap: widget.onTap,
+      child: AnimatedBuilder(
+        animation: _scaleAnim,
+        builder: (context, child) {
+          return Transform.scale(
+            scale: _scaleAnim.value,
+            child: child,
+          );
+        },
+        child: Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: enabled ? bgColor : bgColor.withValues(alpha: 0.3),
+            border: Border.all(
+              color: enabled ? borderColor : borderColor.withValues(alpha: 0.3),
+              width: 1.0,
+            ),
+            boxShadow: widget.filled
+                ? [
+                    BoxShadow(
+                      color: accent.withValues(alpha: 0.35),
+                      blurRadius: 20,
+                      spreadRadius: 1,
+                    ),
+                  ]
+                : null,
+          ),
+          child: Icon(widget.icon, size: 22, color: enabled ? fgColor : fgColor.withValues(alpha: 0.3)),
+        ),
+      ),
+    );
+  }
+}

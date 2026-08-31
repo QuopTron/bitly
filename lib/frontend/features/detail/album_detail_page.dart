@@ -375,13 +375,12 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
   }
 }
 
-/// Compact circular action button used in the detail header actions row.
-class _CircleActionButton extends StatelessWidget {
+/// Futuristic glassmorphism action button with glow border.
+class _CircleActionButton extends StatefulWidget {
   final IconData icon;
   final VoidCallback? onTap;
   final Color? color;
   final bool filled;
-
   const _CircleActionButton({
     required this.icon,
     this.onTap,
@@ -390,33 +389,91 @@ class _CircleActionButton extends StatelessWidget {
   });
 
   @override
+  State<_CircleActionButton> createState() => _CircleActionButtonState();
+}
+
+class _CircleActionButtonState extends State<_CircleActionButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _scaleCtrl;
+  late final Animation<double> _scaleAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _scaleCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 120),
+      lowerBound: 0,
+      upperBound: 1,
+    );
+    _scaleAnim = Tween(begin: 1.0, end: 0.88).animate(
+      CurvedAnimation(parent: _scaleCtrl, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _scaleCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = filled
-        ? AppColors.greenBright
-        : (color ?? (isDark ? Colors.white : Colors.black)).withValues(alpha: 0.12);
-    final fgColor = filled
-        ? Colors.black
-        : color ?? (isDark ? Colors.white : Colors.black);
+    final accent = widget.color ?? (isDark ? AppColors.greenBright : AppColors.greenDeep);
+    final enabled = widget.onTap != null;
+
+    // Glass background
+    final bgAlpha = widget.filled ? 0.22 : 0.08;
+    final bgColor = widget.filled
+        ? accent.withValues(alpha: bgAlpha)
+        : (isDark ? Colors.white : Colors.black).withValues(alpha: bgAlpha);
+
+    // Border: thin glow
+    final borderColor = widget.filled
+        ? accent.withValues(alpha: 0.5)
+        : (isDark ? Colors.white : Colors.black).withValues(alpha: 0.12);
+
+    // Icon color
+    final fgColor = widget.filled
+        ? accent
+        : widget.color ?? (isDark ? Colors.white : Colors.black);
 
     return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        width: 48,
-        height: 48,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: onTap != null ? bgColor : bgColor.withValues(alpha: 0.4),
-          boxShadow: filled ? [
-            BoxShadow(
-              color: AppColors.greenBright.withValues(alpha: 0.4),
-              blurRadius: 16,
-              spreadRadius: 2,
+      onTapDown: enabled ? (_) => _scaleCtrl.forward() : null,
+      onTapUp: enabled ? (_) => _scaleCtrl.reverse() : null,
+      onTapCancel: enabled ? () => _scaleCtrl.reverse() : null,
+      onTap: widget.onTap,
+      child: AnimatedBuilder(
+        animation: _scaleAnim,
+        builder: (context, child) {
+          return Transform.scale(
+            scale: _scaleAnim.value,
+            child: child,
+          );
+        },
+        child: Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: enabled ? bgColor : bgColor.withValues(alpha: 0.3),
+            border: Border.all(
+              color: enabled ? borderColor : borderColor.withValues(alpha: 0.3),
+              width: 1.0,
             ),
-          ] : null,
+            boxShadow: widget.filled
+                ? [
+                    BoxShadow(
+                      color: accent.withValues(alpha: 0.35),
+                      blurRadius: 20,
+                      spreadRadius: 1,
+                    ),
+                  ]
+                : null,
+          ),
+          child: Icon(widget.icon, size: 22, color: enabled ? fgColor : fgColor.withValues(alpha: 0.3)),
         ),
-        child: Icon(icon, size: 24, color: fgColor),
       ),
     );
   }

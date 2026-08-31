@@ -71,6 +71,7 @@ class _BitlyAppState extends State<BitlyApp> {
   @override
   Widget build(BuildContext context) {
     return DynamicColorWrapper(
+      themeModeOverride: _themeMode.value,
       builder: (lightTheme, darkTheme, themeMode) {
         return MultiBlocProvider(
           providers: [
