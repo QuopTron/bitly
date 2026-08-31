@@ -128,16 +128,16 @@ class GridCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: downloadState == DownloadState.completed
-                    ? AppColors.greenBright.withValues(alpha: 0.35)
+                    ? Colors.white.withValues(alpha: 0.2)
                     : Colors.white.withValues(alpha: 0.1),
-                width: downloadState == DownloadState.completed ? 1.2 : 0.6,
+                width: downloadState == DownloadState.completed ? 1.0 : 0.6,
               ),
               boxShadow: downloadState == DownloadState.completed
                   ? [
                       BoxShadow(
-                        color: _glowColor(context).withValues(alpha: 0.25),
+                        color: Colors.black.withValues(alpha: 0.3),
                         blurRadius: 12,
-                        spreadRadius: 2,
+                        spreadRadius: 1,
                       ),
                     ]
                   : null,

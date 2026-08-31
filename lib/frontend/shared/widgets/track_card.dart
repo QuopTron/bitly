@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../utils/responsive.dart';
-import '../theme/app_colors.dart';
 import '../../l10n/app_localizations.dart';
 import '../models/performance_profile.dart';
 import '../../../injection.dart';
@@ -80,7 +79,7 @@ class TrackCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: downloadState == DownloadState.completed
-                ? AppColors.greenBright.withValues(alpha: 0.3)
+                ? Colors.white.withValues(alpha: 0.2)
                 : Colors.white.withValues(alpha: 0.1),
             width: downloadState == DownloadState.completed ? 1.0 : 0.7,
           ),
@@ -88,10 +87,10 @@ class TrackCard extends StatelessWidget {
             if (heavyEffects)
               BoxShadow(
                 color: downloadState == DownloadState.completed
-                    ? AppColors.greenBright.withValues(alpha: 0.12)
+                    ? Colors.black.withValues(alpha: 0.35)
                     : Colors.black.withValues(alpha: 0.3),
-                blurRadius: downloadState == DownloadState.completed ? 16 : 14,
-                spreadRadius: downloadState == DownloadState.completed ? 1 : 0,
+                blurRadius: 14,
+                spreadRadius: 0,
                 offset: const Offset(0, 5),
               ),
           ],
