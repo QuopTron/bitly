@@ -106,9 +106,11 @@ class SearchResultsBody extends StatelessWidget {
         final items = grouped[cat]!;
         if (items.isEmpty) continue;
         children.add(_sectionHeader(context, cat, items.length, r, glowColor, onBg));
-        children.add(cat == 'tracks' ? _trackList(context, items, r)
-            : _gridSection(context, items, r,
-                glowColor: glowColor, onBg: onBg, title: null));
+        if (cat == 'tracks')
+          children.addAll(_trackCards(context, items, r));
+        else
+          children.add(_gridSection(context, items, r,
+              glowColor: glowColor, onBg: onBg, title: null));
       }
       if (children.isEmpty) {
         return Center(child: Text(loc.setup.noResults, style: TextStyle(fontSize: r.subtitleSize, color: onBg.withValues(alpha: 0.4))));
@@ -135,12 +137,11 @@ class SearchResultsBody extends StatelessWidget {
       for (final entry in bySource.entries) {
         if (entry.value.isEmpty) continue;
         children.add(_sourceHeader(context, entry.key, entry.value.length, r, glowColor, onBg));
-        children.add(
-          selectedType == 'tracks'
-              ? _trackList(context, entry.value, r)
-              : _gridSection(context, entry.value, r,
-                  glowColor: glowColor, onBg: onBg, title: null),
-        );
+        if (selectedType == 'tracks')
+          children.addAll(_trackCards(context, entry.value, r));
+        else
+          children.add(_gridSection(context, entry.value, r,
+              glowColor: glowColor, onBg: onBg, title: null));
       }
       if (children.isEmpty) {
         return Center(child: Text(loc.setup.noResults, style: TextStyle(fontSize: r.subtitleSize, color: onBg.withValues(alpha: 0.4))));
@@ -159,7 +160,7 @@ class SearchResultsBody extends StatelessWidget {
     if (selectedType == 'tracks') {
       return ListView(
         padding: EdgeInsets.symmetric(vertical: r.spacingS),
-        children: [_trackList(context, items, r)],
+        children: [..._trackCards(context, items, r)],
       );
     }
     return ListView(
@@ -266,35 +267,31 @@ class SearchResultsBody extends StatelessWidget {
         : DownloadState.none;
   }
 
-  Widget _trackList(BuildContext context, List<FeedItem> items, Responsive r) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: items.map((item) {
-        final fp = fingerprintItem(item);
-        final id = '${item.type}_${normalizeTrackId(item.id)}_${item.source}';
-        void play() => sl<QueueCubit>().playWithContext(items, item);
-        final resolvedCover = context.read<LikeCubit>().resolveCoverFor(item);
-        return Padding(
-          padding: EdgeInsets.only(bottom: r.spacingXS),
-          child: TrackCard(
-            title: item.name, subtitle: item.artists ?? '', coverUrl: resolvedCover,
-            textScale: 1.2, readyKey: normalizeTrackId(item.id),
-            isLiked: likedIds.contains(fp), onLike: () => onToggleLike(id, item),
-            downloadState: _trackDownloadState(fp, id),
-            onDownload: () => onStartDownload(item),
-            onDelete: onDeleteTrack != null ? () => onDeleteTrack!(item) : null,
-            onInfo: () => onShowInfo(context, item),
-            onMore: () => onShowMore(context, item),
-            onTap: play,
-            onShare: () => SharePlus.instance.share(ShareParams(
-              text: item.albumName != null
+  /// Track cards as individual ListView children — matches Feed layout
+  /// exactly so cards render at the same width and spacing.
+  List<Widget> _trackCards(BuildContext context, List<FeedItem> items, Responsive r) {
+    return items.map((item) {
+      final fp = fingerprintItem(item);
+      final id = '${item.type}_${normalizeTrackId(item.id)}_${item.source}';
+      void play() => sl<QueueCubit>().playWithContext(items, item);
+      final resolvedCover = context.read<LikeCubit>().resolveCoverFor(item);
+      return TrackCard(
+        title: item.name, subtitle: item.artists ?? '', coverUrl: resolvedCover,
+        textScale: 1.2, readyKey: normalizeTrackId(item.id),
+        isLiked: likedIds.contains(fp), onLike: () => onToggleLike(id, item),
+        downloadState: _trackDownloadState(fp, id),
+        onDownload: () => onStartDownload(item),
+        onDelete: onDeleteTrack != null ? () => onDeleteTrack!(item) : null,
+        onInfo: () => onShowInfo(context, item),
+        onMore: () => onShowMore(context, item),
+        onTap: play,
+        onShare: () => SharePlus.instance.share(ShareParams(
+          text: item.albumName != null
                   ? '🎵 ${item.name} — ${item.artists ?? ''}\n💿 ${item.albumName}'
                   : '🎵 ${item.name} — ${item.artists ?? ''}',
-            )),
-          ),
-        );
-      }).toList(),
-    );
+        )),
+      );
+    }).toList();
   }
 
   Widget _gridSection(BuildContext context, List<FeedItem> items, Responsive r,
