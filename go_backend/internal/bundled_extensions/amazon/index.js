@@ -1,5 +1,5 @@
 // Amazon Music Metadata & Download Provider for SpotiFLAC
-// v2.2.0 - Signed v2 Zarz download API.
+// v2.3.0 - Complete Amazon Web metadata and original-resolution artwork.
 // Uses reverse-engineered Amazon Music web API (skill.music.a2z.com).
 
 var CONFIG = {
@@ -7,7 +7,6 @@ var CONFIG = {
   baseBackoffMs: 500,
   cacheTtlMs: 180000,
   maxResults: 15,
-  coverImageSize: 1000,
   songlinkBaseURL: "https://api.song.link/v1-alpha.1/links",
   skillBaseURL: "https://na.mesk.skill.music.a2z.com/api",
   musicBaseURL: "https://music.amazon.com",
@@ -161,20 +160,6 @@ function extractASIN(rawURL) {
       }
     }
     var segments = parsed.pathname.replace(/^\/|\/$/g, "").split("/");
-    // An artist/playlist page is never a downloadable track: the download API
-    // 404s on an artist ASIN. Reject those URLs outright (Songstats sometimes
-    // surfaces the artist's own Amazon page for an ISRC lookup).
-    if (segments.length > 0) {
-      var first = segments[0].toLowerCase();
-      if (
-        first === "artists" ||
-        first === "artist" ||
-        first === "playlists" ||
-        first === "playlist"
-      ) {
-        return null;
-      }
-    }
     for (var j = 0; j < segments.length - 1; j++) {
       var seg = segments[j].toLowerCase();
       if (seg === "track" || seg === "tracks") {
@@ -980,6 +965,8 @@ function amazonItemIsExplicit(item) {
   // "explicitAriaLabel" ("Explicit Content") on the row element. Clean tracks
   // carry an empty tags array, so presence of "E"/explicitAriaLabel is reliable.
   if (!item || typeof item !== "object") return false;
+  var title = textValue(item.primaryText || item.title || item.name);
+  if (/\[explicit\]/i.test(title)) return true;
   var tags = findFirst(item, "tags", 0);
   if (tags && Object.prototype.toString.call(tags) === "[object Array]") {
     for (var i = 0; i < tags.length; i++) {
@@ -1052,20 +1039,78 @@ function extractDeeplinkType(deeplink) {
 
 function fixImageUrl(url, size) {
   if (!url) return "";
-  if (!size) size = CONFIG.coverImageSize;
-  // Remove Amazon image sizing params and set to desired size
+  // Amazon's unsized CDN URL serves the source asset. Adding _SL1000_ caps
+  // masters that Amazon exposes at 1400-1800px (and sometimes larger).
   var cleaned = url.replace(/\._[^.]+_\./, ".");
-  if (cleaned.indexOf("images/I/") >= 0 || cleaned.indexOf("images/S/") >= 0) {
-    // Add sizing if not present
-    var ext = cleaned.substring(cleaned.lastIndexOf("."));
-    var base = cleaned.substring(0, cleaned.lastIndexOf("."));
-    return base + "._SL" + size + "_" + ext;
-  }
   return cleaned;
 }
 
 function ensureHighResCoverUrl(url) {
-  return fixImageUrl(url, CONFIG.coverImageSize);
+  return fixImageUrl(url);
+}
+
+function normalizeAmazonDate(value) {
+  var text = String(value || "").trim();
+  if (!text) return "";
+  var match = text.match(/(\d{4})-(\d{2})-(\d{2})/);
+  return match ? match[1] + "-" + match[2] + "-" + match[3] : text;
+}
+
+function amazonAlbumURL(albumId) {
+  var id = normalizeASIN(String(albumId || "")) || String(albumId || "").trim();
+  return id
+    ? ((_currentContext && _currentContext.musicBaseURL) ||
+        CONFIG.musicBaseURL) +
+        "/albums/" +
+        id
+    : "";
+}
+
+function amazonTrackURL(trackId) {
+  var id = normalizeASIN(String(trackId || "")) || String(trackId || "").trim();
+  return id
+    ? ((_currentContext && _currentContext.musicBaseURL) ||
+        CONFIG.musicBaseURL) +
+        "/tracks/" +
+        id
+    : "";
+}
+
+function amazonArtistURL(artistId) {
+  var id =
+    normalizeASIN(String(artistId || "")) || String(artistId || "").trim();
+  return id
+    ? ((_currentContext && _currentContext.musicBaseURL) ||
+        CONFIG.musicBaseURL) +
+        "/artists/" +
+        id
+    : "";
+}
+
+function amazonLabelFromCopyright(value) {
+  var text = String(value || "").trim();
+  if (!text) return "";
+  var match = text.match(/(?:marketed|distributed)\s+by\s+(.+)$/i);
+  return match ? String(match[1] || "").trim() : "";
+}
+
+function schemaObjectId(value, resourceType) {
+  var text = String(value || "");
+  var match = text.match(new RegExp("/" + resourceType + "/([^/?#]+)", "i"));
+  return match ? normalizeASIN(match[1]) || match[1] : "";
+}
+
+function schemaTrackForID(albumSchema, trackId) {
+  var tracks = albumSchema && albumSchema.track;
+  if (!tracks || Object.prototype.toString.call(tracks) !== "[object Array]")
+    return null;
+  var expected = String(trackId || "").toUpperCase();
+  for (var i = 0; i < tracks.length; i++) {
+    var item = tracks[i] || {};
+    var id = schemaObjectId(item["@id"] || item.url, "tracks");
+    if (id && (!expected || String(id).toUpperCase() === expected)) return item;
+  }
+  return null;
 }
 
 function parseDurationISO(iso) {
@@ -1177,6 +1222,11 @@ function parseDescriptiveRows(data) {
       trackId = deeplinkInfo ? deeplinkInfo.id || "" : "";
       albumId = deeplinkInfo ? deeplinkInfo.albumId || "" : "";
     }
+    if (row.primaryLink && row.primaryLink.deeplink) {
+      var primaryLinkInfo = extractAmazonDeeplinkInfo(row.primaryLink.deeplink);
+      if (!trackId && primaryLinkInfo) trackId = primaryLinkInfo.id || "";
+      if (!albumId && primaryLinkInfo) albumId = primaryLinkInfo.albumId || "";
+    }
 
     if (row.secondaryText3) {
       duration = parseDurationMMSS(row.secondaryText3);
@@ -1210,6 +1260,7 @@ function parseDescriptiveRows(data) {
         deeplink: deeplink,
         track_number: i + 1,
         album_id: albumId,
+        external_url: amazonTrackURL(trackId),
         explicit: amazonItemIsExplicit(row),
       });
     }
@@ -1275,6 +1326,7 @@ function parseVisualRows(data) {
         deeplink: deeplink,
         track_number: i + 1,
         album_id: albumId,
+        external_url: amazonTrackURL(trackId),
         explicit: amazonItemIsExplicit(row),
       });
     }
@@ -1290,9 +1342,17 @@ function parseAlbumFromResponse(data, responseStr, albumId) {
     title: "",
     artist: "",
     artist_id: "",
+    artist_url: "",
     cover_art: "",
+    header_image: "",
     year: "",
+    release_date: "",
+    album_url: amazonAlbumURL(albumId),
+    copyright: "",
+    label: "",
+    explicit: false,
     track_count: 0,
+    total_discs: 1,
     tracks: [],
     type: "album",
   };
@@ -1302,12 +1362,29 @@ function parseAlbumFromResponse(data, responseStr, albumId) {
     var schema = extractSchemaOrg(responseStr, "MusicAlbum");
     if (schema) {
       result.title = schema.name || "";
+      result.explicit = /\[explicit\]/i.test(result.title);
+      result.release_date = normalizeAmazonDate(schema.datePublished || "");
+      result.year = result.release_date || "";
+      result.track_count = Number(schema.numTracks || 0);
+      result.album_url = String(
+        schema.url || schema["@id"] || result.album_url,
+      );
       if (schema.byArtist) {
         result.artist = schema.byArtist.name || "";
+        result.artist_url = String(
+          schema.byArtist.url || schema.byArtist["@id"] || "",
+        );
         if (schema.byArtist["@id"]) {
           var artistUrl = schema.byArtist["@id"];
           var aMatch = artistUrl.match(/\/artists\/([^\/]+)/);
           if (aMatch) result.artist_id = aMatch[1];
+        }
+      }
+      var schemaTracks = schema.track || [];
+      for (var st = 0; st < schemaTracks.length; st++) {
+        if (schemaTracks[st] && schemaTracks[st].isFamilyFriendly === false) {
+          result.explicit = true;
+          break;
         }
       }
     }
@@ -1398,21 +1475,33 @@ function parseAlbumFromResponse(data, responseStr, albumId) {
           result.artist = sanitizeDisplayText(secondaryText);
         }
 
+        var headerImage = findFirst(method, "headerImage", 0);
+        if (
+          headerImage &&
+          typeof headerImage === "string" &&
+          headerImage.indexOf("images/I/") >= 0
+        ) {
+          result.cover_art = ensureHighResCoverUrl(headerImage);
+        }
         var bgImage = findFirst(method, "backgroundImage", 0);
         if (
           bgImage &&
           typeof bgImage === "string" &&
           bgImage.indexOf("images/I/") >= 0
         ) {
-          result.cover_art = ensureHighResCoverUrl(bgImage);
+          result.header_image = ensureHighResCoverUrl(bgImage);
+          if (!result.cover_art) result.cover_art = result.header_image;
         }
       }
 
-      // Find year from copyright/phonogram text
-      var copyrightText = findFirst(method, "copyright", 0);
+      // The album detail template exposes the complete rights line as footer.
+      var copyrightText =
+        findFirst(method, "footer", 0) || findFirst(method, "copyright", 0);
       if (copyrightText && typeof copyrightText === "string") {
+        result.copyright = String(copyrightText).trim();
+        result.label = amazonLabelFromCopyright(result.copyright);
         var yearMatch = copyrightText.match(/(\d{4})/);
-        if (yearMatch) result.year = yearMatch[1];
+        if (yearMatch && !result.year) result.year = yearMatch[1];
       }
     }
   }
@@ -1420,10 +1509,33 @@ function parseAlbumFromResponse(data, responseStr, albumId) {
   // Parse track rows
   if (data) {
     result.tracks = parseDescriptiveRows(data);
-    result.track_count = result.tracks.length;
+    if (!result.track_count) result.track_count = result.tracks.length;
+    var albumSchema = responseStr
+      ? extractSchemaOrg(responseStr, "MusicAlbum")
+      : null;
 
     // Set cover art and artist on tracks
     for (var t = 0; t < result.tracks.length; t++) {
+      var schemaTrack = schemaTrackForID(albumSchema, result.tracks[t].id);
+      if (schemaTrack) {
+        if (schemaTrack.name) result.tracks[t].title = schemaTrack.name;
+        if (schemaTrack.position)
+          result.tracks[t].track_number = Number(schemaTrack.position);
+        if (schemaTrack.duration) {
+          result.tracks[t].duration = parseDurationISO(schemaTrack.duration);
+          result.tracks[t].duration_ms = result.tracks[t].duration * 1000;
+        }
+        result.tracks[t].external_url = String(
+          schemaTrack.url ||
+            schemaTrack["@id"] ||
+            result.tracks[t].external_url ||
+            "",
+        );
+        if (typeof schemaTrack.isFamilyFriendly === "boolean") {
+          result.tracks[t].explicit =
+            result.tracks[t].explicit || !schemaTrack.isFamilyFriendly;
+        }
+      }
       if (!result.tracks[t].cover_art && result.cover_art) {
         result.tracks[t].cover_art = result.cover_art;
       }
@@ -1432,6 +1544,18 @@ function parseAlbumFromResponse(data, responseStr, albumId) {
       }
       result.tracks[t].album = result.title;
       result.tracks[t].album_id = albumId;
+      result.tracks[t].album_artist = result.artist;
+      result.tracks[t].artist_id = result.artist_id;
+      result.tracks[t].artist_url =
+        result.artist_url || amazonArtistURL(result.artist_id);
+      result.tracks[t].album_url = result.album_url || amazonAlbumURL(albumId);
+      result.tracks[t].release_date = result.release_date || result.year;
+      result.tracks[t].total_tracks = result.track_count;
+      result.tracks[t].disc_number = 1;
+      result.tracks[t].total_discs = result.total_discs;
+      result.tracks[t].copyright = result.copyright;
+      result.tracks[t].label = result.label;
+      if (result.tracks[t].explicit) result.explicit = true;
     }
   }
 
@@ -1446,9 +1570,22 @@ function parseTrackFromResponse(data, responseStr, trackId) {
     title: "",
     artist: "",
     artist_id: "",
+    artist_url: "",
     album: "",
+    album_artist: "",
     album_id: "",
+    album_url: "",
     cover_art: "",
+    release_date: "",
+    total_tracks: 0,
+    disc_number: 1,
+    total_discs: 1,
+    copyright: "",
+    label: "",
+    composer: "",
+    isrc: "",
+    explicit: false,
+    external_url: amazonTrackURL(trackId),
     duration: 0,
     duration_ms: 0,
     track_number: 0,
@@ -1456,28 +1593,59 @@ function parseTrackFromResponse(data, responseStr, trackId) {
   };
 
   if (responseStr) {
-    var schema = extractSchemaOrg(responseStr, "MusicRecording");
+    var albumSchema = extractSchemaOrg(responseStr, "MusicAlbum");
+    var schema = schemaTrackForID(albumSchema, trackId);
+    if (!schema) {
+      var directSchema = extractSchemaOrg(responseStr, "MusicRecording");
+      if (directSchema && directSchema["@type"] === "MusicRecording")
+        schema = directSchema;
+    }
     if (schema) {
       result.title = schema.name || "";
+      result.explicit = /\[explicit\]/i.test(result.title);
       if (schema.duration) {
         result.duration = parseDurationISO(schema.duration);
         result.duration_ms = result.duration * 1000;
       }
       if (schema.position) result.track_number = schema.position;
+      result.external_url = String(
+        schema.url || schema["@id"] || result.external_url,
+      );
+      if (typeof schema.isFamilyFriendly === "boolean")
+        result.explicit = !schema.isFamilyFriendly;
       if (schema.byArtist) {
         result.artist = schema.byArtist.name || "";
+        result.artist_id = schemaObjectId(
+          schema.byArtist["@id"] || schema.byArtist.url,
+          "artists",
+        );
+        result.artist_url = String(
+          schema.byArtist.url || schema.byArtist["@id"] || "",
+        );
       }
     }
 
-    var albumSchema = extractSchemaOrg(responseStr, "MusicAlbum");
     if (albumSchema) {
       result.album = albumSchema.name || "";
+      result.album_url = String(albumSchema.url || albumSchema["@id"] || "");
+      result.release_date = normalizeAmazonDate(
+        albumSchema.datePublished || "",
+      );
+      result.total_tracks = Number(albumSchema.numTracks || 0);
       if (albumSchema["@id"]) {
         var albumMatch = albumSchema["@id"].match(/\/albums\/([^\/]+)/);
         if (albumMatch) result.album_id = albumMatch[1];
       }
       if (albumSchema.byArtist && albumSchema.byArtist.name) {
         result.artist = albumSchema.byArtist.name;
+        result.album_artist = albumSchema.byArtist.name;
+        result.artist_id = schemaObjectId(
+          albumSchema.byArtist["@id"] || albumSchema.byArtist.url,
+          "artists",
+        );
+        result.artist_url = String(
+          albumSchema.byArtist.url || albumSchema.byArtist["@id"] || "",
+        );
       }
     }
   }
@@ -1506,14 +1674,29 @@ function parseTrackFromResponse(data, responseStr, trackId) {
           }
         }
 
+        var headerImage = findFirst(method, "headerImage", 0);
+        if (
+          headerImage &&
+          typeof headerImage === "string" &&
+          headerImage.indexOf("images/I/") >= 0
+        ) {
+          result.cover_art = ensureHighResCoverUrl(headerImage);
+        }
         var bgImage = findFirst(method, "backgroundImage", 0);
         if (
           bgImage &&
           typeof bgImage === "string" &&
           bgImage.indexOf("images/I/") >= 0
         ) {
-          result.cover_art = ensureHighResCoverUrl(bgImage);
+          if (!result.cover_art)
+            result.cover_art = ensureHighResCoverUrl(bgImage);
         }
+      }
+      var copyrightText =
+        findFirst(method, "footer", 0) || findFirst(method, "copyright", 0);
+      if (copyrightText && typeof copyrightText === "string") {
+        result.copyright = String(copyrightText).trim();
+        result.label = amazonLabelFromCopyright(result.copyright);
       }
     }
   }
@@ -1535,6 +1718,9 @@ function parseTrackFromResponse(data, responseStr, trackId) {
         result.track_number = allTracks[j].track_number;
         if (!result.album_id && allTracks[j].album_id)
           result.album_id = allTracks[j].album_id;
+        result.explicit = !!allTracks[j].explicit;
+        if (allTracks[j].external_url)
+          result.external_url = allTracks[j].external_url;
         matched = true;
         break;
       }
@@ -1555,12 +1741,134 @@ function parseTrackFromResponse(data, responseStr, trackId) {
           result.track_number = allTracks[k].track_number;
           if (!result.album_id && allTracks[k].album_id)
             result.album_id = allTracks[k].album_id;
+          result.explicit = !!allTracks[k].explicit;
+          if (allTracks[k].external_url)
+            result.external_url = allTracks[k].external_url;
           break;
         }
       }
     }
   }
 
+  if (!result.album_url && result.album_id)
+    result.album_url = amazonAlbumURL(result.album_id);
+  if (!result.artist_url && result.artist_id)
+    result.artist_url = amazonArtistURL(result.artist_id);
+
+  return result;
+}
+
+function formatAmazonTrackMetadata(track, album, fallbackTrackNumber) {
+  track = track || {};
+  album = album || {};
+  var albumId = track.album_id || album.id || "";
+  var artistId = track.artist_id || album.artist_id || "";
+  var albumURL = track.album_url || album.album_url || amazonAlbumURL(albumId);
+  var trackURL = track.external_url || amazonTrackURL(track.id);
+  var totalTracks = Number(
+    track.total_tracks || album.track_count || album.total_tracks || 0,
+  );
+  var totalDiscs = Number(
+    track.total_discs || album.total_discs || (albumId ? 1 : 0),
+  );
+  return {
+    id: track.id || "",
+    name: track.name || track.title || "",
+    artists: track.artists || track.artist || album.artist || "",
+    album_name: track.album_name || track.album || album.title || "",
+    album_artist: track.album_artist || album.artist || "",
+    artist_id: artistId,
+    artist_url:
+      track.artist_url || album.artist_url || amazonArtistURL(artistId),
+    album_id: albumId,
+    album_url: albumURL,
+    duration_ms: Number(
+      track.duration_ms || (track.duration ? track.duration * 1000 : 0),
+    ),
+    cover_url: ensureHighResCoverUrl(
+      track.cover_url || track.cover_art || album.cover_art || "",
+    ),
+    release_date: normalizeAmazonDate(
+      track.release_date || album.release_date || album.year || "",
+    ),
+    track_number: Number(track.track_number || fallbackTrackNumber || 0),
+    total_tracks: totalTracks,
+    disc_number: Number(track.disc_number || (albumId ? 1 : 0)),
+    total_discs: totalDiscs,
+    isrc: String(track.isrc || ""),
+    genre: String(track.genre || album.genre || ""),
+    label: String(track.label || album.label || ""),
+    copyright: String(track.copyright || album.copyright || ""),
+    composer: String(track.composer || ""),
+    comment: albumURL,
+    explicit: track.explicit === true,
+    external_urls: trackURL,
+    external_links: {
+      amazon_track: trackURL,
+      amazon_album: albumURL,
+    },
+    spotify_id: String(track.spotify_id || ""),
+    deezer_id: String(track.deezer_id || ""),
+    provider_id: "amazon",
+    item_type: "track",
+    album_type: String(track.album_type || album.type || "album"),
+    audio_quality: String(track.audio_quality || ""),
+    audio_modes: String(track.audio_modes || ""),
+  };
+}
+
+function formatAmazonAlbumMetadata(album) {
+  album = album || {};
+  var albumURL = album.album_url || amazonAlbumURL(album.id);
+  return {
+    success: true,
+    id: album.id || "",
+    name: album.title || "",
+    artists: album.artist || "",
+    album_artist: album.artist || "",
+    artist_id: album.artist_id || "",
+    artist_url: album.artist_url || amazonArtistURL(album.artist_id),
+    cover_url: ensureHighResCoverUrl(album.cover_art || ""),
+    header_image: ensureHighResCoverUrl(
+      album.header_image || album.cover_art || "",
+    ),
+    release_date: normalizeAmazonDate(album.release_date || album.year || ""),
+    total_tracks: Number(album.track_count || album.total_tracks || 0),
+    total_discs: Number(album.total_discs || 1),
+    album_type: album.type || "album",
+    album_url: albumURL,
+    external_urls: albumURL,
+    label: String(album.label || ""),
+    copyright: String(album.copyright || ""),
+    comment: albumURL,
+    explicit: album.explicit === true,
+    provider_id: "amazon",
+    item_type: "album",
+    tracks: [],
+  };
+}
+
+function applyAmazonTrackToDownloadResult(result, track) {
+  result = result || {};
+  track = track || {};
+  if (track.name) result.title = track.name;
+  if (track.artists) result.artist = track.artists;
+  if (track.album_name) result.album = track.album_name;
+  if (track.album_artist) result.album_artist = track.album_artist;
+  if (track.track_number) result.track_number = Number(track.track_number);
+  if (track.total_tracks) result.total_tracks = Number(track.total_tracks);
+  if (track.disc_number) result.disc_number = Number(track.disc_number);
+  if (track.total_discs) result.total_discs = Number(track.total_discs);
+  if (track.isrc) result.isrc = track.isrc;
+  if (track.genre) result.genre = track.genre;
+  if (track.label) result.label = track.label;
+  if (track.copyright) result.copyright = track.copyright;
+  if (track.composer) result.composer = track.composer;
+  if (track.release_date) result.release_date = track.release_date;
+  if (track.cover_url) result.cover_url = track.cover_url;
+  if (track.comment || track.album_url)
+    result.comment = track.comment || track.album_url;
+  result.explicit = track.explicit === true;
   return result;
 }
 
@@ -2254,12 +2562,15 @@ function handleTrackUrl(parsed) {
     );
     return {
       type: "track",
-      track: {
-        id: trackId,
-        name: "Amazon Track " + trackId,
-        artists: "",
-        duration_ms: 0,
-      },
+      track: formatAmazonTrackMetadata(
+        {
+          id: trackId,
+          title: "Amazon Track " + trackId,
+          duration_ms: 0,
+        },
+        null,
+        0,
+      ),
     };
   }
 
@@ -2272,17 +2583,17 @@ function handleTrackUrl(parsed) {
   L("info", "[Amazon] handleTrackUrl parsed:", trackInfo.title);
   return {
     type: "track",
-    track: {
-      id: trackId,
-      name: trackInfo.title || "Unknown Track",
-      artists: trackInfo.artist || "",
-      album_name: trackInfo.album || "",
-      duration_ms: trackInfo.duration_ms || 0,
-      cover_url: ensureHighResCoverUrl(trackInfo.cover_art || ""),
-      track_number: trackInfo.track_number || 0,
-      isrc: "",
-    },
+    track: formatAmazonTrackMetadata(trackInfo, null, 0),
   };
+}
+
+function getTrack(trackId) {
+  var parsed = {
+    id: normalizeASIN(String(trackId || "")) || String(trackId || "").trim(),
+    context: getResourceContext("track", trackId, null),
+  };
+  var handled = handleTrackUrl(parsed);
+  return handled && handled.track ? handled.track : null;
 }
 
 function handleAlbumUrl(albumId) {
@@ -2315,38 +2626,18 @@ function handleAlbumUrl(albumId) {
 
   var tracks = [];
   for (var i = 0; i < album.tracks.length; i++) {
-    var t = album.tracks[i];
-    tracks.push({
-      id: t.id,
-      name: t.title || "",
-      artists: t.artist || album.artist || "",
-      album_name: album.title || "",
-      album_artist: album.artist || "",
-      duration_ms: t.duration_ms || 0,
-      cover_url: ensureHighResCoverUrl(t.cover_art || album.cover_art || ""),
-      track_number: t.track_number || i + 1,
-      disc_number: 1,
-      isrc: "",
-      explicit: !!t.explicit,
-    });
+    tracks.push(formatAmazonTrackMetadata(album.tracks[i], album, i + 1));
   }
+
+  var formattedAlbum = formatAmazonAlbumMetadata(album);
+  formattedAlbum.tracks = tracks;
 
   return {
     type: "album",
-    album: {
-      id: albumId,
-      name: album.title || "",
-      artists: album.artist || "",
-      artist_id: album.artist_id || "",
-      cover_url: ensureHighResCoverUrl(album.cover_art || ""),
-      release_date: album.year || "",
-      total_tracks: tracks.length,
-      album_type: album.type || "album",
-      tracks: tracks,
-    },
+    album: formattedAlbum,
     tracks: tracks,
-    name: album.title || "",
-    cover_url: ensureHighResCoverUrl(album.cover_art || ""),
+    name: formattedAlbum.name,
+    cover_url: formattedAlbum.cover_url,
   };
 }
 
@@ -2443,6 +2734,9 @@ function handleArtistUrl(artistId) {
       album_type: a.album_type || a.type || "album",
       total_tracks: a.total_tracks || 0,
       release_date: a.release_date || "",
+      album_url: amazonAlbumURL(a.id),
+      external_urls: amazonAlbumURL(a.id),
+      comment: amazonAlbumURL(a.id),
       provider_id: "amazon",
     });
   }
@@ -2458,6 +2752,9 @@ function handleArtistUrl(artistId) {
       album_type: rel.album_type || rel.type || "album",
       total_tracks: rel.total_tracks || 0,
       release_date: rel.release_date || "",
+      album_url: amazonAlbumURL(rel.id),
+      external_urls: amazonAlbumURL(rel.id),
+      comment: amazonAlbumURL(rel.id),
       provider_id: "amazon",
     });
   }
@@ -2465,19 +2762,20 @@ function handleArtistUrl(artistId) {
   var topTracks = [];
   for (var j = 0; j < artist.top_tracks.length; j++) {
     var t = artist.top_tracks[j];
-    topTracks.push({
-      id: t.id,
-      name: t.name || t.title || "",
-      artists: t.artists || t.artist || artist.name || "",
-      album_name: t.album_name || "",
-      album_id: t.album_id || "",
-      duration_ms: t.duration_ms || 0,
-      cover_url: t.cover_url || t.cover_art || "",
-      track_number: 0,
-      isrc: "",
-      artist_id: t.artist_id || artist.id || artistId,
-      provider_id: "amazon",
-    });
+    t.artist = t.artists || t.artist || artist.name || "";
+    t.artist_id = t.artist_id || artist.id || artistId;
+    topTracks.push(
+      formatAmazonTrackMetadata(
+        t,
+        {
+          id: t.album_id || "",
+          title: t.album_name || "",
+          artist: artist.name || "",
+          artist_id: artist.id || artistId,
+        },
+        t.track_number || 0,
+      ),
+    );
   }
 
   return {
@@ -2535,17 +2833,17 @@ function handlePlaylistUrl(playlistId) {
   var tracks = [];
   for (var i = 0; i < playlist.tracks.length; i++) {
     var t = playlist.tracks[i];
-    tracks.push({
-      id: t.id,
-      name: t.title || "",
-      artists: t.artist || "",
-      album_name: t.album || "",
-      duration_ms: t.duration_ms || 0,
-      cover_url: t.cover_art || playlist.cover_art || "",
-      track_number: i + 1,
-      isrc: "",
-      explicit: !!t.explicit,
-    });
+    if (!t.cover_art) t.cover_art = playlist.cover_art || "";
+    tracks.push(
+      formatAmazonTrackMetadata(
+        t,
+        {
+          id: t.album_id || "",
+          title: t.album || "",
+        },
+        t.track_number || 0,
+      ),
+    );
   }
 
   return {
@@ -2581,34 +2879,11 @@ function getAlbum(albumId) {
 
   var tracks = [];
   for (var i = 0; i < album.tracks.length; i++) {
-    var t = album.tracks[i];
-    tracks.push({
-      id: t.id,
-      name: t.title || "",
-      artists: t.artist || album.artist || "",
-      album_name: album.title || "",
-      album_artist: album.artist || "",
-      duration_ms: t.duration_ms || 0,
-      cover_url: t.cover_art || album.cover_art || "",
-      track_number: t.track_number || i + 1,
-      disc_number: 1,
-      isrc: "",
-      explicit: !!t.explicit,
-    });
+    tracks.push(formatAmazonTrackMetadata(album.tracks[i], album, i + 1));
   }
 
-  var result = {
-    success: true,
-    id: album.id,
-    name: album.title || "",
-    artists: album.artist || "",
-    artist_id: album.artist_id || "",
-    cover_url: album.cover_art || "",
-    release_date: album.year || "",
-    total_tracks: tracks.length,
-    album_type: album.type || "album",
-    tracks: tracks,
-  };
+  var result = formatAmazonAlbumMetadata(album);
+  result.tracks = tracks;
 
   L(
     "info",
@@ -2700,6 +2975,9 @@ function getArtist(artistId) {
       album_type: a.album_type || a.type || "album",
       total_tracks: a.total_tracks || 0,
       release_date: a.release_date || "",
+      album_url: amazonAlbumURL(a.id),
+      external_urls: amazonAlbumURL(a.id),
+      comment: amazonAlbumURL(a.id),
       provider_id: "amazon",
     });
   }
@@ -2715,6 +2993,9 @@ function getArtist(artistId) {
       album_type: rel.album_type || rel.type || "album",
       total_tracks: rel.total_tracks || 0,
       release_date: rel.release_date || "",
+      album_url: amazonAlbumURL(rel.id),
+      external_urls: amazonAlbumURL(rel.id),
+      comment: amazonAlbumURL(rel.id),
       provider_id: "amazon",
     });
   }
@@ -2722,19 +3003,20 @@ function getArtist(artistId) {
   var topTracks = [];
   for (var j = 0; j < artist.top_tracks.length; j++) {
     var t = artist.top_tracks[j];
-    topTracks.push({
-      id: t.id,
-      name: t.name || t.title || "",
-      artists: t.artists || t.artist || artist.name || "",
-      album_name: t.album_name || "",
-      album_id: t.album_id || "",
-      duration_ms: t.duration_ms || 0,
-      cover_url: t.cover_url || t.cover_art || "",
-      track_number: 0,
-      isrc: "",
-      artist_id: t.artist_id || artist.id || artistId,
-      provider_id: "amazon",
-    });
+    t.artist = t.artists || t.artist || artist.name || "";
+    t.artist_id = t.artist_id || artist.id || artistId;
+    topTracks.push(
+      formatAmazonTrackMetadata(
+        t,
+        {
+          id: t.album_id || "",
+          title: t.album_name || "",
+          artist: artist.name || "",
+          artist_id: artist.id || artistId,
+        },
+        t.track_number || 0,
+      ),
+    );
   }
 
   var result = {
@@ -2799,17 +3081,17 @@ function getPlaylist(playlistId) {
   var tracks = [];
   for (var i = 0; i < playlist.tracks.length; i++) {
     var t = playlist.tracks[i];
-    tracks.push({
-      id: t.id,
-      name: t.title || "",
-      artists: t.artist || "",
-      album_name: t.album || "",
-      duration_ms: t.duration_ms || 0,
-      cover_url: t.cover_art || playlist.cover_art || "",
-      track_number: i + 1,
-      isrc: "",
-      explicit: !!t.explicit,
-    });
+    if (!t.cover_art) t.cover_art = playlist.cover_art || "";
+    tracks.push(
+      formatAmazonTrackMetadata(
+        t,
+        {
+          id: t.album_id || "",
+          title: t.album || "",
+        },
+        t.track_number || 0,
+      ),
+    );
   }
 
   var result = {
@@ -2840,15 +3122,11 @@ function parseSearchResults(data, filter) {
   var results = [];
   if (!data || !data.methods) return results;
 
-  // Determine which widget types to look for based on filter.
-  // Dart sends singular forms (track/album/artist/playlist); Amazon
-  // manifest uses "songs" for tracks. Accept both singular and plural.
-  var wantTracks =
-    !filter || filter === "songs" || filter === "track" || filter === "tracks";
-  var wantAlbums = !filter || filter === "album" || filter === "albums";
-  var wantArtists = !filter || filter === "artist" || filter === "artists";
-  var wantPlaylists =
-    !filter || filter === "playlist" || filter === "playlists";
+  // Determine which widget types to look for based on filter
+  var wantTracks = !filter || filter === "songs";
+  var wantAlbums = !filter || filter === "albums";
+  var wantArtists = !filter || filter === "artists";
+  var wantPlaylists = !filter || filter === "playlists";
 
   // Find all VisualShovelerWidgetElement - they contain categorized results
   var shovelers = findAllByInterface(
@@ -2931,6 +3209,12 @@ function parseSearchResults(data, filter) {
         var trackInfo = extractAmazonDeeplinkInfo(trackDeeplink);
         var tId = trackInfo ? trackInfo.id : null;
         if (trackInfo) trackAlbumId = trackInfo.albumId || "";
+        if (!trackAlbumId && item.primaryLink && item.primaryLink.deeplink) {
+          var albumLinkInfo = extractAmazonDeeplinkInfo(
+            item.primaryLink.deeplink,
+          );
+          if (albumLinkInfo) trackAlbumId = albumLinkInfo.albumId || "";
+        }
         if (trackName && tId && trackInfo && trackInfo.type === "track") {
           results.push({
             item_type: "track",
@@ -2940,6 +3224,10 @@ function parseSearchResults(data, filter) {
             duration_ms: trackDuration * 1000,
             cover_url: trackImage,
             album_id: trackAlbumId,
+            album_url: amazonAlbumURL(trackAlbumId),
+            comment: amazonAlbumURL(trackAlbumId),
+            external_urls: amazonTrackURL(tId),
+            provider_id: "amazon",
             explicit: amazonItemIsExplicit(item),
           });
           rememberResourceContext("track", tId, _currentContext);
@@ -2973,6 +3261,10 @@ function parseSearchResults(data, filter) {
               name: albumTitle,
               artists: albumArtist,
               cover_url: albumImage,
+              album_url: amazonAlbumURL(aId),
+              external_urls: amazonAlbumURL(aId),
+              comment: amazonAlbumURL(aId),
+              provider_id: "amazon",
             });
             rememberResourceContext("album", aId, _currentContext);
           }
@@ -3002,6 +3294,9 @@ function parseSearchResults(data, filter) {
               name: artistName,
               artists: artistName,
               cover_url: artistImage,
+              artist_url: amazonArtistURL(arId),
+              external_urls: amazonArtistURL(arId),
+              provider_id: "amazon",
             });
             rememberResourceContext("artist", arId, _currentContext);
             rememberResourceHint("artist", arId, {
@@ -3030,6 +3325,12 @@ function parseSearchResults(data, filter) {
               id: plId,
               name: plTitle,
               cover_url: plImage,
+              external_urls:
+                ((_currentContext && _currentContext.musicBaseURL) ||
+                  CONFIG.musicBaseURL) +
+                "/playlists/" +
+                plId,
+              provider_id: "amazon",
             });
             rememberResourceContext("playlist", plId, _currentContext);
             rememberResourceHint("playlist", plId, {
@@ -3093,6 +3394,10 @@ function parseSearchResults(data, filter) {
               duration_ms: tDur * 1000,
               cover_url: tImg,
               album_id: tInfo ? tInfo.albumId || "" : "",
+              album_url: amazonAlbumURL(tInfo ? tInfo.albumId || "" : ""),
+              comment: amazonAlbumURL(tInfo ? tInfo.albumId || "" : ""),
+              external_urls: amazonTrackURL(tTrackId),
+              provider_id: "amazon",
               explicit: amazonItemIsExplicit(tItem),
             });
             rememberResourceContext("track", tTrackId, _currentContext);
@@ -3113,7 +3418,13 @@ function customSearchSync(query, options) {
   if (options && options.filter) filter = options.filter;
   if (options && options.context) context = options.context;
 
-  var cacheKey = "search_" + query + "_" + (filter || "all");
+  var cacheRegion = String(
+    (context && (context.host || context.musicTerritory)) ||
+      CONFIG.musicTerritory ||
+      "US",
+  ).toLowerCase();
+  var cacheKey =
+    "search_" + cacheRegion + "_" + query + "_" + (filter || "all");
   var cached = cacheGet(cacheKey);
   if (cached) return cached;
 
@@ -3149,77 +3460,60 @@ function enrichTrack(trackInfo) {
   var cached = cacheGet(cacheKey);
   if (cached) return cached;
 
-  // Prefer Go JSON tag names (name, artists, album_name, cover_url) first,
-  // then fall back to internal parser names (title, artist, album, cover_art)
-  var enriched = {
-    id: trackInfo.id,
-    name: trackInfo.name || trackInfo.title || "",
-    artists: trackInfo.artists || trackInfo.artist || "",
-    album_name: trackInfo.album_name || trackInfo.album || "",
-    duration_ms: trackInfo.duration_ms || 0,
-    track_number: trackInfo.track_number || 0,
-    cover_url: ensureHighResCoverUrl(
-      trackInfo.cover_url || trackInfo.cover_art || "",
-    ),
-    isrc: trackInfo.isrc || "",
-    spotify_id: trackInfo.spotify_id || "",
-    deezer_id: trackInfo.deezer_id || "",
-  };
-
-  // SongLink lookup is optional best-effort for ISRC/cross-platform IDs
-  // It does NOT block downloading - ASIN is enough for AfkarXYZ
-  try {
-    var amazonUrl = CONFIG.musicBaseURL + "/tracks/" + trackId;
-    var songLinkData = callSongLink(
-      CONFIG.songlinkBaseURL +
-        "?url=" +
-        encodeURIComponent(amazonUrl) +
-        "&userCountry=US",
-    );
-
-    if (songLinkData) {
-      // Extract ISRC
-      if (songLinkData.entitiesByUniqueId) {
-        var entities = songLinkData.entitiesByUniqueId;
-        var entityKeys = Object.keys(entities);
-        for (var i = 0; i < entityKeys.length; i++) {
-          var entity = entities[entityKeys[i]];
-          if (entity && entity.isrc && !enriched.isrc) {
-            enriched.isrc = entity.isrc;
-          }
-        }
-      }
-
-      // Extract cross-platform IDs for metadata tagging
-      if (songLinkData.linksByPlatform) {
-        if (!enriched.spotify_id && songLinkData.linksByPlatform.spotify) {
-          var spotUrl = songLinkData.linksByPlatform.spotify.url;
-          if (spotUrl) {
-            var spotMatch = spotUrl.match(/track\/([a-zA-Z0-9]+)/);
-            if (spotMatch) enriched.spotify_id = spotMatch[1];
-          }
-        }
-        if (!enriched.deezer_id && songLinkData.linksByPlatform.deezer) {
-          var dzUrl = songLinkData.linksByPlatform.deezer.url;
-          if (dzUrl) {
-            var dzMatch = dzUrl.match(/track\/(\d+)/);
-            if (dzMatch) enriched.deezer_id = dzMatch[1];
-          }
-        }
-      }
-    }
-  } catch (e) {
-    // SongLink failure is not fatal - we still have ASIN for download
-    L("warn", "[Amazon] SongLink enrichment failed (non-fatal):", String(e));
+  var enriched = {};
+  var inputKeys = Object.keys(trackInfo);
+  for (var inputIndex = 0; inputIndex < inputKeys.length; inputIndex++) {
+    enriched[inputKeys[inputIndex]] = trackInfo[inputKeys[inputIndex]];
   }
 
-  L(
-    "info",
-    "[Amazon] Enriched track ISRC:",
-    enriched.isrc,
-    "spotify:",
-    enriched.spotify_id,
+  // Amazon track/album pages carry release identity that search rows omit.
+  if (ASIN_REGEX.test(String(trackId).toUpperCase())) {
+    try {
+      var fetched = getTrack(trackId);
+      if (fetched) {
+        var fetchedKeys = Object.keys(fetched);
+        for (
+          var fetchedIndex = 0;
+          fetchedIndex < fetchedKeys.length;
+          fetchedIndex++
+        ) {
+          var fetchedKey = fetchedKeys[fetchedIndex];
+          var fetchedValue = fetched[fetchedKey];
+          if (
+            fetchedValue !== null &&
+            fetchedValue !== undefined &&
+            fetchedValue !== "" &&
+            fetchedValue !== 0
+          ) {
+            enriched[fetchedKey] = fetchedValue;
+          }
+        }
+      }
+    } catch (e) {
+      L(
+        "warn",
+        "[Amazon] Direct track enrichment failed (non-fatal):",
+        String(e),
+      );
+    }
+  }
+
+  var formatted = formatAmazonTrackMetadata(
+    enriched,
+    null,
+    enriched.track_number || 0,
   );
+  var formattedKeys = Object.keys(formatted);
+  for (
+    var formattedIndex = 0;
+    formattedIndex < formattedKeys.length;
+    formattedIndex++
+  ) {
+    enriched[formattedKeys[formattedIndex]] =
+      formatted[formattedKeys[formattedIndex]];
+  }
+
+  L("info", "[Amazon] Enriched track from Amazon Web:", enriched.name);
   cacheSet(cacheKey, enriched);
   return enriched;
 }
@@ -3271,21 +3565,7 @@ function callZarzMoeResolve(spotifyID) {
 
 // ==================== SongLink Resolution ====================
 
-// Cache of ISRCs that returned 400 from SongLink (invalid/unrecognized by
-// the API). Avoids wasting a request on every re-download attempt.
-var songlink400Cache = {};
-
 function callSongLink(lookupURL) {
-  // Skip known-bad SongLink URLs (ISRC lookups that return 400)
-  if (lookupURL && lookupURL.indexOf("?isrc=") !== -1) {
-    var cachedISRC = decodeURIComponent(
-      lookupURL.split("?isrc=")[1].split("&")[0],
-    );
-    if (songlink400Cache[cachedISRC]) {
-      L("debug", "[Amazon] Skipping SongLink for cached-400 ISRC:", cachedISRC);
-      return null;
-    }
-  }
   var res;
   try {
     res = fetch(lookupURL, {
@@ -3297,28 +3577,8 @@ function callSongLink(lookupURL) {
     return null;
   }
   if (!res || !res.ok) {
-    // Cache 400 errors per ISRC to skip future lookups instantly.
-    if (
-      res &&
-      res.status === 400 &&
-      lookupURL &&
-      lookupURL.indexOf("?isrc=") !== -1
-    ) {
-      var failedISRC = decodeURIComponent(
-        lookupURL.split("?isrc=")[1].split("&")[0],
-      );
-      if (failedISRC) {
-        songlink400Cache[failedISRC] = true;
-        L(
-          "info",
-          "[Amazon] SongLink 400 cached for ISRC:",
-          failedISRC,
-          "(will skip SongLink on future calls)",
-        );
-      }
-    }
     L(
-      "debug",
+      "warn",
       "[Amazon] SongLink returned status:",
       res ? res.status : "no response",
     );
@@ -3493,19 +3753,6 @@ function extractAmazonFromJsonLD(obj) {
     for (var j = 0; j < obj.sameAs.length; j++) {
       var link = obj.sameAs[j];
       if (typeof link === "string" && link.indexOf("music.amazon.") !== -1) {
-        // Reject artist/playlist pages: the download API needs a TRACK (or
-        // album) ASIN, and the Songstats page's JSON-LD lists the artist's own
-        // Amazon page among sameAs. Picking it produced an artist ASIN (e.g.
-        // /artists/B000QJTKWE) that the /dl/ endpoint 404s on.
-        var lower = link.toLowerCase();
-        if (
-          lower.indexOf("/artists/") !== -1 ||
-          lower.indexOf("/artist/") !== -1 ||
-          lower.indexOf("/playlists/") !== -1 ||
-          lower.indexOf("/playlist/") !== -1
-        ) {
-          continue;
-        }
         return link;
       }
     }
@@ -3525,58 +3772,32 @@ function isLikelySpotifyId(id) {
   return typeof id === "string" && /^[A-Za-z0-9]{22}$/.test(id.trim());
 }
 
-function resolveAmazonURL(isrc, spotifyID, deezerID, tidalID, qobuzID) {
-  // Non-Spotify cross-provider ids first (Tidal/Qobuz/Deezer): tracks from
-  // THOSE feeds resolve here via a single SongLink lookup. The source
-  // provider's own id is the strongest signal (it came from that provider's
-  // catalog), so try them in source order, then Spotify, then ISRC.
-  var attempts = [];
-  if (tidalID) {
-    attempts.push({
-      label: "Tidal",
-      url: "https://tidal.com/track/" + tidalID,
-    });
-  }
-  if (qobuzID) {
-    attempts.push({
-      label: "Qobuz",
-      url: "https://play.qobuz.com/track/" + qobuzID,
-    });
-  }
+function resolveAmazonURL(isrc, spotifyID, deezerID) {
+  var country = String(
+    (_session && _session.musicTerritory) || CONFIG.musicTerritory || "US",
+  ).toUpperCase();
+  // Deezer first: the app resolves a Deezer ID from the ISRC reliably and
+  // SongLink maps it to Amazon without depending on the zarz.moe resolve
+  // endpoint, which can be slow or down and otherwise burns the whole timeout.
   if (deezerID) {
-    attempts.push({
-      label: "Deezer",
-      url: "https://www.deezer.com/track/" + deezerID,
-    });
-  }
-  for (var i = 0; i < attempts.length; i++) {
-    L(
-      "info",
-      "[Amazon] Resolving via " + attempts[i].label + " ID:",
-      attempts[i].url,
-    );
+    L("info", "[Amazon] Resolving via Deezer ID:", deezerID);
+    var deezerURL = "https://www.deezer.com/track/" + deezerID;
     var data = callSongLink(
       CONFIG.songlinkBaseURL +
         "?url=" +
-        encodeURIComponent(attempts[i].url) +
-        "&userCountry=US",
+        encodeURIComponent(deezerURL) +
+        "&userCountry=" +
+        encodeURIComponent(country),
     );
     var url = extractAmazonURLFromSongLink(data);
     if (url) {
-      L(
-        "info",
-        "[Amazon] Found Amazon URL via " + attempts[i].label + ":",
-        url,
-      );
+      L("info", "[Amazon] Found Amazon URL via Deezer:", url);
       return url;
     }
   }
-  // Spotify stays on its proven path: signed zarz.moe /resolve FIRST (fast,
-  // no rate-limit risk), then the SongLink page, then the SongLink API. Do
-  // NOT reorder this — it is the main Spotify-feed resolution route.
-  // Spotify only for genuine Spotify IDs. Metadata sourced from Apple Music
-  // and others can place a numeric foreign ID in this field, which produces
-  // an invalid Spotify URL and poisons every Spotify-based lookup.
+  // Spotify next, but only for genuine Spotify IDs. Metadata sourced from Apple
+  // Music and others can place a numeric foreign ID in this field, which
+  // produces an invalid Spotify URL and poisons every Spotify-based lookup.
   if (isLikelySpotifyId(spotifyID)) {
     L("info", "[Amazon] Resolving via Spotify ID:", spotifyID);
     var url = callZarzMoeResolve(spotifyID);
@@ -3594,7 +3815,8 @@ function resolveAmazonURL(isrc, spotifyID, deezerID, tidalID, qobuzID) {
       CONFIG.songlinkBaseURL +
         "?url=" +
         encodeURIComponent(spotifyURL) +
-        "&userCountry=US",
+        "&userCountry=" +
+        encodeURIComponent(country),
     );
     url = extractAmazonURLFromSongLink(data);
     if (url) {
@@ -3610,7 +3832,8 @@ function resolveAmazonURL(isrc, spotifyID, deezerID, tidalID, qobuzID) {
       CONFIG.songlinkBaseURL +
         "?isrc=" +
         encodeURIComponent(isrc) +
-        "&userCountry=US",
+        "&userCountry=" +
+        encodeURIComponent(country),
     );
     var url = extractAmazonURLFromSongLink(data);
     if (url) {
@@ -3618,8 +3841,8 @@ function resolveAmazonURL(isrc, spotifyID, deezerID, tidalID, qobuzID) {
       return url;
     }
     L(
-      "debug",
-      "[Amazon] SongLink ISRC lookup empty, trying Songstats for ISRC:",
+      "info",
+      "[Amazon] SongLink ISRC failed, trying Songstats for ISRC:",
       isrc,
     );
     url = callSongstatsForAmazon(isrc);
@@ -3753,15 +3976,17 @@ function callZarzMedia(asin, codec) {
   var coverUrl = "";
   if (data.cover) {
     coverUrl = data.cover
-      .replace("{size}", "1200")
-      .replace("{jpegQuality}", "94")
+      .replace("{size}", "3000")
+      .replace("{jpegQuality}", "100")
       .replace("{format}", "jpg");
+    coverUrl = ensureHighResCoverUrl(coverUrl);
   }
   return {
     streamUrl: data.audio.url,
     decryptionKey: (data.audio.key || "").trim(),
     codec: data.audio.codec || codec,
     sampleRate: data.audio.sampleRate || 0,
+    bitDepth: data.audio.bitDepth || data.audio.bitsPerSample || 0,
     meta: data.meta || null,
     coverUrl: coverUrl,
   };
@@ -4152,7 +4377,7 @@ function completeGrant() {
 
 registerExtension({
   initialize: function () {
-    L("info", "[Amazon] Extension v2.2.0 init");
+    L("info", "[Amazon] Extension v2.3.0 init");
     initSession();
     return true;
   },
@@ -4165,6 +4390,8 @@ registerExtension({
   // ---- Metadata Provider Functions ----
 
   handleUrl: handleUrl,
+
+  getTrack: getTrack,
 
   getAlbum: getAlbum,
 
@@ -4207,10 +4434,6 @@ registerExtension({
     L("info", "[Amazon] checkAvailability:", isrc, trackName, artistName);
     var spotifyID = options && options.spotify_id ? options.spotify_id : null;
     var deezerID = options && options.deezer_id ? options.deezer_id : null;
-    var tidalID = options && options.tidal_id ? options.tidal_id : null;
-    var qobuzID = options && options.qobuz_id ? options.qobuz_id : null;
-    var durationMS =
-      options && options.duration_ms ? Number(options.duration_ms) || 0 : 0;
 
     // Cek apakah spotifyID sebenarnya sudah ASIN (dari handleUrl/getAlbum)
     if (spotifyID && ASIN_REGEX.test(spotifyID)) {
@@ -4219,14 +4442,7 @@ registerExtension({
     }
 
     // Fallback: resolve ASIN via SongLink (untuk track dari sumber lain)
-    var amazonURL = resolveAmazonURL(
-      isrc,
-      spotifyID,
-      deezerID,
-      tidalID,
-      qobuzID,
-      durationMS,
-    );
+    var amazonURL = resolveAmazonURL(isrc, spotifyID, deezerID);
     if (!amazonURL) {
       return { available: false, reason: "not_found_on_amazon" };
     }
@@ -4257,6 +4473,17 @@ registerExtension({
         error_message: "Invalid track ID / ASIN: " + trackID,
         error_type: "invalid_input",
       };
+    }
+
+    var webMetadata = null;
+    try {
+      webMetadata = getTrack(asin);
+    } catch (metadataError) {
+      L(
+        "warn",
+        "[Amazon] Web metadata unavailable during download:",
+        String(metadataError),
+      );
     }
 
     var codec = qualityToCodec(quality);
@@ -4300,18 +4527,19 @@ registerExtension({
       };
     }
 
+    var actualCodec = normalizeAudioCodec(apiResult.codec || codec);
     var outputExt = "";
-    if (codec === "eac3" || codec === "ac4" || codec === "opus") {
+    if (actualCodec === "ac4") {
       outputExt = ".mp4";
-    } else if (codec === "flac") {
-      outputExt = ".flac";
+    } else if (actualCodec === "eac3" || actualCodec === "opus") {
+      outputExt = ".m4a";
     }
 
     L("info", "[Amazon] Got stream URL, downloading to:", outputPath);
     var actualOutputPath = outputPath;
-    if (apiResult.decryptionKey) {
+    if (outputExt || apiResult.decryptionKey) {
       actualOutputPath = outputPath.replace(/\.[^.]+$/, outputExt || ".m4a");
-      L("info", "[Amazon] Encrypted stream, saving as:", actualOutputPath);
+      L("info", "[Amazon] Stream container path:", actualOutputPath);
     }
 
     if (onProgress) {
@@ -4354,8 +4582,8 @@ registerExtension({
     if (apiResult.decryptionKey) {
       // Determine output extension based on codec:
       // - flac: decrypt to .flac (Dart default)
-      // - eac3/ac4: must use .mp4 (mp4/ipod muxer container constraints)
-      // - opus: must use .mp4 (opus in encrypted MP4 can't go into .flac)
+      // - opus/eac3: audio-only ISO-BMFF uses the conventional .m4a extension
+      // - ac4: keep .mp4 for AC-4 passthrough and container repair
       decryption = {
         strategy: "ffmpeg.mov_key",
         key: apiResult.decryptionKey,
@@ -4368,14 +4596,14 @@ registerExtension({
     var result = {
       success: true,
       file_path: downloadResult.path || actualOutputPath,
-      encrypted: apiResult.decryptionKey ? true : false,
       decryption: decryption,
       decryption_key: apiResult.decryptionKey || "",
       output_extension: outputExt,
-      audio_codec: normalizeAudioCodec(apiResult.codec || codec),
-      bit_depth: 0,
+      audio_codec: actualCodec,
+      bit_depth: Number(apiResult.bitDepth || 0),
       sample_rate: apiResult.sampleRate || 0,
     };
+    applyAmazonTrackToDownloadResult(result, webMetadata);
 
     // Overlay metadata from /media API for Go backend enrichment
     if (apiResult.meta) {
@@ -4392,10 +4620,26 @@ registerExtension({
       if (m.genre) result.genre = m.genre;
       if (m.label) result.label = m.label;
       if (m.copyright) result.copyright = m.copyright;
+      if (m.composer) result.composer = m.composer;
+      if (!result.composer && m.composers) {
+        result.composer = Array.isArray(m.composers)
+          ? m.composers.join(", ")
+          : String(m.composers);
+      }
       if (m.date) result.release_date = m.date;
+      if (!result.release_date && m.releaseDate)
+        result.release_date = m.releaseDate;
+      if (m.albumUrl) result.comment = m.albumUrl;
+      if (!result.comment && m.albumURL) result.comment = m.albumURL;
+      if (m.explicit === true || m.isExplicit === true) result.explicit = true;
     }
     if (apiResult.coverUrl) {
       result.cover_url = apiResult.coverUrl;
+    }
+    if (!result.comment && result.album) {
+      var cachedTrack = cacheGet("enrich_" + asin);
+      if (cachedTrack && cachedTrack.album_url)
+        result.comment = cachedTrack.album_url;
     }
 
     return result;

@@ -51,7 +51,15 @@ class _SearchPageState extends State<SearchPage> {
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getString(_prefKey);
     if (saved != null && saved.isNotEmpty && mounted) {
-      setState(() => _selectedSource = saved);
+      // If saved source is empty (legacy "Todas"), fall through to first extension
+      if (saved.isNotEmpty) {
+        setState(() => _selectedSource = saved);
+      } else {
+        final sources = _searchSources(bloc.state);
+        if (sources.isNotEmpty) {
+          if (mounted) setState(() => _selectedSource = sources.keys.first);
+        }
+      }
     } else {
       // First time: default to the first available source
       final sources = _searchSources(bloc.state);
@@ -90,10 +98,9 @@ class _SearchPageState extends State<SearchPage> {
   /// primary source (deezer — SpotiFLAC's defaultSearchExtension) is listed
   /// first, then the rest. Falls back to a curated list while loading.
   Map<String, String> _searchSources(SearchState state) {
-    // "Todas" (empty source) searches ALL providers in parallel — like
-    // SpotiFLAC. The Go backend handles source="" by running every search
-    // extension concurrently and streaming merged results.
-    final ordered = <String, String>{'': 'Todas'};
+    // Per-extension search only — each source searches independently
+    // for faster, more focused results. No "Todas" mode.
+    final ordered = <String, String>{};
     final cfg = state.searchConfig;
     if (cfg.isNotEmpty) {
       final primary = cfg.entries.where((e) => e.value.primary).toList();
@@ -157,22 +164,13 @@ class _SearchPageState extends State<SearchPage> {
   void _performSearch() {
     final q = _searchCtrl.text.trim();
     if (q.isEmpty) return;
-    final isTodas = _selectedSource.isEmpty;
-    if (isTodas) {
-      // "Todas": search ALL providers, no type filter. Use a lighter limit
-      // so results appear fast; the streaming poll will append more items.
-      context.read<SearchBloc>().add(
-        PerformSearch(query: q, source: '', type: '', limit: 40),
-      );
-    } else {
-      // Single provider: use the manifest filter id for the active category.
-      final filterId = _activeFilterId;
-      final type = filterId ?? 'tracks';
-      final limit = filterId == null ? 25 : _limitForType(_selectedType!);
-      context.read<SearchBloc>().add(
-        PerformSearch(query: q, source: _selectedSource, type: type, limit: limit),
-      );
-    }
+    // Always search a single extension — faster and more focused.
+    final filterId = _activeFilterId;
+    final type = filterId ?? 'tracks';
+    final limit = filterId == null ? 25 : _limitForType(_selectedType!);
+    context.read<SearchBloc>().add(
+      PerformSearch(query: q, source: _selectedSource, type: type, limit: limit),
+    );
   }
 
   void _onSourceChanged(String src) {
@@ -192,9 +190,7 @@ class _SearchPageState extends State<SearchPage> {
 
   void _onTypeChanged(String? t) {
     setState(() => _selectedType = t);
-    // When "Todas" is active, the type chips filter client-side from the
-    // cached multi-source results — no need to re-query the backend.
-    if (_selectedSource.isEmpty) return;
+    // Always re-query the backend for the new category.
     _performSearch();
   }
 

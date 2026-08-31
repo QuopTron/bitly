@@ -5,6 +5,7 @@ var CONFIG = {
   previewApiBaseURL: "https://www.qobuz.com",
   previewAppID: "712109809",
   previewAppSecret: "589be88e4538daea11f509d29e4a23b1",
+  widgetAppID: "735532640",
   storeBaseURL: "https://www.qobuz.com/us-en",
   openBaseURL: "https://open.qobuz.com",
   playBaseURL: "https://play.qobuz.com",
@@ -17,6 +18,192 @@ var CONFIG = {
 var STORE_TRACK_ID_REGEX = /\/v4\/ajax\/popin-add-cart\/track\/([0-9]+)/g;
 var LOCALE_SEGMENT_REGEX = /^[a-z]{2}-[a-z]{2}$/i;
 var IMAGE_SIZE_REGEX = /_\d+\.jpg$/;
+var GENRE_CACHE = {};
+var ENGLISH_GENRE_NAMES = {
+  accordeon: "Accordion",
+  "acid-jazz": "Acid Jazz",
+  afrique: "Africa",
+  afrobeat: "Afrobeat",
+  allemagne: "Germany",
+  allemand: "German",
+  "alternatif-et-inde": "Alternative & Indie",
+  ambiance: "Ambient/New Age",
+  ambiant: "Ambient",
+  "amerique-du-nord": "North America",
+  "amerique-latine": "Latin America",
+  anglais: "English",
+  "musique-de-films": "Soundtracks",
+  "anime-jeux-video": "Anime/Video game",
+  anime: "Anime",
+  asie: "Asia",
+  ballets: "Ballets",
+  "bandes-originales-de-films": "Film Soundtracks",
+  "be-bop": "Bebop",
+  blues: "Blues",
+  bolero: "Bolero",
+  "bossa-nova": "Bossa Nova",
+  bresil: "Brazil",
+  "cantates-profanes": "Cantatas (secular)",
+  "cantates-sacrees": "Cantatas (sacred)",
+  celtique: "Celtic",
+  "chanson-francaise": "French Music",
+  "chansons-paillardes": "Bawdy songs",
+  "chours-sacres": "Choirs (sacred)",
+  classique: "Classical",
+  "comedies-musicales": "Musical Theatre",
+  "concertos-pour-instruments-a-vent": "Concertos for wind instruments",
+  "concertos-pour-piano": "Keyboard Concertos",
+  "concertos-pour-trompette": "Concertos for trumpet",
+  "concertos-pour-violon": "Violin Concertos",
+  "concertos-pour-violoncelle": "Cello Concertos",
+  "contes-et-comptines": "Stories and Nursery Rhymes",
+  cool: "Cool Jazz",
+  coree: "Korean music",
+  country: "Country",
+  crooners: "Crooners",
+  dance: "Dance",
+  dancehall: "Dancehall",
+  "diction-litterature": "Eclectic/Other",
+  disco: "Disco",
+  dixieland: "Dixieland",
+  "documents-historiques": "Historical Documents",
+  downtempo: "Chill-out",
+  "drum-bass": "Drum & Bass",
+  dub: "Dub",
+  ecosse: "Scottish",
+  educatif: "Educational",
+  electro: "Electronic",
+  "electronique-ou-concrete": "Experimental",
+  enfants: "Children",
+  espagne: "Spain",
+  europe: "Europe",
+  "europe-de-l-est": "Eastern Europe",
+  extraits: "Opera Extracts",
+  fado: "Fado",
+  flamenco: "Flamenco",
+  folk: "Folk/Americana",
+  forro: "Forro",
+  francais: "French",
+  "free-jazz-avant-garde": "Free Jazz & Avant-Garde",
+  funk: "Funk",
+  "funk-brasil": "Brazilian Funk",
+  gipsy: "Gypsy",
+  gospel: "Gospel",
+  grece: "Greece",
+  "hard-rock": "Hard Rock",
+  house: "House",
+  humour: "Humour",
+  integrales: "Full Operas",
+  interpretes: "French Artists",
+  "irish-celtic": "Irish Celtic",
+  "irish-popmusic": "Irish Pop Music",
+  irlande: "Ireland",
+  italie: "Italy",
+  "j-pop": "J-Pop",
+  japon: "Japanese music",
+  jazz: "Jazz",
+  "jazz-contemporain": "Contemporary Jazz",
+  "jazz-crossover": "Crossover",
+  "jazz-fusion-jazz-rock": "Jazz Fusion & Jazz Rock",
+  "jazz-manouche": "Gypsy Jazz",
+  "jazz-traditionnel-new-orleans": "Traditional Jazz & New Orleans",
+  "jazz-vocal": "Vocal Jazz",
+  "jeux-video": "Video Games",
+  "k-pop": "K-Pop",
+  karaoke: "Karaoke",
+  "latin-jazz": "Latin Jazz",
+  "lieder-allemagne": "Lieder (German)",
+  "lieder-autres-territoires": "Art Songs",
+  litterature: "Literature",
+  lounge: "Lounge",
+  maghreb: "Maghreb",
+  "melodies-angleterre": "Mélodies (England)",
+  "melodies-autres-territoires": "Mélodies",
+  "melodies-europe-du-nord": "Mélodies (Northern Europe)",
+  "melodies-france": "Mélodies (French)",
+  "melodies-lieder": "Art Songs, Melodies & Lieder",
+  "messes-passions-requiems": "Masses, Passions, Requiems",
+  metal: "Metal",
+  mpb: "MPB",
+  "musique-chorale-pour-chour": "Choral Music (Choirs)",
+  "musique-concertante": "Concertos",
+  "musique-concrete": "Musique Concrète",
+  "musique-coreenne-traditionnelle": "Korean traditional",
+  "musique-d-ensemble-musique-sans-chour": "Music by vocal ensembles",
+  "musique-de-chambre": "Chamber Music",
+  "musique-de-scene": "Theatre Music",
+  "musique-electronique": "Electronic",
+  "musique-folklorique-suisse": "Swiss Folk Music",
+  "musique-indienne": "Indian Music",
+  "musique-japonaise-traditionnelle": "Japanese traditional",
+  "musique-militaire": "Military Music",
+  "musique-minimaliste": "Minimal Music",
+  "musique-orchestrale": "Symphonic Music",
+  "musique-vocale-profane": "Secular Vocal Music",
+  "musique-vocale-profane-et-sacree": "Vocal Music (Secular and Sacred)",
+  "musique-vocale-sacree": "Sacred Vocal Music",
+  "musiques-de-noel": "Christmas Music",
+  "musiques-du-monde": "World",
+  "musiques-pour-le-cinema": "Cinema Music",
+  neerlandais: "Dutch",
+  "new-age": "New Age",
+  opera: "Opera",
+  operette: "Operettas",
+  "oratorios-profanes": "Oratorios (secular)",
+  "oratorios-sacrees": "Sacred Oratorios",
+  "orient-maghreb": "Oriental Music",
+  ouvertures: "Overtures",
+  pagode: "Pagode",
+  pedagogie: "Educational",
+  "piano-solo": "Solo Piano",
+  "poemes-symphoniques": "Symphonic Poems",
+  pop: "Pop",
+  "pop-inde": "Indie Pop",
+  "pop-rock": "Pop/Rock",
+  portugal: "Portugal",
+  "punk-new-wave": "Punk / New Wave",
+  quatuors: "Quartets",
+  quintettes: "Quintets",
+  ragtime: "Ragtime",
+  rai: "Raï",
+  "rap-hip-hop": "Hip-Hop/Rap",
+  rb: "R&B",
+  "recitals-vocaux": "Vocal Recitals",
+  reggae: "Reggae",
+  reggaeton: "Reggaeton",
+  relaxation: "Relaxation",
+  retro: "Retro French Music",
+  rock: "Rock",
+  "rock-francais": "French Rock",
+  "rock-progressif": "Progressive Rock",
+  rockabilly: "Rockabilly",
+  russie: "Russia",
+  salsa: "Salsa",
+  samba: "Samba",
+  schlager: "Schlager",
+  "series-tv": "TV Series",
+  sertanejo: "Sertanejo",
+  "ska-rocksteady": "Ska & Rocksteady",
+  "sonates-pour-deux-instruments": "Duets",
+  soul: "Soul",
+  "soul-funk-rap": "Soul/Funk/R&B",
+  stimmungsmusik: "Stimmungsmusik",
+  symphonies: "Symphonies",
+  tango: "Tango",
+  techno: "Techno",
+  trance: "Trance",
+  trios: "Trios",
+  "trip-hop": "Trip Hop",
+  turquie: "Turkey",
+  "urban-latino": "Latin Urban",
+  "variete-internationale": "International Pop",
+  "violon-solo": "Violin Solos",
+  "violoncelle-solo": "Cello Solos",
+  volksmusik: "Volksmusik",
+  "yiddish-klezmer": "Yiddish & Klezmer",
+  "zouk-antilles": "Zouk & Antilles",
+};
+var ENGLISH_GENRES_LOADED = false;
 
 function md5(input) {
   function add32(a, b) {
@@ -217,6 +404,23 @@ function firstNonEmpty() {
   return "";
 }
 
+function mergeObjects(primary, fallback) {
+  var result = {};
+  var key;
+  primary = primary || {};
+  fallback = fallback || {};
+  for (key in fallback) {
+    if (fallback.hasOwnProperty(key)) result[key] = fallback[key];
+  }
+  for (key in primary) {
+    if (!primary.hasOwnProperty(key)) continue;
+    var value = primary[key];
+    if (value === null || value === undefined || value === "") continue;
+    result[key] = value;
+  }
+  return result;
+}
+
 function uniquePush(target, value, seen) {
   var text = String(value || "").trim();
   if (!text) return;
@@ -261,6 +465,16 @@ function requestHeaders(url, extra) {
     }
   }
   return headers;
+}
+
+function storePageHeaders() {
+  // Qobuz rejects browser user agents when the TLS fingerprint is a native
+  // HTTP client. Use the matching host-client identity for public store HTML.
+  return {
+    Accept: "text/html,application/xhtml+xml",
+    "Accept-Language": "en-US,en;q=0.9",
+    "User-Agent": "Go-http-client/1.1",
+  };
 }
 
 function getHeaderValue(headers, name) {
@@ -362,24 +576,14 @@ function signedJSON(method, path, body, headers) {
     throw new Error("signed session runtime is not available");
   }
   var response = session.signedFetch(method, path, body || null, headers || {});
-  // A transient session error (expired nonce, stale token) is common on
-  // cold starts. Retry once — if the session re-negotiates internally the
-  // second call succeeds and the user never sees the failure.
-  if (!response || response.error || response.needsVerification) {
-    var response2 = session.signedFetch(
-      method,
-      path,
-      body || null,
-      headers || {},
-    );
-    if (
-      response2 &&
-      !response2.error &&
-      !response2.needsVerification &&
-      response2.statusCode === 200
-    ) {
-      return JSON.parse(response2.body || "{}");
-    }
+  if (response && response.needsVerification) {
+    var verificationError = new Error("VERIFY_REQUIRED");
+    verificationError.needsVerification = true;
+    verificationError.authUrl =
+      response.auth_url || response.open_auth_url || "";
+    throw verificationError;
+  }
+  if (!response || response.error) {
     var error =
       response && response.error ? response.error : "signed request failed";
     throw new Error(error);
@@ -974,6 +1178,39 @@ function metadataURL(path, params, useFallback) {
   );
 }
 
+function publicQobuzURL(path, params) {
+  var query = [];
+  params = params || {};
+  for (var key in params) {
+    if (!params.hasOwnProperty(key)) continue;
+    var value = params[key];
+    if (value === null || value === undefined || value === "") continue;
+    query.push(
+      encodeURIComponent(key) + "=" + encodeURIComponent(String(value)),
+    );
+  }
+  return (
+    CONFIG.previewApiBaseURL +
+    "/api.json/0.2/" +
+    String(path || "").replace(/^\/+/, "") +
+    (query.length ? "?" + query.join("&") : "")
+  );
+}
+
+function widgetStore() {
+  return String(CONFIG.countryCode || "US").toUpperCase() + "-en";
+}
+
+function getPublicQobuzJSON(path, params) {
+  var url = publicQobuzURL(path, params);
+  return getJSON(
+    url,
+    requestHeaders(url, {
+      "X-App-Id": CONFIG.widgetAppID,
+    }),
+  );
+}
+
 function qobuzSignedURL(objectName, methodName, params) {
   var requestTS = String(Math.floor(new Date().getTime() / 1000));
   var keys = [];
@@ -1066,7 +1303,177 @@ function trackDisplayTitle(track) {
   var title = String(track.title || "").trim();
   var version = String(track.version || "").trim();
   if (!title || !version) return title;
+  if (title.toLowerCase().indexOf(version.toLowerCase()) >= 0) return title;
   return title + " (" + version + ")";
+}
+
+function albumDisplayTitle(album) {
+  if (!album) return "";
+  var title = String(album.title || "").trim();
+  var version = String(album.version || "").trim();
+  if (!title || !version) return title;
+  if (title.toLowerCase().indexOf(version.toLowerCase()) >= 0) return title;
+  return title + " (" + version + ")";
+}
+
+function qobuzAlbumURL(album) {
+  if (!album) return "";
+  return firstNonEmpty(
+    album.id ? CONFIG.openBaseURL + "/album/" + album.id : "",
+    album.url,
+  );
+}
+
+function qobuzTrackURL(track) {
+  return track && track.id ? CONFIG.openBaseURL + "/track/" + track.id : "";
+}
+
+function qobuzArtistURL(artist) {
+  return artist && artist.id ? CONFIG.openBaseURL + "/artist/" + artist.id : "";
+}
+
+function qobuzPlaylistURL(playlist) {
+  return playlist && playlist.id
+    ? CONFIG.openBaseURL + "/playlist/" + playlist.id
+    : "";
+}
+
+function releaseDateForAlbum(album) {
+  if (!album) return "";
+  return normalizeDate(
+    firstNonEmpty(
+      album.release_date_download,
+      album.release_date_stream,
+      album.release_date_original,
+      album.release_date_purchase,
+    ),
+  );
+}
+
+function creditNamesForRoles(rawCredits, rolePattern) {
+  var names = [];
+  var seen = {};
+  var groups = String(rawCredits || "").split(/\s+-\s+/);
+  for (var i = 0; i < groups.length; i++) {
+    var parts = String(groups[i] || "").split(/\s*,\s*/);
+    if (parts.length < 2) continue;
+    var name = String(parts.shift() || "").trim();
+    var roles = parts.join(",");
+    if (name && rolePattern.test(roles)) uniquePush(names, name, seen);
+  }
+  return names;
+}
+
+function trackComposerNames(track) {
+  var names = [];
+  var seen = {};
+  uniquePush(names, track && track.composer && track.composer.name, seen);
+  var parsed = creditNamesForRoles(
+    track && track.performers,
+    /(composer|writer|lyricist)/i,
+  );
+  for (var i = 0; i < parsed.length; i++) uniquePush(names, parsed[i], seen);
+  return names.join(", ");
+}
+
+function decodeGenreHTMLLabel(value) {
+  return String(value || "")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&#x([0-9a-f]+);/gi, function (_, hex) {
+      return String.fromCharCode(parseInt(hex, 16));
+    })
+    .replace(/&#(\d+);/g, function (_, decimal) {
+      return String.fromCharCode(parseInt(decimal, 10));
+    })
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"')
+    .replace(/&(?:apos|#39);/gi, "'")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function cacheEnglishGenreNamesFromHTML(html) {
+  var pattern =
+    /<a\s+href=["']\/us-en\/genre\/([^"'/?#]+)\/download-streaming-albums["'][^>]*>([\s\S]*?)<\/a>/gi;
+  var count = 0;
+  var match;
+  while ((match = pattern.exec(String(html || ""))) !== null) {
+    var slug = String(match[1] || "")
+      .trim()
+      .toLowerCase();
+    var label = decodeGenreHTMLLabel(match[2]);
+    if (!slug || !label) continue;
+    if (!ENGLISH_GENRE_NAMES[slug]) count++;
+    ENGLISH_GENRE_NAMES[slug] = label;
+  }
+  return count;
+}
+
+function ensureEnglishGenreNames() {
+  if (ENGLISH_GENRES_LOADED) return;
+  ENGLISH_GENRES_LOADED = true;
+  try {
+    var html = fetchText(
+      CONFIG.storeBaseURL + "/genres/download-streaming-albums",
+      storePageHeaders(),
+    );
+    cacheEnglishGenreNamesFromHTML(html);
+  } catch (e) {
+    log.warn("[QobuzWeb] English genre catalogue unavailable: " + e.message);
+  }
+}
+
+function englishGenreName(genre) {
+  var slug = String((genre && genre.slug) || "")
+    .trim()
+    .toLowerCase();
+  if (!slug) return "";
+  var knownName = String(ENGLISH_GENRE_NAMES[slug] || "").trim();
+  if (knownName) return knownName;
+  ensureEnglishGenreNames();
+  return String(ENGLISH_GENRE_NAMES[slug] || "").trim();
+}
+
+function resolveGenreName(genreID) {
+  var id = String(genreID || "").trim();
+  if (!id) return "";
+  if (GENRE_CACHE[id] !== undefined) return GENRE_CACHE[id];
+  try {
+    var genre = getPublicQobuzJSON("genre/get", { genre_id: id });
+    GENRE_CACHE[id] = firstNonEmpty(
+      englishGenreName(genre),
+      genre && genre.name,
+    );
+  } catch (e) {
+    GENRE_CACHE[id] = "";
+  }
+  return GENRE_CACHE[id];
+}
+
+function hydrateGenreHierarchy(album) {
+  if (!album || !album.genre) return album;
+  var names = [];
+  var seen = {};
+  var path = album.genre.path || [];
+  for (var i = 0; i < path.length; i++) {
+    uniquePush(names, resolveGenreName(path[i]), seen);
+  }
+  uniquePush(
+    names,
+    firstNonEmpty(englishGenreName(album.genre), album.genre.name),
+    seen,
+  );
+  album.genre.full_name = names.join("; ");
+  return album;
+}
+
+function genreDisplayName(album) {
+  return String(
+    (album && album.genre && (album.genre.full_name || album.genre.name)) || "",
+  ).trim();
 }
 
 function joinArtistNames(artists, fallback) {
@@ -1126,30 +1533,13 @@ function trackAlbumImage(track) {
 
 function albumImage(album) {
   if (!album) return "";
-  // Handle the different shapes Qobuz returns: image object ({large/small/thumbnail}),
-  // plain string URL, or an images[] array (used by catalog/featured listings).
-  var img = album.image;
-  if (typeof img === "string") {
-    return upscaleImageURL(img);
-  }
-  if (img && typeof img === "object") {
-    var fromObj = firstNonEmpty(img.large, img.small, img.thumbnail, img.url);
-    if (fromObj) return upscaleImageURL(fromObj);
-  }
-  if (Array.isArray(album.images) && album.images.length > 0) {
-    var first = album.images[0];
-    if (typeof first === "string") return upscaleImageURL(first);
-    if (first && typeof first === "object") {
-      var fromArr = firstNonEmpty(
-        first.url,
-        first.large,
-        first.small,
-        first.thumbnail,
-      );
-      if (fromArr) return upscaleImageURL(fromArr);
-    }
-  }
-  return "";
+  return upscaleImageURL(
+    firstNonEmpty(
+      album.image && album.image.large,
+      album.image && album.image.small,
+      album.image && album.image.thumbnail,
+    ),
+  );
 }
 
 function artistImage(artist) {
@@ -1184,54 +1574,56 @@ function formatTrack(track, totalDiscsOverride, options) {
   if (!track) return null;
   options = options || {};
 
-  var totalTracks = Number((track.album && track.album.tracks_count) || 0);
+  var album = track.album || {};
+  var totalTracks = Number(album.tracks_count || 0);
   var totalDiscs = Number(totalDiscsOverride || 0);
-  if (!totalDiscs && track.album && track.album.total_discs) {
-    totalDiscs = Number(track.album.total_discs || 0);
-  }
+  if (!totalDiscs)
+    totalDiscs = Number(album.media_count || album.total_discs || 0);
+  var albumURL = qobuzAlbumURL(album);
+  var trackURL = qobuzTrackURL(track);
+  var artist = track.performer || album.artist || {};
 
   var formatted = {
     id: withPrefix(track.id),
     name: trackDisplayTitle(track),
     artists: trackArtistName(track),
-    artist_id: withPrefix(
-      firstNonEmpty(
-        track.performer && track.performer.id,
-        track.album && track.album.artist && track.album.artist.id,
-      ),
-    ),
-    album_name: String((track.album && track.album.title) || "").trim(),
+    artist_id: withPrefix(artist.id || ""),
+    artist_url: qobuzArtistURL(artist),
+    album_name: albumDisplayTitle(album),
     album_artist: trackAlbumArtist(track),
-    album_id: withPrefix((track.album && track.album.id) || ""),
+    album_id: withPrefix(album.id || ""),
+    album_url: albumURL,
     duration_ms: Number(track.duration || 0) * 1000,
     cover_url: trackAlbumImage(track),
-    release_date: normalizeDate(
-      (track.album && track.album.release_date_original) || "",
-    ),
+    images: trackAlbumImage(track),
+    release_date: releaseDateForAlbum(album),
     track_number: Number(track.track_number || 0),
     total_tracks: totalTracks,
     disc_number: Number(track.media_number || 0),
     total_discs: totalDiscs,
     isrc: String(track.isrc || "").trim(),
+    upc: String(album.upc || "").trim(),
     provider_id: "qobuz-web",
     item_type: "track",
     album_type: albumTypeFromRelease(
-      track.album && track.album.release_type,
-      track.album && track.album.product_type,
+      album.release_type,
+      album.product_type,
       totalTracks,
     ),
+    explicit: track.parental_warning === true,
     qobuz_id: String(track.id || "").trim(),
+    external_urls: trackURL,
     external_links: {
-      qobuz: CONFIG.playBaseURL + "/track/" + String(track.id || "").trim(),
+      qobuz: trackURL,
+      qobuz_track: trackURL,
+      qobuz_album: albumURL,
+      qobuz_store_album: String(album.url || "").trim(),
     },
-    label: String(
-      (track.album && track.album.label && track.album.label.name) || "",
-    ).trim(),
-    genre: String(
-      (track.album && track.album.genre && track.album.genre.name) || "",
-    ).trim(),
-    copyright: String((track.album && track.album.copyright) || "").trim(),
-    composer: String((track.composer && track.composer.name) || "").trim(),
+    label: String((album.label && album.label.name) || "").trim(),
+    genre: genreDisplayName(album),
+    copyright: firstNonEmpty(track.copyright, album.copyright),
+    composer: trackComposerNames(track),
+    comment: albumURL,
     audio_quality: qobuzAudioQualityLabel(track),
   };
 
@@ -1246,28 +1638,36 @@ function formatTrack(track, totalDiscsOverride, options) {
 function formatAlbum(album) {
   if (!album) return null;
 
-  var totalDiscs = computeTotalDiscs(
-    (album.tracks && album.tracks.items) || [],
-  );
+  var totalDiscs =
+    Number(album.media_count || 0) ||
+    computeTotalDiscs((album.tracks && album.tracks.items) || []);
   var tracks = [];
   var items = (album.tracks && album.tracks.items) || [];
   for (var i = 0; i < items.length; i++) {
     var item = items[i] || {};
-    item.album = item.album || {};
-    item.album.id = album.id;
-    item.album.qobuz_id = album.qobuz_id;
-    item.album.title = album.title;
-    item.album.release_date_original = album.release_date_original;
-    item.album.tracks_count = album.tracks_count;
-    item.album.product_type = album.product_type;
-    item.album.release_type = album.release_type;
-    item.album.artist = album.artist;
-    item.album.artists = album.artists;
-    item.album.image = album.image;
-    item.album.label = album.label;
-    item.album.genre = album.genre;
-    item.album.copyright = album.copyright;
-    item.album.total_discs = totalDiscs;
+    item.album = mergeObjects(item.album, {
+      id: album.id,
+      qobuz_id: album.qobuz_id,
+      title: album.title,
+      version: album.version,
+      url: album.url,
+      upc: album.upc,
+      release_date_original: album.release_date_original,
+      release_date_download: album.release_date_download,
+      release_date_stream: album.release_date_stream,
+      release_date_purchase: album.release_date_purchase,
+      tracks_count: album.tracks_count,
+      media_count: totalDiscs,
+      product_type: album.product_type,
+      release_type: album.release_type,
+      artist: album.artist,
+      artists: album.artists,
+      image: album.image,
+      label: album.label,
+      genre: album.genre,
+      copyright: album.copyright,
+      parental_warning: album.parental_warning,
+    });
     var formattedTrack = formatTrack(item, totalDiscs);
     if (formattedTrack) {
       tracks.push(formattedTrack);
@@ -1276,21 +1676,31 @@ function formatAlbum(album) {
 
   return {
     id: withPrefix(album.id),
-    name: String(album.title || "").trim(),
+    name: albumDisplayTitle(album),
     artists: joinArtistNames(
       album.artists || [],
       album.artist && album.artist.name,
     ),
     artist_id: withPrefix((album.artist && album.artist.id) || ""),
+    artist_url: qobuzArtistURL(album.artist),
     cover_url: albumImage(album),
     images: albumImage(album),
-    release_date: normalizeDate(album.release_date_original),
+    release_date: releaseDateForAlbum(album),
     total_tracks: Number(album.tracks_count || 0),
+    total_discs: totalDiscs,
     album_type: albumTypeFromRelease(
       album.release_type,
       album.product_type,
       album.tracks_count,
     ),
+    album_url: qobuzAlbumURL(album),
+    external_urls: qobuzAlbumURL(album),
+    upc: String(album.upc || "").trim(),
+    label: String((album.label && album.label.name) || "").trim(),
+    genre: genreDisplayName(album),
+    copyright: String(album.copyright || "").trim(),
+    comment: qobuzAlbumURL(album),
+    explicit: album.parental_warning === true,
     tracks: tracks,
     provider_id: "qobuz-web",
     item_type: "album",
@@ -1301,15 +1711,18 @@ function formatArtistAlbum(album) {
   if (!album) return null;
   return {
     id: withPrefix(album.id),
-    name: String(album.title || "").trim(),
+    name: albumDisplayTitle(album),
     artists: joinArtistNames(
       album.artists || [],
       album.artist && album.artist.name,
     ),
     cover_url: albumImage(album),
     images: albumImage(album),
-    release_date: normalizeDate(album.release_date_original),
+    release_date: releaseDateForAlbum(album),
     total_tracks: Number(album.tracks_count || 0),
+    album_url: qobuzAlbumURL(album),
+    external_urls: qobuzAlbumURL(album),
+    upc: String(album.upc || "").trim(),
     album_type: albumTypeFromRelease(
       album.release_type,
       album.product_type,
@@ -1336,6 +1749,8 @@ function formatArtist(artist, albums) {
     header_image: artistImage(artist),
     cover_url: artistImage(artist),
     images: artistImage(artist),
+    artist_url: qobuzArtistURL(artist),
+    external_urls: qobuzArtistURL(artist),
     albums: formattedAlbums,
     releases: formattedAlbums,
     provider_id: "qobuz-web",
@@ -1343,12 +1758,24 @@ function formatArtist(artist, albums) {
   };
 }
 
+function playlistImage(playlist) {
+  return firstNonEmpty(
+    playlist && playlist.images300 && playlist.images300[0],
+    playlist && playlist.images150 && playlist.images150[0],
+    playlist && playlist.images && playlist.images[0],
+    playlist && playlist.image_rectangle && playlist.image_rectangle[0],
+    playlist &&
+      playlist.image_rectangle_mini &&
+      playlist.image_rectangle_mini[0],
+  );
+}
+
 function formatPlaylist(rawPlaylist) {
   if (!rawPlaylist) return null;
   var tracks = [];
   var items = (rawPlaylist.tracks && rawPlaylist.tracks.items) || [];
   for (var i = 0; i < items.length; i++) {
-    var formattedTrack = formatTrack(items[i], computeTotalDiscs(items));
+    var formattedTrack = formatTrack(items[i]);
     if (formattedTrack) tracks.push(formattedTrack);
   }
 
@@ -1356,18 +1783,36 @@ function formatPlaylist(rawPlaylist) {
     id: withPrefix(rawPlaylist.id),
     name: String(rawPlaylist.name || "").trim(),
     artists: String((rawPlaylist.owner && rawPlaylist.owner.name) || "").trim(),
-    cover_url: firstNonEmpty(
-      rawPlaylist.image_rectangle && rawPlaylist.image_rectangle[0],
-      rawPlaylist.image_rectangle_mini && rawPlaylist.image_rectangle_mini[0],
-    ),
-    images: firstNonEmpty(
-      rawPlaylist.image_rectangle && rawPlaylist.image_rectangle[0],
-      rawPlaylist.image_rectangle_mini && rawPlaylist.image_rectangle_mini[0],
-    ),
+    description: String(rawPlaylist.description || "").trim(),
+    cover_url: playlistImage(rawPlaylist),
+    images: playlistImage(rawPlaylist),
+    total_tracks: Number(rawPlaylist.tracks_count || items.length || 0),
+    external_urls: qobuzPlaylistURL(rawPlaylist),
     tracks: tracks,
     provider_id: "qobuz-web",
     item_type: "playlist",
   };
+}
+
+// The nested album object on track/get frequently omits album-level fields
+// like UPC. The public widget album payload carries it, so one lightweight
+// lookup fills the barcode for tagging when it is missing.
+function ensureAlbumUPC(album) {
+  if (!album || String(album.upc || "").trim()) return album;
+  var albumID = parseAlbumID(album.id);
+  if (!albumID) return album;
+  try {
+    var details = getPublicQobuzJSON("widget/getAlbumById", {
+      album_id: albumID,
+      widget_store: widgetStore(),
+    });
+    if (details && String(details.upc || "").trim()) {
+      album.upc = String(details.upc).trim();
+    }
+  } catch (e) {
+    log.debug("[QobuzWeb] Album UPC lookup unavailable: " + e.message);
+  }
+  return album;
 }
 
 function fetchTrackRaw(trackID) {
@@ -1375,9 +1820,98 @@ function fetchTrackRaw(trackID) {
   if (!normalizedID) {
     throw new Error("Invalid Qobuz track ID");
   }
-  return getMetadataJSON("track/get", {
-    track_id: normalizedID,
-  });
+  var signedError = null;
+  try {
+    var primary = getMetadataJSON("track/get", {
+      track_id: normalizedID,
+    });
+    if (primary && primary.id) {
+      ensureAlbumUPC(primary.album);
+      hydrateGenreHierarchy(primary.album);
+      return primary;
+    }
+  } catch (e) {
+    signedError = e;
+    log.warn(
+      "[QobuzWeb] Signed track metadata unavailable, using public fallback: " +
+        e.message,
+    );
+  }
+  try {
+    var fallback = getPublicQobuzJSON("widget/getTrackById", {
+      track_id: normalizedID,
+      widget_store: widgetStore(),
+    });
+    ensureAlbumUPC(fallback && fallback.album);
+    hydrateGenreHierarchy(fallback && fallback.album);
+    return fallback;
+  } catch (publicError) {
+    throw signedError || publicError;
+  }
+}
+
+function mergeAlbumPayloads(primary, fallback) {
+  if (!primary) return fallback;
+  if (!fallback) return primary;
+  var merged = mergeObjects(primary, fallback);
+  var primaryItems = (primary.tracks && primary.tracks.items) || [];
+  var fallbackItems = (fallback.tracks && fallback.tracks.items) || [];
+  var baseItems =
+    fallbackItems.length > primaryItems.length ? fallbackItems : primaryItems;
+  var primaryByID = {};
+  for (var i = 0; i < primaryItems.length; i++) {
+    primaryByID[String((primaryItems[i] && primaryItems[i].id) || "")] =
+      primaryItems[i];
+  }
+  var items = [];
+  for (var j = 0; j < baseItems.length; j++) {
+    var baseItem = baseItems[j] || {};
+    items.push(mergeObjects(primaryByID[String(baseItem.id || "")], baseItem));
+  }
+  merged.tracks = mergeObjects(primary.tracks, fallback.tracks);
+  merged.tracks.items = items;
+  merged.tracks.total = Number(
+    merged.tracks_count || merged.tracks.total || items.length,
+  );
+  return merged;
+}
+
+function completePublicAlbumTracks(album) {
+  var items = (album && album.tracks && album.tracks.items) || [];
+  if (!album || items.length >= Number(album.tracks_count || 0)) return album;
+  try {
+    var pageURL = firstNonEmpty(album.url, qobuzAlbumURL(album));
+    var html = fetchText(pageURL, storePageHeaders());
+    var ids = extractTrackIDsFromStoreSearchHTML(html);
+    var seen = {};
+    for (var i = 0; i < items.length; i++)
+      seen[String((items[i] && items[i].id) || "")] = true;
+    for (var j = 0; j < ids.length; j++) {
+      if (seen[ids[j]]) continue;
+      var track = getPublicQobuzJSON("widget/getTrackById", {
+        track_id: ids[j],
+        widget_store: widgetStore(),
+      });
+      if (track && track.id) {
+        items.push(track);
+        seen[String(track.id)] = true;
+      }
+    }
+    items.sort(function (a, b) {
+      var discDifference =
+        Number((a && a.media_number) || 0) - Number((b && b.media_number) || 0);
+      return (
+        discDifference ||
+        Number((a && a.track_number) || 0) - Number((b && b.track_number) || 0)
+      );
+    });
+    album.tracks.items = items;
+  } catch (e) {
+    log.warn(
+      "[QobuzWeb] Could not complete public album track list: " + e.message,
+    );
+  }
+  return album;
 }
 
 function fetchAlbumRaw(albumID) {
@@ -1385,9 +1919,56 @@ function fetchAlbumRaw(albumID) {
   if (!normalizedID) {
     throw new Error("Invalid Qobuz album ID");
   }
-  return getMetadataJSON("album/get", {
-    album_id: normalizedID,
-  });
+  var signed = null;
+  var signedError = null;
+  try {
+    signed = getMetadataJSON("album/get", { album_id: normalizedID });
+  } catch (e) {
+    signedError = e;
+  }
+
+  if (
+    signed &&
+    signed.id &&
+    ((signed.tracks && signed.tracks.items) || []).length >=
+      Number(signed.tracks_count || 0)
+  ) {
+    hydrateGenreHierarchy(signed);
+    return signed;
+  }
+
+  var direct = null;
+  var directError = null;
+  try {
+    direct = getPublicQobuzJSON("widget/getAlbumById", {
+      album_id: normalizedID,
+      widget_store: widgetStore(),
+    });
+  } catch (e) {
+    directError = e;
+  }
+
+  if (signedError && direct) {
+    log.warn(
+      "[QobuzWeb] Signed album metadata unavailable, completing public payload: " +
+        signedError.message,
+    );
+  }
+  var merged = mergeAlbumPayloads(signed, direct);
+  if (!merged)
+    throw (
+      signedError ||
+      directError ||
+      new Error("Qobuz album metadata unavailable")
+    );
+  if (
+    ((merged.tracks && merged.tracks.items) || []).length <
+    Number(merged.tracks_count || 0)
+  ) {
+    completePublicAlbumTracks(merged);
+  }
+  hydrateGenreHierarchy(merged);
+  return merged;
 }
 
 function fetchPlaylistPage(playlistID, limit, offset) {
@@ -1405,11 +1986,12 @@ function fetchPlaylistPage(playlistID, limit, offset) {
     });
   } catch (primaryError) {
     log.warn(
-      "[QobuzWeb] playlist/get fallback failed, retrying without extra: " +
+      "[QobuzWeb] Signed playlist metadata unavailable, using public fallback: " +
         primaryError.message,
     );
-    return getMetadataJSON("playlist/get", {
+    return getPublicQobuzJSON("playlist/get", {
       playlist_id: normalizedID,
+      extra: "tracks,track_ids",
       limit: limit,
       offset: offset,
     });
@@ -1557,8 +2139,15 @@ function selectTracksFromAlbumSearch(query, summaries, limit) {
       track.album.id = album.id;
       track.album.qobuz_id = album.qobuz_id;
       track.album.title = album.title;
+      track.album.version = album.version;
+      track.album.url = album.url;
+      track.album.upc = album.upc;
       track.album.release_date_original = album.release_date_original;
+      track.album.release_date_download = album.release_date_download;
+      track.album.release_date_stream = album.release_date_stream;
+      track.album.release_date_purchase = album.release_date_purchase;
       track.album.tracks_count = album.tracks_count;
+      track.album.media_count = album.media_count;
       track.album.product_type = album.product_type;
       track.album.release_type = album.release_type;
       track.album.artist = album.artist;
@@ -1617,12 +2206,7 @@ function searchTracksViaStore(query, limit) {
     CONFIG.storeBaseURL +
     "/search/tracks/" +
     encodeURIComponent(String(query || "").trim());
-  var html = fetchText(
-    searchURL,
-    requestHeaders(searchURL, {
-      Accept: "text/html,application/xhtml+xml",
-    }),
-  );
+  var html = fetchText(searchURL, storePageHeaders());
   var trackIDs = extractTrackIDsFromStoreSearchHTML(html);
   if (limit > 0 && trackIDs.length > limit) {
     trackIDs = trackIDs.slice(0, limit);
@@ -1656,20 +2240,16 @@ function searchTracksWithFallback(query, limit) {
     if (isVerificationRequiredError(e)) throw e;
   }
 
-  // If the initial API call failed with a session error (signed request
-  // failed), skip the album search fallback — it uses the same broken
-  // session and will fail identically. Go straight to the store fallback.
-  var isSessionError =
-    apiError &&
-    apiError.message &&
-    (apiError.message.indexOf("signed request failed") !== -1 ||
-      apiError.message.indexOf("session runtime is not available") !== -1);
-  if (!isSessionError) {
-    try {
-      tracks = searchTracksViaAlbumSearch(query, limit);
-      if (tracks && tracks.length) return tracks;
-    } catch (albumError) {
-      if (isVerificationRequiredError(albumError)) throw albumError;
+  try {
+    tracks = searchTracksViaAlbumSearch(query, limit);
+    if (tracks && tracks.length) return tracks;
+  } catch (albumError) {
+    if (isVerificationRequiredError(albumError)) throw albumError;
+    if (apiError) {
+      log.warn(
+        "[QobuzWeb] Album search fallback failed after API error: " +
+          albumError.message,
+      );
     }
   }
 
@@ -1727,7 +2307,7 @@ function searchOne(query, filter, limit) {
     for (var k = 0; k < albums.length; k++) {
       albumResults.push({
         id: withPrefix(albums[k].id),
-        name: String(albums[k].title || "").trim(),
+        name: albumDisplayTitle(albums[k]),
         artists: joinArtistNames(
           albums[k].artists || [],
           albums[k].artist && albums[k].artist.name,
@@ -1735,8 +2315,12 @@ function searchOne(query, filter, limit) {
         artist_id: withPrefix((albums[k].artist && albums[k].artist.id) || ""),
         cover_url: albumImage(albums[k]),
         images: albumImage(albums[k]),
-        release_date: normalizeDate(albums[k].release_date_original),
+        release_date: releaseDateForAlbum(albums[k]),
         total_tracks: Number(albums[k].tracks_count || 0),
+        total_discs: Number(albums[k].media_count || 0),
+        album_url: qobuzAlbumURL(albums[k]),
+        external_urls: qobuzAlbumURL(albums[k]),
+        explicit: albums[k].parental_warning === true,
         album_type: albumTypeFromRelease(
           albums[k].release_type,
           albums[k].product_type,
@@ -1784,6 +2368,56 @@ function customSearch(query, options) {
 
 function searchTracks(query, limit) {
   return searchOne(query, "track", limit || 20);
+}
+
+function enrichTrack(track) {
+  track = track || {};
+  try {
+    var id = parseTrackID(firstNonEmpty(track.qobuz_id, track.id));
+    if (!id) {
+      var rawTracks = searchTracksWithFallback(
+        (String(track.name || "") + " " + String(track.artists || "")).trim(),
+        8,
+      );
+      var best = selectBestSearchTrack(
+        rawTracks,
+        track.isrc,
+        track.name,
+        track.artists,
+        Number(track.duration_ms || 0),
+      );
+      id = best && parseTrackID(best.id);
+    }
+    if (!id) return track;
+    return formatTrack(fetchTrackRaw(id)) || track;
+  } catch (e) {
+    if (isVerificationRequiredError(e)) throw e;
+    log.warn("[QobuzWeb] enrichTrack failed: " + e.message);
+    return track;
+  }
+}
+
+function applyTrackMetadataToDownloadResult(result, track) {
+  result = result || {};
+  track = track || {};
+  result.title = track.name || "";
+  result.artist = track.artists || "";
+  result.album = track.album_name || "";
+  result.album_artist = track.album_artist || "";
+  result.track_number = Number(track.track_number || 0);
+  result.total_tracks = Number(track.total_tracks || 0);
+  result.disc_number = Number(track.disc_number || 0);
+  result.total_discs = Number(track.total_discs || 0);
+  result.release_date = track.release_date || "";
+  result.cover_url = track.cover_url || "";
+  result.isrc = track.isrc || "";
+  result.upc = track.upc || "";
+  result.label = track.label || "";
+  result.genre = track.genre || "";
+  result.composer = track.composer || "";
+  result.copyright = track.copyright || "";
+  result.comment = track.comment || track.album_url || "";
+  return result;
 }
 
 function parentDirectory(path) {
@@ -2204,33 +2838,20 @@ function download(trackID, quality, outputPath, onProgress) {
     ) {
       var existing = gobackend.checkISRCExists(outputDir, formattedTrack.isrc);
       if (existing && existing.exists && existing.filePath) {
-        return {
-          success: true,
-          already_exists: true,
-          file_path: String(existing.filePath || ""),
-          title: formattedTrack.name,
-          artist: formattedTrack.artists,
-          album: formattedTrack.album_name,
-          album_artist: formattedTrack.album_artist,
-          track_number: formattedTrack.track_number,
-          total_tracks: formattedTrack.total_tracks,
-          disc_number: formattedTrack.disc_number,
-          total_discs: formattedTrack.total_discs,
-          release_date: formattedTrack.release_date,
-          cover_url: formattedTrack.cover_url,
-          isrc: formattedTrack.isrc,
-          label: formattedTrack.label || "",
-          genre: formattedTrack.genre || "",
-          composer: formattedTrack.composer || "",
-          copyright: formattedTrack.copyright || "",
-        };
+        return applyTrackMetadataToDownloadResult(
+          {
+            success: true,
+            already_exists: true,
+            file_path: String(existing.filePath || ""),
+          },
+          formattedTrack,
+        );
       }
     }
 
     progressPercent(onProgress, 5);
 
     var actualOutputPath = ensureOutputExtension(outputPath, ".flac");
-    deleteQuietly(actualOutputPath);
 
     var downloadInfo = null;
     var finalPath = actualOutputPath;
@@ -2362,28 +2983,16 @@ function download(trackID, quality, outputPath, onProgress) {
     var lyricsLRC = tryFetchLyricsLRC(formattedTrack);
     progressPercent(onProgress, 100);
 
-    return {
-      success: true,
-      file_path: finalPath,
-      bit_depth: bitDepth,
-      sample_rate: sampleRate,
-      title: formattedTrack.name,
-      artist: formattedTrack.artists,
-      album: formattedTrack.album_name,
-      album_artist: formattedTrack.album_artist,
-      track_number: formattedTrack.track_number,
-      total_tracks: formattedTrack.total_tracks,
-      disc_number: formattedTrack.disc_number,
-      total_discs: formattedTrack.total_discs,
-      release_date: formattedTrack.release_date,
-      cover_url: formattedTrack.cover_url,
-      isrc: formattedTrack.isrc,
-      label: formattedTrack.label || "",
-      genre: formattedTrack.genre || "",
-      composer: formattedTrack.composer || "",
-      copyright: formattedTrack.copyright || "",
-      lyrics_lrc: lyricsLRC,
-    };
+    return applyTrackMetadataToDownloadResult(
+      {
+        success: true,
+        file_path: finalPath,
+        bit_depth: bitDepth,
+        sample_rate: sampleRate,
+        lyrics_lrc: lyricsLRC,
+      },
+      formattedTrack,
+    );
   } catch (e) {
     var errorMessage = e && e.message ? e.message : String(e);
     return {
@@ -2436,6 +3045,7 @@ function handleUrl(url) {
       var playlist = getPlaylist(parsed.id);
       return {
         type: "playlist",
+        id: playlist ? playlist.id : withPrefix(parsed.id),
         name: playlist ? playlist.name : "",
         cover_url: playlist ? playlist.cover_url : "",
         playlist: playlist,
@@ -2467,65 +3077,10 @@ function completeGrant() {
   return session.completeGrant();
 }
 
-function getHomeFeed() {
-  var sections = [];
-  try {
-    // Qobuz "featured" catalog via the signed zarz proxy — the same transport
-    // this extension already uses for all metadata (album/get, album/search...).
-    // The direct www.qobuz.com endpoint with the preview app id returns 503
-    // ("no Service found"), while the proxy carries a session with broader
-    // access. Response shape: { albums: { items: [...] } }.
-    var data = getMetadataJSON("catalog/featured", { limit: 20 });
-    if (!data) {
-      return { success: false, error: "no featured data", sections: [] };
-    }
-
-    var albums = data.albums && data.albums.items ? data.albums.items : [];
-    var albumItems = [];
-    for (var i = 0; i < albums.length && albumItems.length < 12; i++) {
-      var item = albums[i] || {};
-      var name = String(item.title || "").trim();
-      if (!name) continue;
-      albumItems.push({
-        name: name,
-        artists: joinArtistNames(
-          item.artists || [],
-          item.artist && item.artist.name,
-        ),
-        type: "album",
-        id: withPrefix(item.id),
-        cover_url: albumImage(item),
-        release_date: normalizeDate(item.release_date_original),
-        total_tracks: Number(item.tracks_count || 0),
-      });
-    }
-    if (albumItems.length > 0) {
-      sections.push({
-        uri: "qbz:featured",
-        title: "Novedades de Qobuz",
-        items: albumItems,
-      });
-    }
-  } catch (e) {
-    log.debug("[QobuzWeb] getHomeFeed failed:", e && e.message);
-    return {
-      success: false,
-      error: String((e && e.message) || e),
-      sections: [],
-    };
-  }
-
-  if (sections.length > 0) {
-    return { success: true, sections: sections };
-  }
-  return { success: false, error: "no home feed available", sections: [] };
-}
-
 registerExtension({
   initialize: initialize,
   cleanup: cleanup,
   completeGrant: completeGrant,
-  getHomeFeed: getHomeFeed,
   customSearch: customSearch,
   checkAvailability: checkAvailability,
   download: download,
@@ -2534,6 +3089,7 @@ registerExtension({
   getAlbum: getAlbum,
   getArtist: getArtist,
   getPlaylist: getPlaylist,
+  enrichTrack: enrichTrack,
   searchTracks: searchTracks,
 });
 

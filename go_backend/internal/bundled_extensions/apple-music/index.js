@@ -1,6 +1,6 @@
 // ============================================
 // Apple Music Extension for SpotiFLAC Mobile
-// Version: 1.3.8
+// Version: 1.4.2
 //
 // Uses Apple Music's public catalog API (amp-api)
 // to fetch metadata including ISRC. No login required.
@@ -459,7 +459,10 @@ function apiGetWithUserToken(path) {
 
 function artworkURL(artwork, size) {
   if (!artwork || !artwork.url) return "";
-  size = size || 3000;
+  size =
+    size ||
+    Math.max(Number(artwork.width || 0), Number(artwork.height || 0), 3000);
+  if (size > 6000) size = 6000;
   return artwork.url.replace("{w}", String(size)).replace("{h}", String(size));
 }
 
@@ -615,7 +618,106 @@ function parseAppleMusicURL(url) {
 // DATA FORMATTERS
 // ============================================
 
-function formatSong(song, albumData) {
+function uniqueValues(values) {
+  var result = [];
+  var seen = {};
+  values = values || [];
+  for (var i = 0; i < values.length; i++) {
+    var value = String(values[i] || "").trim();
+    var key = value.toLowerCase();
+    if (!value || seen[key]) continue;
+    seen[key] = true;
+    result.push(value);
+  }
+  return result;
+}
+
+function appleGenres(attributes) {
+  var genres = (attributes && attributes.genreNames) || [];
+  return uniqueValues(
+    genres.filter(function (genre) {
+      return (
+        String(genre || "")
+          .trim()
+          .toLowerCase() !== "music"
+      );
+    }),
+  ).join("; ");
+}
+
+function appleAlbumType(attributes) {
+  attributes = attributes || {};
+  if (attributes.isCompilation === true) return "compilation";
+  if (attributes.isSingle === true) return "single";
+  return "album";
+}
+
+function appleAudioQuality(attributes) {
+  var traits = (attributes && attributes.audioTraits) || [];
+  var normalizedTraits = traits.map(function (trait) {
+    return String(trait || "")
+      .trim()
+      .toLowerCase()
+      .replace(/_/g, "-");
+  });
+  if (normalizedTraits.indexOf("hi-res-lossless") >= 0) return "24-bit";
+  if (normalizedTraits.indexOf("lossless") >= 0) return "16-bit";
+  if (normalizedTraits.indexOf("lossy-stereo") >= 0) return "LOSSY";
+  return "";
+}
+
+function appleAudioModes(attributes) {
+  var traits = (attributes && attributes.audioTraits) || [];
+  var modes = [];
+  if (traits.indexOf("atmos") >= 0) modes.push("DOLBY_ATMOS");
+  if (traits.indexOf("spatial") >= 0) modes.push("SPATIAL_AUDIO");
+  return modes.join(",");
+}
+
+function firstRelationshipItem(resource, relationshipName) {
+  var relationship =
+    resource &&
+    resource.relationships &&
+    resource.relationships[relationshipName];
+  var items = (relationship && relationship.data) || [];
+  return items.length ? items[0] : null;
+}
+
+function appleArtistURL(artist) {
+  return String(
+    (artist && artist.attributes && artist.attributes.url) || "",
+  ).trim();
+}
+
+function appleAlbumURL(album) {
+  var attributes = (album && album.attributes) || {};
+  if (attributes.url) return String(attributes.url);
+  return album && album.id
+    ? "https://music.apple.com/" + state.storefront + "/album/" + album.id
+    : "";
+}
+
+function totalDiscsFromSongs(songs) {
+  var total = 0;
+  songs = songs || [];
+  for (var i = 0; i < songs.length; i++) {
+    var disc = Number(
+      (songs[i] && songs[i].attributes && songs[i].attributes.discNumber) || 0,
+    );
+    if (disc > total) total = disc;
+  }
+  return total;
+}
+
+function albumIDFromSong(song) {
+  var album = firstRelationshipItem(song, "albums");
+  if (album && album.id) return album.id;
+  var url = String((song && song.attributes && song.attributes.url) || "");
+  var match = url.match(/\/album\/[^/]+\/(\d+)/i);
+  return match ? match[1] : "";
+}
+
+function formatSong(song, albumData, totalDiscsOverride) {
   var attr = song.attributes || {};
   var albumAttr = albumData ? albumData.attributes || {} : {};
 
@@ -637,6 +739,22 @@ function formatSong(song, albumData) {
     if (!coverURL) coverURL = artworkURL(albumAttr.artwork);
   }
 
+  var artistResource =
+    firstRelationshipItem(song, "artists") ||
+    firstRelationshipItem(albumData, "artists");
+  var albumURL =
+    appleAlbumURL(albumData) ||
+    (albumID
+      ? "https://music.apple.com/" + state.storefront + "/album/" + albumID
+      : "");
+  var trackURL =
+    attr.url ||
+    "https://music.apple.com/" + state.storefront + "/song/" + song.id;
+  var totalDiscs = Number(
+    totalDiscsOverride || (albumData && albumData._totalDiscs) || 0,
+  );
+  var genre = appleGenres(attr) || appleGenres(albumAttr);
+
   rememberTrackURL(song.id || "", attr.url || "");
 
   return {
@@ -644,31 +762,42 @@ function formatSong(song, albumData) {
     name: attr.name || "",
     artists: attr.artistName || "",
     album_name: albumName,
-    album_artist: albumAttr.artistName || attr.artistName || "",
+    album_artist:
+      attr.albumArtistName || albumAttr.artistName || attr.artistName || "",
+    artist_id: (artistResource && artistResource.id) || "",
+    artist_url: appleArtistURL(artistResource),
     duration_ms: attr.durationInMillis || 0,
     preview_url: previewURL(attr),
     images: coverURL,
-    release_date: attr.releaseDate || albumAttr.releaseDate || "",
+    cover_url: coverURL,
+    release_date: albumAttr.releaseDate || attr.releaseDate || "",
     track_number: attr.trackNumber || 0,
     total_tracks: albumAttr.trackCount || 0,
     disc_number: attr.discNumber || 1,
-    external_urls:
-      attr.url ||
-      "https://music.apple.com/" + state.storefront + "/song/" + song.id,
+    total_discs: totalDiscs,
+    external_urls: trackURL,
+    external_links: {
+      apple_music_track: trackURL,
+      apple_music_album: albumURL,
+    },
     isrc: attr.isrc || "",
     album_id: albumID,
-    album_url: albumID
-      ? "https://music.apple.com/" + state.storefront + "/album/" + albumID
-      : "",
-    genre: (attr.genreNames || [])
-      .filter(function (g) {
-        return g !== "Music";
-      })
-      .join(", "),
+    album_url: albumURL,
+    album_type: appleAlbumType(albumAttr),
+    genre: genre,
     label: albumAttr.recordLabel || "",
     copyright: albumAttr.copyright || "",
     composer: attr.composerName || "",
+    comment: albumURL,
     explicit: attr.contentRating === "explicit",
+    audio_quality: appleAudioQuality(attr),
+    audio_modes: appleAudioModes(attr),
+    provider_id: "apple-music",
+    item_type: "track",
+    upc: albumAttr.upc || "",
+    is_compilation: albumAttr.isCompilation === true,
+    has_lyrics: attr.hasLyrics === true,
+    has_time_synced_lyrics: attr.hasTimeSyncedLyrics === true,
   };
 }
 
@@ -679,6 +808,9 @@ function formatAlbumInfo(album) {
       ? album.relationships.artists.data
       : [];
   var firstArtistId = artistItems.length > 0 ? artistItems[0].id : "";
+  var firstArtistURL =
+    artistItems.length > 0 ? appleArtistURL(artistItems[0]) : "";
+  var albumURL = appleAlbumURL(album);
 
   // Use square artwork — tall artwork causes 3:4 covers in downloaded files.
   var coverURL = artworkURL(attr.artwork);
@@ -691,21 +823,29 @@ function formatAlbumInfo(album) {
     name: attr.name || "",
     artists: attr.artistName || "",
     artist_id: firstArtistId,
+    artist_url: firstArtistURL,
     images: coverURL,
     cover_url: coverURL,
     header_image: headerImage,
     header_video: headerVideo,
     release_date: attr.releaseDate || "",
     total_tracks: attr.trackCount || 0,
+    total_discs: Number(album._totalDiscs || 0),
+    album_type: appleAlbumType(attr),
+    album_url: albumURL,
+    external_urls: albumURL,
     record_label: attr.recordLabel || "",
+    label: attr.recordLabel || "",
     copyright: attr.copyright || "",
-    genre: (attr.genreNames || [])
-      .filter(function (g) {
-        return g !== "Music";
-      })
-      .join(", "),
+    genre: appleGenres(attr),
+    comment: albumURL,
+    explicit: attr.contentRating === "explicit",
     audio_traits: attr.audioTraits || [],
     provider_id: "apple-music",
+    item_type: "album",
+    upc: attr.upc || "",
+    is_compilation: attr.isCompilation === true,
+    editorial_notes: attr.editorialNotes || null,
   };
 }
 
@@ -713,11 +853,74 @@ function formatAlbumInfo(album) {
 // FETCH FUNCTIONS
 // ============================================
 
+function collectRelationshipItems(resource, relationshipName) {
+  var relationship =
+    resource &&
+    resource.relationships &&
+    resource.relationships[relationshipName];
+  var items =
+    relationship && relationship.data ? relationship.data.slice() : [];
+  var nextURL = relationship && relationship.next;
+  while (nextURL) {
+    try {
+      var nextPath = nextURL.replace(/^\/v1\/catalog\/[a-z]{2}\//, "");
+      var nextData = apiGet(nextPath);
+      var nextItems = nextData.data || [];
+      if (!nextItems.length) break;
+      items = items.concat(nextItems);
+      nextURL = nextData.next || null;
+    } catch (e) {
+      log.debug(relationshipName + " pagination error:", e.message);
+      break;
+    }
+  }
+  return items;
+}
+
+function hydrateAlbumsForSongs(songs) {
+  var albumIDs = [];
+  var seen = {};
+  songs = songs || [];
+  for (var i = 0; i < songs.length; i++) {
+    var albumID = albumIDFromSong(songs[i]);
+    if (!albumID || seen[albumID]) continue;
+    seen[albumID] = true;
+    albumIDs.push(albumID);
+  }
+
+  var albumsByID = {};
+  for (var offset = 0; offset < albumIDs.length; offset += 25) {
+    var chunk = albumIDs.slice(offset, offset + 25);
+    try {
+      var data = apiGet(
+        "albums?ids=" +
+          encodeURIComponent(chunk.join(",")) +
+          "&include=tracks,artists" +
+          "&extend=artistUrl,editorialArtwork,trackCount,upc",
+      );
+      var albums = data.data || [];
+      for (var j = 0; j < albums.length; j++) {
+        var album = albums[j];
+        album._totalDiscs = totalDiscsFromSongs(
+          collectRelationshipItems(album, "tracks"),
+        );
+        albumsByID[String(album.id || "")] = album;
+      }
+    } catch (e) {
+      log.debug("Batch album hydration failed:", e.message);
+    }
+  }
+  return albumsByID;
+}
+
 function fetchTrack(trackID) {
   log.info("Fetching track:", trackID);
 
   var data = apiGet(
-    "songs/" + trackID + "?include=albums&extend=editorialArtwork",
+    "songs/" +
+      trackID +
+      "?include=albums,artists,composers,genres" +
+      "&extend=artistUrl,editorialArtwork,trackCount,upc",
   );
   var songs = data.data || [];
   if (songs.length === 0) {
@@ -730,6 +933,27 @@ function fetchTrack(trackID) {
   var albumRel = song.relationships && song.relationships.albums;
   if (albumRel && albumRel.data && albumRel.data.length > 0) {
     albumData = albumRel.data[0];
+  }
+
+  var albumID = (albumData && albumData.id) || albumIDFromSong(song);
+  if (albumID) {
+    try {
+      var fullAlbumData = apiGet(
+        "albums/" +
+          albumID +
+          "?include=tracks,artists" +
+          "&extend=artistUrl,editorialArtwork,trackCount,upc",
+      );
+      var fullAlbums = fullAlbumData.data || [];
+      if (fullAlbums.length) {
+        albumData = fullAlbums[0];
+        albumData._totalDiscs = totalDiscsFromSongs(
+          collectRelationshipItems(albumData, "tracks"),
+        );
+      }
+    } catch (e) {
+      log.debug("Full album hydration failed:", e.message);
+    }
   }
 
   var track = formatSong(song, albumData);
@@ -754,7 +978,8 @@ function fetchAlbum(albumID) {
   var data = apiGet(
     "albums/" +
       albumID +
-      "?include=tracks,artists&extend=editorialArtwork,editorialVideo",
+      "?include=tracks,artists" +
+      "&extend=artistUrl,editorialArtwork,editorialVideo,trackCount,upc",
   );
   var albums = data.data || [];
   if (albums.length === 0) {
@@ -762,37 +987,26 @@ function fetchAlbum(albumID) {
   }
 
   var album = albums[0];
-  var albumAttr = album.attributes || {};
-  var albumInfo = formatAlbumInfo(album);
-
-  var trackItems =
-    album.relationships && album.relationships.tracks
-      ? album.relationships.tracks.data
-      : [];
-
-  // Handle pagination for large albums
-  var nextURL =
-    album.relationships && album.relationships.tracks
-      ? album.relationships.tracks.next
-      : null;
-  while (nextURL) {
-    try {
-      // nextURL is relative like /v1/catalog/us/albums/{id}/tracks?offset=X
-      var nextPath = nextURL.replace(/^\/v1\/catalog\/[a-z]{2}\//, "");
-      var nextData = apiGet(nextPath);
-      var nextItems = nextData.data || [];
-      if (nextItems.length === 0) break;
-      trackItems = trackItems.concat(nextItems);
-      nextURL = nextData.next || null;
-    } catch (e) {
-      log.debug("Album tracks pagination error:", e.message);
-      break;
-    }
+  var trackItems = collectRelationshipItems(album, "tracks");
+  var totalDiscs =
+    totalDiscsFromSongs(trackItems) || (trackItems.length ? 1 : 0);
+  album._totalDiscs = totalDiscs;
+  var albumAttributes = album.attributes || {};
+  var traitValues = (albumAttributes.audioTraits || []).slice();
+  for (var traitIndex = 0; traitIndex < trackItems.length; traitIndex++) {
+    traitValues = traitValues.concat(
+      (trackItems[traitIndex] &&
+        trackItems[traitIndex].attributes &&
+        trackItems[traitIndex].attributes.audioTraits) ||
+        [],
+    );
   }
+  albumAttributes.audioTraits = uniqueValues(traitValues);
+  var albumInfo = formatAlbumInfo(album);
 
   var tracks = [];
   for (var i = 0; i < trackItems.length; i++) {
-    tracks.push(formatSong(trackItems[i], album));
+    tracks.push(formatSong(trackItems[i], album, totalDiscs));
   }
 
   log.info("Fetched", tracks.length, "tracks from album");
@@ -830,6 +1044,7 @@ function fetchPlaylist(playlistID) {
   }
 
   var playlistInfo = {
+    id: playlist.id || playlistID,
     name: attr.name || "",
     description: description,
     owner: attr.curatorName || "",
@@ -839,37 +1054,25 @@ function fetchPlaylist(playlistID) {
     header_video: motionArtworkVideoURL(attr.editorialVideo),
     totalTracks: 0,
     followers: 0,
+    external_urls: attr.url || "",
+    item_type: "playlist",
   };
 
-  var trackItems =
-    playlist.relationships && playlist.relationships.tracks
-      ? playlist.relationships.tracks.data
-      : [];
-
-  // Handle pagination
-  var nextURL =
-    playlist.relationships && playlist.relationships.tracks
-      ? playlist.relationships.tracks.next
-      : null;
-  while (nextURL) {
-    try {
-      var nextPath = nextURL.replace(/^\/v1\/catalog\/[a-z]{2}\//, "");
-      var nextData = apiGet(nextPath);
-      var nextItems = nextData.data || [];
-      if (nextItems.length === 0) break;
-      trackItems = trackItems.concat(nextItems);
-      nextURL = nextData.next || null;
-    } catch (e) {
-      log.debug("Playlist tracks pagination error:", e.message);
-      break;
-    }
-  }
+  var trackItems = collectRelationshipItems(playlist, "tracks");
 
   playlistInfo.totalTracks = trackItems.length;
 
   var tracks = [];
+  var albumsByID = hydrateAlbumsForSongs(trackItems);
   for (var i = 0; i < trackItems.length; i++) {
-    tracks.push(formatSong(trackItems[i], null));
+    var album = albumsByID[albumIDFromSong(trackItems[i])] || null;
+    var formatted = formatSong(
+      trackItems[i],
+      album,
+      album && album._totalDiscs,
+    );
+    formatted.playlist_position = i + 1;
+    tracks.push(formatted);
   }
 
   log.info("Fetched", tracks.length, "tracks from playlist");
@@ -900,22 +1103,13 @@ function fetchArtist(artistID) {
   var topTracks = [];
   var topSongsView = artist.views && artist.views["top-songs"];
   if (topSongsView && topSongsView.data) {
+    var topAlbums = hydrateAlbumsForSongs(topSongsView.data);
     for (var i = 0; i < topSongsView.data.length; i++) {
       var song = topSongsView.data[i];
-      var songAttr = song.attributes || {};
-      var albumName = songAttr.albumName || "";
-      topTracks.push({
-        id: song.id || "",
-        name: songAttr.name || "",
-        artists: songAttr.artistName || "",
-        album_name: albumName,
-        duration_ms: songAttr.durationInMillis || 0,
-        preview_url: previewURL(songAttr),
-        images: artworkURL(songAttr.artwork),
-        provider_id: "apple-music",
-        isrc: songAttr.isrc || "",
-        explicit: songAttr.contentRating === "explicit",
-      });
+      var topAlbum = topAlbums[albumIDFromSong(song)] || null;
+      topTracks.push(
+        formatSong(song, topAlbum, topAlbum && topAlbum._totalDiscs),
+      );
     }
   }
 
@@ -951,10 +1145,12 @@ function fetchArtist(artistID) {
     albums.push({
       id: alb.id || "",
       name: albAttr.name || "",
-      album_type: albAttr.isSingle ? "single" : "album",
+      album_type: appleAlbumType(albAttr),
       release_date: releaseDate,
       total_tracks: albAttr.trackCount || 0,
       artists: albAttr.artistName || attr.name || "",
+      artist_id: artistID,
+      artist_url: attr.url || "",
       cover_url: artworkURL(albAttr.artwork),
       external_urls: albAttr.url || "",
       provider_id: "apple-music",
@@ -982,6 +1178,8 @@ function fetchArtist(artistID) {
       image_url: artworkURL(attr.artwork),
       header_image: headerImage,
       header_video: headerVideo,
+      artist_url: attr.url || "",
+      external_urls: attr.url || "",
       listeners: 0,
       albums: albums,
       top_tracks: topTracks,
@@ -1035,30 +1233,19 @@ function customSearch(searchQuery, options) {
   if (searchResults.songs && (!isFiltered || filter === "tracks")) {
     var songs = searchResults.songs.data || [];
     if (!isFiltered) songs = songs.slice(0, limit);
+    var searchAlbumsByID = hydrateAlbumsForSongs(songs);
 
     for (var i = 0; i < songs.length; i++) {
       var songAttr = songs[i].attributes || {};
-      var albumName = songAttr.albumName || "";
       rememberTrackURL(songs[i].id || "", songAttr.url || "");
-
-      results.push({
-        id: songs[i].id || "",
-        name: songAttr.name || "",
-        artists: songAttr.artistName || "",
-        album_name: albumName,
-        duration_ms: songAttr.durationInMillis || 0,
-        preview_url: previewURL(songAttr),
-        images: artworkURL(songAttr.artwork),
-        release_date: songAttr.releaseDate || "",
-        track_number: songAttr.trackNumber || 0,
-        disc_number: songAttr.discNumber || 1,
-        isrc: songAttr.isrc || "",
-        composer: songAttr.composerName || "",
-        source: "apple-music",
-        item_type: "track",
-        provider_id: "apple-music",
-        explicit: songAttr.contentRating === "explicit",
-      });
+      var searchAlbum = searchAlbumsByID[albumIDFromSong(songs[i])] || null;
+      var formattedSearchSong = formatSong(
+        songs[i],
+        searchAlbum,
+        searchAlbum && searchAlbum._totalDiscs,
+      );
+      formattedSearchSong.source = "apple-music";
+      results.push(formattedSearchSong);
     }
   }
 
@@ -1076,7 +1263,14 @@ function customSearch(searchQuery, options) {
         cover_url: artworkURL(albAttr.artwork),
         images: artworkURL(albAttr.artwork),
         release_date: albAttr.releaseDate || "",
-        album_type: albAttr.isSingle ? "single" : "album",
+        total_tracks: albAttr.trackCount || 0,
+        album_type: appleAlbumType(albAttr),
+        label: albAttr.recordLabel || "",
+        copyright: albAttr.copyright || "",
+        genre: appleGenres(albAttr),
+        explicit: albAttr.contentRating === "explicit",
+        album_url: albAttr.url || "",
+        external_urls: albAttr.url || "",
         item_type: "album",
         provider_id: "apple-music",
       });
@@ -1095,6 +1289,8 @@ function customSearch(searchQuery, options) {
         name: artAttr.name || "",
         image_url: artworkURL(artAttr.artwork),
         images: artworkURL(artAttr.artwork),
+        artist_url: artAttr.url || "",
+        external_urls: artAttr.url || "",
         item_type: "artist",
         provider_id: "apple-music",
       });
@@ -1108,12 +1304,19 @@ function customSearch(searchQuery, options) {
 
     for (var m = 0; m < playlistsData.length; m++) {
       var plAttr = playlistsData[m].attributes || {};
+      var playlistDescription = plAttr.description
+        ? String(
+            plAttr.description.standard || plAttr.description.short || "",
+          ).replace(/<[^>]+>/g, "")
+        : "";
       results.push({
         id: playlistsData[m].id || "",
         name: plAttr.name || "",
         owner: plAttr.curatorName || "",
+        description: playlistDescription,
         cover_url: artworkURL(plAttr.artwork),
         images: artworkURL(plAttr.artwork),
+        external_urls: plAttr.url || "",
         item_type: "playlist",
         provider_id: "apple-music",
       });
@@ -1128,134 +1331,52 @@ function customSearch(searchQuery, options) {
 // ENRICHMENT
 // ============================================
 
+function overlayTrackMetadata(target, source) {
+  target = target || {};
+  source = source || {};
+  var keys = Object.keys(source);
+  for (var i = 0; i < keys.length; i++) {
+    var value = source[keys[i]];
+    if (value === null || value === undefined || value === "") continue;
+    target[keys[i]] = value;
+  }
+  return target;
+}
+
 function enrichTrack(track) {
+  track = track || {};
   log.info("enrichTrack called for:", track.name, "by", track.artists);
 
-  var amTrackID = (track.id || "").trim();
-
-  // If the ID looks like an Apple Music numeric ID, fetch directly
+  var amTrackID = String(track.id || "").trim();
   if (amTrackID && /^\d+$/.test(amTrackID)) {
     try {
-      var data = apiGet(
-        "songs/" + amTrackID + "?include=albums&extend=editorialArtwork",
-      );
-      var songs = data.data || [];
-      if (songs.length > 0) {
-        var songAttr = songs[0].attributes || {};
-        var albumRel = songs[0].relationships && songs[0].relationships.albums;
-        var albumData =
-          albumRel && albumRel.data && albumRel.data.length > 0
-            ? albumRel.data[0]
-            : null;
-        var fullTrack = formatSong(songs[0], albumData);
-
-        if (songAttr.isrc) {
-          track.isrc = songAttr.isrc;
-          log.info("Enriched ISRC from Apple Music:", track.isrc);
-        }
-        if (fullTrack.track_number > 0) {
-          track.track_number = fullTrack.track_number;
-        }
-        if (fullTrack.total_tracks > 0) {
-          track.total_tracks = fullTrack.total_tracks;
-        }
-        if (fullTrack.disc_number > 0) {
-          track.disc_number = fullTrack.disc_number;
-        }
-        if (!track.album_id && fullTrack.album_id) {
-          track.album_id = fullTrack.album_id;
-        }
-        if (!track.album_artist && fullTrack.album_artist) {
-          track.album_artist = fullTrack.album_artist;
-        }
-        if (songAttr.genreNames) {
-          var genres = songAttr.genreNames.filter(function (g) {
-            return g !== "Music";
-          });
-          if (genres.length > 0) track.genre = genres.join(", ");
-        }
-        if (songAttr.composerName) {
-          track.composer = songAttr.composerName;
-        }
-        if (songAttr.releaseDate && !track.release_date) {
-          track.release_date = songAttr.releaseDate;
-        }
-
-        // Get label/copyright from album
-        if (albumData) {
-          var albAttr = albumData.attributes || {};
-          if (albAttr.recordLabel) track.label = albAttr.recordLabel;
-          if (albAttr.copyright) track.copyright = albAttr.copyright;
-        }
-      }
+      var direct = fetchTrack(amTrackID);
+      if (direct && direct.track)
+        return overlayTrackMetadata(track, direct.track);
     } catch (e) {
       log.debug("Direct Apple Music enrichment failed:", e.message);
     }
   }
 
-  // If still no ISRC, try searching by name+artist
-  if (!track.isrc || track.isrc === amTrackID) {
-    var searchTerm = (track.name || "") + " " + (track.artists || "");
-    searchTerm = searchTerm.trim();
-    if (searchTerm) {
-      try {
-        var searchData = apiGet(
-          "search?term=" +
-            encodeURIComponent(searchTerm) +
-            "&types=songs&limit=5",
-        );
-        var searchSongs =
-          searchData.results && searchData.results.songs
-            ? searchData.results.songs.data
-            : [];
-
-        // Find best match
-        var bestMatch = findBestMatch(searchSongs, track.name, track.artists);
-        if (bestMatch) {
-          var mAttr = bestMatch.attributes || {};
-          if (mAttr.isrc) {
-            track.isrc = mAttr.isrc;
-            log.info("Enriched ISRC via search:", track.isrc);
-          }
-          if (mAttr.trackNumber) {
-            track.track_number = mAttr.trackNumber;
-          }
-          if (mAttr.discNumber) {
-            track.disc_number = mAttr.discNumber;
-          }
-          if (!track.genre && mAttr.genreNames) {
-            var g = mAttr.genreNames.filter(function (x) {
-              return x !== "Music";
-            });
-            if (g.length > 0) track.genre = g.join(", ");
-          }
-          if (!track.release_date && mAttr.releaseDate) {
-            track.release_date = mAttr.releaseDate;
-          }
-          if (!track.composer && mAttr.composerName) {
-            track.composer = mAttr.composerName;
-          }
-        }
-      } catch (e) {
-        log.debug("Apple Music search enrichment failed:", e.message);
-      }
+  var searchTerm = ((track.name || "") + " " + (track.artists || "")).trim();
+  if (!searchTerm) return track;
+  try {
+    var searchData = apiGet(
+      "search?term=" + encodeURIComponent(searchTerm) + "&types=songs&limit=5",
+    );
+    var searchSongs =
+      searchData.results && searchData.results.songs
+        ? searchData.results.songs.data
+        : [];
+    var bestMatch = findBestMatch(searchSongs, track.name, track.artists);
+    if (bestMatch && bestMatch.id) {
+      var resolved = fetchTrack(bestMatch.id);
+      if (resolved && resolved.track)
+        return overlayTrackMetadata(track, resolved.track);
     }
+  } catch (e) {
+    log.debug("Apple Music search enrichment failed:", e.message);
   }
-
-  // Enrich with Deezer for label/copyright if still missing
-  if (track.isrc && (!track.label || !track.copyright)) {
-    var deezerMeta = getMetadataFromDeezerByISRC(track.isrc);
-    if (deezerMeta) {
-      if (!track.label && deezerMeta.label) track.label = deezerMeta.label;
-      if (!track.copyright && deezerMeta.copyright)
-        track.copyright = deezerMeta.copyright;
-      if (!track.genre && deezerMeta.genre) track.genre = deezerMeta.genre;
-      if (!track.release_date && deezerMeta.release_date) {
-        track.release_date = deezerMeta.release_date;
-      }
-    }
-  }
-
   return track;
 }
 
@@ -1304,80 +1425,6 @@ function normalizeText(text) {
 }
 
 // ============================================
-// DEEZER FALLBACK (for label/copyright)
-// ============================================
-
-function getMetadataFromDeezerByISRC(isrc) {
-  try {
-    if (!isrc) return null;
-
-    var directURL =
-      "https://api.deezer.com/track/isrc:" + encodeURIComponent(isrc);
-    var directResp = http.get(directURL, {
-      "User-Agent": utils.randomUserAgent(),
-    });
-
-    if (directResp && !directResp.error && directResp.statusCode === 200) {
-      var data = JSON.parse(directResp.body);
-      if (data && data.id) {
-        return extractDeezerMetadata(data);
-      }
-    }
-
-    return null;
-  } catch (e) {
-    log.debug("Deezer ISRC lookup failed:", e.message);
-    return null;
-  }
-}
-
-function extractDeezerMetadata(trackData) {
-  var result = {
-    isrc: trackData.isrc || null,
-    release_date: trackData.release_date || null,
-    genre: null,
-    label: null,
-    copyright: null,
-  };
-
-  if (trackData.album && trackData.album.id) {
-    try {
-      var albumResp = http.get(
-        "https://api.deezer.com/album/" + trackData.album.id,
-        { "User-Agent": utils.randomUserAgent() },
-      );
-
-      if (albumResp && !albumResp.error && albumResp.statusCode === 200) {
-        var albumData = JSON.parse(albumResp.body);
-        if (albumData.label) result.label = albumData.label;
-        if (albumData.label && albumData.release_date) {
-          var year = albumData.release_date.substring(0, 4);
-          result.copyright = year + " " + albumData.label;
-        }
-        if (
-          albumData.genres &&
-          albumData.genres.data &&
-          albumData.genres.data.length > 0
-        ) {
-          result.genre = albumData.genres.data
-            .map(function (g) {
-              return g.name;
-            })
-            .join(", ");
-        }
-        if (!result.release_date && albumData.release_date) {
-          result.release_date = albumData.release_date;
-        }
-      }
-    } catch (e) {
-      log.debug("Deezer album fetch failed:", e.message);
-    }
-  }
-
-  return result;
-}
-
-// ============================================
 // EXPORTED API
 // ============================================
 
@@ -1415,12 +1462,23 @@ function handleURL(url) {
             id: parsed.id,
             name: result.album_info.name,
             artists: result.album_info.artists,
+            artist_id: result.album_info.artist_id,
+            artist_url: result.album_info.artist_url,
             cover_url: result.album_info.images,
             header_image: result.album_info.header_image,
             header_video: result.album_info.header_video,
             audio_traits: result.album_info.audio_traits,
             release_date: result.album_info.release_date,
             total_tracks: result.album_info.total_tracks,
+            total_discs: result.album_info.total_discs,
+            album_type: result.album_info.album_type,
+            album_url: result.album_info.album_url,
+            external_urls: result.album_info.external_urls,
+            label: result.album_info.label,
+            copyright: result.album_info.copyright,
+            genre: result.album_info.genre,
+            comment: result.album_info.comment,
+            explicit: result.album_info.explicit,
             tracks: result.track_list,
           },
           tracks: result.track_list,
@@ -1436,6 +1494,20 @@ function handleURL(url) {
         return {
           success: true,
           type: "playlist",
+          id: result.playlist_info.id,
+          playlist: {
+            id: result.playlist_info.id,
+            name: result.playlist_info.name,
+            artists: result.playlist_info.owner,
+            description: result.playlist_info.description,
+            cover_url: result.playlist_info.cover,
+            header_image: result.playlist_info.header_image,
+            header_video: result.playlist_info.header_video,
+            total_tracks: result.playlist_info.totalTracks,
+            external_urls: result.playlist_info.external_urls,
+            tracks: result.track_list,
+            provider_id: "apple-music",
+          },
           tracks: result.track_list,
           name: result.playlist_info.name,
           cover_url: result.playlist_info.cover,
@@ -1487,8 +1559,18 @@ function getAlbum(albumId) {
       name: result.album_info.name,
       artists: result.album_info.artists,
       artist_id: result.album_info.artist_id,
+      artist_url: result.album_info.artist_url,
       release_date: result.album_info.release_date,
       total_tracks: result.album_info.total_tracks,
+      total_discs: result.album_info.total_discs,
+      album_type: result.album_info.album_type,
+      album_url: result.album_info.album_url,
+      external_urls: result.album_info.external_urls,
+      label: result.album_info.label,
+      copyright: result.album_info.copyright,
+      genre: result.album_info.genre,
+      comment: result.album_info.comment,
+      explicit: result.album_info.explicit,
       images: result.album_info.images,
       cover_url: result.album_info.images,
       header_image: result.album_info.header_image,
@@ -1530,6 +1612,7 @@ function getPlaylist(playlistId) {
       header_image: result.playlist_info.header_image,
       header_video: result.playlist_info.header_video,
       total_tracks: result.playlist_info.totalTracks,
+      external_urls: result.playlist_info.external_urls,
       tracks: tracks,
       provider_id: "apple-music",
     };
@@ -2920,146 +3003,6 @@ function findTrackId(trackName, artistName, albumName, durationSec) {
 // REGISTER EXTENSION
 // ============================================
 
-function getHomeFeed() {
-  var sections = [];
-  try {
-    ensureToken();
-    // Apple Music catalog charts: top songs, albums and playlists.
-    var charts = apiGet("charts?limit=20&types=songs,albums,playlists");
-    if (!charts || !charts.results) {
-      return { success: false, error: "no chart data", sections: [] };
-    }
-
-    // Section 1: Top songs.
-    try {
-      var songItems = [];
-      // results.songs is an array of chart objects, each with its own .data.
-      var songCharts =
-        charts.results.songs && Array.isArray(charts.results.songs)
-          ? charts.results.songs
-          : [];
-      for (var c = 0; c < songCharts.length && songItems.length < 15; c++) {
-        var chartData =
-          songCharts[c] && songCharts[c].data ? songCharts[c].data : [];
-        for (var i = 0; i < chartData.length && songItems.length < 15; i++) {
-          var s = formatSong(chartData[i], null);
-          if (!s || !s.id) continue;
-          songItems.push({
-            name: s.name,
-            artists: s.artists,
-            duration_ms: s.duration_ms,
-            type: "track",
-            id: s.id,
-            album_id: s.album_id,
-            album_name: s.album_name,
-            cover_url: s.images || s.cover_url,
-          });
-        }
-      }
-      if (songItems.length > 0) {
-        sections.push({
-          uri: "am:charts:songs",
-          title: "Canciones del momento",
-          items: songItems,
-        });
-      }
-    } catch (e1) {
-      log.debug("Apple getHomeFeed songs failed:", e1.message);
-    }
-
-    // Section 2: Top albums.
-    try {
-      var albumItems = [];
-      var albumCharts =
-        charts.results.albums && Array.isArray(charts.results.albums)
-          ? charts.results.albums
-          : [];
-      for (
-        var c2 = 0;
-        c2 < albumCharts.length && albumItems.length < 12;
-        c2++
-      ) {
-        var chartAlbums =
-          albumCharts[c2] && albumCharts[c2].data ? albumCharts[c2].data : [];
-        for (var j = 0; j < chartAlbums.length && albumItems.length < 12; j++) {
-          var al = formatAlbumInfo(chartAlbums[j]);
-          if (!al || !al.id) continue;
-          albumItems.push({
-            name: al.name,
-            artists: al.artists,
-            type: "album",
-            id: al.id,
-            cover_url: al.cover_url,
-            release_date: al.release_date,
-            total_tracks: al.total_tracks,
-          });
-        }
-      }
-      if (albumItems.length > 0) {
-        sections.push({
-          uri: "am:charts:albums",
-          title: "Álbumes más escuchados",
-          items: albumItems,
-        });
-      }
-    } catch (e2) {
-      log.debug("Apple getHomeFeed albums failed:", e2.message);
-    }
-
-    // Section 3: Top playlists.
-    try {
-      var playlistItems = [];
-      var playlistCharts =
-        charts.results.playlists && Array.isArray(charts.results.playlists)
-          ? charts.results.playlists
-          : [];
-      for (
-        var c3 = 0;
-        c3 < playlistCharts.length && playlistItems.length < 12;
-        c3++
-      ) {
-        var chartPlaylists =
-          playlistCharts[c3] && playlistCharts[c3].data
-            ? playlistCharts[c3].data
-            : [];
-        for (
-          var k = 0;
-          k < chartPlaylists.length && playlistItems.length < 12;
-          k++
-        ) {
-          var pl = chartPlaylists[k] || {};
-          var plAttr = pl.attributes || {};
-          var plCover = artworkURL(plAttr.artwork);
-          playlistItems.push({
-            name: String(plAttr.name || ""),
-            type: "playlist",
-            id: String(pl.id || ""),
-            cover_url: plCover,
-            total_tracks: Number(plAttr.trackCount || 0),
-          });
-        }
-      }
-      if (playlistItems.length > 0) {
-        sections.push({
-          uri: "am:charts:playlists",
-          title: "Playlists populares",
-          items: playlistItems,
-        });
-      }
-    } catch (e3) {
-      log.debug("Apple getHomeFeed playlists failed:", e3.message);
-    }
-  } catch (e) {
-    log.debug("Apple getHomeFeed failed:", e.message);
-    return { success: false, error: String(e.message || e), sections: [] };
-  }
-
-  if (sections.length > 0) {
-    return { success: true, sections: sections };
-  }
-  return { success: false, error: "no home feed available", sections: [] };
-}
-
 registerExtension({
   initialize: initialize,
   cleanup: cleanup,
@@ -3070,7 +3013,6 @@ registerExtension({
   getArtist: getArtist,
   getPlaylist: getPlaylist,
   searchTracks: searchTracks,
-  getHomeFeed: getHomeFeed,
   enrichTrack: enrichTrack,
   fetchLyrics: fetchLyrics,
   checkAvailability: checkAvailability,

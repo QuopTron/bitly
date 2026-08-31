@@ -1,8 +1,8 @@
 {
   "name": "ytmusic-spotiflac",
   "displayName": "YouTube Music",
-  "version": "2.3.9",
-  "description": "YouTube Music metadata & download provider for SpotiFLAC Mobile. Search tracks, albums, playlists on YouTube Music.",
+  "version": "2.4.0",
+  "description": "YouTube Music metadata and download provider with native album, artist, explicit, release, and song-credit metadata plus validated catalog enrichment.",
   "type": ["metadata_provider", "download_provider"],
   "icon": "icon.jpg",
   "minAppVersion": "4.5.1",
@@ -17,8 +17,6 @@
       "api.zarz.moe",
       "127.0.0.1",
       "localhost",
-      "api.song.link",
-      "odesli.io",
       "api.deezer.com",
       "yt1d.io"
     ],

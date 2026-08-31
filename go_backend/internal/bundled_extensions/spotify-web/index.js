@@ -1,6 +1,6 @@
 // ============================================
 // Spotify Web Extension for SpotiFLAC
-// Version: 1.9.14
+// Version: 1.10.0
 //
 // This extension uses Spotify's internal GraphQL API
 // to fetch metadata. It can access personalized playlists
@@ -39,6 +39,33 @@ let clientState = {
   cookies: {},
   initialized: false,
 };
+
+const METADATA_CACHE_LIMIT = 500;
+const SPOTIFY_COVER_SIZE_300 = "ab67616d00001e02";
+const SPOTIFY_COVER_SIZE_640 = "ab67616d0000b273";
+const SPOTIFY_COVER_SIZE_MAX = "ab67616d000082c1";
+const nativeTrackMetadataCache = {};
+const nativeTrackMetadataOrder = [];
+const nativeAlbumMetadataCache = {};
+const nativeAlbumMetadataOrder = [];
+
+function metadataCacheGet(cache, key) {
+  if (!key || !Object.prototype.hasOwnProperty.call(cache, key)) return null;
+  return cache[key];
+}
+
+function metadataCachePut(cache, order, key, value) {
+  if (!key || !value) return value;
+  if (!Object.prototype.hasOwnProperty.call(cache, key)) {
+    order.push(key);
+  }
+  cache[key] = value;
+  while (order.length > METADATA_CACHE_LIMIT) {
+    const oldest = order.shift();
+    delete cache[oldest];
+  }
+  return value;
+}
 
 function initialize(config) {
   log.info("Spotify Web Extension initializing...");
@@ -343,13 +370,8 @@ function getClientToken() {
     getAccessToken();
   }
 
-  // Anonymous fallback: the web player assigns a random persistent device id
-  // (32 hex chars) stored in localStorage. When not logged in there is no
-  // sp_t cookie to read one from, so generate and persist one. This keeps the
-  // client-token / browse REST home feed working without a signed session.
   if (!clientState.deviceID) {
-    clientState.deviceID = generateDeviceID();
-    log.info("No sp_t cookie; using anonymous generated device id");
+    throw new Error("Failed to get device ID from sp_t cookie");
   }
 
   const payload = {
@@ -537,6 +559,10 @@ function parseSpotifyURL(url) {
   }
 
   if (parts.length === 2) {
+    if (parts[0] === "s") {
+      return { type: "short", id: parts[1] };
+    }
+
     if (["track", "album", "playlist", "artist"].indexOf(parts[0]) !== -1) {
       return { type: parts[0], id: parts[1] };
     }
@@ -547,6 +573,70 @@ function parseSpotifyURL(url) {
   }
 
   return null;
+}
+
+function parseSpotifyResolutionResponse(response) {
+  if (!response || response.error) {
+    return null;
+  }
+
+  let parsed = response.url ? parseSpotifyURL(response.url) : null;
+  if (parsed && parsed.type !== "short") {
+    return parsed;
+  }
+
+  const body = String(response.body || "");
+  const metadataPatterns = [
+    /<meta[^>]+property=["']og:url["'][^>]+content=["']([^"']+)["']/i,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:url["']/i,
+    /<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)["']/i,
+    /<link[^>]+href=["']([^"']+)["'][^>]+rel=["']canonical["']/i,
+    /https?:\/\/(?:open|play)\.spotify\.com\/(?:intl-[^/"']+\/)?(?:track|album|playlist|artist)\/[A-Za-z0-9]+/i,
+  ];
+
+  for (let i = 0; i < metadataPatterns.length; i++) {
+    const match = body.match(metadataPatterns[i]);
+    if (!match) continue;
+
+    const candidate = String(match[1] || match[0]).replace(
+      /&amp;|&#38;|&#x26;/gi,
+      "&",
+    );
+    parsed = parseSpotifyURL(candidate);
+    if (parsed && parsed.type !== "short") {
+      return parsed;
+    }
+  }
+
+  return null;
+}
+
+function resolveSpotifyShortURL(url) {
+  let response = null;
+
+  if (typeof http.request === "function") {
+    response = http.request(url, {
+      method: "HEAD",
+      headers: {
+        Accept: "text/html",
+      },
+    });
+  }
+
+  let parsed = parseSpotifyResolutionResponse(response);
+
+  if (!parsed || parsed.type === "short") {
+    response = http.get(url, {
+      Accept: "text/html",
+    });
+    parsed = parseSpotifyResolutionResponse(response);
+  }
+
+  if (!parsed || parsed.type === "short") {
+    throw new Error("Unable to resolve Spotify short URL");
+  }
+
+  return parsed;
 }
 
 function fetchPlaylist(playlistID) {
@@ -614,9 +704,8 @@ function formatPlaylistData(data, allItems) {
     owner: ownerData.name || "",
     ownerAvatar: getNestedValue(ownerData, "avatar.sources.0.url") || "",
     cover:
-      getNestedValue(playlistData, "images.items.0.sources.0.url") ||
-      getNestedValue(playlistData, "imagesV2.items.0.sources.0.url") ||
-      "",
+      spotifyBestImage(getNestedValue(playlistData, "images.items.0")) ||
+      spotifyBestImage(getNestedValue(playlistData, "imagesV2.items.0")),
     totalTracks: allItems.length,
     followers: getNestedValue(playlistData, "followers.totalCount") || 0,
   };
@@ -626,30 +715,36 @@ function formatPlaylistData(data, allItems) {
     const trackData = getNestedValue(item, "itemV2.data") || {};
     if (!trackData.uri) continue;
 
-    const artistItems = getNestedValue(trackData, "artists.items") || [];
-    const artistNames = artistItems
-      .map((a) => getNestedValue(a, "profile.name") || "")
-      .filter((n) => n);
-    const artistsString = artistNames.join(", ");
-
-    const durationMs =
-      getNestedValue(trackData, "trackDuration.totalMilliseconds") || 0;
-
-    let trackID = trackData.id || "";
-    if (!trackID && trackData.uri) {
-      const parts = trackData.uri.split(":");
-      trackID = parts[parts.length - 1];
+    let artistEntries = spotifyArtistEntries(
+      getNestedValue(trackData, "artists.items") || [],
+    );
+    if (!artistEntries.length) {
+      artistEntries = spotifyArtistEntries(
+        getNestedValue(trackData, "firstArtist.items") || [],
+      ).concat(
+        spotifyArtistEntries(
+          getNestedValue(trackData, "otherArtists.items") || [],
+        ),
+      );
     }
-
+    const artistsString = uniqueMetadataValues(
+      artistEntries.map(function (artist) {
+        return artist.name;
+      }),
+    ).join(", ");
+    const firstArtist = artistEntries.length ? artistEntries[0] : {};
+    const durationMs =
+      getNestedValue(trackData, "trackDuration.totalMilliseconds") ||
+      getNestedValue(trackData, "duration.totalMilliseconds") ||
+      0;
+    const trackID = trackData.id || spotifyIDFromURI(trackData.uri);
     const albumData = trackData.albumOfTrack || {};
     const albumName = albumData.name || "";
-    let albumID = "";
-    if (albumData.uri) {
-      const parts = albumData.uri.split(":");
-      albumID = parts[parts.length - 1];
-    }
-
-    let coverURL = getNestedValue(albumData, "coverArt.sources.0.url") || "";
+    const albumID = albumData.id || spotifyIDFromURI(albumData.uri);
+    const albumURL = albumID ? "https://open.spotify.com/album/" + albumID : "";
+    const albumArtists = spotifyArtistNames(albumData.artists) || artistsString;
+    const coverURL = spotifyBestImage(albumData.coverArt);
+    const spotifyURL = "https://open.spotify.com/track/" + trackID;
 
     tracks.push({
       id: trackID,
@@ -657,18 +752,33 @@ function formatPlaylistData(data, allItems) {
       name: trackData.name || "",
       artists: artistsString,
       album_name: albumName,
-      album_artist: artistsString,
+      album_artist: albumArtists,
+      artist_id: firstArtist.id || "",
+      artist_url: firstArtist.url || "",
       duration_ms: durationMs,
       images: coverURL,
-      release_date: "",
-      track_number: 0,
-      total_tracks: 0,
-      disc_number: 1,
-      external_urls: "https://open.spotify.com/track/" + trackID,
+      cover_url: coverURL,
+      preview_url:
+        getNestedValue(trackData, "previews.audioPreviews.items.0.url") || "",
+      release_date: normalizeSpotifyDate(albumData.date),
+      album_type: normalizeSpotifyAlbumType(
+        albumData.albumType || albumData.type,
+      ),
+      track_number: Number(trackData.trackNumber || 0),
+      total_tracks: Number(getNestedValue(albumData, "tracks.totalCount") || 0),
+      disc_number: Number(trackData.discNumber || 0),
+      total_discs: 0,
+      external_urls: spotifyURL,
+      external_links: { spotify: spotifyURL },
       isrc: "",
       explicit: isExplicitSpotify(trackData),
       album_id: albumID,
-      album_url: "https://open.spotify.com/album/" + albumID,
+      album_url: albumURL,
+      label: albumData.label || "",
+      copyright: spotifyCopyrightText(albumData.copyright),
+      comment: albumURL,
+      item_type: "track",
+      provider_id: "spotify-web",
     });
   }
 
@@ -738,41 +848,44 @@ function fetchAlbum(albumID) {
 
 function formatAlbumData(data, allItems, albumID) {
   const albumData = getNestedValue(data, "data.albumUnion") || {};
-
-  const artistItems = getNestedValue(albumData, "artists.items") || [];
-  const artistNames = artistItems
-    .map((a) => getNestedValue(a, "profile.name") || "")
-    .filter((n) => n);
-  const albumArtistsString = artistNames.join(", ");
-
-  // Extract first artist ID
-  let firstArtistId = "";
-  if (artistItems.length > 0 && artistItems[0].uri) {
-    const parts = artistItems[0].uri.split(":");
-    firstArtistId = parts[parts.length - 1];
-  }
-
-  const coverURL = getNestedValue(albumData, "coverArt.sources.0.url") || "";
-
-  const dateInfo = albumData.date || {};
-  let releaseDate = dateInfo.isoString || "";
-  if (releaseDate && releaseDate.includes("T")) {
-    releaseDate = releaseDate.split("T")[0];
-  }
+  const albumArtists = spotifyArtistEntries(
+    getNestedValue(albumData, "artists.items") || [],
+  );
+  const albumArtistsString = uniqueMetadataValues(
+    albumArtists.map(function (artist) {
+      return artist.name;
+    }),
+  ).join(", ");
+  const firstAlbumArtist = albumArtists.length ? albumArtists[0] : {};
+  const coverURL = spotifyBestImage(albumData.coverArt);
+  const releaseDate = normalizeSpotifyDate(albumData.date);
+  const albumURL = "https://open.spotify.com/album/" + albumID;
+  const totalTracks = Number(
+    getNestedValue(albumData, "tracksV2.totalCount") || allItems.length,
+  );
+  const totalDiscs = spotifyTotalDiscs(allItems);
+  const nativeAlbumMetadata = getSpotifyNativeAlbumMetadata(albumID) || {};
 
   const albumInfo = {
     name: albumData.name || "",
     artists: albumArtistsString,
-    artist_id: firstArtistId,
+    artist_id: firstAlbumArtist.id || "",
+    artist_url: firstAlbumArtist.url || "",
     images: coverURL,
+    cover_url: coverURL,
     release_date: releaseDate,
-    total_tracks: allItems.length,
-    album_type: (
-      albumData.albumType ||
-      albumData.type ||
-      "album"
-    ).toLowerCase(),
+    total_tracks: totalTracks,
+    total_discs: totalDiscs,
+    album_type: normalizeSpotifyAlbumType(
+      albumData.albumType || albumData.type,
+    ),
+    label: albumData.label || "",
+    copyright: spotifyCopyrightText(albumData.copyright),
+    external_urls: albumURL,
+    comment: albumURL,
+    upc: "",
   };
+  applyMetadataFallbacks(albumInfo, nativeAlbumMetadata);
 
   const tracks = [];
   let trackNumber = 0;
@@ -782,40 +895,54 @@ function formatAlbumData(data, allItems, albumID) {
     if (!track.uri) continue;
     trackNumber++;
 
-    const trackArtistItems = getNestedValue(track, "artists.items") || [];
-    const trackArtistNames = trackArtistItems
-      .map((a) => getNestedValue(a, "profile.name") || "")
-      .filter((n) => n);
-    const trackArtistsString = trackArtistNames.join(", ");
-
+    const trackArtists = spotifyArtistEntries(
+      getNestedValue(track, "artists.items") || [],
+    );
+    const trackArtistsString = uniqueMetadataValues(
+      trackArtists.map(function (artist) {
+        return artist.name;
+      }),
+    ).join(", ");
+    const firstTrackArtist = trackArtists.length ? trackArtists[0] : {};
     const durationMs = getNestedValue(track, "duration.totalMilliseconds") || 0;
-
-    let trackID = "";
-    if (track.uri) {
-      const parts = track.uri.split(":");
-      trackID = parts[parts.length - 1];
-    }
-
-    tracks.push({
+    const trackID = spotifyIDFromURI(track.uri);
+    const spotifyURL = "https://open.spotify.com/track/" + trackID;
+    const formattedTrack = {
       id: trackID,
       spotify_id: trackID,
       name: track.name || "",
       artists: trackArtistsString,
       album_name: albumData.name || "",
       album_artist: albumArtistsString,
+      artist_id: firstTrackArtist.id || "",
+      artist_url: firstTrackArtist.url || "",
       duration_ms: durationMs,
       images: coverURL,
+      cover_url: coverURL,
+      preview_url:
+        getNestedValue(track, "previews.audioPreviews.items.0.url") || "",
       release_date: releaseDate,
       album_type: albumInfo.album_type,
-      track_number: trackNumber,
-      total_tracks: allItems.length,
-      disc_number: track.discNumber || 1,
-      external_urls: "https://open.spotify.com/track/" + trackID,
+      track_number: Number(track.trackNumber || trackNumber),
+      total_tracks: totalTracks,
+      disc_number: Number(track.discNumber || 1),
+      total_discs: totalDiscs,
+      external_urls: spotifyURL,
+      external_links: { spotify: spotifyURL },
       isrc: "",
       explicit: isExplicitSpotify(track),
       album_id: albumID,
-      album_url: "https://open.spotify.com/album/" + albumID,
-    });
+      album_url: albumURL,
+      label: albumInfo.label || "",
+      copyright: albumInfo.copyright || "",
+      genre: albumInfo.genre || "",
+      upc: albumInfo.upc || "",
+      comment: albumURL,
+      item_type: "track",
+      provider_id: "spotify-web",
+    };
+    applyMetadataFallbacks(formattedTrack, nativeAlbumMetadata);
+    tracks.push(formattedTrack);
   }
 
   log.info("Fetched", tracks.length, "tracks from album");
@@ -847,64 +974,66 @@ function fetchTrack(trackID) {
   const response = query(payload);
   const trackData = getNestedValue(response, "data.trackUnion") || {};
 
-  const artistNames = [];
-  const firstArtist = getNestedValue(
-    trackData,
-    "firstArtist.items.0.profile.name",
+  const artistEntries = spotifyArtistEntries(
+    getNestedValue(trackData, "firstArtist.items") || [],
+  ).concat(
+    spotifyArtistEntries(getNestedValue(trackData, "otherArtists.items") || []),
   );
-  if (firstArtist) {
-    artistNames.push(firstArtist);
-  }
-  const otherArtists = getNestedValue(trackData, "otherArtists.items") || [];
-  for (var i = 0; i < otherArtists.length; i++) {
-    const name = getNestedValue(otherArtists[i], "profile.name");
-    if (name) artistNames.push(name);
-  }
-  const artistsString = artistNames.join(", ");
-
+  const artistsString = uniqueMetadataValues(
+    artistEntries.map(function (artist) {
+      return artist.name;
+    }),
+  ).join(", ");
+  const firstArtist = artistEntries.length ? artistEntries[0] : {};
   const albumData = trackData.albumOfTrack || {};
   const albumName = albumData.name || "";
-  let albumID = "";
-  if (albumData.uri) {
-    const parts = albumData.uri.split(":");
-    albumID = parts[parts.length - 1];
-  }
-
-  const coverURL = getNestedValue(albumData, "coverArt.sources.0.url") || "";
-
+  const albumID = albumData.id || spotifyIDFromURI(albumData.uri);
+  const albumURL = albumID ? "https://open.spotify.com/album/" + albumID : "";
+  const coverURL = spotifyBestImage(albumData.coverArt);
   const durationMs =
     getNestedValue(trackData, "duration.totalMilliseconds") || 0;
-
-  const dateInfo = getNestedValue(albumData, "date") || {};
-  let releaseDate = dateInfo.isoString || "";
-  if (releaseDate && releaseDate.includes("T")) {
-    releaseDate = releaseDate.split("T")[0];
-  }
-
+  const releaseDate = normalizeSpotifyDate(albumData.date);
+  const spotifyURL = "https://open.spotify.com/track/" + trackID;
+  const enrichedMetadata = enrichMetadata(trackID, albumID, {
+    album_name: albumName,
+  });
   const track = {
     id: trackID,
     spotify_id: trackID,
     name: trackData.name || "",
     artists: artistsString,
     album_name: albumName,
-    album_artist: artistsString,
+    album_artist: "",
+    artist_id: firstArtist.id || "",
+    artist_url: firstArtist.url || "",
     duration_ms: durationMs,
     images: coverURL,
+    cover_url: coverURL,
+    preview_url:
+      getNestedValue(trackData, "previews.audioPreviews.items.0.url") || "",
     release_date: releaseDate,
-    album_type: (
-      albumData.albumType ||
-      albumData.type ||
-      "album"
-    ).toLowerCase(),
-    track_number: trackData.trackNumber || 0,
-    total_tracks: 0,
-    disc_number: trackData.discNumber || 1,
-    external_urls: "https://open.spotify.com/track/" + trackID,
-    isrc: enrichISRC(trackID) || "",
+    album_type: normalizeSpotifyAlbumType(
+      albumData.albumType || albumData.type,
+    ),
+    track_number: Number(trackData.trackNumber || 0),
+    total_tracks: Number(getNestedValue(albumData, "tracks.totalCount") || 0),
+    disc_number: Number(trackData.discNumber || 0),
+    total_discs: 0,
+    external_urls: spotifyURL,
+    external_links: { spotify: spotifyURL },
+    isrc: "",
     explicit: isExplicitSpotify(trackData),
     album_id: albumID,
-    album_url: "https://open.spotify.com/album/" + albumID,
+    album_url: albumURL,
+    label: albumData.label || "",
+    copyright: spotifyCopyrightText(albumData.copyright),
+    comment: albumURL,
+    item_type: "track",
+    provider_id: "spotify-web",
   };
+  applyMetadataFallbacks(track, enrichedMetadata);
+  if (!track.album_artist) track.album_artist = artistsString;
+  if (!track.disc_number) track.disc_number = 1;
 
   log.info(
     "Fetched track:",
@@ -954,37 +1083,53 @@ function fetchArtist(artistID) {
     const trackData = item.track || {};
     if (!trackData.uri) continue;
 
-    let trackID = trackData.id || "";
-    if (!trackID && trackData.uri) {
-      const parts = trackData.uri.split(":");
-      trackID = parts[parts.length - 1];
-    }
+    const trackID = trackData.id || spotifyIDFromURI(trackData.uri);
 
     const albumData = trackData.albumOfTrack || {};
     const albumName = albumData.name || "";
-    let albumID = "";
-    if (albumData.uri) {
-      const parts = albumData.uri.split(":");
-      albumID = parts[parts.length - 1];
-    }
-
-    const coverURL = getNestedValue(albumData, "coverArt.sources.0.url") || "";
+    const albumID = albumData.id || spotifyIDFromURI(albumData.uri);
+    const albumURL = albumID ? "https://open.spotify.com/album/" + albumID : "";
+    const coverURL = spotifyBestImage(albumData.coverArt);
     const durationMs =
       getNestedValue(trackData, "duration.totalMilliseconds") || 0;
-
-    const artistItems = getNestedValue(trackData, "artists.items") || [];
-    const artistNames = artistItems
-      .map((a) => getNestedValue(a, "profile.name") || "")
-      .filter((n) => n);
-    const artistsString = artistNames.join(", ");
+    const trackArtists = spotifyArtistEntries(
+      getNestedValue(trackData, "artists.items") || [],
+    );
+    const artistsString = uniqueMetadataValues(
+      trackArtists.map(function (artist) {
+        return artist.name;
+      }),
+    ).join(", ");
+    const firstTrackArtist = trackArtists.length ? trackArtists[0] : {};
+    const spotifyURL = "https://open.spotify.com/track/" + trackID;
 
     topTracks.push({
       id: trackID,
       name: trackData.name || "",
       artists: artistsString,
       album_name: albumName,
+      album_artist: spotifyArtistNames(albumData.artists) || artistsString,
+      album_id: albumID,
+      album_url: albumURL,
+      artist_id: firstTrackArtist.id || "",
+      artist_url: firstTrackArtist.url || "",
       duration_ms: durationMs,
       images: coverURL,
+      cover_url: coverURL,
+      preview_url:
+        getNestedValue(trackData, "previews.audioPreviews.items.0.url") || "",
+      release_date: normalizeSpotifyDate(albumData.date),
+      track_number: Number(trackData.trackNumber || 0),
+      total_tracks: Number(getNestedValue(albumData, "tracks.totalCount") || 0),
+      disc_number: Number(trackData.discNumber || 0),
+      album_type: normalizeSpotifyAlbumType(
+        albumData.albumType || albumData.type,
+      ),
+      external_urls: spotifyURL,
+      external_links: { spotify: spotifyURL },
+      copyright: spotifyCopyrightText(albumData.copyright),
+      comment: albumURL,
+      item_type: "track",
       provider_id: "spotify-web",
       spotify_id: trackID,
       isrc: "",
@@ -1039,7 +1184,7 @@ function fetchArtist(artistID) {
   const artistInfo = {
     id: artistID,
     name: profile.name || "",
-    images: getNestedValue(visuals, "avatarImage.sources.0.url") || "",
+    images: spotifyBestImage(visuals.avatarImage),
     header: getNestedValue(visuals, "headerImage.sources.0.url") || "",
     followers: stats.followers || 0,
     listeners: stats.monthlyListeners || 0,
@@ -1072,7 +1217,7 @@ function fetchArtist(artistID) {
       release_date: releaseDate,
       total_tracks: getNestedValue(release, "tracks.totalCount") || 0,
       artists: artistInfo.name,
-      cover_url: getNestedValue(release, "coverArt.sources.0.url") || "",
+      cover_url: spotifyBestImage(release.coverArt),
       external_urls: "https://open.spotify.com/album/" + releaseID,
       provider_id: "spotify-web",
     });
@@ -1121,6 +1266,204 @@ function getNestedValue(obj, path) {
   }
 
   return current;
+}
+
+function spotifyIDFromURI(uri) {
+  const value = String(uri || "").trim();
+  if (!value) return "";
+  const parts = value.split(":");
+  return parts[parts.length - 1] || "";
+}
+
+function normalizeSpotifyDate(dateValue) {
+  let value = "";
+  if (typeof dateValue === "string") {
+    value = dateValue;
+  } else if (dateValue && typeof dateValue === "object") {
+    value = dateValue.isoString || "";
+    if (!value && dateValue.year) {
+      value = String(dateValue.year);
+      if (dateValue.month) {
+        value += "-" + String(dateValue.month).padStart(2, "0");
+        if (dateValue.day) {
+          value += "-" + String(dateValue.day).padStart(2, "0");
+        }
+      }
+    }
+  }
+  if (value.indexOf("T") >= 0) value = value.split("T")[0];
+  return value;
+}
+
+function uniqueMetadataValues(values) {
+  const result = [];
+  const seen = {};
+  for (let i = 0; i < (values || []).length; i++) {
+    const value = String(values[i] || "").trim();
+    if (!value) continue;
+    const key = value.toLowerCase();
+    if (seen[key]) continue;
+    seen[key] = true;
+    result.push(value);
+  }
+  return result;
+}
+
+function spotifyArtistEntries(value) {
+  const items = Array.isArray(value)
+    ? value
+    : getNestedValue(value, "items") || [];
+  const artists = [];
+  for (let i = 0; i < items.length; i++) {
+    const item = (items[i] && (items[i].data || items[i])) || {};
+    const name = getNestedValue(item, "profile.name") || item.name || "";
+    const id = item.id || spotifyIDFromURI(item.uri);
+    if (!name && !id) continue;
+    artists.push({
+      id: id,
+      name: name,
+      url:
+        getNestedValue(item, "sharingInfo.shareUrl") ||
+        (id ? "https://open.spotify.com/artist/" + id : ""),
+    });
+  }
+  return artists;
+}
+
+function spotifyArtistNames(value) {
+  return uniqueMetadataValues(
+    spotifyArtistEntries(value).map(function (artist) {
+      return artist.name;
+    }),
+  ).join(", ");
+}
+
+function spotifyBestImage(value) {
+  if (!value) return "";
+  let sources = Array.isArray(value) ? value : value.sources || [];
+  if (!sources.length && value.items && value.items.length) {
+    sources = (value.items[0] && value.items[0].sources) || [];
+  }
+  let best = null;
+  let bestSize = -1;
+  for (let i = 0; i < sources.length; i++) {
+    const source = sources[i] || {};
+    if (!source.url) continue;
+    const width = Number(source.width || 0);
+    const height = Number(source.height || 0);
+    const size =
+      width > 0 && height > 0 ? width * height : Math.max(width, height);
+    if (!best || size > bestSize) {
+      best = source;
+      bestSize = size;
+    }
+  }
+  return (best && spotifyMaxCoverURL(best.url)) || "";
+}
+
+function spotifyMaxCoverURL(value) {
+  const url = String(value || "");
+  if (!url) return "";
+  if (url.indexOf(SPOTIFY_COVER_SIZE_300) !== -1) {
+    return url.replace(SPOTIFY_COVER_SIZE_300, SPOTIFY_COVER_SIZE_MAX);
+  }
+  if (url.indexOf(SPOTIFY_COVER_SIZE_640) !== -1) {
+    return url.replace(SPOTIFY_COVER_SIZE_640, SPOTIFY_COVER_SIZE_MAX);
+  }
+  return url;
+}
+
+function spotifyCopyrightText(value) {
+  const items = Array.isArray(value)
+    ? value
+    : getNestedValue(value, "items") || [];
+  return uniqueMetadataValues(
+    items.map(function (item) {
+      return (item && (item.text || item.value)) || "";
+    }),
+  ).join("; ");
+}
+
+function normalizeSpotifyAlbumType(value) {
+  const type = String(value || "album")
+    .trim()
+    .toLowerCase();
+  if (type === "ep") return "ep";
+  if (type === "single") return "single";
+  if (type === "compilation") return "compilation";
+  if (type === "audiobook") return "audiobook";
+  if (type === "podcast") return "podcast";
+  return "album";
+}
+
+function spotifyTotalDiscs(trackItems) {
+  let total = 0;
+  const items = trackItems || [];
+  for (let i = 0; i < items.length; i++) {
+    const track = (items[i] && (items[i].track || items[i])) || {};
+    const disc = Number(track.discNumber || track.disc_number || 0);
+    if (disc > total) total = disc;
+  }
+  if (!total && items.length) total = 1;
+  return total;
+}
+
+function applyMetadataFallbacks(target, source) {
+  if (!target || !source) return target;
+  const stringFields = [
+    "album_name",
+    "album_artist",
+    "album_id",
+    "album_url",
+    "artist_id",
+    "artist_url",
+    "preview_url",
+    "release_date",
+    "album_type",
+    "isrc",
+    "upc",
+    "label",
+    "copyright",
+    "genre",
+    "composer",
+    "comment",
+    "deezer_id",
+  ];
+  for (let i = 0; i < stringFields.length; i++) {
+    const field = stringFields[i];
+    if (
+      !String(target[field] || "").trim() &&
+      String(source[field] || "").trim()
+    ) {
+      target[field] = source[field];
+    }
+  }
+  const numberFields = [
+    "track_number",
+    "total_tracks",
+    "disc_number",
+    "total_discs",
+    "duration_ms",
+  ];
+  for (let i = 0; i < numberFields.length; i++) {
+    const field = numberFields[i];
+    if (!(Number(target[field]) > 0) && Number(source[field]) > 0) {
+      target[field] = Number(source[field]);
+    }
+  }
+  if (!target.explicit && source.explicit) target.explicit = true;
+  if (source.external_links && typeof source.external_links === "object") {
+    target.external_links =
+      target.external_links && typeof target.external_links === "object"
+        ? target.external_links
+        : {};
+    for (const provider in source.external_links) {
+      if (!target.external_links[provider] && source.external_links[provider]) {
+        target.external_links[provider] = source.external_links[provider];
+      }
+    }
+  }
+  return target;
 }
 
 // Spotify GraphQL exposes a parental-advisory flag as `contentRating.label`
@@ -1174,18 +1517,283 @@ function spotifyIDToHexGID(spotifyID) {
   return hex;
 }
 
-function extractISRCFromSpotifyMetadataBody(body) {
-  if (!body) return null;
+function protobufBytes(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  if (typeof value !== "string") value = String(value);
+  const bytes = new Array(value.length);
+  for (let i = 0; i < value.length; i++) bytes[i] = value.charCodeAt(i) & 0xff;
+  return bytes;
+}
 
-  const match = body.match(/isrc[\x00-\x1f]+([A-Za-z0-9]{12})/);
-  if (!match || !match[1]) {
+function readProtobufFields(value) {
+  const bytes = protobufBytes(value);
+  const fields = {};
+  let position = 0;
+
+  function readVarint() {
+    let result = 0;
+    let multiplier = 1;
+    for (let i = 0; i < 10 && position < bytes.length; i++) {
+      const current = bytes[position++];
+      result += (current & 0x7f) * multiplier;
+      if ((current & 0x80) === 0) return result;
+      multiplier *= 128;
+    }
     return null;
   }
 
-  return match[1].toUpperCase();
+  while (position < bytes.length) {
+    const tag = readVarint();
+    if (tag === null || tag <= 0) break;
+    const fieldNumber = Math.floor(tag / 8);
+    const wireType = tag % 8;
+    let fieldValue;
+
+    if (wireType === 0) {
+      fieldValue = readVarint();
+      if (fieldValue === null) break;
+    } else if (wireType === 1) {
+      if (position + 8 > bytes.length) break;
+      fieldValue = bytes.slice(position, position + 8);
+      position += 8;
+    } else if (wireType === 2) {
+      const length = readVarint();
+      if (length === null || length < 0 || position + length > bytes.length)
+        break;
+      fieldValue = bytes.slice(position, position + length);
+      position += length;
+    } else if (wireType === 5) {
+      if (position + 4 > bytes.length) break;
+      fieldValue = bytes.slice(position, position + 4);
+      position += 4;
+    } else {
+      break;
+    }
+
+    if (!fields[fieldNumber]) fields[fieldNumber] = [];
+    fields[fieldNumber].push({ wire: wireType, value: fieldValue });
+  }
+
+  return fields;
 }
 
-function getSpotifyMetadataTrackBody(spotifyID, allowRetry) {
+function protobufFieldValues(fields, fieldNumber, wireType) {
+  const entries = (fields && fields[fieldNumber]) || [];
+  return entries
+    .filter(function (entry) {
+      return wireType === undefined || entry.wire === wireType;
+    })
+    .map(function (entry) {
+      return entry.value;
+    });
+}
+
+function protobufFirstValue(fields, fieldNumber, wireType) {
+  const values = protobufFieldValues(fields, fieldNumber, wireType);
+  return values.length ? values[0] : null;
+}
+
+function protobufUTF8(bytes) {
+  const input = protobufBytes(bytes);
+  let result = "";
+  for (let i = 0; i < input.length;) {
+    const first = input[i++];
+    let codePoint = first;
+    let extra = 0;
+    if ((first & 0xe0) === 0xc0) {
+      codePoint = first & 0x1f;
+      extra = 1;
+    } else if ((first & 0xf0) === 0xe0) {
+      codePoint = first & 0x0f;
+      extra = 2;
+    } else if ((first & 0xf8) === 0xf0) {
+      codePoint = first & 0x07;
+      extra = 3;
+    }
+    for (let j = 0; j < extra && i < input.length; j++) {
+      codePoint = codePoint * 64 + (input[i++] & 0x3f);
+    }
+    if (codePoint <= 0xffff) {
+      result += String.fromCharCode(codePoint);
+    } else {
+      codePoint -= 0x10000;
+      result += String.fromCharCode(0xd800 + Math.floor(codePoint / 0x400));
+      result += String.fromCharCode(0xdc00 + (codePoint % 0x400));
+    }
+  }
+  return result;
+}
+
+function protobufString(fields, fieldNumber) {
+  const value = protobufFirstValue(fields, fieldNumber, 2);
+  return value ? protobufUTF8(value) : "";
+}
+
+function decodeProtobufSInt(value) {
+  const number = Number(value || 0);
+  return number % 2 ? -Math.floor((number + 1) / 2) : Math.floor(number / 2);
+}
+
+function spotifyGIDBytesToID(bytes) {
+  const input = protobufBytes(bytes);
+  if (!input.length) return "";
+  const alphabet =
+    "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const digits = [0];
+  for (let i = 0; i < input.length; i++) {
+    let carry = input[i];
+    for (let j = 0; j < digits.length; j++) {
+      const value = digits[j] * 256 + carry;
+      digits[j] = value % 62;
+      carry = Math.floor(value / 62);
+    }
+    while (carry > 0) {
+      digits.push(carry % 62);
+      carry = Math.floor(carry / 62);
+    }
+  }
+  let id = "";
+  for (let i = digits.length - 1; i >= 0; i--) id += alphabet[digits[i]];
+  return id.padStart(22, "0");
+}
+
+function parseSpotifyProtoExternalID(value) {
+  const fields = readProtobufFields(value);
+  return {
+    type: protobufString(fields, 1).toLowerCase(),
+    id: protobufString(fields, 2),
+  };
+}
+
+function parseSpotifyProtoArtist(value) {
+  const fields = readProtobufFields(value);
+  const gid = protobufFirstValue(fields, 1, 2);
+  const id = spotifyGIDBytesToID(gid);
+  return {
+    id: id,
+    name: protobufString(fields, 2),
+    url: id ? "https://open.spotify.com/artist/" + id : "",
+  };
+}
+
+function parseSpotifyProtoDate(value) {
+  const fields = readProtobufFields(value);
+  return normalizeSpotifyDate({
+    year: decodeProtobufSInt(protobufFirstValue(fields, 1, 0)),
+    month: decodeProtobufSInt(protobufFirstValue(fields, 2, 0)),
+    day: decodeProtobufSInt(protobufFirstValue(fields, 3, 0)),
+  });
+}
+
+function parseSpotifyProtoCopyright(value) {
+  const fields = readProtobufFields(value);
+  return protobufString(fields, 2);
+}
+
+function parseSpotifyProtoAlbum(value) {
+  const fields = readProtobufFields(value);
+  const gid = protobufFirstValue(fields, 1, 2);
+  const albumID = spotifyGIDBytesToID(gid);
+  const artists = protobufFieldValues(fields, 3, 2).map(
+    parseSpotifyProtoArtist,
+  );
+  const typeValue = Number(protobufFirstValue(fields, 4, 0) || 1);
+  const albumTypes = {
+    1: "album",
+    2: "single",
+    3: "compilation",
+    4: "ep",
+    5: "audiobook",
+    6: "podcast",
+  };
+  const externalIDs = protobufFieldValues(fields, 10, 2).map(
+    parseSpotifyProtoExternalID,
+  );
+  let upc = "";
+  for (let i = 0; i < externalIDs.length; i++) {
+    if (externalIDs[i].type === "upc") {
+      upc = externalIDs[i].id;
+      break;
+    }
+    if (!upc && externalIDs[i].type === "ean") upc = externalIDs[i].id;
+  }
+
+  const discs = protobufFieldValues(fields, 11, 2);
+  let totalDiscs = 0;
+  let totalTracks = 0;
+  for (let i = 0; i < discs.length; i++) {
+    const discFields = readProtobufFields(discs[i]);
+    const discNumber = decodeProtobufSInt(protobufFirstValue(discFields, 1, 0));
+    if (discNumber > totalDiscs) totalDiscs = discNumber;
+    totalTracks += protobufFieldValues(discFields, 3, 2).length;
+  }
+  if (!totalDiscs && discs.length) totalDiscs = discs.length;
+
+  const genres = protobufFieldValues(fields, 8, 2).map(protobufUTF8);
+  const copyrights = protobufFieldValues(fields, 13, 2).map(
+    parseSpotifyProtoCopyright,
+  );
+  const firstArtist = artists.length ? artists[0] : {};
+  return {
+    album_id: albumID,
+    album_name: protobufString(fields, 2),
+    album_artist: uniqueMetadataValues(
+      artists.map(function (artist) {
+        return artist.name;
+      }),
+    ).join(", "),
+    artist_id: firstArtist.id || "",
+    artist_url: firstArtist.url || "",
+    album_url: albumID ? "https://open.spotify.com/album/" + albumID : "",
+    album_type: albumTypes[typeValue] || "album",
+    label: protobufString(fields, 5),
+    release_date: parseSpotifyProtoDate(protobufFirstValue(fields, 6, 2)),
+    upc: upc,
+    total_tracks: totalTracks,
+    total_discs: totalDiscs,
+    genre: uniqueMetadataValues(genres).join("; "),
+    copyright: uniqueMetadataValues(copyrights).join("; "),
+  };
+}
+
+function parseSpotifyProtoTrack(value) {
+  const fields = readProtobufFields(value);
+  const albumValue = protobufFirstValue(fields, 3, 2);
+  const result = albumValue ? parseSpotifyProtoAlbum(albumValue) : {};
+  const externalIDs = protobufFieldValues(fields, 10, 2).map(
+    parseSpotifyProtoExternalID,
+  );
+  for (let i = 0; i < externalIDs.length; i++) {
+    if (externalIDs[i].type === "isrc") {
+      result.isrc = String(externalIDs[i].id || "").toUpperCase();
+      break;
+    }
+  }
+
+  const composers = [];
+  const artistRoles = protobufFieldValues(fields, 32, 2);
+  for (let i = 0; i < artistRoles.length; i++) {
+    const roleFields = readProtobufFields(artistRoles[i]);
+    const role = Number(protobufFirstValue(roleFields, 3, 0) || 0);
+    if (role === 5) composers.push(protobufString(roleFields, 2));
+  }
+
+  result.track_number = decodeProtobufSInt(protobufFirstValue(fields, 5, 0));
+  result.disc_number = decodeProtobufSInt(protobufFirstValue(fields, 6, 0));
+  result.duration_ms = decodeProtobufSInt(protobufFirstValue(fields, 7, 0));
+  result.explicit = Number(protobufFirstValue(fields, 9, 0) || 0) === 1;
+  result.composer = uniqueMetadataValues(composers).join("; ");
+  return result;
+}
+
+function extractISRCFromSpotifyMetadataBody(body) {
+  if (!body) return "";
+  const match = String(body).match(/isrc[\x00-\x1f]+([A-Za-z0-9]{12})/);
+  return match && match[1] ? match[1].toUpperCase() : "";
+}
+
+function getSpotifyMetadataBody(entityType, spotifyID, allowRetry) {
   try {
     ensureInitialized();
 
@@ -1195,7 +1803,9 @@ function getSpotifyMetadataTrackBody(spotifyID, allowRetry) {
     }
 
     const response = http.get(
-      "https://spclient.wg.spotify.com/metadata/4/track/" +
+      "https://spclient.wg.spotify.com/metadata/4/" +
+        entityType +
+        "/" +
         gid +
         "?market=from_token",
       {
@@ -1216,11 +1826,15 @@ function getSpotifyMetadataTrackBody(spotifyID, allowRetry) {
 
     if (response.statusCode === 401 && allowRetry) {
       resetAuthState();
-      return getSpotifyMetadataTrackBody(spotifyID, false);
+      return getSpotifyMetadataBody(entityType, spotifyID, false);
     }
 
     if (response.statusCode === 404) {
-      log.debug("Spotify metadata endpoint returned 404 for:", spotifyID);
+      log.debug(
+        "Spotify metadata endpoint returned 404 for:",
+        entityType,
+        spotifyID,
+      );
       return null;
     }
 
@@ -1237,16 +1851,113 @@ function getSpotifyMetadataTrackBody(spotifyID, allowRetry) {
   }
 }
 
-function getISRCFromSpotifyMetadata(spotifyID) {
-  const body = getSpotifyMetadataTrackBody(spotifyID, true);
-  const isrc = extractISRCFromSpotifyMetadataBody(body);
-  if (isrc) {
-    log.debug("Got ISRC from Spotify metadata:", isrc);
-  }
-  return isrc;
+function getSpotifyNativeAlbumMetadata(albumID) {
+  if (!albumID) return null;
+  const cached = metadataCacheGet(nativeAlbumMetadataCache, albumID);
+  if (cached) return cached;
+  const body = getSpotifyMetadataBody("album", albumID, true);
+  if (!body) return null;
+  const metadata = parseSpotifyProtoAlbum(body);
+  if (!metadata.album_id) metadata.album_id = albumID;
+  if (!metadata.album_url)
+    metadata.album_url = "https://open.spotify.com/album/" + albumID;
+  return metadataCachePut(
+    nativeAlbumMetadataCache,
+    nativeAlbumMetadataOrder,
+    albumID,
+    metadata,
+  );
 }
 
-function getMetadataFromDeezerTrackData(data) {
+function getSpotifyNativeTrackMetadata(spotifyID, albumID) {
+  if (!spotifyID) return null;
+  const cached = metadataCacheGet(nativeTrackMetadataCache, spotifyID);
+  if (cached) return cached;
+  const body = getSpotifyMetadataBody("track", spotifyID, true);
+  if (!body) return null;
+  const metadata = parseSpotifyProtoTrack(body);
+  if (!metadata.isrc) metadata.isrc = extractISRCFromSpotifyMetadataBody(body);
+  const resolvedAlbumID = albumID || metadata.album_id;
+  if (resolvedAlbumID) {
+    if (!metadata.album_id) metadata.album_id = resolvedAlbumID;
+    if (!metadata.album_url)
+      metadata.album_url = "https://open.spotify.com/album/" + resolvedAlbumID;
+    const albumMetadata = getSpotifyNativeAlbumMetadata(resolvedAlbumID);
+    if (albumMetadata) applyMetadataFallbacks(metadata, albumMetadata);
+  }
+  if (metadata.isrc)
+    log.debug("Got ISRC from Spotify metadata:", metadata.isrc);
+  return metadataCachePut(
+    nativeTrackMetadataCache,
+    nativeTrackMetadataOrder,
+    spotifyID,
+    metadata,
+  );
+}
+
+function getISRCFromSpotifyMetadata(spotifyID, albumID) {
+  const metadata = getSpotifyNativeTrackMetadata(spotifyID, albumID);
+  return (metadata && metadata.isrc) || null;
+}
+
+function normalizeMetadataMatchText(value) {
+  let normalized = String(value || "").toLowerCase();
+  if (normalized.normalize) {
+    normalized = normalized.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  }
+  normalized = normalized.replace(/[\(\[\{][^\)\]\}]*[\)\]\}]/g, " ");
+  normalized = normalized.replace(
+    /\b(deluxe|expanded|anniversary|edition|version|remaster(?:ed)?|mono|stereo)\b/g,
+    " ",
+  );
+  return normalized
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function deezerAlbumMatches(expectedAlbumName, actualAlbumName) {
+  const expected = normalizeMetadataMatchText(expectedAlbumName);
+  const actual = normalizeMetadataMatchText(actualAlbumName);
+  if (!expected || !actual) return false;
+  if (expected === actual) return true;
+  if (
+    expected.length >= 6 &&
+    actual.length >= 6 &&
+    (expected.indexOf(actual) >= 0 || actual.indexOf(expected) >= 0)
+  ) {
+    return true;
+  }
+  try {
+    if (typeof matching !== "undefined" && matching.compareStrings) {
+      return Number(matching.compareStrings(expected, actual)) >= 0.86;
+    }
+  } catch (e) {
+    // Fall through to the conservative exact/substring decision above.
+  }
+  return false;
+}
+
+function deezerComposerNames(data) {
+  const contributors = (data && data.contributors) || [];
+  const names = [];
+  for (let i = 0; i < contributors.length; i++) {
+    const role = String(
+      (contributors[i] && contributors[i].role) || "",
+    ).toLowerCase();
+    if (
+      role.indexOf("composer") >= 0 ||
+      role.indexOf("writer") >= 0 ||
+      role.indexOf("songwriter") >= 0 ||
+      role.indexOf("author") >= 0
+    ) {
+      names.push(contributors[i].name);
+    }
+  }
+  return uniqueMetadataValues(names).join("; ");
+}
+
+function getMetadataFromDeezerTrackData(data, expected) {
   try {
     if (!data || !data.id) {
       return null;
@@ -1254,10 +1965,25 @@ function getMetadataFromDeezerTrackData(data) {
 
     const result = {
       isrc: data.isrc || null,
-      release_date: data.release_date || null,
-      genre: null,
-      label: null,
-      copyright: null,
+      deezer_id: String(data.id),
+      external_links: {
+        deezer: data.link || "https://www.deezer.com/track/" + data.id,
+      },
+      release_date: "",
+      track_number: 0,
+      total_tracks: 0,
+      disc_number: 0,
+      total_discs: 0,
+      album_type: "",
+      album_artist: "",
+      upc: "",
+      genre: "",
+      label: "",
+      copyright: "",
+      composer: deezerComposerNames(data),
+      preview_url: data.preview || "",
+      explicit: data.explicit_lyrics === true,
+      release_match: false,
     };
 
     if (result.isrc) {
@@ -1277,17 +2003,14 @@ function getMetadataFromDeezerTrackData(data) {
           albumResponse.statusCode === 200
         ) {
           const albumData = JSON.parse(albumResponse.body);
-
-          if (albumData.label) {
-            result.label = albumData.label;
-            log.debug("Got label from Deezer:", result.label);
-          }
-
-          if (albumData.label && albumData.release_date) {
-            const year = albumData.release_date.substring(0, 4);
-            result.copyright = year + " " + albumData.label;
-            log.debug("Generated copyright:", result.copyright);
-          }
+          const expectedAlbumName =
+            (expected && (expected.album_name || expected.albumName)) || "";
+          const actualAlbumName =
+            albumData.title || getNestedValue(data, "album.title") || "";
+          result.release_match = deezerAlbumMatches(
+            expectedAlbumName,
+            actualAlbumName,
+          );
 
           if (
             albumData.genres &&
@@ -1297,13 +2020,39 @@ function getMetadataFromDeezerTrackData(data) {
             const genreNames = albumData.genres.data.map(function (g) {
               return g.name;
             });
-            result.genre = genreNames.join(", ");
+            result.genre = uniqueMetadataValues(genreNames).join("; ");
             log.debug("Got genre from Deezer:", result.genre);
           }
 
-          if (!result.release_date && albumData.release_date) {
-            result.release_date = albumData.release_date;
-            log.debug("Got release_date from album:", result.release_date);
+          if (result.release_match) {
+            result.label = albumData.label || "";
+            result.release_date =
+              albumData.release_date || data.release_date || "";
+            result.track_number = Number(data.track_position || 0);
+            result.total_tracks = Number(albumData.nb_tracks || 0);
+            result.disc_number = Number(data.disk_number || 0);
+            result.upc = albumData.upc || "";
+            result.album_type = normalizeSpotifyAlbumType(
+              albumData.record_type || "album",
+            );
+            result.album_artist =
+              getNestedValue(albumData, "artist.name") || "";
+            const albumTracks = getNestedValue(albumData, "tracks.data") || [];
+            result.total_discs = spotifyTotalDiscs(albumTracks);
+            if (!result.total_discs && albumTracks.length)
+              result.total_discs = 1;
+            if (result.label && result.release_date) {
+              result.copyright =
+                result.release_date.substring(0, 4) + " " + result.label;
+            }
+            log.debug("Matched Deezer release metadata:", actualAlbumName);
+          } else {
+            log.debug(
+              "Ignoring mismatched Deezer release metadata:",
+              actualAlbumName,
+              "expected:",
+              expectedAlbumName,
+            );
           }
         }
       } catch (albumErr) {
@@ -1318,7 +2067,7 @@ function getMetadataFromDeezerTrackData(data) {
   }
 }
 
-function getMetadataFromDeezerByISRC(isrc) {
+function getMetadataFromDeezerByISRC(isrc, expected) {
   try {
     if (!isrc) {
       return null;
@@ -1338,7 +2087,7 @@ function getMetadataFromDeezerByISRC(isrc) {
       const data = JSON.parse(directResponse.body);
       if (data && data.id) {
         log.debug("Got Deezer track from ISRC:", isrc, "->", data.id);
-        return getMetadataFromDeezerTrackData(data);
+        return getMetadataFromDeezerTrackData(data, expected);
       }
     } else {
       log.debug(
@@ -1378,23 +2127,17 @@ function getMetadataFromDeezerByISRC(isrc) {
     }
 
     log.debug("Got Deezer track from ISRC search:", isrc, "->", track.id);
-    return getMetadataFromDeezerTrackData(track);
+    return getMetadataFromDeezerTrackData(track, expected);
   } catch (e) {
     log.debug("Deezer ISRC metadata lookup failed:", e.message);
     return null;
   }
 }
 
-function enrichMetadata(spotifyID) {
-  const result = {
-    isrc: null,
-    label: null,
-    copyright: null,
-    genre: null,
-    release_date: null,
-  };
+function enrichMetadata(spotifyID, albumID, expected) {
+  const nativeMetadata = getSpotifyNativeTrackMetadata(spotifyID, albumID);
+  const result = nativeMetadata || {};
 
-  result.isrc = getISRCFromSpotifyMetadata(spotifyID);
   if (result.isrc) {
     log.info(
       "Enriched ISRC from Spotify metadata for",
@@ -1404,29 +2147,19 @@ function enrichMetadata(spotifyID) {
     );
   }
 
+  const comparison = expected || {};
+  if (!comparison.album_name && result.album_name)
+    comparison.album_name = result.album_name;
   const metadata = result.isrc
-    ? getMetadataFromDeezerByISRC(result.isrc)
+    ? getMetadataFromDeezerByISRC(result.isrc, comparison)
     : null;
-  if (metadata) {
-    if (metadata.label) {
-      result.label = metadata.label;
-    }
-    if (metadata.copyright) {
-      result.copyright = metadata.copyright;
-    }
-    if (metadata.genre) {
-      result.genre = metadata.genre;
-    }
-    if (metadata.release_date) {
-      result.release_date = metadata.release_date;
-    }
-  }
+  if (metadata) applyMetadataFallbacks(result, metadata);
 
   return result;
 }
 
-function enrichISRC(spotifyID) {
-  return getISRCFromSpotifyMetadata(spotifyID);
+function enrichISRC(spotifyID, albumID) {
+  return getISRCFromSpotifyMetadata(spotifyID, albumID);
 }
 
 function normalizeLyricsText(text) {
@@ -1551,40 +2284,34 @@ function customSearch(searchQuery, options) {
 
         if (!trackData) continue;
 
-        let trackID = trackData.id || "";
-        if (!trackID && trackData.uri) {
-          const parts = trackData.uri.split(":");
-          trackID = parts[parts.length - 1];
-        }
+        const trackID = trackData.id || spotifyIDFromURI(trackData.uri);
         if (!trackID) continue;
 
-        const artistItems = getNestedValue(trackData, "artists.items") || [];
-        const artistNames = artistItems
-          .map(function (a) {
-            return getNestedValue(a, "profile.name") || "";
-          })
-          .filter(function (n) {
-            return n;
-          });
-        const artistsString = artistNames.join(", ");
+        const artistEntries = spotifyArtistEntries(
+          getNestedValue(trackData, "artists.items") || [],
+        );
+        const artistsString = uniqueMetadataValues(
+          artistEntries.map(function (artist) {
+            return artist.name;
+          }),
+        ).join(", ");
+        const firstArtist = artistEntries.length ? artistEntries[0] : {};
 
         const trackName = trackData.name || "";
         if (!trackName) continue;
 
         const albumData = trackData.albumOfTrack || {};
         const albumName = albumData.name || "";
-        let albumID = "";
-        if (albumData.uri) {
-          const parts = albumData.uri.split(":");
-          albumID = parts[parts.length - 1];
-        }
-
-        const coverURL =
-          getNestedValue(albumData, "coverArt.sources.0.url") || "";
+        const albumID = albumData.id || spotifyIDFromURI(albumData.uri);
+        const albumURL = albumID
+          ? "https://open.spotify.com/album/" + albumID
+          : "";
+        const coverURL = spotifyBestImage(albumData.coverArt);
         const durationMs =
           getNestedValue(trackData, "duration.totalMilliseconds") ||
           getNestedValue(trackData, "trackDuration.totalMilliseconds") ||
           0;
+        const spotifyURL = "https://open.spotify.com/track/" + trackID;
 
         results.push({
           id: trackID,
@@ -1592,8 +2319,31 @@ function customSearch(searchQuery, options) {
           name: trackName,
           artists: artistsString,
           album_name: albumName,
+          album_artist: spotifyArtistNames(albumData.artists) || artistsString,
+          album_id: albumID,
+          album_url: albumURL,
+          artist_id: firstArtist.id || "",
+          artist_url: firstArtist.url || "",
           duration_ms: durationMs,
           images: coverURL,
+          cover_url: coverURL,
+          preview_url:
+            getNestedValue(trackData, "previews.audioPreviews.items.0.url") ||
+            "",
+          release_date: normalizeSpotifyDate(albumData.date),
+          track_number: Number(trackData.trackNumber || 0),
+          total_tracks: Number(
+            getNestedValue(albumData, "tracks.totalCount") || 0,
+          ),
+          disc_number: Number(trackData.discNumber || 0),
+          album_type: normalizeSpotifyAlbumType(
+            albumData.albumType || albumData.type,
+          ),
+          external_urls: spotifyURL,
+          external_links: { spotify: spotifyURL },
+          label: albumData.label || "",
+          copyright: spotifyCopyrightText(albumData.copyright),
+          comment: albumURL,
           source: "spotify-internal",
           item_type: "track",
           provider_id: "spotify-web",
@@ -1622,45 +2372,45 @@ function customSearch(searchQuery, options) {
         const albumData = (item.item && item.item.data) || item.data || item;
         if (!albumData) continue;
 
-        let albumID = "";
-        if (albumData.uri) {
-          const parts = albumData.uri.split(":");
-          albumID = parts[parts.length - 1];
-        }
+        const albumID = albumData.id || spotifyIDFromURI(albumData.uri);
         if (!albumID) continue;
 
         const albumName = albumData.name || "";
         if (!albumName) continue;
 
         // Artists
-        const artistItems = getNestedValue(albumData, "artists.items") || [];
-        const artistNames = artistItems
-          .map(function (a) {
-            return getNestedValue(a, "profile.name") || "";
-          })
-          .filter(function (n) {
-            return n;
-          });
-        const artistsString = artistNames.join(", ");
+        const albumArtists = spotifyArtistEntries(
+          getNestedValue(albumData, "artists.items") || [],
+        );
+        const artistsString = uniqueMetadataValues(
+          albumArtists.map(function (artist) {
+            return artist.name;
+          }),
+        ).join(", ");
+        const firstAlbumArtist = albumArtists.length ? albumArtists[0] : {};
 
-        const coverURL =
-          getNestedValue(albumData, "coverArt.sources.0.url") || "";
+        const coverURL = spotifyBestImage(albumData.coverArt);
 
         // Release date
-        const dateInfo = albumData.date || {};
-        let releaseDate = dateInfo.isoString || "";
-        if (releaseDate && releaseDate.includes("T")) {
-          releaseDate = releaseDate.split("T")[0];
-        }
+        const releaseDate = normalizeSpotifyDate(albumData.date);
+        const albumURL = "https://open.spotify.com/album/" + albumID;
 
         results.push({
           id: albumID,
           name: albumName,
           artists: artistsString,
+          artist_id: firstAlbumArtist.id || "",
+          artist_url: firstAlbumArtist.url || "",
           cover_url: coverURL,
           images: coverURL,
           release_date: releaseDate,
-          album_type: (albumData.albumType || "album").toLowerCase(),
+          total_tracks: Number(
+            getNestedValue(albumData, "tracks.totalCount") || 0,
+          ),
+          album_type: normalizeSpotifyAlbumType(
+            albumData.albumType || albumData.type,
+          ),
+          external_urls: albumURL,
           item_type: "album",
           provider_id: "spotify-web",
         });
@@ -1697,7 +2447,7 @@ function customSearch(searchQuery, options) {
 
         const visuals = artistData.visuals || {};
         const imageURL =
-          getNestedValue(visuals, "avatarImage.sources.0.url") ||
+          spotifyBestImage(visuals.avatarImage) ||
           getNestedValue(artistData, "images.0.url") ||
           "";
 
@@ -1744,7 +2494,7 @@ function customSearch(searchQuery, options) {
           getNestedValue(playlistData, "owner.name") ||
           "";
         const coverURL =
-          getNestedValue(playlistData, "images.items.0.sources.0.url") ||
+          spotifyBestImage(getNestedValue(playlistData, "images.items.0")) ||
           getNestedValue(playlistData, "images.0.url") ||
           "";
 
@@ -1771,7 +2521,7 @@ function customSearch(searchQuery, options) {
 function handleURL(url) {
   log.info("Handling URL:", url);
 
-  const parsed = parseSpotifyURL(url);
+  let parsed = parseSpotifyURL(url);
 
   if (!parsed) {
     return {
@@ -1781,6 +2531,11 @@ function handleURL(url) {
   }
 
   try {
+    if (parsed.type === "short") {
+      parsed = resolveSpotifyShortURL(url);
+      log.info("Resolved Spotify short URL as", parsed.type + ":" + parsed.id);
+    }
+
     let result;
 
     switch (parsed.type) {
@@ -1802,9 +2557,18 @@ function handleURL(url) {
             id: parsed.id,
             name: result.album_info.name,
             artists: result.album_info.artists,
+            artist_id: result.album_info.artist_id,
             cover_url: result.album_info.images,
             release_date: result.album_info.release_date,
             total_tracks: result.album_info.total_tracks,
+            total_discs: result.album_info.total_discs,
+            album_type: result.album_info.album_type,
+            label: result.album_info.label,
+            copyright: result.album_info.copyright,
+            genre: result.album_info.genre,
+            upc: result.album_info.upc,
+            external_urls: result.album_info.external_urls,
+            comment: result.album_info.comment,
             tracks: result.track_list,
           },
           tracks: result.track_list,
@@ -1870,9 +2634,17 @@ function getAlbum(albumId) {
       name: result.album_info.name,
       artists: result.album_info.artists,
       artist_id: result.album_info.artist_id,
+      artist_url: result.album_info.artist_url,
       release_date: result.album_info.release_date,
       total_tracks: result.album_info.total_tracks,
+      total_discs: result.album_info.total_discs,
       album_type: result.album_info.album_type,
+      label: result.album_info.label,
+      copyright: result.album_info.copyright,
+      genre: result.album_info.genre,
+      upc: result.album_info.upc,
+      external_urls: result.album_info.external_urls,
+      comment: result.album_info.comment,
       images: result.album_info.images,
       cover_url: result.album_info.images,
       tracks: tracks,
@@ -1929,202 +2701,65 @@ function enrichTrack(track) {
   const spotifyID = (track.spotify_id || track.id || "").trim();
   if (spotifyID) {
     log.debug("Enriching track using Spotify ID:", spotifyID);
-
-    const currentISRC = (track.isrc || "").trim();
-    if (!currentISRC || currentISRC === spotifyID) {
-      const spotifyISRC = getISRCFromSpotifyMetadata(spotifyID);
-      if (spotifyISRC && spotifyISRC !== spotifyID) {
-        track.isrc = spotifyISRC;
-        log.info("Track enriched with real ISRC:", spotifyISRC);
-      }
-    }
-
-    if (track.isrc) {
-      const metadata = getMetadataFromDeezerByISRC(track.isrc);
-      if (metadata) {
-        if (metadata.label) {
-          track.label = metadata.label;
-          log.debug("Track enriched with label:", metadata.label);
-        }
-        if (metadata.copyright) {
-          track.copyright = metadata.copyright;
-          log.debug("Track enriched with copyright:", metadata.copyright);
-        }
-        if (metadata.genre) {
-          track.genre = metadata.genre;
-          log.debug("Track enriched with genre:", metadata.genre);
-        }
-        if (metadata.release_date && !track.release_date) {
-          track.release_date = metadata.release_date;
-          log.debug("Track enriched with release_date:", metadata.release_date);
-        }
-      }
-    }
+    const albumID = String(track.album_id || "").trim();
+    const metadata = enrichMetadata(spotifyID, albumID, {
+      album_name: track.album_name || "",
+    });
+    if (metadata) applyMetadataFallbacks(track, metadata);
+    if (track.isrc) log.info("Track enriched with real ISRC:", track.isrc);
   }
 
   return track;
 }
 
-function restGet(url, allowRetry) {
-  const headers = {
-    Authorization: "Bearer " + clientState.accessToken,
-    "Client-Token": clientState.clientToken,
-    "Spotify-App-Version": clientState.clientVersion,
-    "Content-Type": "application/json",
-    "User-Agent": utils.randomUserAgent(),
-  };
-  const response = http.get(url, headers);
-  if (!response || response.error) {
-    throw new Error(
-      "REST request failed: " + (response ? response.error : "no response"),
-    );
-  }
-  if (response.statusCode === 401 && allowRetry !== false) {
-    resetAuthState();
-    ensureInitialized();
-    return restGet(url, false);
-  }
-  if (response.statusCode !== 200) {
-    throw new Error("REST request failed: HTTP " + response.statusCode);
-  }
-  return JSON.parse(response.body);
-}
-
-// Fetches real Spotify curated home content using the stable public REST v1
-// endpoints (browse/new-releases + browse/featured-playlists). Unlike the
-// GraphQL persisted-query 'home' hash (which Spotify rotates frequently and is
-// not public), these endpoints are stable and work with the anonymous web
-// player access token, so the home feed keeps working.
 function fetchHomeFeed() {
   log.info("Fetching Spotify home feed...");
+
   ensureInitialized();
 
-  const sections = [];
-
-  // 1. New releases (albums)
+  let timeZone = "Asia/Jakarta";
   try {
-    const data = restGet(
-      "https://api.spotify.com/v1/browse/new-releases?country=US&limit=20",
-    );
-    const albums =
-      data && data.albums && data.albums.items ? data.albums.items : [];
-    const items = [];
-    for (let i = 0; i < albums.length && items.length < 12; i++) {
-      const album = albums[i] || {};
-      const name = album.name || "";
-      if (!name) continue;
-      const artistNames = (album.artists || [])
-        .map(function (a) {
-          return a.name || "";
-        })
-        .filter(function (n) {
-          return n;
-        })
-        .join(", ");
-      const images = album.images || [];
-      const coverUrl = images.length > 0 ? images[0].url : "";
-      items.push({
-        id: album.id || "",
-        uri: album.uri || "",
-        type: "album",
-        name: name,
-        artists: artistNames,
-        cover_url: coverUrl,
-        album_id: album.id || "",
-        album_name: name,
-        release_date: album.release_date || "",
-        total_tracks: album.total_tracks || 0,
-        provider_id: "spotify-web",
-      });
+    const localTime = gobackend.getLocalTime();
+    if (localTime && localTime.timezone && localTime.timezone !== "Local") {
+      timeZone = localTime.timezone;
+    } else if (localTime && localTime.offsetMinutes !== undefined) {
+      const offsetMinutes = localTime.offsetMinutes;
+      const tzMap = {
+        "-420": "Asia/Jakarta", // UTC+7 (WIB)
+        "-480": "Asia/Singapore", // UTC+8 (WITA)
+        "-540": "Asia/Tokyo", // UTC+9 (WIT)
+        "-330": "Asia/Kolkata", // UTC+5:30
+        0: "Europe/London", // UTC+0
+        "-60": "Europe/Paris", // UTC+1
+        300: "America/New_York", // UTC-5
+        480: "America/Los_Angeles", // UTC-8
+      };
+      timeZone = tzMap[String(offsetMinutes)] || "Asia/Jakarta";
     }
-    if (items.length > 0) {
-      sections.push({
-        uri: "sp:new-releases",
-        title: "New Releases",
-        items: items,
-      });
-    }
-  } catch (e) {
-    log.error("new-releases failed:", e.message);
-  }
+  } catch (e) {}
+  log.debug("Using timezone: " + timeZone);
 
-  // 2. Featured playlists
-  try {
-    const data = restGet(
-      "https://api.spotify.com/v1/browse/featured-playlists?country=US&limit=20",
-    );
-    const playlists =
-      data && data.playlists && data.playlists.items
-        ? data.playlists.items
-        : [];
-    const items = [];
-    for (let i = 0; i < playlists.length && items.length < 12; i++) {
-      const playlist = playlists[i] || {};
-      const name = playlist.name || "";
-      if (!name) continue;
-      const images = playlist.images || [];
-      const coverUrl = images.length > 0 ? images[0].url : "";
-      items.push({
-        id: playlist.id || "",
-        uri: playlist.uri || "",
-        type: "playlist",
-        name: name,
-        artists: (playlist.owner && playlist.owner.display_name) || "",
-        cover_url: coverUrl,
-        description: playlist.description || "",
-        total_tracks:
-          playlist.tracks && playlist.tracks.total ? playlist.tracks.total : 0,
-        provider_id: "spotify-web",
-      });
-    }
-    if (items.length > 0) {
-      sections.push({
-        uri: "sp:featured-playlists",
-        title: "Featured Playlists",
-        items: items,
-      });
-    }
-  } catch (e) {
-    log.error("featured-playlists failed:", e.message);
-  }
-
-  if (sections.length > 0) {
-    log.info(
-      "Fetched",
-      sections.length,
-      "sections from Spotify home feed (REST)",
-    );
-    return { success: true, greeting: "", sections: sections };
-  }
-
-  // Fallback: GraphQL persisted query (hash may rotate)
-  try {
-    const payload = {
-      operationName: "home",
-      variables: { timeZone: "UTC" },
-      extensions: {
-        persistedQuery: {
-          version: 1,
-          sha256Hash:
-            "3a67ee0ea6abad2ebad2e588a9aa130fc98d6b553f5b05ac6467503d02133bdc",
-        },
+  const payload = {
+    operationName: "home",
+    variables: {
+      timeZone: timeZone,
+    },
+    extensions: {
+      persistedQuery: {
+        version: 1,
+        sha256Hash:
+          "3a67ee0ea6abad2ebad2e588a9aa130fc98d6b553f5b05ac6467503d02133bdc",
       },
-    };
-    const response = query(payload);
-    const parsed = formatHomeFeedData(response);
-    if (
-      parsed &&
-      parsed.success &&
-      parsed.sections &&
-      parsed.sections.length > 0
-    ) {
-      return parsed;
-    }
-  } catch (e) {
-    log.error("GraphQL home fallback failed:", e.message);
-  }
+    },
+  };
 
-  return { success: false, error: "no home feed available", sections: [] };
+  try {
+    const response = query(payload);
+    return formatHomeFeedData(response);
+  } catch (e) {
+    log.error("fetchHomeFeed failed:", e.message);
+    return { success: false, error: e.message, sections: [] };
+  }
 }
 
 function formatHomeFeedData(data) {
@@ -2171,9 +2806,9 @@ function formatHomeFeedData(data) {
       let durationMs = 0;
 
       if (itemType === "track") {
-        coverUrl =
-          getNestedValue(contentData, "albumOfTrack.coverArt.sources.0.url") ||
-          "";
+        coverUrl = spotifyBestImage(
+          getNestedValue(contentData, "albumOfTrack.coverArt"),
+        );
         durationMs =
           getNestedValue(contentData, "duration.totalMilliseconds") ||
           getNestedValue(contentData, "trackDuration.totalMilliseconds") ||
@@ -2212,7 +2847,7 @@ function formatHomeFeedData(data) {
             .join(", ");
         }
       } else if (itemType === "album") {
-        coverUrl = getNestedValue(contentData, "coverArt.sources.0.url") || "";
+        coverUrl = spotifyBestImage(contentData.coverArt);
         let artistItems = getNestedValue(contentData, "artists.items") || [];
         if (artistItems.length === 0) {
           const artistName =
@@ -2233,14 +2868,15 @@ function formatHomeFeedData(data) {
             .join(", ");
         }
       } else if (itemType === "playlist") {
-        coverUrl =
-          getNestedValue(contentData, "images.items.0.sources.0.url") || "";
+        coverUrl = spotifyBestImage(
+          getNestedValue(contentData, "images.items.0"),
+        );
         description = contentData.description || "";
         artistNames = getNestedValue(contentData, "ownerV2.data.name") || "";
       } else if (itemType === "artist") {
-        coverUrl =
-          getNestedValue(contentData, "visuals.avatarImage.sources.0.url") ||
-          "";
+        coverUrl = spotifyBestImage(
+          getNestedValue(contentData, "visuals.avatarImage"),
+        );
       } else if (itemType === "station") {
         coverUrl = getNestedValue(contentData, "image.sources.0.url") || "";
       }

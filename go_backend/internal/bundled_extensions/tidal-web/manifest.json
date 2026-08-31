@@ -1,7 +1,7 @@
 {
   "name": "tidal-web",
   "displayName": "Tidal",
-  "version": "1.1.2",
+  "version": "1.2.0",
   "description": "TIDAL metadata and search provider for SpotiFLAC Mobile using TIDAL public web endpoints.",
   "homepage": "https://github.com/zarzet/SpotiFLAC-Mobile",
   "type": ["metadata_provider", "download_provider"],
@@ -40,31 +40,30 @@
     {
       "id": "DOLBY_ATMOS",
       "label": "Dolby Atmos",
-      "description": "Try Dolby Atmos first, then fall back to Hi-Res, Lossless, and High"
+      "description": "Require Dolby Atmos when supported; otherwise fall back only to the best available FLAC tier"
     },
     {
       "id": "HI_RES_LOSSLESS",
       "label": "HiRes FLAC",
-      "description": "Attempt TIDAL hi-res lossless, then fall back to Lossless and High"
+      "description": "Prefer 24-bit Hi-Res FLAC; fall back only to Lossless FLAC when the track is limited to 16-bit"
     },
     {
       "id": "LOSSLESS",
       "label": "Lossless",
-      "description": "Attempt TIDAL lossless quality, then fall back to High"
+      "description": "Require TIDAL lossless without falling back to a compressed tier"
     },
     {
       "id": "HIGH",
       "label": "High",
-      "description": "Fallback compressed TIDAL stream"
+      "description": "Require TIDAL High without falling back to Low"
     },
     {
       "id": "LOW",
       "label": "Low",
-      "description": "Lowest quality fallback"
+      "description": "Require TIDAL Low"
     }
   ],
   "capabilities": {
-    "homeFeed": true,
     "downloadFallbackTier": "lossless",
     "requiresNativeContainerConversion": true,
     "replacesBuiltInProviders": ["tidal"],
@@ -151,7 +150,7 @@
       "label": "Download API URL",
       "type": "string",
       "default": "https://api.zarz.moe/v1/dl/tid2",
-      "description": "Primary TIDAL download API used for Dolby Atmos and quality fallback."
+      "description": "Primary TIDAL download API used for strict quality selection and Dolby-to-FLAC fallback."
     }
   ]
 }
