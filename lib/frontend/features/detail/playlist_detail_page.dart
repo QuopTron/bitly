@@ -294,6 +294,11 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
         })
         .toList();
 
+    final isLikedPlaylist = likedCubit.isLiked(FeedItem(
+      id: detail.id, type: 'playlist', name: detail.name,
+      source: src,
+    ));
+
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF0A0A0A) : const Color(0xFFF5F5F5),
       body: DetailHeader(
@@ -304,6 +309,15 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
         actions: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            _GlassActionButton(
+              icon: isLikedPlaylist ? Icons.favorite : Icons.favorite_border,
+              color: isLikedPlaylist ? Colors.red : null,
+              onTap: () => likedCubit.toggleLike(FeedItem(
+                id: detail.id, type: 'playlist', name: detail.name,
+                source: src, coverUrl: _resolvedCover,
+              )),
+            ),
+            SizedBox(width: r.spacingS),
             _GlassActionButton(
               icon: batchState.state == DownloadState.completed
                   ? Icons.check_circle_outline

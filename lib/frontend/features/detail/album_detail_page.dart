@@ -275,6 +275,7 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
 
     final isLikedAlbum = likedCubit.isLiked(FeedItem(
       id: album.id, type: 'album', name: album.name,
+      artists: album.artistName, coverUrl: _resolvedAlbumCover,
     ));
 
     return Scaffold(

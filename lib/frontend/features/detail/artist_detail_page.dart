@@ -167,6 +167,18 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
         subtitle: subtitle.isNotEmpty ? subtitle : '',
         heroTag: 'artist_${artist.id}',
         coverSize: 160,
+        actions: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _GlassActionBtn(
+              icon: Icons.play_arrow_rounded,
+              filled: true,
+              onTap: artistTracks.isNotEmpty
+                  ? () => sl<QueueCubit>().playWithContext(artistTracks, artistTracks.first)
+                  : null,
+            ),
+          ],
+        ),
         children: [
           // Top tracks
           if (_isOnline && artist.topTracks.isNotEmpty) ...[
@@ -410,4 +422,97 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
     color: Colors.white.withValues(alpha: 0.06),
     child: Icon(Icons.album, color: Colors.white.withValues(alpha: 0.2), size: r.titleSize * 0.5),
   );
+}
+
+/// Futuristic glassmorphism action button.
+class _GlassActionBtn extends StatefulWidget {
+  final IconData icon;
+  final VoidCallback? onTap;
+  final Color? color;
+  final bool filled;
+
+  const _GlassActionBtn({
+    required this.icon,
+    this.onTap,
+    this.color,
+    this.filled = false,
+  });
+
+  @override
+  State<_GlassActionBtn> createState() => _GlassActionBtnState();
+}
+
+class _GlassActionBtnState extends State<_GlassActionBtn>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _scaleCtrl;
+  late final Animation<double> _scaleAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _scaleCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 120),
+      lowerBound: 0,
+      upperBound: 1,
+    );
+    _scaleAnim = Tween(begin: 1.0, end: 0.88).animate(
+      CurvedAnimation(parent: _scaleCtrl, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _scaleCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accent = widget.color ?? (isDark ? const Color(0xFF5AF13D) : const Color(0xFF0B5A1E));
+    final enabled = widget.onTap != null;
+
+    final bgAlpha = widget.filled ? 0.22 : 0.08;
+    final bgColor = widget.filled
+        ? accent.withValues(alpha: bgAlpha)
+        : (isDark ? Colors.white : Colors.black).withValues(alpha: bgAlpha);
+
+    final borderColor = widget.filled
+        ? accent.withValues(alpha: 0.5)
+        : (isDark ? Colors.white : Colors.black).withValues(alpha: 0.12);
+
+    final fgColor = widget.filled
+        ? accent
+        : widget.color ?? (isDark ? Colors.white : Colors.black);
+
+    return GestureDetector(
+      onTapDown: enabled ? (_) => _scaleCtrl.forward() : null,
+      onTapUp: enabled ? (_) => _scaleCtrl.reverse() : null,
+      onTapCancel: enabled ? () => _scaleCtrl.reverse() : null,
+      onTap: widget.onTap,
+      child: AnimatedBuilder(
+        animation: _scaleAnim,
+        builder: (context, child) {
+          return Transform.scale(scale: _scaleAnim.value, child: child);
+        },
+        child: Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: enabled ? bgColor : bgColor.withValues(alpha: 0.3),
+            border: Border.all(
+              color: enabled ? borderColor : borderColor.withValues(alpha: 0.3),
+              width: 1.0,
+            ),
+            boxShadow: widget.filled
+                ? [BoxShadow(color: accent.withValues(alpha: 0.35), blurRadius: 20, spreadRadius: 1)]
+                : null,
+          ),
+          child: Icon(widget.icon, size: 22, color: enabled ? fgColor : fgColor.withValues(alpha: 0.3)),
+        ),
+      ),
+    );
+  }
 }
