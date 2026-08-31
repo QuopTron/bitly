@@ -330,7 +330,7 @@ class SearchResultsBody extends StatelessWidget {
           GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            padding: EdgeInsets.symmetric(horizontal: r.spacingS),
+            padding: EdgeInsets.symmetric(horizontal: r.spacingS * 0.5),
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: crossAxisCount,
               mainAxisSpacing: gap,
