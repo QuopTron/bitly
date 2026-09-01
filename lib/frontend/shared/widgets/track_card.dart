@@ -60,7 +60,7 @@ class TrackCard extends StatelessWidget {
     final loc = AppLocalizations.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     const textColor = Colors.white;
-    const mutedColor = Color(0xFFB0B0B0);
+    const mutedColor = Color(0xFFC8C8C8);
     final fallbackBg =
         isDark ? const Color(0xFF2A2A2A) : const Color(0xFFD0D0D0);
     final fallbackIconColor =
@@ -247,7 +247,7 @@ class TrackCard extends StatelessWidget {
                         Text(
                           subtitle,
                           style: TextStyle(
-                            fontSize: (r.footerSize - 1) * ts,
+                            fontSize: (r.footerSize + 1) * ts,
                             color: mutedColor,
                           ),
                           maxLines: 1,

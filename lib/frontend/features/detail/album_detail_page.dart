@@ -244,7 +244,12 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
     final album = _album!;
     final likedCubit = context.watch<LikeCubit>();
     final dlCubit = context.watch<DownloadCubit>();
-    final src = widget.source.isNotEmpty ? widget.source : (album.tracks.isNotEmpty ? (album.tracks.first.provider ?? '') : '');
+    var src = widget.source.isNotEmpty ? widget.source : (album.tracks.isNotEmpty ? (album.tracks.first.provider ?? '') : '');
+    // If source is empty, try to find it from the download batch metadata
+    if (src.isEmpty) {
+      final batchSrc = dlCubit.findBatchSource('album', album.id);
+      if (batchSrc.isNotEmpty) src = batchSrc;
+    }
     final batchKey = 'album_${normalizeTrackId(album.id)}_$src';
     final batchState = dlCubit.downloadStateFor(batchKey);
 

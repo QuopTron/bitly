@@ -270,7 +270,12 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
     final detail = _detail!;
     final likedCubit = context.watch<LikeCubit>();
     final dlCubit = context.watch<DownloadCubit>();
-    final src = widget.source.isNotEmpty ? widget.source : (detail.tracks.isNotEmpty ? (detail.tracks.first.provider ?? '') : '');
+    var src = widget.source.isNotEmpty ? widget.source : (detail.tracks.isNotEmpty ? (detail.tracks.first.provider ?? '') : '');
+    // If source is empty, try to find it from the download batch metadata
+    if (src.isEmpty) {
+      final batchSrc = dlCubit.findBatchSource('playlist', detail.id);
+      if (batchSrc.isNotEmpty) src = batchSrc;
+    }
     final batchKey = 'playlist_${normalizeTrackId(detail.id)}_$src';
     final batchState = dlCubit.downloadStateFor(batchKey);
 

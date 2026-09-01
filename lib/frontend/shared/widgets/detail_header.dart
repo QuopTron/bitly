@@ -342,19 +342,19 @@ class _DetailHeaderState extends State<DetailHeader>
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            fontSize: r.footerSize,
+                            fontSize: r.subtitleSize * 0.9,
                             fontWeight: FontWeight.w500,
-                            color: Colors.white.withValues(alpha: 0.6),
+                            color: Colors.white.withValues(alpha: 0.8),
                           ),
                         ),
                         if (widget.badge != null) ...[
-                          SizedBox(height: 4),
+                          SizedBox(height: 6),
                           Text(
                             widget.badge!,
                             textAlign: TextAlign.center,
                             style: TextStyle(
-                              fontSize: r.footerSize - 1,
-                              color: Colors.white.withValues(alpha: 0.35),
+                              fontSize: r.footerSize + 1,
+                              color: Colors.white.withValues(alpha: 0.55),
                             ),
                           ),
                         ],

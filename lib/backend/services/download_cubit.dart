@@ -1655,6 +1655,30 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
   DownloadStateData downloadStateFor(String id) =>
       state.downloads[id] ?? const DownloadStateData();
 
+  /// Find the source used to download a batch (album/playlist).
+  /// Checks _batchMeta first, then scans state.downloads keys.
+  /// Returns empty string if no batch found.
+  String findBatchSource(String type, String itemId) {
+    final normId = normalizeTrackId(itemId);
+    // 1) Check _batchMeta for exact match
+    for (final entry in _batchMeta.entries) {
+      final key = entry.key; // e.g. 'playlist_normId_ytmusic-spotiflac'
+      if (key.startsWith('${type}_') && key.contains('_${normId}_')) {
+        return entry.value.source;
+      }
+    }
+    // 2) Scan state.downloads for batch key
+    for (final key in state.downloads.keys) {
+      if (key.startsWith('${type}_') && key.contains('_${normId}_')) {
+        // Extract source from key: type_normId_source
+        final parts = key.split('_');
+        if (parts.length >= 3) return parts.last;
+      }
+    }
+    // 3) Check DB for completed batches
+    return '';
+  }
+
   /// Persists a fully-completed album/playlist batch and refreshes the library
   /// cache. Idempotent per batch (guarded by [_batchCompletedSaved]) so a
   /// straggler completed manually after the batch "looked" finished only saves
