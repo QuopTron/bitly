@@ -66,26 +66,28 @@ class GlassContainer extends StatelessWidget {
           ]
         : null;
 
+    // Skip BackdropFilter when no blur is requested — saves GPU compositing
+    // on the 40+ places GlassContainer is used across the app.
+    Widget content = Container(
+      padding: padding,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(radius),
+        color: bgColor ?? Colors.transparent,
+        gradient: gradient,
+        border: Border.all(color: border, width: borderWidth),
+        boxShadow: shadows,
+      ),
+      child: child,
+    );
+
     Widget inner = ClipRRect(
       borderRadius: BorderRadius.circular(radius),
-      child: BackdropFilter(
-        filter: blurSigma != null
-            ? ImageFilter.blur(sigmaX: blurSigma!, sigmaY: blurSigma!)
-            : ImageFilter.blur(sigmaX: 0, sigmaY: 0),
-        child: Container(
-          padding: padding,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(radius),
-            // Solid background — sits behind the gradient overlay
-            color: bgColor ?? Colors.transparent,
-            // Gradient overlay (optional)
-            gradient: gradient,
-            border: Border.all(color: border, width: borderWidth),
-            boxShadow: shadows,
-          ),
-          child: child,
-        ),
-      ),
+      child: blurSigma != null
+          ? BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: blurSigma!, sigmaY: blurSigma!),
+              child: content,
+            )
+          : content,
     );
 
     if (margin != null) {

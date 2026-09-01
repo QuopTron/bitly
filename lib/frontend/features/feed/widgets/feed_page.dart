@@ -75,35 +75,109 @@ class _FeedPageState extends State<FeedPage> {
         FeedHeader(onBg: onBg, glowColor: glowColor, sources: _availableSources),
         SizedBox(height: r.spacingM),
         Expanded(
-          child: BlocBuilder<LikeCubit, LikeState>(
-            builder: (context, likeState) {
-              return BlocBuilder<DownloadCubit, DownloadCubitState>(
-                builder: (context, dlState) {
-                  final ds = <String, DownloadState>{};
-                  for (final e in dlState.downloads.entries) {
-                    ds[e.key] = e.value.state;
-                  }
-                  return FeedContent(
-                    onBg: onBg, glowColor: glowColor,
-                    sections: sections, hasContent: hasContent,
-                    loading: state.loading, currentDisplayName: _currentDisplayName,
-                    likedIds: likeState.likedFingerprints,
-                    downloadStates: ds,
-                    downloadedFingerprints: dlState.downloadedFingerprints,
-                    onToggleLike: _toggleLike, onStartDownload: _startDownload, onBatchDownload: _startBatchDownload,
-                    onBatchDelete: _onBatchDelete,
-                    onExportPlaylist: _onExportPlaylist,
-                    onDeleteTrack: (item) => context.read<DownloadCubit>().deleteTrackResolved(item),
-                    onShowInfo: _showInfo, onShowMore: _showMore, onNavigateToItem: _navigateToItem,
-                  );
-                },
-              );
-            },
+          child: _FeedBody(
+            sections: sections,
+            hasContent: hasContent,
+            loading: state.loading,
+            currentDisplayName: _currentDisplayName,
+            onBg: onBg,
+            glowColor: glowColor,
+            onToggleLike: _toggleLike,
+            onStartDownload: _startDownload,
+            onBatchDownload: _startBatchDownload,
+            onBatchDelete: _onBatchDelete,
+            onExportPlaylist: _onExportPlaylist,
+            onShowInfo: _showInfo,
+            onShowMore: _showMore,
+            onNavigateToItem: _navigateToItem,
           ),
         ),
       ]);
     });
   }
+}
+
+/// Extracts just the download-state enums (not progress floats) so the feed
+/// only rebuilds when a track's DownloadState actually changes — not on every
+/// progress tick from the poller.
+class _FeedBody extends StatelessWidget {
+  final List<FeedSection> sections;
+  final bool hasContent;
+  final bool loading;
+  final String currentDisplayName;
+  final Color onBg;
+  final Color glowColor;
+  final void Function(String, [FeedItem?]) onToggleLike;
+  final void Function(FeedItem) onStartDownload;
+  final void Function(FeedItem)? onBatchDownload;
+  final void Function(FeedItem)? onBatchDelete;
+  final void Function(FeedItem)? onExportPlaylist;
+  final void Function(BuildContext, FeedItem) onShowInfo;
+  final void Function(BuildContext, FeedItem) onShowMore;
+  final void Function(FeedItem) onNavigateToItem;
+
+  const _FeedBody({
+    required this.sections, required this.hasContent, required this.loading,
+    required this.currentDisplayName, required this.onBg, required this.glowColor,
+    required this.onToggleLike, required this.onStartDownload,
+    this.onBatchDownload, this.onBatchDelete, this.onExportPlaylist,
+    required this.onShowInfo, required this.onShowMore, required this.onNavigateToItem,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<LikeCubit, LikeState>(
+      buildWhen: (prev, next) => prev.likedFingerprints != next.likedFingerprints,
+      builder: (context, likeState) {
+        return BlocSelector<DownloadCubit, DownloadCubitState, _DlSnapshot>(
+          selector: (dl) => _DlSnapshot(
+            dl.downloads.map((k, v) => MapEntry(k, v.state)),
+            dl.downloadedFingerprints,
+          ),
+          builder: (context, dlSnap) {
+            return FeedContent(
+              onBg: onBg, glowColor: glowColor,
+              sections: sections, hasContent: hasContent,
+              loading: loading, currentDisplayName: currentDisplayName,
+              likedIds: likeState.likedFingerprints,
+              downloadStates: dlSnap.states,
+              downloadedFingerprints: dlSnap.fingerprints,
+              onToggleLike: onToggleLike, onStartDownload: onStartDownload,
+              onBatchDownload: onBatchDownload,
+              onBatchDelete: onBatchDelete,
+              onExportPlaylist: onExportPlaylist,
+              onDeleteTrack: (item) => context.read<DownloadCubit>().deleteTrackResolved(item),
+              onShowInfo: onShowInfo, onShowMore: onShowMore, onNavigateToItem: onNavigateToItem,
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+/// Lightweight snapshot of download state enums + fingerprints.
+/// [BlocSelector] uses == to skip rebuilds; this class provides value equality
+/// so the feed only rebuilds when states actually change, not on every poll.
+class _DlSnapshot {
+  final Map<String, DownloadState> states;
+  final Set<String> fingerprints;
+  const _DlSnapshot(this.states, this.fingerprints);
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    if (other is! _DlSnapshot) return false;
+    if (states.length != other.states.length) return false;
+    for (final e in states.entries) {
+      if (other.states[e.key] != e.value) return false;
+    }
+    return fingerprints.length == other.fingerprints.length &&
+           fingerprints.containsAll(other.fingerprints);
+  }
+
+  @override
+  int get hashCode => Object.hash(states.length, fingerprints.length);
 }
 
 
