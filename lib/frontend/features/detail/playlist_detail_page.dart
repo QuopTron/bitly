@@ -121,7 +121,28 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
       return;
     }
 
-    // 3. Batch download data (local, no network)
+    // 3. When online, prefer API (has full metadata) over batch
+    if (_isOnline) {
+      try {
+        detail = await loadDetailWithFallback(
+          id: widget.collectionId,
+          source: widget.source,
+          getLocal: (id) => cache.getPlaylistDetail(id),
+          fetchRemote: (id, src) => backend.fetchPlaylistDetail(id, src),
+          fromJson: PlaylistDetail.fromJson,
+        );
+        if (detail != null) {
+          memCache.setPlaylist(widget.collectionId, detail);
+          unawaited(pb.syncPlaylistDetail(detail, source: widget.source));
+        }
+      } catch (_) {}
+      if (detail != null && detail.tracks.isNotEmpty) {
+        if (mounted) setState(() { _detail = detail; _loading = false; });
+        return;
+      }
+    }
+
+    // 4. Offline fallback: batch download data (local, no network)
     detail = await _buildFromBatch();
     if (detail != null && detail.tracks.isNotEmpty) {
       allTracksDownloaded = _areAllTracksDownloaded(detail, dlCubit);
@@ -134,18 +155,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
       return;
     }
 
-    // 4. No local data: try DetailCache then API
-    try {
-      detail = await loadDetailWithFallback(
-        id: widget.collectionId,
-        source: widget.source,
-        getLocal: (id) => cache.getPlaylistDetail(id),
-        fetchRemote: (id, src) => backend.fetchPlaylistDetail(id, src),
-        fromJson: PlaylistDetail.fromJson,
-      );
-      if (detail != null) memCache.setPlaylist(widget.collectionId, detail);
-    } catch (_) {}
-
+    // 5. Nothing found
     if (mounted) setState(() { _detail = detail; _loading = false; _error = detail == null; });
   }
 
@@ -221,18 +231,24 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
         final parts = stateKey.split('_');
         if (parts.length < 3) continue;
         final normalizedId = parts.sublist(1, parts.length - 1).join('_');
+        // Try download history first, then DownloadCubit in-memory metadata
         final meta = historyMap?[normalizedId] ?? historyMap?[stateKey.toLowerCase()];
+        final dlCubit = sl<DownloadCubit>();
+        final liveMeta = dlCubit.trackMetaFor(stateKey);
+        final histName = (meta?['track_name'] as String?) ?? '';
+        final histArtist = (meta?['artist_name'] as String?) ?? '';
+        final histCover = (meta?['cover_url'] as String?) ?? '';
         tracks.add(DetailTrack(
           trackId: meta?['id'] as String? ?? normalizedId,
-          name: (meta?['track_name'] as String?)?.isNotEmpty == true
-              ? meta!['track_name'] as String : normalizedId,
+          name: histName.isNotEmpty ? histName
+              : (liveMeta?.name.isNotEmpty == true ? liveMeta!.name : normalizedId),
           durationMs: (meta?['duration'] as num?)?.toInt() ?? 0,
           isrc: meta?['isrc'] as String? ?? '',
-          coverUrl: meta?['cover_url'] as String? ?? '',
-          coverPath: meta?['cover_path'] as String? ?? '',
-          artistName: meta?['artist_name'] as String? ?? '',
-          albumName: meta?['album_name'] as String? ?? '',
-          provider: meta?['providerSource'] as String? ?? widget.source,
+          coverUrl: histCover.isNotEmpty ? histCover : (liveMeta?.cover ?? ''),
+          coverPath: (meta?['cover_path'] as String?) ?? '',
+          artistName: histArtist.isNotEmpty ? histArtist : (liveMeta?.artist ?? ''),
+          albumName: (meta?['album_name'] as String?) ?? '',
+          provider: (meta?['providerSource'] as String?) ?? widget.source,
         ));
       }
     }

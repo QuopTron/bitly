@@ -1674,6 +1674,19 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
   DownloadStateData downloadStateFor(String id) =>
       state.downloads[id] ?? const DownloadStateData();
 
+  /// Returns cached track metadata (name, artist, cover) for a state key,
+  /// or null if not available. Used by detail pages to resolve names
+  /// from batches when API data isn't loaded yet.
+  ({String name, String artist, String cover})? trackMetaFor(String stateKey) {
+    final m = _trackMeta[stateKey];
+    if (m == null) return null;
+    return (
+      name: m.name,
+      artist: m.artist ?? '',
+      cover: m.coverUrl ?? m.coverPath ?? '',
+    );
+  }
+
   /// Find the source used to download a batch (album/playlist).
   /// Checks _batchMeta first, then scans state.downloads keys.
   /// Returns empty string if no batch found.

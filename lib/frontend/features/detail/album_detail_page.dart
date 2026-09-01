@@ -90,32 +90,41 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
       return;
     }
 
-    // 3. Try batch download data (local, no network)
+    // 3. When online, prefer API (has full metadata) over batch
+    if (_isOnline) {
+      try {
+        detail = await loadDetailWithFallback(
+          id: widget.albumId,
+          source: widget.source,
+          getLocal: (id) => cache.getAlbumDetail(id),
+          fetchRemote: (id, src) => backend.fetchAlbumDetail(id, src),
+          fromJson: AlbumDetail.fromJson,
+        );
+        if (detail != null) {
+          memCache.setAlbum(widget.albumId, detail);
+          unawaited(pb.syncAlbumDetail(detail, source: widget.source));
+        }
+      } catch (_) {}
+      if (detail != null && detail.tracks.isNotEmpty) {
+        if (mounted) setState(() { _album = detail; _loading = false; });
+        return;
+      }
+    }
+
+    // 4. Offline fallback: batch download data (local, no network)
     detail = await _buildFromBatch();
     if (detail != null && detail.tracks.isNotEmpty) {
       allTracksDownloaded = _areAllTracksDownloaded(detail, dlCubit);
       memCache.setAlbum(widget.albumId, detail);
       unawaited(pb.syncAlbumDetail(detail, source: widget.source));
       if (mounted) setState(() { _album = detail; _loading = false; });
-      // Only refresh from API if album is incomplete and we're online
       if (!allTracksDownloaded && _isOnline) {
         _refreshFromApi(cache, backend, pb);
       }
       return;
     }
 
-    // 4. No local data at all: try DetailCache then API
-    try {
-      detail = await loadDetailWithFallback(
-        id: widget.albumId,
-        source: widget.source,
-        getLocal: (id) => cache.getAlbumDetail(id),
-        fetchRemote: (id, src) => backend.fetchAlbumDetail(id, src),
-        fromJson: AlbumDetail.fromJson,
-      );
-      if (detail != null) memCache.setAlbum(widget.albumId, detail);
-    } catch (_) {}
-
+    // 5. Nothing found
     if (mounted) setState(() { _album = detail; _loading = false; _error = detail == null; });
   }
 
@@ -193,17 +202,22 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
         if (parts.length < 3) continue;
         final normalizedId = parts.sublist(1, parts.length - 1).join('_');
         final meta = historyMap?[normalizedId] ?? historyMap?[stateKey.toLowerCase()];
+        final dlCubit = sl<DownloadCubit>();
+        final liveMeta = dlCubit.trackMetaFor(stateKey);
+        final histName = (meta?['track_name'] as String?) ?? '';
+        final histArtist = (meta?['artist_name'] as String?) ?? '';
+        final histCover = (meta?['cover_url'] as String?) ?? '';
         tracks.add(DetailTrack(
           trackId: meta?['id'] as String? ?? normalizedId,
-          name: (meta?['track_name'] as String?)?.isNotEmpty == true
-              ? meta!['track_name'] as String : normalizedId,
+          name: histName.isNotEmpty ? histName
+              : (liveMeta?.name.isNotEmpty == true ? liveMeta!.name : normalizedId),
           durationMs: (meta?['duration'] as num?)?.toInt() ?? 0,
           isrc: meta?['isrc'] as String? ?? '',
-          coverUrl: meta?['cover_url'] as String? ?? '',
-          coverPath: meta?['cover_path'] as String? ?? '',
-          artistName: meta?['artist_name'] as String? ?? '',
-          albumName: meta?['album_name'] as String? ?? batch.name,
-          provider: meta?['providerSource'] as String? ?? widget.source,
+          coverUrl: histCover.isNotEmpty ? histCover : (liveMeta?.cover ?? ''),
+          coverPath: (meta?['cover_path'] as String?) ?? '',
+          artistName: histArtist.isNotEmpty ? histArtist : (liveMeta?.artist ?? ''),
+          albumName: (meta?['album_name'] as String?) ?? batch.name,
+          provider: (meta?['providerSource'] as String?) ?? widget.source,
         ));
       }
     }
