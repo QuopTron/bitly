@@ -162,10 +162,7 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
   }
 
           final track = queue.current!;
-          // TEMP diagnostic: correlate displayed item vs what the player opens
-          // ignore: avoid_print
-          print('[NOWPLAYING] id=${track.id} name=${track.name} artists=${track.artists} '
-              'coverUrl=${track.coverUrl} resolvedCover=${context.read<LikeCubit>().resolveCoverFor(track)}');
+
           return BlocBuilder<PlayerCubit, AudioPlayerState>(
             builder: (context, player) {
               final resolvedCover = context.read<LikeCubit>().resolveCoverFor(track);
@@ -263,7 +260,7 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                       const Spacer(flex: 1),
                       _seekBar(context, r, isDark, player),
                       SizedBox(height: r.spacingM),
-                      _controls(context, r, isDark, player, queue),
+                      _controls(context, r, isDark, queue),
                       SizedBox(height: r.spacingL),
                       _volumeSlider(context, r, player),
                       SizedBox(height: r.spacingXL),
@@ -362,18 +359,21 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
   }
 
   Widget _coverOrVideoArea(BuildContext context, Responsive r, bool isDark, FeedItem track, String? resolvedCover) {
-    return GestureDetector(
-      onTap: () {
-        if (_hasVideo) {
-          _toggleVideo(track, context.read<PlayerCubit>().downloadPath);
-        }
-      },
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: SizedBox(
-          width: r.width * 0.7,
-          height: r.width * 0.7,
-          child: _showVideo
+    // Cover side: 70% of screen width, but cap at 400px for decode sizing.
+    final side = (r.width * 0.7).clamp(0.0, 400.0);
+    return RepaintBoundary(
+      child: GestureDetector(
+        onTap: () {
+          if (_hasVideo) {
+            _toggleVideo(track, context.read<PlayerCubit>().downloadPath);
+          }
+        },
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: SizedBox(
+            width: side,
+            height: side,
+            child: _showVideo
               ? Stack(
                   fit: StackFit.expand,
                   children: [
@@ -398,7 +398,10 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
               : Stack(
                   fit: StackFit.expand,
                   children: [
-                    CoverImage(coverUrl: resolvedCover, localPath: null),
+                    CoverImage(
+                      coverUrl: resolvedCover, localPath: null,
+                      width: side, height: side,
+                    ),
                     if (_hasVideo && !_showVideo)
                       Positioned(
                         top: 8, right: 8,
@@ -415,10 +418,11 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                         ),
                       ),
                   ],
-                ),
-        ),
-      ),
-    );
+                ), // Stack
+              ), // SizedBox
+        ), // ClipRRect
+      ), // GestureDetector
+    ); // RepaintBoundary
   }
 
   Widget _seekBar(BuildContext context, Responsive r, bool isDark, AudioPlayerState player) {
@@ -463,7 +467,8 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
     );
   }
 
-  Widget _controls(BuildContext context, Responsive r, bool isDark, AudioPlayerState player, QueueState queue) {
+  Widget _controls(BuildContext context, Responsive r, bool isDark, QueueState queue) {
+    final player = context.read<PlayerCubit>().state;
     final glowColor = isDark ? AppColors.greenBright : AppColors.greenMedium;
     final muted = (isDark ? Colors.white : Colors.black).withValues(alpha: 0.5);
     final active = isDark ? Colors.white : Colors.black;
