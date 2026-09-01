@@ -155,31 +155,57 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
     final List<dynamic> rawIds;
     try { rawIds = jsonDecode(batch.trackIds!) as List<dynamic>; } catch (_) { return null; }
 
-    final history = jsonDecode(await dlCache.getDownloadHistory()) as List<dynamic>;
-    final trackMap = <String, Map<String, dynamic>>{};
-    for (final entry in history) {
-      final m = entry as Map<String, dynamic>;
-      trackMap[(m['id'] as String?)?.toLowerCase() ?? ''] = m;
+    // Determine format: new batches store objects {id, name, artist, cover},
+    // old batches store plain state-key strings.
+    final bool enriched = rawIds.isNotEmpty && rawIds.first is Map<String, dynamic>;
+
+    // For old-format batches, fall back to download history for metadata.
+    Map<String, Map<String, dynamic>>? historyMap;
+    if (!enriched) {
+      final history = jsonDecode(await dlCache.getDownloadHistory()) as List<dynamic>;
+      historyMap = <String, Map<String, dynamic>>{};
+      for (final entry in history) {
+        final m = entry as Map<String, dynamic>;
+        historyMap[(m['id'] as String?)?.toLowerCase() ?? ''] = m;
+      }
     }
 
     final tracks = <DetailTrack>[];
     for (final raw in rawIds) {
-      final stateKey = raw as String;
-      final parts = stateKey.split('_');
-      if (parts.length < 3) continue;
-      final normalizedId = parts.sublist(1, parts.length - 1).join('_');
-      final meta = trackMap[normalizedId] ?? trackMap[stateKey.toLowerCase()];
-      tracks.add(DetailTrack(
-        trackId: meta?['id'] as String? ?? normalizedId,
-        name: meta?['track_name'] as String? ?? normalizedId,
-        durationMs: (meta?['duration'] as num?)?.toInt() ?? 0,
-        isrc: meta?['isrc'] as String? ?? '',
-        coverUrl: meta?['cover_url'] as String? ?? '',
-        coverPath: meta?['cover_path'] as String? ?? '',
-        artistName: meta?['artist_name'] as String? ?? '',
-        albumName: meta?['album_name'] as String? ?? batch.name,
-        provider: meta?['providerSource'] as String? ?? widget.source,
-      ));
+      if (enriched) {
+        final obj = raw as Map<String, dynamic>;
+        final stateKey = (obj['id'] ?? '') as String;
+        final parts = stateKey.split('_');
+        final normalizedId = parts.length >= 3
+            ? parts.sublist(1, parts.length - 1).join('_')
+            : stateKey;
+        final name = (obj['name'] ?? '') as String;
+        tracks.add(DetailTrack(
+          trackId: normalizedId,
+          name: name.isNotEmpty ? name : normalizedId,
+          artistName: (obj['artist'] ?? '') as String,
+          coverUrl: (obj['cover'] ?? '') as String,
+          provider: widget.source,
+        ));
+      } else {
+        final stateKey = raw as String;
+        final parts = stateKey.split('_');
+        if (parts.length < 3) continue;
+        final normalizedId = parts.sublist(1, parts.length - 1).join('_');
+        final meta = historyMap?[normalizedId] ?? historyMap?[stateKey.toLowerCase()];
+        tracks.add(DetailTrack(
+          trackId: meta?['id'] as String? ?? normalizedId,
+          name: (meta?['track_name'] as String?)?.isNotEmpty == true
+              ? meta!['track_name'] as String : normalizedId,
+          durationMs: (meta?['duration'] as num?)?.toInt() ?? 0,
+          isrc: meta?['isrc'] as String? ?? '',
+          coverUrl: meta?['cover_url'] as String? ?? '',
+          coverPath: meta?['cover_path'] as String? ?? '',
+          artistName: meta?['artist_name'] as String? ?? '',
+          albumName: meta?['album_name'] as String? ?? batch.name,
+          provider: meta?['providerSource'] as String? ?? widget.source,
+        ));
+      }
     }
 
     if (tracks.isEmpty) return null;

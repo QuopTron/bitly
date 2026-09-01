@@ -36,19 +36,47 @@ class DownloadCache {
     return jsonEncode(list);
   }
 
+  /// Save a download batch.
+  ///
+  /// [trackIds] are the state-key strings (kept for internal tracking).
+  /// [trackMeta] is an optional parallel list of maps with keys
+  /// `name`, `artist`, `cover` — stored alongside the IDs so detail pages
+  /// can reconstruct track names without hitting the download history.
   Future<void> saveDownloadedBatch(
     String key, String type, String id, String source, String name, {
     List<String>? trackIds,
+    List<Map<String, dynamic>>? trackMeta,
     String? coverUrl,
     String? coverPath,
-  }) => _d.saveBatch(DownloadBatchesCompanion(
-    batchKey: Value(key), itemType: Value(type),
-    itemId: Value(id), source: Value(source), name: Value(name),
-    trackIds: trackIds != null ? Value(jsonEncode(trackIds)) : const Value.absent(),
-    downloadedAt: Value(DateTime.now()),
-    coverUrl: coverUrl != null ? Value(coverUrl) : const Value.absent(),
-    coverPath: coverPath != null ? Value(coverPath) : const Value.absent(),
-  ));
+  }) async {
+    // Encode trackIds as a JSON array.  If trackMeta is provided we store
+    // objects `{id, name, artist, cover}` so _buildFromBatch() has names.
+    String? encoded;
+    if (trackIds != null) {
+      if (trackMeta != null && trackMeta.length == trackIds.length) {
+        final enriched = <Map<String, dynamic>>[];
+        for (var i = 0; i < trackIds.length; i++) {
+          enriched.add({
+            'id': trackIds[i],
+            'name': (trackMeta[i]['name'] ?? '') as String,
+            'artist': (trackMeta[i]['artist'] ?? '') as String,
+            'cover': (trackMeta[i]['cover'] ?? '') as String,
+          });
+        }
+        encoded = jsonEncode(enriched);
+      } else {
+        encoded = jsonEncode(trackIds);
+      }
+    }
+    await _d.saveBatch(DownloadBatchesCompanion(
+      batchKey: Value(key), itemType: Value(type),
+      itemId: Value(id), source: Value(source), name: Value(name),
+      trackIds: encoded != null ? Value(encoded) : const Value.absent(),
+      downloadedAt: Value(DateTime.now()),
+      coverUrl: coverUrl != null ? Value(coverUrl) : const Value.absent(),
+      coverPath: coverPath != null ? Value(coverPath) : const Value.absent(),
+    ));
+  }
 
   Future<void> saveDownloadedTrack({
     required String id,

@@ -367,7 +367,17 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
                 try {
                   final parsedIds = jsonDecode(trackIdsRaw) as List;
                   for (final tid in parsedIds) {
-                    final stateKey = tid.toString();
+                    // Handle both old string format and new object format
+                    String stateKey;
+                    if (tid is Map<String, dynamic>) {
+                      stateKey = (tid['id'] ?? '') as String;
+                      // Also try embedded cover from enriched format
+                      if (batchCoverUrl.isEmpty) {
+                        batchCoverUrl = (tid['cover'] ?? '') as String;
+                      }
+                    } else {
+                      stateKey = tid.toString();
+                    }
                     final trackMeta = _trackMeta[stateKey];
                     if (trackMeta != null && (
                         (trackMeta.coverPath != null && trackMeta.coverPath!.isNotEmpty) ||
@@ -393,9 +403,18 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
               final parsedIds = jsonDecode(trackIdsRaw) as List;
               // Also populate _batchTrackIds so batchCoverFor's runtime fallback
               // can search _trackMeta for covers even after app restart.
-              _batchTrackIds[batchKey] = parsedIds.map((e) => e.toString()).toList();
-              for (final tid in parsedIds) {
-                final ntid = normalizeTrackId(tid.toString());
+              final idStrings = <String>[];
+              for (final entry in parsedIds) {
+                if (entry is String) {
+                  idStrings.add(entry);
+                } else if (entry is Map<String, dynamic>) {
+                  final id = (entry['id'] ?? '') as String;
+                  if (id.isNotEmpty) idStrings.add(id);
+                }
+              }
+              _batchTrackIds[batchKey] = idStrings;
+              for (final stateKey in idStrings) {
+                final ntid = normalizeTrackId(stateKey);
                 batchTrackMap[ntid] = batchKey;
               }
             } catch (_) {}
@@ -1993,9 +2012,16 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
 
     // Persist batch as in_progress so it survives restart
     final batchName = (tracks.isNotEmpty) ? (tracks.first['album_name'] as String? ?? '') : '';
+    // Build parallel metadata list so _buildFromBatch() has track names
+    final albumMeta = tracks.map((t) => <String, dynamic>{
+      'name': (t['track_title'] ?? '') as String,
+      'artist': (t['artist_name'] ?? '') as String,
+      'cover': (t['cover_url'] ?? '') as String,
+    }).toList();
     await _downloadCache.saveDownloadedBatch(
       batchKey, 'album', albumId, source, batchName,
       trackIds: audioIds,
+      trackMeta: albumMeta,
     );
 
     _processDownloadQueue();
@@ -2061,9 +2087,15 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
 
     // Persist batch as in_progress so it survives restart
     final batchName = (tracks.isNotEmpty) ? (tracks.first['album_name'] as String? ?? '') : '';
+    final playlistMeta = tracks.map((t) => <String, dynamic>{
+      'name': (t['track_title'] ?? '') as String,
+      'artist': (t['artist_name'] ?? '') as String,
+      'cover': (t['cover_url'] ?? '') as String,
+    }).toList();
     await _downloadCache.saveDownloadedBatch(
       batchKey, 'playlist', playlistId, source, batchName,
       trackIds: audioIds,
+      trackMeta: playlistMeta,
     );
 
     _processDownloadQueue();
@@ -2085,9 +2117,18 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
       batch = await _downloadCache.getBatchByItem('album', albumId, '');
       if (batch != null) effectiveSource = '';
     }
-    final stateKeys = batch?.trackIds != null && batch!.trackIds!.isNotEmpty
-        ? (jsonDecode(batch.trackIds!) as List<dynamic>).cast<String>()
-        : <String>[];
+    final stateKeys = <String>[];
+    if (batch?.trackIds != null && batch!.trackIds!.isNotEmpty) {
+      final decoded = jsonDecode(batch.trackIds!) as List<dynamic>;
+      for (final entry in decoded) {
+        if (entry is String) {
+          stateKeys.add(entry);
+        } else if (entry is Map<String, dynamic>) {
+          final id = (entry['id'] ?? '') as String;
+          if (id.isNotEmpty) stateKeys.add(id);
+        }
+      }
+    }
     if (stateKeys.isNotEmpty) {
       // stateKeys are like "track_normalizedId_source"; extract normalized IDs
       // and also try original formats for robust DB deletion
@@ -2183,9 +2224,18 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
       batch = await _downloadCache.getBatchByItem('playlist', playlistId, '');
       if (batch != null) effectiveSource = '';
     }
-    final stateKeys = batch?.trackIds != null && batch!.trackIds!.isNotEmpty
-        ? (jsonDecode(batch.trackIds!) as List<dynamic>).cast<String>()
-        : <String>[];
+    final stateKeys = <String>[];
+    if (batch?.trackIds != null && batch!.trackIds!.isNotEmpty) {
+      final decoded = jsonDecode(batch.trackIds!) as List<dynamic>;
+      for (final entry in decoded) {
+        if (entry is String) {
+          stateKeys.add(entry);
+        } else if (entry is Map<String, dynamic>) {
+          final id = (entry['id'] ?? '') as String;
+          if (id.isNotEmpty) stateKeys.add(id);
+        }
+      }
+    }
     if (stateKeys.isNotEmpty) {
       final allIds = <String>{};
       final fileStems = <String>{};
