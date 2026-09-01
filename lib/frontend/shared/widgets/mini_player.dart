@@ -69,32 +69,24 @@ class _MiniPlayerState extends State<MiniPlayer> {
             return TweenAnimationWidget(
               key: ValueKey('mp_tween_${track.id}'),
               trackId: track.id,
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius:
-                      const BorderRadius.vertical(top: Radius.circular(14)),
-                  color: bgColor,
-                  border: Border(
-                    top: BorderSide(
-                      color: player.isPlaying
-                          ? glowColor.withValues(alpha: 0.35)
-                          : fg.withValues(alpha: 0.08),
-                      width: player.isPlaying ? 1.2 : 0.5,
-                    ),
-                    left: BorderSide(color: fg.withValues(alpha: 0.06), width: 0.5),
-                    right: BorderSide(color: fg.withValues(alpha: 0.06), width: 0.5),
+              child: Material(
+                type: MaterialType.transparency,
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius:
+                        const BorderRadius.vertical(top: Radius.circular(14)),
+                    color: bgColor,
+                    boxShadow: [
+                      BoxShadow(
+                        color: player.isPlaying
+                            ? glowColor.withValues(alpha: 0.08)
+                            : Colors.black.withValues(alpha: 0.06),
+                        blurRadius: player.isPlaying ? 12 : 8,
+                        offset: const Offset(0, -2),
+                      ),
+                    ],
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: player.isPlaying
-                          ? glowColor.withValues(alpha: 0.08)
-                          : Colors.black.withValues(alpha: 0.06),
-                      blurRadius: player.isPlaying ? 12 : 8,
-                      offset: const Offset(0, -2),
-                    ),
-                  ],
-                ),
-                child: Column(
+                  child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     ClipRRect(
@@ -242,6 +234,7 @@ class _MiniPlayerState extends State<MiniPlayer> {
                         ),
                       ),
                   ],
+                ),
                 ),
               ),
             );
