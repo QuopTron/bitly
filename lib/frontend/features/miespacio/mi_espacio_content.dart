@@ -155,6 +155,13 @@ class MiEspacioContent extends StatelessWidget {
         : DownloadState.none;
   }
 
+  /// Known provider source identifiers used by the download system.
+  static const _knownSources = {
+    'apple-music', 'spotify-web', 'spotify', 'deezer', 'deezer-web',
+    'soundcloud', 'tidal-web', 'qobuz-web', 'pandora',
+    'ytmusic-spotiflac', 'amazon',
+  };
+
   static DownloadState _resolveDownloadState(
     Map<String, DownloadState> states,
     String type,
@@ -166,20 +173,24 @@ class MiEspacioContent extends StatelessWidget {
     final exactId = '${type}_${normId}_${item.source}';
     final exact = states[exactId];
     if (exact != null) return exact;
-    // 2) Source-agnostic fallback: find ANY batch key for this exact
-    //    normalizedId (handles source mismatches like "deezer" vs "deezer-web"
-    //    or restored DB entries with empty source). We require the key to
-    //    start with type_normId_ followed by at least one char (the source)
-    //    and NOT match any OTHER normId that shares a prefix.
-    final prefix = '${type}_${normId}_';
-    // Collect ALL matching keys and pick the best state.
-    // This avoids returning stale states from different items.
+    // 2) Source-agnostic fallback: find a batch key for this exact normId
+    //    with a different source. We parse the key to ensure the normId
+    //    segment matches EXACTLY — this prevents false matches where one
+    //    normId is a prefix of another (e.g. "pl" matching "pl.xxx").
+    final keyPrefix = '${type}_${normId}_';
+    final keyPrefixLen = keyPrefix.length;
     DownloadState best = DownloadState.none;
     for (final key in states.keys) {
-      if (!key.startsWith(prefix)) continue;
+      if (!key.startsWith(keyPrefix)) continue;
+      // Extract the source part (everything after keyPrefix)
+      final source = key.substring(keyPrefixLen);
+      if (source.isEmpty) continue;
+      // Validate: source must be a known provider OR must not contain
+      // characters that would indicate we matched into another normId.
+      // Known sources never contain digits right at the start.
+      if (!_knownSources.contains(source)) continue;
       final state = states[key];
       if (state == null) continue;
-      // Prioritize active states over terminal states
       if (state == DownloadState.inProgress) return state;
       if (state == DownloadState.queued && best != DownloadState.inProgress) best = state;
       if (state == DownloadState.interrupted && best == DownloadState.none) best = state;
