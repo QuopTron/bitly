@@ -8,6 +8,7 @@ import '../../../../backend/services/like_cubit.dart';
 import '../../../../backend/services/download_cubit.dart';
 import '../../../shared/constants/source_constants.dart';
 import '../bloc/feed_bloc.dart';
+import '../bloc/feed_event.dart';
 import '../bloc/feed_state.dart';
 import 'feed_header.dart';
 import 'feed_content.dart';
@@ -90,6 +91,7 @@ class _FeedPageState extends State<FeedPage> {
             onShowInfo: _showInfo,
             onShowMore: _showMore,
             onNavigateToItem: _navigateToItem,
+            onRefresh: () => context.read<FeedBloc>().add(const LoadFeed()),
           ),
         ),
       ]);
@@ -115,6 +117,7 @@ class _FeedBody extends StatelessWidget {
   final void Function(BuildContext, FeedItem) onShowInfo;
   final void Function(BuildContext, FeedItem) onShowMore;
   final void Function(FeedItem) onNavigateToItem;
+  final VoidCallback? onRefresh;
 
   const _FeedBody({
     required this.sections, required this.hasContent, required this.loading,
@@ -122,6 +125,7 @@ class _FeedBody extends StatelessWidget {
     required this.onToggleLike, required this.onStartDownload,
     this.onBatchDownload, this.onBatchDelete, this.onExportPlaylist,
     required this.onShowInfo, required this.onShowMore, required this.onNavigateToItem,
+    this.onRefresh,
   });
 
   @override
@@ -148,6 +152,7 @@ class _FeedBody extends StatelessWidget {
               onExportPlaylist: onExportPlaylist,
               onDeleteTrack: (item) => context.read<DownloadCubit>().deleteTrackResolved(item),
               onShowInfo: onShowInfo, onShowMore: onShowMore, onNavigateToItem: onNavigateToItem,
+            onRefresh: onRefresh,
             );
           },
         );

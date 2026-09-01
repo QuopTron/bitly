@@ -8,6 +8,20 @@ import '../frontend/features/home/home_page.dart';
 import '../frontend/features/player/now_playing_page.dart';
 import '../frontend/features/tutorial/tutorial_page.dart';
 
+/// Slide-up + fade transition for go_router pages.
+CustomTransitionPage<void> _slideUp(Widget child) => CustomTransitionPage(
+  child: child,
+  transitionDuration: const Duration(milliseconds: 350),
+  reverseTransitionDuration: const Duration(milliseconds: 300),
+  transitionsBuilder: (_, animation, a, child) {
+    final curved = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
+    return SlideTransition(
+      position: Tween<Offset>(begin: const Offset(0, 0.12), end: Offset.zero).animate(curved),
+      child: FadeTransition(opacity: curved, child: child),
+    );
+  },
+);
+
 class AppRouter {
   final GlobalKey<NavigatorState>? navigatorKey;
   final List<NavigatorObserver>? navigatorObservers;
@@ -41,7 +55,7 @@ class AppRouter {
       GoRoute(
         path: RouteNames.nowPlaying.path,
         name: 'now_playing',
-        builder: (_, _) => const NowPlayingPage(),
+        pageBuilder: (_, _) => _slideUp(const NowPlayingPage()),
       ),
       GoRoute(
         path: RouteNames.tutorial.path,

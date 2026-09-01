@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/haptic.dart';
 import '../utils/responsive.dart';
 import '../../l10n/app_localizations.dart';
 import '../models/performance_profile.dart';
@@ -296,7 +297,7 @@ class TrackCard extends StatelessWidget {
           button: true,
           label: isLiked ? loc.setup.a11yUnlike : loc.setup.a11yLike,
           child: GestureDetector(
-            onTap: onLike,
+            onTap: () { Haptic.tap(); onLike?.call(); },
             child: Icon(
               isLiked ? Icons.favorite : Icons.favorite_border,
               color: isLiked ? Colors.red : Colors.white.withValues(alpha: 0.6),

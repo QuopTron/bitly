@@ -7,6 +7,7 @@ import '../../../backend/services/queue_cubit.dart';
 import '../../../router/route_names.dart';
 import '../utils/responsive.dart';
 import '../theme/app_colors.dart';
+import '../utils/haptic.dart';
 import 'cover_image.dart';
 
 String _fmtDuration(Duration d) {
@@ -179,7 +180,7 @@ class _MiniPlayerState extends State<MiniPlayer> {
                               color: glowColor,
                               size: controlSize + 6,
                               emphasized: true,
-                              onTap: () => context.read<PlayerCubit>().togglePlayPause(),
+                              onTap: () { Haptic.medium(); context.read<PlayerCubit>().togglePlayPause(); },
                             ),
                             _IconBtn(
                               icon: Icons.skip_next_rounded,

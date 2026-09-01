@@ -11,6 +11,7 @@ import '../playlist/utils.dart';
 import '../widgets/add_to_modal.dart';
 import '../widgets/download_options_sheet.dart';
 import '../widgets/song_info_modal.dart';
+import '../widgets/page_transitions.dart';
 import '../../features/detail/album_detail_page.dart';
 import '../../features/detail/artist_detail_page.dart';
 import '../../features/detail/playlist_detail_page.dart';
@@ -101,35 +102,33 @@ class ItemActions {
 
   static void navigateToItem(BuildContext context, FeedItem item) {
     final src = item.source ?? '';
+    Widget wrap(Widget child) =>
+        BlocProvider.value(
+          value: context.read<LikeCubit>(),
+          child: BlocProvider.value(
+            value: context.read<DownloadCubit>(),
+            child: child,
+          ),
+        );
     switch (item.type) {
       case 'album':
-        Navigator.push(context, MaterialPageRoute(
-          builder: (_) => BlocProvider.value(
-            value: context.read<LikeCubit>(),
-            child: BlocProvider.value(
-              value: context.read<DownloadCubit>(),
-              child: BlocProvider.value(
-                value: sl<QueueCubit>(),
-                child: AlbumDetailPage(albumId: item.id, source: src, coverUrl: item.coverUrl)),
-          ))));
+        Navigator.push(context, FadeSlideUpRoute(page: wrap(
+          BlocProvider.value(
+            value: sl<QueueCubit>(),
+            child: AlbumDetailPage(albumId: item.id, source: src, coverUrl: item.coverUrl),
+          ),
+        )));
       case 'playlist':
-        Navigator.push(context, MaterialPageRoute(
-          builder: (_) => BlocProvider.value(
-            value: context.read<LikeCubit>(),
-            child: BlocProvider.value(
-              value: context.read<DownloadCubit>(),
-              child: PlaylistDetailPage(collectionId: item.id, playlistName: item.name, source: src, coverUrl: item.coverUrl)),
-          )));
+        Navigator.push(context, FadeSlideUpRoute(page: wrap(
+          PlaylistDetailPage(collectionId: item.id, playlistName: item.name, source: src, coverUrl: item.coverUrl),
+        )));
       case 'artist':
-        Navigator.push(context, MaterialPageRoute(
-          builder: (_) => BlocProvider.value(
-            value: context.read<LikeCubit>(),
-            child: BlocProvider.value(
-              value: context.read<DownloadCubit>(),
-              child: BlocProvider.value(
-                value: sl<QueueCubit>(),
-                child: ArtistDetailPage(artistId: item.id, artistName: item.name, source: src)),
-          ))));
+        Navigator.push(context, FadeSlideUpRoute(page: wrap(
+          BlocProvider.value(
+            value: sl<QueueCubit>(),
+            child: ArtistDetailPage(artistId: item.id, artistName: item.name, source: src),
+          ),
+        )));
     }
   }
 }

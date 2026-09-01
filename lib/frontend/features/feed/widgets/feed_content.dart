@@ -37,6 +37,7 @@ class FeedContent extends StatelessWidget {
   final void Function(BuildContext context, FeedItem item) onShowInfo;
   final void Function(BuildContext context, FeedItem item) onShowMore;
   final void Function(FeedItem item) onNavigateToItem;
+  final VoidCallback? onRefresh;
 
   const FeedContent({
     super.key,
@@ -58,6 +59,7 @@ class FeedContent extends StatelessWidget {
     required this.onShowInfo,
     required this.onShowMore,
     required this.onNavigateToItem,
+    this.onRefresh,
   });
 
   @override
@@ -83,13 +85,28 @@ class FeedContent extends StatelessWidget {
     final children = <Widget>[
       ..._buildTrackCards(context, r),
       ..._buildGridCards(context, r),
-    ];
-
-    return ListView.builder(
+    ];      final listView = ListView.builder(
       padding: EdgeInsets.symmetric(vertical: r.spacingXS),
       itemCount: children.length,
       itemBuilder: (context, index) => children[index],
     );
+    if (onRefresh != null) {
+      return RefreshIndicator(
+        onRefresh: () async {
+          onRefresh!();
+          // Give the feed bloc a moment to start loading
+          await Future.delayed(const Duration(milliseconds: 300));
+        },
+        color: Theme.of(context).brightness == Brightness.dark
+            ? Colors.white.withValues(alpha: 0.7)
+            : Colors.black.withValues(alpha: 0.7),
+        backgroundColor: Theme.of(context).brightness == Brightness.dark
+            ? const Color(0xFF1A1A1A)
+            : const Color(0xFFF0F0F0),
+        child: listView,
+      );
+    }
+    return listView;
   }
 
   /// Shimmer loading placeholder — a few ghost rows.
