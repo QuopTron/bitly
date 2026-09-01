@@ -198,7 +198,11 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
     final src = widget.source.isNotEmpty ? widget.source : (_detail!.tracks.first.provider ?? '');
     final detail = _detail!;
 
-    final tracks = detail.tracks.map((t) => <String, dynamic>{
+    // Only download tracks that are NOT already completed
+    final tracks = detail.tracks.where((t) {
+      final dID = 'track_${normalizeTrackId(t.trackId)}_$src';
+      return dlCubit.downloadStateFor(dID).state != DownloadState.completed;
+    }).map((t) => <String, dynamic>{
       'track_id': t.trackId,
       'track_title': t.name,
       'artist_name': t.artistName ?? '',
@@ -209,6 +213,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
       'cover_url': (t.coverUrl?.isNotEmpty == true) ? t.coverUrl! : (detail.coverPath ?? widget.coverUrl),
     }).toList();
 
+    if (tracks.isEmpty) return;
     if (!mounted) return;
     showModalBottomSheet(
       context: context,
@@ -269,6 +274,18 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
     final batchKey = 'playlist_${normalizeTrackId(detail.id)}_$src';
     final batchState = dlCubit.downloadStateFor(batchKey);
 
+    // Compute per-track download progress for the badge
+    int downloadedCount = 0;
+    for (final t in detail.tracks) {
+      final dID = 'track_${normalizeTrackId(t.trackId)}_$src';
+      if (dlCubit.downloadStateFor(dID).state == DownloadState.completed) {
+        downloadedCount++;
+      }
+    }
+    final totalCount = detail.tracks.length;
+    final allDownloaded = downloadedCount >= totalCount && totalCount > 0;
+    final hasDownloads = downloadedCount > 0;
+
     final hasLocalFiles = detail.tracks.any((t) => t.filePath != null && t.filePath!.isNotEmpty);
 
     // Resolve cover from likes or widget
@@ -304,7 +321,11 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
       body: DetailHeader(
         coverUrl: _resolvedCover,
         title: detail.name,
-        subtitle: '${detail.itemCount} ${loc.setup.miSpaceSongCount}',
+        subtitle: allDownloaded
+            ? '${detail.itemCount} ${loc.setup.miSpaceSongCount}  •  ✓ ${loc.setup.downloaded}'
+            : hasDownloads
+                ? '${detail.itemCount} ${loc.setup.miSpaceSongCount}  •  $downloadedCount/$totalCount ${loc.setup.downloaded.toLowerCase()}'
+                : '${detail.itemCount} ${loc.setup.miSpaceSongCount}',
         heroTag: 'playlist_${detail.id}',
         actions: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -319,17 +340,17 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
             ),
             SizedBox(width: r.spacingS),
             _GlassActionButton(
-              icon: batchState.state == DownloadState.completed
+              icon: batchState.state == DownloadState.completed || allDownloaded
                   ? Icons.check_circle_outline
                   : batchState.state == DownloadState.inProgress
                       ? Icons.hourglass_top_rounded
                       : Icons.download_rounded,
-              color: batchState.state == DownloadState.completed
+              color: batchState.state == DownloadState.completed || allDownloaded
                   ? AppColors.greenBright
                   : batchState.state == DownloadState.inProgress
                       ? const Color(0xFFFF9800)
                       : null,
-              onTap: _isOnline ? _downloadAll : null,
+              onTap: _isOnline && !allDownloaded ? _downloadAll : null,
             ),
             SizedBox(width: r.spacingS),
             _GlassActionButton(

@@ -170,7 +170,11 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
     final src = widget.source.isNotEmpty ? widget.source : (_album!.tracks.first.provider ?? '');
     final album = _album!;
 
-    final tracks = album.tracks.map((t) => <String, dynamic>{
+    // Only download tracks that are NOT already completed
+    final tracks = album.tracks.where((t) {
+      final dID = 'track_${normalizeTrackId(t.trackId)}_$src';
+      return dlCubit.downloadStateFor(dID).state != DownloadState.completed;
+    }).map((t) => <String, dynamic>{
       'track_id': t.trackId,
       'track_title': t.name,
       'artist_name': (t.artistName?.isNotEmpty == true) ? t.artistName! : ((album.artistName?.isNotEmpty == true) ? album.artistName! : ''),
@@ -180,6 +184,9 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
       'duration_ms': t.durationMs,
       'cover_url': (t.coverUrl?.isNotEmpty == true) ? t.coverUrl! : (_resolvedAlbumCover ?? album.coverUrl ?? widget.coverUrl),
     }).toList();
+
+    // All tracks already downloaded — nothing to do
+    if (tracks.isEmpty) return;
 
     // Show quality selector before starting batch
     if (!mounted) return;
@@ -241,6 +248,18 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
     final batchKey = 'album_${normalizeTrackId(album.id)}_$src';
     final batchState = dlCubit.downloadStateFor(batchKey);
 
+    // Compute per-track download progress for the badge
+    int downloadedCount = 0;
+    for (final t in album.tracks) {
+      final dID = 'track_${normalizeTrackId(t.trackId)}_$src';
+      if (dlCubit.downloadStateFor(dID).state == DownloadState.completed) {
+        downloadedCount++;
+      }
+    }
+    final totalCount = album.tracks.length;
+    final allDownloaded = downloadedCount >= totalCount && totalCount > 0;
+    final hasDownloads = downloadedCount > 0;
+
     // Resolve cover: try liked album by ID first (for local covers), then fingerprint match, then fallbacks
     final likedAlbum = likedCubit.state.allLiked[album.id];
     final likedAlbumCover = likedAlbum?.localCoverPath ?? likedAlbum?.coverUrl;
@@ -285,7 +304,11 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
       title: album.name,
       subtitle: album.artistName ?? '',
       heroTag: 'album_${album.id}',
-      badge: '${album.totalTracks} ${loc.setup.miSpaceSongCount}  •  ${album.albumType ?? ''}',
+      badge: allDownloaded
+          ? '${album.totalTracks} ${loc.setup.miSpaceSongCount}  •  ${album.albumType ?? ''}  •  ✓ ${loc.setup.downloaded}'
+          : hasDownloads
+              ? '${album.totalTracks} ${loc.setup.miSpaceSongCount}  •  ${album.albumType ?? ''}  •  $downloadedCount/$totalCount ${loc.setup.downloaded.toLowerCase()}'
+              : '${album.totalTracks} ${loc.setup.miSpaceSongCount}  •  ${album.albumType ?? ''}',
       actions: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -303,13 +326,15 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
                 ? Icons.check_circle
                 : batchState.state == DownloadState.inProgress
                     ? Icons.hourglass_top_rounded
-                    : Icons.download,
-            color: batchState.state == DownloadState.completed
+                    : allDownloaded
+                        ? Icons.check_circle
+                        : Icons.download,
+            color: batchState.state == DownloadState.completed || allDownloaded
                 ? AppColors.greenBright
                 : batchState.state == DownloadState.inProgress
                     ? const Color(0xFFFF9800)
                     : null,
-            onTap: _isOnline ? _downloadAll : null,
+            onTap: _isOnline && !allDownloaded ? _downloadAll : null,
           ),
           SizedBox(width: r.spacingS),
           _CircleActionButton(
