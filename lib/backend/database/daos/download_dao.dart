@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:drift/drift.dart';
 import '../app_database.dart';
 import '../tables/download_tables.dart';
@@ -106,6 +107,25 @@ class DownloadDao extends DatabaseAccessor<AppDatabase> with _$DownloadDaoMixin 
     for (final k in keys) {
       await (delete(downloadBatches)..where((t) => t.batchKey.equals(k))).go();
     }
+  }
+
+  /// Counts how many batch entries reference [trackId] in their track_ids JSON.
+  /// Used to decide whether the audio file can be safely deleted from disk:
+  /// only when zero other batches still reference it.
+  Future<int> countBatchesReferencingTrack(String trackId) async {
+    final batches = await select(downloadBatches).get();
+    var count = 0;
+    for (final b in batches) {
+      final raw = b.trackIds ?? '';
+      if (raw.isEmpty || raw == '[]') continue;
+      try {
+        final ids = (jsonDecode(raw) as List<dynamic>).map((e) => e.toString());
+        if (ids.any((id) => id.contains(trackId) || trackId.contains(id))) {
+          count++;
+        }
+      } catch (_) {}
+    }
+    return count;
   }
 
   Future<String?> getFilePathById(String id) async {

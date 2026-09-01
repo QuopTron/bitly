@@ -1351,6 +1351,11 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
         final trackIds = _batchTrackIds[batchKey]!;
         if (trackIds.isEmpty) { _batchTrackIds.remove(batchKey); continue; }
 
+        // Skip batches that are already completed — shared tracks being
+        // re-downloaded by another playlist should not regress the state.
+        final prevBatchState = dl[batchKey]?.state;
+        if (prevBatchState == DownloadState.completed) continue;
+
         int completed = 0;
         int stopped = 0;
         for (final id in trackIds) {
@@ -2279,10 +2284,45 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
       }
     }
 
+    // Check reference counts BEFORE deleting: only remove files from disk
+    // when no other batch (album/playlist) or like still references them.
+    // Collect track IDs whose files are safe to delete from disk.
+    final stemsToDelete = <String>{};
+    final stemsToKeep = <String>{};
+    for (final t in data.tracks) {
+      final originalId = (t['track_id'] as String?) ?? '';
+      if (originalId.isEmpty) continue;
+      final normalizedId = normalizeTrackId(originalId);
+      final likeCubit = sl<LikeCubit>();
+      final isLiked = [originalId, normalizedId]
+          .any((id) => id.isNotEmpty && likeCubit.isItemIdLiked(id));
+      // batchCount includes this batch (not yet removed from DB), so >1 means shared
+      final batchCount = await _downloadCache.countBatchesReferencingTrack(normalizedId);
+      final safe = !isLiked && batchCount <= 1;
+      if (safe) {
+        stemsToDelete.addAll({originalId, normalizedId});
+        for (final id in {originalId, normalizedId}) {
+          if (id.isNotEmpty) stemsToDelete.add('lyrics_${_sha1Hex(id)}');
+        }
+        final title = (t['track_title'] as String?) ?? '';
+        final artist = (t['artist_name'] as String?) ?? '';
+        if (title.isNotEmpty && artist.isNotEmpty) {
+          stemsToDelete.add('${_sanitizeFilename(artist)} - ${_sanitizeFilename(title)}');
+        }
+      } else {
+        stemsToKeep.addAll({originalId, normalizedId});
+      }
+    }
+
     await _downloadCache.deleteDownloadedTracks(allIdsToDelete.toList());
     await _downloadCache.removeDownloadedBatches([batchKey]);
 
-    sl<PlayerCubit>().removeLocalFilesProviderIds(fileStems.toList(), deleteFiles: true);
+    // Remove file references from player cache for ALL tracks
+    sl<PlayerCubit>().removeLocalFilesProviderIds(fileStems.toList(), deleteFiles: false);
+    // Delete files only for tracks no other batch/like references
+    if (stemsToDelete.isNotEmpty) {
+      sl<PlayerCubit>().removeLocalFilesProviderIds(stemsToDelete.toList(), deleteFiles: true);
+    }
     sl<LibraryCache>().invalidateAll();
 
     final dl = Map<String, DownloadStateData>.from(state.downloads);
@@ -2663,6 +2703,20 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
     if (meta != null && meta.trackId.isNotEmpty) idsToTry.add(meta.trackId);
     idsToTry.add(normalizedId);
     if (trackId.isNotEmpty) idsToTry.add(trackId);
+    // Check if ANY other batch (album/playlist) or liked item still references this track.
+    // If so, only remove the DB row — keep the file on disk for the other consumer.
+    bool otherConsumerExists = false;
+    for (final id in idsToTry) {
+      if (id.isEmpty) continue;
+      final batchCount = await _downloadCache.countBatchesReferencingTrack(id);
+      if (batchCount > 1) { otherConsumerExists = true; break; }
+    }
+    // Also check if the track is liked — likes keep their own copy.
+    final likeCubit = sl<LikeCubit>();
+    final isLiked = [meta?.trackId ?? '', trackId, normalizedId]
+        .any((id) => id.isNotEmpty && likeCubit.isItemIdLiked(id));
+    if (isLiked) otherConsumerExists = true;
+
     await _downloadCache.deleteDownloadedTracks(idsToTry.toList());
 
     // Build file stems for disk cleanup: track IDs + lyrics + video
@@ -2678,7 +2732,8 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
     if (meta != null && meta.name.isNotEmpty && meta.artist != null && meta.artist!.isNotEmpty) {
       fileStems.add('${_sanitizeFilename(meta.artist!)} - ${_sanitizeFilename(meta.name)}');
     }
-    sl<PlayerCubit>().removeLocalFilesProviderIds(fileStems.toList(), deleteFiles: true);
+    // Only delete files from disk when NO other playlist/album/like references them.
+    sl<PlayerCubit>().removeLocalFilesProviderIds(fileStems.toList(), deleteFiles: !otherConsumerExists);
     sl<LibraryCache>().invalidateAll();
 
     // Clean up cover only if track is NOT also liked (unlike flow does the same)

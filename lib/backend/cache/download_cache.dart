@@ -96,6 +96,10 @@ class DownloadCache {
   Future<void> removeDownloadedBatches(List<String> keys) =>
       _d.removeBatches(keys);
 
+  /// Counts how many batch entries reference [trackId] in their track_ids.
+  Future<int> countBatchesReferencingTrack(String trackId) =>
+      _d.countBatchesReferencingTrack(trackId);
+
   /// Updates the file_path for a download history entry.
   /// Used when the actual file on disk differs from what was stored
   /// (e.g. after decrypt renames .flac to .dec.flac).
