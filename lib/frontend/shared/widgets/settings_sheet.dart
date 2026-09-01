@@ -98,6 +98,21 @@ class _SettingsSheetState extends State<SettingsSheet> {
       if (mounted) setState(() => _resetting = false);
     }
   }
+  Widget _sectionLabel(String label, Color onBg, Responsive r) {
+    return Padding(
+      padding: EdgeInsets.only(left: r.spacingXL + r.spacingS, top: r.spacingL, bottom: r.spacingXS),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: r.footerSize - 1,
+          fontWeight: FontWeight.w600,
+          color: onBg.withValues(alpha: 0.35),
+          letterSpacing: 0.5,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final r = Responsive(context);
@@ -121,35 +136,36 @@ class _SettingsSheetState extends State<SettingsSheet> {
             SizedBox(height: r.spacingL),
             Text(loc.setup.settings, style: TextStyle(fontSize: r.subtitleSize + 2, fontWeight: FontWeight.bold, color: onBg)),
             SizedBox(height: r.spacingL),
+            // ── Profile ──────────────────────────────────────
             SettingsProfileSection(username: widget.username, onBg: onBg, glowColor: glowColor, loc: loc),
-            SizedBox(height: r.spacingM),
+            _sectionLabel('Apariencia', onBg, r),
             SettingsThemeSection(
               isDark: widget.isDark, onBg: onBg, glowColor: glowColor, loc: loc,
               onToggle: () => widget.onThemeChanged(!widget.isDark),
             ),
-            SizedBox(height: r.spacingM),
+            SizedBox(height: r.spacingS),
             SettingsLanguageSection(
               onBg: onBg, glowColor: glowColor, loc: loc, onTap: widget.onLanguageChanged,
               currentLanguage: loc.locale.languageCode == 'es' ? 'Español' : 'English',
             ),
-            SizedBox(height: r.spacingM),
+            _sectionLabel('Descargas', onBg, r),
             SettingsStorageSection(onBg: onBg, glowColor: glowColor, loc: loc),
-            SizedBox(height: r.spacingM),
+            SizedBox(height: r.spacingS),
             SettingsDownloadSection(onBg: onBg, glowColor: glowColor),
-            SizedBox(height: r.spacingM),
-            SettingsPerformanceSection(onBg: onBg, glowColor: glowColor),
-            SizedBox(height: r.spacingM),
+            SizedBox(height: r.spacingS),
             SettingsDownloadPrioritySection(onBg: onBg, glowColor: glowColor),
-            SizedBox(height: r.spacingM),
+            _sectionLabel('Rendimiento', onBg, r),
+            SettingsPerformanceSection(onBg: onBg, glowColor: glowColor),
+            _sectionLabel('Servicios', onBg, r),
             SettingsProviderSection(onBg: onBg, glowColor: glowColor),
-            SizedBox(height: r.spacingM),
+            SizedBox(height: r.spacingS),
             SettingsCacheSection(onBg: onBg, glowColor: glowColor),
             SizedBox(height: r.spacingM),
             SettingsResetSection(
               onBg: onBg, glowColor: glowColor, loc: loc,
               onTap: _confirmReset, resetting: _resetting,
             ),
-            SizedBox(height: r.spacingM),
+            _sectionLabel('Estadísticas', onBg, r),
             SettingsStatsSection(
               onBg: onBg, glowColor: glowColor, loc: loc,
               likedCount: widget.likedCount, downloadedCount: widget.downloadedCount,

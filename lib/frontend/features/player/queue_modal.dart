@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart' hide RepeatMode;
+import '../../shared/utils/haptic.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../shared/utils/responsive.dart';
 import '../../shared/models/feed_models.dart';
 import '../../../backend/services/queue_cubit.dart';
 import '../../shared/theme/app_colors.dart';
 import '../../shared/widgets/cover_image.dart';
+import '../../shared/widgets/empty_state.dart';
 
-/// Muestra un modal con la cola de reproducción: el track actual destacado
-/// y los próximos tracks en lista. El usuario puede tocar un track para
-/// saltar a él.
+/// Shows the play queue with current track highlighted and upcoming tracks.
 void showQueueModal(BuildContext context) {
   final r = Responsive(context);
   final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -150,21 +150,17 @@ class _QueueSheet extends StatelessWidget {
                 // ── Track list ────────────────────────────────────────────
                 Flexible(
                   child: trackCount == 0
-                      ? Padding(
-                          padding: EdgeInsets.all(r.spacingXL),
-                          child: Center(
-                            child: Text(
-                              'No hay tracks en la cola',
-                              style: TextStyle(fontSize: r.footerSize, color: onBg.withValues(alpha: 0.4)),
-                            ),
-                          ),
+                      ? AnimatedEmptyState(
+                          icon: Icons.queue_music,
+                          title: 'Cola vacía',
+                          subtitle: 'Reproduce una canción para empezar',
+                          accentColor: glowColor,
                         )
                       : ReorderableListView.builder(
                           padding: EdgeInsets.only(top: r.spacingXS, bottom: r.bottomPadding),
                           itemCount: trackCount,
                           onReorder: (oldIndex, newIndex) {
-                            // Flutter 3.x+ ya ajusta newIndex internamente restando 1
-                            // cuando newIndex > oldIndex. Usamos los valores directamente.
+                            Haptic.medium();
                             context.read<QueueCubit>().reorder(oldIndex, newIndex);
                           },
                           proxyDecorator: (child, index, animation) => Material(
@@ -190,6 +186,7 @@ class _QueueSheet extends StatelessWidget {
                               onTap: isCurrent
                                   ? null
                                   : () {
+                                      Haptic.tap();
                                       context.read<QueueCubit>().seekTo(index);
                                       Navigator.pop(context);
                                     },
@@ -244,10 +241,12 @@ class _QueueTrackTile extends StatelessWidget {
           decoration: BoxDecoration(
             border: isCurrent
                 ? Border(left: BorderSide(color: glowColor, width: 3))
-                : null,
+                : Border(left: BorderSide(color: Colors.transparent, width: 3)),
             color: isCurrent
-                ? glowColor.withValues(alpha: 0.06)
-                : null,
+                ? glowColor.withValues(alpha: 0.08)
+                : index.isOdd
+                    ? onBg.withValues(alpha: 0.02)
+                    : null,
           ),
           child: Row(
             children: [
@@ -353,7 +352,7 @@ class _QueueTrackTile extends StatelessWidget {
                   icon: Icon(Icons.close, size: r.subtitleSize, color: onBg.withValues(alpha: 0.3)),
                   padding: EdgeInsets.zero,
                   constraints: BoxConstraints(minWidth: 28, minHeight: 28),
-                  onPressed: onRemove,
+                  onPressed: () { Haptic.tap(); onRemove?.call(); },
                 ),
             ],
           ),
