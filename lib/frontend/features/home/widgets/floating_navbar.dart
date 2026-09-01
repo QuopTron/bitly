@@ -43,14 +43,14 @@ class _FloatingNavbarState extends State<FloatingNavbar> {
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: r.spacingXL, vertical: r.spacingS),
       child: GlassContainer(
-        borderRadius: 24,
+        borderRadius: 18,
         blurSigma: 20,
         borderColor: glowColor.withValues(alpha: 0.12),
         bgColor: (widget.isDark ? AppColors.surfaceDark : Colors.white).withValues(alpha: 0.80),
         glowBorder: true,
         glowSpread: 2,
         glowBlur: 16,
-        padding: EdgeInsets.symmetric(horizontal: r.spacingS, vertical: r.spacingXS * 0.8),
+        padding: EdgeInsets.symmetric(horizontal: r.spacingS, vertical: r.spacingXS * 0.6),
         child: Row(
           children: List.generate(_items.length, (i) => Expanded(child: _navItem(i, r, onBg, glowColor))),
         ),
