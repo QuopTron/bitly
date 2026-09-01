@@ -123,7 +123,7 @@ class GridCard extends StatelessWidget {
             child: Container(
             width: w,
             height: h.isFinite ? h : w + infoH + pad,
-            clipBehavior: Clip.antiAlias,
+            clipBehavior: Clip.hardEdge,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
@@ -147,16 +147,19 @@ class GridCard extends StatelessWidget {
               fit: StackFit.expand,
               children: [
                 // Blurred cover fills the whole card as background.
+                // On low-perf devices, skip the GPU-heavy blur entirely and
+                // just show a dark overlay. On high-perf, decode at low res
+                // (blur masks detail anyway) to halve memory usage.
                 Positioned.fill(
                   child:
                       coverUrl != null && coverUrl!.isNotEmpty
-                          ? ImageFiltered(
-                            imageFilter:
-                                heavyEffects
-                                    ? ImageFilter.blur(sigmaX: 24, sigmaY: 24)
-                                    : ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                            child: imageFromUrl(coverUrl, fit: BoxFit.cover),
-                          )
+                          ? heavyEffects
+                              ? ImageFiltered(
+                                  imageFilter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                                  child: imageFromUrl(coverUrl, fit: BoxFit.cover,
+                                      width: 128, height: 128),
+                                )
+                              : Container(color: fallbackBg)
                           : Container(
                             decoration: BoxDecoration(
                               gradient: _placeholderGradient(context),
@@ -196,7 +199,7 @@ class GridCard extends StatelessWidget {
                         Container(
                           width: coverSide,
                           height: coverSide,
-                          clipBehavior: Clip.antiAlias,
+                          clipBehavior: Clip.hardEdge,
                           decoration: BoxDecoration(
                             shape:
                                 _isArtist

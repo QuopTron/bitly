@@ -95,11 +95,13 @@ class TrackCard extends StatelessWidget {
               ),
           ],
         ),
-        clipBehavior: Clip.antiAlias,
+        clipBehavior: Clip.hardEdge,
         child: Stack(
           children: [
+            // Background cover: decode at low res — behind scrim so full detail is wasted.
             if (coverUrl != null && coverUrl!.isNotEmpty)
-              Positioned.fill(child: imageFromUrl(coverUrl, fit: BoxFit.cover)),
+              Positioned.fill(child: imageFromUrl(coverUrl, fit: BoxFit.cover,
+                  width: 128, height: 128)),
             Positioned.fill(
               child: Container(color: Colors.black.withValues(alpha: 0.4)),
             ),
