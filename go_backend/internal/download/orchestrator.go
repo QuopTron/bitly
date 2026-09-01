@@ -991,9 +991,9 @@ func classifyVerificationError(errMsg string) string {
 		"verification_required", "verify_required", "verification required",
 		"needs verification", "needs_verification", "challenge", "cloudflare",
 		"captcha", "signed session", "session not verified", "session expired",
-		"session is not authenticated", "unauthorized", "precondition required",
-		"http 401", "http 428", "http status 401", "http status 428",
-		"status 401", "status 428", "zarz", "not verified",
+		"session is not authenticated", "precondition required",
+		"http 428", "http status 428",
+		"status 428", "not verified",
 	} {
 		if strings.Contains(e, marker) {
 			return "verification_required"

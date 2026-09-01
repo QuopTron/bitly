@@ -1056,8 +1056,11 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
                         dl[stateKey] = const DownloadStateData(state: DownloadState.inProgress, progress: 0.95);
                       } else {
                         dl[stateKey] = const DownloadStateData(state: DownloadState.interrupted, progress: 0.0);
+                        // Only show the ugly snackbar when the queue is NOT active
+                        // for this track. When the queue is active, the track may
+                        // still complete via an alternative provider.
+                        _pendingDecryptError = 'decrypt';
                       }
-                      _pendingDecryptError = 'decrypt';
                       changed = true;
                       continue;
                     }
@@ -1141,8 +1144,9 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
                 dl[stateKey] = const DownloadStateData(state: DownloadState.inProgress, progress: 0.95);
               } else {
                 dl[stateKey] = const DownloadStateData(state: DownloadState.interrupted, progress: 0.0);
+                // Only show snackbar when queue is no longer active
+                _pendingDecryptError = 'decrypt';
               }
-              _pendingDecryptError = 'decrypt';
             }
             changed = true;
             // Also update sibling subtask keys (audio/lyrics/video) if they exist
