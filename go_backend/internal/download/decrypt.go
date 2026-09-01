@@ -167,6 +167,33 @@ func isPlayableAudioFile(path string) bool {
 	return false
 }
 
+// isHLSManifest checks if a file is an M3U8/HLS playlist manifest instead of
+// actual audio. SoundCloud sometimes returns HLS streams whose URL points to a
+// text manifest (starting with #EXTM3U or #EXT-X-) rather than binary audio.
+// These must NOT be marked as "encrypted for client decrypt" because they are
+// not DRM content — they're just playlists pointing to separate segments.
+func isHLSManifest(path string) bool {
+	f, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	buf := make([]byte, 16)
+	n, _ := f.Read(buf)
+	if n < 7 {
+		return false
+	}
+	// Check for #EXTM3U (M3U8 header) — first 7 bytes
+	if string(buf[:7]) == "#EXTM3U" {
+		return true
+	}
+	// Check for #EXT-X- (HLS variant playlist tags)
+	if n >= 7 && string(buf[:7]) == "#EXT-X-" {
+		return true
+	}
+	return false
+}
+
 // decryptStream decrypts an encrypted/DRM stream file ([inputPath]) with
 // ffmpeg's -decryption_key into a playable file in [outDir], returning the
 // decrypted path. [outExt] selects the output container (".flac" for flac

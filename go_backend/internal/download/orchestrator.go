@@ -775,25 +775,34 @@ func (o *Orchestrator) attemptDownload(req Request, name string, p provider.Prov
 			return &Result{ItemID: req.ItemID, Success: false, Error: fmt.Sprintf("%s: stream encriptado no reproducible", name)}
 		}
 		result.FilePath = o.applyQuality(req.ItemID, result.FilePath, outDir, req.Quality)
-		result.FilePath = finalizeDownloadFile(outDir, req.ItemID, result.FilePath)
-		// Validate the file is actually playable audio before accepting.
-		// SoundCloud HLS streams disguised as .mp3 pass the extension check
-		// but fail here - they start with 0x47 (MPEG-TS), not real MP3.
-		if !isPlayableAudioFile(result.FilePath) {
-			// Don't delete — the file may be a DRM-encrypted container (e.g.
-			// Apple Music .m4a) that the client can decrypt via ffmpeg-kit.
-			// Return as encrypted so Dart's download_cubit attempts client-side
-			// decryption instead of giving up.
-			info, serr := os.Stat(result.FilePath)
-			if serr == nil && info.Size() > 1024 {
-				log.Printf("[orchestrator] %s: file not decodable but exists (%d bytes), marking encrypted for client decrypt", name, info.Size())
-				cooldown.MarkOpOk(name, downloadCooldownOp)
-				o.tracker.SetEncryptedOutput(req.ItemID, result.FilePath, "", "", "")
-				return &Result{ItemID: req.ItemID, Success: true, Provider: name, FilePath: result.FilePath, Encrypted: true, ClientDecrypt: true}
+		result.FilePath = finalizeDownloadFile(outDir, req.ItemID, result.FilePath)			// Validate the file is actually playable audio before accepting.
+			// SoundCloud HLS streams disguised as .mp3 pass the extension check
+			// but fail here - they start with 0x47 (MPEG-TS), not real MP3.
+			if !isPlayableAudioFile(result.FilePath) {
+				// Check if this is an HLS/M3U8 manifest (text playlist, not DRM).
+				// SoundCloud sometimes returns HLS stream URLs that are just playlist
+				// manifests — these are NOT encrypted audio and must NOT be sent to the
+				// client for "decryption". Delete and fail cleanly so the next provider
+				// can be tried.
+				if isHLSManifest(result.FilePath) {
+					info, _ := os.Stat(result.FilePath)
+					log.Printf("[orchestrator] %s: downloaded file is HLS manifest (%d bytes), not audio — deleting", name, info.Size())
+					_ = os.Remove(result.FilePath)
+					return &Result{ItemID: req.ItemID, Success: false, Error: fmt.Sprintf("%s: HLS manifest, no audio data", name)}
+				}
+				// The file may be a DRM-encrypted container (e.g. Apple Music .m4a)
+				// that the client can decrypt via ffmpeg-kit. Return as encrypted so
+				// Dart's download_cubit attempts client-side decryption.
+				info, serr := os.Stat(result.FilePath)
+				if serr == nil && info.Size() > 1024 {
+					log.Printf("[orchestrator] %s: file not decodable but exists (%d bytes), marking encrypted for client decrypt", name, info.Size())
+					cooldown.MarkOpOk(name, downloadCooldownOp)
+					o.tracker.SetEncryptedOutput(req.ItemID, result.FilePath, "", "", "")
+					return &Result{ItemID: req.ItemID, Success: true, Provider: name, FilePath: result.FilePath, Encrypted: true, ClientDecrypt: true}
+				}
+				_ = os.Remove(result.FilePath)
+				return &Result{ItemID: req.ItemID, Success: false, Error: fmt.Sprintf("%s: archivo corrupto o muy pequeno", name)}
 			}
-			_ = os.Remove(result.FilePath)
-			return &Result{ItemID: req.ItemID, Success: false, Error: fmt.Sprintf("%s: archivo corrupto o muy pequeno", name)}
-		}
 		cooldown.MarkOpOk(name, downloadCooldownOp)
 		o.tracker.SetOutputPath(req.ItemID, result.FilePath)
 		return &Result{ItemID: req.ItemID, Success: true, Provider: name, FilePath: result.FilePath, Encrypted: false}
@@ -820,6 +829,13 @@ func (o *Orchestrator) attemptDownload(req Request, name string, p provider.Prov
 		filePath = finalizeDownloadFile(outDir, req.ItemID, filePath)
 		// Validate the file is actually playable audio.
 		if !isPlayableAudioFile(filePath) {
+			// Check if this is an HLS/M3U8 manifest — not DRM, just a playlist.
+			if isHLSManifest(filePath) {
+				info, _ := os.Stat(filePath)
+				log.Printf("[orchestrator] %s native: downloaded file is HLS manifest (%d bytes), deleting", name, info.Size())
+				_ = os.Remove(filePath)
+				return &Result{ItemID: req.ItemID, Success: false, Error: fmt.Sprintf("%s: HLS manifest, no audio data", name)}
+			}
 			// Don't delete — may be DRM-encrypted; let client decrypt.
 			info, serr := os.Stat(filePath)
 			if serr == nil && info.Size() > 1024 {
