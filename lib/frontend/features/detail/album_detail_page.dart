@@ -60,26 +60,51 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
     final pb = sl<PlaybackCache>();
     final cache = sl<DetailCache>();
     final backend = sl<BackendService>();
+    final dlCubit = sl<DownloadCubit>();
 
     AlbumDetail? detail;
+    bool allTracksDownloaded = false;
 
-    // Session memory cache (fastest — avoids any I/O within same session)
+    // 1. Session memory cache (instant)
     detail = memCache.getAlbum(widget.albumId);
     if (detail != null && detail.tracks.isNotEmpty) {
+      allTracksDownloaded = _areAllTracksDownloaded(detail, dlCubit);
       if (mounted) setState(() { _album = detail; _loading = false; });
+      // Only refresh from API if album is incomplete and we're online
+      if (!allTracksDownloaded && _isOnline) {
+        _refreshFromApi(cache, backend, pb);
+      }
       return;
     }
 
-    // Try local Drift DB first
+    // 2. Try local Drift DB (fast local I/O)
     detail = await pb.getAlbumDetailLocal(widget.albumId);
     if (detail != null && detail.tracks.isNotEmpty) {
-      if (mounted) setState(() { _album = detail; _loading = false; });
+      allTracksDownloaded = _areAllTracksDownloaded(detail, dlCubit);
       memCache.setAlbum(widget.albumId, detail);
-      if (_isOnline) _refreshFromApi(cache, backend, pb);
+      if (mounted) setState(() { _album = detail; _loading = false; });
+      // Only refresh from API if album is incomplete and we're online
+      if (!allTracksDownloaded && _isOnline) {
+        _refreshFromApi(cache, backend, pb);
+      }
       return;
     }
 
-    // No local data: try DetailCache then API
+    // 3. Try batch download data (local, no network)
+    detail = await _buildFromBatch();
+    if (detail != null && detail.tracks.isNotEmpty) {
+      allTracksDownloaded = _areAllTracksDownloaded(detail, dlCubit);
+      memCache.setAlbum(widget.albumId, detail);
+      unawaited(pb.syncAlbumDetail(detail, source: widget.source));
+      if (mounted) setState(() { _album = detail; _loading = false; });
+      // Only refresh from API if album is incomplete and we're online
+      if (!allTracksDownloaded && _isOnline) {
+        _refreshFromApi(cache, backend, pb);
+      }
+      return;
+    }
+
+    // 4. No local data at all: try DetailCache then API
     try {
       detail = await loadDetailWithFallback(
         id: widget.albumId,
@@ -88,23 +113,21 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
         fetchRemote: (id, src) => backend.fetchAlbumDetail(id, src),
         fromJson: AlbumDetail.fromJson,
       );
-      if (detail == null) {
-        final local = await pb.getAlbumDetailLocal(widget.albumId);
-        if (local != null && local.tracks.isNotEmpty) detail = local;
-      }
       if (detail != null) memCache.setAlbum(widget.albumId, detail);
     } catch (_) {}
 
-    detail ??= await _buildFromBatch();
-
-    // Persist batch-built detail to caches so next load is instant.
-    // Without this, every re-entry to the detail page rebuilds from batch data.
-    if (detail != null && detail.tracks.isNotEmpty) {
-      memCache.setAlbum(widget.albumId, detail);
-      unawaited(pb.syncAlbumDetail(detail, source: widget.source));
-    }
-
     if (mounted) setState(() { _album = detail; _loading = false; _error = detail == null; });
+  }
+
+  /// Checks whether all tracks in [detail] are downloaded.
+  bool _areAllTracksDownloaded(AlbumDetail detail, DownloadCubit dlCubit) {
+    if (detail.tracks.isEmpty) return false;
+    final src = widget.source.isNotEmpty ? widget.source : (detail.tracks.first.provider ?? '');
+    for (final t in detail.tracks) {
+      final dID = 'track_${normalizeTrackId(t.trackId)}_$src';
+      if (dlCubit.downloadStateFor(dID).state != DownloadState.completed) return false;
+    }
+    return true;
   }
 
   Future<void> _refreshFromApi(DetailCache cache, BackendService backend, PlaybackCache pb) async {

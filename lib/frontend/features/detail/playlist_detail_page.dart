@@ -93,23 +93,48 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
     final pb = sl<PlaybackCache>();
     final cache = sl<DetailCache>();
     final backend = sl<BackendService>();
+    final dlCubit = sl<DownloadCubit>();
 
     PlaylistDetail? detail;
+    bool allTracksDownloaded = false;
 
+    // 1. Session memory cache (instant)
     detail = memCache.getPlaylist(widget.collectionId);
     if (detail != null && detail.tracks.isNotEmpty) {
+      allTracksDownloaded = _areAllTracksDownloaded(detail, dlCubit);
       if (mounted) setState(() { _detail = detail; _loading = false; });
+      if (!allTracksDownloaded && _isOnline) {
+        _refreshFromApi(cache, backend, pb);
+      }
       return;
     }
 
+    // 2. Local Drift DB
     detail = await pb.getPlaylistDetailLocal(widget.collectionId);
     if (detail != null && detail.tracks.isNotEmpty) {
-      if (mounted) setState(() { _detail = detail; _loading = false; });
+      allTracksDownloaded = _areAllTracksDownloaded(detail, dlCubit);
       memCache.setPlaylist(widget.collectionId, detail);
-      if (_isOnline) _refreshFromApi(cache, backend, pb);
+      if (mounted) setState(() { _detail = detail; _loading = false; });
+      if (!allTracksDownloaded && _isOnline) {
+        _refreshFromApi(cache, backend, pb);
+      }
       return;
     }
 
+    // 3. Batch download data (local, no network)
+    detail = await _buildFromBatch();
+    if (detail != null && detail.tracks.isNotEmpty) {
+      allTracksDownloaded = _areAllTracksDownloaded(detail, dlCubit);
+      memCache.setPlaylist(widget.collectionId, detail);
+      unawaited(pb.syncPlaylistDetail(detail, source: widget.source));
+      if (mounted) setState(() { _detail = detail; _loading = false; });
+      if (!allTracksDownloaded && _isOnline) {
+        _refreshFromApi(cache, backend, pb);
+      }
+      return;
+    }
+
+    // 4. No local data: try DetailCache then API
     try {
       detail = await loadDetailWithFallback(
         id: widget.collectionId,
@@ -118,22 +143,20 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
         fetchRemote: (id, src) => backend.fetchPlaylistDetail(id, src),
         fromJson: PlaylistDetail.fromJson,
       );
-      if (detail == null) {
-        final local = await pb.getPlaylistDetailLocal(widget.collectionId);
-        if (local != null && local.tracks.isNotEmpty) detail = local;
-      }
       if (detail != null) memCache.setPlaylist(widget.collectionId, detail);
     } catch (_) {}
 
-    detail ??= await _buildFromBatch();
-
-    // Persist batch-built detail to caches so next load is instant.
-    if (detail != null && detail.tracks.isNotEmpty) {
-      memCache.setPlaylist(widget.collectionId, detail);
-      unawaited(pb.syncPlaylistDetail(detail, source: widget.source));
-    }
-
     if (mounted) setState(() { _detail = detail; _loading = false; _error = detail == null; });
+  }
+
+  bool _areAllTracksDownloaded(PlaylistDetail detail, DownloadCubit dlCubit) {
+    if (detail.tracks.isEmpty) return false;
+    final src = widget.source.isNotEmpty ? widget.source : (detail.tracks.first.provider ?? '');
+    for (final t in detail.tracks) {
+      final dID = 'track_${normalizeTrackId(t.trackId)}_$src';
+      if (dlCubit.downloadStateFor(dID).state != DownloadState.completed) return false;
+    }
+    return true;
   }
 
   Future<void> _refreshFromApi(DetailCache cache, BackendService backend, PlaybackCache pb) async {
