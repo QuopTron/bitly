@@ -70,12 +70,14 @@ class _MiniPlayerState extends State<MiniPlayer> {
             return TweenAnimationWidget(
               key: ValueKey('mp_tween_${track.id}'),
               trackId: track.id,
-              child: Material(
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: r.width * 0.10),
+                child: Material(
                 type: MaterialType.transparency,
                 child: Container(
                   decoration: BoxDecoration(
                     borderRadius:
-                        const BorderRadius.vertical(top: Radius.circular(14)),
+                        const BorderRadius.vertical(top: Radius.circular(16)),
                     color: bgColor,
                     boxShadow: [
                       BoxShadow(
@@ -237,6 +239,7 @@ class _MiniPlayerState extends State<MiniPlayer> {
                   ],
                 ),
                 ),
+              ),
               ),
             );
           },

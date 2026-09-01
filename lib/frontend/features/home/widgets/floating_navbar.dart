@@ -40,17 +40,20 @@ class _FloatingNavbarState extends State<FloatingNavbar> {
     final onBg = widget.isDark ? Colors.white : Colors.black;
     final glowColor = widget.isDark ? AppColors.greenBright : AppColors.greenMedium;
 
+    // 5% horizontal padding from screen edges
+    final padH = r.width * 0.05;
+
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: r.spacingXL, vertical: r.spacingS),
+      padding: EdgeInsets.fromLTRB(padH, 0, padH, r.spacingS),
       child: GlassContainer(
-        borderRadius: 18,
+        borderRadius: 20,
         blurSigma: 20,
         borderColor: glowColor.withValues(alpha: 0.12),
         bgColor: (widget.isDark ? AppColors.surfaceDark : Colors.white).withValues(alpha: 0.80),
         glowBorder: true,
         glowSpread: 2,
         glowBlur: 16,
-        padding: EdgeInsets.symmetric(horizontal: r.spacingS, vertical: r.spacingXS * 0.6),
+        padding: EdgeInsets.symmetric(horizontal: r.spacingM, vertical: r.spacingXS * 0.7),
         child: Row(
           children: List.generate(_items.length, (i) => Expanded(child: _navItem(i, r, onBg, glowColor))),
         ),
