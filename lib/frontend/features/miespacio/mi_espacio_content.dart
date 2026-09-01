@@ -160,18 +160,32 @@ class MiEspacioContent extends StatelessWidget {
     String type,
     Item item,
   ) {
-    final id = '${type}_${normalizeTrackId(item.realId)}_${item.source}';
-    final ds = states[id];
-    if (ds != null) return ds;
-    // Fallback por prefijo SIEMPRE: el batch de descarga puede tener un
-    // source escrito distinto al del item ("deezer" vs "deezer-web", o un
-    // batch restaurado de la BD con source vacío), así que buscamos cualquier
-    // estado del mismo tipo + ID sin importar el source.
-    final prefix = '${type}_${normalizeTrackId(item.realId)}_';
+    final normId = normalizeTrackId(item.realId);
+    if (normId.isEmpty) return DownloadState.none;
+    // 1) Exact match: type + normalizedId + source
+    final exactId = '${type}_${normId}_${item.source}';
+    final exact = states[exactId];
+    if (exact != null) return exact;
+    // 2) Source-agnostic fallback: find ANY batch key for this exact
+    //    normalizedId (handles source mismatches like "deezer" vs "deezer-web"
+    //    or restored DB entries with empty source). We require the key to
+    //    start with type_normId_ followed by at least one char (the source)
+    //    and NOT match any OTHER normId that shares a prefix.
+    final prefix = '${type}_${normId}_';
+    // Collect ALL matching keys and pick the best state.
+    // This avoids returning stale states from different items.
+    DownloadState best = DownloadState.none;
     for (final key in states.keys) {
-      if (key.startsWith(prefix)) return states[key]!;
+      if (!key.startsWith(prefix)) continue;
+      final state = states[key];
+      if (state == null) continue;
+      // Prioritize active states over terminal states
+      if (state == DownloadState.inProgress) return state;
+      if (state == DownloadState.queued && best != DownloadState.inProgress) best = state;
+      if (state == DownloadState.interrupted && best == DownloadState.none) best = state;
+      if (state == DownloadState.completed && best == DownloadState.none) best = state;
     }
-    return DownloadState.none;
+    return best;
   }
 
   @override
