@@ -400,6 +400,7 @@ class MiEspacioContent extends StatelessWidget {
             final resolvedCover =
                 downloadCover ?? likedCover ?? batchCover ?? feedItem.coverUrl;
             return Padding(
+              key: ValueKey('track_${normalizeTrackId(feedItem.id)}_${feedItem.source ?? ''}'),
               padding: EdgeInsets.only(bottom: r.spacingXS),
               child: TrackCard(
                 title: feedItem.name,
@@ -601,9 +602,11 @@ class MiEspacioContent extends StatelessWidget {
                             normalizeTrackId(item.realId),
                       );
                       return SizedBox(
+                        key: ValueKey('${type}_${item.realId}_${item.source}'),
                         width: cardWidth,
                         height: cardHeight,
                         child: GridCard(
+                          key: ValueKey('${type}_${item.realId}_${item.source}'),
                           type: type,
                           title: item.title,
                           subtitle: item.subtitle,
