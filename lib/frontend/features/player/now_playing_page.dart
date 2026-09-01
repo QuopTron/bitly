@@ -65,6 +65,7 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
   void dispose() {
     _queueSub?.cancel();
     _videoPlayer.dispose();
+    _lyricsScroll.dispose();
     super.dispose();
   }
 

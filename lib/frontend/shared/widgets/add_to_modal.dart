@@ -114,7 +114,7 @@ class _AddToSheet extends StatelessWidget {
           ),
         ],
       ),
-    );
+    ).then((_) => controller.dispose());
   }
 
   Widget _option(Responsive r, Color onBg, IconData icon, String label, VoidCallback onTap) {

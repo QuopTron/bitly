@@ -170,6 +170,10 @@ class _DetailHeaderState extends State<DetailHeader>
       final color = await _extractDominantColor(provider);
       if (mounted && color != null && _lastExtractedUrl == url) {
         _colorCache[url] = color;
+        // Cap cache at 100 entries to prevent unbounded growth
+        while (_colorCache.length > 100) {
+          _colorCache.remove(_colorCache.keys.first);
+        }
         setState(() => _dominantColor = color);
       }
     } catch (_) {}
