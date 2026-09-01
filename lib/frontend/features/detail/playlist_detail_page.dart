@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -125,6 +126,12 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
     } catch (_) {}
 
     detail ??= await _buildFromBatch();
+
+    // Persist batch-built detail to caches so next load is instant.
+    if (detail != null && detail.tracks.isNotEmpty) {
+      memCache.setPlaylist(widget.collectionId, detail);
+      unawaited(pb.syncPlaylistDetail(detail, source: widget.source));
+    }
 
     if (mounted) setState(() { _detail = detail; _loading = false; _error = detail == null; });
   }

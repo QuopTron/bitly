@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -95,6 +96,13 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
     } catch (_) {}
 
     detail ??= await _buildFromBatch();
+
+    // Persist batch-built detail to caches so next load is instant.
+    // Without this, every re-entry to the detail page rebuilds from batch data.
+    if (detail != null && detail.tracks.isNotEmpty) {
+      memCache.setAlbum(widget.albumId, detail);
+      unawaited(pb.syncAlbumDetail(detail, source: widget.source));
+    }
 
     if (mounted) setState(() { _album = detail; _loading = false; _error = detail == null; });
   }
