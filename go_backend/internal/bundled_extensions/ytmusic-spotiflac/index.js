@@ -306,8 +306,56 @@ function getYt1dConfig() {
   return config;
 }
 
-// InnerTube client configs for fallback chain
+// InnerTube client configs for fallback chain.
+// ORDER MATTERS: try clients least likely to be blocked first.
+// tv_embedded / tv → no PO token required, rarely blocked.
+// android_vr → no PO token but increasingly blocked (403).
+// mweb / android / ios → require PO token for full audio formats.
 var INNERTUBE_CLIENTS = [
+  {
+    name: "tv_embedded",
+    clientHeaderName: "85",
+    requiresGvsPoToken: false,
+    body: {
+      context: {
+        client: {
+          clientName: "TVHTML5_SIMPLY_EMBEDDED_PLAYER",
+          clientVersion: "2.0",
+          hl: "en",
+          gl: "US",
+          timeZone: "UTC",
+          utcOffsetMinutes: 0,
+        },
+        thirdParty: {
+          embedUrl: "https://www.youtube.com",
+        },
+      },
+    },
+    ua: "Mozilla/5.0 (ChromiumStylePlatform) Cobalt/Version",
+    key: CONFIG.innerTubeApiKey,
+  },
+  {
+    name: "tv",
+    clientHeaderName: "7",
+    requiresGvsPoToken: false,
+    body: {
+      context: {
+        client: {
+          clientName: "TVHTML5",
+          clientVersion: "7.20240717.13.00",
+          hl: "en",
+          gl: "US",
+          timeZone: "UTC",
+          utcOffsetMinutes: 0,
+          osName: "",
+          osVersion: "",
+          platform: "TV",
+        },
+      },
+    },
+    ua: "Mozilla/5.0 (SMART-TV; LINUX; Tizen 6.5) AppleWebKit/537.36 (KHTML, like Gecko) Version/6.5 TV Safari/537.36",
+    key: CONFIG.innerTubeApiKey,
+  },
   {
     name: "android_vr",
     clientHeaderName: "28",
@@ -5677,6 +5725,95 @@ registerExtension({
       }
     } catch (e2) {
       L("error", "[YTMusic] yt1d failed:", String(e2));
+    }
+
+    // Fallback: Piped API (public YouTube proxy instances)
+    if (!downloadURL) {
+      var pipedInstances = [
+        "https://pipedapi.kavin.rocks",
+        "https://api.piped.yt",
+        "https://watchapi.whatever.social",
+        "https://piped-api.lunar.icu",
+        "https://piped-api.privacy.com.de",
+      ];
+      for (var pi = 0; pi < pipedInstances.length; pi++) {
+        var pipedBase = pipedInstances[pi];
+        try {
+          L("info", "[YTMusic] Trying Piped:", pipedBase, "for", videoID);
+          var pipedRes = fetch(pipedBase + "/streams/" + videoID, {
+            method: "GET",
+            headers: {
+              Accept: "application/json",
+              "User-Agent": getRandomUserAgent(),
+            },
+          });
+          if (!pipedRes || !pipedRes.ok) {
+            L(
+              "warn",
+              "[YTMusic] Piped",
+              pipedBase,
+              "returned",
+              pipedRes ? pipedRes.status : "no response",
+            );
+            continue;
+          }
+          var pipedData = pipedRes.json();
+          if (!pipedData) continue;
+          // Piped returns audioStreams array
+          var audioStreams = pipedData.audioStreams || [];
+          if (audioStreams.length === 0) {
+            L(
+              "warn",
+              "[YTMusic] Piped",
+              pipedBase,
+              "returned no audio streams",
+            );
+            continue;
+          }
+          // Pick best audio stream (highest bitrate)
+          var bestStream = null;
+          var bestBitrate = -1;
+          for (var si = 0; si < audioStreams.length; si++) {
+            var stream = audioStreams[si];
+            if (!stream.url) continue;
+            var br = stream.bitrate || 0;
+            if (br > bestBitrate) {
+              bestBitrate = br;
+              bestStream = stream;
+            }
+          }
+          if (bestStream && bestStream.url) {
+            downloadURL = bestStream.url;
+            var mimeType = (bestStream.mimeType || "").toLowerCase();
+            if (mimeType.indexOf("opus") >= 0) actualOutputExt = ".opus";
+            else if (
+              mimeType.indexOf("mp4") >= 0 ||
+              mimeType.indexOf("m4a") >= 0
+            )
+              actualOutputExt = ".m4a";
+            else if (
+              mimeType.indexOf("mpeg") >= 0 ||
+              mimeType.indexOf("mp3") >= 0
+            )
+              actualOutputExt = ".mp3";
+            else actualOutputExt = ".m4a";
+            downloadSource = "piped:" + pipedBase;
+            downloadOptions = {};
+            L(
+              "info",
+              "[YTMusic] Piped OK from",
+              pipedBase,
+              "ext:",
+              actualOutputExt,
+              "bitrate:",
+              bestBitrate,
+            );
+            break;
+          }
+        } catch (pipedErr) {
+          L("warn", "[YTMusic] Piped", pipedBase, "failed:", String(pipedErr));
+        }
+      }
     }
 
     if (!downloadURL) {

@@ -18,7 +18,12 @@
       "127.0.0.1",
       "localhost",
       "api.deezer.com",
-      "yt1d.io"
+      "yt1d.io",
+      "pipedapi.kavin.rocks",
+      "api.piped.yt",
+      "watchapi.whatever.social",
+      "piped-api.lunar.icu",
+      "piped-api.privacy.com.de"
     ],
     "allowHttp": true,
     "storage": true,
