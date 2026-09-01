@@ -46,7 +46,7 @@ class VerificationService with WidgetsBindingObserver {
   VerificationService._();
 
   static const _channel = MethodChannel('com.bitly/session_grant');
-  static const _grantTimeout = Duration(minutes: 3);
+  static const _grantTimeout = Duration(seconds: 90);
   static const _resumeGrace = Duration(seconds: 2);
 
   /// Real Chrome mobile UA so Turnstile does not flag the embedded WebView.
@@ -134,9 +134,9 @@ class VerificationService with WidgetsBindingObserver {
             extId: source,
             displayName: sourceDisplayName(source),
             authUrl: url,
-            timeout: const Duration(minutes: 3),
+            timeout: const Duration(seconds: 90),
           ).timeout(
-            const Duration(minutes: 3, seconds: 30),
+            const Duration(seconds: 100),
             onTimeout: () {
               _log.w('[VerificationService] $source timed out during provision');
               _completePending('');
@@ -382,7 +382,7 @@ class _VerificationDialogState extends State<VerificationDialog> {
     // failure view so the user can retry or open in the external browser.
     // Without this timeout the dialog hangs indefinitely on emulators or
     // slow networks where Turnstile never renders.
-    _loadTimer = Timer(const Duration(seconds: 15), () {
+    _loadTimer = Timer(const Duration(seconds: 10), () {
       if (mounted && !_pageLoaded && !_failed && !_grantFired) {
         _log.w('[VerificationService] Page load timeout — showing failure view');
         setState(() => _failed = true);
@@ -534,7 +534,7 @@ class _VerificationDialogState extends State<VerificationDialog> {
           color: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF5F5F5),
           borderRadius: BorderRadius.circular(20),
         ),
-        clipBehavior: Clip.antiAlias,
+        clipBehavior: Clip.hardEdge,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [

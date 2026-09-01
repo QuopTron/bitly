@@ -179,7 +179,6 @@ class _SourceAccordionState extends State<SourceAccordion> {
             c.withValues(alpha: 0.08),
           ],
         ),
-        border: Border.all(color: c.withValues(alpha: 0.35), width: 0.8),
       ),
       child: Icon(icon, size: size, color: c.withValues(alpha: 0.95)),
     );
@@ -230,16 +229,11 @@ class _FloatingPanel extends StatelessWidget {
         color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
         shadowColor: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(14),
-        clipBehavior: Clip.antiAlias,
+        clipBehavior: Clip.hardEdge,
         child: Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: glowColor.withValues(alpha: isDark ? 0.35 : 0.45),
-              width: 0.8,
-            ),
           ),
-          clipBehavior: Clip.antiAlias,
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxHeight: 400),
             child: SingleChildScrollView(

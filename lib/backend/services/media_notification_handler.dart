@@ -83,9 +83,7 @@ class BitlyAudioHandler extends BaseAudioHandler {
           duration: Duration(
             milliseconds: (m['durationMs'] as int?) ?? 0,
           ),
-          artUri: (m['artUri'] as String?)?.isNotEmpty == true
-              ? Uri.tryParse(m['artUri'] as String)
-              : null,
+          artUri: _parseArtUri(m['artUri'] as String?),
         ),
       );
     } else {
@@ -158,6 +156,22 @@ class BitlyAudioHandler extends BaseAudioHandler {
       default:
         return AudioProcessingState.idle;
     }
+  }
+
+  /// Parse artUri ensuring local file paths get the file:// prefix.
+  static Uri? _parseArtUri(String? raw) {
+    if (raw == null || raw.isEmpty) return null;
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return null;
+    // Already a proper URL with scheme
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      return Uri.tryParse(trimmed);
+    }
+    // Local file path — prefix with file://
+    final withScheme = trimmed.startsWith('file://')
+        ? trimmed
+        : 'file://$trimmed';
+    return Uri.tryParse(withScheme);
   }
 
   String _repeatModeToStr(AudioServiceRepeatMode mode) {
