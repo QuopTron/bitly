@@ -78,10 +78,28 @@ class SearchResultsBody extends StatelessWidget {
       return FeedSkeleton();
     }
     if (error != null) {
-      return Center(child: Text(error!, style: TextStyle(color: Colors.redAccent, fontSize: r.subtitleSize)));
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.error_outline_rounded, size: 48, color: Colors.redAccent.withValues(alpha: 0.3)),
+            SizedBox(height: r.spacingM),
+            Text(error!, style: TextStyle(color: Colors.redAccent, fontSize: r.subtitleSize)),
+          ],
+        ),
+      );
     }
     if (results.isEmpty && hasSearched) {
-      return Center(child: Text(loc.setup.noResults, style: TextStyle(fontSize: r.subtitleSize, color: onBg.withValues(alpha: 0.4))));
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.search_off_rounded, size: 48, color: onBg.withValues(alpha: 0.15)),
+            SizedBox(height: r.spacingM),
+            Text(loc.setup.noResults, style: TextStyle(fontSize: r.subtitleSize, color: onBg.withValues(alpha: 0.4))),
+          ],
+        ),
+      );
     }
 
     // Default (no chip active): show every category grouped in its own labelled

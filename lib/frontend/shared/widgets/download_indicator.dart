@@ -5,16 +5,20 @@ export '../../../backend/cache/download_state.dart';
 class DownloadIndicator extends StatelessWidget {
   final DownloadState state;
   final double size;
+  final double? progress; // 0.0..1.0, only used when state == inProgress
 
   /// Default dot size used across the app for download status indicators.
   static const double defaultSize = 8;
 
-  const DownloadIndicator({super.key, this.state = DownloadState.none, this.size = defaultSize});
+  const DownloadIndicator({super.key, this.state = DownloadState.none, this.size = defaultSize, this.progress});
 
   @override
   Widget build(BuildContext context) {
     // When in progress, use an animated pulsing dot.
     if (state == DownloadState.inProgress) {
+      if (progress != null && progress! > 0) {
+        return _ProgressDot(size: size, color: _color, progress: progress!);
+      }
       return _PulsingDot(size: size, color: _color);
     }
 
@@ -111,6 +115,34 @@ class _PulsingDotState extends State<_PulsingDot>
           ),
         );
       },
+    );
+  }
+}
+
+/// A small circular progress indicator for downloads with known progress.
+class _ProgressDot extends StatelessWidget {
+  final double size;
+  final Color color;
+  final double progress;
+
+  const _ProgressDot({required this.size, required this.color, required this.progress});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          CircularProgressIndicator(
+            value: progress,
+            strokeWidth: 2,
+            color: color,
+            backgroundColor: color.withValues(alpha: 0.15),
+          ),
+        ],
+      ),
     );
   }
 }

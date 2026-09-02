@@ -18,6 +18,7 @@ class GridCard extends StatelessWidget {
   final bool isLiked;
   final VoidCallback? onLike;
   final DownloadState downloadState;
+  final double? downloadProgress;
   final VoidCallback? onDownload;
   final VoidCallback? onPause;
   final VoidCallback? onDelete;
@@ -52,6 +53,7 @@ class GridCard extends StatelessWidget {
     this.isLiked = false,
     this.onLike,
     this.downloadState = DownloadState.none,
+    this.downloadProgress,
     this.onDownload,
     this.onPause,
     this.onDelete,
@@ -353,6 +355,7 @@ class GridCard extends StatelessWidget {
               DownloadIndicator(
                 state: downloadState,
                 size: 10,
+                progress: downloadProgress,
               ),
               SizedBox(width: 4),
               // Download action: gray dot → ⬇️, orange → ⏸️, green → 🗑️, red → 🔄
