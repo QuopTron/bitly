@@ -13,6 +13,7 @@ import '../../../backend/rpc/backend_service.dart';
 import '../../shared/detail/load_utils.dart';
 import '../../shared/utils/responsive.dart';
 import '../../shared/utils/download_strategy.dart';
+import '../../shared/widgets/shimmer_skeleton.dart';
 import '../../l10n/app_localizations.dart';
 import '../../shared/models/detail_models.dart';
 import '../../shared/models/feed_models.dart';
@@ -291,7 +292,7 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
     if (_loading) {
       return Scaffold(
         appBar: AppBar(title: Text(loc.setup.searchAlbums)),
-        body: Center(child: CircularProgressIndicator(strokeWidth: 2, color: onBg.withValues(alpha: 0.3))),
+        body: const DetailSkeleton(),
       );
     }
     if (_album == null) {

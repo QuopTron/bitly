@@ -10,6 +10,7 @@ import '../../../backend/rpc/backend_service.dart';
 import '../../shared/detail/load_utils.dart';
 import '../../shared/utils/responsive.dart';
 import '../../shared/utils/download_strategy.dart';
+import '../../shared/widgets/shimmer_skeleton.dart';
 import '../../l10n/app_localizations.dart';
 import '../../shared/models/detail_models.dart';
 import '../../shared/models/feed_models.dart';
@@ -112,8 +113,7 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
     if (_loading) {
       return Scaffold(
         backgroundColor: isDark ? const Color(0xFF0A0A0A) : const Color(0xFFF5F5F5),
-        body: Center(child: CircularProgressIndicator(strokeWidth: 2,
-          color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.3))),
+        body: const DetailSkeleton(),
       );
     }
     if (_artist == null) {

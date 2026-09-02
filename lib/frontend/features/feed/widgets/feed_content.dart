@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../shared/utils/responsive.dart';
+import '../../../shared/widgets/shimmer_skeleton.dart';
 import '../../../shared/utils/download_strategy.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../l10n/feed_titles.dart';
@@ -109,33 +110,9 @@ class FeedContent extends StatelessWidget {
     return listView;
   }
 
-  /// Shimmer loading placeholder — a few ghost rows.
+  /// Animated shimmer loading placeholder.
   Widget _buildLoadingPlaceholder(Responsive r) {
-    return ListView.builder(
-      padding: EdgeInsets.symmetric(horizontal: r.spacingS, vertical: r.spacingXS),
-      itemCount: 6,
-      itemBuilder: (context, index) {
-        final isTrack = index < 3;
-        if (isTrack) {
-          return Container(
-            height: 72,
-            margin: EdgeInsets.symmetric(vertical: r.spacingXS),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(18),
-              color: Colors.white.withValues(alpha: 0.04),
-            ),
-          );
-        }
-        return Container(
-          height: 220,
-          margin: EdgeInsets.symmetric(vertical: r.spacingXS),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            color: Colors.white.withValues(alpha: 0.03),
-          ),
-        );
-      },
-    );
+    return const FeedSkeleton();
   }
 
   List<Widget> _buildTrackCards(BuildContext context, Responsive r) {

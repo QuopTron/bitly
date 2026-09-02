@@ -168,29 +168,32 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
             builder: (context, player) {
               final resolvedCover = context.read<LikeCubit>().resolveCoverFor(track);
               return Scaffold(
-              backgroundColor: bgColor,
+              backgroundColor: Colors.transparent,
               appBar: AppBar(
                 backgroundColor: Colors.transparent,
                 elevation: 0,
                 leading: IconButton(
-                  icon: Icon(Icons.keyboard_arrow_down, color: isDark ? Colors.white : Colors.black),
+                  icon: Icon(Icons.keyboard_arrow_down_rounded, color: isDark ? Colors.white : Colors.black, size: 30),
                   onPressed: () => Navigator.of(context).pop(),
                 ),
                 title: Text(
                   track.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: isDark ? Colors.white : Colors.black,
                     fontWeight: FontWeight.w600,
+                    fontSize: r.subtitleSize,
                   ),
                 ),
                 centerTitle: true,
                 actions: [
                   IconButton(
-                    icon: Icon(Icons.queue_music, color: isDark ? Colors.white : Colors.black),
+                    icon: Icon(Icons.queue_music_rounded, color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.7)),
                     onPressed: () => showQueueModal(context),
                   ),
                   IconButton(
-                    icon: Icon(Icons.share, color: isDark ? Colors.white : Colors.black),
+                    icon: Icon(Icons.share_rounded, color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.7)),
                     onPressed: () {
                       final text = track.albumName != null
                           ? '🎵 ${track.name} — ${track.artists ?? ''}\n💿 ${track.albumName}'
@@ -200,7 +203,21 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                   ),
                 ],
               ),
-              body: SafeArea(
+              body: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    bgColor,
+                    bgColor,
+                    (isDark ? AppColors.greenBright : AppColors.greenMedium).withValues(alpha: 0.04),
+                    bgColor,
+                  ],
+                  stops: const [0.0, 0.3, 0.7, 1.0],
+                ),
+              ),
+              child: SafeArea(
                 child: Padding(
                   padding: EdgeInsets.symmetric(horizontal: r.spacingXL),
                   child: Column(
@@ -269,6 +286,7 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                   ),
                 ),
               ),
+            ),
             );
           },
         );
@@ -360,10 +378,22 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
   }
 
   Widget _coverOrVideoArea(BuildContext context, Responsive r, bool isDark, FeedItem track, String? resolvedCover) {
-    // Cover side: 70% of screen width, but cap at 400px for decode sizing.
-    final side = (r.width * 0.7).clamp(0.0, 400.0);
+    // Cover side: 75% of screen width for a premium feel, capped at 420px.
+    final side = (r.width * 0.75).clamp(0.0, 420.0);
+    final glowColor = isDark ? AppColors.greenBright : AppColors.greenMedium;
     return RepaintBoundary(
-      child: GestureDetector(
+      child: Container(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: glowColor.withValues(alpha: 0.08),
+              blurRadius: 40,
+              spreadRadius: 10,
+            ),
+          ],
+        ),
+        child: GestureDetector(
         onTap: () {
           if (_hasVideo) {
             _toggleVideo(track, context.read<PlayerCubit>().downloadPath);
@@ -423,6 +453,7 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
               ), // SizedBox
         ), // ClipRRect
       ), // GestureDetector
+      ), // Container glow
     ); // RepaintBoundary
   }
 

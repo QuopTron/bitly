@@ -66,8 +66,6 @@ class MediaNotificationBridge {
     } catch (e) {
       // audio_service may be unavailable on some desktop setups. Playback in
       // the app itself always works; only the system media layer is skipped.
-      // ignore: avoid_print
-      print('[MediaNotificationBridge] init failed: $e');
       _initialized = false;
       return;
     }
