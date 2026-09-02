@@ -6,6 +6,11 @@ import '../backend_service.dart';
 
 final _log = Logger();
 
+/// Cache for signed session status to avoid hammering the backend.
+/// Key: extensionId, Value: (status, timestamp).
+final Map<String, (SignedSessionStatus, DateTime)> _signedStatusCache = {};
+const _signedStatusCacheTTL = Duration(seconds: 30);
+
 /// Core actions mixin — like, download dispatch, progress, y size estimation van a Go.
 mixin ActionsMixin on BackendService {
   @override
@@ -127,16 +132,24 @@ mixin ActionsMixin on BackendService {
 
   @override
   Future<SignedSessionStatus> getSignedSessionStatus(String extensionId) async {
+    // Return cached result if still fresh (avoid hammering the backend).
+    final cached = _signedStatusCache[extensionId];
+    if (cached != null && DateTime.now().difference(cached.$2) < _signedStatusCacheTTL) {
+      return cached.$1;
+    }
     try {
-      final result = await rpcCall('getSignedSessionStatus', {'extension_id': extensionId});
+      final result = await rpcCall('getSignedSessionStatus', {'extension_id': extensionId}, const Duration(seconds: 10));
+      SignedSessionStatus status;
       if (result is Map) {
-        return SignedSessionStatus.fromJson(Map<String, dynamic>.from(result));
-      }
-      if (result is String && result.isNotEmpty) {
+        status = SignedSessionStatus.fromJson(Map<String, dynamic>.from(result));
+      } else if (result is String && result.isNotEmpty) {
         final decoded = jsonDecode(result);
-        if (decoded is Map) return SignedSessionStatus.fromJson(Map<String, dynamic>.from(decoded));
+        status = (decoded is Map) ? SignedSessionStatus.fromJson(Map<String, dynamic>.from(decoded)) : const SignedSessionStatus();
+      } else {
+        status = const SignedSessionStatus();
       }
-      return const SignedSessionStatus();
+      _signedStatusCache[extensionId] = (status, DateTime.now());
+      return status;
     } catch (e) {
       _log.w('[actions] getSignedSessionStatus error for $extensionId: $e');
       return const SignedSessionStatus();
