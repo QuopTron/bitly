@@ -457,11 +457,20 @@ class _MiEspacioPageState extends State<MiEspacioPage> {
 
           SizedBox(height: r.spacingS),
           Expanded(
-            child: GlassContainer(
-              borderRadius: 16,
-              borderColor: glowColor.withValues(alpha: 0.15),
-              bgColor: onBg.withValues(alpha: 0.02),
-              child: Column(
+            child: RefreshIndicator(
+              onRefresh: () async {
+                await context.read<LikeCubit>().initialize();
+                await context.read<DownloadCubit>().initialize();
+                await context.read<PlaylistCubit>().initialize();
+                final p = await loadOwnPlaylists();
+                if (mounted) setState(() => _playlists = p);
+              },
+              color: glowColor,
+              child: GlassContainer(
+                borderRadius: 16,
+                borderColor: glowColor.withValues(alpha: 0.15),
+                bgColor: onBg.withValues(alpha: 0.02),
+                child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   MiEspacioTabBar(
@@ -503,6 +512,7 @@ class _MiEspacioPageState extends State<MiEspacioPage> {
                 ],
               ),
             ),
+            ),  // RefreshIndicator
           ),
         ],
       ),
