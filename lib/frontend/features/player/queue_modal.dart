@@ -191,6 +191,7 @@ class _QueueSheet extends StatelessWidget {
                                       Navigator.pop(context);
                                     },
                               onRemove: () {
+                                Haptic.tap();
                                 context.read<QueueCubit>().remove(index);
                               },
                             );

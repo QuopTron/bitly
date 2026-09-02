@@ -274,6 +274,17 @@ class _SectionHeader extends StatelessWidget {
               color: Colors.white,
             ),
           ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Container(
+              height: 1,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [glowColor.withValues(alpha: 0.3), Colors.transparent],
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );

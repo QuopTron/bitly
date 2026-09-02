@@ -167,6 +167,7 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
           return BlocBuilder<PlayerCubit, AudioPlayerState>(
             builder: (context, player) {
               final resolvedCover = context.read<LikeCubit>().resolveCoverFor(track);
+              final glowColor = isDark ? AppColors.greenBright : AppColors.greenMedium;
               return Scaffold(
               backgroundColor: Colors.transparent,
               appBar: AppBar(
@@ -188,9 +189,31 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                 ),
                 centerTitle: true,
                 actions: [
-                  IconButton(
-                    icon: Icon(Icons.queue_music_rounded, color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.7)),
-                    onPressed: () => showQueueModal(context),
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      IconButton(
+                        icon: Icon(Icons.queue_music_rounded, color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.7)),
+                        onPressed: () => showQueueModal(context),
+                      ),
+                      if (queue.tracks.length > 1)
+                        Positioned(
+                          top: 8, right: 8,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                            decoration: BoxDecoration(
+                              color: glowColor,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Text(
+                              '${queue.tracks.length}',
+                              style: TextStyle(color: isDark ? Colors.black : Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                   IconButton(
                     icon: Icon(Icons.share_rounded, color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.7)),
