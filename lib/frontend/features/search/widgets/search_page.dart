@@ -290,22 +290,23 @@ class _SearchPageState extends State<SearchPage> {
                   onTypeChanged: _onTypeChanged,
                 ),
                 SizedBox(height: r.spacingXS),
-                Expanded(child: BlocBuilder<LikeCubit, LikeState>(
-                  builder: (context, likeState) {
-                    return BlocBuilder<DownloadCubit, DownloadCubitState>(
-                      builder: (context, dlState) {
-                        final ds = <String, DownloadState>{};
-                        for (final e in dlState.downloads.entries) {
-                          ds[e.key] = e.value.state;
-                        }
+                Expanded(child: BlocSelector<LikeCubit, LikeState, Set<String>>(
+                  selector: (ls) => ls.likedFingerprints,
+                  builder: (context, likedIds) {
+                    return BlocSelector<DownloadCubit, DownloadCubitState, _SearchDlSnap>(
+                      selector: (dl) => _SearchDlSnap(
+                        dl.downloads.map((k, v) => MapEntry(k, v.state)),
+                        dl.downloadedFingerprints,
+                      ),
+                      builder: (context, dlSnap) {
                         return showResults
                           ? SearchResultsBody(
                               selectedType: _selectedType, selectedSource: _selectedSource, results: state.results,
                               loading: _searching || state.loading, hasSearched: state.hasSearched,
-                              error: state.error, likedIds: likeState.likedFingerprints,
-                              downloadStates: ds,
-                              downloadedFingerprints: dlState.downloadedFingerprints,
-                              onToggleLike: _toggleLike, onStartDownload: _startDownload,                              onBatchDownload: _startBatchDownload,
+                              error: state.error, likedIds: likedIds,
+                              downloadStates: dlSnap.states,
+                              downloadedFingerprints: dlSnap.fingerprints,
+                              onToggleLike: _toggleLike, onStartDownload: _startDownload, onBatchDownload: _startBatchDownload,
                               onBatchDelete: _onBatchDelete,
                               onExportPlaylist: _onExportPlaylist,
                               onDeleteTrack: (item) => context.read<DownloadCubit>().deleteTrackResolved(item),
@@ -330,6 +331,13 @@ class _SearchPageState extends State<SearchPage> {
       }),
     );
   }
+}
+
+/// Lightweight snapshot of download states for BlocSelector.
+class _SearchDlSnap {
+  final Map<String, DownloadState> states;
+  final Set<String> fingerprints;
+  const _SearchDlSnap(this.states, this.fingerprints);
 }
 
 

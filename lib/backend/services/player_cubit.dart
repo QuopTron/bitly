@@ -212,8 +212,7 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
         }
       }
       if (loaded > 0) {
-        // ignore: avoid_print
-        print('[PlayerCubit] Loaded $loaded persistent stream URLs from cache');
+  
       }
     } catch (_) {}
   }
@@ -400,11 +399,9 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
       // loop, spamming "Error decoding audio" forever. Break the loop: after a
       // few consecutive failures we stop the player and mark the track failed.
       _consecutiveErrors++;
-      // ignore: avoid_print
-      print('[PlayerCubit] Player error ($_consecutiveErrors): $error');
+      // debug removed
       if (_consecutiveErrors >= 3) {
-        // ignore: avoid_print
-        print('[PlayerCubit] Giving up on track after repeated decode errors');
+
         _consecutiveErrors = 0;
         final failed = _queueCubit.state.current;
         final deadUri = _lastOpenedUri ?? '';
@@ -548,25 +545,12 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
             errorMessage: msg,
           ),
         );
-        // ignore: avoid_print
-        print('[PlayerCubit] Could not resolve URI for ${track.id}: $msg');
         if (!needsVerification) VerificationService().showNotice(msg);
-      } else {
-        // ignore: avoid_print
-        print('[PlayerCubit] Could not resolve URI for ${track.id}');
       }
       _recovering = false;
       return;
     }
 
-    // ignore: avoid_print
-    print('[PlayerCubit] Opening: $uri');
-    // TEMP diagnostic: confirm the playing track matches the displayed one
-    // ignore: avoid_print
-    print(
-      '[PLAYSYNC] open id=${track.id} name=${track.name} artists=${track.artists} '
-      'coverUrl=${track.coverUrl} isrc=${track.isrc} uri=$uri',
-    );
     _lastOpenedUri = uri;
     _consecutiveErrors = 0;
     // A track that opened (or at least resolved) cleanly resets its dead-file
@@ -578,8 +562,7 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
       await _player.open(Media(uri));
       await _player.play();
     } catch (e) {
-      // ignore: avoid_print
-      print('[PlayerCubit] Failed to open/play: $e');
+      // debug removed
     }
 
     unawaited(_preloadNeighbors());
@@ -653,8 +636,7 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
       if (grant == null || grant.isEmpty) return false;
       return await backend.completeSignedSessionGrant(source, grant);
     } catch (e) {
-      // ignore: avoid_print
-      print('[PlayerCubit] Signed-session verification failed for $source: $e');
+      // debug removed
       return false;
     }
   }
@@ -690,8 +672,7 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
       if (grant == null || grant.isEmpty) return;
       await backend.completeSignedSessionGrant(service, grant);
     } catch (e) {
-      // ignore: avoid_print
-      print('[PlayerCubit] Verification failed for $service: $e');
+      // debug removed
     }
   }
 
@@ -935,10 +916,6 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
         if (data['needsDecryption'] == true) {
           final dec = await _decryptForPlayback(data, track);
           if (dec != null && dec.isNotEmpty) return dec;
-          if (!isPreload) {
-            // ignore: avoid_print
-            print('[PlayerCubit] Could not decrypt stream for ${track.id}');
-          }
           return null;
         }
         final url = (data['audioUrl'] ?? '').toString();
@@ -949,8 +926,6 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
         // in _ensureSignedForSource (called from _openTrack before we get
         // here), so a valid tap never reaches this point unverified.
         if (err.isNotEmpty && !isPreload) {
-          // ignore: avoid_print
-          print('[PlayerCubit] Stream resolve error from backend: $err');
           _lastStreamError = err;
           _lastStreamErrorType = (data['errorType'] ?? '').toString();
           _lastStreamService = (data['service'] ?? '').toString();
@@ -959,8 +934,6 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
       return null;
     } catch (e) {
       if (!isPreload) {
-        // ignore: avoid_print
-        print('[PlayerCubit] Stream resolve error: $e');
         _lastStreamError = e.toString();
       }
       return null;
@@ -992,8 +965,7 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
       _tempStreamFiles.add(normalized);
       return 'file://${result.filePath!.replaceAll('\\', '/')}';
     }
-    // ignore: avoid_print
-    print('[PlayerCubit] ffmpeg-kit decrypt failed: ${result.output}');
+    // debug removed
     return null;
   }
 
@@ -1234,10 +1206,6 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
     final durMs = state.duration.inMilliseconds;
     final posMs = state.position.inMilliseconds;
     if (durMs <= 0 || posMs < durMs - 1500) {
-      // ignore: avoid_print
-      print(
-        '[PlayerCubit] Ignoring premature completed (pos=$posMs/${durMs}ms)',
-      );
       return;
     }
 
