@@ -72,7 +72,18 @@ class _MiniPlayerState extends State<MiniPlayer> {
               trackId: track.id,
               child: Padding(
                 padding: EdgeInsets.symmetric(horizontal: r.width * 0.10),
-                child: Material(
+                child: GestureDetector(
+                  onHorizontalDragEnd: (details) {
+                    final v = details.primaryVelocity ?? 0;
+                    if (v > 300) {
+                      Haptic.tap();
+                      context.read<PlayerCubit>().previous();
+                    } else if (v < -300) {
+                      Haptic.tap();
+                      context.read<PlayerCubit>().next();
+                    }
+                  },
+                  child: Material(
                 type: MaterialType.transparency,
                 child: Container(
                   decoration: BoxDecoration(
@@ -239,6 +250,7 @@ class _MiniPlayerState extends State<MiniPlayer> {
                   ],
                 ),
                 ),
+                ),  // GestureDetector
               ),
               ),
             );

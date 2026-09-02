@@ -297,11 +297,19 @@ class TrackCard extends StatelessWidget {
           button: true,
           label: isLiked ? loc.setup.a11yUnlike : loc.setup.a11yLike,
           child: GestureDetector(
-            onTap: () { Haptic.tap(); onLike?.call(); },
-            child: Icon(
-              isLiked ? Icons.favorite : Icons.favorite_border,
-              color: isLiked ? Colors.red : Colors.white.withValues(alpha: 0.6),
-              size: iSize,
+            onTap: () { Haptic.medium(); onLike?.call(); },
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 250),
+              transitionBuilder: (child, anim) => ScaleTransition(
+                scale: anim,
+                child: child,
+              ),
+              child: Icon(
+                isLiked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                key: ValueKey(isLiked),
+                color: isLiked ? Colors.red : Colors.white.withValues(alpha: 0.6),
+                size: iSize,
+              ),
             ),
           ),
         ),
