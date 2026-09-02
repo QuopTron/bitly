@@ -287,6 +287,7 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
     final r = Responsive(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final onBg = isDark ? Colors.white : Colors.black;
+    final glowColor = isDark ? AppColors.greenBright : AppColors.greenMedium;
     final loc = AppLocalizations.of(context);
 
     if (_loading) {
@@ -424,6 +425,30 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
         ],
       ),
       children: [
+        // ── Download progress bar ──
+        if (batchState.state == DownloadState.inProgress)
+          Padding(
+            padding: EdgeInsets.only(bottom: r.spacingS),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(3),
+                  child: LinearProgressIndicator(
+                    value: totalCount > 0 ? downloadedCount / totalCount : 0,
+                    minHeight: 4,
+                    backgroundColor: glowColor.withValues(alpha: 0.1),
+                    valueColor: AlwaysStoppedAnimation<Color>(glowColor),
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  '$downloadedCount / $totalCount ${loc.setup.miSpaceSongCount}',
+                  style: TextStyle(fontSize: r.footerSize - 1, color: glowColor.withValues(alpha: 0.7)),
+                ),
+              ],
+            ),
+          ),
         if (!_isOnline)
           Container(
             margin: EdgeInsets.symmetric(horizontal: r.spacingS),
