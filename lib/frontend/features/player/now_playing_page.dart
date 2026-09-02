@@ -6,6 +6,7 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../shared/utils/responsive.dart';
+import '../../shared/utils/haptic.dart';
 import '../../shared/models/feed_models.dart';
 import '../../../backend/services/like_cubit.dart';
 import '../../../backend/services/player_cubit.dart';
@@ -13,7 +14,6 @@ import '../../../backend/services/queue_cubit.dart';
 import '../../shared/theme/app_colors.dart';
 import '../../../injection.dart';
 import '../../shared/widgets/cover_image.dart';
-import '../../shared/widgets/glass_container.dart';
 import 'queue_modal.dart';
 
 class _LrcLine {
@@ -466,13 +466,13 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
       children: [
         SliderTheme(
           data: SliderThemeData(
-            trackHeight: 4,
-            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-            overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+            trackHeight: 5,
+            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
+            overlayShape: const RoundSliderOverlayShape(overlayRadius: 18),
             activeTrackColor: isDark ? AppColors.greenBright : AppColors.greenMedium,
-            inactiveTrackColor: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.15),
+            inactiveTrackColor: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.10),
             thumbColor: isDark ? AppColors.greenBright : AppColors.greenMedium,
-            overlayColor: (isDark ? AppColors.greenBright : AppColors.greenMedium).withValues(alpha: 0.2),
+            overlayColor: (isDark ? AppColors.greenBright : AppColors.greenMedium).withValues(alpha: 0.15),
           ),
           child: Slider(
             value: player.progress.clamp(0.0, 1.0),
@@ -504,64 +504,87 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
     final glowColor = isDark ? AppColors.greenBright : AppColors.greenMedium;
     final muted = (isDark ? Colors.white : Colors.black).withValues(alpha: 0.5);
     final active = isDark ? Colors.white : Colors.black;
+    final track = queue.current!;
+    final isLiked = context.read<LikeCubit>().isLiked(track);
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        IconButton(
-          icon: Icon(
-            queue.shuffle ? Icons.shuffle : Icons.shuffle_on_rounded,
-            color: queue.shuffle ? glowColor : muted,
+        // Like button
+        GestureDetector(
+          onTap: () { Haptic.medium(); context.read<LikeCubit>().toggleLike(track); },
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 250),
+            transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
+            child: Icon(
+              isLiked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+              key: ValueKey(isLiked),
+              color: isLiked ? Colors.red : muted,
+              size: r.subtitleSize + 4,
+            ),
           ),
-          iconSize: r.subtitleSize + 4,
-          onPressed: () => sl<QueueCubit>().toggleShuffle(),
+        ),
+        SizedBox(width: r.spacingXL),
+        // Shuffle
+        GestureDetector(
+          onTap: () { Haptic.tap(); sl<QueueCubit>().toggleShuffle(); },
+          child: Icon(
+            queue.shuffle ? Icons.shuffle_rounded : Icons.shuffle,
+            color: queue.shuffle ? glowColor : muted,
+            size: r.subtitleSize + 4,
+          ),
         ),
         SizedBox(width: r.spacingL),
-        IconButton(
-          icon: const Icon(Icons.skip_previous_rounded),
-          color: active,
-          iconSize: r.subtitleSize + 10,
-          onPressed: () => sl<QueueCubit>().previous(),
+        // Previous
+        GestureDetector(
+          onTap: () { Haptic.tap(); sl<QueueCubit>().previous(); },
+          child: Icon(Icons.skip_previous_rounded, color: active, size: r.subtitleSize + 10),
         ),
         SizedBox(width: r.spacingL),
-        GlassContainer(
-          borderRadius: 30,
-          bgColor: glowColor.withValues(alpha: 0.2),
-          borderColor: glowColor.withValues(alpha: 0.1),
-          padding: const EdgeInsets.all(4),
-          child: IconButton(
-            icon: player.playbackState == PlayerPlaybackState.buffering
-                ? SizedBox(
-                    width: r.subtitleSize - 2,
-                    height: r.subtitleSize - 2,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 3,
-                      valueColor: AlwaysStoppedAnimation(glowColor),
-                    ),
-                  )
+        // Play/Pause
+        GestureDetector(
+          onTap: () { Haptic.medium(); sl<PlayerCubit>().togglePlayPause(); },
+          child: Container(
+            width: r.subtitleSize + 24,
+            height: r.subtitleSize + 24,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [glowColor, glowColor.withValues(alpha: 0.7)],
+              ),
+              boxShadow: [
+                BoxShadow(color: glowColor.withValues(alpha: 0.3), blurRadius: 12, spreadRadius: 2),
+              ],
+            ),
+            child: player.playbackState == PlayerPlaybackState.buffering
+                ? Center(child: SizedBox(
+                    width: r.subtitleSize - 4, height: r.subtitleSize - 4,
+                    child: CircularProgressIndicator(strokeWidth: 3, valueColor: AlwaysStoppedAnimation(active)),
+                  ))
                 : Icon(
                     player.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                    color: glowColor,
+                    color: active,
+                    size: r.subtitleSize + 10,
                   ),
-            iconSize: r.subtitleSize + 16,
-            onPressed: () => sl<PlayerCubit>().togglePlayPause(),
           ),
         ),
         SizedBox(width: r.spacingL),
-        IconButton(
-          icon: const Icon(Icons.skip_next_rounded),
-          color: active,
-          iconSize: r.subtitleSize + 10,
-          onPressed: () => sl<QueueCubit>().next(),
+        // Next
+        GestureDetector(
+          onTap: () { Haptic.tap(); sl<QueueCubit>().next(); },
+          child: Icon(Icons.skip_next_rounded, color: active, size: r.subtitleSize + 10),
         ),
         SizedBox(width: r.spacingL),
-        IconButton(
-          icon: Icon(
+        // Repeat
+        GestureDetector(
+          onTap: () { Haptic.tap(); sl<QueueCubit>().cycleRepeatMode(); },
+          child: Icon(
             _repeatIcon(queue.repeatMode),
             color: queue.repeatMode != RepeatMode.none ? glowColor : muted,
+            size: r.subtitleSize + 4,
           ),
-          iconSize: r.subtitleSize + 4,
-          onPressed: () => sl<QueueCubit>().cycleRepeatMode(),
         ),
         if (_lyricsText != null || sl<PlayerCubit>().preloadedLyrics != null) ...[
           SizedBox(width: r.spacingS),
