@@ -90,11 +90,13 @@ class _HomePageState extends State<HomePage>
   late final AnimationController _chromeAnimCtrl;
   late final Animation<double> _chromeSlideAnim;
 
-  /// Listener that reacts to modal visibility changes.
-  void _onModalChanged() {
+  /// Listener that reacts to modal or full-screen player visibility changes.
+  void _onChromeVisibilityChanged() {
     if (!mounted) return;
     final observer = sl<AppNavigatorObserver>();
-    if (observer.isModalShowing.value) {
+    final isModal = observer.isModalShowing.value;
+    final isFullPlayer = observer.topRouteName.value == 'now_playing';
+    if (isModal || isFullPlayer) {
       _chromeAnimCtrl.forward();
     } else {
       _chromeAnimCtrl.reverse();
@@ -122,8 +124,10 @@ class _HomePageState extends State<HomePage>
       CurvedAnimation(parent: _chromeAnimCtrl, curve: Curves.easeOutCubic),
     );
 
-    // Listen to modal visibility changes from the navigator observer.
-    sl<AppNavigatorObserver>().isModalShowing.addListener(_onModalChanged);
+    // Listen to modal visibility AND route changes from the navigator observer.
+    // Hides MiniPlayer+Navbar when a modal or the full-screen player is open.
+    sl<AppNavigatorObserver>().isModalShowing.addListener(_onChromeVisibilityChanged);
+    sl<AppNavigatorObserver>().topRouteName.addListener(_onChromeVisibilityChanged);
 
     _acquireSessions();
     _requestNotificationPermission();
@@ -228,7 +232,8 @@ class _HomePageState extends State<HomePage>
     _feedBloc.close();
     _searchBloc.close();
     _chromeAnimCtrl.dispose();
-    sl<AppNavigatorObserver>().isModalShowing.removeListener(_onModalChanged);
+    sl<AppNavigatorObserver>().isModalShowing.removeListener(_onChromeVisibilityChanged);
+    sl<AppNavigatorObserver>().topRouteName.removeListener(_onChromeVisibilityChanged);
     super.dispose();
   }
 
