@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../shared/utils/download_strategy.dart';
 import '../../../shared/utils/responsive.dart';
+import '../../../shared/widgets/shimmer_skeleton.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/models/feed_models.dart';
 import '../../../../backend/services/item_fingerprint.dart';
@@ -74,13 +75,7 @@ class SearchResultsBody extends StatelessWidget {
     final glowColor = isDark ? AppColors.greenBright : AppColors.greenMedium;
 
     if (loading) {
-      return Center(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          SizedBox(width: r.footerSize + 4, height: r.footerSize + 4, child: CircularProgressIndicator(strokeWidth: 2, color: glowColor)),
-          SizedBox(height: r.spacingS),
-          Text(loc.setup.searching, style: TextStyle(fontSize: r.subtitleSize, color: onBg.withValues(alpha: 0.4))),
-        ]),
-      );
+      return FeedSkeleton();
     }
     if (error != null) {
       return Center(child: Text(error!, style: TextStyle(color: Colors.redAccent, fontSize: r.subtitleSize)));
