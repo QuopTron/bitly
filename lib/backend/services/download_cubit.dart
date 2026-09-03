@@ -257,6 +257,13 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
         if (trackName.isNotEmpty) {
           fps.add(fingerprintFromName(trackName, artistName));
         }
+        // ISRC fingerprint: the same recording from ANY provider carries the
+        // same ISRC, so a track downloaded under one extension reads as
+        // downloaded in every other extension even when name/artist differ.
+        final isrc = (m['isrc'] ?? '').toString();
+        if (isrc.isNotEmpty) {
+          fps.add(fingerprintIsrc(isrc));
+        }
         var src = (m['providerSource'] ?? m['service'] ?? '') as String;
         if (src.isEmpty) src = 'download';
         final rawId = (m['id'] ?? m['providerTrackId'] ?? '') as String;

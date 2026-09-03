@@ -19,6 +19,7 @@ import '../../shared/models/detail_models.dart';
 import '../../shared/models/feed_models.dart';
 import '../../../backend/services/like_cubit.dart';
 import '../../../backend/services/download_cubit.dart';
+import '../../../backend/services/player_cubit.dart';
 import '../../../backend/services/queue_cubit.dart';
 import '../../shared/widgets/track_card.dart';
 import '../../shared/widgets/detail_header.dart';
@@ -42,6 +43,7 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
   bool _loading = true;
   bool _error = false;
   bool _isOnline = true;
+  bool _precachedTracks = false;
   /// Best available cover URL for the album, resolved from likes or album data.
   /// Set during build(), reused in _downloadAll() to ensure tracks use the
   /// same cover URL that's actually displayed on the screen.
@@ -369,6 +371,20 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
               deezerId: t.deezerId, tidalId: t.tidalId, qobuzId: t.qobuzId);
         })
         .toList();
+
+    // One-shot pre-warm: pre-resolve streams for the visible tracks so the
+    // first tap plays fast (same behavior as the home feed).
+    if (!_precachedTracks && albumFeedItems.isNotEmpty) {
+      _precachedTracks = true;
+      sl<PlayerCubit>().precacheContext(albumFeedItems);
+    }
+
+    // One-shot pre-warm: pre-resolve streams for the visible tracks so the
+    // first tap plays fast (same behavior as the home feed).
+    if (!_precachedTracks && albumFeedItems.isNotEmpty) {
+      _precachedTracks = true;
+      sl<PlayerCubit>().precacheContext(albumFeedItems);
+    }
 
     final isLikedAlbum = likedCubit.isLiked(FeedItem(
       id: album.id, type: 'album', name: album.name,

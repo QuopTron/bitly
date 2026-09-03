@@ -27,6 +27,7 @@ import '../../shared/theme/app_colors.dart';
 import '../../../backend/services/connectivity_service.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path/path.dart' as p;
+import '../../../backend/services/player_cubit.dart';
 import '../../../backend/services/playlist_export_service.dart';
 import '../../../injection.dart';
 
@@ -47,6 +48,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
   bool _error = false;
   bool _isOnline = true;
   String? _resolvedCover;
+  bool _precachedTracks = false;
 
   Future<void> _exportPlaylist(PlaylistDetail detail, bool isDark) async {
     final result = await PlaylistExportService.exportPlaylist(
@@ -388,6 +390,13 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
               deezerId: t.deezerId, tidalId: t.tidalId, qobuzId: t.qobuzId);
         })
         .toList();
+
+    // One-shot pre-warm: pre-resolve streams for the visible tracks so the
+    // first tap plays fast (same behavior as the home feed).
+    if (!_precachedTracks && playlistFeedItems.isNotEmpty) {
+      _precachedTracks = true;
+      sl<PlayerCubit>().precacheContext(playlistFeedItems);
+    }
 
     final isLikedPlaylist = likedCubit.isLiked(FeedItem(
       id: detail.id, type: 'playlist', name: detail.name,

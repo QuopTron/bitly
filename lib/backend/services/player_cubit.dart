@@ -344,6 +344,15 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
           if (name.isNotEmpty && fp.isNotEmpty && await File(fp).exists()) {
             _localFiles[fingerprintFromName(name, artist)] = fp;
           }
+
+          // Index by ISRC — the canonical recording id shared by ALL
+          // providers. A track downloaded from apple-music plays locally even
+          // when its name/artist differ slightly on a spotify/deezer feed
+          // (the same recording carries the same ISRC everywhere).
+          final isrc = (m['isrc'] ?? '').toString();
+          if (isrc.isNotEmpty && fp.isNotEmpty && await File(fp).exists()) {
+            _localFiles[fingerprintIsrc(isrc)] = fp;
+          }
         }
       }
 
@@ -393,9 +402,11 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
       }
     });
     _errorSub = _player.stream.error.listen((error) {
-      // While recovering from a decode failure, ignore residual errors from
-      // the media being stopped; otherwise the storm re-triggers give-up.
-      if (_recovering) return;
+      // While recovering from a decode failure OR switching tracks (old media
+      // paused mid-resolution), ignore residual errors from the media being
+      // stopped; otherwise a quick local↔stream switch miscounts 3 errors and
+      // wrongly kills the track that just started.
+      if (_recovering || _switchPending) return;
       // A failing resource (403/expired/HTML) makes libmpv reopen it in a tight
       // loop, spamming "Error decoding audio" forever. Break the loop: after a
       // few consecutive failures we stop the player and mark the track failed.
@@ -1165,6 +1176,18 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
     if (track.name.isNotEmpty) {
       final fp = fingerprintFromName(track.name, track.artists ?? '');
       final localPath = _localFiles[fp];
+      if (localPath != null && File(localPath).existsSync()) {
+        return 'file://${localPath.replaceAll('\\', '/')}';
+      }
+    }
+
+    // 1.75 Cross-source match by ISRC — the canonical recording identifier
+    // that all providers share, so a track downloaded under one provider
+    // plays locally even when name/artist differ on the provider the user is
+    // browsing right now.
+    final trackIsrc = (track.isrc ?? '').trim();
+    if (trackIsrc.isNotEmpty) {
+      final localPath = _localFiles[fingerprintIsrc(trackIsrc)];
       if (localPath != null && File(localPath).existsSync()) {
         return 'file://${localPath.replaceAll('\\', '/')}';
       }

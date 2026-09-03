@@ -139,7 +139,7 @@ class FeedContent extends StatelessWidget {
           title: item.name, subtitle: item.artists ?? '', coverUrl: resolvedCover,
           textScale: 1.2, readyKey: normalizeTrackId(item.id),
           isLiked: likedIds.contains(fp), onLike: () => onToggleLike(id, item),
-          downloadState: _trackDownloadState(fp, id),
+          downloadState: _trackDownloadState(fp, id, item.isrc),
           onDownload: () => onStartDownload(item),
           onDelete: onDeleteTrack != null ? () => onDeleteTrack!(item) : null,
           onInfo: () => onShowInfo(context, item),
@@ -158,12 +158,19 @@ class FeedContent extends StatelessWidget {
 
   /// Download state for a track card: exact source-keyed state when present,
   /// else source-agnostic fingerprint fallback (SpotiFLAC-style detection).
-  DownloadState _trackDownloadState(String fp, String id) {
+  /// [isrc] adds the canonical recording match: the same song downloaded
+  /// under ANY provider carries the same ISRC, so it reads as downloaded even
+  /// when name/artist differ on this provider.
+  DownloadState _trackDownloadState(String fp, String id, String? isrc) {
     final s = downloadStates[id];
     if (s != null && s != DownloadState.none) return s;
-    return downloadedFingerprints.contains(fp)
-        ? DownloadState.completed
-        : DownloadState.none;
+    if (downloadedFingerprints.contains(fp)) return DownloadState.completed;
+    if (isrc != null &&
+        isrc.trim().isNotEmpty &&
+        downloadedFingerprints.contains(fingerprintIsrc(isrc))) {
+      return DownloadState.completed;
+    }
+    return DownloadState.none;
   }
 
   List<Widget> _buildGridCards(BuildContext context, Responsive r) {

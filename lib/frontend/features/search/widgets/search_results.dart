@@ -8,6 +8,7 @@ import '../../../l10n/app_localizations.dart';
 import '../../../shared/models/feed_models.dart';
 import '../../../../backend/services/item_fingerprint.dart';
 import '../../../../backend/services/like_cubit.dart';
+import '../../../../backend/services/player_cubit.dart';
 import '../../../../backend/services/queue_cubit.dart';
 import '../../../../injection.dart';
 import '../../../shared/theme/app_colors.dart';
@@ -66,6 +67,19 @@ class SearchResultsBody extends StatelessWidget {
     required this.onNavigateToItem,
   });
 
+  /// One-shot guard so a result set only pre-warms its streams once.
+  static final Set<String> _precachedKeys = {};
+
+  void _precacheResults(List<FeedItem> results, String? selectedSource) {
+    if (results.isEmpty) return;
+    final key =
+        '${selectedSource ?? '*'}|${results.length}|${results.first.id}';
+    if (!_precachedKeys.add(key)) return;
+    final tracks = results.where((i) => i.type == 'track').toList();
+    if (tracks.isEmpty) return;
+    sl<PlayerCubit>().precacheContext(tracks);
+  }
+
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
@@ -73,6 +87,10 @@ class SearchResultsBody extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final onBg = isDark ? Colors.white : Colors.black;
     final glowColor = isDark ? AppColors.greenBright : AppColors.greenMedium;
+
+    // Pre-warm streams for the visible results so the first tap plays fast
+    // (same behavior as the home feed).
+    _precacheResults(results, selectedSource);
 
     if (loading) {
       return FeedSkeleton();
@@ -271,13 +289,18 @@ class SearchResultsBody extends StatelessWidget {
   /// Download state for a track card. Uses the exact source-keyed state when
   /// present (in-progress/interrupted/completed), else falls back to the
   /// source-agnostic fingerprint so the same track downloaded under another
-  /// extension still reads as "downloaded" here.
-  DownloadState _trackDownloadState(String fp, String id) {
+  /// extension still reads as "downloaded" here. [isrc] adds the canonical
+  /// recording match shared by every provider.
+  DownloadState _trackDownloadState(String fp, String id, String? isrc) {
     final s = downloadStates[id];
     if (s != null && s != DownloadState.none) return s;
-    return downloadedFingerprints.contains(fp)
-        ? DownloadState.completed
-        : DownloadState.none;
+    if (downloadedFingerprints.contains(fp)) return DownloadState.completed;
+    if (isrc != null &&
+        isrc.trim().isNotEmpty &&
+        downloadedFingerprints.contains(fingerprintIsrc(isrc))) {
+      return DownloadState.completed;
+    }
+    return DownloadState.none;
   }
 
   /// Track cards as individual ListView children — matches Feed layout
@@ -292,7 +315,7 @@ class SearchResultsBody extends StatelessWidget {
         title: item.name, subtitle: item.artists ?? '', coverUrl: resolvedCover,
         textScale: 1.2, readyKey: normalizeTrackId(item.id),
         isLiked: likedIds.contains(fp), onLike: () => onToggleLike(id, item),
-        downloadState: _trackDownloadState(fp, id),
+        downloadState: _trackDownloadState(fp, id, item.isrc),
         onDownload: () => onStartDownload(item),
         onDelete: onDeleteTrack != null ? () => onDeleteTrack!(item) : null,
         onInfo: () => onShowInfo(context, item),

@@ -16,6 +16,7 @@ import '../../shared/models/detail_models.dart';
 import '../../shared/models/feed_models.dart';
 import '../../../backend/services/like_cubit.dart';
 import '../../../backend/services/download_cubit.dart';
+import '../../../backend/services/player_cubit.dart';
 import '../../../backend/services/queue_cubit.dart';
 import '../../shared/widgets/track_card.dart';
 import '../../shared/widgets/cover_image.dart';
@@ -45,6 +46,7 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
   bool _loading = true;
   bool _error = false;
   bool _isOnline = true;
+  bool _precachedTracks = false;
 
   @override
   void initState() {
@@ -153,6 +155,13 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
         tidalId: t.tidalId, qobuzId: t.qobuzId,
       );
     }).toList();
+
+    // One-shot pre-warm: pre-resolve streams for the visible tracks so the
+    // first tap plays fast (same behavior as the home feed).
+    if (!_precachedTracks && artistTracks.isNotEmpty) {
+      _precachedTracks = true;
+      sl<PlayerCubit>().precacheContext(artistTracks);
+    }
 
     final subtitle = [
       if (artist.topTracks.isNotEmpty) '${artist.topTracks.length} ${loc.setup.searchTracks}',

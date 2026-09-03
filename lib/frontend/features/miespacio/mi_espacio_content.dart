@@ -149,10 +149,16 @@ class MiEspacioContent extends StatelessWidget {
         if (state != null && state != DownloadState.none) return state;
       }
     }
-    // Fingerprint fallback: source-agnostic match by name+artist
-    return downloadedFingerprints.contains(fingerprintItem(item))
-        ? DownloadState.completed
-        : DownloadState.none;
+    // Fingerprint fallback: source-agnostic match by name+artist, plus the
+    // canonical ISRC recording id shared by every provider.
+    final isrc = (item.isrc ?? '').trim();
+    if (downloadedFingerprints.contains(fingerprintItem(item))) {
+      return DownloadState.completed;
+    }
+    if (isrc.isNotEmpty && downloadedFingerprints.contains(fingerprintIsrc(isrc))) {
+      return DownloadState.completed;
+    }
+    return DownloadState.none;
   }
 
   /// Known provider source identifiers used by the download system.
