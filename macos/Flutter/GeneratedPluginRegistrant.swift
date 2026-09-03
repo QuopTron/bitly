@@ -8,7 +8,7 @@ import Foundation
 import audio_service
 import audio_session
 import connectivity_plus
-import ffmpeg_kit_flutter_new_full
+import ffmpeg_kit_flutter_new_audio
 import file_picker
 import media_kit_video
 import package_info_plus

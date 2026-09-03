@@ -31,6 +31,15 @@ android {
         versionName = flutter.versionName
     }
 
+    packagingOptions {
+        jniLibs {
+            // Compress native libs inside the APK (instead of storing them
+            // page-aligned/uncompressed). Cuts APK size roughly in half; libs
+            // are extracted at install time, which is fine for sideloaded APKs.
+            useLegacyPackaging = true
+        }
+    }
+
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("debug")

@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:ffmpeg_kit_flutter_new_full/ffmpeg_kit.dart';
+import 'package:ffmpeg_kit_flutter_new_audio/ffmpeg_kit.dart';
 
 /// Serializes decrypt runs. ffmpeg-kit_full spawns a heavy native ffmpeg per
 /// session; on memory-constrained devices running many decryptions at once

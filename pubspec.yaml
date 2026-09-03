@@ -33,7 +33,6 @@ dependencies:
 
   # UI Components
   cached_network_image: ^3.4.1
-  palette_generator: ^0.3.3+4
 
   # Permissions
   permission_handler: ^12.0.2
@@ -47,8 +46,9 @@ dependencies:
   logger: ^2.5.0
   meta: ^1.17.0
 
-  # FFmpeg for audio conversion
-  ffmpeg_kit_flutter_new_full: ^2.0.0
+  # FFmpeg for audio conversion (audio-only build: decrypt + FLAC mux only,
+  # much smaller than the full build and lighter on RAM while decrypting)
+  ffmpeg_kit_flutter_new_audio: ^2.5.0
   open_filex: ^4.7.0
 
   # Audio / Video player for in-app streaming
@@ -98,7 +98,6 @@ flutter:
 
   assets:
     - assets/images/
-    - assets/backend.exe
     - assets/extensions/
 
   fonts:

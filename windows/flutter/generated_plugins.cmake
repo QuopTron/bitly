@@ -4,6 +4,7 @@
 
 list(APPEND FLUTTER_PLUGIN_LIST
   connectivity_plus
+  ffmpeg_kit_flutter_new_audio
   media_kit_libs_windows_video
   media_kit_video
   permission_handler_windows
