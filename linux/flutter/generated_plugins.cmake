@@ -5,6 +5,7 @@
 list(APPEND FLUTTER_PLUGIN_LIST
   ffmpeg_kit_flutter_new_audio
   media_kit_video
+  sqlite3_flutter_libs
   url_launcher_linux
 )
 

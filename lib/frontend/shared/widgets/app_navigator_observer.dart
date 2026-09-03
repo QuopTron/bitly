@@ -14,6 +14,16 @@ class AppNavigatorObserver extends NavigatorObserver {
 
   int _modalStackDepth = 0;
 
+  /// Self-maintained mirror of the navigator's route stack (route names).
+  /// go_router's pop/remove callbacks frequently report a null previousRoute
+  /// even though a named route remains on the stack (e.g. splash → home), which
+  /// would wrongly flip [topRouteName] to null and make the global mini-player
+  /// overlay render on top of the home tab. Tracking the stack ourselves keeps
+  /// [topRouteName] accurate no matter what the router reports.
+  final List<String?> _routeStack = [];
+
+  String? get _topName => _routeStack.isEmpty ? null : _routeStack.last;
+
   void _update(String? name) {
     // Navigation observers fire during the Navigator's build phase; deferring
     // to the next frame avoids markNeedsBuild()-during-build exceptions for
@@ -36,25 +46,38 @@ class AppNavigatorObserver extends NavigatorObserver {
 
   @override
   void didPush(Route route, Route? previousRoute) {
-    _update(route.settings.name);
+    _routeStack.add(route.settings.name);
+    _update(_topName);
     _trackModal(route, pushing: true);
   }
 
   @override
   void didPop(Route route, Route? previousRoute) {
-    _update(previousRoute?.settings.name);
+    if (_routeStack.isNotEmpty) _routeStack.removeLast();
+    _update(_topName);
     _trackModal(route, pushing: false);
   }
 
   @override
   void didRemove(Route route, Route? previousRoute) {
-    _update(previousRoute?.settings.name);
+    _routeStack.remove(route.settings.name);
+    _update(_topName);
     _trackModal(route, pushing: false);
   }
 
   @override
   void didReplace({Route? newRoute, Route? oldRoute}) {
-    _update(newRoute?.settings.name);
+    if (oldRoute != null) {
+      final i = _routeStack.lastIndexOf(oldRoute.settings.name);
+      if (i >= 0) {
+        _routeStack[i] = newRoute?.settings.name;
+      } else if (newRoute != null) {
+        _routeStack.add(newRoute.settings.name);
+      }
+    } else if (newRoute != null) {
+      _routeStack.add(newRoute.settings.name);
+    }
+    _update(_topName);
     if (oldRoute != null) _trackModal(oldRoute, pushing: false);
     if (newRoute != null) _trackModal(newRoute, pushing: true);
   }

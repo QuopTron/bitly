@@ -105,6 +105,28 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
   /// audio is paused and the UI shows buffering until the new stream is ready.
   bool _switchPending = false;
 
+  /// Monotonic generation for [_openTrack]: a newer call supersedes older
+  /// in-flight ones, so a slow stream resolution can never clobber a track
+  /// that was opened after it (the "plays the next song but the UI stays on
+  /// the current one / skips 2 by 2" race).
+  int _openGeneration = 0;
+
+  /// Generation captured when the last media finished opening. A `completed`
+  /// event whose generation doesn't match belongs to media that was disposed
+  /// by a newer open — it must not advance the queue ("changes at any second").
+  int _openedAtGeneration = 0;
+
+  /// Identity (id|source) of the track the last [_openTrack] is opening/opened.
+  /// Lets [_listenQueue] ignore queue edits that don't change the current
+  /// track (addNext, addToEnd, shuffle/repeat toggles, reorder) instead of
+  /// reopening — and restarting — the track that is already playing.
+  String? _openedTrackKey;
+
+  /// True while a real end-of-file completion is advancing the queue, so the
+  /// same-track emission from repeat-one (or a duplicate entry in the list)
+  /// reopens instead of being skipped by the [_openedTrackKey] guard.
+  bool _forceReopen = false;
+
   /// Last backend/stream resolve error text for the current open attempt, so a
   /// silent "Could not resolve URI" can be surfaced with a useful message.
   String _lastStreamError = '';
@@ -462,7 +484,16 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
           _pendingTrack = queueState.current;
           return;
         }
-        _openTrack(queueState.current!);
+        final current = queueState.current!;
+        final key = '${current.id}|${current.source}';
+        // Skip unrelated queue edits (addNext/addToEnd/shuffle/repeat/reorder)
+        // while the same track is still current — reopening it here restarts
+        // the song and can race with the real advance. Only reopen when the
+        // current track actually changed or the previous one just completed
+        // (repeat-one re-emits the same index on purpose).
+        if (key == _openedTrackKey && !_forceReopen) return;
+        _forceReopen = false;
+        unawaited(_openTrack(current));
       } else if (!queueState.hasCurrent) {
         _player.stop();
         emit(AudioPlayerState(volume: state.volume));
@@ -471,7 +502,11 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
   }
 
   Future<void> _openTrack(FeedItem track) async {
+    final gen = ++_openGeneration;
+    _openedTrackKey = '${track.id}|${track.source}';
     await _refreshLocalFiles();
+    // A newer _openTrack superseded us while we were on disk — abort quietly.
+    if (gen != _openGeneration) return;
     _lastStreamError = '';
     _lastStreamErrorType = '';
     _lastStreamService = '';
@@ -503,6 +538,7 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
         );
         return;
       }
+      if (gen != _openGeneration) return;
       // Switch to a non-local track: stop the previous track's audio right now
       // so the user doesn't keep hearing the old song while the new one
       // resolves (which can take 20-30s on the download path), and surface a
@@ -513,6 +549,9 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
       }
       unawaited(_player.pause());
       uri = await _resolveStreamUrl(track);
+      // A newer track started resolving/opening while we were waiting — don't
+      // hand our stale URL to the player over the newer track.
+      if (gen != _openGeneration) return;
     }
 
     if (uri == null) {
@@ -563,6 +602,8 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
       return;
     }
 
+    // Final supersede check right before touching the player.
+    if (gen != _openGeneration) return;
     _lastOpenedUri = uri;
     _consecutiveErrors = 0;
     // A track that opened (or at least resolved) cleanly resets its dead-file
@@ -573,6 +614,9 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
     try {
       await _player.open(Media(uri));
       await _player.play();
+      // Only a completion that happens with no newer open in flight can be a
+      // real end-of-file; anything else belongs to media this open disposed.
+      _openedAtGeneration = _openGeneration;
     } catch (e) {
       // debug removed
     }
@@ -1236,6 +1280,12 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
   Future<void> _onTrackCompleted() async {
     if (isClosed) return;
 
+    // A `completed` event that arrived after a newer open started belongs to
+    // the media that open disposed (or a stale race), not to a real end of
+    // file — advancing here is what makes the queue "skip 2 by 2" and change
+    // tracks at any random second.
+    if (_openGeneration != _openedAtGeneration) return;
+
     // media_kit can emit a spurious `completed` notification right after open()
     // (e.g. the decrypted local FLACs), often BEFORE the real duration is parsed
     // (duration still 0). Only advance when we have a real end-of-file: a known
@@ -1288,6 +1338,9 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
       unawaited(_cleanupTempFile(completedTrackId));
     }
 
+    // The advance is about to emit (possibly the SAME index for repeat-one):
+    // mark it so _listenQueue reopens instead of skipping the same track.
+    _forceReopen = true;
     final hadNext = _queueCubit.next();
     // Si la cola terminó (no hay más tracks) y hay internet, intentar autoplay
     // con tracks similares (modo radio).
