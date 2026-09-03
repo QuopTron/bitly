@@ -93,81 +93,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
         _resultCache.remove(cacheKey);
       }
 
-      try {
-        var gen = await _backend.searchStreaming(
-          query: event.query, source: event.source,
-          type: event.type, limit: event.limit,
-        );
-        _streamGeneration = gen;
-
-        // If streaming init failed, retry once after a short delay (the native
-        // bridge may have been busy with a prior RPC).
-        if (gen == 0) {
-          await Future<void>.delayed(const Duration(milliseconds: 200));
-          if (isClosed) return;
-          gen = await _backend.searchStreaming(
-            query: event.query, source: event.source,
-            type: event.type, limit: event.limit,
-          );
-          _streamGeneration = gen;
-        }
-
-        if (gen == 0) {
-          // Streaming truly unavailable — fall back to non-streaming search.
-          await _finishSearch(event.query, event.source, event.type, event.limit, emit);
-          return;
-        }
-
-        var lastEmittedCount = 0;
-        var lastItems = <FeedItem>[];
-        const maxPolls = 150;
-        for (var i = 0; i < maxPolls; i++) {
-          await Future<void>.delayed(const Duration(milliseconds: 100));
-          if (isClosed) return;
-
-          try {
-            final poll = await _backend.getSearchStreamResults();
-            if (poll.generation != _streamGeneration) return;
-
-            if (poll.items.length > lastEmittedCount) {
-              lastEmittedCount = poll.items.length;
-              lastItems = poll.items;
-              // Hide the spinner as soon as the FIRST batch of results
-              // arrives — don't wait for all providers to finish. This makes
-              // search feel instant (like SpotiFLAC) while remaining providers
-              // continue streaming results in the background.
-              emit(state.copyWith(
-                results: poll.items,
-                loading: poll.done,
-                hasSearched: true,
-              ));
-            }
-
-            if (poll.done) {
-              await _cacheAndFinalize(event.query, event.source, event.type, event.limit, poll.items, emit);
-              return;
-            }
-          } catch (_) {
-            break;
-          }
-        }
-
-        // Poll window ended before the backend reported done (slow provider).
-        // Show whatever arrived. A timeout is NOT a real "no results" answer:
-        // don't burn a second full search on top of the wait, and don't cache
-        // the partial as final (which would make the next attempt return
-        // instantly with nothing).
-        emit(state.copyWith(
-          results: lastItems,
-          loading: false,
-          hasSearched: true,
-        ));
-      } catch (e) {
-        emit(state.copyWith(
-          loading: false,
-          error: e.toString(),
-        ));
-      }
+      await _attemptSearch(event, emit, allowRetry: true);
     });
 
     on<AddRecentSearch>((event, emit) {
@@ -204,6 +130,107 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
         hasSearched: false,
       ));
     });
+  }
+
+  /// Runs one streaming search attempt (init + poll until done or window).
+  /// [allowRetry] is true for the user's attempt: if the poll window expires
+  /// with ZERO results and the backend never said "done", the search silently
+  /// re-runs once — the first attempt often races startup RPC congestion on
+  /// the native bridge (home feed, stream pre-warm, session verification all
+  /// serialize on one thread), and a bare "no results" there is a false
+  /// negative that makes the FIRST search of a session look dead while the
+  /// second works. The retry starts after that congestion has drained, so it
+  /// typically returns within the normal 1-3s.
+  Future<void> _attemptSearch(
+    PerformSearch event, Emitter<SearchState> emit, {
+    required bool allowRetry,
+  }) async {
+    try {
+      var gen = await _backend.searchStreaming(
+        query: event.query, source: event.source,
+        type: event.type, limit: event.limit,
+      );
+      _streamGeneration = gen;
+
+      // If streaming init failed, retry once after a short delay (the native
+      // bridge may have been busy with a prior RPC).
+      if (gen == 0) {
+        await Future<void>.delayed(const Duration(milliseconds: 200));
+        if (isClosed) return;
+        gen = await _backend.searchStreaming(
+          query: event.query, source: event.source,
+          type: event.type, limit: event.limit,
+        );
+        _streamGeneration = gen;
+      }
+
+      if (gen == 0) {
+        // Streaming truly unavailable — fall back to non-streaming search.
+        await _finishSearch(event.query, event.source, event.type, event.limit, emit);
+        return;
+      }
+
+      var lastEmittedCount = 0;
+      var lastItems = <FeedItem>[];
+      const maxPolls = 160; // ~16s per attempt; the retry covers the rest.
+      var backendDone = false;
+      for (var i = 0; i < maxPolls; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        if (isClosed) return;
+
+        try {
+          final poll = await _backend.getSearchStreamResults();
+          if (poll.generation != _streamGeneration) return;
+
+          if (poll.items.length > lastEmittedCount) {
+            lastEmittedCount = poll.items.length;
+            lastItems = poll.items;
+            // Hide the spinner as soon as the FIRST batch of results
+            // arrives — don't wait for all providers to finish. This makes
+            // search feel instant (like SpotiFLAC) while remaining providers
+            // continue streaming results in the background.
+            emit(state.copyWith(
+              results: poll.items,
+              loading: false,
+              hasSearched: true,
+            ));
+          }
+
+          if (poll.done) {
+            backendDone = true;
+            await _cacheAndFinalize(event.query, event.source, event.type, event.limit, poll.items, emit);
+            return;
+          }
+        } catch (_) {
+          break;
+        }
+      }
+
+      if (!backendDone && lastItems.isEmpty && allowRetry && !isClosed) {
+        // Window expired with NOTHING and the backend never answered done:
+        // the first attempt raced congestion (or the backend just needed a
+        // warm-up). Retry once from scratch — by now the bridge queue has
+        // drained, so this attempt finishes at normal speed.
+        _log.i('[search] Ventana expirada sin resultados para ${event.source} — reintentando');
+        await _attemptSearch(event, emit, allowRetry: false);
+        return;
+      }
+
+      // Poll window ended before the backend reported done (slow provider).
+      // Show whatever arrived. A timeout is NOT a real "no results" answer:
+      // don't cache the partial as final (which would make the next attempt
+      // return instantly with nothing).
+      emit(state.copyWith(
+        results: lastItems,
+        loading: false,
+        hasSearched: true,
+      ));
+    } catch (e) {
+      emit(state.copyWith(
+        loading: false,
+        error: e.toString(),
+      ));
+    }
   }
 
   Future<List<FeedItem>> _searchAll(String query, String source, String type, int limit) async {

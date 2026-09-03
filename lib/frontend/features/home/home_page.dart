@@ -145,7 +145,17 @@ class _HomePageState extends State<HomePage>
       // Bound by the device profile: the feed is long but only the first few
       // tracks are likely to be tapped; pre-firing 10+ stream resolutions
       // would keep the backend bridge busy while the user searches.
-      sl<PlayerCubit>().precacheContext(tracks, limit: 4);
+      //
+      // Also DEFER the pre-warm ~12s: the native bridge serializes every Go
+      // RPC on one thread, and right after the feed appears the user may open
+      // Search immediately. Four stream resolutions fired at once would hold
+      // the bridge for seconds and make that FIRST search look dead (it just
+      // queues behind them). By the time the pre-warm starts, the first
+      // searches/navigation have already gone through.
+      Future<void>.delayed(const Duration(seconds: 12), () {
+        if (!mounted) return;
+        sl<PlayerCubit>().precacheContext(tracks, limit: 4);
+      });
     });
 
     _downloadSub = _downloadCubit.stream.listen((state) {
