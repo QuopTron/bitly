@@ -4,6 +4,11 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Set INCLUDE_X86_64=true to keep the emulator-only ABI in the APK (useful
+// for testing on x86_64 emulators that can't run arm64 via translation).
+// Default: phone-only build (armeabi-v7a + arm64-v8a).
+val includeX86_64: Boolean = System.getenv("INCLUDE_X86_64") == "true"
+
 android {
     namespace = "com.example.bitly"
     compileSdk = flutter.compileSdkVersion
@@ -37,11 +42,14 @@ android {
             // page-aligned/uncompressed). Cuts APK size roughly in half; libs
             // are extracted at install time, which is fine for sideloaded APKs.
             useLegacyPackaging = true
-            // Phone ABIs only. Exclude x86_64 (emulator-only) at packaging time:
-            // this is the one mechanism that reliably drops third-party native
-            // libs (ffmpeg-kit, media_kit/mpv, the Go .aar) for that ABI even
-            // though the Flutter plugin's abiFilters leave them merged.
-            excludes += "lib/x86_64/**"
+            // Phone ABIs only by default. Exclude x86_64 (emulator-only) at
+            // packaging time: this is the one mechanism that reliably drops
+            // third-party native libs (ffmpeg-kit, media_kit/mpv, the Go .aar)
+            // for that ABI even though the Flutter plugin's abiFilters leave
+            // them merged. INCLUDE_X86_64=true keeps them for emulator testing.
+            if (!includeX86_64) {
+                excludes += "lib/x86_64/**"
+            }
         }
     }
 

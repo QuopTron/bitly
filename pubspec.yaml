@@ -57,8 +57,11 @@ dependencies:
   media_kit_libs_android_video: ^1.0.4
   media_kit_libs_windows_video: ^1.0.4
 
-  # Database (Drift ORM)
+  # Database (Drift ORM). sqlite3_flutter_libs bundles libsqlite3.so into the
+  # APK — without it the FFI loader can't find SQLite on Android and the app
+  # dies at startup (backend never initializes).
   drift: ^2.34.2
+  sqlite3_flutter_libs: ^0.5.42
 
   # Crypto (HMAC for premium codes)
   crypto: ^3.0.4
