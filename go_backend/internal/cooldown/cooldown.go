@@ -21,10 +21,14 @@ import (
 )
 
 const (
-	// cooldownDur is the initial window after a single rate-limit event.
-	cooldownDur = 60 * time.Second
+	// cooldownDur is the initial window after a single rate-limit event. Kept
+	// reasonably short so a provider that recovered (verification completed,
+	// burst over) is retried soon, but long enough that the per-track prefetch
+	// storms (each track can hit every provider) don't hammer the same API on
+	// every single track.
+	cooldownDur = 90 * time.Second
 	// maxCooldownDur caps the exponential backoff between repeated events.
-	maxCooldownDur = 5 * time.Minute
+	maxCooldownDur = 8 * time.Minute
 )
 
 var (
@@ -158,6 +162,19 @@ func rateLimitedOrBlocked(errMsg string) bool {
 		"temporarily unavailable",
 		"client decryption",
 		"encriptado",
+		// Access-gated responses (anonymous web sessions blocked / session-less
+		// APIs): qobuz-web returns 403 until signed, amazon's anonymous search
+		// returns a login page, tidal/bot checks 403. Treating these like
+		// rate-limits stops the per-track walk from hammering a source that
+		// currently cannot serve this app. NOTE: "verification required" is
+		// deliberately NOT here — a verify error is a fixable state (complete
+		// the challenge), not a rate-limit, and the client opens the verify
+		// modal when it surfaces.
+		"403",
+		"forbidden",
+		"blocked",
+		"bot detection",
+		"captcha",
 	} {
 		if strings.Contains(e, marker) {
 			return true

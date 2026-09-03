@@ -3,6 +3,8 @@ package streaming
 import (
 	"fmt"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/zarz/bitly/go_backend/internal/cooldown"
 	"github.com/zarz/bitly/go_backend/internal/lyrics"
@@ -192,11 +194,15 @@ func verifyStreamMatch(p provider.Provider, id, queryTitle, queryArtist, isrc st
 }
 
 // GetStreamPackage busca metadata + stream URL + letras en una sola llamada.
+// [isrc] + cross-provider ids (spotify/deezer/tidal/qobuz) let the resolution
+// identify the track EXACTLY (ISRC / CheckAvailability) instead of name-searching
+// every provider — the single biggest driver of provider rate-limits (429) was
+// repeated per-track name searches during prefetch/queue traversal.
 func GetStreamPackage(
 	reg *provider.Registry,
 	lyricsClient *lyrics.Client,
 	preferredProvider, trackID, quality string,
-	fetchLyrics bool, trackName, artistName string,
+	fetchLyrics bool, trackName, artistName, isrc, spotifyID, deezerID, tidalID, qobuzID string,
 ) (*StreamPackage, error) {
 	if reg == nil {
 		return nil, fmt.Errorf("no inicializado")
@@ -205,7 +211,7 @@ func GetStreamPackage(
 		quality = "FLAC"
 	}
 
-	track := fetchMetadata(reg, preferredProvider, trackID, trackName, artistName)
+	track := fetchMetadata(reg, preferredProvider, trackID, trackName, artistName, isrc, spotifyID, deezerID, tidalID, qobuzID)
 	if track != nil {
 		if trackName == "" {
 			trackName = track.Title
@@ -274,37 +280,166 @@ func GetStreamPackage(
 	return pkg, nil
 }
 
+// metadata by identity across the noisiest per-track requests. It is a plain
+// LRU/TTL map keyed by the feed track's stable identity so repeated
+// resolutions (prefetch on every screen, queue neighbours, re-taps) resolve the
+// FIRST time and then serve the cached track — instead of name-searching every
+// provider again per request, which is what burned provider rate limits (429)
+// during long browsing sessions.
+var (
+	metaMu    sync.Mutex
+	metaCache = map[string]cacheEntry{}
+)
+
+type cacheEntry struct {
+	track *provider.TrackResult
+	at    time.Time
+}
+
+const metaCacheTTL = 15 * time.Minute
+
+// metadataCacheKey builds a stable identity for a track resolution: the
+// strongest identifier present wins — ISRC (same song on every provider),
+// then a cross-provider id / native track id, then normalized title|artist.
+func metadataCacheKey(isrc, spotifyID, deezerID, tidalID, qobuzID, trackID, trackName, artistName string) string {
+	for _, id := range []string{isrc, spotifyID, deezerID, tidalID, qobuzID, trackID} {
+		id = strings.TrimSpace(id)
+		if id != "" && id != "null" {
+			return "id:" + strings.ToUpper(id)
+		}
+	}
+	q := strings.ToLower(strings.TrimSpace(trackName + "|" + artistName))
+	if q == "" || q == "|" {
+		return ""
+	}
+	return "n:" + q
+}
+
+func metaCached(key string) *provider.TrackResult {
+	if key == "" {
+		return nil
+	}
+	metaMu.Lock()
+	defer metaMu.Unlock()
+	if e, ok := metaCache[key]; ok {
+		if time.Since(e.at) < metaCacheTTL {
+			return e.track
+		}
+		delete(metaCache, key)
+	}
+	return nil
+}
+
+func metaStore(key string, t *provider.TrackResult) {
+	if key == "" || t == nil {
+		return
+	}
+	metaMu.Lock()
+	defer metaMu.Unlock()
+	if len(metaCache) > 1200 {
+		for k, e := range metaCache {
+			if time.Since(e.at) > metaCacheTTL/2 {
+				delete(metaCache, k)
+			}
+		}
+	}
+	metaCache[key] = cacheEntry{track: t, at: time.Now()}
+}
+
 // fetchMetadata obtiene metadata del track desde cualquier provider.
-func fetchMetadata(reg *provider.Registry, providerName, trackID, trackName, artistName string) *provider.TrackResult {
+// Estrategia anti-429: resuelve por ISRC/ids exactos ANTES de cualquier
+// name-search (y solo si el provider está sano), cachea por identidad estable
+// (ISRC/ids/título+artista), y respeta el circuit-breaker — un provider en
+// cooldown se salta, nunca se le hace name-search.
+func fetchMetadata(reg *provider.Registry, providerName, trackID, trackName, artistName, isrc, spotifyID, deezerID, tidalID, qobuzID string) *provider.TrackResult {
+	cacheKey := metadataCacheKey(isrc, spotifyID, deezerID, tidalID, qobuzID, trackID, trackName, artistName)
+	// Session cache: the same track is resolved many times (feed prefetch,
+	// queue neighbours, re-tap). Serve the cached result instead of re-searching.
+	if cached := metaCached(cacheKey); cached != nil {
+		return cached
+	}
+
+	store := func(t *provider.TrackResult) *provider.TrackResult {
+		metaStore(cacheKey, t)
+		// Also index by the found track's ISRC so later calls that only carry a
+		// different provider id still hit (their key normalizes to the ISRC).
+		if t != nil && t.ISRC != "" {
+			metaStore(metadataCacheKey(t.ISRC, "", "", "", "", "", "", ""), t)
+		}
+		return t
+	}
+
+	exactID := trimKnownPrefix(trackID)
 	if providerName != "" {
 		p := reg.Get(providerName)
-		if p != nil {
-			if track, _ := p.GetTrack(trackID); track != nil {
-				return track
+		if p != nil && !cooldown.IsCooled(providerName) {
+			// Exact ISRC first — one call, no name search, and the result is the
+			// canonical identity every provider can resolve against.
+			if isrc != "" {
+				if track, err := p.GetTrackByISRC(isrc); err == nil && track != nil {
+					return store(track)
+				}
 			}
-			if trackName != "" {
-				if results, _ := p.SearchTracks(trackName+" "+artistName, 8); len(results) > 0 {
+			if exactID != "" {
+				if track, err := p.GetTrack(exactID); err == nil && track != nil {
+					return store(track)
+				}
+			}
+			// Cross-provider ids via the provider that owns them (only the
+			// matching shape is fed, so no wasted calls).
+			for _, cid := range []struct {
+				name string
+				id   string
+			}{{"spotify", spotifyID}, {"deezer", deezerID}, {"tidal", tidalID}, {"qobuz", qobuzID}} {
+				if cid.id == "" || cid.name == providerName {
+					continue
+				}
+				if t, err := p.GetTrack(cid.id); err == nil && t != nil {
+					return store(t)
+				}
+			}
+			if trackName != "" && artistName != "" {
+				if results, err := p.SearchTracks(trackName+" "+artistName, 8); err == nil && len(results) > 0 {
 					if best := provider.BestOriginal(trackName, artistName, results); best != nil {
-						return best
+						return store(best)
 					}
 				}
 			}
 		}
 	}
 
-	allProviders := append([]string{}, streamingProviders...)
-	allProviders = append(allProviders, "spotify", "apple", "musicbrainz")
-	for _, name := range allProviders {
-		if name == providerName {
-			continue
+	// No exact id on the preferred provider: try the ISRC on the OTHER
+	// streaming providers (each may know it natively), skipping cooled ones.
+	if isrc != "" {
+		for _, name := range streamingProviders {
+			if name == providerName {
+				continue
+			}
+			p := reg.Get(name)
+			if p == nil || cooldown.IsCooled(name) {
+				continue
+			}
+			if track, err := p.GetTrackByISRC(isrc); err == nil && track != nil {
+				return store(track)
+			}
 		}
-		p := reg.Get(name)
-		if p == nil || trackName == "" {
-			continue
-		}
-		if results, _ := p.SearchTracks(trackName+" "+artistName, 8); len(results) > 0 {
-			if best := provider.BestOriginal(trackName, artistName, results); best != nil {
-				return best
+	}
+
+	// Last resort — bounded name search across healthy providers, only when no
+	// identifier exists to resolve exactly.
+	if trackName != "" && artistName != "" {
+		for _, name := range streamingProviders {
+			if name == providerName {
+				continue
+			}
+			p := reg.Get(name)
+			if p == nil || cooldown.IsCooled(name) {
+				continue
+			}
+			if results, err := p.SearchTracks(trackName+" "+artistName, 8); err == nil && len(results) > 0 {
+				if best := provider.BestOriginal(trackName, artistName, results); best != nil {
+					return store(best)
+				}
 			}
 		}
 	}

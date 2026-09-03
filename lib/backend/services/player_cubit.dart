@@ -892,6 +892,29 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
 
   /// Resolves a live stream URL for [track] via the Go backend, caching the
   /// result and deduplicating concurrent resolutions.
+  /// Providers whose getDownloadUrl serves FULL-LENGTH audio (mirrors the Go
+  /// backend's fullStreamProviders). A preloaded stream from one of these is a
+  /// complete track, so a tap may reuse it without re-resolving. Providers
+  /// outside this set either expose no direct stream at all (apple/amazon/
+  /// spotify-web resolve through the download pipeline) or could theoretically
+  /// hand back a short preview — for those, the tap still re-resolves with the
+  /// download fallback to guarantee the real track.
+  static const _fullStreamSources = {
+    'ytmusic-spotiflac',
+    'youtube',
+    'soundcloud',
+    'deezer',
+    'ytmusic',
+  };
+
+  /// Whether a preload-resolved URL can be reused by a real tap: it must be an
+  /// http(s) direct stream resolved from a full-stream source provider.
+  bool _canReusePreloadDirectStream(FeedItem track, String url) {
+    final src = (track.source ?? '').toLowerCase();
+    if (!_fullStreamSources.contains(src)) return false;
+    return url.startsWith('http://') || url.startsWith('https://');
+  }
+
   ///
   /// If [track] was already being prefetched (in-flight future), the same
   /// future is awaited so playback serves whatever is already resolved instead
@@ -902,11 +925,19 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
   }) async {
     final key = normalizeTrackId(track.id);
     final cached = _streamUrlCache[key];
-    // A preload may reuse any cached URL. A real tap may only reuse a result
-    // that came from the download pipeline (withFallback); a preload-only
-    // http(s) probe is re-resolved so playback uses the same logic as a
-    // download (file produced, quality-transformed, DRM-decrypted).
-    if (cached != null && (isPreload || cached.$2)) return cached.$1;
+    // A preload may reuse any cached URL. A real tap reuses a cached result
+    // when it came from the download pipeline (file://, withFallback) OR when
+    // the preload resolved a direct http(s) stream from a FULL-STREAM source
+    // (ytmusic/soundcloud/deezer/youtube serve complete tracks — a preview is
+    // never returned, so re-resolving would just re-hit every provider and
+    // re-wait). A stream that already failed to decode forces re-resolution.
+    if (cached != null &&
+        (isPreload ||
+            cached.$2 ||
+            (_canReusePreloadDirectStream(track, cached.$1) &&
+                _brokenUrlByTrack[key] != cached.$1))) {
+      return cached.$1;
+    }
     final inFlight = _streamFutures[key];
     if (inFlight != null) {
       // A preload (no download fallback) is in flight but the user is now

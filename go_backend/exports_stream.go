@@ -159,7 +159,7 @@ func GetStreamPackage(payload string) string {
 		}
 	}
 
-	pkg, err := streaming.GetStreamPackage(reg, lyricsClient, params.PreferredProvider, params.TrackID, params.Quality, fetchL, params.TrackName, params.ArtistName)
+	pkg, err := streaming.GetStreamPackage(reg, lyricsClient, params.PreferredProvider, params.TrackID, params.Quality, fetchL, params.TrackName, params.ArtistName, params.ISRC, params.SpotifyID, params.DeezerID, params.TidalID, params.QobuzID)
 	if err != nil && !params.AllowFallback {
 		// Background preloads (feed/queue prefetch) skip the download fallback
 		// so they don't trigger full audio downloads for every non-streamable
@@ -306,12 +306,12 @@ func streamFallbackDownload(trackID, quality, provider, trackName, artistName, i
 	// A provider handed back an encrypted/DRM file with a key but no CLI ffmpeg
 	// to decrypt it here: keep it and let the client decrypt (ffmpeg-kit).
 	if res.Encrypted && res.ClientDecrypt && res.DecryptionKey != "" {
-return &streamFallbackOutcome{encrypted: &streamEncryptedInfo{
-		FilePath:    res.FilePath,
-		Key:         res.DecryptionKey,
-		OutputExt:   res.OutputExtension,
-		InputFormat: res.InputFormat,
-	}}
+		return &streamFallbackOutcome{encrypted: &streamEncryptedInfo{
+			FilePath:    res.FilePath,
+			Key:         res.DecryptionKey,
+			OutputExt:   res.OutputExtension,
+			InputFormat: res.InputFormat,
+		}}
 	}
 	// A provider that only has an encrypted/DRM stream (and no usable decrypt
 	// path) would leave a file the player cannot decode. Never serve it as a
