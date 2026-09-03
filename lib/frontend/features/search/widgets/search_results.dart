@@ -8,7 +8,6 @@ import '../../../l10n/app_localizations.dart';
 import '../../../shared/models/feed_models.dart';
 import '../../../../backend/services/item_fingerprint.dart';
 import '../../../../backend/services/like_cubit.dart';
-import '../../../../backend/services/player_cubit.dart';
 import '../../../../backend/services/queue_cubit.dart';
 import '../../../../injection.dart';
 import '../../../shared/theme/app_colors.dart';
@@ -67,19 +66,6 @@ class SearchResultsBody extends StatelessWidget {
     required this.onNavigateToItem,
   });
 
-  /// One-shot guard so a result set only pre-warms its streams once.
-  static final Set<String> _precachedKeys = {};
-
-  void _precacheResults(List<FeedItem> results, String? selectedSource) {
-    if (results.isEmpty) return;
-    final key =
-        '${selectedSource ?? '*'}|${results.length}|${results.first.id}';
-    if (!_precachedKeys.add(key)) return;
-    final tracks = results.where((i) => i.type == 'track').toList();
-    if (tracks.isEmpty) return;
-    sl<PlayerCubit>().precacheContext(tracks);
-  }
-
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
@@ -88,9 +74,13 @@ class SearchResultsBody extends StatelessWidget {
     final onBg = isDark ? Colors.white : Colors.black;
     final glowColor = isDark ? AppColors.greenBright : AppColors.greenMedium;
 
-    // Pre-warm streams for the visible results so the first tap plays fast
-    // (same behavior as the home feed).
-    _precacheResults(results, selectedSource);
+    // NOTE: search results deliberately do NOT pre-warm stream resolutions.
+    // The result set changes on every keystroke; firing getStreamPackage for
+    // the visible tracks (up to 12, 8-15s each) would saturate the backend
+    // bridge right as the user types the next query, making search feel slow.
+    // First-tap speed comes from the identifier-first resolution (ISRC /
+    // cross-provider ids resolve in ~1s instead of name-searching every
+    // provider), so a tap stays fast without the pre-warm storm.
 
     if (loading) {
       return FeedSkeleton();

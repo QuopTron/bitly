@@ -156,11 +156,13 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
       );
     }).toList();
 
-    // One-shot pre-warm: pre-resolve streams for the visible tracks so the
-    // first tap plays fast (same behavior as the home feed).
+    // One-shot pre-warm: pre-resolve streams for the first visible tracks so
+    // the first tap plays fast (same behavior as the home feed). Capped: every
+    // resolution is an RPC on the single backend executor, so a large batch
+    // would keep search/playback RPCs queued behind it.
     if (!_precachedTracks && artistTracks.isNotEmpty) {
       _precachedTracks = true;
-      sl<PlayerCubit>().precacheContext(artistTracks);
+      sl<PlayerCubit>().precacheContext(artistTracks, limit: 3);
     }
 
     final subtitle = [

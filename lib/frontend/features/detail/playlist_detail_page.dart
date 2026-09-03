@@ -391,11 +391,13 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
         })
         .toList();
 
-    // One-shot pre-warm: pre-resolve streams for the visible tracks so the
-    // first tap plays fast (same behavior as the home feed).
+    // One-shot pre-warm: pre-resolve streams for the first visible tracks so
+    // the first tap plays fast (same behavior as the home feed). Capped: every
+    // resolution is an RPC on the single backend executor, so a large batch
+    // would keep search/playback RPCs queued behind it.
     if (!_precachedTracks && playlistFeedItems.isNotEmpty) {
       _precachedTracks = true;
-      sl<PlayerCubit>().precacheContext(playlistFeedItems);
+      sl<PlayerCubit>().precacheContext(playlistFeedItems, limit: 3);
     }
 
     final isLikedPlaylist = likedCubit.isLiked(FeedItem(

@@ -1080,12 +1080,19 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
   /// so the first track the user taps plays instantly. Fire-and-forget, capped
   /// to [limit] tracks, honoring the preload profile and skipping any track
   /// already local or already cached/in-flight.
-  void precacheContext(List<FeedItem> tracks, {int limit = 12}) {
+  void precacheContext(List<FeedItem> tracks, {int? limit}) {
     final profile = sl<ValueNotifier<PerformanceProfile>>().value;
     if (!profile.preloadEnabled) return;
+    // Bound by the device profile: a 4GB phone (medium) preloads 2 tracks, a
+    // desktop-class device (high) 4. Screens pass a higher cap only when they
+    // know their content is stable (album/playlist once loaded); unbounded
+    // defaults here would fire 10+ stream resolutions that keep the backend
+    // bridge busy while the user searches.
+    var cap = limit ?? profile.preloadTracks;
+    if (cap < 1) return;
     var added = 0;
     for (final track in tracks) {
-      if (added >= limit) break;
+      if (added >= cap) break;
       if (track.type != 'track') continue;
       if (track.name.trim().isEmpty) continue;
       final key = normalizeTrackId(track.id);

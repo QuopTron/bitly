@@ -142,7 +142,10 @@ class _HomePageState extends State<HomePage>
       }
       if (tracks.isEmpty) return;
       _feedPrecached = true;
-      sl<PlayerCubit>().precacheContext(tracks);
+      // Bound by the device profile: the feed is long but only the first few
+      // tracks are likely to be tapped; pre-firing 10+ stream resolutions
+      // would keep the backend bridge busy while the user searches.
+      sl<PlayerCubit>().precacheContext(tracks, limit: 4);
     });
 
     _downloadSub = _downloadCubit.stream.listen((state) {

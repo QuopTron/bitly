@@ -372,18 +372,13 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
         })
         .toList();
 
-    // One-shot pre-warm: pre-resolve streams for the visible tracks so the
-    // first tap plays fast (same behavior as the home feed).
+    // One-shot pre-warm: pre-resolve streams for the first visible tracks so
+    // the first tap plays fast (same behavior as the home feed). Capped: every
+    // resolution is an RPC that runs on the single backend executor, so a
+    // large batch would keep search/playback RPCs queued behind it.
     if (!_precachedTracks && albumFeedItems.isNotEmpty) {
       _precachedTracks = true;
-      sl<PlayerCubit>().precacheContext(albumFeedItems);
-    }
-
-    // One-shot pre-warm: pre-resolve streams for the visible tracks so the
-    // first tap plays fast (same behavior as the home feed).
-    if (!_precachedTracks && albumFeedItems.isNotEmpty) {
-      _precachedTracks = true;
-      sl<PlayerCubit>().precacheContext(albumFeedItems);
+      sl<PlayerCubit>().precacheContext(albumFeedItems, limit: 3);
     }
 
     final isLikedAlbum = likedCubit.isLiked(FeedItem(
