@@ -3,6 +3,7 @@ export '../cache/player_state.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -1000,17 +1001,32 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
 
     final currentKey = normalizeTrackId(qState.current!.id);
     final toPreload = <FeedItem>{};
-    // Upcoming tracks.
-    for (int i = 1; i <= profile.preloadTracks; i++) {
-      final idx = qState.currentIndex + i;
-      if (idx >= qState.tracks.length) break;
-      toPreload.add(qState.tracks[idx]);
-    }
-    // Previous tracks too.
-    for (int i = 1; i <= profile.preloadTracks; i++) {
-      final idx = qState.currentIndex - i;
-      if (idx < 0) break;
-      toPreload.add(qState.tracks[idx]);
+    final n = profile.preloadTracks;
+
+    if (qState.shuffle && qState.tracks.length > 1) {
+      // Shuffle: next/previous pick RANDOM tracks, so preloading sequential
+      // neighbors is wasted work. Preload a few random candidates instead so
+      // whichever random track actually plays next is likely already resolved.
+      var picked = 0;
+      var guard = 0;
+      while (picked < n && guard < qState.tracks.length * 4) {
+        guard++;
+        final track = qState.tracks[Random().nextInt(qState.tracks.length)];
+        if (normalizeTrackId(track.id) == currentKey) continue;
+        if (toPreload.add(track)) picked++;
+      }
+    } else {
+      // Sequential: preload the upcoming and previous tracks in queue order.
+      for (int i = 1; i <= n; i++) {
+        final idx = qState.currentIndex + i;
+        if (idx >= qState.tracks.length) break;
+        toPreload.add(qState.tracks[idx]);
+      }
+      for (int i = 1; i <= n; i++) {
+        final idx = qState.currentIndex - i;
+        if (idx < 0) break;
+        toPreload.add(qState.tracks[idx]);
+      }
     }
 
     for (final track in toPreload) {

@@ -37,6 +37,11 @@ android {
             // page-aligned/uncompressed). Cuts APK size roughly in half; libs
             // are extracted at install time, which is fine for sideloaded APKs.
             useLegacyPackaging = true
+            // Phone ABIs only. Exclude x86_64 (emulator-only) at packaging time:
+            // this is the one mechanism that reliably drops third-party native
+            // libs (ffmpeg-kit, media_kit/mpv, the Go .aar) for that ABI even
+            // though the Flutter plugin's abiFilters leave them merged.
+            excludes += "lib/x86_64/**"
         }
     }
 
@@ -53,18 +58,6 @@ android {
     }
 }
 
-afterEvaluate {
-    // Build ALL real device ABIs (armeabi-v7a for low/mid-range 32-bit
-    // phones, arm64-v8a for modern phones, x86_64 for emulators) in one
-    // universal APK. Flutter's default is a fat APK, but being explicit
-    // guarantees every release covers all devices.
-    android.buildTypes.forEach { buildType ->
-        buildType.ndk.abiFilters.clear()
-        buildType.ndk.abiFilters.add("armeabi-v7a")
-        buildType.ndk.abiFilters.add("arm64-v8a")
-        buildType.ndk.abiFilters.add("x86_64")
-    }
-}
 
 dependencies {
     implementation(files("libs/bitly.aar"))
