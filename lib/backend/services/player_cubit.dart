@@ -489,9 +489,15 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
         // Skip unrelated queue edits (addNext/addToEnd/shuffle/repeat/reorder)
         // while the same track is still current — reopening it here restarts
         // the song and can race with the real advance. Only reopen when the
-        // current track actually changed or the previous one just completed
-        // (repeat-one re-emits the same index on purpose).
-        if (key == _openedTrackKey && !_forceReopen) return;
+        // current track actually changed, the previous one just completed
+        // (repeat-one re-emits the same index on purpose), or the current
+        // track is in an error state (the user re-tapping a failed track must
+        // retry it, not be silently ignored).
+        if (key == _openedTrackKey &&
+            !_forceReopen &&
+            state.playbackState != PlayerPlaybackState.error) {
+          return;
+        }
         _forceReopen = false;
         unawaited(_openTrack(current));
       } else if (!queueState.hasCurrent) {
@@ -529,6 +535,9 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
       // verification modal NOW so the token is refreshed instead of failing
       // mid-playback (the user must complete it before this song can play).
       if (!await _ensureSignedForSource(track)) {
+        // Reset the identity guard so re-tapping this track after completing
+        // the verification retries instead of being skipped as "unchanged".
+        _openedTrackKey = null;
         final display = VerificationService().sourceDisplayName(
           track.source ?? '',
         );
@@ -556,6 +565,9 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
 
     if (uri == null) {
       _switchPending = false;
+      // The open failed: drop the identity guard so the user can tap the same
+      // track again to retry (otherwise it is silently skipped forever).
+      _openedTrackKey = null;
       final raw = _lastStreamError.trim();
       final rawLower = raw.toLowerCase();
       final needsVerification =
@@ -658,9 +670,12 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
     if (!service.isReady) return true; // can't reach UI — let the backend try
 
     final backend = sl<BackendService>();
-    // Fast path: token is already usable — nothing to do.
+    // Fast path: token is already usable — nothing to do. Bounded so a hung
+    // backend status call can't stall a tap for 10s+ before streaming starts.
     try {
-      final status = await backend.getSignedSessionStatus(source);
+      final status = await backend
+          .getSignedSessionStatus(source)
+          .timeout(const Duration(seconds: 3));
       if (status.authenticated) return true;
     } catch (_) {}
 
@@ -669,12 +684,17 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
     // status snapshot can lag, or this provider id may not map to a sandbox)
     // and the streaming layer will surface a real error if it truly can't
     // play. Blocking here would wrongly show a "not verified" message over a
-    // token the user already refreshed.
+    // token the user already refreshed. Also bounded: a slow challenge probe
+    // must not hold playback hostage for many seconds.
     String url;
     try {
-      url = await backend.getPendingVerificationUrl(source);
+      url = await backend
+          .getPendingVerificationUrl(source)
+          .timeout(const Duration(seconds: 4));
       if (url.isEmpty) {
-        url = await backend.triggerExtensionVerification(source);
+        url = await backend
+            .triggerExtensionVerification(source)
+            .timeout(const Duration(seconds: 4));
       }
     } catch (_) {
       return true; // couldn't even ask — don't block, let streaming decide
