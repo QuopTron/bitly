@@ -10,14 +10,14 @@ import (
 
 // ExtensionProvider wraps a JS extension as a Provider.
 type ExtensionProvider struct {
-	extID           string
-	name            string
-	runtime         *extensions.Runtime
-	hasHomeFeed     bool
+	extID       string
+	name        string
+	runtime     *extensions.Runtime
+	hasHomeFeed bool
 	// qualityOptions mirrors the manifest's qualityOptions list, so the
 	// download/stream fallback can pass a quality token the extension actually
 	// recognizes instead of a source-provider token that doesn't map.
-	qualityOptions  []string
+	qualityOptions []string
 	// downloadCapable is false for metadata-only extensions (e.g. spotify-web)
 	// that expose no download()/getDownloadUrl(), so the fallback can skip them
 	// quickly instead of attempting a doomed download for every track.
@@ -168,6 +168,10 @@ func (p *ExtensionProvider) SearchArtists(query string, limit int) ([]ArtistResu
 
 // CombinedResult is a single typed search hit from an unfiltered combined
 // search. Type mirrors the extension's item_type (track/album/artist/playlist).
+// The optional identity fields (ISRC + cross-provider ids) are captured when
+// the extension's customSearch output carries them so search/feed results keep
+// enough identity for local-download matching and fast CheckAvailability
+// resolution — mirroring how detail views carry them.
 type CombinedResult struct {
 	ID          string
 	Type        string
@@ -180,6 +184,11 @@ type CombinedResult struct {
 	ReleaseDate string
 	TotalTracks int
 	Owner       string
+	ISRC        string
+	SpotifyID   string
+	DeezerID    string
+	TidalID     string
+	QobuzID     string
 }
 
 // CombinedSearch runs the extension's customSearch with no type filter, which
@@ -238,6 +247,11 @@ func (p *ExtensionProvider) combinedFromResult(result interface{}) ([]CombinedRe
 			ReleaseDate: getString(m, "release_date"),
 			TotalTracks: toInt(m["track_count"]),
 			Owner:       getString(m, "owner"),
+			ISRC:        getString(m, "isrc", "isrc_code"),
+			SpotifyID:   getString(m, "spotify_id", "spotifyId"),
+			DeezerID:    getString(m, "deezer_id", "deezerId"),
+			TidalID:     getString(m, "tidal_id", "tidalId"),
+			QobuzID:     getString(m, "qobuz_id", "qobuzId"),
 		})
 	}
 	return out, nil
@@ -343,8 +357,8 @@ func (p *ExtensionProvider) GetHomeFeed() ([]HomeFeedSection, error) {
 	}
 
 	var feedResult struct {
-		Success  bool               `json:"success"`
-		Sections []HomeFeedSection  `json:"sections"`
+		Success  bool              `json:"success"`
+		Sections []HomeFeedSection `json:"sections"`
 	}
 	if err := json.Unmarshal(raw, &feedResult); err != nil {
 		return nil, fmt.Errorf("ext %s: unmarshal getHomeFeed: %w", p.extID, err)

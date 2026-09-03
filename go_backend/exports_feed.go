@@ -16,6 +16,10 @@ import (
 // =========================================================================
 
 // FeedItemGo is the JSON shape Flutter expects from search & feed endpoints.
+// Cross-provider ids are carried when the source item exposes them (search
+// customSearch output, detail tracks) so playback resolves via
+// CheckAvailability instead of a slow name search and the UI can match local
+// downloads across providers.
 type FeedItemGo struct {
 	ID          string `json:"id"`
 	Type        string `json:"type"`
@@ -30,6 +34,10 @@ type FeedItemGo struct {
 	TotalTracks int    `json:"total_tracks,omitempty"`
 	Owner       string `json:"owner,omitempty"`
 	ISRC        string `json:"isrc,omitempty"`
+	SpotifyID   string `json:"spotify_id,omitempty"`
+	DeezerID    string `json:"deezer_id,omitempty"`
+	TidalID     string `json:"tidal_id,omitempty"`
+	QobuzID     string `json:"qobuz_id,omitempty"`
 }
 
 // FeedSectionGo is the JSON shape Flutter expects for feed section groups.
@@ -115,6 +123,11 @@ func combinedToFeedItem(c provider.CombinedResult, source string) FeedItemGo {
 		ReleaseDate: c.ReleaseDate,
 		TotalTracks: c.TotalTracks,
 		Owner:       c.Owner,
+		ISRC:        c.ISRC,
+		SpotifyID:   c.SpotifyID,
+		DeezerID:    c.DeezerID,
+		TidalID:     c.TidalID,
+		QobuzID:     c.QobuzID,
 	}
 }
 
