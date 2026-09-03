@@ -3,6 +3,7 @@ package provider
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/zarz/bitly/go_backend/internal/cooldown"
 	"github.com/zarz/bitly/go_backend/internal/extensions"
@@ -117,7 +118,11 @@ func (p *ExtensionProvider) callOp(op, method string, args ...interface{}) (inte
 }
 
 // SearchTracks calls the extension's searchTracks(query, limit) JS function.
-// Falls back to customSearch with filter "song" if searchTracks is not available.
+// Falls back to customSearch with filter "song" ONLY when the extension doesn't
+// export searchTracks at all (missing-method). When searchTracks exists but its
+// call failed (transport/auth error), the failure is surfaced instead of
+// re-running a second full query that will fail the same way — a broken source
+// should cost one attempt, not three.
 func (p *ExtensionProvider) SearchTracks(query string, limit int) ([]TrackResult, error) {
 	result, err := p.callOp("search", "searchTracks", query, limit)
 	if err == nil {
@@ -127,11 +132,15 @@ func (p *ExtensionProvider) SearchTracks(query string, limit int) ([]TrackResult
 		return nil, nil
 	}
 
-	// Fallback: try customSearch with filter "song"
+	// Only a missing searchTracks method justifies the customSearch fallback;
+	// any other error means the extension is unhealthy — don't re-hit it.
+	if !strings.Contains(err.Error(), "method searchTracks not found") {
+		return nil, err
+	}
 	opts := map[string]interface{}{"limit": limit, "filter": "song"}
 	result, err = p.callOp("search", "customSearch", query, opts)
 	if err != nil || result == nil {
-		return nil, nil
+		return nil, err
 	}
 	return convertToTrackResults(result, p.name)
 }
@@ -197,10 +206,17 @@ type CombinedResult struct {
 // can group them afterwards. Providers whose filtered per-type search returns
 // empty (e.g. Spotify web search only populates the combined "all" view) rely
 // on this to surface artists/albums/playlists at all.
+//
+// Unlike the per-type helpers, a transport failure (callOp error) is propagated
+// so callers can distinguish "the source is down" from "no results" and avoid
+// re-running doomed queries.
 func (p *ExtensionProvider) CombinedSearch(query string, limit int) ([]CombinedResult, error) {
 	opts := map[string]interface{}{"limit": limit}
 	result, err := p.callOp("search", "customSearch", query, opts)
-	if err != nil || result == nil {
+	if err != nil {
+		return nil, err
+	}
+	if result == nil {
 		return nil, nil
 	}
 	return p.combinedFromResult(result)
@@ -210,10 +226,18 @@ func (p *ExtensionProvider) CombinedSearch(query string, limit int) ([]CombinedR
 // extension's own manifest filter id (e.g. "tracks", "songs", "albums"). This is
 // how SpotiFLAC re-queries a category when the user taps its bubble, returning
 // many more results than the capped "all" mix (50 tracks / 20 albums, etc.).
+//
+// A transport failure is propagated (not collapsed into "empty"): an unhealthy
+// source (auth/session/rate-limit failure mid-search) must fail fast instead of
+// making the caller fall through to more full queries that will fail the same
+// way.
 func (p *ExtensionProvider) SearchFiltered(filter string, query string, limit int) ([]CombinedResult, error) {
 	opts := map[string]interface{}{"limit": limit, "filter": filter}
 	result, err := p.callOp("search", "customSearch", query, opts)
-	if err != nil || result == nil {
+	if err != nil {
+		return nil, err
+	}
+	if result == nil {
 		return nil, nil
 	}
 	return p.combinedFromResult(result)

@@ -19,9 +19,9 @@ const searchGlobalTimeout = 6 * time.Second
 // Flutter polls GetSearchStreamResults() to receive results incrementally
 // as each provider completes, instead of waiting for the full 9s timeout.
 type searchStreamState struct {
-	mu        sync.Mutex
-	items     []FeedItemGo
-	done      bool
+	mu         sync.Mutex
+	items      []FeedItemGo
+	done       bool
 	generation int64
 }
 
@@ -255,14 +255,22 @@ func searchProviderItems(p provider.Provider, query string, limit int, searchTyp
 	case "all", "":
 		// Combined search (unfiltered)
 		if ep, ok := p.(*provider.ExtensionProvider); ok {
-			if res, err := ep.CombinedSearch(query, limit); err == nil && len(res) > 0 {
-				for _, c := range res {
-					items = append(items, combinedToFeedItem(c, ep.Name()))
-				}
+			res, err := ep.CombinedSearch(query, limit)
+			if err != nil {
+				// Transport/session failure: the source is unhealthy right now.
+				// Return fast — a fallback query would fail the same way and
+				// only add seconds of dead wait for the user.
+				return items
+			}
+			for _, c := range res {
+				items = append(items, combinedToFeedItem(c, ep.Name()))
+			}
+			if len(items) > 0 {
 				return items
 			}
 		}
-		// Fallback: track search only
+		// Fallback: track search only (only reached when the extension search
+		// genuinely succeeded with zero results, or for native providers).
 		tracks, err := p.SearchTracks(query, limit)
 		if err == nil {
 			for _, t := range tracks {
@@ -271,9 +279,17 @@ func searchProviderItems(p provider.Provider, query string, limit int, searchTyp
 		}
 	case "track", "tracks", "song", "songs":
 		if ep, ok := p.(*provider.ExtensionProvider); ok {
-			if res, err := ep.SearchFiltered(searchType, query, limit); err == nil && len(res) > 0 {
+			res, err := ep.SearchFiltered(searchType, query, limit)
+			if err != nil {
+				// Source is down (auth/session/rate-limit): don't burn a second
+				// full query on top of the failed one.
+				return items
+			}
+			if len(res) > 0 {
 				return combinedToFeedItems(res, ep.Name())
 			}
+			// Genuine empty for this filter: fall through to SearchTracks once
+			// (some providers only populate the unfiltered search).
 		}
 		tracks, err := p.SearchTracks(query, limit)
 		if err == nil {

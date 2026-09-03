@@ -431,6 +431,13 @@ function generateDeviceID() {
   return result;
 }
 
+// When the anonymous token/session fetch fails (Spotify blocking or
+// rate-limiting this device/IP) it throws. Remember that so repeated calls
+// fail fast instead of re-hitting the token endpoints on every keystroke
+// (~1-2s each) while the block is active.
+let lastInitFailAt = 0;
+let lastInitFailMsg = "";
+
 function ensureInitialized() {
   const accessTokenUsable = tokenIsUsable(
     clientState.accessToken,
@@ -448,16 +455,34 @@ function ensureInitialized() {
 
   clientState.initialized = false;
 
-  if (!clientState.deviceID || !clientState.clientVersion) {
-    getSessionInfo();
-  }
-  if (!accessTokenUsable) {
-    getAccessToken();
-  }
-  if (!clientTokenUsable) {
-    getClientToken();
+  // Fail fast: a session fetch that failed seconds ago will fail again — skip
+  // the doomed HTTP attempts so searches return instantly instead of stalling
+  // ~2s per keystroke. Recovery is automatic once the window (30s) passes.
+  if (lastInitFailAt && Date.now() - lastInitFailAt < 30000) {
+    throw new Error(
+      "Spotify session fetch recently failed: " +
+        (lastInitFailMsg || "unknown"),
+    );
   }
 
+  try {
+    if (!clientState.deviceID || !clientState.clientVersion) {
+      getSessionInfo();
+    }
+    if (!accessTokenUsable) {
+      getAccessToken();
+    }
+    if (!clientTokenUsable) {
+      getClientToken();
+    }
+  } catch (e) {
+    lastInitFailAt = Date.now();
+    lastInitFailMsg = e.message || String(e);
+    throw e;
+  }
+
+  lastInitFailAt = 0;
+  lastInitFailMsg = "";
   clientState.initialized = true;
   persistClientState();
 }
@@ -2233,8 +2258,6 @@ function customSearch(searchQuery, options) {
     isFiltered,
   );
 
-  ensureInitialized();
-
   const searchPayload = {
     variables: {
       searchTerm: searchQuery,
@@ -2257,6 +2280,11 @@ function customSearch(searchQuery, options) {
   };
 
   try {
+    // Session/token bootstrap lives INSIDE the try: when the anonymous token
+    // fetch fails (IP blocked / rate-limited) it throws, and an uncaught throw
+    // here would silently kill the whole search (0 results, no error, ~2s
+    // wasted). Inside the try the catch below logs and returns [] instead.
+    ensureInitialized();
     const response = query(searchPayload);
     const searchData = getNestedValue(response, "data.searchV2") || {};
 
