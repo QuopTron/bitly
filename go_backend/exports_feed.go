@@ -453,8 +453,10 @@ func searchAllSource(query string, limit int, searchType string) string {
 func searchProvider(p provider.Provider, query string, limit int, searchType string) string {
 	items := make([]FeedItemGo, 0)
 
-	// Circuit breaker: a provider cooling down from rate-limits returns fast.
-	if cooldown.IsCooled(p.Name()) {
+	// Circuit breaker: skip only if this provider is cooled *for search*. A
+	// provider-wide cooldown (tripped by streaming/download rate-limits) must
+	// not empty a single-source search — search has its own op bucket.
+	if cooldown.IsCooledOp(p.Name(), "search") {
 		return `[]`
 	}
 
@@ -528,8 +530,9 @@ func combinedToJSON(res []provider.CombinedResult, source string) string {
 // back to a plain track search so the source still returns something.
 func searchProviderAll(p provider.Provider, query string, limit int) string {
 	items := make([]FeedItemGo, 0)
-	// Circuit breaker: a provider cooling down from rate-limits returns fast.
-	if cooldown.IsCooled(p.Name()) {
+	// Circuit breaker: skip only if cooled *for search* (not provider-wide,
+	// which streaming/download errors trip and would empty this search).
+	if cooldown.IsCooledOp(p.Name(), "search") {
 		return `[]`
 	}
 	if ep, ok := p.(*provider.ExtensionProvider); ok {

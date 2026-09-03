@@ -39,7 +39,10 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
 
   final Map<String, _CachedSearch> _resultCache = {};
   static const _searchTtl = Duration(minutes: 5);
-  static const _emptyTtl = Duration(seconds: 20);
+  // Empty results are cached briefly so a genuine "no results" isn't re-run
+  // on every keystroke — but short enough that a false empty (provider still
+  // cooling / first attempt raced) doesn't poison retries for long.
+  static const _emptyTtl = Duration(seconds: 6);
   static const _maxCacheEntries = 40;
 
   int _streamGeneration = 0;
@@ -116,7 +119,8 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
         }
 
         var lastEmittedCount = 0;
-        const maxPolls = 100;
+        var lastItems = <FeedItem>[];
+        const maxPolls = 150;
         for (var i = 0; i < maxPolls; i++) {
           await Future<void>.delayed(const Duration(milliseconds: 100));
           if (isClosed) return;
@@ -127,6 +131,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
 
             if (poll.items.length > lastEmittedCount) {
               lastEmittedCount = poll.items.length;
+              lastItems = poll.items;
               // Hide the spinner as soon as the FIRST batch of results
               // arrives — don't wait for all providers to finish. This makes
               // search feel instant (like SpotiFLAC) while remaining providers
@@ -147,12 +152,16 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
           }
         }
 
-        // Polling exhausted — emit whatever we have so far.
-        if (lastEmittedCount > 0) {
-          await _cacheAndFinalize(event.query, event.source, event.type, event.limit, state.results, emit);
-        } else {
-          await _finishSearch(event.query, event.source, event.type, event.limit, emit);
-        }
+        // Poll window ended before the backend reported done (slow provider).
+        // Show whatever arrived. A timeout is NOT a real "no results" answer:
+        // don't burn a second full search on top of the wait, and don't cache
+        // the partial as final (which would make the next attempt return
+        // instantly with nothing).
+        emit(state.copyWith(
+          results: lastItems,
+          loading: false,
+          hasSearched: true,
+        ));
       } catch (e) {
         emit(state.copyWith(
           loading: false,

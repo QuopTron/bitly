@@ -242,7 +242,12 @@ func equalFold(a, b string) bool {
 func searchProviderItems(p provider.Provider, query string, limit int, searchType string) []FeedItemGo {
 	items := make([]FeedItemGo, 0)
 
-	if cooldown.IsCooled(p.Name()) {
+	// Only skip providers cooled *for search*. Streaming/download rate-limits
+	// cool the provider-wide bucket; gating search on that here would make a
+	// "Todas"/single-source search come back empty right after a heavy playback
+	// session (until the cooldown expires) even though the source's search
+	// endpoints are perfectly reachable.
+	if cooldown.IsCooledOp(p.Name(), "search") {
 		return items
 	}
 
@@ -462,9 +467,11 @@ func searchAllWithTimeout[T any](query string, limit int,
 					// Don't crash the app if a provider panics
 				}
 			}()
-			// Circuit breaker: a provider cooling down from rate-limits is
-			// skipped fast instead of re-hitting its API for every keystroke.
-			if cooldown.IsCooled(prov.Name()) {
+			// Circuit breaker: skip only providers cooled for search (not
+			// provider-wide, which streaming/download errors trip). Search has its
+			// own "search" op bucket so a playback rate-limit never empties the
+			// next search.
+			if cooldown.IsCooledOp(prov.Name(), "search") {
 				return
 			}
 			res, err := fn(prov, query, limit)
