@@ -25,7 +25,10 @@ func TestIsPlainAudioFile(t *testing.T) {
 		{"id3 magic", write("a.mp3", []byte("ID3\x04\x00\x00\x00")), true},
 		{"ogg magic", write("a.ogg", []byte("OggS\x00\x02")), true},
 		{"riff magic", write("a.wav", []byte("RIFF\x24\x00\x00\x00")), true},
-		{"mp4 ftyp is NOT plain", write("a.mp4", []byte("\x00\x00\x00\x18ftypmp42")), false},
+		// MP4/M4A (Apple Music .m4a, etc.) is a plain playable container: the
+// ftyp box lives at offset 4 ([size:4][ftyp:4]) and the file must be served
+// directly, not fed to the mov-key decryptor.
+{"mp4 ftyp is plain (M4A/Apple Music)", write("a.mp4", []byte("\x00\x00\x00\x18ftypmp42")), true},
 		{"empty file", write("empty", nil), false},
 		{"missing file", filepath.Join(dir, "nope.flac"), false},
 	}
