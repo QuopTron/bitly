@@ -128,7 +128,13 @@ jobs:
         run: flutter pub get
 
       - name: Build Windows release
-        run: flutter build windows --release
+        run: |
+          set -o pipefail
+          if ! flutter build windows --release 2>&1 | tee /tmp/windows.log; then
+            echo "::error::=== flutter build windows FAILED (errores del log) ==="
+            grep -iE "error|failed|exception|CMake Error" /tmp/windows.log | tail -40 | while IFS= read -r line; do echo "::error::$line"; done
+            exit 1
+          fi
 
       - name: Upload artifact (Windows)
         uses: actions/upload-artifact@v4
