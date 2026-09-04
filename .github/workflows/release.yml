@@ -77,10 +77,17 @@ jobs:
           gomobile init
 
       # El AAR está gitignored; Flutter lo enlaza desde android/app/libs.
+      # El tee + ::error:: publica el log real como annotation del check-run
+      # para poder diagnosticar fallos desde la API sin auth.
       - name: Build Go backend AAR (Android)
         run: |
+          set -o pipefail
           cd go_backend
-          gomobile bind -target=android -androidapi=24 -o "../android/app/libs/bitly.aar" .
+          if ! gomobile bind -target=android -androidapi=24 -o "../android/app/libs/bitly.aar" . 2>&1 | tee /tmp/gomobile.log; then
+            echo "::error::=== gomobile bind FAILED (tail del log) ==="
+            tail -40 /tmp/gomobile.log | while IFS= read -r line; do echo "::error::$line"; done
+            exit 1
+          fi
         env:
           ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk_path }}
           ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
