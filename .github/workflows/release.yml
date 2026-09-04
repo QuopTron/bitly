@@ -1,0 +1,123 @@
+# Release — Genera el APK y lo publica como GitHub Release
+#
+# Reemplaza al Play Store: cada vez que se crea un tag vX.Y.Z (o se ejecuta
+# manualmente con workflow_dispatch), este workflow:
+#   1. Compila el backend Go como AAR (gomobile) y el APK release universal
+#      (todos los celulares, sin x86_64).
+#   2. Opcionalmente (input `include_emulator`) también genera el APK con
+#      x86_64 para emuladores de PC.
+#   3. Crea una GitHub Release con las notas generadas automáticamente desde
+#      los commits/PRs desde el último tag, y adjunta los APKs con nombres
+#      descriptivos.
+#
+# La firma usa el keystore de debug (como el build local), así que el APK
+# instala encima de versiones anteriores sin perder datos — no se necesitan
+# secretos de firma.
+
+name: Release APK
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      include_emulator:
+        description: "Incluir también el APK con x86_64 (para emuladores de PC)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write # necesario para crear el Release y subir los assets
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release-android:
+    name: Build & Release APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # necesario para generar las release notes desde el último tag
+
+      - name: Read version from pubspec
+        id: version
+        run: |
+          VERSION=$(grep -E '^version:' pubspec.yaml | sed 's/version: *//')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Usando versión: $VERSION"
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go_backend/go.mod
+          cache-dependency-path: go_backend/go.sum
+
+      # El NDK debe resolverse ANTES de `gomobile init` (necesita ANDROID_NDK_HOME).
+      - name: Resolve Android NDK
+        id: ndk
+        run: |
+          NDK_ROOT="${ANDROID_SDK_ROOT:-$ANDROID_HOME}/ndk"
+          NDK_PATH=$(ls -d "$NDK_ROOT"/*/ 2>/dev/null | head -1 | sed 's:/$::')
+          if [ -z "$NDK_PATH" ]; then
+            echo "::error::Android NDK no encontrado en $NDK_ROOT"
+            exit 1
+          fi
+          echo "ndk_path=$NDK_PATH" >> "$GITHUB_OUTPUT"
+          echo "ANDROID_NDK_HOME=$NDK_PATH" >> "$GITHUB_ENV"
+
+      - name: Install gomobile
+        run: |
+          go install golang.org/x/mobile/cmd/gomobile@latest
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          gomobile init
+
+      # El AAR está gitignored; Flutter lo enlaza desde android/app/libs.
+      - name: Build Go backend AAR (Android)
+        run: |
+          cd go_backend
+          gomobile bind -target=android -androidapi=24 -o "../android/app/libs/bitly.aar" .
+        env:
+          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk_path }}
+          ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Build release APK (todos los celulares)
+        run: flutter build apk --release
+
+      - name: Rename universal APK
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          mkdir -p dist
+          cp build/app/outputs/flutter-apk/app-release.apk "dist/Bitly_v${VERSION}_TODOS-los-celulares.apk"
+
+      - name: Build emulator APK (x86_64)
+        if: github.event_name == 'workflow_dispatch' && inputs.include_emulator == true
+        run: |
+          INCLUDE_X86_64=true flutter build apk --release
+          VERSION="${{ steps.version.outputs.version }}"
+          cp build/app/outputs/flutter-apk/app-release.apk "dist/Bitly_v${VERSION}_Emulador-PC-(con-x86_64).apk"
+
+      - name: List artifacts
+        run: ls -lh dist/
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Bitly ${{ steps.version.outputs.version }}"
+          tag_name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: dist/*
+          fail_on_unmatched_files: true
