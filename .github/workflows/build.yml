@@ -125,16 +125,27 @@ jobs:
           cache-dependency-path: go_backend/go.sum
 
       # El NDK debe resolverse ANTES de `gomobile init` (necesita ANDROID_NDK_HOME).
-      - name: Resolve Android NDK
+      # IMPORTANTE: se exportan ANDROID_SDK_ROOT/ANDROID_HOME/ANDROID_NDK_HOME a
+      # GITHUB_ENV. Las variables predefinidas del runner NO están en el contexto
+      # `env` de Actions (por eso `${{ env.ANDROID_SDK_ROOT }}` llegaba vacío y
+      # gomobile buscaba el SDK en su default /home/runner/Android/Sdk).
+      - name: Resolve Android SDK/NDK
         id: ndk
         run: |
-          NDK_ROOT="${ANDROID_SDK_ROOT:-$ANDROID_HOME}/ndk"
-          NDK_PATH=$(ls -d "$NDK_ROOT"/*/ 2>/dev/null | head -1 | sed 's:/$::')
-          if [ -z "$NDK_PATH" ]; then
-            echo "::error::Android NDK no encontrado en $NDK_ROOT"
+          SDK_ROOT="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          if [ -z "$SDK_ROOT" ] || [ ! -d "$SDK_ROOT" ]; then
+            echo "::error::Android SDK no encontrado (ANDROID_SDK_ROOT/ANDROID_HOME vacíos)"
             exit 1
           fi
+          NDK_PATH=$(ls -d "$SDK_ROOT/ndk"/*/ 2>/dev/null | head -1 | sed 's:/$::')
+          if [ -z "$NDK_PATH" ]; then
+            echo "::error::Android NDK no encontrado en $SDK_ROOT/ndk"
+            exit 1
+          fi
+          echo "sdk_root=$SDK_ROOT" >> "$GITHUB_OUTPUT"
           echo "ndk_path=$NDK_PATH" >> "$GITHUB_OUTPUT"
+          echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
           echo "ANDROID_NDK_HOME=$NDK_PATH" >> "$GITHUB_ENV"
 
       - name: Install gomobile
@@ -148,9 +159,12 @@ jobs:
         run: |
           cd go_backend
           gomobile bind -target=android -androidapi=24 -o "../android/app/libs/bitly.aar" .
+        # ANDROID_* ya están en GITHUB_ENV desde el paso Resolve Android SDK/NDK.
+        # (El contexto `env` de Actions no expone las predefinidas del runner.)
         env:
+          ANDROID_SDK_ROOT: ${{ steps.ndk.outputs.sdk_root }}
+          ANDROID_HOME: ${{ steps.ndk.outputs.sdk_root }}
           ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk_path }}
-          ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
