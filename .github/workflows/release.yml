@@ -116,7 +116,13 @@ jobs:
         run: flutter pub get
 
       - name: Build release APK (todos los celulares)
-        run: flutter build apk --release
+        run: |
+          set -o pipefail
+          if ! flutter build apk --release 2>&1 | tee /tmp/flutter_build.log; then
+            echo "::error::=== flutter build apk FAILED (tail del log) ==="
+            tail -50 /tmp/flutter_build.log | while IFS= read -r line; do echo "::error::$line"; done
+            exit 1
+          fi
 
       - name: Rename universal APK
         run: |
