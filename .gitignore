@@ -65,7 +65,9 @@ error_log.txt
 
 # Build artifacts
 *.zip
-extensions/
+# Solo el dir raíz (copias de extensiones empaquetadas). Anclado con /
+# para NO ignorar go_backend/internal/extensions/ (código Go fuente).
+/extensions/
 flutter_*.png
 assets/extensions_bundle.zip
 
@@ -82,7 +84,9 @@ scripts/
 /*.jar
 /bitly-backend-windows.exe
 *.exe~
-bin/
+# Solo el dir raíz. Anclado con / para NO ignorar go_backend/internal/bin/
+# (código Go fuente del gestor de binarios).
+/bin/
 signed_sessions/
 null
 
