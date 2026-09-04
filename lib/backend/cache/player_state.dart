@@ -8,6 +8,10 @@ class AudioPlayerState extends Equatable {
   double get progress =>
       duration.inMilliseconds > 0 ? position.inMilliseconds / duration.inMilliseconds : 0.0;
   final double volume;
+
+  /// Playback speed multiplier (0.5x–2.0x). Persisted in state so the UI can
+  /// show/cycle it and it is re-applied every time a new track is opened.
+  final double rate;
   final PlayerPlaybackState playbackState;
 
   /// Human-readable reason playback is stalled/failed, surfaceable in the UI
@@ -20,6 +24,7 @@ class AudioPlayerState extends Equatable {
     this.position = Duration.zero,
     this.duration = Duration.zero,
     this.volume = 1.0,
+    this.rate = 1.0,
     this.playbackState = PlayerPlaybackState.paused,
     this.errorMessage,
   });
@@ -28,6 +33,7 @@ class AudioPlayerState extends Equatable {
     Duration? position,
     Duration? duration,
     double? volume,
+    double? rate,
     PlayerPlaybackState? playbackState,
     String? errorMessage,
   }) =>
@@ -35,10 +41,11 @@ class AudioPlayerState extends Equatable {
         position: position ?? this.position,
         duration: duration ?? this.duration,
         volume: volume ?? this.volume,
+        rate: rate ?? this.rate,
         playbackState: playbackState ?? this.playbackState,
         errorMessage: errorMessage ?? this.errorMessage,
       );
 
   @override
-  List<Object?> get props => [position, duration, volume, playbackState, errorMessage];
+  List<Object?> get props => [position, duration, volume, rate, playbackState, errorMessage];
 }

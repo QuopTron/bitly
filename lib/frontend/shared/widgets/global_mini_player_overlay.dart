@@ -30,6 +30,18 @@ class GlobalMiniPlayerOverlay extends StatelessWidget {
     if (isModalShowing) return true;
     const hiddenRoutes = {'home', 'now_playing', 'splash', 'setup'};
     final name = route ?? '';
+    // Full-screen player guard: some pushes report a null/nullable name, so
+    // also check the real router location. The mini player must NEVER float
+    // over the expanded NowPlaying page.
+    String currentPath = '';
+    try {
+      currentPath = router.routerDelegate.currentConfiguration.uri.path;
+    } catch (_) {}
+    if (name == 'now_playing' ||
+        currentPath == '/now_playing' ||
+        currentPath.endsWith('/now_playing')) {
+      return true;
+    }
     // Detail pages pushed with Navigator.push() report a null name; those are
     // exactly the screens that need the floating mini player.
     return hiddenRoutes.contains(name);

@@ -8,19 +8,19 @@ import '../frontend/features/home/home_page.dart';
 import '../frontend/features/player/now_playing_page.dart';
 import '../frontend/features/tutorial/tutorial_page.dart';
 
-/// Slide-up + fade transition for go_router pages.
-CustomTransitionPage<void> _slideUp(Widget child) => CustomTransitionPage(
-  child: child,
-  transitionDuration: const Duration(milliseconds: 350),
-  reverseTransitionDuration: const Duration(milliseconds: 300),
-  transitionsBuilder: (_, animation, a, child) {
-    final curved = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
-    return SlideTransition(
-      position: Tween<Offset>(begin: const Offset(0, 0.12), end: Offset.zero).animate(curved),
-      child: FadeTransition(opacity: curved, child: child),
-    );
-  },
-);
+/// Slide-up + fade transition used by [CustomTransitionPage] below.
+Widget _slideUpTransitions(
+  BuildContext context,
+  Animation<double> animation,
+  Animation<double> secondaryAnimation,
+  Widget child,
+) {
+  final curved = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
+  return SlideTransition(
+    position: Tween<Offset>(begin: const Offset(0, 0.12), end: Offset.zero).animate(curved),
+    child: FadeTransition(opacity: curved, child: child),
+  );
+}
 
 class AppRouter {
   final GlobalKey<NavigatorState>? navigatorKey;
@@ -55,7 +55,14 @@ class AppRouter {
       GoRoute(
         path: RouteNames.nowPlaying.path,
         name: 'now_playing',
-        pageBuilder: (_, _) => _slideUp(const NowPlayingPage()),
+        // `name` makes the route observable by AppNavigatorObserver so the
+        // global MiniPlayer overlay can hide while the full-screen player is up.
+        pageBuilder: (_, _) => CustomTransitionPage<void>(
+          name: 'now_playing',
+          key: const ValueKey('now_playing_page'),
+          child: const NowPlayingPage(),
+          transitionsBuilder: _slideUpTransitions,
+        ),
       ),
       GoRoute(
         path: RouteNames.tutorial.path,

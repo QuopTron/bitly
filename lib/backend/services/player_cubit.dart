@@ -192,6 +192,11 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
 
   /// Preloaded video URL for the current track — resolved when track starts.
   String? preloadedVideoUrl;
+
+  /// Fires with the preloaded background-video URL when a track's video is
+  /// ready to play (used by the full player to auto-start the "canvas" video
+  /// without waiting for a player-state emit).
+  final ValueNotifier<String?> preloadedVideoReady = ValueNotifier<String?>(null);
   bool preloadingLyrics = false;
   bool preloadingVideo = false;
   bool _ready = false;
@@ -626,6 +631,13 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
     try {
       await _player.open(Media(uri));
       await _player.play();
+      // Re-apply the user's playback speed: media_kit resets rate to 1.0 on
+      // every open().
+      if (state.rate != 1.0) {
+        try {
+          await _player.setRate(state.rate);
+        } catch (_) {}
+      }
       // Only a completion that happens with no newer open in flight can be a
       // real end-of-file; anything else belongs to media this open disposed.
       _openedAtGeneration = _openGeneration;
@@ -637,6 +649,7 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
 
     preloadedLyrics = null;
     preloadedVideoUrl = null;
+    preloadedVideoReady.value = null;
     preloadingLyrics = false;
     preloadingVideo = false;
 
@@ -810,11 +823,11 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
     return requested;
   }
 
-  Future<void> _preloadLyrics(FeedItem track) async {
+  Future<String?> _preloadLyrics(FeedItem track) async {
     if (!_lyricsEnabled ||
         track.name.isEmpty ||
         (track.artists ?? '').isEmpty) {
-      return;
+      return null;
     }
     preloadingLyrics = true;
     try {
@@ -838,6 +851,7 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
       preloadedLyrics = null;
     }
     preloadingLyrics = false;
+    return preloadedLyrics;
   }
 
   Future<void> _preloadVideo(FeedItem track) async {
@@ -847,10 +861,25 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
       String? videoUrl = _resolveLocalVideoUrl(track);
       videoUrl ??= await downloadVideoToTemp(track);
       preloadedVideoUrl = videoUrl;
+      preloadedVideoReady.value = videoUrl;
     } catch (_) {
       preloadedVideoUrl = null;
+      preloadedVideoReady.value = null;
     }
     preloadingVideo = false;
+  }
+
+  /// Public entry point for the full player's lyrics toggle: fetches the LRC
+  /// on demand when the background preload already failed or was skipped.
+  /// Returns the fetched lyrics (or null when unavailable / disabled).
+  Future<String?> fetchLyricsOnDemand(FeedItem track) async {
+    if (!_lyricsEnabled || track.name.isEmpty || (track.artists ?? '').isEmpty) {
+      return null;
+    }
+    if (preloadedLyrics != null && preloadedLyrics!.isNotEmpty) {
+      return preloadedLyrics;
+    }
+    return _preloadLyrics(track);
   }
 
   /// Returns the stream cache directory, creating it if needed.
@@ -1605,6 +1634,16 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
     emit(state.copyWith(volume: vol.clamp(0.0, 1.0)));
   }
 
+  void setRate(double rate) {
+    final r = rate.clamp(0.5, 2.0);
+    if (r == 1.0) {
+      _player.setRate(1.0);
+    } else {
+      _player.setRate(r);
+    }
+    emit(state.copyWith(rate: r));
+  }
+
   @override
   Future<void> close() async {
     if (_perfSub != null) {
@@ -1620,6 +1659,7 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
     for (final id in _tempStreamFiles.toList()) {
       await _cleanupTempFile(id);
     }
+    preloadedVideoReady.dispose();
     await _player.dispose();
     return super.close();
   }

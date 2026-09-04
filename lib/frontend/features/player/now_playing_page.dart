@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart' hide RepeatMode;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:media_kit/media_kit.dart';
@@ -15,12 +16,7 @@ import '../../shared/theme/app_colors.dart';
 import '../../../injection.dart';
 import '../../shared/widgets/cover_image.dart';
 import 'queue_modal.dart';
-
-class _LrcLine {
-  final Duration time;
-  final String text;
-  const _LrcLine(this.time, this.text);
-}
+import 'lyrics_sheet.dart';
 
 class NowPlayingPage extends StatefulWidget {
   const NowPlayingPage({super.key});
@@ -29,24 +25,38 @@ class NowPlayingPage extends StatefulWidget {
   State<NowPlayingPage> createState() => _NowPlayingPageState();
 }
 
-class _NowPlayingPageState extends State<NowPlayingPage> {
+class _NowPlayingPageState extends State<NowPlayingPage>
+    with SingleTickerProviderStateMixin {
   bool _showVideo = false;
-  bool _showLyrics = false;
   final Player _videoPlayer = Player();
   VideoController? _videoController;
   StreamSubscription? _queueSub;
-  String? _lyricsText;
   bool _hasVideo = false;
 
-  /// Parsed LRC lines for karaoke sync.
-  final List<_LrcLine> _lrcLines = [];
-  final ScrollController _lyricsScroll = ScrollController();
-  int _currentLyricIndex = -1;
+  /// True while a lyrics fetch triggered from the controls is in flight — the
+  /// lyrics button shows a tiny spinner instead of silently doing nothing.
+  bool _lyricsLoading = false;
+
+  // ── Canvas video state ────────────────────────────────────────
+  /// Id of the track whose video is preloaded and ready to alternate with the
+  /// cover (drives the videocam button on the artwork + controls row).
+  String? _videoTrackId;
+  ValueNotifier<String?>? _videoReadySrc;
+
+  // ── Swipe-down-to-dismiss ─────────────────────────────────────
+  final ValueNotifier<double> _dragOffset = ValueNotifier(0);
+  late final AnimationController _dragAnim;
+  double _dragFrom = 0;
+  double _dragTo = 0;
 
   @override
   void initState() {
     super.initState();
     _videoController = VideoController(_videoPlayer);
+    _dragAnim = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 320),
+    )..addListener(_onDragAnimTick);
     // Reset video/lyrics when track changes
     _queueSub = sl<QueueCubit>().stream.listen((queueState) {
       _hasVideo = false;
@@ -54,37 +64,161 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
         _videoPlayer.stop();
         setState(() => _showVideo = false);
       }
-      _showLyrics = false;
-      _lyricsText = null;
-      _lrcLines.clear();
-      _currentLyricIndex = -1;
+      // A lyrics modal, if open, follows the new current track on its own;
+      // here we only reset our loading flag for the controls-row spinner.
+      _lyricsLoading = false;
+      _videoTrackId = null;
     });
+    // When the background video finishes preloading, we only flip the
+    // videocam button visible on the cover — the user alternates manually.
+    _videoReadySrc = sl<PlayerCubit>().preloadedVideoReady
+      ..addListener(_onVideoReadyChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _onVideoReadyChanged());
   }
 
   @override
   void dispose() {
+    _videoReadySrc?.removeListener(_onVideoReadyChanged);
     _queueSub?.cancel();
     _videoPlayer.dispose();
-    _lyricsScroll.dispose();
+    _dragAnim.dispose();
+    _dragOffset.dispose();
     super.dispose();
   }
 
-  List<_LrcLine> _parseLrc(String lrc) {
-    final lines = lrc.split('\n');
-    final result = <_LrcLine>[];
-    final timeRegex = RegExp(r'\[(\d{2}):(\d{2})\.(\d{2,3})\]');
-    for (final raw in lines) {
-      final trimmed = raw.trim();
-      final match = timeRegex.firstMatch(trimmed);
-      if (match == null) continue;
-      final minutes = int.parse(match.group(1)!);
-      final seconds = int.parse(match.group(2)!);
-      final millis = int.parse(match.group(3)!.padRight(3, '0'));
-      final time = Duration(minutes: minutes, seconds: seconds, milliseconds: millis);
-      final text = trimmed.replaceAll(timeRegex, '').trim();
-      if (text.isNotEmpty) result.add(_LrcLine(time, text));
+  // ── Swipe-down dismiss helpers ────────────────────────────────
+
+  void _onDragAnimTick() {
+    final t = Curves.easeOutCubic.transform(_dragAnim.value);
+    _dragOffset.value = _dragFrom + (_dragTo - _dragFrom) * t;
+  }
+
+  double _dragOpacity(double dy, double height) {
+    final o = 1.0 - dy / (height * 0.62);
+    if (o < 0) return 0;
+    if (o > 1) return 1;
+    return o;
+  }
+
+  void _onDragUpdate(DragUpdateDetails d) {
+    if (_dragAnim.isAnimating) return;
+    final height = MediaQuery.sizeOf(context).height;
+    final next = _dragOffset.value + d.delta.dy;
+    _dragOffset.value = next < 0 ? 0 : (next > height * 0.92 ? height * 0.92 : next);
+  }
+
+  void _onDragEnd(DragEndDetails d) {
+    if (_dragAnim.isAnimating) return;
+    final height = MediaQuery.sizeOf(context).height;
+    final velocity = d.primaryVelocity ?? 0;
+    final shouldClose = _dragOffset.value > height * 0.08 || velocity > 700;
+    _dragFrom = _dragOffset.value;
+    _dragTo = shouldClose ? height * 0.95 : 0.0;
+    _dragAnim.forward(from: 0).whenComplete(() {
+      if (!mounted) return;
+      if (shouldClose) {
+        Navigator.of(context).pop();
+      } else {
+        _dragOffset.value = 0;
+      }
+    });
+  }
+
+  // ── Canvas video helpers ──────────────────────────────────────
+
+  /// Called when the current track's video finishes preloading (or on first
+  /// frame, if it was already ready). Only reflects readiness in the UI — the
+  /// cover stays the default and the videocam button appears to alternate.
+  void _onVideoReadyChanged() {
+    if (!mounted) return;
+    final cubit = sl<PlayerCubit>();
+    final queue = sl<QueueCubit>().state;
+    if (!queue.hasCurrent) return;
+    final track = queue.current!;
+    if (_videoTrackId != track.id) {
+      _videoTrackId = track.id;
+      _hasVideo = false;
+      _showVideo = false;
     }
-    return result;
+    final url = cubit.preloadedVideoReady.value;
+    final ready = url != null && url.isNotEmpty;
+    if (ready != _hasVideo) {
+      setState(() => _hasVideo = ready);
+    }
+  }
+
+  // ── Lyrics / karaoke helpers ──────────────────────────────────
+
+  /// Opens the karaoke modal. Uses the preloaded LRC when available;
+  /// otherwise fetches on demand (spinner state lives in [context] itself).
+  /// Returns true when a modal was opened (or is being fetched to open).
+  void _toggleLyrics(BuildContext ctx) {
+    final cubit = sl<PlayerCubit>();
+    final queue = sl<QueueCubit>().state;
+    if (!queue.hasCurrent) return;
+    final track = queue.current!;
+
+    void openSheet(String text) {
+      if (!ctx.mounted) return;
+      showLyricsSheet(ctx, track: track, lyrics: text);
+    }
+
+    final preloaded = cubit.preloadedLyrics;
+    if (preloaded != null && preloaded.isNotEmpty) {
+      openSheet(preloaded);
+      return;
+    }
+    // Nothing preloaded — rescue the LRC on demand.
+    setState(() => _lyricsLoading = true);
+    cubit.fetchLyricsOnDemand(track).then((text) {
+      if (!mounted) return;
+      setState(() => _lyricsLoading = false);
+      if (text != null && text.isNotEmpty) {
+        openSheet(text);
+      } else if (ctx.mounted) {
+        ScaffoldMessenger.of(ctx).showSnackBar(
+          const SnackBar(
+            content: Text('Sin letras para esta canción'),
+            duration: Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    });
+  }
+
+  /// Secondary line under the artist: "Album  •  Source".
+  String? _metaSubtitle(FeedItem track) {
+    final parts = <String>[];
+    if (track.albumName != null && track.albumName!.isNotEmpty) parts.add(track.albumName!);
+    final src = _sourceLabel(track.source);
+    if (src != null) parts.add(src);
+    if (parts.isEmpty) return null;
+    return parts.join('  •  ');
+  }
+
+  String? _sourceLabel(String? source) {
+    if (source == null || source.isEmpty) return null;
+    switch (source) {
+      case 'deezer': return 'Deezer';
+      case 'spotify-web': return 'Spotify';
+      case 'spotify': return 'Spotify';
+      case 'apple-music': return 'Apple Music';
+      case 'ytmusic-spotiflac': return 'YTMusic';
+      case 'qobuz-web': return 'Qobuz';
+      case 'tidal-web': return 'Tidal';
+      case 'soundcloud': return 'SoundCloud';
+      case 'amazon': return 'Amazon Music';
+      case 'pandora': return 'Pandora';
+      case 'musicbrainz': return 'MusicBrainz';
+      case 'youtube': return 'YouTube';
+      default:
+        return source
+            .split(RegExp(r'[-_ ]'))
+            .where((w) => w.isNotEmpty)
+            .map((w) => w[0].toUpperCase() + w.substring(1))
+            .join(' ');
+    }
   }
 
   String? _resolveLocalVideoUrl(FeedItem track, String? downloadPath) {
@@ -122,7 +256,8 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
 
   Future<void> _toggleVideo(FeedItem track, String? downloadPath) async {
     if (!_showVideo) {
-      String? videoUrl = _resolveLocalVideoUrl(track, downloadPath);
+      String? videoUrl = sl<PlayerCubit>().preloadedVideoUrl;
+      videoUrl ??= _resolveLocalVideoUrl(track, downloadPath);
       videoUrl ??= await sl<PlayerCubit>().downloadVideoToTemp(track);
       if (videoUrl == null) return;
       await _videoPlayer.setVolume(0.0);
@@ -132,9 +267,16 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
         setState(() { _showVideo = true; _hasVideo = true; });
       } catch (_) {}
     } else {
-      await _videoPlayer.stop();
-      setState(() => _showVideo = false);
+      _stopVideoForCover();
     }
+  }
+
+  /// Switches back to the static cover (used by the little image pill on the
+  /// video corner): stops the clip. The videocam button stays visible because
+  /// the video is still preloaded for this track.
+  void _stopVideoForCover() {
+    _videoPlayer.stop();
+    setState(() => _showVideo = false);
   }
 
   @override
@@ -159,8 +301,8 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
               backgroundColor: bgColor,
               appBar: AppBar(backgroundColor: Colors.transparent),
               body: const Center(child: Text('No track selected')),
-  );
-  }
+            );
+          }
 
           final track = queue.current!;
 
@@ -168,316 +310,268 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
             builder: (context, player) {
               final resolvedCover = context.read<LikeCubit>().resolveCoverFor(track);
               final glowColor = isDark ? AppColors.greenBright : AppColors.greenMedium;
-              return Scaffold(
-              backgroundColor: Colors.transparent,
-              appBar: AppBar(
-                backgroundColor: Colors.transparent,
-                elevation: 0,
-                leading: IconButton(
-                  icon: Icon(Icons.keyboard_arrow_down_rounded, color: isDark ? Colors.white : Colors.black, size: 30),
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
-                title: Text(
-                  track.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: isDark ? Colors.white : Colors.black,
-                    fontWeight: FontWeight.w600,
-                    fontSize: r.subtitleSize,
+              final active = isDark ? Colors.white : Colors.black;
+              final page = Scaffold(
+                // The page owns its opaque theme background; the blurred album
+                // art is layered inside the body, underneath everything else.
+                backgroundColor: bgColor,
+                extendBodyBehindAppBar: true,
+                appBar: AppBar(
+                  backgroundColor: Colors.transparent,
+                  elevation: 0,
+                  leading: IconButton(
+                    icon: Icon(Icons.keyboard_arrow_down_rounded, color: active, size: 30),
+                    onPressed: () => Navigator.of(context).pop(),
                   ),
-                ),
-                centerTitle: true,
-                actions: [
-                  Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      IconButton(
-                        icon: Icon(Icons.queue_music_rounded, color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.7)),
-                        onPressed: () => showQueueModal(context),
-                      ),
-                      if (queue.tracks.length > 1)
-                        Positioned(
-                          top: 8, right: 8,
-                          child: Container(
-                            padding: const EdgeInsets.all(4),
-                            constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
-                            decoration: BoxDecoration(
-                              color: glowColor,
-                              shape: BoxShape.circle,
-                            ),
-                            child: Text(
-                              '${queue.tracks.length}',
-                              style: TextStyle(color: isDark ? Colors.black : Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                              textAlign: TextAlign.center,
+                  title: Text(
+                    track.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: active,
+                      fontWeight: FontWeight.w600,
+                      fontSize: r.subtitleSize,
+                    ),
+                  ),
+                  centerTitle: true,
+                  actions: [
+                    Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        IconButton(
+                          icon: Icon(
+                            Icons.queue_music_rounded,
+                            color: active.withValues(alpha: 0.7),
+                          ),
+                          onPressed: () => showQueueModal(context),
+                        ),
+                        if (queue.tracks.length > 1)
+                          Positioned(
+                            top: 8,
+                            right: 8,
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                              decoration: BoxDecoration(
+                                color: glowColor,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Text(
+                                '${queue.tracks.length}',
+                                style: TextStyle(
+                                  color: isDark ? Colors.black : Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
                             ),
                           ),
-                        ),
-                    ],
-                  ),
-                  IconButton(
-                    icon: Icon(Icons.share_rounded, color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.7)),
-                    onPressed: () {
-                      final text = track.albumName != null
-                          ? '🎵 ${track.name} — ${track.artists ?? ''}\n💿 ${track.albumName}'
-                          : '🎵 ${track.name} — ${track.artists ?? ''}';
-                      SharePlus.instance.share(ShareParams(text: text));
-                    },
-                  ),
-                ],
-              ),
-              body: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    bgColor,
-                    bgColor,
-                    (isDark ? AppColors.greenBright : AppColors.greenMedium).withValues(alpha: 0.04),
-                    bgColor,
+                      ],
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.share_rounded, color: active.withValues(alpha: 0.7)),
+                      onPressed: () {
+                        final text = track.albumName != null
+                            ? '🎵 ${track.name} — ${track.artists ?? ''}\n💿 ${track.albumName}'
+                            : '🎵 ${track.name} — ${track.artists ?? ''}';
+                        SharePlus.instance.share(ShareParams(text: text));
+                      },
+                    ),
                   ],
-                  stops: const [0.0, 0.3, 0.7, 1.0],
                 ),
-              ),
-              child: SafeArea(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: r.spacingXL),
-                  child: Column(
-                    children: [
-                      const Spacer(flex: 1),
-                      // ── Cover / Video / Lyrics area ──────────────────────
-                      if (_showLyrics && _lrcLines.isNotEmpty)
-                        _karaokeLyrics(r, isDark, player)
-                      else if (_showLyrics && _lyricsText != null)
-                        _plainLyrics(r, isDark)
-                      else
-                        _coverOrVideoArea(context, r, isDark, track, resolvedCover),
-                      // ── Toggle hints ──────────────────────────────────────
-                      if (_showVideo)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: Text(
-                            'Tap cover to show video',
-                            style: TextStyle(
-                              fontSize: r.footerSize - 1,
-                              color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.3),
+                body: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    // Blurred album art filling the whole screen (theme-tinted,
+                    // no brand-green background color).
+                    _AmbientBackdrop(
+                      coverUrl: resolvedCover,
+                      isDark: isDark,
+                      bgColor: bgColor,
+                    ),
+                    SafeArea(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(horizontal: r.spacingXL),
+                        child: Column(
+                          children: [
+                            const Spacer(flex: 1),
+                            // ── Cover / Video area ────────────────────────
+                            // Lyrics now open in their own modal (lyrics_sheet),
+                            // so the square always shows the cover or video.
+                            _coverOrVideoArea(context, r, isDark, track, resolvedCover),
+                            const Spacer(flex: 1),
+                            // ── Track metadata ───────────────────────────
+                            Text(
+                              track.name,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: r.titleSize,
+                                fontWeight: FontWeight.bold,
+                                color: active,
+                              ),
                             ),
-                          ),
-                        ),
-                      if (_showLyrics && _lyricsText != null && !_showLyrics)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: Text(
-                            'Tap cover to show lyrics',
-                            style: TextStyle(
-                              fontSize: r.footerSize - 1,
-                              color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.3),
+                            SizedBox(height: r.spacingXS),
+                            Text(
+                              track.artists ?? '',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: r.subtitleSize,
+                                color: active.withValues(alpha: 0.6),
+                              ),
                             ),
-                          ),
-                        ),
-                      const Spacer(flex: 1),
-                      Text(
-                        track.name,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: r.titleSize,
-                          fontWeight: FontWeight.bold,
-                          color: isDark ? Colors.white : Colors.black,
+                            if (_metaSubtitle(track) != null) ...[
+                              SizedBox(height: r.spacingXS),
+                              Text(
+                                _metaSubtitle(track)!,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: r.footerSize,
+                                  letterSpacing: 0.2,
+                                  color: active.withValues(alpha: 0.4),
+                                ),
+                              ),
+                            ],
+                            const Spacer(flex: 1),
+                            _seekBar(context, r, isDark, player),
+                            SizedBox(height: r.spacingM),
+                            _controls(context, r, isDark, queue),
+                            SizedBox(height: r.spacingL),
+                            // Playback speed selector (was the volume row).
+                            _speedControl(context, r, isDark, player),
+                            SizedBox(height: r.spacingXL),
+                          ],
                         ),
                       ),
-                      SizedBox(height: r.spacingXS),
-                      Text(
-                        track.artists ?? '',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: r.subtitleSize,
-                          color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.6),
-                        ),
-                      ),
-                      const Spacer(flex: 1),
-                      _seekBar(context, r, isDark, player),
-                      SizedBox(height: r.spacingM),
-                      _controls(context, r, isDark, queue),
-                      SizedBox(height: r.spacingL),
-                      _volumeSlider(context, r, player),
-                      SizedBox(height: r.spacingXL),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            );
-          },
-        );
-      },
-    ),
-  );
-  }
-
-  Widget _karaokeLyrics(Responsive r, bool isDark, AudioPlayerState player) {
-    final pos = player.position;
-    int activeIdx = _lrcLines.length - 1;
-    for (int i = _lrcLines.length - 1; i >= 0; i--) {
-      if (pos >= _lrcLines[i].time) { activeIdx = i; break; }
-    }
-    if (activeIdx != _currentLyricIndex && _lyricsScroll.hasClients) {
-      _currentLyricIndex = activeIdx;
-      final offset = (activeIdx - 2).clamp(0, _lrcLines.length - 1) * 40.0;
-      _lyricsScroll.animateTo(offset, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
-    }
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        width: r.width * 0.7,
-        height: r.width * 0.7,
-        decoration: BoxDecoration(
-          color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.05),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
-        child: GestureDetector(
-          onTap: () => setState(() => _showLyrics = false),
-          child: ListView.builder(
-            controller: _lyricsScroll,
-            itemCount: _lrcLines.length,
-            itemExtent: 40,
-            itemBuilder: (context, i) {
-              final isActive = i == activeIdx;
-              return AnimatedDefaultTextStyle(
-                duration: const Duration(milliseconds: 200),
-                style: TextStyle(
-                  fontSize: isActive ? r.footerSize + 2 : r.footerSize,
-                  fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-                  color: isActive
-                      ? (isDark ? AppColors.greenBright : AppColors.greenMedium)
-                      : (isDark ? Colors.white70 : Colors.black54),
-                  height: 1.4,
-                ),
-                child: Text(
-                  _lrcLines[i].text,
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ),
               );
+
+              // Swipe the whole page down to dismiss it.
+              return ValueListenableBuilder<double>(
+                valueListenable: _dragOffset,
+                child: page,
+                builder: (context, dy, child) {
+                  final height = MediaQuery.sizeOf(context).height;
+                  final clamped = dy < 0 ? 0.0 : dy;
+                  return GestureDetector(
+                    behavior: HitTestBehavior.translucent,
+                    onVerticalDragUpdate: _onDragUpdate,
+                    onVerticalDragEnd: _onDragEnd,
+                    child: Opacity(
+                      opacity: _dragOpacity(clamped, height),
+                      child: Transform.translate(
+                        offset: Offset(0, clamped),
+                        child: child,
+                      ),
+                    ),
+                  );
+                },
+              );
             },
-          ),
-        ),
+          );
+        },
       ),
     );
   }
 
-  Widget _plainLyrics(Responsive r, bool isDark) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        width: r.width * 0.7,
-        height: r.width * 0.7,
-        decoration: BoxDecoration(
-          color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.05),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        padding: const EdgeInsets.all(16),
-        child: GestureDetector(
-          onTap: () => setState(() => _showLyrics = false),
-          child: SingleChildScrollView(
-            child: Text(
-              _stripLrcTimestamps(_lyricsText!),
-              style: TextStyle(
-                fontSize: r.footerSize,
-                height: 1.6,
-                color: isDark ? Colors.white : Colors.black,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 
-  Widget _coverOrVideoArea(BuildContext context, Responsive r, bool isDark, FeedItem track, String? resolvedCover) {
-    // Cover side: 75% of screen width for a premium feel, capped at 420px.
-    final side = (r.width * 0.75).clamp(0.0, 420.0);
-    final glowColor = isDark ? AppColors.greenBright : AppColors.greenMedium;
+  Widget _coverOrVideoArea(
+    BuildContext context,
+    Responsive r,
+    bool isDark,
+    FeedItem track,
+    String? resolvedCover,
+  ) {
+    // Cover side: 76% of screen width for a premium feel, capped at 420px.
+    final side = (r.width * 0.76).clamp(0.0, 420.0);
     return RepaintBoundary(
-      child: Container(
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: glowColor.withValues(alpha: 0.08),
-              blurRadius: 40,
-              spreadRadius: 10,
-            ),
-          ],
-        ),
-        child: GestureDetector(
+      child: GestureDetector(
         onTap: () {
           if (_hasVideo) {
             _toggleVideo(track, context.read<PlayerCubit>().downloadPath);
           }
         },
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(20),
-          child: SizedBox(
-            width: side,
-            height: side,
-            child: _showVideo
-              ? Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    Video(controller: _videoController!, fill: Colors.transparent, fit: BoxFit.cover),
-                    if (!_showLyrics)
-                      Positioned(
-                        top: 8, right: 8,
-                        child: GestureDetector(
-                          onTap: () => setState(() => _showVideo = false),
-                          child: Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: Colors.black54,
-                              borderRadius: BorderRadius.circular(12),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.55 : 0.30),
+                blurRadius: 44,
+                offset: const Offset(0, 14),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(28),
+            child: SizedBox(
+              width: side,
+              height: side,
+              child: _showVideo
+                  ? Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        Video(controller: _videoController!, fill: Colors.transparent, fit: BoxFit.cover),
+                        Positioned(
+                          top: 8,
+                          right: 8,
+                          child: GestureDetector(
+                            onTap: _stopVideoForCover,
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: Colors.black54,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(Icons.image, color: Colors.white, size: 18),
                             ),
-                            child: const Icon(Icons.image, color: Colors.white, size: 18),
                           ),
                         ),
-                      ),
-                  ],
-                )
-              : Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    CoverImage(
-                      coverUrl: resolvedCover, localPath: null,
-                      width: side, height: side,
+                      ],
+                    )
+                  : Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        // Same widget position across track changes lets
+                        // CachedNetworkImage keep the previous art visible
+                        // until the new cover is decoded (no flash / blank).
+                        CoverImage(
+                          coverUrl: resolvedCover,
+                          localPath: null,
+                          width: side,
+                          height: side,
+                        ),
+                        if (_hasVideo)
+                          Positioned(
+                            top: 8,
+                            right: 8,
+                            child: GestureDetector(
+                              onTap: () => _toggleVideo(track, context.read<PlayerCubit>().downloadPath),
+                              child: Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: Colors.black54,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Icon(Icons.videocam, color: Colors.white, size: 18),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
-                    if (_hasVideo && !_showVideo)
-                      Positioned(
-                        top: 8, right: 8,
-                        child: GestureDetector(
-                          onTap: () => _toggleVideo(track, context.read<PlayerCubit>().downloadPath),
-                          child: Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: Colors.black54,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Icon(Icons.videocam, color: Colors.white, size: 18),
-                          ),
-                        ),
-                      ),
-                  ],
-                ), // Stack
-              ), // SizedBox
-        ), // ClipRRect
-      ), // GestureDetector
-      ), // Container glow
-    ); // RepaintBoundary
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _seekBar(BuildContext context, Responsive r, bool isDark, AudioPlayerState player) {
@@ -493,7 +587,7 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
             thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
             overlayShape: const RoundSliderOverlayShape(overlayRadius: 18),
             activeTrackColor: isDark ? AppColors.greenBright : AppColors.greenMedium,
-            inactiveTrackColor: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.10),
+            inactiveTrackColor: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.15),
             thumbColor: isDark ? AppColors.greenBright : AppColors.greenMedium,
             overlayColor: (isDark ? AppColors.greenBright : AppColors.greenMedium).withValues(alpha: 0.15),
           ),
@@ -509,11 +603,17 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
             children: [
               Text(
                 _formatDuration(position),
-                style: TextStyle(fontSize: r.footerSize, color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.5)),
+                style: TextStyle(
+                  fontSize: r.footerSize,
+                  color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.5),
+                ),
               ),
               Text(
                 '-${_formatDuration(remaining)}',
-                style: TextStyle(fontSize: r.footerSize, color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.5)),
+                style: TextStyle(
+                  fontSize: r.footerSize,
+                  color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.5),
+                ),
               ),
             ],
           ),
@@ -525,51 +625,60 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
   Widget _controls(BuildContext context, Responsive r, bool isDark, QueueState queue) {
     final player = context.read<PlayerCubit>().state;
     final glowColor = isDark ? AppColors.greenBright : AppColors.greenMedium;
-    final muted = (isDark ? Colors.white : Colors.black).withValues(alpha: 0.5);
+    final muted = (isDark ? Colors.white : Colors.black).withValues(alpha: 0.45);
     final active = isDark ? Colors.white : Colors.black;
     final track = queue.current!;
-    final isLiked = context.read<LikeCubit>().isLiked(track);
+    final iconM = r.subtitleSize + 4;   // medium side icons
+    final iconL = r.subtitleSize + 9;   // prev/next icons
+    final gap = r.spacingL;
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        // Like button
-        GestureDetector(
-          onTap: () { Haptic.medium(); context.read<LikeCubit>().toggleLike(track); },
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 250),
-            transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
-            child: Icon(
-              isLiked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-              key: ValueKey(isLiked),
-              color: isLiked ? Colors.red : muted,
-              size: r.subtitleSize + 4,
-            ),
-          ),
+        // Like — rebuilt whenever LikeCubit changes so the heart is always in
+        // sync with the liked state (across sources, via ISRC/id matching).
+        BlocBuilder<LikeCubit, LikeState>(
+          builder: (context, _) {
+            final liked = context.read<LikeCubit>().isLiked(track);
+            return GestureDetector(
+              onTap: () { Haptic.medium(); context.read<LikeCubit>().toggleLike(track); },
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 250),
+                transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
+                child: Icon(
+                  liked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                  key: ValueKey(liked),
+                  color: liked ? Colors.redAccent : muted,
+                  size: iconM,
+                ),
+              ),
+            );
+          },
         ),
-        SizedBox(width: r.spacingXL),
+        SizedBox(width: gap),
         // Shuffle
         GestureDetector(
           onTap: () { Haptic.tap(); sl<QueueCubit>().toggleShuffle(); },
           child: Icon(
             queue.shuffle ? Icons.shuffle_rounded : Icons.shuffle,
             color: queue.shuffle ? glowColor : muted,
-            size: r.subtitleSize + 4,
+            size: iconM,
           ),
         ),
-        SizedBox(width: r.spacingL),
+        SizedBox(width: gap),
         // Previous
         GestureDetector(
           onTap: () { Haptic.tap(); sl<QueueCubit>().previous(); },
-          child: Icon(Icons.skip_previous_rounded, color: active, size: r.subtitleSize + 10),
+          child: Icon(Icons.skip_previous_rounded, color: active, size: iconL),
         ),
-        SizedBox(width: r.spacingL),
-        // Play/Pause
+        SizedBox(width: gap),
+        // Play/Pause — hero button
         GestureDetector(
           onTap: () { Haptic.medium(); sl<PlayerCubit>().togglePlayPause(); },
           child: Container(
-            width: r.subtitleSize + 24,
-            height: r.subtitleSize + 24,
+            width: r.subtitleSize + 34,
+            height: r.subtitleSize + 34,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               gradient: LinearGradient(
@@ -578,121 +687,165 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                 colors: [glowColor, glowColor.withValues(alpha: 0.7)],
               ),
               boxShadow: [
-                BoxShadow(color: glowColor.withValues(alpha: 0.3), blurRadius: 12, spreadRadius: 2),
+                BoxShadow(color: glowColor.withValues(alpha: 0.35), blurRadius: 16, spreadRadius: 2),
               ],
             ),
             child: player.playbackState == PlayerPlaybackState.buffering
-                ? Center(child: SizedBox(
-                    width: r.subtitleSize - 4, height: r.subtitleSize - 4,
-                    child: CircularProgressIndicator(strokeWidth: 3, valueColor: AlwaysStoppedAnimation(active)),
-                  ))
+                ? Center(
+                    child: SizedBox(
+                      width: r.subtitleSize + 2,
+                      height: r.subtitleSize + 2,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 3,
+                        valueColor: AlwaysStoppedAnimation(active),
+                      ),
+                    ),
+                  )
                 : Icon(
                     player.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
                     color: active,
-                    size: r.subtitleSize + 10,
+                    size: r.subtitleSize + 14,
                   ),
           ),
         ),
-        SizedBox(width: r.spacingL),
+        SizedBox(width: gap),
         // Next
         GestureDetector(
           onTap: () { Haptic.tap(); sl<QueueCubit>().next(); },
-          child: Icon(Icons.skip_next_rounded, color: active, size: r.subtitleSize + 10),
+          child: Icon(Icons.skip_next_rounded, color: active, size: iconL),
         ),
-        SizedBox(width: r.spacingL),
+        SizedBox(width: gap),
         // Repeat
         GestureDetector(
           onTap: () { Haptic.tap(); sl<QueueCubit>().cycleRepeatMode(); },
           child: Icon(
             _repeatIcon(queue.repeatMode),
             color: queue.repeatMode != RepeatMode.none ? glowColor : muted,
-            size: r.subtitleSize + 4,
+            size: iconM,
           ),
         ),
-        if (_lyricsText != null || sl<PlayerCubit>().preloadedLyrics != null) ...[
-          SizedBox(width: r.spacingS),
-          IconButton(
-            icon: Icon(
-              Icons.lyrics,
-              color: _showLyrics ? glowColor : muted,
-            ),
-            iconSize: r.subtitleSize + 4,
-            onPressed: () => _toggleLyrics(),
-          ),
-        ],
+        // Secondary toggles (lyrics / video) — plain icons to keep the row slim.
+        // The lyrics button is always present: it opens the karaoke modal from
+        // the preloaded LRC, or fetches it on the fly when needed.
+        SizedBox(width: r.spacingS),
+        GestureDetector(
+          onTap: _lyricsLoading ? null : () => _toggleLyrics(context),
+          child: _lyricsLoading
+              ? SizedBox(
+                  width: r.subtitleSize + 2,
+                  height: r.subtitleSize + 2,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    color: glowColor,
+                  ),
+                )
+              : Icon(
+                  Icons.lyrics_outlined,
+                  color: muted,
+                  size: r.subtitleSize + 2,
+                ),
+        ),
+        // Video toggle appears only once the clip finished preloading (it is
+        // resolved in the background after the track starts playing).
         if (_hasVideo) ...[
           SizedBox(width: r.spacingS),
-          IconButton(
-            icon: Icon(
-              _showVideo ? Icons.image : Icons.videocam,
+          GestureDetector(
+            onTap: () => _videoToggleQuick(context),
+            child: Icon(
+              _showVideo ? Icons.image_outlined : Icons.videocam_outlined,
               color: _showVideo ? glowColor : muted,
+              size: r.subtitleSize + 2,
             ),
-            iconSize: r.subtitleSize + 4,
-            onPressed: () => _videoToggleQuick(context),
           ),
         ],
       ],
     );
   }
 
-  Widget _volumeSlider(BuildContext context, Responsive r, AudioPlayerState player) {
-    return Row(
+  Widget _speedControl(BuildContext context, Responsive r, bool isDark, AudioPlayerState player) {
+    const speeds = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
+    final active = isDark ? Colors.white : Colors.black;
+    final inactive = active.withValues(alpha: 0.4);
+    final accent = isDark ? AppColors.greenBright : AppColors.greenMedium;
+
+    return Column(
       children: [
-        Icon(Icons.volume_down_rounded, size: r.subtitleSize, color: Colors.grey),
-        Expanded(
-          child: SliderTheme(
-            data: SliderThemeData(
-              trackHeight: 3,
-              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
-              overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
-              activeTrackColor: Colors.grey,
-              inactiveTrackColor: Colors.grey.withValues(alpha: 0.2),
-              thumbColor: Colors.grey,
+        Row(
+          children: [
+            Icon(Icons.speed_rounded, size: r.subtitleSize, color: inactive),
+            SizedBox(width: r.spacingS),
+            Text(
+              'Speed',
+              style: TextStyle(
+                fontSize: r.footerSize,
+                letterSpacing: 0.4,
+                color: inactive,
+              ),
             ),
-            child: Slider(
-              value: player.volume,
-              onChanged: (v) => sl<PlayerCubit>().setVolume(v),
+            const Spacer(),
+            GestureDetector(
+              onTap: () => sl<PlayerCubit>().setRate(1.0),
+              child: Text(
+                player.rate == 1.0 ? '1.0×' : '${player.rate.toStringAsFixed(2).replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '')}×',
+                style: TextStyle(
+                  fontSize: r.footerSize,
+                  fontWeight: FontWeight.w600,
+                  color: player.rate == 1.0 ? active : inactive,
+                ),
+              ),
             ),
-          ),
+          ],
         ),
-        Icon(Icons.volume_up_rounded, size: r.subtitleSize, color: Colors.grey),
+        SizedBox(height: r.spacingXS),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            for (final s in speeds) ...[
+              if (s != speeds.first) const SizedBox(width: 4),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => sl<PlayerCubit>().setRate(s),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeOut,
+                    alignment: Alignment.center,
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    decoration: BoxDecoration(
+                      color: (player.rate == s ? accent : Colors.transparent)
+                          .withValues(alpha: player.rate == s ? 0.22 : 0.0),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: player.rate == s
+                            ? accent.withValues(alpha: 0.6)
+                            : (isDark ? Colors.white : Colors.black).withValues(alpha: 0.12),
+                      ),
+                    ),
+                    child: Text(
+                      '${s.toStringAsFixed(2).replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '')}×',
+                      style: TextStyle(
+                        fontSize: r.footerSize - 1,
+                        fontWeight: player.rate == s ? FontWeight.w700 : FontWeight.w500,
+                        color: player.rate == s ? accent : inactive,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
       ],
     );
   }
 
   void _videoToggleQuick(BuildContext context) {
     if (_showVideo) {
-      _videoPlayer.stop();
-      setState(() => _showVideo = false);
+      _stopVideoForCover();
       return;
     }
-    final preloadedUrl = sl<PlayerCubit>().preloadedVideoUrl;
-    if (preloadedUrl != null) {
-      _videoPlayer.setVolume(0.0);
-      _videoPlayer.open(Media(preloadedUrl)).then((_) => _videoPlayer.play());
-      setState(() { _showVideo = true; _hasVideo = true; });
-    } else {
-      final queue = context.read<QueueCubit>().state;
-      if (queue.hasCurrent && queue.current != null) {
-        _toggleVideo(queue.current!, context.read<PlayerCubit>().downloadPath);
-      }
-    }
-  }
-
-  void _toggleLyrics() {
-    if (_showLyrics) {
-      setState(() => _showLyrics = false);
-      return;
-    }
-    final preloaded = sl<PlayerCubit>().preloadedLyrics;
-    if (preloaded != null && preloaded != _lyricsText) {
-      _lrcLines
-        ..clear()
-        ..addAll(_parseLrc(preloaded));
-      setState(() { _lyricsText = preloaded; _showLyrics = true; });
-    } else {
-      setState(() => _showLyrics = !_showLyrics);
-    }
+    final queue = context.read<QueueCubit>().state;
+    if (!queue.hasCurrent || queue.current == null) return;
+    _toggleVideo(queue.current!, context.read<PlayerCubit>().downloadPath);
   }
 
   IconData _repeatIcon(RepeatMode mode) {
@@ -706,22 +859,6 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
     }
   }
 
-  /// Strips LRC timestamps from lyrics, returning only plain text lines.
-  String _stripLrcTimestamps(String lrc) {
-    final lines = lrc.split('\n');
-    return lines.where((line) {
-      final trimmed = line.trim();
-      if (trimmed.isEmpty) return false;
-      // Skip metadata tags like [ti:...], [ar:...], [by:...], etc.
-      if (RegExp(r'^\[(ti|ar|al|by|offset|re|ve):').hasMatch(trimmed)) return false;
-      // Keep lines that are not purely timestamps
-      return !RegExp(r'^\[\d{2}:\d{2}\.\d{2,3}\]$').hasMatch(trimmed);
-    }).map((line) {
-      // Remove all [mm:ss.xx] timestamps from the line
-      return line.replaceAll(RegExp(r'\[\d{2}:\d{2}\.\d{2,3}\]'), '').trim();
-    }).where((line) => line.isNotEmpty).join('\n');
-  }
-
   String _formatDuration(Duration d) {
     if (d.isNegative) d = Duration.zero;
     final minutes = d.inMinutes.remainder(60);
@@ -730,4 +867,64 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
   }
 }
 
+/// Blurred album-art backdrop that fills the whole page.
+///
+/// Respects the theme strictly: in dark mode a strong black veil keeps the
+/// screen dark (white text readable); in light mode a white veil keeps it
+/// light (black text readable). No brand-green tint is applied here.
+class _AmbientBackdrop extends StatelessWidget {
+  final String? coverUrl;
+  final bool isDark;
+  final Color bgColor;
 
+  const _AmbientBackdrop({
+    required this.coverUrl,
+    required this.isDark,
+    required this.bgColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final url = coverUrl;
+    return RepaintBoundary(
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          if (url != null && url.isNotEmpty) ...[
+            ClipRect(
+              child: ImageFiltered(
+                imageFilter: ImageFilter.blur(sigmaX: 50, sigmaY: 50),
+                child: Transform.scale(
+                  scale: 1.25,
+                  child: imageFromUrl(
+                    url,
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                    height: double.infinity,
+                  ),
+                ),
+              ),
+            ),
+          ] else
+            ColoredBox(color: bgColor),
+          // Theme veil — keeps the page genuinely dark / light.
+          ColoredBox(color: bgColor.withValues(alpha: isDark ? 0.66 : 0.42)),
+          // Extra bottom dim so seek bar + controls stay readable.
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.transparent,
+                  bgColor.withValues(alpha: isDark ? 0.35 : 0.25),
+                ],
+                stops: const [0.6, 1.0],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

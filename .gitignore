@@ -91,3 +91,6 @@ lib/config/secrets.dart
 
 # Backups locales (no versionar)
 *.rar
+
+# Build outputs for sharing (Drive) — keep out of git
+/APKs Bitly/
