@@ -11,7 +11,9 @@
 *.test
 *.test.exe
 *.out
-go.sum
+# Nota: go.sum SÍ se commitea — CI (GitHub Actions) hace checkout limpio y
+# sin go.sum falla con "missing go.sum entry" (Go usa -mod=readonly por
+defecto desde 1.16).
 
 # IDE
 .idea/
