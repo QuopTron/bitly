@@ -106,10 +106,13 @@ jobs:
           ANDROID_HOME: ${{ steps.ndk.outputs.sdk_root }}
           ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk_path }}
 
+      # Fijada a la versión que compila localmente (3.41.6). `stable` instala
+      # la ÚLTIMA versión y su plugin Flutter-Gradle choca con el AGP 8.9.1
+      # del proyecto (error: exception applying dev.flutter.flutter-gradle-plugin).
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: 3.41.6
           cache: true
 
       - name: Flutter pub get
