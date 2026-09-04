@@ -8,12 +8,16 @@ void main() {
       expect(DownloadState.none.index, 0);
     });
 
-    test('inProgress is second', () {
-      expect(DownloadState.inProgress.index, 1);
+    test('queued is second', () {
+      expect(DownloadState.queued.index, 1);
     });
 
-    test('completed is third', () {
-      expect(DownloadState.completed.index, 2);
+    test('inProgress is third', () {
+      expect(DownloadState.inProgress.index, 2);
+    });
+
+    test('completed is fourth', () {
+      expect(DownloadState.completed.index, 3);
     });
   });
 

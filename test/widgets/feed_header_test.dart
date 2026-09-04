@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:bitly/frontend/features/feed/widgets/feed_header.dart';
 import 'package:bitly/frontend/features/feed/bloc/feed_bloc.dart';
+import 'package:bitly/frontend/shared/widgets/source_accordion.dart';
 import 'package:bitly/frontend/features/feed/bloc/feed_state.dart';
 import 'package:bitly/backend/rpc/backend_service.dart';
 import 'package:bitly/frontend/l10n/app_localizations.dart';
@@ -86,8 +87,9 @@ void main() {
         sources: {'deezer': 'Deezer', 'spotify-web': 'Spotify'},
       );
 
-      // The accordion header shows the selected source label.
-      expect(find.text('Deezer'), findsOneWidget);
+      // The accordion trigger is an icon-only circular button now (the
+      // source NAME only appears inside the floating list when opened).
+      expect(find.byType(SourceAccordion), findsOneWidget);
       expect(find.text('Todas las fuentes'), findsNothing);
     });
 
@@ -100,7 +102,7 @@ void main() {
         sources: {},
       );
 
-      expect(find.text('Deezer'), findsNothing);
+      expect(find.byType(SourceAccordion), findsNothing);
       expect(find.text('Todas las fuentes'), findsNothing);
     });
 
@@ -113,11 +115,11 @@ void main() {
         sources: {'deezer': 'Deezer', 'spotify-web': 'Spotify'},
       );
 
-      // Open the accordion.
-      await tester.tap(find.text('Deezer'));
+      // Open the accordion: tap the trigger (icon button, no label).
+      await tester.tap(find.byType(SourceAccordion));
       await tester.pumpAndSettle();
 
-      // Tap the 'Spotify' chip.
+      // The floating list shows the source names — tap 'Spotify'.
       await tester.tap(find.text('Spotify').last);
       await tester.pumpAndSettle();
 

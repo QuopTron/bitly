@@ -36,8 +36,8 @@ void main() {
       ]));
     });
 
-    test('has 9 entries', () {
-      expect(sourceIcons.length, 10);
+    test('has 11 entries (incl. todas/empty)', () {
+      expect(sourceIcons.length, 11);
     });
   });
 

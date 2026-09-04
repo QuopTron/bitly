@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
 import 'package:bitly/frontend/features/setup/widgets/feed_preview_source_selector.dart';
+import 'package:bitly/frontend/shared/constants/source_constants.dart';
 
 IconData _mockSourceIcon(String src) {
   switch (src) {
@@ -12,7 +13,8 @@ IconData _mockSourceIcon(String src) {
 
 void main() {
   group('FeedPreviewSourceSelector', () {
-    testWidgets('renders accordion header when sources exist', (tester) async {
+    testWidgets('renders icon-only accordion trigger when sources exist',
+        (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -28,7 +30,10 @@ void main() {
         ),
       );
 
-      expect(find.text('Deezer'), findsOneWidget);
+      // The trigger is a circular icon button — the source name is only
+      // revealed inside the popup once opened.
+      expect(find.byIcon(sourceIcons['deezer']!), findsOneWidget);
+      expect(find.text('Deezer'), findsNothing);
     });
 
     testWidgets('renders nothing when sources map is empty', (tester) async {
@@ -47,10 +52,11 @@ void main() {
         ),
       );
 
+      expect(find.byIcon(sourceIcons['deezer']!), findsNothing);
       expect(find.text('Deezer'), findsNothing);
     });
 
-    testWidgets('calls onChanged when a source chip is selected',
+    testWidgets('calls onChanged when a source is selected from the popup',
         (tester) async {
       String? selected;
       await tester.pumpWidget(
@@ -68,18 +74,18 @@ void main() {
         ),
       );
 
-      // Open the accordion.
-      await tester.tap(find.text('Deezer'));
+      // Open the accordion via the icon-only trigger.
+      await tester.tap(find.byIcon(sourceIcons['deezer']!));
       await tester.pumpAndSettle();
 
-      // Tap the 'Spotify' chip.
+      // Tap the 'Spotify' row in the popup.
       await tester.tap(find.text('Spotify').last);
       await tester.pumpAndSettle();
 
       expect(selected, 'spotify-web');
     });
 
-    testWidgets('shows source icons in chips', (tester) async {
+    testWidgets('shows source icons in popup rows', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -95,10 +101,10 @@ void main() {
         ),
       );
 
-      await tester.tap(find.text('Deezer'));
+      await tester.tap(find.byIcon(sourceIcons['deezer']!));
       await tester.pumpAndSettle();
 
-      // Chip icons come from SourceAccordion's own sourceIcons map.
+      // Popup rows show each source's own icon (from sourceIcons, not the mock).
       expect(find.byIcon(Icons.library_music), findsWidgets);
       expect(find.byIcon(Icons.music_note), findsWidgets);
     });
@@ -121,7 +127,7 @@ void main() {
         ),
       );
 
-      expect(find.text('Deezer'), findsOneWidget);
+      expect(find.byIcon(sourceIcons['deezer']!), findsOneWidget);
     });
   });
 }
