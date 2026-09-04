@@ -53,6 +53,13 @@ add_subdirectory(${FLUTTER_MANAGED_DIR})
 add_subdirectory("runner")
 
 
+# MSVC 14.4x+ (VS 2026/18) convierte <experimental/coroutine> en un ERROR
+# (STL1011: "error C2338: static assertion failed") en lugar de un warning.
+# permission_handler_windows (entre otros plugins) aún lo usa, rompiendo el
+# build en runners con la toolchain más reciente. Silenciar la deprecación
+# desactiva el static_assert y compila en cualquier versión de MSVC.
+add_compile_definitions(_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)
+
 # Generated plugin build rules, which manage building the plugins and adding
 # them to the application.
 include(flutter/generated_plugins.cmake)
