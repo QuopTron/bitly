@@ -30,7 +30,19 @@ jobs:
         run: flutter pub get
 
       - name: Flutter analyze (lib/)
-        run: flutter analyze lib/
+        run: |
+          set -o pipefail
+          if ! flutter analyze lib/ 2>&1 | tee /tmp/analyze.log; then
+            echo "::error::=== flutter analyze FAILED (tail del log) ==="
+            tail -40 /tmp/analyze.log | while IFS= read -r line; do echo "::error::$line"; done
+            exit 1
+          fi
 
       - name: Flutter test
-        run: flutter test
+        run: |
+          set -o pipefail
+          if ! flutter test 2>&1 | tee /tmp/test.log; then
+            echo "::error::=== flutter test FAILED (tail del log) ==="
+            tail -40 /tmp/test.log | while IFS= read -r line; do echo "::error::$line"; done
+            exit 1
+          fi
