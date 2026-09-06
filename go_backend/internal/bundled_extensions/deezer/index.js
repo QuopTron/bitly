@@ -1956,12 +1956,20 @@ registerExtension({
       var downloadURL = resolveDescriptorDownloadURL(descriptor);
       if (!downloadURL) return null;
       // Encrypted (client-decryption) streams cannot be played directly by
-      // the media player — skip so the rescue chain can try the next provider.
+      // the media player. Surface a DISTINCTIVE error instead of returning
+      // null: Go maps null to a generic "stream not available" that matches no
+      // cooldown marker, so deezer was re-probed in EVERY rescue phase (7
+      // qualities x 4 phases = 28+ network calls) before falling to the
+      // download pipeline. With this marker Go recognizes "track exists here
+      // but only via download()" (Blowfish decryption) and skips deezer fast
+      // in the streaming chain while still using it for the download.
       if (descriptorRequiresClientDecryption(descriptor)) {
         log.info(
           "[DeezerExt] getDownloadUrl: stream requires client decryption, skipping",
         );
-        return null;
+        throw new Error(
+          "CLIENT_DECRYPTION_REQUIRED: stream requires client decryption",
+        );
       }
       log.info(
         "[DeezerExt] getDownloadUrl resolved stream for",

@@ -151,7 +151,18 @@ func StreamQuick(
 		}
 		url, err := p.GetStreamURL(id, q)
 		if err != nil {
-			cooldown.MarkError(providerName, err.Error())
+			// The provider HAS this exact track (it was resolved via ISRC /
+			// cross-provider id) but needs its session verified to stream it —
+			// surface that verdict so playback opens the modal instead of
+			// walking every provider for 10-30s and failing generically. Never
+			// cool a verify-pending provider here: cooling it would make the
+			// NEXT tap skip the fast path and re-enter the slow fallback walk.
+			// Client-decryption (deezer Blowfish FLAC) aborts the attempt fast
+			// too — only download() can serve that track — without cooling
+			// deezer, which must stay usable as the download pipeline's source.
+			if abort, serr := classifyStreamError(providerName, err.Error()); abort {
+				return "", "", serr
+			}
 			continue
 		}
 		if url != "" && isPlayableStreamURL(url) {
@@ -242,10 +253,12 @@ func GetStreamPackage(
 	}
 
 	if streamURL == "" {
-		url, prov, attempted := rescueStream(reg, track, trackName, artistName, quality)
+		url, prov, attempted, verified := rescueStream(reg, track, trackName, artistName, quality)
 		if url != "" {
 			streamURL = url
 			streamProvider = prov
+		} else if verified {
+			return nil, &VerifyRequiredError{Service: prov}
 		} else if len(attempted) > 0 {
 			return nil, fmt.Errorf("no se encontro stream en: %s", strings.Join(attempted, ", "))
 		}

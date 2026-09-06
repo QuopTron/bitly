@@ -476,6 +476,13 @@ func GetStreamPackage(payload string) string {
 				data, _ := json.Marshal(pkg)
 				return string(data)
 			}
+			// The preferred provider HAS the exact track but needs its signed
+			// session verified — return that verdict NOW (1-2s) so the client
+			// opens the verification modal instead of a 10-30s fallback walk
+			// that ends on the same error.
+			if verr, ok := err.(*streaming.VerifyRequiredError); ok {
+				return streamVerifyErrorJSON(verr)
+			}
 		}
 
 		// When the preferred provider is a preview/DRM source (tidal, apple,
@@ -490,6 +497,13 @@ func GetStreamPackage(payload string) string {
 			pkg := &streaming.StreamPackage{AudioURL: url, Provider: name, Quality: params.Quality}
 			data, _ := json.Marshal(pkg)
 			return string(data)
+		} else if verr, ok := err.(*streaming.VerifyRequiredError); ok {
+			// The exact track was found on a full-stream provider but its
+			// session is not verified. Fail fast: the client opens the modal
+			// for [service]; completing it makes the song play. Skip the slow
+			// fallback download — it would walk every provider (10-30s) and
+			// end on the same verification verdict.
+			return streamVerifyErrorJSON(verr)
 		}
 
 		// Fast path exhausted: enrich the ISRC now (only on real playback, only
@@ -546,6 +560,20 @@ func GetStreamPackage(payload string) string {
 		}
 	}
 	data, _ := json.Marshal(pkg)
+	return string(data)
+}
+
+// streamVerifyErrorJSON builds the RPC error payload for a fast verification
+// verdict: the track exists on [verr.Service] but that provider's signed
+// session must be completed before it can stream. The client reads
+// errorType=verification_required + service to open the right modal.
+func streamVerifyErrorJSON(verr *streaming.VerifyRequiredError) string {
+	mp := map[string]interface{}{
+		"error":     verr.Error(),
+		"errorType": "verification_required",
+		"service":   verr.Service,
+	}
+	data, _ := json.Marshal(mp)
 	return string(data)
 }
 
