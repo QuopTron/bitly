@@ -72,6 +72,11 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
   static const _crossfadeStartBeforeEnd = Duration(seconds: 5);
   bool _crossfadingOut = false;
 
+  /// The user's intended volume (0.0–1.0). Crossfade animations modify the
+  /// actual mpv volume without touching this value, so the user's volume
+  /// setting is never lost between tracks.
+  double _userVolume = 1.0;
+
   /// Map of trackId → actual file path from download history.
   final Map<String, String> _localFiles = {};
   String? _downloadPath;
@@ -641,7 +646,7 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
         unawaited(_openTrack(current));
       } else if (!queueState.hasCurrent) {
         _player.stop();
-        emit(AudioPlayerState(volume: state.volume));
+        emit(AudioPlayerState(volume: _userVolume));
       }
     });
   }
@@ -1901,14 +1906,18 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
     if (isClosed) return;
     const steps = 20;
     final stepMs = duration.inMilliseconds ~/ steps;
-    final currentVol = state.volume;
+    // Read the ACTUAL mpv volume (not state.volume) as the starting point,
+    // because crossfade-out already moved mpv away from the user's volume.
+    final from100 = _userVolume * 100; // always fade relative to user volume
+    final to100 = to * 100;
     for (var i = 1; i <= steps; i++) {
       if (isClosed) return;
-      final v = currentVol + (to - currentVol) * (i / steps);
+      final v = from100 + (to100 - from100) * (i / steps);
       _player.setVolume(v.clamp(0, 100));
-      emit(state.copyWith(volume: v.clamp(0, 100)));
       await Future.delayed(Duration(milliseconds: stepMs));
     }
+    // Do NOT modify state.volume here — the user's volume setting must
+    // survive crossfade animations so _fadeInAudio can restore it.
   }
 
   Future<void> _onTrackCompleted() async {
@@ -2040,10 +2049,9 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
     _forceReopen = true;
     final hadNext = _queueCubit.next();
 
-    // Crossfade: fade in the volume for the next track.
-    if (_crossfadeEnabled) {
-      _fadeVolume(state.volume, _crossfadeDuration);
-    }
+    // Note: crossfade-in is handled by _fadeInAudio() in _openTrack when the
+    // next track opens. No need to fade in here — _fadeVolume would read the
+    // wrong starting point since mpv volume was already faded to 0.
     // Si la cola terminó (no hay más tracks) y hay internet, intentar autoplay
     // con tracks similares (modo radio).
     if (!hadNext && _queueCubit.state.tracks.isNotEmpty) {
@@ -2250,6 +2258,7 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
     // 100). Without the ×100 the app was playing at ~1% volume — technically
     // "playing" (position advances, mixer active) but essentially inaudible.
     final v = vol.clamp(0.0, 1.0);
+    _userVolume = v;
     _player.setVolume(v * 100);
     emit(state.copyWith(volume: v));
   }
@@ -2260,7 +2269,9 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
   /// latency. If this ever needs to become a true overlap crossfade, it needs
   /// a second Player + its own queue-sync (device-tested); see Fase-4 notes.
   Future<void> _fadeInAudio() async {
-    final target = state.volume.clamp(0.0, 1.0);
+    // Always restore the USER's volume, not state.volume which may have been
+    // set to 0 by a crossfade-out animation that _fadeVolume no longer writes.
+    final target = _userVolume.clamp(0.0, 1.0);
     if (target <= 0.001) return;
     const steps = 8;
     // Convert the 0–1 fade target to media_kit/mpv's 0–100 volume scale,
@@ -2275,6 +2286,9 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
     } catch (_) {
       // Never let a cosmetic fade fail playback.
     }
+    // Sync state.volume to the actual mpv volume so the UI slider reflects
+    // the correct level after the fade completes.
+    if (!isClosed) emit(state.copyWith(volume: target));
   }
 
   void setRate(double rate) {
