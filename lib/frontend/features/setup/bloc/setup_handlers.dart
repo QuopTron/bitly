@@ -27,12 +27,6 @@ mixin SetupHandlers on Bloc<SetupEvent, SetupState> {
       case SetupStep.mode:
         emit(state.copyWith(step: SetupStep.verification));
       case SetupStep.verification:
-        emit(state.copyWith(step: SetupStep.feedTutorial));
-      case SetupStep.feedTutorial:
-        emit(state.copyWith(step: SetupStep.searchTutorial));
-      case SetupStep.searchTutorial:
-        emit(state.copyWith(step: SetupStep.profileTutorial));
-      case SetupStep.profileTutorial:
         emit(state.copyWith(step: SetupStep.storageFolder));
       case SetupStep.storageFolder:
         emit(state.copyWith(step: SetupStep.notifications));
@@ -49,12 +43,6 @@ mixin SetupHandlers on Bloc<SetupEvent, SetupState> {
       case SetupStep.notifications:
         emit(state.copyWith(step: SetupStep.storageFolder));
       case SetupStep.storageFolder:
-        emit(state.copyWith(step: SetupStep.profileTutorial));
-      case SetupStep.profileTutorial:
-        emit(state.copyWith(step: SetupStep.searchTutorial));
-      case SetupStep.searchTutorial:
-        emit(state.copyWith(step: SetupStep.feedTutorial));
-      case SetupStep.feedTutorial:
         emit(state.copyWith(step: SetupStep.verification));
       case SetupStep.verification:
         emit(state.copyWith(step: SetupStep.mode));
@@ -190,7 +178,7 @@ mixin SetupHandlers on Bloc<SetupEvent, SetupState> {
       existingTrialExpiresAt: state.existingTrialExpiresAt,
     );
     if (code != null) await inj.sl<PremiumCache>().activatePremium(code);
-    emit(state.copyWith(saving: false, step: SetupStep.feedTutorial));
+    emit(state.copyWith(saving: false, step: SetupStep.storageFolder));
   }
 }
 

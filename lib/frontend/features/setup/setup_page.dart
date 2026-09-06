@@ -12,9 +12,6 @@ import 'widgets/language_slide.dart';
 import 'widgets/username_slide.dart';
 import 'widgets/google_signin_slide.dart';
 import 'widgets/mode_slide.dart';
-import 'widgets/feed_preview_slide.dart';
-import 'widgets/search_tutorial_slide.dart';
-import 'widgets/profile_tutorial_slide.dart';
 import 'widgets/storage_folder_slide.dart';
 import 'widgets/notification_slide.dart';
 import 'widgets/verification_slide.dart';
@@ -115,18 +112,6 @@ class _SetupPageState extends State<SetupPage> {
         return ModeSlide(
           key: const ValueKey('mode'), state: state, loc: loc, r: r, isDark: isDark,
           showInfo: _showInfoDialog,
-        );
-      case SetupStep.feedTutorial:
-        return FeedPreviewSlide(
-          key: const ValueKey('feedPreview'), state: state, loc: loc, r: r, isDark: isDark,
-        );
-      case SetupStep.searchTutorial:
-        return SearchTutorialSlide(
-          key: const ValueKey('searchTutorial'), state: state, loc: loc, r: r, isDark: isDark,
-        );
-      case SetupStep.profileTutorial:
-        return ProfileTutorialSlide(
-          key: const ValueKey('profileTutorial'), state: state, loc: loc, r: r, isDark: isDark,
         );
       case SetupStep.storageFolder:
         return StorageFolderSlide(
