@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../l10n/app_localizations.dart';
 import '../../shared/utils/responsive.dart';
-import '../../shared/widgets/settings_sheet.dart';
+import '../../shared/widgets/settings_sheet_new.dart';
 
 class MiEspacioProfile extends StatelessWidget {
   final String username;
