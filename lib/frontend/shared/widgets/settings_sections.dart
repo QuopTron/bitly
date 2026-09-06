@@ -141,7 +141,7 @@ class SettingsResetSection extends StatelessWidget {
                 ),
               ),
               Text(
-                resetting ? '' : '⚠ ${loc.setup.resetData}',
+                resetting ? '' : loc.setup.resetData,
                 style: TextStyle(fontSize: r.footerSize - 2, color: Colors.redAccent.withValues(alpha: 0.5)),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,

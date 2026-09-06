@@ -21,6 +21,7 @@ import '../detail/playlist_detail_page.dart';
 import '../detail/artist_detail_page.dart';
 import '../../shared/widgets/song_info_modal.dart';
 import '../../shared/models/feed_models.dart';
+import '../../../backend/rpc/backend_service.dart';
 import '../../../injection.dart';
 import 'mi_espacio_profile.dart';
 import 'mi_espacio_tabs.dart';
@@ -39,6 +40,7 @@ class _MiEspacioPageState extends State<MiEspacioPage> {
   bool _loading = true;
   int _selectedTab = 0;
   List<Item> _playlists = [];
+  Map<String, int> _playCounts = {};
 
   @override
   void initState() {
@@ -62,10 +64,24 @@ class _MiEspacioPageState extends State<MiEspacioPage> {
     final u = await loadUsername();
     final p = await loadOwnPlaylists();
     await sl<PlaylistCubit>().loadStats();
+    // Fetch play counts for showing on track cards
+    Map<String, int> playCounts = {};
+    try {
+      final backend = sl<BackendService>();
+      final topTracks = await backend.rpcCall('getTopTracks', {'limit': 100});
+      if (topTracks is List) {
+        for (final t in topTracks) {
+          if (t is Map && t['trackId'] != null) {
+            playCounts[t['trackId'] as String] = (t['count'] as int?) ?? 0;
+          }
+        }
+      }
+    } catch (_) {}
     if (mounted) {
       setState(() {
         _username = u;
         _playlists = p;
+        _playCounts = playCounts;
         _loading = false;
       });
     }
@@ -494,6 +510,7 @@ class _MiEspacioPageState extends State<MiEspacioPage> {
                         (k, v) => MapEntry(k, v.state),
                       ),
                       downloadedFingerprints: dlState.downloadedFingerprints,
+                      playCounts: _playCounts,
                       onUnlike:
                           (item) => unlikeItem(item, context, _selectedTab),
                       onLike: _onLike,

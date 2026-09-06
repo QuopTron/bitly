@@ -244,6 +244,10 @@ func dispatchRPC(method string, params map[string]interface{}) (interface{}, str
 		return backend.ClearQueue(), ""
 	case "getPlaybackStats":
 		return backend.GetPlaybackStats(), ""
+	case "getTopTracks":
+		return backend.GetTopTracks(intFrom(params, "limit", 10)), ""
+	case "getPlayCount":
+		return backend.GetPlayCount(pGet("track_id")), ""
 	case "getRecommendationsFromHistory":
 		return backend.GetRecommendationsFromHistory(intFrom(params, "limit", 10)), ""
 

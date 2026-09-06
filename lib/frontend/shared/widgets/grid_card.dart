@@ -42,6 +42,7 @@ class GridCard extends StatelessWidget {
   /// downloaded (e.g. an own/local playlist with no provider source) so the
   /// card doesn't render a dead download button.
   final bool showDownloadAction;
+  final int playCount;
 
   const GridCard({
     super.key,
@@ -67,6 +68,7 @@ class GridCard extends StatelessWidget {
     this.cornerBadge,
     this.showThirdAction = true,
     this.showDownloadAction = true,
+    this.playCount = 0,
   });
 
   IconData get _icon {
@@ -171,9 +173,12 @@ class GridCard extends StatelessWidget {
                 ),
                 // Scrim so foreground stays readable over any artwork.
                 Positioned.fill(
-                  child: Container(color: AppColors.scrim(isDark).withValues(alpha: 0.35)),
+                  child: Container(color: AppColors.scrim(isDark).withValues(alpha: 0.45)),
                 ),
                 // Bottom-up gradient so the info block always stays legible.
+                // The bottom ~40% (where the info block lives) ends up nearly
+                // opaque dark in BOTH themes, which is what lets the text be
+                // pure white everywhere.
                 Positioned.fill(
                   child: Container(
                     decoration: BoxDecoration(
@@ -181,9 +186,9 @@ class GridCard extends StatelessWidget {
                         begin: Alignment.bottomCenter,
                         end: Alignment.topCenter,
                         colors: [
-                          AppColors.scrim(isDark).withValues(alpha: 0.95),
-                          AppColors.scrim(isDark).withValues(alpha: 0.5),
-                          AppColors.scrim(isDark).withValues(alpha: 0.1),
+                          AppColors.scrim(isDark).withValues(alpha: 1.0),
+                          AppColors.scrim(isDark).withValues(alpha: 0.65),
+                          AppColors.scrim(isDark).withValues(alpha: 0.2),
                           Colors.transparent,
                         ],
                         stops: const [0.0, 0.35, 0.7, 1.0],
@@ -278,8 +283,12 @@ class GridCard extends StatelessWidget {
 
   Widget _infoBlock(BuildContext context, Responsive r, double ts) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = AppColors.onSurface(isDark);
-    final mutedColor = AppColors.onSurfaceMuted(isDark);
+    // The info block sits over the DARK scrim veil (blurred cover + scrim +
+    // bottom gradient), not over the theme surface. That veil is dark in both
+    // themes, so the readable neutral is ALWAYS white — picking black in light
+    // mode is what made the text invisible on some covers.
+    final textColor = Colors.white;
+    final mutedColor = Colors.white.withValues(alpha: 0.72);
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -294,7 +303,7 @@ class GridCard extends StatelessWidget {
             fontWeight: FontWeight.w700,
             letterSpacing: -0.2,
             color: textColor,
-            shadows: [Shadow(color: AppColors.shadow(isDark), blurRadius: 8)],
+            shadows: [Shadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 8)],
           ),
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
@@ -312,6 +321,20 @@ class GridCard extends StatelessWidget {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
+        if (playCount > 0) ...[
+          SizedBox(height: 2),
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              '$playCount ${AppLocalizations.of(context).setup.reproductions}',
+              style: TextStyle(fontSize: r.footerSize - 3, color: Colors.white.withValues(alpha: 0.85)),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -319,7 +342,8 @@ class GridCard extends StatelessWidget {
   Widget _actionRow(BuildContext context, Responsive r) {
     final loc = AppLocalizations.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final fg = AppColors.onSurface(isDark);
+    // Icons sit over the same dark veil as the text → white-based colors.
+    final fg = Colors.white;
     final iconSize = r.footerSize * 1.8;
     Widget row = Wrap(
       alignment: WrapAlignment.center,

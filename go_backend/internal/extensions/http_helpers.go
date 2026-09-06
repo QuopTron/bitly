@@ -2,7 +2,10 @@ package extensions
 
 import (
 	"context"
+	"crypto/tls"
 	"io"
+	"log"
+	"net"
 	"net/http"
 	"net/http/cookiejar"
 	"strings"
@@ -10,6 +13,7 @@ import (
 	"time"
 
 	"github.com/dop251/goja"
+	"golang.org/x/net/http2"
 	"github.com/zarz/bitly/go_backend/internal/httpclient"
 )
 
@@ -41,6 +45,15 @@ func isYouTubeHost(url string) bool {
 		}
 	}
 	return false
+}
+
+// isGooglevideoHost reports whether [url] points at YouTube's media CDN
+// (rr*.googlevideo.com/videoplayback). These carry a signed URL, are served
+// over plain HTTP/1.1, and are NOT bot-gated like the InnerTube API — they
+// must use the standard DoH client instead of the uTLS/HTTP2 one (whose
+// HTTP2 framing breaks on the CDN: "http2: frame too large").
+func isGooglevideoHost(url string) bool {
+	return strings.Contains(url, "googlevideo.com")
 }
 
 // extHTTPClientFor returns the shared, lazily-initialized extension HTTP
@@ -77,20 +90,22 @@ var (
 func ytHTTPClientFor() *http.Client {
 	ytHTTPClientOnce.Do(func() {
 		jar, _ := cookiejar.New(nil)
-		// uTLS dialer mimics Chrome's TLS fingerprint to bypass YouTube bot detection.
+		// uTLS dialer mimics Chrome's TLS fingerprint to bypass YouTube bot
+		// detection, resolving via DoH so Android's system resolver never
+		// fails the dial.
 		dialFn := httpclient.NewUTLSDialer(httpclient.FingerprintChrome)
-		transport := httpclient.NewTransport(httpclient.Config{
-			Timeout:             30 * time.Second,
-			KeepAlive:           30 * time.Second,
-			MaxIdleConns:        50,
-			MaxIdleConnsPerHost: 10,
-			FollowRedirects:     true,
-		}, dialFn)
-		// Disable Go's stdlib TLS layer — uTLS handles it.
-		transport.TLSClientConfig = nil
+		// YouTube's servers negotiate HTTP/2 over ALPN EVEN when the client
+		// only offers http/1.1 (verified: music.youtube.com answers h2), so a
+		// plain http/1.1 transport breaks on the h2 frames with "malformed
+		// HTTP response". Speak HTTP/2 over the uTLS connection instead.
+		tr := &http2.Transport{
+			DialTLSContext: func(ctx context.Context, network, addr string, _ *tls.Config) (net.Conn, error) {
+				return dialFn(network, addr)
+			},
+		}
 		ytHTTPClient = &http.Client{
 			Timeout:   30 * time.Second,
-			Transport: transport,
+			Transport: tr,
 			Jar:       jar,
 		}
 	})
@@ -136,10 +151,14 @@ func doHTTPWithTimeout(method, url, body string, headers map[string]string, time
 		req, _ := http.NewRequest(method, url, nil)
 		return httpclient.SyntheticGatewayResponse(req), "", nil
 	}
-	// YouTube/InnerTube requests use uTLS fingerprinting to bypass bot detection.
-	// Standard Go TLS fingerprints are flagged by YouTube → 403.
+	// YouTube/InnerTube requests use uTLS fingerprinting + HTTP2 to bypass bot
+	// detection (Standard Go TLS fingerprints are flagged by YouTube → 403,
+	// and the API negotiates h2 regardless of ALPN). The googlevideo media CDN
+	// is the opposite: signed URLs served over plain HTTP/1.1 — the uTLS/H2
+	// client breaks there ("http2: frame too large"), so it uses the standard
+	// DoH client.
 	client := extHTTPClientFor()
-	if isYouTubeHost(url) {
+	if isYouTubeHost(url) && !isGooglevideoHost(url) {
 		client = ytHTTPClientFor()
 	}
 	req, err := http.NewRequest(method, url, strings.NewReader(body))
@@ -160,6 +179,12 @@ func doHTTPWithTimeout(method, url, body string, headers map[string]string, time
 	resp, err := client.Do(req)
 	if err != nil {
 		httpclient.BreakerRecord(url, 0, err)
+		// Diagnostic: the ytmusic extension surfaces this as "bad response 0"
+		// with no detail; log the real dial/TLS error so Android-only failures
+		// (DNS, uTLS handshake) are visible in logcat.
+		if isYouTubeHost(url) {
+			log.Printf("[ext-http] youtube fetch failed: %s -> %v", url, err)
+		}
 		return nil, "", err
 	}
 	httpclient.BreakerRecord(url, resp.StatusCode, nil)

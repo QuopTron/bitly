@@ -311,6 +311,19 @@ class _LyricsSheetState extends State<_LyricsSheet> {
     );
   }
 
+  /// Real panel color behind the text: the solid bg blended with the veil
+  /// (and, when available, the blurred cover's dominant tone). Contrast math
+  /// runs against THIS so lyrics stay readable on any artwork.
+  Color _panelColor(bool isDark, CoverPalette? palette) {
+    final bg = isDark ? const Color(0xFF141414) : const Color(0xFFF6F6F6);
+    final veil = (isDark ? Colors.black : Colors.white)
+        .withValues(alpha: isDark ? 0.68 : 0.5);
+    // Approximate what the eye sees: bg under a veil over the cover.
+    final withVeil = Color.lerp(bg, veil, 0.5)!;
+    if (palette == null) return withVeil;
+    return Color.lerp(withVeil, palette.dominant, isDark ? 0.30 : 0.22)!;
+  }
+
   Widget _karaokeLine(
     Responsive r,
     bool isDark,
@@ -319,10 +332,11 @@ class _LyricsSheetState extends State<_LyricsSheet> {
     CoverPalette? palette,
   ) {
     final distance = i - active;
-    final fg = isDark ? Colors.white : Colors.black;
-    // Smart accent derived from the cover's colors (brand-green fallback
-    // until the palette decodes or when there is no cover).
-    final accent = palette?.textAccent(onDarkSurface: isDark) ?? fg;
+    final panelBg = _panelColor(isDark, palette);
+    final fg = bestNeutral(panelBg);
+    // Smart accent derived from the cover's colors, contrast-checked against
+    // the REAL panel so it pops on dark AND light themes with any artwork.
+    final accent = palette?.textAccent(onDarkSurface: isDark, background: panelBg) ?? fg;
 
     Color color;
     FontWeight weight;
@@ -334,7 +348,8 @@ class _LyricsSheetState extends State<_LyricsSheet> {
     } else if (distance > 0 && distance <= 6) {
       // Upcoming lines: cover-tinted, fading to neutral further away.
       color = palette != null
-          ? palette.accentForNextLine(onDarkSurface: isDark, distance: distance)
+          ? palette.accentForNextLine(
+              onDarkSurface: isDark, distance: distance, background: panelBg)
           : Color.lerp(
               fg.withValues(alpha: 0.55),
               accent,
@@ -377,7 +392,8 @@ class _LyricsSheetState extends State<_LyricsSheet> {
   }
 
   Widget _plainLyrics(Responsive r, bool isDark) {
-    final fg = isDark ? Colors.white : Colors.black;
+    final panelBg = _panelColor(isDark, null);
+    final fg = bestNeutral(panelBg);
     return Center(
       child: SingleChildScrollView(
         padding: EdgeInsets.symmetric(horizontal: r.spacingXL, vertical: r.spacingL),

@@ -49,6 +49,9 @@ class IOSBackend extends BackendService
           if (setupData != null) {
             await syncBackendConfig(mode: setupData.mode);
           }
+          // Push performance profile now that the Go runtime is up (before
+          // init it could block and stall the splash).
+          await inj.pushPerformanceProfileToBackend();
         } catch (_) {}
 
         _initialized = true;

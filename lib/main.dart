@@ -45,6 +45,10 @@ void main() async {
   // Inicializar media_kit ANTES de crear cualquier Player (PlayerCubit).
   MediaKit.ensureInitialized();
   await configureDependencies();
+  // Loads the saved profile into the UI notifier. The Go-side push happens
+  // later, after healthCheck confirms the runtime is up (see
+  // pushPerformanceProfileToBackend in android_backend/ios_backend) — calling
+  // it before init can stall the splash while Go loads extension engines.
   await loadPerformanceProfile();
 
   // Load and configure device performance profile (image cache, etc.).

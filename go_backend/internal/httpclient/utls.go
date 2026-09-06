@@ -1,6 +1,8 @@
 package httpclient
 
 import (
+	"context"
+	"fmt"
 	"net"
 	"time"
 
@@ -39,14 +41,29 @@ func NewUTLSDialer(fingerprint string) func(network, addr string) (net.Conn, err
 	}
 
 	return func(network, addr string) (net.Conn, error) {
-		conn, err := (&net.Dialer{Timeout: 30 * time.Second}).Dial(network, addr)
+		// Resolve the host through the shared DoH DNS manager BEFORE dialing:
+		// on Android gomobile the Go system resolver is unreliable, and the
+		// plain net.Dialer below would fail every YouTube/InnerTube request
+		// fast (status 0) even though the host is perfectly reachable. The
+		// non-uTLS extension client already dials via DoH — this was the one
+		// path still hitting the system resolver.
+		host, port, splitErr := net.SplitHostPort(addr)
+		if splitErr != nil {
+			host, port = addr, "443"
+		}
+		dialAddr := addr
+		if net.ParseIP(host) == nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			ips, dnsErr := GetDNSManager().Resolve(ctx, host)
+			cancel()
+			if dnsErr != nil || len(ips) == 0 {
+				return nil, fmt.Errorf("utls: dns resolve %s: %v", host, dnsErr)
+			}
+			dialAddr = net.JoinHostPort(ips[0].String(), port)
+		}
+		conn, err := (&net.Dialer{Timeout: 30 * time.Second}).Dial(network, dialAddr)
 		if err != nil {
 			return nil, err
-		}
-
-		host, _, splitErr := net.SplitHostPort(addr)
-		if splitErr != nil {
-			host = addr
 		}
 		tlsConn := utls.UClient(conn, &utls.Config{
 			InsecureSkipVerify: false,

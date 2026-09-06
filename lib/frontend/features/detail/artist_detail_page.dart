@@ -19,13 +19,13 @@ import '../../../backend/services/download_cubit.dart';
 import '../../../backend/services/player_cubit.dart';
 import '../../../backend/services/queue_cubit.dart';
 import '../../shared/widgets/track_card.dart';
-import '../../shared/widgets/cover_image.dart';
+import '../../shared/widgets/grid_card.dart';
 import '../../shared/widgets/detail_header.dart';
+import '../../shared/utils/item_actions.dart';
 import '../../shared/widgets/download_options_sheet.dart';
 import '../../shared/theme/app_colors.dart';
 import '../../../backend/services/connectivity_service.dart';
 import '../../../injection.dart';
-import 'album_detail_page.dart';
 
 class ArtistDetailPage extends StatefulWidget {
   final String artistId;
@@ -250,7 +250,7 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
             ),
             SizedBox(height: r.spacingS),
             SizedBox(
-              height: 180,
+              height: 212,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 padding: EdgeInsets.symmetric(horizontal: r.spacingS),
@@ -262,103 +262,27 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
                     id: a.albumId, type: 'album', name: a.name,
                     coverUrl: a.coverUrl, source: widget.source,
                   );
-                  final albumCover = likedCubit.resolveCoverFor(albumItem);
-                  final isAlbumLiked = likedCubit.isLiked(albumItem);
-                  return GestureDetector(
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => MultiBlocProvider(
-                          providers: [
-                            BlocProvider.value(value: context.read<LikeCubit>()),
-                            BlocProvider.value(value: context.read<DownloadCubit>()),
-                            BlocProvider.value(value: sl<QueueCubit>()),
-                          ],
-                          child: AlbumDetailPage(
-                            albumId: a.albumId,
-                            source: widget.source,
-                            coverUrl: a.coverUrl,
-                          ),
-                        ),
-                      ),
-                    ),
-                    child: SizedBox(
-                      width: 140,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(10),
-                            child: SizedBox(
-                              width: 140,
-                              height: 140,
-                              child: Stack(
-                                fit: StackFit.expand,
-                                children: [
-                                  albumCover != null && albumCover.isNotEmpty
-                                      ? imageFromUrl(
-                                          albumCover,
-                                          fit: BoxFit.cover,
-                                          fallback: _placeholder(r),
-                                        )
-                                      : _placeholder(r),
-                                  // Glass overlay on hover
-                                  Positioned(
-                                    bottom: 0,
-                                    left: 0,
-                                    right: 0,
-                                    child: Container(
-                                      height: 40,
-                                      decoration: BoxDecoration(
-                                        gradient: LinearGradient(
-                                          begin: Alignment.topCenter,
-                                          end: Alignment.bottomCenter,
-                                          colors: [
-                                            Colors.transparent,
-                                            Colors.black.withValues(alpha: 0.5),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  // Like badge
-                                  Positioned(
-                                    top: 6,
-                                    right: 6,
-                                    child: GestureDetector(
-                                      onTap: () => likedCubit.toggleLike(albumItem),
-                                      child: Container(
-                                        width: 28,
-                                        height: 28,
-                                        decoration: BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          color: Colors.black.withValues(alpha: 0.35),
-                                        ),
-                        child: Icon(
-                                           isAlbumLiked ? Icons.favorite : Icons.favorite_border,
-                                           color: isAlbumLiked ? Colors.red : AppColors.onSurface(isDark),
-                                           size: 16,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          SizedBox(height: 6),
-                          Text(
-                            a.name,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: r.footerSize - 1,
-                              fontWeight: FontWeight.w500,
-                              color: AppColors.onSurface(isDark).withValues(alpha: 0.85),
-                            ),
-                          ),
-                        ],
-                      ),
+                  final albumId = 'album_${normalizeTrackId(a.albumId)}_${widget.source}';
+                  // Shared GridCard — same component as Feed/Search/Mi Espacio
+                  // so album cards look identical everywhere: smart white text
+                  // over the cover veil, like + download actions, download
+                  // state and the same tap → album detail navigation.
+                  return SizedBox(
+                    width: 150,
+                    height: 212,
+                    child: GridCard(
+                      type: 'album',
+                      title: a.name,
+                      subtitle: widget.artistName,
+                      coverUrl: likedCubit.resolveCoverFor(albumItem),
+                      textScale: 1.2,
+                      isLiked: likedCubit.isLiked(albumItem),
+                      onLike: () => likedCubit.toggleLike(albumItem),
+                      downloadState: dlCubit.downloadStateFor(albumId).state,
+                      onDownload: () => ItemActions.startBatchDownload(context, albumItem),
+                      onDelete: () => ItemActions.batchDelete(context, albumItem),
+                      showThirdAction: false,
+                      onTap: () => ItemActions.navigateToItem(context, albumItem),
                     ),
                   );
                 },
@@ -430,13 +354,6 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
     }).toList();
   }
 
-  Widget _placeholder(Responsive r) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      color: AppColors.onSurface(isDark).withValues(alpha: 0.06),
-      child: Icon(Icons.album, color: AppColors.onSurface(isDark).withValues(alpha: 0.2), size: r.titleSize * 0.5),
-    );
-  }
 }
 
 /// Futuristic glassmorphism action button.

@@ -50,6 +50,37 @@ func (t *Tracker) TopTracks(limit int) []string {
 	return result
 }
 
+// TrackCount holds a track ID and its play count.
+type TrackCount struct {
+	TrackID string `json:"trackId"`
+	Count   int    `json:"count"`
+}
+
+// TopTracksWithCounts returns the most played tracks with counts.
+func (t *Tracker) TopTracksWithCounts(limit int) []TrackCount {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	type kv struct {
+		Key   string
+		Value int
+	}
+	var sorted []kv
+	for k, v := range t.playCounts {
+		sorted = append(sorted, kv{k, v})
+	}
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].Value > sorted[j].Value
+	})
+	if limit > len(sorted) {
+		limit = len(sorted)
+	}
+	result := make([]TrackCount, limit)
+	for i := 0; i < limit; i++ {
+		result[i] = TrackCount{TrackID: sorted[i].Key, Count: sorted[i].Value}
+	}
+	return result
+}
+
 // TopArtists returns the most played artist IDs.
 func (t *Tracker) TopArtists(limit int) []string {
 	t.mu.RLock()

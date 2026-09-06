@@ -108,17 +108,29 @@ Future<void> configureDependencies() async {
 
 /// Loads the saved performance profile into the global notifier and pushes
 /// its concurrency/buffer settings to the Go backend.
+///
+/// IMPORTANT: must only be called AFTER the Go backend is initialized
+/// (healthCheck) — the profile push is a Go RPC, and invoking it before the
+/// runtime is up can block the call on the native bridge while Go is still
+/// loading extension engines, which stalls the splash screen.
 Future<void> loadPerformanceProfile() async {
   final cache = sl<SettingsCache>();
   final level = await cache.getPerfLevel();
   final profile = PerformanceProfile.forLevel(level);
   sl<ValueNotifier<PerformanceProfile>>().value = profile;
-  // Fire-and-forget: don't block the first frame waiting on a Go RPC that
-  // may hang if the backend isn't initialized yet.
-  (sl<BackendService>() as ActionsMixin).syncBackendConfig(
-    mode: profile.level.key,
-    streamCacheMaxMb: profile.streamCacheMaxMb,
-    downloadConcurrency: profile.downloadConcurrency,
-    streamChunkSize: profile.streamChunkSize,
-  );
+}
+
+/// Pushes the loaded performance profile to the Go backend. Call after
+/// healthCheck (Go runtime up) so the RPC returns instantly instead of
+/// queueing behind the native init.
+Future<void> pushPerformanceProfileToBackend() async {
+  final profile = sl<ValueNotifier<PerformanceProfile>>().value;
+  try {
+    (sl<BackendService>() as ActionsMixin).syncBackendConfig(
+      mode: profile.level.key,
+      streamCacheMaxMb: profile.streamCacheMaxMb,
+      downloadConcurrency: profile.downloadConcurrency,
+      streamChunkSize: profile.streamChunkSize,
+    );
+  } catch (_) {}
 }

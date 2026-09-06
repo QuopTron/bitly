@@ -148,6 +148,12 @@ class StringsSetup {
   final String downloadDecryptFailed;
   final String ok;
 
+  // Profile / stats
+  final String profileTitle, totalPlays, uniqueTracks, uniqueArtists, listeningTime, downloadedSongs, mostPlayed;
+  // Version sheet
+  final String versions, installed, latestVersion, newAvailable, download, downloading, upToDate, downloadError;
+  final String reproductions;
+
   const StringsSetup({
     required this.selectLanguage,
     required this.chooseLanguage,
@@ -329,6 +335,24 @@ class StringsSetup {
     required this.settingsStatsLabel,
     required this.downloadDecryptFailed,
     required this.ok,
+    // Profile / stats
+    required this.profileTitle,
+    required this.totalPlays,
+    required this.uniqueTracks,
+    required this.uniqueArtists,
+    required this.listeningTime,
+    required this.downloadedSongs,
+    required this.mostPlayed,
+    // Version sheet
+    required this.versions,
+    required this.installed,
+    required this.latestVersion,
+    required this.newAvailable,
+    required this.download,
+    required this.downloading,
+    required this.upToDate,
+    required this.downloadError,
+    required this.reproductions,
   });
 
   static const en = StringsSetup(
@@ -524,9 +548,25 @@ class StringsSetup {
     settingsServicesLabel: 'Services',
     settingsStatsLabel: 'Statistics',
     downloadDecryptFailed:
-        'A download could not be decrypted after several attempts. Retry the download; if it persists, the source served an invalid file.',
-    ok: 'OK',
+        'A download could not be decrypted after several attempts. Retry the download; if it persists, the source served an invalid file.',    ok: 'OK',
+    profileTitle: 'Profile',
+    totalPlays: 'Total plays',
+    uniqueTracks: 'Unique tracks',
+    uniqueArtists: 'Unique artists',
+    listeningTime: 'Listening time',
+    downloadedSongs: 'Downloaded',
+    mostPlayed: 'Most played',
+    versions: 'Versions',
+    installed: 'Installed',
+    latestVersion: 'Latest',
+    newAvailable: 'NEW',
+    download: 'Download',
+    downloading: 'Downloading...',
+    upToDate: 'You are on the latest version',
+    downloadError: 'Download error',
+    reproductions: 'plays',
   );
+
 
   static const es = StringsSetup(
     selectLanguage: 'Selecciona tu idioma',
@@ -727,5 +767,21 @@ class StringsSetup {
     downloadDecryptFailed:
         'No se pudo descifrar una descarga tras varios intentos. Reinténtalo; si persiste, la fuente no entregó un archivo válido.',
     ok: 'OK',
+    profileTitle: 'Perfil',
+    totalPlays: 'Reproducciones totales',
+    uniqueTracks: 'Canciones escuchadas',
+    uniqueArtists: 'Artistas escuchados',
+    listeningTime: 'Tiempo de escucha',
+    downloadedSongs: 'Descargadas',
+    mostPlayed: 'Más reproducida',
+    versions: 'Versiones',
+    installed: 'Instalada',
+    latestVersion: 'Última',
+    newAvailable: 'NUEVA',
+    download: 'Descargar',
+    downloading: 'Descargando...',
+    upToDate: 'Estás en la última versión',
+    downloadError: 'Error al descargar',
+    reproductions: 'reproducciones',
   );
 }

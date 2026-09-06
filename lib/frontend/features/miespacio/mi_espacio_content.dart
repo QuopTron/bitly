@@ -63,6 +63,7 @@ class MiEspacioContent extends StatelessWidget {
   /// Source-agnostic set of downloaded track fingerprints, for cross-extension
   /// detection of a downloaded track (SpotiFLAC behavior).
   final Set<String> downloadedFingerprints;
+  final Map<String, int> playCounts;
 
   const MiEspacioContent({
     super.key,
@@ -83,6 +84,7 @@ class MiEspacioContent extends StatelessWidget {
     this.onExportPlaylist,
     this.likedIds = const {},
     this.downloadedFingerprints = const {},
+    this.playCounts = const {},
   });
 
   /// Fallback download state lookup for items whose source is empty
@@ -667,6 +669,7 @@ class MiEspacioContent extends StatelessWidget {
                             type,
                             item,
                           ),
+                          playCount: playCounts[item.realId] ?? 0,
                           onDownload:
                               (type == 'album' || type == 'playlist')
                                   ? (onBatchDownload != null

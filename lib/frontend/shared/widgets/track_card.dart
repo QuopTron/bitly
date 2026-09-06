@@ -61,9 +61,14 @@ class TrackCard extends StatelessWidget {
     final r = Responsive(context);
     final loc = AppLocalizations.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final fg = AppColors.onSurface(isDark);
-    final mutedColor = AppColors.onSurfaceMuted(isDark);
+    // Title, subtitle and the action icons sit over the cover + dark scrim
+    // veil, which is dark in BOTH themes — so white is always the readable
+    // neutral. (Picking black in light mode is what made the text invisible.)
+    final fg = Colors.white;
+    final mutedColor = Colors.white.withValues(alpha: 0.7);
     final fallbackBg = AppColors.surface(isDark);
+    // Placeholder icon lives INSIDE the cover box, which keeps the theme
+    // surface behind it → its color stays theme-aware.
     final fallbackIconColor = AppColors.onSurfaceMuted(isDark);
     final iSize = r.footerSize * 1.6 * textScale;
     final ts = textScale;
@@ -190,7 +195,7 @@ class TrackCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(10),
                         color: coverUrl == null ? fallbackBg : null,
                         border: Border.all(
-                          color: fg.withValues(alpha: 0.15),
+                          color: AppColors.border(isDark),
                           width: 0.5,
                         ),
                         boxShadow:
@@ -424,7 +429,7 @@ class TrackCard extends StatelessWidget {
       case DownloadState.interrupted:
         return AppColors.error;
       default:
-        return AppColors.onSurface(isDark).withValues(alpha: 0.5);
+        return Colors.white.withValues(alpha: 0.7);
     }
   }
 

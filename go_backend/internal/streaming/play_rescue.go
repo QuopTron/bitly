@@ -12,6 +12,17 @@ import (
 	"github.com/zarz/bitly/go_backend/internal/provider"
 )
 
+// rescueWalkGate caps how many full rescue walks run concurrently across ALL
+// in-flight getStreamPackage calls.  Batch play (album/playlist/artist
+// detail) fires N tracks at once; without a global gate each walk races 2
+// provider workers → 3 tracks × 2 workers × multiple phases = 12+
+// simultaneous hits on the same providers → rate limits (tidal 429 →
+// VERIFY_REQUIRED, soundcloud 401 client_id refresh race) and the whole
+// batch dies.  Serializing the walks keeps providers under their limits
+// while single-track latency stays identical (the gate is only contended
+// during batch preloads).
+var rescueWalkGate = make(chan struct{}, 2)
+
 // Circuit breaker: a provider that is rate-limited (HTTP 429) or can only give
 // a non-streamable (DRM/encrypted) result gets "cooled down" for a while so the
 // rescue/prefetch loop doesn't hammer it repeatedly. Without this, deezer (429)
@@ -466,9 +477,12 @@ func rescueRace(reg *provider.Registry, names []string, budget time.Duration, wo
 // verifyGrace is how long a verification signal waits for a real stream to
 // land before committing to the "needs session" verdict. A provider that only
 // needs verification usually fails in ~1s, while a working provider may take a
-// few seconds to resolve — without the grace, the fast verify signal would
-// preempt a slower but genuinely playable source.
-const verifyGrace = 1500 * time.Millisecond
+// few seconds to resolve (e.g. youtube search + stream extraction ~2-4s). The
+// grace must be generous enough that a verify-blocked provider (deezer
+// VERIFY_REQUIRED) NEVER preempts a slower but genuinely playable source — a
+// deezer-verify-blocked track must fall back to youtube/soundcloud instead of
+// failing playback.
+const verifyGrace = 4 * time.Second
 
 // drainResults collects race results until either every worker finished, a
 // verification signal arrived (honored after a short grace), or the shared
@@ -539,12 +553,17 @@ func drainResults(results <-chan rescueOut, verifyCh <-chan string, done <-chan 
 // session to stream it — the caller fails fast on that verdict.
 func rescueStream(reg *provider.Registry, track *provider.TrackResult, trackName, artistName, quality string) (url, prov string, attempted []string, verified bool) {
 	names := streamingProviderOrder(reg)
+	// A provider that HAS the exact track but needs its session verified is
+	// REMEMBERED, never fatal: the next phase (name search) can still find the
+	// track on a provider that doesn't index ISRC (e.g. youtube). The verify
+	// verdict is only returned when NO phase produced a stream.
+	var verifyName string
 
 	// Phase 1: every provider resolves the same track via ISRC (exact match) in
 	// parallel. Fast ~1-2s when the exact source is up; bounded so a provider
 	// with a cold session never blocks the others. A provider that HAS the
-	// track but needs its session verified is reported as a verify signal so
-	// the caller fails fast instead of walking the whole chain.
+	// track but needs its session verified is remembered so the caller can
+	// surface it IF nothing else streams.
 	if track != nil && track.ISRC != "" {
 		u, provName, v := rescueRace(reg, names, 8*time.Second, 2, func(name string, p provider.Provider) (string, bool) {
 			trackByISRC, err := p.GetTrackByISRC(track.ISRC)
@@ -560,8 +579,8 @@ func rescueStream(reg *provider.Registry, track *provider.TrackResult, trackName
 			}
 			return rescueProviderOnce(p, trackByISRC.ID, quality)
 		})
-		if v {
-			return "", provName, nil, true
+		if v && verifyName == "" {
+			verifyName = provName
 		}
 		if u != "" {
 			return u, provName, nil, false
@@ -572,7 +591,7 @@ func rescueStream(reg *provider.Registry, track *provider.TrackResult, trackName
 	// Phase 2: strict original-track name search across providers, also in
 	// parallel (the same rankedMatches filter used before, so a wrong/similar
 	// upload is never served). A strict match whose stream needs verification
-	// is surfaced the same way.
+	// is remembered the same way — never fatal while another phase may stream.
 	if trackName != "" && artistName != "" {
 		u, provName, v := rescueRace(reg, names, 10*time.Second, 2, func(name string, p provider.Provider) (string, bool) {
 			results, err := p.SearchTracks(trackName+" "+artistName, 8)
@@ -595,13 +614,16 @@ func rescueStream(reg *provider.Registry, track *provider.TrackResult, trackName
 			}
 			return "", false
 		})
-		if v {
-			return "", provName, nil, true
+		if v && verifyName == "" {
+			verifyName = provName
 		}
 		if u != "" {
 			return u, provName, nil, false
 		}
 		attempted = append(attempted, names...)
+	}
+	if verifyName != "" {
+		return "", verifyName, attempted, true
 	}
 	return "", "", attempted, false
 }
@@ -654,6 +676,18 @@ func RescueStreamURL(reg *provider.Registry, quality, isrc, spotifyID, deezerID,
 	if reg == nil {
 		return "", "", fmt.Errorf("no inicializado")
 	}
+	// Serialize rescue walks so batch play (3+ concurrent getStreamPackage)
+	// does not flood providers with parallel requests that trigger rate limits
+	// (tidal 429 → VERIFY_REQUIRED, soundcloud 401).  A buffered channel of 2
+	// allows two simultaneous walks (e.g. current track + next prefetch) while
+	// blocking a third until one finishes.
+	select {
+	case rescueWalkGate <- struct{}{}:
+		defer func() { <-rescueWalkGate }()
+	case <-time.After(15 * time.Second):
+		// Don't block playback forever — if the gate is saturated the caller
+		// already has too many in-flight walks; fall through and try anyway.
+	}
 	// If we have no identifier and no name, there is nothing to resolve with.
 	if isrc == "" && spotifyID == "" && deezerID == "" && tidalID == "" && qobuzID == "" && trackName == "" {
 		return "", "", fmt.Errorf("sin identificador de track")
@@ -664,13 +698,15 @@ func RescueStreamURL(reg *provider.Registry, quality, isrc, spotifyID, deezerID,
 	// carries spotify/deezer/tidal/qobuz id or an ISRC starts playing in ~1-2s
 	// instead of falling into the slow name-search below. Search results in
 	// particular often lack an ISRC but always carry the source provider's id.
+	// A verify signal here is REMEMBERED, never fatal: the name-search phases
+	// below can still find the track on a provider that doesn't index ISRC /
+	// cross-provider ids (e.g. youtube) — a playing song always beats a
+	// verification modal, so the verdict is only returned when nothing streams.
+	var idVerify string
 	if url, prov, verified := rescueByIdentifiers(reg, quality, isrc, spotifyID, deezerID, tidalID, qobuzID, trackName, artistName); url != "" {
 		return url, prov, nil
 	} else if verified {
-		// The exact track EXISTS on a full-stream provider that only needs its
-		// session verified — fail fast so the client opens the modal instead
-		// of walking every provider for 10-30s to reach the same verdict.
-		return "", prov, &VerifyRequiredError{Service: prov}
+		idVerify = prov
 	}
 	track := &provider.TrackResult{
 		ISRC:   isrc,
@@ -683,6 +719,9 @@ func RescueStreamURL(reg *provider.Registry, quality, isrc, spotifyID, deezerID,
 	}
 	if verified {
 		return "", prov, &VerifyRequiredError{Service: prov}
+	}
+	if idVerify != "" {
+		return "", idVerify, &VerifyRequiredError{Service: idVerify}
 	}
 	if len(attempted) > 0 {
 		return "", "", fmt.Errorf("sin stream en: %s", strings.Join(attempted, ", "))

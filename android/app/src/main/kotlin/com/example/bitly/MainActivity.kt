@@ -177,6 +177,25 @@ class MainActivity : AudioServiceActivity() {
                                 // thread blocked on its own future.
                                 executor.execute {
                                     try {
+                                        // Point the Go backend at the app's
+                                        // writable dirs BEFORE init: on Android
+                                        // os.UserConfigDir() is unusable, so
+                                        // without BITLY_BIN_DIR set here yt-dlp
+                                        // is never installed and the native
+                                        // youtube provider silently fails every
+                                        // stream resolution.
+                                        val appDataDir =
+                                            call.argument<String>("app_data_dir") ?: ""
+                                        if (appDataDir.isNotEmpty()) {
+                                            try {
+                                                Gobackend.setAppDataDir(appDataDir)
+                                            } catch (e: Exception) {
+                                                android.util.Log.w(
+                                                    "NativeBridge",
+                                                    "setAppDataDir failed: ${e.message}",
+                                                )
+                                            }
+                                        }
                                         Gobackend.initBackend()
                                         val s = Gobackend.initGlobalState()
                                         android.util.Log.i("NativeBridge", "Go backend initialized: $s")

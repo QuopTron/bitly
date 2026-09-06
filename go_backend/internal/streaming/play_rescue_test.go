@@ -144,15 +144,14 @@ func TestRescueRaceFastWins(t *testing.T) {
 
 // TestRescueRaceVerifyFastFails: when a provider HAS the track but needs its
 // session verified (VERIFY_REQUIRED) and no other provider streams within the
-// short grace, the race returns the verdict fast — instead of walking every
-// provider for 10-30s before surfacing the same "verification required" error.
+// race budget, the race returns the verdict instead of walking every provider
+// for 10-30s before surfacing the same "verification required" error.
 func TestRescueRaceVerifyFastFails(t *testing.T) {
 	reg := provider.NewRegistry()
-	// A working provider that resolves slower than the verify grace — it must
-	// NOT mask the verification signal (in reality a working provider usually
-	// wins the race; here the verify is the only fast outcome).
+	// A provider that resolves AFTER the budget — its stream is too late, so
+	// the race must end on the verification verdict at the deadline.
 	reg.Register(&stubProvider{name: "slow", resolve: func() (string, error) {
-		time.Sleep(3 * time.Second)
+		time.Sleep(6 * time.Second)
 		return "http://slow/stream", nil
 	}})
 	// The verify provider resolves the track but its stream needs a session.
@@ -176,10 +175,49 @@ func TestRescueRaceVerifyFastFails(t *testing.T) {
 	if !verified || name != "deezer" {
 		t.Fatalf("expected verification verdict from deezer, got url=%q name=%q verified=%v", url, name, verified)
 	}
-	if elapsed < verifyGrace || elapsed > verifyGrace+2*time.Second {
-		t.Fatalf("verification verdict took %s, expected ~verifyGrace (%s)", elapsed, verifyGrace)
+	if elapsed > 5*time.Second {
+		t.Fatalf("verification verdict took %s, expected within the race budget (~4s)", elapsed)
 	}
-	t.Logf("verification verdict from %q in %s — fail-fast after grace", name, elapsed.Round(10*time.Millisecond))
+	t.Logf("verification verdict from %q in %s — at budget end, no stream landed", name, elapsed.Round(10*time.Millisecond))
+}
+
+// TestRescueRaceVerifyGraceSlowStreamWins: a real stream that lands DURING the
+// grace window wins over a faster "needs session" signal — a working provider
+// must never be preempted by a quick verify verdict. This is what makes a
+// deezer-verify-blocked track fall back to youtube/soundcloud instead of
+// failing playback.
+func TestRescueRaceVerifyGraceSlowStreamWins(t *testing.T) {
+	reg := provider.NewRegistry()
+	// The working provider resolves slower than the verify signal but well
+	// within the grace window — its stream must win.
+	reg.Register(&stubProvider{name: "slow", resolve: func() (string, error) {
+		time.Sleep(3 * time.Second)
+		return "http://slow/stream", nil
+	}})
+	reg.Register(&stubProvider{name: "deezer", resolve: func() (string, error) {
+		return "", fmt.Errorf("getDownloadUrl failed: VERIFY_REQUIRED")
+	}})
+
+	start := time.Now()
+	url, name, verified := rescueRace(reg, []string{"deezer", "slow"}, 6*time.Second, 2, func(n string, p provider.Provider) (string, bool) {
+		u, err := p.GetStreamURL(n, "high")
+		if err != nil {
+			if strings.Contains(strings.ToLower(err.Error()), "verify_required") {
+				return "", true
+			}
+			return "", false
+		}
+		return u, false
+	})
+	elapsed := time.Since(start)
+
+	if verified || url != "http://slow/stream" || name != "slow" {
+		t.Fatalf("expected the slow stream to win, got url=%q name=%q verified=%v", url, name, verified)
+	}
+	if elapsed > verifyGrace {
+		t.Fatalf("stream took %s, expected within verifyGrace (%s)", elapsed, verifyGrace)
+	}
+	t.Logf("slow stream won in %s — verify signal did not preempt a playable source", elapsed.Round(10*time.Millisecond))
 }
 
 // TestRescueRaceVerifyGraceStreamWins: a real stream that lands DURING the

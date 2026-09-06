@@ -102,6 +102,10 @@ class AndroidBackend extends BackendService
           if (setupData != null) {
             await syncBackendConfig(mode: setupData.mode);
           }
+          // Push the performance profile (concurrency/buffer settings) now
+          // that the Go runtime is confirmed up — before init it could block
+          // the native bridge and stall the splash.
+          await inj.pushPerformanceProfileToBackend();
           // Sync the persisted download provider priority so restored sessions
           // keep the user's chosen fallback order (mirrors SpotiFLAC priority).
           final dlPriority = await inj.sl<SettingsCache>().getDownloadProviderPriority();

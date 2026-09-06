@@ -468,6 +468,10 @@ func GetStreamPackage(payload string) string {
 				return streamFailErrorJSON(cachedFail)
 			}
 		}
+		// A verification verdict from the preferred provider (its session needs
+		// completing to stream). Remembered below so the rescue pass gets a
+		// chance first: a playing song always beats a verification modal.
+		var preferredVerify *streaming.VerifyRequiredError
 		if streaming.IsFullStreamProvider(params.PreferredProvider) {
 			url, name, err := streaming.StreamQuick(reg, params.PreferredProvider, params.TrackID, params.Quality, params.ISRC, params.SpotifyID, params.DeezerID, params.TidalID, params.QobuzID, params.TrackName, params.ArtistName)
 			if err == nil && url != "" {
@@ -477,21 +481,22 @@ func GetStreamPackage(payload string) string {
 				return string(data)
 			}
 			// The preferred provider HAS the exact track but needs its signed
-			// session verified — return that verdict NOW (1-2s) so the client
-			// opens the verification modal instead of a 10-30s fallback walk
-			// that ends on the same error.
+			// session verified (e.g. deezer VERIFY_REQUIRED). Remember the
+			// verdict but DON'T fail yet: another FULL-STREAM provider may
+			// serve the exact same track via ISRC / cross-provider id, so fall
+			// through to the rescue pass below and only surface verification
+			// when nothing else can stream it either.
 			if verr, ok := err.(*streaming.VerifyRequiredError); ok {
-				return streamVerifyErrorJSON(verr)
+				preferredVerify = verr
 			}
 		}
 
-		// When the preferred provider is a preview/DRM source (tidal, apple,
-		// amazon, qobuz, spotify-web) it has no direct stream, but another
-		// FULL-STREAM provider (deezer/soundcloud/ytmusic/youtube) may serve
-		// the same exact track via its ISRC / cross-provider id in ~1-2s. Probe
-		// them before committing to the slow download pipeline — this is what
-		// makes a tidal/amazon track start playing in seconds instead of after
-		// a full multi-provider download.
+		// When the preferred provider exposes no direct stream (preview/DRM
+		// sources: tidal, apple, amazon, qobuz, spotify-web — or a full-stream
+		// source that is verification-blocked, e.g. deezer VERIFY_REQUIRED),
+		// another FULL-STREAM provider (deezer/soundcloud/ytmusic/youtube)
+		// may serve the same exact track via its ISRC / cross-provider id in
+		// ~1-2s. Probe them before committing to the slow download pipeline.
 		if url, name, err := streaming.RescueStreamURL(reg, params.Quality, params.ISRC, params.SpotifyID, params.DeezerID, params.TidalID, params.QobuzID, params.TrackName, params.ArtistName); err == nil && url != "" {
 			streamFailClear(failKey)
 			pkg := &streaming.StreamPackage{AudioURL: url, Provider: name, Quality: params.Quality}
@@ -499,11 +504,18 @@ func GetStreamPackage(payload string) string {
 			return string(data)
 		} else if verr, ok := err.(*streaming.VerifyRequiredError); ok {
 			// The exact track was found on a full-stream provider but its
-			// session is not verified. Fail fast: the client opens the modal
-			// for [service]; completing it makes the song play. Skip the slow
-			// fallback download — it would walk every provider (10-30s) and
-			// end on the same verification verdict.
+			// session is not verified and nothing else could stream it. The
+			// client opens the modal for [service]; completing it makes the
+			// song play. Skip the slow fallback download — it would walk every
+			// provider (10-30s) and end on the same verification verdict.
 			return streamVerifyErrorJSON(verr)
+		}
+		// Rescue found nothing at all: if the PREFERRED provider (the user's
+		// source) was verification-blocked, that verdict is more actionable
+		// than a generic "no stream" — surface it so the client can prompt
+		// the user to complete the verification.
+		if preferredVerify != nil {
+			return streamVerifyErrorJSON(preferredVerify)
 		}
 
 		// Fast path exhausted: enrich the ISRC now (only on real playback, only
