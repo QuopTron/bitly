@@ -2,6 +2,7 @@ package gobackend
 
 import (
 	"encoding/json"
+	"strings"
 	"sync"
 	"time"
 
@@ -9,7 +10,7 @@ import (
 	"github.com/zarz/bitly/go_backend/internal/provider"
 )
 
-const searchGlobalTimeout = 6 * time.Second
+const searchGlobalTimeout = 4 * time.Second
 
 // =========================================================================
 // STREAMING SEARCH BUFFER
@@ -238,7 +239,9 @@ func equalFold(a, b string) bool {
 }
 
 // searchProviderItems searches a single provider and returns FeedItemGo items
-// (no JSON serialization — used by streaming search).
+// (no JSON serialization — used by streaming search). Track results are
+// filtered through RankOriginalCandidates so covers/remixes/wrong-versions
+// are rejected before they reach the user's screen.
 func searchProviderItems(p provider.Provider, query string, limit int, searchType string) []FeedItemGo {
 	items := make([]FeedItemGo, 0)
 
@@ -250,6 +253,9 @@ func searchProviderItems(p provider.Provider, query string, limit int, searchTyp
 	if cooldown.IsCooledOp(p.Name(), "search") {
 		return items
 	}
+
+	// Extract query title+artist for relevance filtering.
+	queryTitle, queryArtist := splitSearchQuery(query)
 
 	switch searchType {
 	case "all", "":
@@ -263,7 +269,20 @@ func searchProviderItems(p provider.Provider, query string, limit int, searchTyp
 				return items
 			}
 			for _, c := range res {
-				items = append(items, combinedToFeedItem(c, ep.Name()))
+				item := combinedToFeedItem(c, ep.Name())
+				// Only filter tracks for relevance — albums/artists/playlists
+				// are kept as-is (user may want a different album by the same name).
+				if item.Type == "track" && queryTitle != "" {
+					tr := provider.TrackResult{
+						Title:  item.Name,
+						Artist: item.Artists,
+						ISRC:   item.ISRC,
+					}
+					if _, ok := provider.OriginalStrength(queryTitle, queryArtist, tr); !ok {
+						continue
+					}
+				}
+				items = append(items, item)
 			}
 			if len(items) > 0 {
 				return items
@@ -273,6 +292,9 @@ func searchProviderItems(p provider.Provider, query string, limit int, searchTyp
 		// genuinely succeeded with zero results, or for native providers).
 		tracks, err := p.SearchTracks(query, limit)
 		if err == nil {
+			if queryTitle != "" {
+				tracks = provider.RankOriginalCandidates(queryTitle, queryArtist, tracks)
+			}
 			for _, t := range tracks {
 				items = append(items, trackToFeedItem(t, p.Name()))
 			}
@@ -293,6 +315,9 @@ func searchProviderItems(p provider.Provider, query string, limit int, searchTyp
 		}
 		tracks, err := p.SearchTracks(query, limit)
 		if err == nil {
+			if queryTitle != "" {
+				tracks = provider.RankOriginalCandidates(queryTitle, queryArtist, tracks)
+			}
 			for _, t := range tracks {
 				items = append(items, trackToFeedItem(t, p.Name()))
 			}
@@ -654,4 +679,26 @@ func ResolveISRC(isrc string) string {
 	}
 	data, _ := json.Marshal(results)
 	return string(data)
+}
+
+// splitSearchQuery parses a search query like "Artist - Title" or "Title ft Artist"
+// into (title, artist). When no separator is found the whole query is treated as
+// a title-only search with an empty artist.
+func splitSearchQuery(q string) (string, string) {
+	low := strings.ToLower(q)
+	// "Artist - Title"
+	if idx := strings.Index(low, " - "); idx > 0 {
+		return strings.TrimSpace(q[idx+3:]), strings.TrimSpace(q[:idx])
+	}
+	// "Title by Artist"
+	if idx := strings.Index(low, " by "); idx >= 0 {
+		return strings.TrimSpace(q[:idx]), strings.TrimSpace(q[idx+4:])
+	}
+	// "Title ft Artist" / "Title feat Artist"
+	for _, sep := range []string{" ft ", " feat ", " featuring ", " ft. ", " feat. "} {
+		if idx := strings.Index(low, sep); idx >= 0 {
+			return strings.TrimSpace(q[:idx]), strings.TrimSpace(q[idx+len(sep):])
+		}
+	}
+	return q, ""
 }

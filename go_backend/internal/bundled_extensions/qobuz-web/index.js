@@ -567,6 +567,20 @@ function postJSON(url, body, headers) {
   );
 }
 
+// Gateway park: signed-session traffic (bootstrap + tickets + streams) flows
+// through the shared zarz.moe gateway. When that origin is down, Cloudflare
+// answers 522/524/502/504 — retrying every attempt per track is pointless.
+// After the first gateway error, park signed calls for 2 minutes (fail fast
+// with a clear reason); a healthy response clears the park immediately.
+var _qobuzGatewayDownUntil = 0;
+
+function isGatewayError(message) {
+  var text = String(message || "");
+  return /HTTP 52[24]|HTTP 50[24]|bootstrap returned|origin connection|gateway/i.test(
+    text,
+  );
+}
+
 function signedJSON(method, path, body, headers) {
   if (
     typeof session === "undefined" ||
@@ -574,6 +588,9 @@ function signedJSON(method, path, body, headers) {
     typeof session.signedFetch !== "function"
   ) {
     throw new Error("signed session runtime is not available");
+  }
+  if (Date.now() < _qobuzGatewayDownUntil) {
+    throw new Error("signed-session gateway down (522); retrying later");
   }
   var response = session.signedFetch(method, path, body || null, headers || {});
   if (response && response.needsVerification) {
@@ -586,17 +603,24 @@ function signedJSON(method, path, body, headers) {
   if (!response || response.error) {
     var error =
       response && response.error ? response.error : "signed request failed";
+    if (isGatewayError(error)) {
+      _qobuzGatewayDownUntil = Date.now() + 2 * 60 * 1000;
+    }
     throw new Error(error);
   }
   if (response.statusCode !== 200) {
-    throw new Error(
+    var statusError =
       "HTTP " +
-        response.statusCode +
-        " for " +
-        path +
-        summarizeErrorBody(response.body),
-    );
+      response.statusCode +
+      " for " +
+      path +
+      summarizeErrorBody(response.body);
+    if (isGatewayError(statusError)) {
+      _qobuzGatewayDownUntil = Date.now() + 2 * 60 * 1000;
+    }
+    throw new Error(statusError);
   }
+  _qobuzGatewayDownUntil = 0;
   return JSON.parse(response.body || "{}");
 }
 
@@ -3077,6 +3101,127 @@ function completeGrant() {
   return session.completeGrant();
 }
 
+// Streaming URL: Qobuz audio URLs returned by the signed download providers are
+// plain http(s) audio (no client-side decryption), so a verified session can
+// stream the exact track in ~1-2s instead of waiting for a full download. Any
+// provider failure / missing session surfaces as null so the caller falls back
+// to the download() pipeline, which additionally validates full-length vs 30s
+// previews before accepting a file.
+function getDownloadUrl(trackID, quality) {
+  var resolvedTrackID = String(trackID || "").trim();
+  if (!resolvedTrackID) return null;
+  var requested = String(quality || "").trim();
+  try {
+    var info = resolveDownloadInfo(resolvedTrackID, requested);
+    if (!info || !info.directURL) return null;
+    var url = String(info.directURL).trim();
+    if (url.indexOf("http://") !== 0 && url.indexOf("https://") !== 0) {
+      return null;
+    }
+    log.info(
+      "[QobuzWeb] streaming URL OK:",
+      info.provider,
+      "q=" + info.qualityCode,
+    );
+    return url;
+  } catch (e) {
+    var msg = e && e.message ? e.message : String(e);
+    log.debug("[QobuzWeb] getDownloadUrl failed:", msg);
+    // A gateway-down error must NOT be swallowed into null: Go's circuit
+    // breaker only cools "qobuz-web" when it sees the marker in the error
+    // (522/gateway), and without it every track re-walks the whole retry
+    // matrix. Re-throw so the cooldown trips and later tracks skip this
+    // source while the gateway is down.
+    if (isGatewayError(msg)) {
+      throw new Error(msg);
+    }
+    return null;
+  }
+}
+
+function getHomeFeed() {
+  try {
+    var sections = [];
+
+    // Try signed session first (requires verified session)
+    if (
+      typeof session !== "undefined" &&
+      session &&
+      typeof session.signedFetch === "function"
+    ) {
+      try {
+        // Fetch Qobuz editorial/featured content via zarz proxy
+        var editorialRes = session.signedFetch(
+          "GET",
+          "/qbz/api.json/0.2/widget/getEditorialContent?limit=20",
+          null,
+          {},
+        );
+        if (
+          editorialRes &&
+          editorialRes.statusCode === 200 &&
+          editorialRes.body
+        ) {
+          var data = JSON.parse(editorialRes.body);
+          if (data && data.items) {
+            var items = [];
+            for (var i = 0; i < data.items.length && items.length < 15; i++) {
+              var item = data.items[i];
+              if (!item) continue;
+              var type = "album";
+              var id = "";
+              if (item.id) id = String(item.id);
+              if (!id) continue;
+              var name = item.title || item.name || "";
+              var artists = "";
+              if (item.artist && item.artist.name) artists = item.artist.name;
+              else if (item.performer && item.performer.name)
+                artists = item.performer.name;
+              var cover = "";
+              if (item.cover && item.cover.medium) cover = item.cover.medium;
+              else if (item.image && item.image.url) cover = item.image.url;
+              items.push({
+                id: id,
+                type: type,
+                name: name,
+                artists: artists,
+                cover_url: cover,
+              });
+            }
+            if (items.length > 0) {
+              sections.push({ title: "Qobuz Featured", items: items });
+            }
+          } else {
+            log.warn(
+              "[QobuzWeb] editorial payload has no items; keys=" +
+                (data ? Object.keys(data).join(",") : "none"),
+            );
+          }
+        } else if (editorialRes) {
+          log.warn(
+            "[QobuzWeb] editorial fetch HTTP " +
+              editorialRes.statusCode +
+              " code=" +
+              (editorialRes.code || "") +
+              " err=" +
+              (editorialRes.error || ""),
+          );
+        }
+      } catch (e) {
+        log.warn("[QobuzWeb] getHomeFeed signed request failed:", String(e));
+      }
+    } else {
+      log.warn("[QobuzWeb] no session object for home feed");
+    }
+
+    log.info("[QobuzWeb] getHomeFeed returning", sections.length, "sections");
+    return { success: true, sections: sections };
+  } catch (e) {
+    log.warn("[QobuzWeb] getHomeFeed failed:", String(e));
+    return { success: false, error: String(e), sections: [] };
+  }
+}
+
 registerExtension({
   initialize: initialize,
   cleanup: cleanup,
@@ -3084,6 +3229,7 @@ registerExtension({
   customSearch: customSearch,
   checkAvailability: checkAvailability,
   download: download,
+  getDownloadUrl: getDownloadUrl,
   handleUrl: handleUrl,
   getTrack: getTrack,
   getAlbum: getAlbum,
@@ -3091,6 +3237,7 @@ registerExtension({
   getPlaylist: getPlaylist,
   enrichTrack: enrichTrack,
   searchTracks: searchTracks,
+  getHomeFeed: getHomeFeed,
 });
 
 log.info("[QobuzWeb] Qobuz extension loaded");

@@ -59,6 +59,16 @@ class ProviderCredentialService {
         settings[field.key] = value;
       }
     }
+    // OAuth tokens produced by the app (no visible field) must also survive
+    // restarts: push them exactly like fields so the extension re-initializes
+    // with the session intact.
+    for (final key in provider.extraSettingKeys) {
+      final value =
+          (await _cache.getSetting('${provider.id}_$key') ?? '').trim();
+      if (value.isNotEmpty) {
+        settings[key] = value;
+      }
+    }
 
     if (settings.isEmpty) {
       debugPrint('[ProviderCredential] No saved ${provider.displayName} credentials to push');

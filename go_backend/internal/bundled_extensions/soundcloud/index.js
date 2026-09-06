@@ -14,6 +14,14 @@ var state = {
   clientId: null,
   clientIdExpiry: 0,
   scVersion: "",
+  // clientIdBusy dedupes concurrent fetches: a queue prefetch fires several
+  // ISRC searches in parallel, and without a guard each would re-run the whole
+  // HTML+bundle scan (2-3s each) against the same state. Only the first call
+  // fetches; the rest see the in-flight marker and reuse its result. On
+  // failure the marker is cleared after a short backoff so the next search
+  // retries, but a burst of parallel failures doesn't hammer soundcloud.com.
+  clientIdBusy: false,
+  clientIdNextRetry: 0,
 };
 
 // ============================================
@@ -115,12 +123,14 @@ function fetchClientId() {
   }
 
   if (scriptMatches) {
-    // Process from last to first (client_id is usually in later bundles)
-    for (
-      var i = scriptMatches.length - 1;
-      i >= 0 && i >= scriptMatches.length - 8;
-      i--
-    ) {
+    // Process from last to first (client_id is usually in later bundles), but
+    // scan ALL scripts, not just the last 8: SoundCloud rotates which chunk
+    // carries client_id (observed in the 55-*.js chunk), and the last-8 window
+    // missed it — forcing a second full scan on the next search. ~1s for the
+    // extra chunks is cheaper than a guaranteed repeat failure.
+    var scanStart = scriptMatches.length - 1;
+    var scanEnd = 0;
+    for (var i = scanStart; i >= scanEnd; i--) {
       var srcMatch = scriptMatches[i].match(/src="([^"]+)"/);
       if (!srcMatch) continue;
 
@@ -185,8 +195,27 @@ function fetchClientId() {
 }
 
 function ensureClientId() {
-  if (!state.clientId || Date.now() >= state.clientIdExpiry) {
+  if (state.clientId && Date.now() < state.clientIdExpiry) {
+    return;
+  }
+  // Parallel callers: only the first one actually fetches; the rest wait for
+  // it (the scan is fast when it succeeds — ~1s — and a shared result beats
+  // N duplicated scans). A recent failure backs off briefly so a prefetch
+  // storm doesn't re-run the scan 8 times against the same broken page.
+  if (state.clientIdBusy) {
+    return;
+  }
+  if (Date.now() < state.clientIdNextRetry) {
+    return;
+  }
+  state.clientIdBusy = true;
+  try {
     fetchClientId();
+  } finally {
+    state.clientIdBusy = false;
+    if (!state.clientId) {
+      state.clientIdNextRetry = Date.now() + 30 * 1000;
+    }
   }
 }
 

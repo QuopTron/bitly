@@ -31,10 +31,21 @@ type SignedSessionState struct {
 	// lastBootstrap caches the outcome of the last bootstrap attempt; after a
 	// failure or VERIFY_REQUIRED we back off for bootstrapCooldown instead of
 	// re-hitting the endpoint on every signed request.
-	lastBootstrap    time.Time
+	lastBootstrap     time.Time
 	bootstrapCooldown time.Duration
-	lastAuthURL      string
-	lastBootstrapErr error
+	lastAuthURL       string
+	lastBootstrapErr  error
+
+	// keepAliveMu serializes + paces the silent session keepalive (refresh
+	// before expiry / silent bootstrap). Guards lastKeepAlive and
+	// keepAliveBackoffUntil so a periodic keepalive pass never hammers the
+	// gateway or races with itself across threads (desktop RPC is concurrent).
+	keepAliveMu sync.Mutex
+	// lastKeepAlive is when the last keepalive attempt ran (pacing window).
+	lastKeepAlive time.Time
+	// keepAliveBackoffUntil suppresses keepalive attempts after a failure so a
+	// dead endpoint isn't re-hit on every tick.
+	keepAliveBackoffUntil time.Time
 }
 
 // bootstrapWithGuard performs a singleflight + cooldown-guarded bootstrap.

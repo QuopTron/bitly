@@ -106,12 +106,36 @@ func TestRateLimitedOrBlocked_Markers(t *testing.T) {
 		"Provider temporarily unavailable",
 		"client decryption required",
 		"stream encriptado no reproducible",
+		// VERIFY_REQUIRED from signed-session providers must cool the provider
+		// (short window) so the fallback stops attempting it dozens of times
+		// per track, burning the streaming budget on a source that cannot serve
+		// until the user completes the challenge.
+		"getDownloadUrl failed: VERIFY_REQUIRED",
+		"verification required on tidal-web",
+		"precondition required",
+		"HTTP 428",
 	} {
 		if !rateLimitedOrBlocked(msg) {
 			t.Errorf("expected %q to be treated as rate-limited/blocked", msg)
 		}
 	}
-	if rateLimitedOrBlocked("") || rateLimitedOrBlocked("Verification required") {
-		t.Error("unexpected false positive in marker matching")
+	if rateLimitedOrBlocked("") {
+		t.Error("empty message must not match")
+	}
+}
+
+func TestVerificationRequired_ShortWindow(t *testing.T) {
+	MarkOpError("tidal-web", "download", "getDownloadUrl failed: VERIFY_REQUIRED")
+	if !IsCooledOp("tidal-web", "download") {
+		t.Fatal("verification error must cool the download bucket")
+	}
+	// The window must be short (45s base + jitter), not the full rate-limit
+	// window, so a session completed in the verify modal is retried quickly.
+	if IsCooledOp("tidal-web", "feed") || IsCooled("tidal-web") {
+		t.Fatal("verification cooldown must stay in the op bucket, not provider-wide")
+	}
+	MarkOpOk("tidal-web", "download")
+	if IsCooledOp("tidal-web", "download") {
+		t.Fatal("MarkOpOk must clear the verification cooldown")
 	}
 }

@@ -139,6 +139,12 @@ class StringsSetup {
   final String downloadTooltipInProgress;
   final String downloadTooltipRetry;
   final String downloadTooltipDelete;
+  final String downloadTooltipPause;
+  final String editTags;
+  final String settingsDownloadsLabel;
+  final String settingsPerformanceLabel;
+  final String settingsServicesLabel;
+  final String settingsStatsLabel;
   final String downloadDecryptFailed;
   final String ok;
 
@@ -315,6 +321,12 @@ class StringsSetup {
     required this.downloadTooltipInProgress,
     required this.downloadTooltipRetry,
     required this.downloadTooltipDelete,
+    required this.downloadTooltipPause,
+    required this.editTags,
+    required this.settingsDownloadsLabel,
+    required this.settingsPerformanceLabel,
+    required this.settingsServicesLabel,
+    required this.settingsStatsLabel,
     required this.downloadDecryptFailed,
     required this.ok,
   });
@@ -505,6 +517,12 @@ class StringsSetup {
     downloadTooltipInProgress: 'Downloading...',
     downloadTooltipRetry: 'Retry download',
     downloadTooltipDelete: 'Delete download',
+    downloadTooltipPause: 'Pause download',
+    editTags: 'Edit tags',
+    settingsDownloadsLabel: 'Downloads',
+    settingsPerformanceLabel: 'Performance',
+    settingsServicesLabel: 'Services',
+    settingsStatsLabel: 'Statistics',
     downloadDecryptFailed:
         'A download could not be decrypted after several attempts. Retry the download; if it persists, the source served an invalid file.',
     ok: 'OK',
@@ -700,6 +718,12 @@ class StringsSetup {
     downloadTooltipInProgress: 'Descargando...',
     downloadTooltipRetry: 'Reintentar descarga',
     downloadTooltipDelete: 'Eliminar descarga',
+    downloadTooltipPause: 'Pausar descarga',
+    editTags: 'Editar etiquetas',
+    settingsDownloadsLabel: 'Descargas',
+    settingsPerformanceLabel: 'Rendimiento',
+    settingsServicesLabel: 'Servicios',
+    settingsStatsLabel: 'Estadísticas',
     downloadDecryptFailed:
         'No se pudo descifrar una descarga tras varios intentos. Reinténtalo; si persiste, la fuente no entregó un archivo válido.',
     ok: 'OK',

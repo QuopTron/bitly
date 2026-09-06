@@ -15,6 +15,7 @@ import '../../../backend/services/playlist_cubit.dart';
 import '../../../backend/services/queue_cubit.dart';
 import '../../../backend/services/player_cubit.dart';
 import '../../shared/widgets/mini_player.dart';
+import '../../shared/widgets/ambient_backdrop.dart';
 import '../../../backend/cache/search_cache.dart';
 import '../../../injection.dart';
 import '../feed/widgets/feed_page.dart';
@@ -199,9 +200,22 @@ class _HomePageState extends State<HomePage>
   }
 
   Future<void> _acquireSessions() async {
-    _unlockTimer = Timer(const Duration(minutes: 3, seconds: 30), _skipSessions);
+    // Safety fallback: provisioning is bounded (~15s max, non-blocking, no
+    // auto-captchas) so the gate should never stay up long — but if the
+    // backend is stuck, never trap the user behind it.
+    _unlockTimer = Timer(const Duration(seconds: 30), _skipSessions);
     try {
       await VerificationService().provisionSignedSessions();
+    } catch (_) {}
+    // After provisioning, batch-verify all sandboxes that need Cloudflare
+    // confirmation so the user sees every challenge upfront instead of
+    // discovering them one-by-one during search/download/play.
+    try {
+      final vs = VerificationService();
+      if (vs.needsVerificationSources.isNotEmpty) {
+        debugPrint('[HomePage] ${vs.needsVerificationSources.length} sources need verification, starting batch');
+        await vs.batchVerifyAll();
+      }
     } catch (_) {}
     _unlockTimer?.cancel();
     _unlockTimer = null;
@@ -253,124 +267,145 @@ class _HomePageState extends State<HomePage>
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final glowColor = isDark ? AppColors.greenBright : AppColors.greenMedium;
     final queueCubit = sl<QueueCubit>();
     final playerCubit = sl<PlayerCubit>();
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.bgDark : AppColors.bgLight,
-      body: Stack(
-        children: [
-          ParticleBackground(glowColor: glowColor, particleColor: glowColor, particleCount: 6),
-          SafeArea(
-            child: Stack(
-              children: [
-                BlocProvider.value(value: queueCubit,
-                  child: BlocProvider.value(value: playerCubit,
-                    child: PageView(
-                      controller: _pageCtrl,
-                      onPageChanged: (i) => setState(() => _tab = i),
-                      children: [
-                        _PageAnimatedWrapper(index: 0, controller: _pageCtrl,
-                          child: BlocProvider.value(value: _searchBloc,
-                            child: BlocProvider.value(value: _likeCubit,
-                              child: BlocProvider.value(value: _downloadCubit, child: const SearchPage())))),
-                        _PageAnimatedWrapper(index: 1, controller: _pageCtrl,
-                          child: BlocProvider.value(value: _feedBloc,
-                            child: BlocProvider.value(value: _likeCubit,
-                              child: BlocProvider.value(value: _downloadCubit, child: const FeedPage())))),
-                        _PageAnimatedWrapper(index: 2, controller: _pageCtrl,
-                          child: BlocProvider.value(value: _likeCubit,
-                            child: BlocProvider.value(value: _downloadCubit,
-                              child: BlocProvider.value(value: _playlistCubit, child: const MiEspacioPage())))),
-                      ],
-                    ),
-                  ),
+      // The body-level BlocBuilder below reads QueueCubit (and resolves the
+      // current cover through LikeCubit), so both must be provided ABOVE it.
+      body: MultiBlocProvider(
+        providers: [
+          BlocProvider<QueueCubit>.value(value: queueCubit),
+          BlocProvider<LikeCubit>.value(value: _likeCubit),
+        ],
+        child: BlocBuilder<QueueCubit, QueueState>(
+          builder: (context, queue) {
+            final trackCover = queue.hasCurrent
+                ? context.read<LikeCubit>().resolveCoverFor(queue.current!)
+                : null;
+            return Stack(
+            children: [
+              if (trackCover != null && trackCover.isNotEmpty)
+                AmbientBackdrop(
+                  coverUrl: trackCover,
+                  isDark: isDark,
+                  bgColor: isDark ? AppColors.bgDark : AppColors.bgLight,
                 ),
-                // MiniPlayer + Navbar — slide down when modals are showing.
-                Positioned(
-                  left: 0, right: 0, bottom: 0,
-                  child: AnimatedBuilder(
-                    animation: _chromeSlideAnim,
-                    builder: (context, child) {
-                      // Translate the chrome down by 120% of its height when
-                      // the animation is at 1.0 (modal showing).
-                      final offset = _chromeSlideAnim.value;
-                      return Transform.translate(
-                        offset: Offset(0, offset * 120),
-                        child: Opacity(
-                          opacity: (1.0 - offset).clamp(0.0, 1.0),
-                          child: child,
+              ParticleBackground(glowColor: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05), particleColor: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05), particleCount: 6),
+              SafeArea(
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: BlocProvider.value(value: queueCubit,
+                        child: BlocProvider.value(value: playerCubit,
+                          child: PageView(
+                            controller: _pageCtrl,
+                            onPageChanged: (i) => setState(() => _tab = i),
+                            children: [
+                              _PageAnimatedWrapper(index: 0, controller: _pageCtrl,
+                                child: BlocProvider.value(value: _searchBloc,
+                                  child: BlocProvider.value(value: _likeCubit,
+                                    child: BlocProvider.value(value: _downloadCubit, child: const SearchPage())))),
+                              _PageAnimatedWrapper(index: 1, controller: _pageCtrl,
+                                child: BlocProvider.value(value: _feedBloc,
+                                  child: BlocProvider.value(value: _likeCubit,
+                                    child: BlocProvider.value(value: _downloadCubit, child: const FeedPage())))),
+                              _PageAnimatedWrapper(index: 2, controller: _pageCtrl,
+                                child: BlocProvider.value(value: _likeCubit,
+                                  child: BlocProvider.value(value: _downloadCubit,
+                                    child: BlocProvider.value(value: _playlistCubit, child: const MiEspacioPage())))),
+                            ],
+                          ),
                         ),
-                      );
-                    },
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        BlocProvider.value(value: queueCubit,
-                          child: BlocProvider.value(value: playerCubit,
-                            child: BlocProvider.value(value: _likeCubit,
-                              child: const MiniPlayer(),
+                      ),
+                    ),
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      child: AnimatedBuilder(
+                        animation: _chromeSlideAnim,
+                        builder: (context, child) {
+                          return ClipRect(
+                            child: Align(
+                              alignment: Alignment.bottomCenter,
+                              heightFactor: (1.0 - _chromeSlideAnim.value).clamp(0.001, 1.0),
+                              child: Opacity(
+                                opacity: (1.0 - _chromeSlideAnim.value).clamp(0.0, 1.0),
+                                child: child,
+                              ),
                             ),
-                          ),
+                          );
+                        },
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            BlocProvider.value(value: queueCubit,
+                              child: BlocProvider.value(value: playerCubit,
+                                child: BlocProvider.value(value: _likeCubit,
+                                  child: const MiniPlayer(),
+                                ),
+                              ),
+                            ),
+                            FloatingNavbar(isDark: isDark, currentIndex: _tab, onTap: _onNavTap),
+                          ],
                         ),
-                        FloatingNavbar(isDark: isDark, currentIndex: _tab, onTap: _onNavTap),
-                      ],
+                      ),
                     ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // Hard gate: nothing is interactive until all signed sessions are
-          // ready.
-          if (!_ready)
-            Positioned.fill(
-              child: AbsorbPointer(
-                child: ColoredBox(
-                  color: Colors.black.withValues(alpha: 0.82),
-                  child: Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const CircularProgressIndicator(),
-                        const SizedBox(height: 20),
-                        const Text(
-                          'Verificando sesiones firmadas…',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Si el captcha no aparece, podés omitirlo y verificar después.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Colors.white70,
-                            fontSize: 13,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        TextButton.icon(
-                          onPressed: _skipSessions,
-                          icon: const Icon(Icons.skip_next, size: 20),
-                          label: const Text('Omitir verificación'),
-                          style: TextButton.styleFrom(
-                            foregroundColor: Colors.white,
-                            backgroundColor: Colors.white12,
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 20, vertical: 10),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                  ],
                 ),
               ),
-            ),
-        ],
+              if (!_ready)
+                Positioned.fill(
+                  child: AbsorbPointer(
+                    child: ColoredBox(
+                      color: Colors.black.withValues(alpha: 0.82),
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const CircularProgressIndicator(),
+                            const SizedBox(height: 20),
+                            const Text(
+                              'Preparando tus fuentes de música…',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Si alguna fuente pide verificación, se abrirá al usarla.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 13,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            TextButton.icon(
+                              onPressed: _skipSessions,
+                              icon: const Icon(Icons.skip_next, size: 20),
+                              label: const Text('Continuar'),
+                              style: TextButton.styleFrom(
+                                foregroundColor: Colors.white,
+                                backgroundColor: Colors.white12,
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 20, vertical: 10),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          );
+        },
+        ),
       ),
     );
   }

@@ -53,6 +53,23 @@ android {
         }
     }
 
+    // Split per-ABI: instead of one fat APK carrying every architecture's
+    // native libs (libgojni ~18MB + libmpv ~12MB + ffmpeg ~25MB + flutter/app
+    // ~20MB EACH), `flutter build apk --split-per-abi` emits one slim APK per
+    // ABI (~40MB) — each user downloads only their device's libs. The universal
+    // APK remains available via --universal-apk for sideloading everywhere.
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("armeabi-v7a", "arm64-v8a")
+            if (includeX86_64) {
+                include("x86_64")
+            }
+            isUniversalApk = true
+        }
+    }
+
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("debug")

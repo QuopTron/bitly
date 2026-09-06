@@ -4,6 +4,7 @@ import '../utils/responsive.dart';
 import '../../../backend/cache/settings_cache.dart';
 import '../../../backend/rpc/backend_service.dart';
 import '../../../backend/services/provider_credential_service.dart';
+import '../../../backend/services/youtube_oauth_service.dart';
 import '../../../injection.dart';
 import '../models/provider_config.dart';
 import 'glass_container.dart';
@@ -60,12 +61,23 @@ class _SettingsProviderSectionState extends State<SettingsProviderSection> {
       }
     }
 
-    // Batch-load saved values from cache
+    // Batch-load saved values from cache. The YouTube OAuth client ships
+    // with baked-in defaults so "Conectar con YouTube" works out of the box;
+    // they show here pre-filled and get persisted on Save like any field.
     final futures = <Future<void>>[];
     for (final entry in _controllers.entries) {
       futures.add(() async {
         final saved = await cache.getSetting(entry.key) ?? '';
-        entry.value.text = saved;
+        if (saved.isNotEmpty) {
+          entry.value.text = saved;
+          return;
+        }
+        // Pre-fill built-in OAuth client values for the YouTube provider.
+        if (entry.key == 'ytmusic-spotiflac_oauthClientId') {
+          entry.value.text = YoutubeOauthService.defaultClientId;
+        } else if (entry.key == 'ytmusic-spotiflac_oauthClientSecret') {
+          entry.value.text = YoutubeOauthService.defaultClientSecret;
+        }
       }());
     }
     await Future.wait(futures);
@@ -197,6 +209,17 @@ class _SettingsProviderSectionState extends State<SettingsProviderSection> {
             ]),
           ),
 
+        // Extension actions (SpotiFLAC "button" settings): one-tap side
+        // effects like clearing caches / restarting sessions.
+        if (_selected.actions.isNotEmpty) ...[
+          if (!_selected.hasCredentialFields) SizedBox(height: r.spacingS),
+          ..._selected.actions.map((a) => Padding(
+                padding: EdgeInsets.only(bottom: r.spacingS),
+                child: _buildAction(r, a),
+              )),
+          SizedBox(height: r.spacingS),
+        ],
+
         // Save button
         SizedBox(
           width: double.infinity,
@@ -222,6 +245,101 @@ class _SettingsProviderSectionState extends State<SettingsProviderSection> {
 
       ]),
     );
+  }
+
+  Widget _buildAction(Responsive r, ProviderAction action) {
+    return OutlinedButton.icon(
+      onPressed: () => _runAction(action),
+      icon: Icon(action.icon, size: r.subtitleSize - 2, color: widget.glowColor),
+      label: Text(action.label,
+        style: TextStyle(
+          fontSize: r.footerSize,
+          color: widget.onBg.withValues(alpha: 0.75),
+          fontWeight: FontWeight.w500,
+        )),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: widget.glowColor,
+        side: BorderSide(color: widget.glowColor.withValues(alpha: 0.35)),
+        padding: EdgeInsets.symmetric(vertical: r.spacingXS + 4),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        backgroundColor: widget.glowColor.withValues(alpha: 0.06),
+      ),
+    );
+  }
+
+  /// Confirms (when needed) and runs an extension action, then reports the
+  /// JS result via a snackbar so failures are visible.
+  Future<void> _runAction(ProviderAction action) async {
+    final backend = sl<BackendService>();
+    // An action that fails is still shown as "not ok" (no silent swallow).
+    void report(Map<String, dynamic> res) {
+      if (!mounted) return;
+      final err = res['error'] as String?;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(err != null
+            ? '${_selected.displayName}: $err'
+            : '${_selected.displayName}: ${action.label} ✓'),
+        backgroundColor: err != null ? Colors.redAccent : null,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ));
+    }
+
+    if (action.confirmMessage != null) {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(action.label),
+          content: Text(action.confirmMessage!),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Ejecutar'),
+            ),
+          ],
+        ),
+      );
+      if (ok != true || !mounted) return;
+    }
+
+    if (!mounted) return;
+
+    // ── YouTube OAuth actions run in Dart (browser flow + token storage),
+    // not as JS extension exports.
+    if (_selected.id == 'ytmusic-spotiflac') {
+      if (action.action == 'youtubeOauthConnect') {
+        final msg = await YoutubeOauthService().connect();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(msg),
+            backgroundColor: msg.startsWith('Sesión de YouTube conectada')
+                ? null
+                : Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 4),
+          ));
+        }
+        return;
+      }
+      if (action.action == 'youtubeOauthLogout') {
+        final msg = await YoutubeOauthService().logout();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(msg),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ));
+        }
+        return;
+      }
+    }
+
+    final res = await backend.invokeExtensionAction(_selected.id, action.action);
+    report(res);
   }
 
   Widget _buildField(Responsive r, ProviderField field) {

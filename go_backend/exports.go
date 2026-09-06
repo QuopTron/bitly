@@ -181,6 +181,13 @@ func InitGlobalState() string {
 	enricher = rescue.NewEnricher(reg)
 	recommendEng = recommend.New(reg)
 	lyricsClient = lyrics.NewClient()
+	// Register extension lyrics providers (SpotiFLAC lyrics_provider contract:
+	// export fetchLyrics) at the END of the fallback chain — built-ins (lrclib/
+	// genius) answer the common cases fast; an extension is only consulted when
+	// they miss, so batch-download lyric sidecars never pay an extra network
+	// search per track for a song lrclib already has. Each extension runs under
+	// its own "lyrics" cooldown bucket, isolated from search/download.
+	wireExtensionLyricsProviders(lyricsClient, reg)
 	lib = library.New()
 	playbackTracker = playback.NewTracker(200)
 	premiumChecker = premium.NewChecker(nil)
@@ -230,6 +237,13 @@ func InitGlobalState() string {
 	if !core.IsReady() {
 		core.InitBackend()
 	}
+
+	// Re-apply any settings stored by an earlier push (extension sandboxes are
+	// all present now that LoadAllToRegistry finished). Without this, a
+	// credential push that raced extension loading is silently dropped and the
+	// extension keeps running anonymous (e.g. YouTube OAuth never reaching the
+	// ytmusic extension -> every InnerTube call 403s).
+	replayStoredExtensionSettings()
 
 	allProviders := reg.Names()
 	resp := map[string]any{

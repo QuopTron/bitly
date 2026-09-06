@@ -14,6 +14,7 @@ class SetupBloc extends Bloc<SetupEvent, SetupState> with SetupHandlers {
     on<UsernameChanged>(onUsernameChanged$);
     on<GenerateRandomName>(onGenerateRandomName$);
     on<SelectMode>(onSelectMode$);
+    on<GoogleSignInStatusChanged>(onGoogleSignInStatusChanged$);
     on<PremiumCodeChanged>(onPremiumCodeChanged$);
     on<ValidatePremiumCode>(onValidatePremiumCode$);
     on<CompleteSetup>(onCompleteSetup$);

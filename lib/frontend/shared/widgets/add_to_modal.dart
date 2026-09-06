@@ -1,3 +1,4 @@
+import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../utils/responsive.dart';
@@ -31,10 +32,12 @@ class _AddToSheet extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bg = isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF5F5F5);
     final onBg = isDark ? Colors.white : Colors.black;
+    final hasTrack = sl<QueueCubit>().state.hasCurrent;
+    final modalBg = hasTrack ? bg.withValues(alpha: 0.70) : bg;
 
-    return Container(
+    Widget sheet = Container(
       decoration: BoxDecoration(
-        color: bg,
+        color: modalBg,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: ClipRRect(
@@ -70,6 +73,16 @@ class _AddToSheet extends StatelessWidget {
         ]),
       ),
     );
+    if (hasTrack) {
+      sheet = ClipRRect(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+          child: sheet,
+        ),
+      );
+    }
+    return sheet;
   }
 
   void _addToPlaylist(BuildContext context, FeedItem item) {

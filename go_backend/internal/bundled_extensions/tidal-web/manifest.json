@@ -70,7 +70,8 @@
     "shareUrlTemplates": {
       "album": "https://tidal.com/browse/album/{id}",
       "artist": "https://tidal.com/browse/artist/{id}"
-    }
+    },
+    "homeFeed": true
   },
   "serviceHealth": [
     {

@@ -4,7 +4,7 @@ const CONFIG = {
   baseBackoffMs: 250,
   cacheTtlMs: 120000,
   thumbnailSize: 512,
-  clientVersion: "1.20240801.01.00",
+  clientVersion: "1.20250101.01.00",
   debugRawJsonHead: 1200,
   maxResults: 12,
   allowlistHosts: [],
@@ -17,6 +17,14 @@ const CONFIG = {
   manualGvsPoToken: "",
   logLevel: "warn",
   poTokenFallbackTtlMs: 6 * 60 * 60 * 1000,
+  // Optional Google OAuth ("Iniciar sesión con YouTube"): an account access
+  // token makes InnerTube treat us as a signed-in client, which sidesteps the
+  // anonymous bot-gate 403s that plague flagged egress IPs. The token is only
+  // ever sent to Google's own endpoints and lives on-device.
+  oauthAccessToken: "",
+  oauthRefreshToken: "",
+  oauthClientId: "",
+  oauthClientSecret: "",
   // InnerTube ANDROID client config
   innerTubeApiKey: "AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w",
   innerTubeClientVersion: "21.02.35",
@@ -25,17 +33,39 @@ const CONFIG = {
   directAudioChunkSize: 1024 * 1024,
 };
 
+// Cooldown for Piped mirror instances: public proxies die and come back, but
+// within a session a mirror that just failed (5xx / no response / no audio
+// streams) will almost certainly fail for the next tracks too. Remember the
+// failure and skip the instance for a while so the per-track fallback chain
+// stops re-walking 5 dead mirrors sequentially (5+ seconds each time).
+var pipedInstanceCooldownMs = 10 * 60 * 1000; // 10 minutes
+var pipedInstanceFailures = {}; // baseUrl -> timestamp when it may be retried
+
+function pipedInstanceCooling(base) {
+  var until = pipedInstanceFailures[base];
+  if (!until) return false;
+  return Date.now() < until;
+}
+
+function pipedInstanceMarkFail(base) {
+  pipedInstanceFailures[base] = Date.now() + pipedInstanceCooldownMs;
+}
+
+function pipedInstanceMarkOk(base) {
+  delete pipedInstanceFailures[base];
+}
+
 const USER_AGENTS = [
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15",
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:121.0) Gecko/20100101 Firefox/121.0",
-  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0",
-  "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1",
-  "Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.144 Mobile Safari/537.36",
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Safari/605.1.15",
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0",
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:133.0) Gecko/20100101 Firefox/133.0",
+  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0",
+  "Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1",
+  "Mozilla/5.0 (Linux; Android 15; SM-S928B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.6778.81 Mobile Safari/537.36",
 ];
 
 function getRandomUserAgent() {
@@ -125,6 +155,76 @@ function poTokenCacheSet(k, token, expiresAt) {
 }
 function poTokenCacheDelete(k) {
   _poTokenCache.delete(k);
+}
+
+// Client health: remembers InnerTube clients that recently failed with a
+// block that applies to EVERY video (client deprecated, "not a bot" sign-in,
+// 403/429 from this IP) so the per-video client chain skips them instead of
+// burning one HTTP POST + latency on each track. Video-specific blocks
+// (age/inappropriate/region) never mark a client — they are handled by
+// isBlockedVideoError in the caller.
+const _clientHealth = new Map(); // name -> { until }
+// Last time an all-clients-blocked resolution was allowed to re-probe (ms).
+var _allClientsProbeAt = 0;
+
+const CLIENT_BLOCK_HARD_MS = 30 * 60 * 1000; // deprecated/account-level: 30 min
+const CLIENT_BLOCK_SOFT_MS = 8 * 60 * 1000; // 4xx / bot-adjacent: 8 min
+const CLIENT_BLOCK_TRANSIENT_MS = 3 * 60 * 1000; // 429/5xx/network: 3 min
+
+function innerTubeClientBlocked(name) {
+  var e = _clientHealth.get(name);
+  if (!e) return false;
+  if (now() >= e.until) {
+    _clientHealth.delete(name);
+    return false;
+  }
+  return true;
+}
+
+function noteInnerTubeClientBlock(name, err) {
+  var msg = String(err || "");
+  var ttl = CLIENT_BLOCK_SOFT_MS;
+  if (
+    /no longer supported in this application or device/i.test(msg) ||
+    /sign in to confirm you.?(re| are) not a bot/i.test(msg) ||
+    /confirm you.?re not a bot/i.test(msg)
+  ) {
+    ttl = CLIENT_BLOCK_HARD_MS;
+  } else if (
+    /HTTP 429|rate_limited|HTTP 5\d\d|HTTP 503/i.test(msg) ||
+    /abort|network|timeout|failed to fetch/i.test(msg)
+  ) {
+    ttl = CLIENT_BLOCK_TRANSIENT_MS;
+  }
+  _clientHealth.set(name, { until: now() + ttl });
+  L(
+    "info",
+    "[InnerTube] client health: " +
+      name +
+      " blocked for " +
+      ttl / 60000 +
+      "m: " +
+      msg.slice(0, 120),
+  );
+}
+
+// clearCachedTokens — exposed as a "button" setting action. Clears the PO-token
+// cache and the generic TTL cache (visitor data, client config, JS solver,
+// enrichment), forcing every InnerTube flow to re-resolve fresh. Use it when
+// YouTube starts rejecting tokens / returning 403s mid-session.
+function clearCachedTokens() {
+  var cleared = {
+    poTokens: _poTokenCache.size,
+    generic: _cache.size,
+    clientHealth: _clientHealth.size,
+    pageInfoSession: _pageInfoSession.size,
+  };
+  _poTokenCache.clear();
+  _cache.clear();
+  _clientHealth.clear();
+  _pageInfoSession.clear();
+  L("info", "clearCachedTokens: cleared", JSON.stringify(cleared));
+  return { ok: true, cleared: cleared };
 }
 
 const _inflight = new Map();
@@ -306,8 +406,56 @@ function getYt1dConfig() {
   return config;
 }
 
-// InnerTube client configs for fallback chain
+// InnerTube client configs for fallback chain.
+// ORDER MATTERS: try clients least likely to be blocked first.
+// tv_embedded / tv → no PO token required, rarely blocked.
+// android_vr → no PO token but increasingly blocked (403).
+// mweb / android / ios → require PO token for full audio formats.
 var INNERTUBE_CLIENTS = [
+  {
+    name: "tv_embedded",
+    clientHeaderName: "85",
+    requiresGvsPoToken: false,
+    body: {
+      context: {
+        client: {
+          clientName: "TVHTML5_SIMPLY_EMBEDDED_PLAYER",
+          clientVersion: "2.0",
+          hl: "en",
+          gl: "US",
+          timeZone: "UTC",
+          utcOffsetMinutes: 0,
+        },
+        thirdParty: {
+          embedUrl: "https://www.youtube.com",
+        },
+      },
+    },
+    ua: "Mozilla/5.0 (ChromiumStylePlatform) Cobalt/Version",
+    key: CONFIG.innerTubeApiKey,
+  },
+  {
+    name: "tv",
+    clientHeaderName: "7",
+    requiresGvsPoToken: false,
+    body: {
+      context: {
+        client: {
+          clientName: "TVHTML5",
+          clientVersion: "7.20240717.13.00",
+          hl: "en",
+          gl: "US",
+          timeZone: "UTC",
+          utcOffsetMinutes: 0,
+          osName: "",
+          osVersion: "",
+          platform: "TV",
+        },
+      },
+    },
+    ua: "Mozilla/5.0 (SMART-TV; LINUX; Tizen 6.5) AppleWebKit/537.36 (KHTML, like Gecko) Version/6.5 TV Safari/537.36",
+    key: CONFIG.innerTubeApiKey,
+  },
   {
     name: "android_vr",
     clientHeaderName: "28",
@@ -341,13 +489,13 @@ var INNERTUBE_CLIENTS = [
       context: {
         client: {
           clientName: "MWEB",
-          clientVersion: "2.20260115.01.00",
+          clientVersion: "2.20250101.01.00",
           hl: "en",
           gl: "US",
           timeZone: "UTC",
           utcOffsetMinutes: 0,
           userAgent:
-            "Mozilla/5.0 (iPad; CPU OS 16_7_10 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1,gzip(gfe)",
+            "Mozilla/5.0 (iPad; CPU OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1,gzip(gfe)",
         },
       },
     },
@@ -732,28 +880,105 @@ function extractYouTubePlayerURL(text) {
   return /^https?:\/\//i.test(playerURL) ? playerURL : "";
 }
 
+// Session page-info cache: visitorData + the player base.js URL are NOT
+// video-specific — they identify the browsing session. Consecutive songs must
+// not each fetch the watch page (a per-video fetch 429s under YouTube's burst
+// throttle and, worse, mints a FRESH visitor per video, which looks like a new
+// bot session and triggers the "confirm you're not a bot" blocks on the 2nd+
+// song). One successful fetch is reused for ~10 min across every video.
+const _pageInfoSession = new Map(); // -> { v, until }
+function pageInfoSessionGet() {
+  var e = _pageInfoSession.get("global");
+  if (!e) return null;
+  if (now() >= e.until) {
+    _pageInfoSession.delete("global");
+    return null;
+  }
+  return e.v;
+}
+function pageInfoSessionSet(pageInfo) {
+  _pageInfoSession.set("global", {
+    v: pageInfo,
+    until: now() + 10 * 60 * 1000,
+  });
+}
+
+// A 429/403 from the watch page means this IP is bot-gated for page fetches.
+// Without a gate every caller re-fetches and re-mints the block (observed:
+// 100+ fetches per track), burning seconds of resolution on a deterministically
+// dead endpoint. After the first block, page fetches are parked ~90s so
+// resolution fails fast and moves to another source; a healthy fetch clears
+// the gate immediately.
+var _ytWatchPageBlockedUntil = 0;
+
 function getYouTubePageInfo(videoID) {
+  if (now() < _ytWatchPageBlockedUntil) {
+    return { visitorData: "", playerUrl: "" };
+  }
   var cacheKey = "youtube:pageinfo:" + String(videoID || "");
   var cached = cacheGet(cacheKey);
   if (cached) return cached;
+  // A page info from another video in this session is fine: visitorData and
+  // the player base.js path are session-wide, so reusing them skips the fetch
+  // (and its 429/bot risk) entirely on subsequent songs.
+  var sessionInfo = pageInfoSessionGet();
+  if (sessionInfo && (sessionInfo.visitorData || sessionInfo.playerUrl)) {
+    cacheSet(cacheKey, sessionInfo);
+    return sessionInfo;
+  }
 
   var res = fetch(
     CONFIG.youtubeWatchURL + encodeURIComponent(String(videoID || "")),
     {
       method: "GET",
-      headers: {
-        Accept: "text/html,application/xhtml+xml",
-        "User-Agent": getRandomUserAgent(),
-      },
+      headers: buildWatchPageHeaders(),
     },
   );
   if (!res || !res.ok) {
-    L(
-      "warn",
-      "[InnerTube] visitorData page failed:",
-      res ? res.status : "no response",
-    );
-    return { visitorData: "", playerUrl: "" };
+    if (res && (res.status === 429 || res.status === 403)) {
+      // A signed-in fetch that got blocked may carry an expired access token.
+      // Refresh once and retry before parking — an anonymous 429 must not
+      // shadow a session that simply needs its bearer renewed.
+      if (CONFIG.oauthRefreshToken && CONFIG.oauthClientId) {
+        L(
+          "warn",
+          "[InnerTube] watch page " +
+            res.status +
+            "; refreshing OAuth and retrying once",
+        );
+        if (refreshYoutubeOauthToken()) {
+          var res2 = fetch(
+            CONFIG.youtubeWatchURL + encodeURIComponent(String(videoID || "")),
+            { method: "GET", headers: buildWatchPageHeaders() },
+          );
+          if (res2 && res2.ok) {
+            res = res2;
+          } else {
+            res = null;
+          }
+        }
+      }
+    }
+    if (!res || !res.ok) {
+      if (res && (res.status === 429 || res.status === 403)) {
+        if (!_ytWatchPageBlockedUntil) {
+          L(
+            "warn",
+            "[InnerTube] watch page blocked (" +
+              res.status +
+              "); parking page fetches ~90s",
+          );
+        }
+        _ytWatchPageBlockedUntil = now() + 90 * 1000;
+      } else {
+        L(
+          "warn",
+          "[InnerTube] visitorData page failed:",
+          res ? res.status : "no response",
+        );
+      }
+      return { visitorData: "", playerUrl: "" };
+    }
   }
 
   var html = "";
@@ -766,8 +991,29 @@ function getYouTubePageInfo(videoID) {
     visitorData: extractYouTubeVisitorData(html),
     playerUrl: extractYouTubePlayerURL(html),
   };
-  if (pageInfo.visitorData || pageInfo.playerUrl) cacheSet(cacheKey, pageInfo);
+  if (pageInfo.visitorData || pageInfo.playerUrl) {
+    // A healthy watch-page fetch proves the gate lifted — allow the next one.
+    _ytWatchPageBlockedUntil = 0;
+    cacheSet(cacheKey, pageInfo);
+    pageInfoSessionSet(pageInfo);
+  }
   return pageInfo;
+}
+
+// Headers for the watch-page (visitorData) fetch. When a Google account is
+// connected the fetch is signed-in: an anonymous watch fetch mints a fresh
+// bot-flagged visitor and 429s from flagged IPs, while the authenticated one
+// gets a real session visitor that InnerTube accepts.
+function buildWatchPageHeaders() {
+  var h = {
+    Accept: "text/html,application/xhtml+xml",
+    "User-Agent": getRandomUserAgent(),
+  };
+  if (CONFIG.oauthAccessToken) {
+    h["Authorization"] = "Bearer " + CONFIG.oauthAccessToken;
+    h["X-Goog-AuthUser"] = "0";
+  }
+  return h;
 }
 
 function getGlobalRoot() {
@@ -1001,6 +1247,57 @@ function buildYouTubeFormatURL(fmt, playerUrl) {
   }
 }
 
+// refreshYoutubeOauthToken exchanges the stored refresh token for a fresh
+// access token via Google's token endpoint. Returns true on success. Called
+// only when InnerTube answers 401/403 with an expired account token.
+function refreshYoutubeOauthToken() {
+  if (!CONFIG.oauthRefreshToken || !CONFIG.oauthClientId) {
+    L(
+      "warn",
+      "[InnerTube] OAuth refresh skipped: missing refresh token or client id",
+    );
+    return false;
+  }
+  try {
+    var body =
+      "client_id=" +
+      encodeURIComponent(CONFIG.oauthClientId) +
+      (CONFIG.oauthClientSecret
+        ? "&client_secret=" + encodeURIComponent(CONFIG.oauthClientSecret)
+        : "") +
+      "&refresh_token=" +
+      encodeURIComponent(CONFIG.oauthRefreshToken) +
+      "&grant_type=refresh_token";
+    var res = fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: body,
+    });
+    if (!res || !res.ok) {
+      L(
+        "warn",
+        "[InnerTube] OAuth refresh failed: HTTP " +
+          (res ? res.status : "no response"),
+      );
+      return false;
+    }
+    var data = typeof res.json === "function" ? res.json() : null;
+    if (!data || !data.access_token) {
+      L(
+        "warn",
+        "[InnerTube] OAuth refresh failed: no access_token in response",
+      );
+      return false;
+    }
+    CONFIG.oauthAccessToken = String(data.access_token);
+    L("info", "[InnerTube] OAuth access token refreshed");
+    return true;
+  } catch (e) {
+    L("warn", "[InnerTube] OAuth refresh failed:", String(e));
+    return false;
+  }
+}
+
 function _tryInnerTubeClient(videoID, clientConfig, pageInfo, options) {
   options = options || {};
   pageInfo = pageInfo || {};
@@ -1019,25 +1316,79 @@ function _tryInnerTubeClient(videoID, clientConfig, pageInfo, options) {
     "https://www.youtube.com/youtubei/v1/player?key=" +
     clientConfig.key +
     "&prettyPrint=false";
-  var headers = {
-    "Content-Type": "application/json",
-    "User-Agent": clientConfig.ua,
-    Origin: "https://www.youtube.com",
-    "X-YouTube-Client-Name": String(
-      clientConfig.clientHeaderName ||
-        clientConfig.body.context.client.clientName,
-    ),
-    "X-YouTube-Client-Version": clientConfig.body.context.client.clientVersion,
-  };
-  if (visitorData) {
-    headers["X-Goog-Visitor-Id"] = visitorData;
+
+  // Rebuilt per attempt so a token refresh above picks up the new bearer.
+  // withAuth=false drops the OAuth Authorization header so a request can be
+  // retried anonymously when the stored bearer is stale/expired and refresh
+  // failed — an anonymous innertube call still resolves most public tracks
+  // (rate-limited per IP, but functional), so a broken session must not take
+  // down streaming entirely.
+  function buildPlayerHeaders(withAuth) {
+    var h = {
+      "Content-Type": "application/json",
+      "User-Agent": clientConfig.ua,
+      Origin: "https://www.youtube.com",
+      "X-YouTube-Client-Name": String(
+        clientConfig.clientHeaderName ||
+          clientConfig.body.context.client.clientName,
+      ),
+      "X-YouTube-Client-Version":
+        clientConfig.body.context.client.clientVersion,
+    };
+    if (visitorData) {
+      h["X-Goog-Visitor-Id"] = visitorData;
+    }
+    if (withAuth && CONFIG.oauthAccessToken) {
+      h["Authorization"] = "Bearer " + CONFIG.oauthAccessToken;
+      h["X-Goog-AuthUser"] = "0";
+    }
+    return h;
   }
 
   var res = fetch(playerUrl, {
     method: "POST",
-    headers: headers,
+    headers: buildPlayerHeaders(true),
     body: JSON.stringify(reqBody),
   });
+
+  // Expired account token: refresh once and retry before giving up.
+  var triedRefresh = false;
+  if (
+    res &&
+    (res.status === 401 || res.status === 403) &&
+    CONFIG.oauthRefreshToken
+  ) {
+    if (refreshYoutubeOauthToken()) {
+      triedRefresh = true;
+      res = fetch(playerUrl, {
+        method: "POST",
+        headers: buildPlayerHeaders(true),
+        body: JSON.stringify(reqBody),
+      });
+    }
+  }
+
+  // Still blocked with the (refreshed) bearer, or refresh was unavailable:
+  // retry the same client anonymously. YouTube answers anonymous player
+  // requests from unflagged IPs with 200 (verified), so a stale session no
+  // longer kills streaming — it degrades to anonymous instead.
+  if (res && (res.status === 401 || res.status === 403)) {
+    L(
+      "warn",
+      "[InnerTube] " +
+        clientConfig.name +
+        " auth " +
+        (triedRefresh ? "still" : "") +
+        " " +
+        res.status +
+        "; retrying anonymous",
+    );
+    res = fetch(playerUrl, {
+      method: "POST",
+      headers: buildPlayerHeaders(false),
+      body: JSON.stringify(reqBody),
+    });
+  }
 
   if (!res || !res.ok) {
     return { error: "HTTP " + (res ? res.status : "no response") };
@@ -1063,6 +1414,17 @@ function _tryInnerTubeClient(videoID, clientConfig, pageInfo, options) {
   if (!sd) return { error: "no streamingData" };
 
   var formats = (sd.formats || []).concat(sd.adaptiveFormats || []);
+  // forceItag18: used as a same-client fallback when the client's preferred
+  // format (usually itag=251 opus) resolves to a URL that the CDN refuses to
+  // serve from this IP. itag=18 (video+audio mp4) is not PO-token-gated and is
+  // served reliably even to flagged egress IPs; mpv plays it as pure audio
+  // (vid=no in the app player). Narrow the candidate set to itag=18 so the
+  // rest of the pipeline (PO token, format scoring) picks exactly that.
+  if (options.forceItag18) {
+    formats = formats.filter(function (f) {
+      return Number((f && f.itag) || 0) === 18 && hasUsableYouTubeFormatURL(f);
+    });
+  }
   var gvsPoToken = getGvsPoToken(
     videoID,
     clientConfig,
@@ -1139,14 +1501,96 @@ function requestInnerTubeAudioDownload(videoID) {
     L("warn", "[InnerTube] page info failed:", String(pageErr));
   }
 
+  // If EVERY client is currently blocked (a previous 403/429 storm marked
+  // them all), the loop below would skip all of them and throw
+  // "all clients failed. Last: " with NO reason — a useless instant fail.
+  // Instead, clear the health map so this resolution makes one REAL probe:
+  // the failure now carries the actual status (recoverable when the block
+  // lifts) and a fresh success un-blocks every client in one shot. The probe
+  // runs at most every 5 minutes — between probes an all-blocked resolution
+  // fails fast so a flagged IP does not re-walk all 6 clients (each a real
+  // HTTP 403) on every single track.
+  var allBlocked = true;
+  for (var hci = 0; hci < INNERTUBE_CLIENTS.length; hci++) {
+    if (!innerTubeClientBlocked(INNERTUBE_CLIENTS[hci].name)) {
+      allBlocked = false;
+      break;
+    }
+  }
+  if (allBlocked && INNERTUBE_CLIENTS.length > 0) {
+    if (now() >= _allClientsProbeAt) {
+      L(
+        "warn",
+        "[InnerTube] all clients blocked; clearing health for one real probe",
+      );
+      _clientHealth.clear();
+      _allClientsProbeAt = now() + 5 * 60 * 1000;
+    } else {
+      throw new Error(
+        "innertube: all clients failed (IP blocked); next probe in " +
+          Math.max(1, Math.round((_allClientsProbeAt - now()) / 60000)) +
+          "m",
+      );
+    }
+  }
+
   for (var ci = 0; ci < INNERTUBE_CLIENTS.length; ci++) {
     var client = INNERTUBE_CLIENTS[ci];
+    if (innerTubeClientBlocked(client.name)) {
+      L("info", "[InnerTube] Skipping blocked client " + client.name);
+      continue;
+    }
     L("info", "[InnerTube] Trying " + client.name + " for " + videoID);
 
     var result = _tryInnerTubeClient(videoID, client, pageInfo);
     if (result.error) {
       L("warn", "[InnerTube] " + client.name + " failed: " + result.error);
+      // Video-level blocks apply to EVERY client: age-restricted and
+      // "inappropriate" videos return the same playability reason from every
+      // client config, so trying the remaining clients just burns N more HTTP
+      // calls for the same guaranteed failure. Fail fast with the real reason.
+      if (isBlockedVideoError(result.error)) {
+        throw new Error("innertube: blocked: " + result.error);
+      }
+      noteInnerTubeClientBlock(client.name, result.error);
       lastError = client.name + ": " + result.error;
+      continue;
+    }
+
+    // The client resolved a URL at the API level, but YouTube may refuse to
+    // serve it from this IP (bot-gated formats 403 while other formats/clients
+    // serve fine). A dead URL must NOT win the chain — it would stall or error
+    // at playback with no way for the caller to request a different format.
+    // Probe it; when it doesn't serve, retry the SAME client forcing itag=18
+    // (video+audio, never PO-gated, served reliably from flagged IPs) before
+    // moving to the next client — every other client prefers the same
+    // audio-only itag=251, so falling through blindly just repeats the dead
+    // format instead of finding a playable one.
+    if (!streamingUrlServesOk(result.url)) {
+      var fallback18 = _tryInnerTubeClient(videoID, client, pageInfo, {
+        forceItag18: true,
+      });
+      if (
+        fallback18 &&
+        !fallback18.error &&
+        fallback18.url &&
+        streamingUrlServesOk(fallback18.url)
+      ) {
+        L(
+          "info",
+          "[InnerTube] " +
+            client.name +
+            " itag=" +
+            result.itag +
+            " URL dead; same-client itag=18 fallback OK",
+        );
+        return fallback18;
+      }
+      var deadReason =
+        "URL dead (403/404) " + client.name + " itag=" + result.itag;
+      L("warn", "[InnerTube] " + deadReason + " — falling through");
+      noteInnerTubeClientBlock(client.name, deadReason);
+      lastError = deadReason;
       continue;
     }
 
@@ -1168,6 +1612,74 @@ function requestInnerTubeAudioDownload(videoID) {
   throw new Error("innertube: all clients failed. Last: " + lastError);
 }
 
+// streamingUrlServesOk probes whether a resolved googlevideo URL actually
+// serves media from this IP/network. A client can succeed at the InnerTube API
+// level yet hand back a URL that YouTube refuses to serve (bot-gated formats —
+// ANDROID_VR itag=251 audio has started 403ing from flagged egress IPs while
+// the same video's itag=18 serves fine). Without a probe that dead URL would
+// win the client chain and stall/error at playback, and the app has no way to
+// ask for a different format.
+//
+// GATE DETECTION: gated URLs are NOT fully dead — YouTube serves the first
+// ~1MB of the file (a tiny range request passes!) then 403s everything at or
+// past the 1MB offset. A 0-byte probe (bytes=0-0) therefore reports gated
+// URLs as alive and the dead format wins. The probe must ask for a byte AT the
+// 1MB offset: gated URLs answer 403, healthy files answer 206 (or 416 when
+// the whole file is smaller than 1MB — which is fine, the gate never applies).
+//
+// STRICT: only confirmed 200/206/416 counts as alive. A dead URL can surface
+// as 403/404/410 OR as a network-level failure (status 0 / abort / TLS error)
+// through the sandbox bridge — both must count as dead, otherwise the dead
+// URL wins and playback freezes at 00:00 with no error surfaced to Dart. The
+// cost of a false negative is one same-client itag=18 retry (see
+// requestInnerTubeAudioDownload), which is far cheaper than a silent stall.
+function streamingUrlServesOk(url) {
+  if (!url) return false;
+  try {
+    // Probe the LAST byte of the file (clen-1 from the URL). Gated URLs
+    // answer 403 for any range past the first ~1MB regardless of format; a
+    // probe near the start always passes and lets the dead format win.
+    var probeEnd = null;
+    try {
+      var clenMatch = String(url).match(/[?&]clen=(\d+)/);
+      if (clenMatch && Number(clenMatch[1]) > 0) {
+        probeEnd = String(Number(clenMatch[1]) - 1);
+      }
+    } catch (e) {}
+    if (probeEnd == null) probeEnd = "3145727"; // ~3MB: past every observed gate
+    var res = fetch(url, {
+      method: "GET",
+      headers: {
+        Range: "bytes=" + probeEnd + "-" + probeEnd,
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+      },
+    });
+    if (!res) return false;
+    var status = Number(res.status || res.statusCode || 0);
+    return status === 200 || status === 206 || status === 416;
+  } catch (e) {
+    return false;
+  }
+}
+
+// isBlockedVideoError reports whether an InnerTube playability error is a
+// video-level block that no client config can bypass (age-restriction,
+// inappropriate content, region/account blocks). These are returned verbatim as
+// playabilityStatus.reason by every client, so once seen there is no point
+// trying the rest of the client chain.
+function isBlockedVideoError(err) {
+  var msg = String(err || "");
+  return (
+    /confirm your age/i.test(msg) ||
+    /inappropriate/i.test(msg) ||
+    /age.?restricted|age restriction/i.test(msg) ||
+    /video unavailable/i.test(msg) ||
+    /not available in your country|unavailable in your region/i.test(msg) ||
+    /sign in to watch/i.test(msg)
+  );
+}
+
 // Returns an array of {url, extension, ua, clientName} for all clients that respond.
 // Used for download-level fallback: try downloading from each until one succeeds.
 function getInnerTubeAudioCandidates(videoID, pageInfo) {
@@ -1175,6 +1687,10 @@ function getInnerTubeAudioCandidates(videoID, pageInfo) {
   pageInfo = pageInfo || getYouTubePageInfo(videoID);
   for (var ci = 0; ci < INNERTUBE_CLIENTS.length; ci++) {
     var client = INNERTUBE_CLIENTS[ci];
+    if (innerTubeClientBlocked(client.name)) {
+      L("info", "[InnerTube] Skipping blocked client " + client.name);
+      continue;
+    }
     L(
       "info",
       "[InnerTube] Getting candidate from " + client.name + " for " + videoID,
@@ -1183,6 +1699,8 @@ function getInnerTubeAudioCandidates(videoID, pageInfo) {
     var result = _tryInnerTubeClient(videoID, client, pageInfo);
     if (result.error) {
       L("warn", "[InnerTube] " + client.name + " failed: " + result.error);
+      if (isBlockedVideoError(result.error)) continue;
+      noteInnerTubeClientBlock(client.name, result.error);
       continue;
     }
 
@@ -1199,6 +1717,24 @@ function getInnerTubeAudioCandidates(videoID, pageInfo) {
         "bps",
     );
     candidates.push(result);
+
+    // Also offer a same-client itag=18 candidate (video+audio, never
+    // PO-gated). The download loop tries candidates in order and only reaches
+    // this one when the preferred audio-only format fails to download, so it
+    // costs nothing on healthy networks and keeps downloads working on IPs
+    // where the CDN refuses the audio-only formats.
+    if (Number(result.itag) !== 18) {
+      var fallback18 = _tryInnerTubeClient(videoID, client, pageInfo, {
+        forceItag18: true,
+      });
+      if (fallback18 && !fallback18.error && fallback18.url) {
+        L(
+          "info",
+          "[InnerTube] " + client.name + " itag=18 fallback candidate added",
+        );
+        candidates.push(fallback18);
+      }
+    }
   }
   return candidates;
 }
@@ -1630,11 +2166,166 @@ function pickLastThumbnailUrl(thumbnailObj) {
   }
 }
 
+function runsText(runs, separator) {
+  if (!Array.isArray(runs)) return "";
+  return runs
+    .map(function (run) {
+      return run && run.text ? String(run.text) : "";
+    })
+    .join(separator === undefined ? "" : separator)
+    .trim();
+}
+
+function uniqueStrings(values) {
+  var seen = {};
+  var out = [];
+  for (var i = 0; i < values.length; i++) {
+    var value = String(values[i] || "").trim();
+    var key = value.toLowerCase();
+    if (!value || seen[key]) continue;
+    seen[key] = true;
+    out.push(value);
+  }
+  return out;
+}
+
+function findFirstRenderer(node, rendererKey, depth) {
+  depth = depth || 0;
+  if (!node || typeof node !== "object" || depth > 16) return null;
+  if (
+    Object.prototype.hasOwnProperty.call(node, rendererKey) &&
+    node[rendererKey]
+  ) {
+    return node[rendererKey];
+  }
+  if (Array.isArray(node)) {
+    for (var i = 0; i < node.length; i++) {
+      var arrayMatch = findFirstRenderer(node[i], rendererKey, depth + 1);
+      if (arrayMatch) return arrayMatch;
+    }
+    return null;
+  }
+  for (var key in node) {
+    if (
+      !Object.prototype.hasOwnProperty.call(node, key) ||
+      key === "trackingParams" ||
+      key === "clickTrackingParams"
+    )
+      continue;
+    var match = findFirstRenderer(node[key], rendererKey, depth + 1);
+    if (match) return match;
+  }
+  return null;
+}
+
+function browsePageType(endpoint) {
+  try {
+    return String(
+      endpoint.browseEndpointContextSupportedConfigs
+        .browseEndpointContextMusicConfig.pageType || "",
+    );
+  } catch (e) {
+    return "";
+  }
+}
+
+function collectTrackReferences(node) {
+  var result = {
+    artists: [],
+    album_id: "",
+    album_name: "",
+    credits_id: "",
+  };
+  var seenArtists = {};
+
+  function visit(value, depth) {
+    if (!value || typeof value !== "object" || depth > 14) return;
+    if (value.browseEndpoint && value.browseEndpoint.browseId) {
+      var endpoint = value.browseEndpoint;
+      var browseId = String(endpoint.browseId);
+      var pageType = browsePageType(endpoint);
+      var text = value.__runText || "";
+      if (
+        (browseId.startsWith("UC") || pageType === "MUSIC_PAGE_TYPE_ARTIST") &&
+        text
+      ) {
+        if (!seenArtists[browseId]) {
+          seenArtists[browseId] = true;
+          result.artists.push({ id: browseId, name: text });
+        }
+      } else if (
+        (browseId.startsWith("MPREb_") ||
+          pageType === "MUSIC_PAGE_TYPE_ALBUM") &&
+        !result.album_id
+      ) {
+        result.album_id = browseId;
+        result.album_name = text;
+      } else if (
+        (browseId.startsWith("MPTC") ||
+          pageType === "MUSIC_PAGE_TYPE_TRACK_CREDITS") &&
+        !result.credits_id
+      ) {
+        result.credits_id = browseId;
+      }
+    }
+
+    if (Array.isArray(value)) {
+      for (var i = 0; i < value.length; i++) visit(value[i], depth + 1);
+      return;
+    }
+    for (var key in value) {
+      if (!Object.prototype.hasOwnProperty.call(value, key)) continue;
+      var child = value[key];
+      if (key === "navigationEndpoint" && child && typeof child === "object") {
+        var decorated = Object.assign({}, child);
+        if (typeof value.text === "string")
+          decorated.__runText = value.text.trim();
+        visit(decorated, depth + 1);
+      } else if (key !== "trackingParams" && key !== "clickTrackingParams") {
+        visit(child, depth + 1);
+      }
+    }
+  }
+
+  visit(node, 0);
+  return result;
+}
+
+function hasExplicitBadge(node) {
+  try {
+    var badges = node && node.badges;
+    if (!Array.isArray(badges)) return false;
+    for (var i = 0; i < badges.length; i++) {
+      var badge = badges[i] || {};
+      var inline = badge.musicInlineBadgeRenderer || {};
+      var metadata = badge.metadataBadgeRenderer || {};
+      var iconType =
+        (inline.icon && inline.icon.iconType) ||
+        (metadata.icon && metadata.icon.iconType) ||
+        "";
+      var label =
+        (inline.accessibilityData &&
+          inline.accessibilityData.accessibilityData &&
+          inline.accessibilityData.accessibilityData.label) ||
+        metadata.label ||
+        "";
+      if (
+        String(iconType).toUpperCase().indexOf("EXPLICIT") >= 0 ||
+        String(label).toLowerCase() === "explicit"
+      ) {
+        return true;
+      }
+    }
+  } catch (e) {}
+  return false;
+}
+
 function parseItemExtended(info) {
   try {
     if (!info) return null;
     var c = normalizeCandidate(info);
     if (!c) return null;
+    var references = collectTrackReferences(c);
 
     var title = null;
     if (c.flexColumns && Array.isArray(c.flexColumns)) {
@@ -1714,7 +2405,13 @@ function parseItemExtended(info) {
                 run.navigationEndpoint &&
                 run.navigationEndpoint.browseEndpoint
               ) {
-                artistParts.push(txt);
+                var artistBrowse = run.navigationEndpoint.browseEndpoint;
+                if (
+                  String(artistBrowse.browseId || "").startsWith("UC") ||
+                  browsePageType(artistBrowse) === "MUSIC_PAGE_TYPE_ARTIST"
+                ) {
+                  artistParts.push(txt);
+                }
               } else if (!run.navigationEndpoint) {
                 if (txt.length > 1) artistParts.push(txt);
               }
@@ -1753,7 +2450,20 @@ function parseItemExtended(info) {
             continue;
           // Skip duration format (e.g., "3:06", "10:45", "1:23:45")
           if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(stxt)) continue;
-          if (stxt.length > 1) subtitleParts.push(stxt);
+          if (
+            srun.navigationEndpoint &&
+            srun.navigationEndpoint.browseEndpoint
+          ) {
+            var subtitleBrowse = srun.navigationEndpoint.browseEndpoint;
+            if (
+              String(subtitleBrowse.browseId || "").startsWith("UC") ||
+              browsePageType(subtitleBrowse) === "MUSIC_PAGE_TYPE_ARTIST"
+            ) {
+              subtitleParts.push(stxt);
+            }
+          } else if (stxt.length > 1) {
+            subtitleParts.push(stxt);
+          }
         }
       }
       artist = subtitleParts.join(", ");
@@ -1770,6 +2480,13 @@ function parseItemExtended(info) {
           return r.text;
         })
         .join(" ");
+    if (references.artists.length > 0) {
+      artist = uniqueStrings(
+        references.artists.map(function (item) {
+          return item.name;
+        }),
+      ).join(", ");
+    }
 
     if (!artist) {
       L("debug", "parseItemExtended: no artist found for", title);
@@ -1828,6 +2545,7 @@ function parseItemExtended(info) {
         }
       }
     }
+    if (references.album_name) album = references.album_name;
 
     var videoId = null;
     if (c.playlistItemData && c.playlistItemData.videoId)
@@ -2013,8 +2731,23 @@ function parseItemExtended(info) {
       title: String(title),
       artist: String(artist || ""),
       album: String(album || ""),
+      album_artist: "",
+      artist_id: references.artists.length ? references.artists[0].id : "",
+      artist_url: references.artists.length
+        ? "https://music.youtube.com/channel/" + references.artists[0].id
+        : "",
+      album_id: references.album_id,
+      album_url: references.album_id
+        ? "https://music.youtube.com/browse/" + references.album_id
+        : "",
+      external_urls: "https://music.youtube.com/watch?v=" + String(videoId),
+      external_links: {
+        youtube: "https://music.youtube.com/watch?v=" + String(videoId),
+      },
       duration: Number(duration || 0),
       thumbnail: thumb,
+      explicit: hasExplicitBadge(c),
+      credits_id: references.credits_id || "MPTC" + String(videoId),
       source: "youtube",
       item_type: "track",
     };
@@ -2592,7 +3325,16 @@ function stripUrlLikeFields(obj) {
   for (var k in obj) {
     if (!Object.prototype.hasOwnProperty.call(obj, k)) continue;
     var v = obj[k];
-    if (URL_KEY_RE.test(k)) {
+    if (k === "external_links" && v && typeof v === "object") {
+      var safeLinks = {};
+      for (var provider in v) {
+        if (!Object.prototype.hasOwnProperty.call(v, provider)) continue;
+        if (isString(v[provider]) && isAbsoluteHttpUrl(v[provider])) {
+          safeLinks[provider] = normalizeUrl(v[provider]);
+        }
+      }
+      out[k] = safeLinks;
+    } else if (URL_KEY_RE.test(k)) {
       if (isString(v) && isAbsoluteHttpUrl(v)) {
         out[k] = normalizeUrl(v);
       } else {
@@ -2629,14 +3371,70 @@ function sanitizeTrackBeforeReturn(t) {
     name: title, // SpotiFLAC expects 'name' not 'title'
     artists: artist, // SpotiFLAC expects 'artists' not 'artist'
     album_name: t.album ? String(t.album).trim() : "",
+    album_artist: String(t.album_artist || "").trim(),
+    artist_id: String(t.artist_id || "").trim(),
+    artist_url: String(t.artist_url || "").trim(),
+    album_id: String(t.album_id || "").trim(),
+    album_url: String(t.album_url || "").trim(),
+    external_urls: String(
+      t.external_urls || "https://music.youtube.com/watch?v=" + id,
+    ).trim(),
+    external_links: Object.assign(
+      { youtube: "https://music.youtube.com/watch?v=" + id },
+      t.external_links || {},
+    ),
     duration_ms: (Number(t.duration || 0) || 0) * 1000, // Convert seconds to ms
     cover_url: thumb, // SpotiFLAC expects 'cover_url' not 'thumbnail'
     track_number: Number(t.track_number || 0) || 0,
+    total_tracks: Number(t.total_tracks || 0) || 0,
+    disc_number: Number(t.disc_number || 0) || 0,
+    total_discs: Number(t.total_discs || 0) || 0,
+    release_date: String(t.release_date || "").trim(),
+    album_type: String(t.album_type || "").trim(),
+    isrc: String(t.isrc || "").trim(),
+    upc: String(t.upc || "").trim(),
+    label: String(t.label || "").trim(),
+    copyright: String(t.copyright || "").trim(),
+    genre: String(t.genre || "").trim(),
+    composer: String(t.composer || "").trim(),
+    preview_url: String(t.preview_url || "").trim(),
+    explicit: t.explicit === true,
     provider_id: "ytmusic-spotiflac",
     item_type: "track",
   };
   cacheSet("yt:video:" + id, sanitized);
   return sanitized;
+}
+
+// Album and playlist browse responses share the same parser, but their
+// collection headers have different semantics. An album header describes
+// every track's release; a playlist header does not. Preserve album metadata
+// parsed from each playlist row (or leave it empty) instead of replacing it
+// with the playlist title/owner.
+function applyBrowseCollectionMetadata(parsed, collection, isPlaylist) {
+  if (!parsed || !collection || isPlaylist) return parsed;
+  if (collection.name) parsed.album = collection.name;
+  parsed.album_id = collection.id || parsed.album_id || "";
+  parsed.album_url = parsed.album_id
+    ? "https://music.youtube.com/browse/" + parsed.album_id
+    : "";
+  parsed.album_artist = collection.artists || parsed.album_artist || "";
+  parsed.release_date = collection.release_date || parsed.release_date || "";
+  parsed.album_type = collection.album_type || parsed.album_type || "album";
+  parsed.total_tracks = collection.total_tracks || parsed.total_tracks || 0;
+  if (!parsed.thumbnail && collection.cover_url)
+    parsed.thumbnail = collection.cover_url;
+  if (!parsed.artist && collection.artists) {
+    parsed.artist = collection.artists;
+  }
+  if (!parsed.artist_id && collection.artist_id) {
+    parsed.artist_id = collection.artist_id;
+    parsed.artist_url =
+      "https://music.youtube.com/channel/" + collection.artist_id;
+  }
+  if (!parsed.disc_number) parsed.disc_number = 1;
+  if (!parsed.total_discs) parsed.total_discs = 1;
+  return parsed;
 }
 
 function resolveDownloadCoverUrl(videoID) {
@@ -3183,10 +3981,85 @@ function _extractAlbumBrowseIdFromResponse(data) {
   }
 }
 
+function applyResponsiveHeaderMetadata(renderer, info) {
+  if (!renderer || !info) return info;
+  if (renderer.title && renderer.title.runs) {
+    info.name = runsText(renderer.title.runs);
+  }
+
+  var subtitleRuns = (renderer.subtitle && renderer.subtitle.runs) || [];
+  for (var i = 0; i < subtitleRuns.length; i++) {
+    var subtitleText = String(
+      (subtitleRuns[i] && subtitleRuns[i].text) || "",
+    ).trim();
+    var lower = subtitleText.toLowerCase();
+    if (
+      lower === "album" ||
+      lower === "single" ||
+      lower === "ep" ||
+      lower === "playlist"
+    ) {
+      info.album_type = lower;
+    } else if (/^\d{4}$/.test(subtitleText)) {
+      info.release_date = subtitleText;
+    }
+  }
+
+  var artistRuns =
+    (renderer.straplineTextOne && renderer.straplineTextOne.runs) || [];
+  if (artistRuns.length) {
+    info.artists = uniqueStrings(
+      artistRuns.map(function (run) {
+        return run && run.text;
+      }),
+    ).join(", ");
+    for (var ar = 0; ar < artistRuns.length; ar++) {
+      var endpoint =
+        artistRuns[ar] &&
+        artistRuns[ar].navigationEndpoint &&
+        artistRuns[ar].navigationEndpoint.browseEndpoint;
+      if (
+        endpoint &&
+        (String(endpoint.browseId || "").startsWith("UC") ||
+          browsePageType(endpoint) === "MUSIC_PAGE_TYPE_ARTIST")
+      ) {
+        info.artist_id = String(endpoint.browseId);
+        break;
+      }
+    }
+  }
+
+  if (
+    renderer.thumbnail &&
+    renderer.thumbnail.musicThumbnailRenderer &&
+    renderer.thumbnail.musicThumbnailRenderer.thumbnail
+  ) {
+    var thumbnailURL = pickLastThumbnailUrl(
+      renderer.thumbnail.musicThumbnailRenderer.thumbnail.thumbnails,
+    );
+    if (thumbnailURL) info.cover_url = makeSquareThumb(thumbnailURL);
+  }
+
+  var secondSubtitle = runsText(
+    (renderer.secondSubtitle && renderer.secondSubtitle.runs) || [],
+  );
+  var totalMatch = secondSubtitle.match(/(\d[\d,.]*)\s+(songs?|tracks?)/i);
+  if (totalMatch) {
+    info.total_tracks =
+      parseInt(totalMatch[1].replace(/[^\d]/g, ""), 10) ||
+      info.total_tracks ||
+      0;
+  }
+  return info;
+}
+
 // Fetch album header metadata (name, artist, cover, etc.) from a MPREb_ browseId.
 // Used as a follow-up call when the primary browse response lacks header info.
 function _fetchAlbumHeaderMetadata(albumBrowseId) {
   try {
+    var cacheKey = "yt:album-header:" + albumBrowseId;
+    var cached = cacheGet(cacheKey);
+    if (cached) return cached;
     var url = "https://music.youtube.com/youtubei/v1/browse?alt=json";
     var res = fetch(url, {
       method: "POST",
@@ -3223,7 +4096,13 @@ function _fetchAlbumHeaderMetadata(albumBrowseId) {
       cover_url: null,
       release_date: "",
       album_type: "album",
+      total_tracks: 0,
     };
+
+    var responsiveHeader =
+      (data.header && data.header.musicResponsiveHeaderRenderer) ||
+      findFirstRenderer(data.contents, "musicResponsiveHeaderRenderer");
+    if (responsiveHeader) applyResponsiveHeaderMetadata(responsiveHeader, info);
 
     // microformat has the cleanest title: "Acoustic - Album by Queen"
     if (data.microformat && data.microformat.microformatDataRenderer) {
@@ -3291,6 +4170,7 @@ function _fetchAlbumHeaderMetadata(albumBrowseId) {
       }
     }
 
+    cacheSet(cacheKey, info);
     L("info", "_fetchAlbumHeaderMetadata result", {
       name: info.name,
       artists: info.artists,
@@ -3401,16 +4281,13 @@ function fetchBrowseTracksSync(browseId) {
         }
         if (vid) seenVideoIds[vid] = true;
 
-        parsed.album = result.album ? result.album.name : "";
-        if (!parsed.artist && result.album && result.album.artists) {
-          parsed.artist = result.album.artists;
-        }
+        applyBrowseCollectionMetadata(
+          parsed,
+          result.album,
+          result.type === "playlist",
+        );
         var sanitized = sanitizeTrackBeforeReturn(parsed);
         if (sanitized) {
-          sanitized.album_name = result.album ? result.album.name : "";
-          if (!sanitized.artists && result.album && result.album.artists) {
-            sanitized.artists = result.album.artists;
-          }
           if (!sanitized.track_number) {
             sanitized.track_number = result.tracks.length + 1;
           }
@@ -3447,6 +4324,9 @@ function fetchBrowseTracksSync(browseId) {
   // Update total_tracks after all pages fetched
   if (result.album) {
     result.album.total_tracks = result.tracks.length;
+    for (var trackIndex = 0; trackIndex < result.tracks.length; trackIndex++) {
+      result.tracks[trackIndex].total_tracks = result.tracks.length;
+    }
   }
 
   // Clean up internal field
@@ -3483,6 +4363,8 @@ function fetchBrowseTracksSync(browseId) {
           albumMeta.release_date || result.album.release_date;
         result.album.album_type =
           albumMeta.album_type || result.album.album_type;
+        result.album.total_tracks =
+          albumMeta.total_tracks || result.album.total_tracks;
         result.album.id = albumBrowseId;
       }
     }
@@ -3550,6 +4432,14 @@ function parseBrowseResponse(data, browseId) {
           header = tabContent2.sectionListRenderer.header;
         }
       }
+    }
+    if (!header && data.contents) {
+      var nestedResponsiveHeader = findFirstRenderer(
+        data.contents,
+        "musicResponsiveHeaderRenderer",
+      );
+      if (nestedResponsiveHeader)
+        header = { musicResponsiveHeaderRenderer: nestedResponsiveHeader };
     }
 
     if (!header && data.background) {
@@ -3630,6 +4520,17 @@ function parseBrowseResponse(data, browseId) {
       artists: headerInfo.artists,
     });
     if (header) {
+      if (header.musicResponsiveHeaderRenderer) {
+        applyResponsiveHeaderMetadata(
+          header.musicResponsiveHeaderRenderer,
+          headerInfo,
+        );
+        L(
+          "debug",
+          "musicResponsiveHeaderRenderer cover_url",
+          headerInfo.cover_url,
+        );
+      }
       if (header.musicDetailHeaderRenderer) {
         var h = header.musicDetailHeaderRenderer;
         if (h.title && h.title.runs) {
@@ -3787,6 +4688,19 @@ function parseBrowseResponse(data, browseId) {
       !!continuationInfo.token,
     );
 
+    // Classify the collection before parsing its tracks. Playlist headers are
+    // containers, not release metadata, and must never become ALBUM/ARTIST.
+    if (
+      browseId.startsWith("VL") ||
+      browseId.startsWith("PL") ||
+      browseId.startsWith("RDCLAK5uy_")
+    ) {
+      headerInfo.album_type = "playlist";
+    } else if (browseId.startsWith("MPREb_")) {
+      if (!headerInfo.album_type) headerInfo.album_type = "album";
+    }
+    var isPlaylist = headerInfo.album_type === "playlist";
+
     var tracks = [];
     for (var i = 0; i < trackCandidates.length; i++) {
       var node = trackCandidates[i];
@@ -3796,16 +4710,9 @@ function parseBrowseResponse(data, browseId) {
         node;
       var parsed = parseItemExtended(possible);
       if (parsed) {
-        parsed.album = headerInfo.name;
-        if (!parsed.artist && headerInfo.artists) {
-          parsed.artist = headerInfo.artists;
-        }
+        applyBrowseCollectionMetadata(parsed, headerInfo, isPlaylist);
         var sanitized = sanitizeTrackBeforeReturn(parsed);
         if (sanitized) {
-          sanitized.album_name = headerInfo.name;
-          if (!sanitized.artists && headerInfo.artists) {
-            sanitized.artists = headerInfo.artists;
-          }
           if (!sanitized.track_number) {
             sanitized.track_number = tracks.length + 1;
           }
@@ -3816,7 +4723,19 @@ function parseBrowseResponse(data, browseId) {
 
     L("info", "parseBrowseResponse parsed tracks", tracks.length);
 
-    headerInfo.total_tracks = tracks.length;
+    headerInfo.total_tracks = Math.max(
+      headerInfo.total_tracks || 0,
+      tracks.length,
+    );
+    for (var trackIndex = 0; trackIndex < tracks.length; trackIndex++) {
+      tracks[trackIndex].total_tracks = headerInfo.total_tracks;
+      if (!tracks[trackIndex].album_artist)
+        tracks[trackIndex].album_artist = headerInfo.artists;
+      if (!tracks[trackIndex].release_date)
+        tracks[trackIndex].release_date = headerInfo.release_date;
+      if (!tracks[trackIndex].album_type)
+        tracks[trackIndex].album_type = headerInfo.album_type;
+    }
 
     if (!headerInfo.cover_url && tracks.length > 0 && tracks[0].cover_url) {
       headerInfo.cover_url = tracks[0].cover_url;
@@ -3825,17 +4744,6 @@ function parseBrowseResponse(data, browseId) {
         "parseBrowseResponse using first track cover as fallback",
         headerInfo.cover_url,
       );
-    }
-
-    // Determine type based on browseId prefix
-    if (
-      browseId.startsWith("VL") ||
-      browseId.startsWith("PL") ||
-      browseId.startsWith("RDCLAK5uy_")
-    ) {
-      headerInfo.album_type = "playlist";
-    } else if (browseId.startsWith("MPREb_")) {
-      if (!headerInfo.album_type) headerInfo.album_type = "album";
     }
 
     L("debug", "parseBrowseResponse final cover_url", headerInfo.cover_url);
@@ -3898,6 +4806,69 @@ async function fetchVideoMetadata(videoId) {
     thumbnail: thumb,
     source: "youtube",
   };
+}
+
+function fetchVideoMetadataSync(videoId) {
+  var data = fetchJSONSync(
+    "https://music.youtube.com/youtubei/v1/player?alt=json",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "User-Agent": getRandomUserAgent(),
+        "x-youtube-client-name": "WEB_REMIX",
+        "x-youtube-client-version": CONFIG.clientVersion,
+      },
+      body: JSON.stringify({
+        context: {
+          client: {
+            clientName: "WEB_REMIX",
+            clientVersion: CONFIG.clientVersion,
+          },
+        },
+        videoId: videoId,
+      }),
+    },
+  );
+  if (!data || !data.videoDetails) return null;
+  var details = data.videoDetails;
+  var thumbnailURL = pickLastThumbnailUrl(
+    details.thumbnail && details.thumbnail.thumbnails,
+  );
+  return {
+    id: videoId,
+    title: details.title || "Unknown title",
+    artist: details.author || "",
+    album: "",
+    duration: parseInt(details.lengthSeconds, 10) || 0,
+    thumbnail: thumbnailURL ? makeSquareThumb(thumbnailURL) : null,
+    external_urls: "https://music.youtube.com/watch?v=" + videoId,
+    external_links: { youtube: "https://music.youtube.com/watch?v=" + videoId },
+    source: "youtube",
+    item_type: "track",
+  };
+}
+
+function getTrack(trackID) {
+  var videoID = String(trackID || "").trim();
+  if (!/^[A-Za-z0-9_-]{11}$/.test(videoID)) return null;
+  var cached = cacheGet("yt:video:" + videoID);
+  if (cached) return enrichTrack(cached);
+
+  var raw = fetchVideoMetadataSync(videoID);
+  if (!raw) return null;
+  var candidates = performSearchSync(
+    (raw.artist ? raw.artist + " " : "") + raw.title,
+    YT_SEARCH_PARAMS.tracks,
+  );
+  for (var i = 0; i < candidates.length; i++) {
+    if (candidates[i] && candidates[i].id === videoID) {
+      raw = candidates[i];
+      break;
+    }
+  }
+  var sanitized = sanitizeTrackBeforeReturn(raw);
+  return sanitized ? enrichTrack(sanitized) : null;
 }
 
 function handleUrl(url) {
@@ -4282,202 +5253,386 @@ function findSectionList(contents) {
   return null;
 }
 
+function fetchJSONSync(url, options) {
+  try {
+    var response = fetch(
+      url,
+      options || {
+        method: "GET",
+        headers: { "User-Agent": getRandomUserAgent() },
+      },
+    );
+    if (!response || !response.ok) return null;
+    var data = response.json();
+    return data && !data.error ? data : null;
+  } catch (e) {
+    L("debug", "fetchJSONSync failed", url, String(e));
+    return null;
+  }
+}
+
+function metadataMatchValue(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[’‘`]/g, "'")
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function primaryArtistMatches(expected, actual) {
+  var expectedPrimary = String(expected || "").split(
+    /\s*,\s*|\s+feat\.?\s+|\s+ft\.?\s+/i,
+  )[0];
+  return metadataMatchValue(expectedPrimary) === metadataMatchValue(actual);
+}
+
+function parseTrackCredits(data) {
+  var result = {
+    title: "",
+    artists: "",
+    composer: "",
+    producer: "",
+    release_date: "",
+    cover_url: null,
+  };
+  var actions = data && data.onResponseReceivedActions;
+  if (!Array.isArray(actions)) return result;
+  for (var ai = 0; ai < actions.length; ai++) {
+    var dialog =
+      actions[ai] &&
+      actions[ai].openPopupAction &&
+      actions[ai].openPopupAction.popup &&
+      actions[ai].openPopupAction.popup.dismissableDialogRenderer;
+    if (!dialog) continue;
+    var metadata =
+      dialog.metadata && dialog.metadata.musicMultiRowListItemRenderer;
+    if (metadata) {
+      result.title = runsText((metadata.title && metadata.title.runs) || []);
+      result.artists = runsText(
+        (metadata.subtitle && metadata.subtitle.runs) || [],
+      );
+      var secondTitle = runsText(
+        (metadata.secondTitle && metadata.secondTitle.runs) || [],
+      );
+      var yearMatch = secondTitle.match(/\b(19|20)\d{2}\b/);
+      if (yearMatch) result.release_date = yearMatch[0];
+      var thumbnailURL = pickLastThumbnailUrl(
+        metadata.thumbnail &&
+          metadata.thumbnail.musicThumbnailRenderer &&
+          metadata.thumbnail.musicThumbnailRenderer.thumbnail &&
+          metadata.thumbnail.musicThumbnailRenderer.thumbnail.thumbnails,
+      );
+      if (thumbnailURL) result.cover_url = makeSquareThumb(thumbnailURL);
+    }
+    var sections = dialog.sections || [];
+    for (var si = 0; si < sections.length; si++) {
+      var section =
+        sections[si] && sections[si].dismissableDialogContentSectionRenderer;
+      if (!section) continue;
+      var role = runsText(
+        (section.title && section.title.runs) || [],
+      ).toLowerCase();
+      var names = uniqueStrings(
+        ((section.subtitle && section.subtitle.runs) || []).map(function (run) {
+          return String((run && run.text) || "").trim();
+        }),
+      ).join("; ");
+      if (/written by|songwriters?|composers?|lyrics by/.test(role)) {
+        result.composer = names;
+      } else if (/produced by|producers?/.test(role)) {
+        result.producer = names;
+      } else if (/performed by|artists?/.test(role) && !result.artists) {
+        result.artists = names;
+      }
+    }
+    break;
+  }
+  return result;
+}
+
+function fetchTrackCreditsSync(videoID) {
+  var cacheKey = "yt:credits:" + videoID;
+  var cached = cacheGet(cacheKey);
+  if (cached) return cached;
+  var data = fetchJSONSync(
+    "https://music.youtube.com/youtubei/v1/browse?alt=json",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Accept-Language": "en-US,en;q=0.9",
+        "User-Agent": getRandomUserAgent(),
+        "x-youtube-client-name": "WEB_REMIX",
+        "x-youtube-client-version": CONFIG.clientVersion,
+      },
+      body: JSON.stringify({
+        context: {
+          client: {
+            clientName: "WEB_REMIX",
+            clientVersion: CONFIG.clientVersion,
+            hl: "en",
+            gl: "US",
+          },
+        },
+        browseId: "MPTC" + videoID,
+      }),
+    },
+  );
+  var result = parseTrackCredits(data);
+  cacheSet(cacheKey, result);
+  return result;
+}
+
+function normalizeDeezerAlbumType(value) {
+  var type = String(value || "album").toLowerCase();
+  if (type === "ep" || type === "single") return type;
+  return "album";
+}
+
+function deezerComposerNames(trackData) {
+  var contributors = (trackData && trackData.contributors) || [];
+  var names = [];
+  for (var i = 0; i < contributors.length; i++) {
+    var role = String(
+      (contributors[i] && contributors[i].role) || "",
+    ).toLowerCase();
+    if (/composer|songwriter|writer|author/.test(role))
+      names.push(contributors[i].name);
+  }
+  return uniqueStrings(names).join("; ");
+}
+
+function fetchValidatedDeezerMetadata(track) {
+  var title = String(track.name || track.title || "").trim();
+  var artists = String(track.artists || track.artist || "").trim();
+  var albumName = String(track.album_name || track.album || "").trim();
+  var durationSeconds =
+    Math.round(Number(track.duration_ms || 0) / 1000) ||
+    Number(track.duration || 0) ||
+    0;
+  if (!title || !artists) return null;
+
+  var query =
+    'track:"' +
+    title.replace(/"/g, "") +
+    '" artist:"' +
+    artists.split(",")[0].replace(/"/g, "") +
+    '"';
+  if (albumName) query += ' album:"' + albumName.replace(/"/g, "") + '"';
+  var search = fetchJSONSync(
+    "https://api.deezer.com/search?q=" +
+      encodeURIComponent(query) +
+      "&limit=10",
+  );
+  if (!search || !Array.isArray(search.data)) return null;
+
+  var candidate = null;
+  for (var i = 0; i < search.data.length; i++) {
+    var item = search.data[i];
+    if (metadataMatchValue(item.title) !== metadataMatchValue(title)) continue;
+    if (!primaryArtistMatches(artists, item.artist && item.artist.name))
+      continue;
+    if (
+      albumName &&
+      metadataMatchValue(item.album && item.album.title) !==
+        metadataMatchValue(albumName)
+    )
+      continue;
+    if (
+      durationSeconds &&
+      item.duration &&
+      Math.abs(Number(item.duration) - durationSeconds) > 5
+    )
+      continue;
+    candidate = item;
+    break;
+  }
+  if (!candidate) return null;
+
+  var trackData = fetchJSONSync(
+    "https://api.deezer.com/track/" + encodeURIComponent(String(candidate.id)),
+  );
+  if (
+    !trackData ||
+    metadataMatchValue(trackData.title) !== metadataMatchValue(title) ||
+    !primaryArtistMatches(artists, trackData.artist && trackData.artist.name)
+  )
+    return null;
+  if (
+    durationSeconds &&
+    trackData.duration &&
+    Math.abs(Number(trackData.duration) - durationSeconds) > 5
+  )
+    return null;
+
+  var deezerAlbumName = String(
+    (trackData.album && trackData.album.title) ||
+      (candidate.album && candidate.album.title) ||
+      "",
+  );
+  var sameAlbum =
+    !!albumName &&
+    metadataMatchValue(deezerAlbumName) === metadataMatchValue(albumName);
+  var albumData =
+    sameAlbum && trackData.album && trackData.album.id
+      ? fetchJSONSync(
+          "https://api.deezer.com/album/" +
+            encodeURIComponent(String(trackData.album.id)),
+        )
+      : null;
+  if (
+    albumData &&
+    metadataMatchValue(albumData.title) !== metadataMatchValue(albumName)
+  )
+    albumData = null;
+
+  var deezerURL = String(
+    trackData.link || "https://www.deezer.com/track/" + candidate.id,
+  );
+  var result = {
+    isrc: String(trackData.isrc || "").trim(),
+    preview_url: String(trackData.preview || "").trim(),
+    explicit: trackData.explicit_lyrics === true,
+    deezer_id: String(candidate.id),
+    deezer_url: deezerURL,
+    composer: deezerComposerNames(trackData),
+  };
+  if (albumData) {
+    result.album_artist = String(
+      (albumData.artist && albumData.artist.name) || "",
+    ).trim();
+    result.release_date = String(albumData.release_date || "").trim();
+    result.track_number = Number(trackData.track_position || 0) || 0;
+    result.total_tracks = Number(albumData.nb_tracks || 0) || 0;
+    result.disc_number = Number(trackData.disk_number || 0) || 0;
+    result.total_discs = 1;
+    if (albumData.tracks && Array.isArray(albumData.tracks.data)) {
+      for (var ti = 0; ti < albumData.tracks.data.length; ti++) {
+        result.total_discs = Math.max(
+          result.total_discs,
+          Number(albumData.tracks.data[ti].disk_number || 1),
+        );
+      }
+    }
+    result.album_type = normalizeDeezerAlbumType(albumData.record_type);
+    result.upc = String(albumData.upc || "").trim();
+    result.label = String(albumData.label || "").trim();
+    result.copyright = String(albumData.copyright || "").trim();
+    var genres = (albumData.genres && albumData.genres.data) || [];
+    result.genre = uniqueStrings(
+      genres.map(function (genre) {
+        return genre && genre.name;
+      }),
+    ).join("; ");
+  }
+  return result;
+}
+
 function enrichTrack(track) {
   L("info", "enrichTrack called", track ? track.id : "null");
+  if (!track || !track.id) return track;
 
-  if (!track || !track.id) {
-    L("warn", "enrichTrack: invalid track");
-    return track;
-  }
-
-  var ytUrl =
-    "https://music.youtube.com/watch?v=" + encodeURIComponent(track.id);
-  var odesliUrl =
-    "https://api.song.link/v1-alpha.1/links?url=" + encodeURIComponent(ytUrl);
-
-  var cacheKey = "odesli:" + track.id;
+  var cacheKey = "yt:enrichment:" + track.id;
   var cached = cacheGet(cacheKey);
-  if (cached) {
-    L("info", "enrichTrack: returning cached enrichment", track.id);
-    return Object.assign({}, track, cached);
+  if (cached) return Object.assign({}, track, cached);
+
+  var youtubeURL =
+    "https://music.youtube.com/watch?v=" + encodeURIComponent(track.id);
+  var enrichment = {
+    external_urls: youtubeURL,
+    external_links: Object.assign({}, track.external_links || {}, {
+      youtube: youtubeURL,
+    }),
+  };
+
+  var credits = fetchTrackCreditsSync(String(track.id));
+  if (credits) {
+    if (credits.composer) enrichment.composer = credits.composer;
+    if (!track.artists && credits.artists) enrichment.artists = credits.artists;
+    if (!track.name && credits.title) enrichment.name = credits.title;
+    if (!track.release_date && credits.release_date)
+      enrichment.release_date = credits.release_date;
+    if (!track.cover_url && credits.cover_url)
+      enrichment.cover_url = credits.cover_url;
   }
 
-  try {
-    var res = fetch(odesliUrl, {
-      method: "GET",
-      headers: {
-        "User-Agent": getRandomUserAgent(),
-      },
-    });
-
-    if (!res || !res.ok) {
-      L(
-        "warn",
-        "enrichTrack: Odesli API returned status",
-        res ? res.status : "null",
-      );
-      return track;
+  var albumID = String(track.album_id || "").trim();
+  if (albumID.startsWith("MPREb_")) {
+    var nativeAlbum = _fetchAlbumHeaderMetadata(albumID);
+    if (nativeAlbum) {
+      if (!track.album_name && nativeAlbum.name)
+        enrichment.album_name = nativeAlbum.name;
+      if (!track.album_artist && nativeAlbum.artists)
+        enrichment.album_artist = nativeAlbum.artists;
+      if (!track.artist_id && nativeAlbum.artist_id)
+        enrichment.artist_id = nativeAlbum.artist_id;
+      if (!track.artist_url && nativeAlbum.artist_id)
+        enrichment.artist_url =
+          "https://music.youtube.com/channel/" + nativeAlbum.artist_id;
+      if (!track.release_date && nativeAlbum.release_date)
+        enrichment.release_date = nativeAlbum.release_date;
+      if (!track.album_type && nativeAlbum.album_type)
+        enrichment.album_type = nativeAlbum.album_type;
+      if (!track.total_tracks && nativeAlbum.total_tracks)
+        enrichment.total_tracks = nativeAlbum.total_tracks;
+      if (!track.cover_url && nativeAlbum.cover_url)
+        enrichment.cover_url = nativeAlbum.cover_url;
     }
-
-    var data = res.json();
-    if (!data) {
-      L("warn", "enrichTrack: failed to parse Odesli response");
-      return track;
-    }
-
-    L("debug", "enrichTrack: Odesli response keys", Object.keys(data));
-
-    var enrichment = {};
-
-    var deezerUrl = null;
-    var deezerTrackId = null;
-    if (
-      data.linksByPlatform &&
-      data.linksByPlatform.deezer &&
-      data.linksByPlatform.deezer.url
-    ) {
-      deezerUrl = data.linksByPlatform.deezer.url;
-      var deezerMatch = deezerUrl.match(/\/track\/(\d+)/);
-      if (deezerMatch) {
-        deezerTrackId = deezerMatch[1];
-      }
-      L("debug", "enrichTrack: Got Deezer URL from Odesli", deezerUrl);
-    }
-
-    if (data.entitiesByUniqueId) {
-      var entities = data.entitiesByUniqueId;
-      var entityKeys = Object.keys(entities);
-
-      for (var i = 0; i < entityKeys.length; i++) {
-        var entity = entities[entityKeys[i]];
-        if (entity && entity.isrc && !enrichment.isrc) {
-          enrichment.isrc = entity.isrc;
-          L(
-            "info",
-            "enrichTrack: found ISRC from Odesli entities",
-            enrichment.isrc,
-          );
-        }
-        if (entity && entity.title && !enrichment.enriched_title) {
-          enrichment.enriched_title = entity.title;
-        }
-        if (entity && entity.artistName && !enrichment.enriched_artist) {
-          enrichment.enriched_artist = entity.artistName;
-        }
-      }
-    }
-
-    if (!enrichment.isrc && deezerTrackId) {
-      L(
-        "debug",
-        "enrichTrack: ISRC not in Odesli, fetching from Deezer API...",
-      );
-      try {
-        var deezerApiUrl = "https://api.deezer.com/track/" + deezerTrackId;
-        var deezerRes = fetch(deezerApiUrl, {
-          method: "GET",
-          headers: {
-            "User-Agent": getRandomUserAgent(),
-          },
-        });
-
-        if (deezerRes && deezerRes.ok) {
-          var deezerData = deezerRes.json();
-          if (deezerData && deezerData.isrc) {
-            enrichment.isrc = deezerData.isrc;
-            L("info", "enrichTrack: Got ISRC from Deezer API", enrichment.isrc);
-          }
-        } else {
-          L(
-            "debug",
-            "enrichTrack: Deezer API failed",
-            deezerRes ? deezerRes.status : "null",
-          );
-        }
-      } catch (deezerErr) {
-        L("debug", "enrichTrack: Deezer API error", String(deezerErr));
-      }
-    }
-
-    if (data.linksByPlatform) {
-      var links = data.linksByPlatform;
-      enrichment.external_links = {};
-      L("debug", "enrichTrack: linksByPlatform keys", Object.keys(links));
-
-      if (deezerUrl) {
-        enrichment.external_links.deezer = deezerUrl;
-        if (deezerTrackId) {
-          enrichment.deezer_id = deezerTrackId;
-        }
-      }
-      if (links.tidal && links.tidal.url) {
-        enrichment.external_links.tidal = links.tidal.url;
-        // Extract Tidal track ID if available
-        var tidalMatch = links.tidal.url.match(/\/track\/(\d+)/);
-        if (tidalMatch) {
-          enrichment.tidal_id = tidalMatch[1];
-        }
-      }
-      if (links.qobuz && links.qobuz.url) {
-        enrichment.external_links.qobuz = links.qobuz.url;
-        // Extract Qobuz track ID if available (format: /track/123456789)
-        var qobuzMatch = links.qobuz.url.match(/\/track\/(\d+)/);
-        if (qobuzMatch) {
-          enrichment.qobuz_id = qobuzMatch[1];
-        }
-      }
-      if (links.spotify && links.spotify.url) {
-        enrichment.external_links.spotify = links.spotify.url;
-        // Extract Spotify track ID if available
-        var spotifyMatch = links.spotify.url.match(/\/track\/([a-zA-Z0-9]+)/);
-        if (spotifyMatch) {
-          enrichment.spotify_id = spotifyMatch[1];
-        }
-      }
-      if (links.amazonMusic && links.amazonMusic.url) {
-        enrichment.external_links.amazon = links.amazonMusic.url;
-      }
-      if (links.appleMusic && links.appleMusic.url) {
-        enrichment.external_links.apple = links.appleMusic.url;
-      }
-
-      L(
-        "info",
-        "enrichTrack: found external links",
-        Object.keys(enrichment.external_links),
-      );
-      if (enrichment.tidal_id)
-        L("info", "enrichTrack: tidal_id extracted", enrichment.tidal_id);
-      if (enrichment.qobuz_id)
-        L("info", "enrichTrack: qobuz_id extracted", enrichment.qobuz_id);
-      if (enrichment.deezer_id)
-        L("info", "enrichTrack: deezer_id extracted", enrichment.deezer_id);
-      if (enrichment.spotify_id)
-        L("info", "enrichTrack: spotify_id extracted", enrichment.spotify_id);
-    }
-
-    if (
-      enrichment.isrc ||
-      (enrichment.external_links &&
-        Object.keys(enrichment.external_links).length > 0)
-    ) {
-      cacheSet(cacheKey, enrichment);
-    }
-
-    var enrichedTrack = Object.assign({}, track, enrichment);
-    L("info", "enrichTrack: success", {
-      id: track.id,
-      hasIsrc: !!enrichment.isrc,
-      linkCount: enrichment.external_links
-        ? Object.keys(enrichment.external_links).length
-        : 0,
-    });
-
-    return enrichedTrack;
-  } catch (e) {
-    L("error", "enrichTrack: Odesli API error", String(e));
-    return track;
   }
+
+  var lookupTrack = Object.assign({}, track, enrichment);
+  var deezer = fetchValidatedDeezerMetadata(lookupTrack);
+  if (deezer) {
+    if (deezer.isrc) enrichment.isrc = deezer.isrc;
+    if (deezer.preview_url) enrichment.preview_url = deezer.preview_url;
+    if (!enrichment.composer && !track.composer && deezer.composer)
+      enrichment.composer = deezer.composer;
+    if (deezer.explicit) enrichment.explicit = true;
+    enrichment.deezer_id = deezer.deezer_id;
+    enrichment.external_links.deezer = deezer.deezer_url;
+    var albumFields = [
+      "album_artist",
+      "track_number",
+      "total_tracks",
+      "disc_number",
+      "total_discs",
+      "album_type",
+      "upc",
+      "label",
+      "copyright",
+      "genre",
+    ];
+    for (var fi = 0; fi < albumFields.length; fi++) {
+      var field = albumFields[fi];
+      if (
+        (!track[field] ||
+          field === "genre" ||
+          field === "label" ||
+          field === "copyright" ||
+          field === "upc") &&
+        deezer[field]
+      ) {
+        enrichment[field] = deezer[field];
+      }
+    }
+    if (
+      deezer.release_date &&
+      (!track.release_date || /^\d{4}$/.test(String(track.release_date)))
+    ) {
+      enrichment.release_date = deezer.release_date;
+    }
+  }
+
+  cacheSet(cacheKey, enrichment);
+  L("info", "enrichTrack: success", {
+    id: track.id,
+    hasComposer: !!enrichment.composer,
+    hasIsrc: !!enrichment.isrc,
+    hasGenre: !!enrichment.genre,
+  });
+  return Object.assign({}, track, enrichment);
 }
 
 var YT_API_KEY = "AIzaSyC9XL3ZjWddXya6X74dJoCTL-WEYFDNX30";
@@ -4830,12 +5985,52 @@ registerExtension({
     CONFIG.logLevel = normalizeLogLevel(
       readSetting(settings, "logLevel", CONFIG.logLevel),
     );
+    // Google OAuth session tokens (only ever sent to Google endpoints).
+    CONFIG.oauthAccessToken = String(
+      readSetting(settings, "oauthAccessToken", CONFIG.oauthAccessToken) || "",
+    ).trim();
+    CONFIG.oauthRefreshToken = String(
+      readSetting(settings, "oauthRefreshToken", CONFIG.oauthRefreshToken) ||
+        "",
+    ).trim();
+    CONFIG.oauthClientId = String(
+      readSetting(settings, "oauthClientId", CONFIG.oauthClientId) || "",
+    ).trim();
+    CONFIG.oauthClientSecret = String(
+      readSetting(settings, "oauthClientSecret", CONFIG.oauthClientSecret) ||
+        "",
+    ).trim();
     L("info", "YouTube Music extension init", {
       poTokenMode: CONFIG.poTokenMode,
       hasProvider: !!CONFIG.poTokenProviderURL,
       hasManualToken: !!CONFIG.manualGvsPoToken,
+      hasOAuth: !!CONFIG.oauthAccessToken,
     });
+    // Default log level is "warn", so the info line above is invisible in
+    // device logs. Emit one warn line when a session is actually loaded so a
+    // mis-synced credential push is instantly diagnosable from logcat.
+    if (CONFIG.oauthAccessToken) {
+      L(
+        "warn",
+        "[InnerTube] YouTube session loaded (refresh=" +
+          !!CONFIG.oauthRefreshToken +
+          ")",
+      );
+    }
     return true;
+  },
+  // Expose whether a Google account is connected so the settings UI can show
+  // connection state and clear the session.
+  getOauthStatus: function () {
+    return {
+      connected: !!CONFIG.oauthAccessToken,
+      hasRefreshToken: !!CONFIG.oauthRefreshToken,
+    };
+  },
+  clearOauthSession: function () {
+    CONFIG.oauthAccessToken = "";
+    CONFIG.oauthRefreshToken = "";
+    return { success: true };
   },
   customSearch: function (query, options) {
     L("info", "customSearch", query, "options:", JSON.stringify(options));
@@ -4847,6 +6042,7 @@ registerExtension({
     }
   },
   handleUrl: handleUrl,
+  getTrack: getTrack,
   getAlbum: getAlbum,
   getPlaylist: getPlaylist,
   getArtist: getArtist,
@@ -5059,6 +6255,105 @@ registerExtension({
       L("error", "[YTMusic] yt1d failed:", String(e2));
     }
 
+    // Fallback: Piped API (public YouTube proxy instances)
+    if (!downloadURL) {
+      var pipedInstances = [
+        "https://pipedapi.kavin.rocks",
+        "https://api.piped.yt",
+        "https://watchapi.whatever.social",
+        "https://piped-api.lunar.icu",
+        "https://piped-api.privacy.com.de",
+      ];
+      for (var pi = 0; pi < pipedInstances.length; pi++) {
+        var pipedBase = pipedInstances[pi];
+        // Skip mirrors that failed recently instead of timing out on them
+        // again (each dead mirror costs a full HTTP round-trip).
+        if (pipedInstanceCooling(pipedBase)) {
+          L("info", "[YTMusic] Piped", pipedBase, "cooling down, skipped");
+          continue;
+        }
+        try {
+          L("info", "[YTMusic] Trying Piped:", pipedBase, "for", videoID);
+          var pipedRes = fetch(pipedBase + "/streams/" + videoID, {
+            method: "GET",
+            headers: {
+              Accept: "application/json",
+              "User-Agent": getRandomUserAgent(),
+            },
+          });
+          if (!pipedRes || !pipedRes.ok) {
+            L(
+              "warn",
+              "[YTMusic] Piped",
+              pipedBase,
+              "returned",
+              pipedRes ? pipedRes.status : "no response",
+            );
+            pipedInstanceMarkFail(pipedBase);
+            continue;
+          }
+          var pipedData = pipedRes.json();
+          if (!pipedData) continue;
+          // Piped returns audioStreams array
+          var audioStreams = pipedData.audioStreams || [];
+          if (audioStreams.length === 0) {
+            L(
+              "warn",
+              "[YTMusic] Piped",
+              pipedBase,
+              "returned no audio streams",
+            );
+            pipedInstanceMarkFail(pipedBase);
+            continue;
+          }
+          // Pick best audio stream (highest bitrate)
+          var bestStream = null;
+          var bestBitrate = -1;
+          for (var si = 0; si < audioStreams.length; si++) {
+            var stream = audioStreams[si];
+            if (!stream.url) continue;
+            var br = stream.bitrate || 0;
+            if (br > bestBitrate) {
+              bestBitrate = br;
+              bestStream = stream;
+            }
+          }
+          if (bestStream && bestStream.url) {
+            downloadURL = bestStream.url;
+            var mimeType = (bestStream.mimeType || "").toLowerCase();
+            if (mimeType.indexOf("opus") >= 0) actualOutputExt = ".opus";
+            else if (
+              mimeType.indexOf("mp4") >= 0 ||
+              mimeType.indexOf("m4a") >= 0
+            )
+              actualOutputExt = ".m4a";
+            else if (
+              mimeType.indexOf("mpeg") >= 0 ||
+              mimeType.indexOf("mp3") >= 0
+            )
+              actualOutputExt = ".mp3";
+            else actualOutputExt = ".m4a";
+            downloadSource = "piped:" + pipedBase;
+            downloadOptions = {};
+            pipedInstanceMarkOk(pipedBase);
+            L(
+              "info",
+              "[YTMusic] Piped OK from",
+              pipedBase,
+              "ext:",
+              actualOutputExt,
+              "bitrate:",
+              bestBitrate,
+            );
+            break;
+          }
+        } catch (pipedErr) {
+          L("warn", "[YTMusic] Piped", pipedBase, "failed:", String(pipedErr));
+          pipedInstanceMarkFail(pipedBase);
+        }
+      }
+    }
+
     if (!downloadURL) {
       return {
         success: false,
@@ -5143,9 +6438,44 @@ registerExtension({
     );
   },
 
-  getDownloadUrl: function () {
+  // Progressive streaming: resolve a fresh googlevideo URL so the player
+  // streams the track directly (starts in ~1-2s) instead of forcing a full
+  // download-to-cache first. Mirrors ArchiveTune's InnerTube streaming: the
+  // URL is resolved at play time (never reused stale), carries the solved
+  // n-parameter + PO token, and any failure returns null so the caller falls
+  // back to the download pipeline exactly as before.
+  getDownloadUrl: function (trackID, quality) {
+    var videoID = String(trackID || "").trim();
+    if (!videoID) return null;
+    try {
+      var candidate = requestInnerTubeAudioDownload(videoID);
+      if (candidate && candidate.url) {
+        L(
+          "info",
+          "[YTMusic] streaming URL OK:",
+          candidate.clientName,
+          "itag=" + candidate.itag,
+          candidate.extension,
+        );
+        return candidate.url;
+      }
+    } catch (e) {
+      var resolveError = String(e);
+      L("warn", "[YTMusic] streaming resolve failed:", resolveError);
+      // A provider-level block (all InnerTube clients 403/429, gateway down)
+      // must NOT be swallowed into null: Go's circuit breaker only cools
+      // "ytmusic-spotiflac" when it sees the marker in the error ("all
+      // clients failed"), and without it every track re-runs the whole client
+      // chain. Re-throw so the cooldown trips and later tracks skip this
+      // source while the block lasts.
+      if (resolveError.indexOf("all clients failed") >= 0) {
+        throw new Error(resolveError);
+      }
+    }
     return null;
   },
+
+  clearCachedTokens: clearCachedTokens,
 
   cleanup: function () {
     L("info", "YouTube Music extension cleanup");

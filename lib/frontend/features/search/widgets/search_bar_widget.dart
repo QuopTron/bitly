@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../../l10n/app_localizations.dart';
-import '../../../shared/theme/app_colors.dart';
 import '../../../shared/utils/responsive.dart';
 import '../../../shared/widgets/glass_container.dart';
 import '../../../shared/constants/source_constants.dart';
 import '../../../shared/models/feed_models.dart';
+import '../../../shared/theme/app_colors.dart';
 
 class SearchBarWidget extends StatefulWidget {
   final TextEditingController controller;
@@ -36,12 +36,11 @@ class _SearchBarWidgetState extends State<SearchBarWidget> {
   Widget build(BuildContext context) {
     final r = Responsive(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final onBg = isDark ? Colors.white : Colors.black;
-    final glowColor = isDark ? AppColors.greenBright : AppColors.greenMedium;
+    final onBg = AppColors.onSurface(isDark);
 
     return GlassContainer(
       borderRadius: 14,
-      borderColor: glowColor.withValues(alpha: 0.18),
+      borderColor: onBg.withValues(alpha: 0.08),
       margin: EdgeInsets.fromLTRB(r.spacingS, r.spacingS, r.spacingS, 0),
       padding: EdgeInsets.symmetric(horizontal: r.spacingM),
       child: TextField(
@@ -54,7 +53,7 @@ class _SearchBarWidgetState extends State<SearchBarWidget> {
           hintStyle: TextStyle(fontSize: r.subtitleSize + 3, color: onBg.withValues(alpha: 0.3)),
           border: InputBorder.none,
           prefixIcon: widget.sourceTrigger ??
-              Icon(Icons.search, size: r.footerSize + 5, color: glowColor.withValues(alpha: 0.8)),
+              Icon(Icons.search, size: r.footerSize + 5, color: onBg.withValues(alpha: 0.5)),
           suffixIcon: widget.controller.text.isNotEmpty
               ? GestureDetector(onTap: widget.onClear,
                   child: Icon(Icons.clear, size: r.footerSize + 5, color: onBg.withValues(alpha: 0.3)))
@@ -85,8 +84,7 @@ class SearchTypeChips extends StatelessWidget {
   Widget build(BuildContext context) {
     final r = Responsive(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final onBg = isDark ? Colors.white : Colors.black;
-    final glowColor = isDark ? AppColors.greenBright : AppColors.greenMedium;
+    final onBg = AppColors.onSurface(isDark);
     final loc = AppLocalizations.of(context);
 
     if (filters.isEmpty) return const SizedBox.shrink();
@@ -104,16 +102,16 @@ class SearchTypeChips extends StatelessWidget {
               onTap: () => onTypeChanged(cat),
               child: GlassContainer(
                 borderRadius: 22,
-                borderColor: sel ? glowColor : onBg.withValues(alpha: 0.1),
-                bgColor: sel ? glowColor.withValues(alpha: 0.16) : Colors.transparent,
+                borderColor: sel ? onBg.withValues(alpha: 0.2) : onBg.withValues(alpha: 0.08),
+                bgColor: sel ? onBg.withValues(alpha: 0.1) : Colors.transparent,
                 padding: EdgeInsets.symmetric(horizontal: r.spacingM + 2, vertical: r.spacingXS + 2),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
                   Icon(searchFilterIcon(f.icon, cat), size: r.footerSize + 3,
-                    color: sel ? glowColor : onBg.withValues(alpha: 0.5)),
+                    color: sel ? onBg : onBg.withValues(alpha: 0.5)),
                   SizedBox(width: r.spacingXS),
                   Text(_typeLabel(cat, f.label, loc),
                     style: TextStyle(fontSize: r.subtitleSize,
-                      color: sel ? glowColor : onBg.withValues(alpha: 0.55),
+                      color: sel ? onBg : onBg.withValues(alpha: 0.55),
                       fontWeight: sel ? FontWeight.w700 : FontWeight.w500)),
                 ]),
               ),

@@ -86,7 +86,8 @@
     "shareUrlTemplates": {
       "album": "https://www.deezer.com/album/{id}",
       "artist": "https://www.deezer.com/artist/{id}"
-    }
+    },
+    "homeFeed": true
   },
   "serviceHealth": [
     {

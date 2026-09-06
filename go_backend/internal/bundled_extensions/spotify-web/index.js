@@ -293,10 +293,18 @@ function getSessionInfo() {
   const response = http.get("https://open.spotify.com", headers);
 
   if (!response || response.error || response.statusCode !== 200) {
-    throw new Error(
-      "Failed to get session info: HTTP " +
-        (response ? response.statusCode : "no response"),
-    );
+    // The HTML page can be blocked (bot page / region / 429) while the API
+    // still serves anonymous sessions. Don't hard-fail here: the caller falls
+    // back to a locally generated device ID + default client version, and the
+    // anonymous token endpoint decides whether this IP is allowed.
+    if (!clientState.deviceID) {
+      clientState.deviceID = generateDeviceID();
+    }
+    if (!clientState.clientVersion) {
+      clientState.clientVersion = FALLBACK_CLIENT_VERSION;
+    }
+    persistClientState();
+    return;
   }
 
   extractCookies(response);
@@ -308,8 +316,18 @@ function getSessionInfo() {
     try {
       const decoded = atob(match[1]);
       const cfg = JSON.parse(decoded);
-      clientState.clientVersion = cfg.clientVersion;
+      if (cfg.clientVersion) clientState.clientVersion = cfg.clientVersion;
     } catch (e) {}
+  }
+
+  // Spotify no longer sets the sp_t cookie in the static HTML (it is minted
+  // client-side). A self-generated anonymous device ID serves the same role
+  // for the anonymous client-token flow.
+  if (!clientState.deviceID) {
+    clientState.deviceID = generateDeviceID();
+  }
+  if (!clientState.clientVersion) {
+    clientState.clientVersion = FALLBACK_CLIENT_VERSION;
   }
 
   persistClientState();
@@ -430,6 +448,12 @@ function generateDeviceID() {
   }
   return result;
 }
+
+// Fallback client version used when the open.spotify.com HTML no longer embeds
+// appServerConfig (Spotify now sets sp_t + config only via client-side JS, so
+// a static fetch returns neither). GraphQL search tolerates an older-but-real
+// web player clientVersion.
+const FALLBACK_CLIENT_VERSION = "1.2.66.424-g3b3b05a4";
 
 // When the anonymous token/session fetch fails (Spotify blocking or
 // rate-limiting this device/IP) it throws. Remember that so repeated calls

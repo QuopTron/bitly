@@ -1,8 +1,11 @@
+import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import '../utils/responsive.dart';
 import '../../l10n/app_localizations.dart';
 import '../models/feed_models.dart';
+import '../../../backend/services/queue_cubit.dart';
+import '../../../injection.dart';
 import 'cover_image.dart';
 
 void showSongInfoModal(BuildContext context, FeedItem item) {
@@ -34,11 +37,15 @@ class _SongInfoSheet extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bg = isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF5F5F5);
     final onBg = isDark ? Colors.white : Colors.black;
+    final hasTrack = sl<QueueCubit>().state.hasCurrent;
+    final modalBg = hasTrack
+        ? bg.withValues(alpha: 0.70)
+        : bg;
 
-    return Container(
+    Widget sheet = Container(
       margin: EdgeInsets.only(top: r.spacingXL * 2),
       decoration: BoxDecoration(
-        color: bg,
+        color: modalBg,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: ClipRRect(
@@ -83,6 +90,16 @@ class _SongInfoSheet extends StatelessWidget {
         ),
       ),
     );
+    if (hasTrack) {
+      sheet = ClipRRect(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+          child: sheet,
+        ),
+      );
+    }
+    return sheet;
   }
 
   Widget _shareButton(BuildContext context, Responsive r, Color onBg, FeedItem item) {

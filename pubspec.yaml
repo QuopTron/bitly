@@ -1,7 +1,7 @@
 name: bitly
 description: Download Spotify tracks in FLAC from Tidal, Qobuz & Deezer
 publish_to: "none"
-version: 0.9.4+13
+version: 0.9.5+8053
 
 environment:
   sdk: ^3.7.0
@@ -52,7 +52,7 @@ dependencies:
   open_filex: ^4.7.0
 
   # Audio / Video player for in-app streaming
-  media_kit: ^1.1.10
+  media_kit: ^1.2.6 # >=1.2 enables cache-on-disk by default; we disable it in _initPlayer (Android temp dir not writable)
   media_kit_video: ^2.0.1
   media_kit_libs_android_video: ^1.0.4
   media_kit_libs_windows_video: ^1.0.4
@@ -70,6 +70,7 @@ dependencies:
   webview_flutter: ^4.0.0
   webview_flutter_android: ^3.16.9
   audio_service: ^0.18.19
+  package_info_plus: ^10.2.1
 
 dev_dependencies:
   flutter_test:

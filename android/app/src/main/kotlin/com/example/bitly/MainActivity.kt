@@ -18,11 +18,33 @@ class MainActivity : AudioServiceActivity() {
     private val CHANNEL = "com.bitly/backend"
     private val SESSION_CHANNEL = "com.bitly/session_grant"
     private val OAUTH_CHANNEL = "com.bitly/oauth_callback"
-    private val executor = Executors.newSingleThreadExecutor()
+    // Go calls run on a small pool (NOT a single thread): if one Go call gets
+    // stuck in a JS call that never returns, the rest of the app must keep
+    // working. Each call also has a hard timeout (see dispatchGoCall) so the
+    // Dart side always gets a response instead of hanging forever.
+    private val executor = Executors.newFixedThreadPool(4)
+    // Dedicated watcher thread: waits on the Go-call Future with a timeout so
+    // a stuck call never consumes a pool thread as a waiter.
+    private val callWatcher = Executors.newSingleThreadExecutor()
+    // Hard per-call timeout for Go RPCs. Legit fallback downloads can take
+    // ~30-40s, so this is a safety net, not the normal path.
+    private val callTimeoutSeconds = 45L
     private val handler = Handler(Looper.getMainLooper())
 
     private var safResult: MethodChannel.Result? = null
     private val SAF_PICKER_REQUEST_CODE = 1001
+
+    // Go backend init guard: initBackend + initGlobalState are NOT re-entrant.
+    // The splash's auto-retry can fire a second initGoBackend while the first
+    // is still loading (cold start loads the Go runtime + every extension JS
+    // engine, which takes tens of seconds), and concurrent calls into Go init
+    // can throw or deadlock — making every retry fail and showing "Backend no
+    // responde" even though a single sequential init would have succeeded.
+    // A shared CompletableFuture serializes init: the first caller runs it,
+    // every concurrent/retry caller awaits the SAME future (never re-entering
+    // Go init), and the result is cached for the process lifetime.
+    private val goBackendInitLock = Any()
+    private var goBackendInitFuture: java.util.concurrent.CompletableFuture<String?>? = null
 
     // Grant received from a spotiflac://session-grant deep link while Flutter
     // was not ready yet (cold start). Delivered once the engine is configured.
@@ -145,13 +167,43 @@ class MainActivity : AudioServiceActivity() {
                 // ── Init ──────────────────────────────────────────────────
                 "initGoBackend" -> {
                     executor.execute {
+                        val future: java.util.concurrent.CompletableFuture<String?>
+                        synchronized(goBackendInitLock) {
+                            if (goBackendInitFuture == null) {
+                                val f = java.util.concurrent.CompletableFuture<String?>()
+                                goBackendInitFuture = f
+                                // Kick the actual init on a separate pool thread
+                                // so the first caller does not hold the executor
+                                // thread blocked on its own future.
+                                executor.execute {
+                                    try {
+                                        Gobackend.initBackend()
+                                        val s = Gobackend.initGlobalState()
+                                        android.util.Log.i("NativeBridge", "Go backend initialized: $s")
+                                        f.complete(s)
+                                    } catch (e: Exception) {
+                                        android.util.Log.e("NativeBridge", "Failed to init Go backend: ${e.message}")
+                                        // Clear the cached future so a retry can
+                                        // re-run init from scratch (a transient
+                                        // cold-start failure must not poison
+                                        // every later attempt).
+                                        synchronized(goBackendInitLock) {
+                                            if (goBackendInitFuture === f) {
+                                                goBackendInitFuture = null
+                                            }
+                                        }
+                                        f.completeExceptionally(e)
+                                    }
+                                }
+                            }
+                            future = goBackendInitFuture!!
+                        }
                         try {
-                            Gobackend.initBackend()
-                            val state = Gobackend.initGlobalState()
-                            android.util.Log.i("NativeBridge", "Go backend initialized: $state")
-                            handler.post { result.success(state) }
+                            val state = future.get(120, java.util.concurrent.TimeUnit.SECONDS)
+                            handler.post { result.success(state ?: "ok") }
+                        } catch (e: java.util.concurrent.TimeoutException) {
+                            handler.post { result.error("INIT_ERROR", "Go init timed out", null) }
                         } catch (e: Exception) {
-                            android.util.Log.e("NativeBridge", "Failed to init Go backend: ${e.message}")
                             handler.post { result.error("INIT_ERROR", e.message, null) }
                         }
                     }
@@ -194,11 +246,10 @@ class MainActivity : AudioServiceActivity() {
     // ── Dispatch Go calls via reflection to flat exports.* functions ─────
 
     private fun dispatchGoCall(call: MethodCall, result: MethodChannel.Result) {
-        android.util.Log.i("NativeBridge", "dispatchGoCall: method=${call.method}")
+        val methodName = call.method
+        android.util.Log.i("NativeBridge", "dispatchGoCall: method=$methodName")
         executor.execute {
             try {
-                val methodName = call.method
-
                 // Build argument list from call.arguments
                 val args = when (val a = call.arguments) {
                     is List<*> -> a.map { it?.toString() ?: "" }.toTypedArray()
@@ -219,35 +270,67 @@ class MainActivity : AudioServiceActivity() {
                 val methods = Gobackend::class.java.methods
                 val goMethod = methods.find { it.name == methodName }
 
-                if (goMethod != null) {
-                    val paramTypes = goMethod.parameterTypes
-                    val numParams = paramTypes.size
-                    val converted = if (numParams > 0) {
-                        Array<Any?>(numParams) { i ->
-                            val arg = args.getOrElse(i) { "" }
-                            val pt = paramTypes[i]
-                            when {
-                                pt == Long::class.javaPrimitiveType || pt == Long::class.java ->
-                                    arg.toLongOrNull() ?: 0L
-                                pt == Int::class.javaPrimitiveType || pt == Int::class.java ->
-                                    arg.toIntOrNull() ?: 0
-                                pt == Boolean::class.javaPrimitiveType || pt == Boolean::class.java ->
-                                    arg.toBooleanStrictOrNull() ?: false
-                                pt == Double::class.javaPrimitiveType || pt == Double::class.java ->
-                                    arg.toDoubleOrNull() ?: 0.0
-                                pt.isArray && pt.componentType == Byte::class.javaPrimitiveType ->
-                                    arg.encodeToByteArray()
-                                else -> arg // String
-                            }
-                        }
-                    } else {
-                        emptyArray<Any?>()
-                    }
-
-                    val res = goMethod.invoke(null, *converted)
-                    handler.post { result.success(res?.toString() ?: "null") }
-                } else {
+                if (goMethod == null) {
                     handler.post { result.error("NOT_FOUND", "Go method $methodName not found", null) }
+                    return@execute
+                }
+
+                val paramTypes = goMethod.parameterTypes
+                val numParams = paramTypes.size
+                val converted = if (numParams > 0) {
+                    Array<Any?>(numParams) { i ->
+                        val arg = args.getOrElse(i) { "" }
+                        val pt = paramTypes[i]
+                        when {
+                            pt == Long::class.javaPrimitiveType || pt == Long::class.java ->
+                                arg.toLongOrNull() ?: 0L
+                            pt == Int::class.javaPrimitiveType || pt == Int::class.java ->
+                                arg.toIntOrNull() ?: 0
+                            pt == Boolean::class.javaPrimitiveType || pt == Boolean::class.java ->
+                                arg.toBooleanStrictOrNull() ?: false
+                            pt == Double::class.javaPrimitiveType || pt == Double::class.java ->
+                                arg.toDoubleOrNull() ?: 0.0
+                            pt.isArray && pt.componentType == Byte::class.javaPrimitiveType ->
+                                arg.encodeToByteArray()
+                            else -> arg // String
+                        }
+                    }
+                } else {
+                    emptyArray<Any?>()
+                }
+
+                // Run the Go call on the pool with a hard timeout. If it never
+                // returns (a JS call stuck inside the extension runtime), the
+                // watcher answers Dart with an error after callTimeoutSeconds
+                // — the player shows the error instead of spinning at 00:00 —
+                // and dumps goroutine stacks so the stuck call is diagnosable.
+                // The abandoned task stays on its pool worker (Go's per-call
+                // guards release it eventually); other calls keep flowing on
+                // the remaining pool threads.
+                val future = executor.submit<String> {
+                    (goMethod.invoke(null, *converted)?.toString()) ?: "null"
+                }
+                callWatcher.execute {
+                    try {
+                        val res = future.get(callTimeoutSeconds, java.util.concurrent.TimeUnit.SECONDS)
+                        handler.post { result.success(res) }
+                    } catch (e: java.util.concurrent.TimeoutException) {
+                        android.util.Log.e(
+                            "NativeBridge",
+                            "dispatchGoCall TIMEOUT: $methodName > ${callTimeoutSeconds}s"
+                        )
+                        try {
+                            Gobackend.dumpGoroutines("")
+                        } catch (t: Throwable) {
+                            android.util.Log.e("NativeBridge", "dumpGoroutines failed: ${t.message}")
+                        }
+                        handler.post {
+                            result.error("CALL_TIMEOUT", "Go call $methodName timed out after ${callTimeoutSeconds}s", null)
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.e("NativeBridge", "dispatchGoCall error: ${e.message}")
+                        handler.post { result.error("BACKEND_ERROR", e.message, null) }
+                    }
                 }
             } catch (e: Exception) {
                 android.util.Log.e("NativeBridge", "dispatchGoCall error: ${e.message}")

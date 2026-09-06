@@ -49,6 +49,14 @@ class VerificationService with WidgetsBindingObserver {
   static const _grantTimeout = Duration(seconds: 90);
   static const _resumeGrace = Duration(seconds: 2);
 
+  // ── Silent session keepalive ──────────────────────────────────────────
+  // Sessions from the zarz gateway are short-lived (observed ~1-2 min TTL),
+  // so while the app is in the foreground a background pass refreshes every
+  // still-valid session before it expires — no modal, no challenge URL, no
+  // bootstrap. The Go side paces each source (min interval + backoff) and
+  // only refreshes sessions whose expiry is within the keepalive lead.
+  static const _keepAliveInterval = Duration(seconds: 25);
+
   /// Real Chrome mobile UA so Turnstile does not flag the embedded WebView.
   static const _chromeUA =
       'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 '
@@ -61,6 +69,16 @@ class VerificationService with WidgetsBindingObserver {
   Completer<String?>? _pending;
   Timer? _timeout;
   bool _dialogOpen = false;
+
+  // Keepalive state: periodic silent refresh runs only while the app is
+  // resumed (in use) and never while a captcha dialog is open.
+  Timer? _keepAliveTimer;
+  bool _keepAliveRunning = false;
+  bool _appInUse = false;
+  bool _keepAliveEverSucceeded = false;
+  // Sources the last provision pass found needing a human challenge (never
+  // auto-opened — the explicit-action flows ask on demand).
+  final Set<String> _needsVerification = {};
   // When the user skips verification the current provisioning run is disabled
   // (remaining sources return nulls so the app unlocks). Direct callers like
   // the setup slide still show their modal: the flag only applies while a
@@ -82,6 +100,11 @@ class VerificationService with WidgetsBindingObserver {
       return null;
     });
     WidgetsBinding.instance.addObserver(this);
+    // App may already be resumed when init() runs (before the first lifecycle
+    // event is delivered to the observer), so sync the keepalive state now.
+    final state = WidgetsBinding.instance.lifecycleState;
+    _appInUse = state == null || state == AppLifecycleState.resumed;
+    if (_appInUse) _startKeepAliveTimer();
   }
 
   bool get isReady => _navigatorKey != null;
@@ -93,15 +116,6 @@ class VerificationService with WidgetsBindingObserver {
     'qobuz-web', 'amazon', 'deezer', 'pandora', 'tidal-web',
   ];
 
-  /// Provisions signed sessions for every Cloudflare/auth source at app start.
-  ///
-  /// Always probes EVERY signed-session source on launch — there is NO "still
-  /// healthy, skip" shortcut. That guarantees the token of any extension that
-  /// is missing, expired, or otherwise needs a fresh challenge reliably opens
-  /// its Cloudflare modal BEFORE the app unlocks, so the user can update its
-  /// token before doing anything else. Sources whose session is genuinely
-  /// healthy get an empty URL from the backend and are skipped as a no-op
-  /// (no modal), so a healthy setup doesn't force a captcha unnecessarily.
   /// Skips pending verification and disables further modal/browser prompts for
   /// this run, so the app never stays blocked on captchas.
   void skipAll() {
@@ -110,48 +124,90 @@ class VerificationService with WidgetsBindingObserver {
     _completePending('');
   }
 
+  /// Provisions signed sessions for every Cloudflare/auth source at app start.
+  ///
+  /// The whole pass runs INSIDE the backend in parallel — one RPC that probes
+  /// every zarz v2 sandbox at once, each bounded to a few seconds — so startup
+  /// never stalls on 5 serial captchas. It refreshes still-valid sessions
+  /// before expiry and silently bootstraps missing/expired ones. Sources that
+  /// still need a human challenge are recorded in [_needsVerification] but NO
+  /// modal is auto-opened here: the explicit-action flows (play/search/
+  /// download) open the Cloudflare captcha only when the user actually needs
+  /// that source.
   Future<void> provisionSignedSessions() async {
     if (!isReady) return;
     final backend = sl<BackendService>();
     _runActive = true;
     _disabled = false;
+    _needsVerification.clear();
     try {
+      final results = await backend
+          .provisionSignedSessions()
+          .timeout(const Duration(seconds: 15));
+      _keepAliveEverSucceeded = true;
       for (final source in signedSessionSources) {
-        try {
-          var url = await backend.getPendingVerificationUrl(source);
-          if (url.isEmpty) {
-            url = await backend.triggerExtensionVerification(source);
-          }
-          if (url.isEmpty) continue; // session healthy → nothing to verify
-          // Give the Cloudflare challenge a generous window to complete,
-          // mirroring SpotiFLAC's long grant wait (it allows up to 5 minutes).
-          // A too-short cap (the previous 45s) silently skips sources whose
-          // Turnstile renders slowly (emulators, slow WebViews) leaving their
-          // session unverified — which resurfaces later as VERIFY_REQUIRED
-          // spam during streams/downloads. Only a truly stuck challenge is
-          // skipped, and re-probed on the next launch / on demand.
-          final grant = await showVerification(
-            extId: source,
-            displayName: sourceDisplayName(source),
-            authUrl: url,
-            timeout: const Duration(seconds: 90),
-          ).timeout(
-            const Duration(seconds: 100),
-            onTimeout: () {
-              _log.w('[VerificationService] $source timed out during provision');
-              _completePending('');
-              return null;
-            },
-          );
-          if (grant == null || grant.isEmpty) continue;
-          await backend.completeSignedSessionGrant(source, grant);
-        } catch (e) {
-          _log.w('[VerificationService] Refreshing $source failed: $e');
+        final status = results[source];
+        if (status is Map && status['needs_verification'] == true) {
+          _needsVerification.add(source);
         }
+        _log.i('[VerificationService] $source provision: $status');
       }
+    } catch (e) {
+      _log.w('[VerificationService] provisionSignedSessions failed: $e');
     } finally {
       _runActive = false;
     }
+    // Start the silent refresh cadence now that the backend is warm.
+    if (_appInUse) _startKeepAliveTimer();
+  }
+
+  /// Sources the last startup provision found needing a human challenge
+  /// (session missing/expired and the gateway demanded verification). These
+  /// are only surfaced by explicit-action flows, never auto-opened.
+  Set<String> get needsVerificationSources => Set.unmodifiable(_needsVerification);
+
+  /// Batch-verifies ALL sandboxes that need Cloudflare confirmation in one
+  /// sequential pass. Called from the home page after provisioning so the
+  /// user sees every challenge upfront instead of discovering them one-by-one
+  /// during search/download/play.
+  Future<void> batchVerifyAll() async {
+    if (!isReady || _needsVerification.isEmpty) return;
+    final backend = sl<BackendService>();
+    final sources = List<String>.from(_needsVerification);
+    _log.i('[VerificationService] batchVerifyAll: ${sources.length} sources need verification: $sources');
+    for (final extId in sources) {
+      if (_disabled) break;
+      try {
+        var url = await backend.getPendingVerificationUrl(extId);
+        if (url.isEmpty) {
+          url = await backend.triggerExtensionVerification(extId);
+        }
+        if (url.isEmpty) {
+          _log.i('[$extId] no pending auth URL, skipping batch');
+          continue;
+        }
+        final displayName = sourceDisplayName(extId);
+        _log.i('[$extId] batchVerifyAll: showing dialog for $displayName');
+        final grant = await showVerification(
+          extId: extId,
+          displayName: displayName,
+          authUrl: url,
+        );
+        if (grant == null || grant.isEmpty) {
+          _log.w('[$extId] batchVerifyAll: no grant obtained');
+          continue;
+        }
+        _log.i('[$extId] batchVerifyAll: completing grant (len=${grant.length})');
+        final ok = await backend.completeSignedSessionGrant(extId, grant);
+        _log.i('[$extId] batchVerifyAll: grant result: $ok');
+        if (ok) {
+          _needsVerification.remove(extId);
+        }
+      } catch (e) {
+        _log.w('[$extId] batchVerifyAll error: $e');
+      }
+    }
+    _log.i('[VerificationService] batchVerifyAll: done, remaining needsVerification: $_needsVerification');
   }
 
   String sourceDisplayName(String s) {
@@ -167,6 +223,22 @@ class VerificationService with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Keepalive cadence: refresh sessions only while the app is in use
+    // (foreground/resumed). Pausing or backgrounding stops the timer so we
+    // never refresh in the background — expired sessions get re-challenged
+    // by an explicit user action when the user comes back.
+    if (state == AppLifecycleState.resumed) {
+      if (!_appInUse) {
+        _appInUse = true;
+        _startKeepAliveTimer();
+      }
+    } else {
+      if (_appInUse) {
+        _appInUse = false;
+        _stopKeepAliveTimer();
+      }
+    }
+
     // The user returned from the system browser (browser fallback). If the
     // grant deep link has not arrived yet, give it a short grace period;
     // otherwise fail fast instead of spinning for the full timeout.
@@ -179,6 +251,55 @@ class VerificationService with WidgetsBindingObserver {
     Timer(_resumeGrace, () {
       if (identical(pending, _pending)) _completePending('');
     });
+  }
+
+  // ── Silent session keepalive ──────────────────────────────────────────
+
+  void _startKeepAliveTimer() {
+    _keepAliveTimer ??= Timer.periodic(_keepAliveInterval, (_) {
+      unawaited(_keepAliveTick());
+    });
+  }
+
+  void _stopKeepAliveTimer() {
+    _keepAliveTimer?.cancel();
+    _keepAliveTimer = null;
+  }
+
+  /// One silent keepalive pass: ask the backend to refresh every still-valid
+  /// session that is close to expiry. Never shows UI, never bootstraps, and
+  /// is skipped while a captcha dialog is open so the modal flow owns the
+  /// session record during an exchange.
+  Future<void> _keepAliveTick() async {
+    if (!_appInUse || _keepAliveRunning || _dialogOpen || _pending != null) {
+      return;
+    }
+    _keepAliveRunning = true;
+    try {
+      final backend = sl<BackendService>();
+      final results = await backend
+          .keepAliveSignedSessions()
+          .timeout(const Duration(seconds: 8));
+      final refreshed = <String>[];
+      results.forEach((source, status) {
+        if (status is Map && status['refreshed'] == true) {
+          refreshed.add(source);
+        }
+      });
+      if (refreshed.isNotEmpty) {
+        _log.i('[VerificationService] keepalive refreshed: $refreshed');
+      }
+      _keepAliveEverSucceeded = true;
+    } catch (e) {
+      // Keep quiet until the first success: at cold start the timer may fire
+      // before the Go backend is initialized and would otherwise spam a
+      // warning every 25s behind the startup gate.
+      if (_keepAliveEverSucceeded) {
+        _log.w('[VerificationService] keepalive failed (will retry): $e');
+      }
+    } finally {
+      _keepAliveRunning = false;
+    }
   }
 
   /// Shows the Cloudflare challenge in an in-app WebView dialog and returns

@@ -21,6 +21,8 @@ mixin SetupHandlers on Bloc<SetupEvent, SetupState> {
       case SetupStep.language:
         emit(state.copyWith(step: SetupStep.username));
       case SetupStep.username:
+        emit(state.copyWith(step: SetupStep.googleSignIn));
+      case SetupStep.googleSignIn:
         emit(state.copyWith(step: SetupStep.mode));
       case SetupStep.mode:
         emit(state.copyWith(step: SetupStep.verification));
@@ -57,11 +59,20 @@ mixin SetupHandlers on Bloc<SetupEvent, SetupState> {
       case SetupStep.verification:
         emit(state.copyWith(step: SetupStep.mode));
       case SetupStep.mode:
+        emit(state.copyWith(step: SetupStep.googleSignIn));
+      case SetupStep.googleSignIn:
         emit(state.copyWith(step: SetupStep.username));
       case SetupStep.username:
         emit(state.copyWith(step: SetupStep.language));
       default:
     }
+  }
+
+  void onGoogleSignInStatusChanged$(
+    GoogleSignInStatusChanged event,
+    Emitter<SetupState> emit,
+  ) {
+    emit(state.copyWith(googleConnected: event.connected));
   }
 
   void onUsernameChanged$(UsernameChanged event, Emitter<SetupState> emit) {
@@ -119,11 +130,18 @@ mixin SetupHandlers on Bloc<SetupEvent, SetupState> {
   Future<void> onCheckExistingData$(CheckExistingData event, Emitter<SetupState> emit) async {
     try {
       final data = await inj.sl<SettingsCache>().loadSetupData();
+      // A saved Google OAuth token (from a previous session) means the user
+      // already connected: reflect it on the setup slide and skip re-login.
+      final savedToken = (await inj.sl<SettingsCache>()
+              .getSetting('ytmusic-spotiflac_oauthAccessToken') ??
+          '').trim();
+      final googleConnected = savedToken.isNotEmpty;
       if (data != null && data.setupCompleted) {
         localeNotifier.value = Locale(data.locale);
         emit(state.copyWith(
           step: SetupStep.returningPrompt,
           hasExistingData: true,
+          googleConnected: googleConnected,
           existingLocale: data.locale,
           existingMode: data.mode,
           existingUsername: data.username,
@@ -132,7 +150,11 @@ mixin SetupHandlers on Bloc<SetupEvent, SetupState> {
           existingTrialExpiresAt: data.trialExpiresAt,
         ));
       } else {
-        emit(state.copyWith(step: SetupStep.language, hasExistingData: false));
+        emit(state.copyWith(
+          step: SetupStep.language,
+          hasExistingData: false,
+          googleConnected: googleConnected,
+        ));
       }
     } catch (_) {
       emit(state.copyWith(step: SetupStep.language, hasExistingData: false));

@@ -37,31 +37,24 @@ class _FloatingNavbarState extends State<FloatingNavbar> {
   @override
   Widget build(BuildContext context) {
     final r = Responsive(context);
-    final onBg = widget.isDark ? Colors.white : Colors.black;
-    final glowColor = widget.isDark ? AppColors.greenBright : AppColors.greenMedium;
+    final onBg = AppColors.onSurface(widget.isDark);
 
-    // 5% horizontal padding from screen edges
-    final padH = r.width * 0.05;
-
-    return Padding(
-      padding: EdgeInsets.fromLTRB(padH, 0, padH, r.spacingS),
+    return ClipRRect(
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       child: GlassContainer(
-        borderRadius: 20,
-        blurSigma: 20,
-        borderColor: glowColor.withValues(alpha: 0.12),
-        bgColor: (widget.isDark ? AppColors.surfaceDark : Colors.white).withValues(alpha: 0.80),
-        glowBorder: true,
-        glowSpread: 2,
-        glowBlur: 16,
-        padding: EdgeInsets.symmetric(horizontal: r.spacingM, vertical: r.spacingXS * 0.7),
-        child: Row(
-          children: List.generate(_items.length, (i) => Expanded(child: _navItem(i, r, onBg, glowColor))),
+          borderRadius: 0,
+          blurSigma: 20,
+          borderColor: onBg.withValues(alpha: 0.08),
+          bgColor: AppColors.surface(widget.isDark).withValues(alpha: 0.80),
+          padding: EdgeInsets.symmetric(horizontal: r.spacingM, vertical: r.spacingS * 0.7),
+          child: Row(
+            children: List.generate(_items.length, (i) => Expanded(child: _navItem(i, r, onBg))),
+          ),
         ),
-      ),
     );
   }
 
-  Widget _navItem(int i, Responsive r, Color onBg, Color glowColor) {
+  Widget _navItem(int i, Responsive r, Color onBg) {
     final sel = _selected == i;
     return GestureDetector(
       onTap: () {
@@ -72,9 +65,9 @@ class _FloatingNavbarState extends State<FloatingNavbar> {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeOutCubic,
-        padding: EdgeInsets.symmetric(vertical: r.spacingS * 0.7),
+        padding: EdgeInsets.symmetric(vertical: r.spacingS * 0.8),
         decoration: BoxDecoration(
-          color: sel ? glowColor.withValues(alpha: 0.10) : Colors.transparent,
+          color: sel ? onBg.withValues(alpha: 0.08) : Colors.transparent,
           borderRadius: BorderRadius.circular(16),
         ),
         child: Column(
@@ -86,29 +79,19 @@ class _FloatingNavbarState extends State<FloatingNavbar> {
               curve: Curves.easeOutBack,
               child: Icon(
                 _items[i].icon,
-                size: r.subtitleSize + 2,
-                color: sel ? glowColor : onBg.withValues(alpha: 0.35),
+                size: r.subtitleSize + 4,
+                color: sel ? onBg : onBg.withValues(alpha: 0.35),
               ),
             ),
-            SizedBox(height: r.spacingXS * 0.6),
-            // Glow dot indicator
+            SizedBox(height: r.spacingXS * 0.7),
             AnimatedContainer(
               duration: const Duration(milliseconds: 300),
               curve: Curves.easeOutCubic,
               width: sel ? 5 : 0,
               height: sel ? 5 : 0,
               decoration: BoxDecoration(
-                color: glowColor,
+                color: onBg.withValues(alpha: 0.8),
                 shape: BoxShape.circle,
-                boxShadow: sel
-                    ? [
-                        BoxShadow(
-                          color: glowColor.withValues(alpha: 0.5),
-                          blurRadius: 6,
-                          spreadRadius: 1,
-                        ),
-                      ]
-                    : null,
               ),
             ),
           ],

@@ -55,7 +55,17 @@ func isPlayableStreamURL(u string) bool {
 // only be served from these; preview-prone providers (apple-music, spotify-web)
 // return 30s audio clips that would cut playback short, so playback for those
 // goes straight to the produced download instead.
-var fullStreamProviders = []string{"youtube", "ytmusic-spotiflac", "soundcloud", "deezer"}
+//
+// deezer/qobuz-web/tidal-web are included because their extensions now export a
+// real getDownloadUrl that resolves the Zarz download descriptor and returns
+// the plain http audio URL ONLY when the stream needs no client-side
+// decryption (Deezer lossy tiers, Qobuz direct files, TIDAL "direct" kind).
+// Without a verified session they fail fast (null) and the flow falls through
+// to the download pipeline, which performs any required decryption.
+var fullStreamProviders = []string{
+	"youtube", "ytmusic-spotiflac", "soundcloud", "deezer",
+	"qobuz-web", "tidal-web",
+}
 
 // IsFullStreamProvider reports whether [name] can serve a full-length stream
 // (as opposed to a 30s preview).

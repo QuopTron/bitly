@@ -62,7 +62,8 @@
       "album": "https://play.qobuz.com/album/{id}",
       "artist": "https://play.qobuz.com/artist/{id}",
       "playlist": "https://open.qobuz.com/playlist/{id}"
-    }
+    },
+    "homeFeed": true
   },
   "serviceHealth": [
     {

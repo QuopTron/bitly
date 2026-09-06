@@ -157,6 +157,31 @@ mixin ActionsMixin on BackendService {
   }
 
   @override
+  Future<Map<String, dynamic>> invokeExtensionAction(
+    String provider,
+    String action, {
+    List<dynamic> args = const [],
+  }) async {
+    try {
+      final result = await rpcCall('invokeExtensionAction', {
+        'provider': provider,
+        'action': action,
+        'args': args,
+      });
+      if (result is Map) return Map<String, dynamic>.from(result);
+      if (result is String && result.isNotEmpty) {
+        final decoded = jsonDecode(result);
+        if (decoded is Map) return Map<String, dynamic>.from(decoded);
+      }
+      return {'ok': false, 'error': 'Respuesta inesperada'};
+    } catch (e) {
+      _log.w('[actions] invokeExtensionAction failed for '
+          '$provider/$action: $e');
+      return {'ok': false, 'error': '$e'};
+    }
+  }
+
+  @override
   Future<bool> completeSignedSessionGrant(String extensionId, String grantCode) async {
     try {
       final result = await rpcCall('completeSignedSessionGrant', {
@@ -184,6 +209,41 @@ mixin ActionsMixin on BackendService {
       _log.e('[actions] completeSignedSessionGrant error for $extensionId: $e');
       return false;
     }
+  }
+
+  @override
+  Future<Map<String, dynamic>> provisionSignedSessions() async {
+    try {
+      final result = await rpcCall('provisionSignedSessions');
+      return _decodeStatusMap(result);
+    } catch (e) {
+      _log.w('[actions] provisionSignedSessions error: $e');
+      return const {};
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>> keepAliveSignedSessions() async {
+    try {
+      final result = await rpcCall('keepAliveSignedSessions', null, const Duration(seconds: 10));
+      return _decodeStatusMap(result);
+    } catch (e) {
+      _log.w('[actions] keepAliveSignedSessions error: $e');
+      return const {};
+    }
+  }
+
+  /// Decodes a per-source signed-session status map returned by the backend
+  /// (either an already-decoded Map or a JSON string).
+  Map<String, dynamic> _decodeStatusMap(dynamic result) {
+    if (result is Map) {
+      return Map<String, dynamic>.from(result);
+    }
+    if (result is String && result.isNotEmpty) {
+      final decoded = jsonDecode(result);
+      if (decoded is Map) return Map<String, dynamic>.from(decoded);
+    }
+    return const {};
   }
 
 }

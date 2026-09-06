@@ -18,6 +18,7 @@ import 'settings_cache_section.dart';
 import 'settings_provider_section.dart';
 import 'settings_performance_section.dart';
 import 'settings_download_priority_section.dart';
+import 'update_modal.dart';
 
 class SettingsSheet extends StatefulWidget {
   final String username;
@@ -46,11 +47,11 @@ class _SettingsSheetState extends State<SettingsSheet> {
 
   Future<void> _confirmReset() async {
     final loc = AppLocalizations.of(context);
-    final onBg = widget.isDark ? Colors.white : Colors.black;
+    final onBg = AppColors.onSurface(widget.isDark);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: widget.isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF5F5F5),
+        backgroundColor: AppColors.surface(widget.isDark),
         title: Text(loc.setup.resetDataTitle, style: TextStyle(color: onBg)),
         content: Text(loc.setup.resetDataMessage, style: TextStyle(color: onBg.withValues(alpha: 0.7))),
         actions: [
@@ -60,7 +61,7 @@ class _SettingsSheetState extends State<SettingsSheet> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text(loc.setup.confirm, style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+            child: Text(loc.setup.confirm, style: TextStyle(color: AppColors.error, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -125,13 +126,13 @@ class _SettingsSheetState extends State<SettingsSheet> {
   Widget build(BuildContext context) {
     final r = Responsive(context);
     final loc = AppLocalizations.of(context);
-    final onBg = widget.isDark ? Colors.white : Colors.black;
+    final onBg = AppColors.onSurface(widget.isDark);
     final glowColor = widget.isDark ? AppColors.greenBright : AppColors.greenMedium;
 
     return Container(
       margin: EdgeInsets.only(top: r.spacingXL * 2),
       decoration: BoxDecoration(
-        color: widget.isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF5F5F5),
+        color: AppColors.surface(widget.isDark),
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: ClipRRect(
@@ -146,7 +147,7 @@ class _SettingsSheetState extends State<SettingsSheet> {
             SizedBox(height: r.spacingL),
             // ── Profile ──────────────────────────────────────
             SettingsProfileSection(username: widget.username, onBg: onBg, glowColor: glowColor, loc: loc),
-            _sectionLabel('Apariencia', onBg, r, icon: Icons.palette_outlined),
+            _sectionLabel(loc.setup.theme, onBg, r, icon: Icons.palette_outlined),
             SettingsThemeSection(
               isDark: widget.isDark, onBg: onBg, glowColor: glowColor, loc: loc,
               onToggle: () => widget.onThemeChanged(!widget.isDark),
@@ -156,15 +157,15 @@ class _SettingsSheetState extends State<SettingsSheet> {
               onBg: onBg, glowColor: glowColor, loc: loc, onTap: widget.onLanguageChanged,
               currentLanguage: loc.locale.languageCode == 'es' ? 'Español' : 'English',
             ),
-            _sectionLabel('Descargas', onBg, r, icon: Icons.download_rounded),
+            _sectionLabel(loc.setup.settingsDownloadsLabel, onBg, r, icon: Icons.download_rounded),
             SettingsStorageSection(onBg: onBg, glowColor: glowColor, loc: loc),
             SizedBox(height: r.spacingS),
             SettingsDownloadSection(onBg: onBg, glowColor: glowColor),
             SizedBox(height: r.spacingS),
             SettingsDownloadPrioritySection(onBg: onBg, glowColor: glowColor),
-            _sectionLabel('Rendimiento', onBg, r, icon: Icons.speed_rounded),
+            _sectionLabel(loc.setup.settingsPerformanceLabel, onBg, r, icon: Icons.speed_rounded),
             SettingsPerformanceSection(onBg: onBg, glowColor: glowColor),
-            _sectionLabel('Servicios', onBg, r, icon: Icons.extension_rounded),
+            _sectionLabel(loc.setup.settingsServicesLabel, onBg, r, icon: Icons.extension_rounded),
             SettingsProviderSection(onBg: onBg, glowColor: glowColor),
             SizedBox(height: r.spacingS),
             SettingsCacheSection(onBg: onBg, glowColor: glowColor),
@@ -173,11 +174,14 @@ class _SettingsSheetState extends State<SettingsSheet> {
               onBg: onBg, glowColor: glowColor, loc: loc,
               onTap: _confirmReset, resetting: _resetting,
             ),
-            _sectionLabel('Estadísticas', onBg, r, icon: Icons.bar_chart_rounded),
+            _sectionLabel(loc.setup.settingsStatsLabel, onBg, r, icon: Icons.bar_chart_rounded),
             SettingsStatsSection(
               onBg: onBg, glowColor: glowColor, loc: loc,
               likedCount: widget.likedCount, downloadedCount: widget.downloadedCount,
             ),
+            SizedBox(height: r.spacingM),
+            // ── Update check ─────────────────────────────────
+            _UpdateCheckButton(onBg: onBg, glowColor: glowColor),
             SizedBox(height: r.spacingXL),
           ]),
         ),
@@ -205,6 +209,65 @@ void showSettingsSheet(BuildContext context, {
       likedCount: likedCount, downloadedCount: downloadedCount,
     ),
   );
+}
+
+class _UpdateCheckButton extends StatelessWidget {
+  final Color onBg;
+  final Color glowColor;
+  const _UpdateCheckButton({required this.onBg, required this.glowColor});
+
+  @override
+  Widget build(BuildContext context) {
+    final r = Responsive(context);
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: r.spacingL),
+      child: GestureDetector(
+        onTap: () async {
+          final info = await UpdateService().checkForUpdate();
+          if (info != null && context.mounted) {
+            showUpdateModal(context, info);
+          } else if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  Theme.of(context).brightness == Brightness.dark
+                      ? 'Estás en la última versión'
+                      : 'You are on the latest version',
+                ),
+                duration: const Duration(seconds: 2),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+        },
+        child: Container(
+          padding: EdgeInsets.symmetric(horizontal: r.spacingM, vertical: r.spacingS),
+          decoration: BoxDecoration(
+            color: onBg.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: onBg.withValues(alpha: 0.1)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.system_update, size: r.subtitleSize + 2, color: glowColor),
+              SizedBox(width: r.spacingS),
+              Text(
+                Theme.of(context).brightness == Brightness.dark
+                    ? 'Buscar actualizaciones'
+                    : 'Check for updates',
+                style: TextStyle(
+                  fontSize: r.subtitleSize,
+                  fontWeight: FontWeight.w600,
+                  color: onBg.withValues(alpha: 0.7),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 

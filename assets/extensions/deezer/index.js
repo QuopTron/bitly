@@ -3,13 +3,41 @@ var CONFIG = {
   resolverDownloadPath: "/dl/dzr",
   deezerBaseURL: "https://www.deezer.com",
   apiBaseURL: "https://api.deezer.com",
+  gatewayURL: "https://www.deezer.com/ajax/gw-light.php",
   blowfishSecret: "g4el58wc0zvf9na1",
   blowfishIVHex: "0001020304050607",
   chunkSize: 2048,
   maxCollectionTracks: 200,
   maxArtistAlbums: 100,
   maxArtistTopTracks: 20,
+  metadataCacheTtlMs: 5 * 60 * 1000,
+  gatewayTokenTtlMs: 30 * 60 * 1000,
 };
+
+var metadataCache = {};
+var gatewayToken = "";
+var gatewayTokenCreatedAt = 0;
+
+function nowMs() {
+  return Date.now();
+}
+
+function cacheGet(key) {
+  var entry = metadataCache[key];
+  if (!entry) return null;
+  if (nowMs() - entry.createdAt > CONFIG.metadataCacheTtlMs) {
+    delete metadataCache[key];
+    return null;
+  }
+  return entry.value;
+}
+
+function cacheSet(key, value) {
+  if (value !== null && value !== undefined) {
+    metadataCache[key] = { value: value, createdAt: nowMs() };
+  }
+  return value;
+}
 
 function initialize(settings) {
   settings = settings || {};
@@ -21,6 +49,9 @@ function initialize(settings) {
 }
 
 function cleanup() {
+  metadataCache = {};
+  gatewayToken = "";
+  gatewayTokenCreatedAt = 0;
   return true;
 }
 
@@ -100,6 +131,20 @@ function postJSON(url, body, headers) {
   return JSON.parse(response.body);
 }
 
+// Gateway park: signed-session traffic flows through the shared zarz.moe
+// gateway. When that origin is down, Cloudflare answers 522/524/502/504 —
+// retrying every attempt per track is pointless. After the first gateway
+// error, park signed calls for 2 minutes (fail fast with a clear reason); a
+// healthy response clears the park immediately.
+var _deezerGatewayDownUntil = 0;
+
+function isGatewayError(message) {
+  var text = String(message || "");
+  return /HTTP 52[24]|HTTP 50[24]|bootstrap returned|origin connection|gateway/i.test(
+    text,
+  );
+}
+
 function signedJSON(method, path, body, headers) {
   if (
     typeof session === "undefined" ||
@@ -108,15 +153,26 @@ function signedJSON(method, path, body, headers) {
   ) {
     throw new Error("signed session runtime is not available");
   }
+  if (Date.now() < _deezerGatewayDownUntil) {
+    throw new Error("signed-session gateway down (522); retrying later");
+  }
   var response = session.signedFetch(method, path, body || null, headers || {});
   if (!response || response.error || response.needsVerification) {
     var error =
       response && response.error ? response.error : "signed request failed";
+    if (isGatewayError(error)) {
+      _deezerGatewayDownUntil = Date.now() + 2 * 60 * 1000;
+    }
     throw new Error(error);
   }
   if (response.statusCode !== 200) {
-    throw new Error("HTTP " + response.statusCode + " for " + path);
+    var statusError = "HTTP " + response.statusCode + " for " + path;
+    if (isGatewayError(statusError)) {
+      _deezerGatewayDownUntil = Date.now() + 2 * 60 * 1000;
+    }
+    throw new Error(statusError);
   }
+  _deezerGatewayDownUntil = 0;
   return JSON.parse(response.body || "{}");
 }
 
@@ -211,6 +267,42 @@ function normalizeDate(value) {
   return text;
 }
 
+function uniqueValues(values) {
+  var out = [];
+  var seen = {};
+  for (var i = 0; i < values.length; i++) {
+    var value = String(values[i] || "").trim();
+    var key = value.toLowerCase();
+    if (!value || seen[key]) continue;
+    seen[key] = true;
+    out.push(value);
+  }
+  return out;
+}
+
+function numberValue(value) {
+  var parsed = Number(value || 0);
+  return isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
+function isTruthyMetadata(value) {
+  if (value === true || value === 1) return true;
+  var normalized = String(value || "")
+    .trim()
+    .toLowerCase();
+  return (
+    normalized === "1" || normalized === "true" || normalized === "explicit"
+  );
+}
+
+function directURL(resourceType, id) {
+  var rawID = stripPrefix(id);
+  if (!rawID) return "";
+  return (
+    "https://www.deezer.com/" + resourceType + "/" + encodeURIComponent(rawID)
+  );
+}
+
 function withPrefix(id) {
   var raw = String(id || "").trim();
   if (!raw) return "";
@@ -256,23 +348,58 @@ function parsePlaylistID(value) {
   return parseNumericID(value, "playlist");
 }
 
-function normalizeArtists(trackData) {
+function gatewayContributorNames(gatewayData, roles) {
+  var contributors = gatewayData && gatewayData.SNG_CONTRIBUTORS;
+  if (!contributors || typeof contributors !== "object") return [];
+  var names = [];
+  for (var i = 0; i < roles.length; i++) {
+    var values = contributors[roles[i]];
+    if (Array.isArray(values)) names = names.concat(values);
+  }
+  return uniqueValues(names);
+}
+
+function publicContributorNames(trackData, rolePattern) {
+  var contributors = trackData && trackData.contributors;
+  if (!Array.isArray(contributors)) return [];
+  var names = [];
+  for (var i = 0; i < contributors.length; i++) {
+    var role = String(
+      (contributors[i] && contributors[i].role) || "",
+    ).toLowerCase();
+    if (rolePattern.test(role)) names.push(contributors[i].name);
+  }
+  return uniqueValues(names);
+}
+
+function normalizeArtists(trackData, gatewayData) {
   if (!trackData) return "";
 
-  if (trackData.contributors && trackData.contributors.length) {
-    var names = [];
-    var seen = {};
-    for (var i = 0; i < trackData.contributors.length; i++) {
-      var contributor = trackData.contributors[i];
-      var name =
-        contributor && contributor.name ? String(contributor.name).trim() : "";
-      if (!name || seen[name]) continue;
-      seen[name] = true;
-      names.push(name);
-    }
-    if (names.length) {
-      return names.join(", ");
-    }
+  var gatewayArtists = [];
+  if (gatewayData && Array.isArray(gatewayData.ARTISTS)) {
+    gatewayArtists = uniqueValues(
+      gatewayData.ARTISTS.map(function (artist) {
+        return artist && (artist.ART_NAME || artist.name);
+      }),
+    );
+  }
+  if (!gatewayArtists.length) {
+    gatewayArtists = gatewayContributorNames(gatewayData, [
+      "main_artist",
+      "featured_artist",
+      "featuring",
+      "artist",
+      "performer",
+    ]);
+  }
+  if (gatewayArtists.length) return gatewayArtists.join(", ");
+
+  var publicArtists = publicContributorNames(
+    trackData,
+    /main|featured|artist|performer/,
+  );
+  if (publicArtists.length) {
+    return publicArtists.join(", ");
   }
 
   if (trackData.artist && trackData.artist.name) {
@@ -280,6 +407,63 @@ function normalizeArtists(trackData) {
   }
 
   return "";
+}
+
+function composerNames(trackData, gatewayData) {
+  var names = [];
+  if (trackData && trackData.composer) names.push(trackData.composer);
+  names = names.concat(
+    gatewayContributorNames(gatewayData, [
+      "composer",
+      "author",
+      "songwriter",
+      "writer",
+      "lyricist",
+      "lyrics",
+    ]),
+  );
+  names = names.concat(
+    publicContributorNames(
+      trackData,
+      /composer|author|songwriter|writer|lyricist/,
+    ),
+  );
+  return uniqueValues(names).join("; ");
+}
+
+function contributorComment(gatewayData) {
+  var contributors = gatewayData && gatewayData.SNG_CONTRIBUTORS;
+  if (!contributors || typeof contributors !== "object") return "";
+  var ignored = {
+    main_artist: true,
+    featured_artist: true,
+    featuring: true,
+    artist: true,
+    performer: true,
+    composer: true,
+    author: true,
+    songwriter: true,
+    writer: true,
+    lyricist: true,
+    lyrics: true,
+  };
+  var parts = [];
+  for (var role in contributors) {
+    if (
+      !Object.prototype.hasOwnProperty.call(contributors, role) ||
+      ignored[role]
+    )
+      continue;
+    var names = Array.isArray(contributors[role])
+      ? uniqueValues(contributors[role])
+      : [];
+    if (!names.length) continue;
+    var label = role.replace(/_/g, " ").replace(/\b\w/g, function (letter) {
+      return letter.toUpperCase();
+    });
+    parts.push(label + ": " + names.join(", "));
+  }
+  return parts.join("; ");
 }
 
 function coverFromAlbum(album) {
@@ -344,6 +528,71 @@ function deezerGet(pathOrURL) {
   return getJSON(url, normalizedUserAgent());
 }
 
+function gatewayHasError(payload) {
+  if (!payload || !payload.error) return false;
+  if (Array.isArray(payload.error)) return payload.error.length > 0;
+  return typeof payload.error === "object"
+    ? Object.keys(payload.error).length > 0
+    : !!payload.error;
+}
+
+function refreshGatewayToken() {
+  var payload = postJSON(
+    CONFIG.gatewayURL +
+      "?method=deezer.getUserData&input=3&api_version=1.0&api_token=null",
+    {},
+  );
+  var token = payload && payload.results && payload.results.checkForm;
+  if (gatewayHasError(payload) || !token) {
+    throw new Error("Deezer gateway did not return a CSRF token");
+  }
+  gatewayToken = String(token);
+  gatewayTokenCreatedAt = nowMs();
+  return gatewayToken;
+}
+
+function currentGatewayToken() {
+  if (
+    !gatewayToken ||
+    nowMs() - gatewayTokenCreatedAt > CONFIG.gatewayTokenTtlMs
+  ) {
+    return refreshGatewayToken();
+  }
+  return gatewayToken;
+}
+
+function gatewayCall(method, body) {
+  for (var attempt = 0; attempt < 2; attempt++) {
+    var token = currentGatewayToken();
+    var payload = postJSON(
+      CONFIG.gatewayURL +
+        "?method=" +
+        encodeURIComponent(method) +
+        "&input=3&api_version=1.0&api_token=" +
+        encodeURIComponent(token),
+      body || {},
+    );
+    if (!gatewayHasError(payload)) return payload.results || null;
+    var errorText = JSON.stringify(payload.error || {});
+    if (attempt === 0 && errorText.indexOf("VALID_TOKEN_REQUIRED") >= 0) {
+      gatewayToken = "";
+      gatewayTokenCreatedAt = 0;
+      continue;
+    }
+    throw new Error("Deezer gateway error: " + errorText);
+  }
+  return null;
+}
+
+function safeGatewayCall(method, body) {
+  try {
+    return gatewayCall(method, body);
+  } catch (e) {
+    log.debug("[DeezerExt] Gateway metadata failed:", method, e.message);
+    return null;
+  }
+}
+
 function collectPaginatedItems(container, limit) {
   var items = [];
   var nextURL = "";
@@ -368,11 +617,19 @@ function collectPaginatedItems(container, limit) {
 }
 
 function fetchTrackData(trackID) {
-  return deezerGet("/track/" + encodeURIComponent(trackID));
+  var key = "track:" + trackID;
+  return (
+    cacheGet(key) ||
+    cacheSet(key, deezerGet("/track/" + encodeURIComponent(trackID)))
+  );
 }
 
 function fetchAlbumData(albumID) {
-  return deezerGet("/album/" + encodeURIComponent(albumID));
+  var key = "album:" + albumID;
+  return (
+    cacheGet(key) ||
+    cacheSet(key, deezerGet("/album/" + encodeURIComponent(albumID)))
+  );
 }
 
 function fetchArtistData(artistID) {
@@ -404,13 +661,82 @@ function fetchCollectionTracks(container) {
   return collectPaginatedItems(container, CONFIG.maxCollectionTracks);
 }
 
+function fetchAlbumTracks(albumData) {
+  if (!albumData || !albumData.id) return [];
+  var key = "album-tracks:" + albumData.id;
+  var cached = cacheGet(key);
+  if (cached) return cached;
+  var tracklistURL = String(albumData.tracklist || "").trim();
+  if (!tracklistURL) {
+    tracklistURL =
+      "/album/" + encodeURIComponent(albumData.id) + "/tracks?limit=100";
+  } else if (tracklistURL.indexOf("limit=") < 0) {
+    tracklistURL += (tracklistURL.indexOf("?") >= 0 ? "&" : "?") + "limit=100";
+  }
+  return cacheSet(
+    key,
+    collectPaginatedItems(deezerGet(tracklistURL), CONFIG.maxCollectionTracks),
+  );
+}
+
+function fetchGatewayTrackData(trackID) {
+  var key = "gateway-track:" + trackID;
+  var cached = cacheGet(key);
+  if (cached) return cached;
+  return cacheSet(
+    key,
+    safeGatewayCall("song.getData", { sng_id: String(trackID) }) || {},
+  );
+}
+
+function fetchGatewayAlbumData(albumID) {
+  var key = "gateway-album:" + albumID;
+  var cached = cacheGet(key);
+  if (cached) return cached;
+  return cacheSet(
+    key,
+    safeGatewayCall("album.getData", { alb_id: String(albumID) }) || {},
+  );
+}
+
+function fetchGatewayAlbumTracks(albumID, trackItems) {
+  var key = "gateway-album-tracks:" + albumID;
+  var cached = cacheGet(key);
+  if (cached) return cached;
+  var ids = [];
+  for (var i = 0; i < trackItems.length; i++) {
+    if (trackItems[i] && trackItems[i].id) ids.push(String(trackItems[i].id));
+  }
+  if (!ids.length) return cacheSet(key, {});
+  var payload = safeGatewayCall("song.getListData", { sng_ids: ids });
+  var data = payload && Array.isArray(payload.data) ? payload.data : [];
+  var byID = {};
+  for (var di = 0; di < data.length; di++) {
+    if (data[di] && data[di].SNG_ID) byID[String(data[di].SNG_ID)] = data[di];
+  }
+  return cacheSet(key, byID);
+}
+
+function totalDiscsFromTracks(trackItems) {
+  var total = 0;
+  for (var i = 0; i < trackItems.length; i++) {
+    total = Math.max(
+      total,
+      numberValue(trackItems[i] && trackItems[i].disk_number),
+    );
+  }
+  return total;
+}
+
 function formatTrack(trackData, context) {
   if (!trackData || !trackData.id) return null;
   context = context || {};
 
   var albumData = context.album || trackData.album || null;
   var artistData = context.artist || trackData.artist || null;
-  var artistName = normalizeArtists(trackData);
+  var gatewayTrack = context.gatewayTrack || null;
+  var gatewayAlbum = context.gatewayAlbum || null;
+  var artistName = normalizeArtists(trackData, gatewayTrack);
   if (!artistName && context.albumArtist) {
     artistName = context.albumArtist;
   }
@@ -430,8 +756,15 @@ function formatTrack(trackData, context) {
     coverFromArtist(artistData);
   var releaseDate =
     context.releaseDate ||
-    trackData.release_date ||
     (albumData && albumData.release_date) ||
+    trackData.release_date ||
+    (gatewayAlbum &&
+      (gatewayAlbum.PHYSICAL_RELEASE_DATE ||
+        gatewayAlbum.DIGITAL_RELEASE_DATE ||
+        gatewayAlbum.ORIGINAL_RELEASE_DATE)) ||
+    (gatewayTrack &&
+      (gatewayTrack.PHYSICAL_RELEASE_DATE ||
+        gatewayTrack.DIGITAL_RELEASE_DATE)) ||
     "";
   var totalTracks =
     context.totalTracks || (albumData && albumData.nb_tracks) || 0;
@@ -442,6 +775,29 @@ function formatTrack(trackData, context) {
   var artistID =
     context.artistID ||
     (artistData && artistData.id ? withPrefix(artistData.id) : "");
+  var trackURL = String(trackData.link || directURL("track", trackData.id));
+  var albumURL = String(
+    (albumData && albumData.link) || directURL("album", albumID),
+  );
+  var artistURL = String(
+    (artistData && artistData.link) || directURL("artist", artistID),
+  );
+  var discNumber = numberValue(
+    trackData.disk_number ||
+      context.discNumber ||
+      (gatewayTrack && gatewayTrack.DISK_NUMBER),
+  );
+  var trackNumber = numberValue(
+    trackData.track_position ||
+      context.trackNumber ||
+      (gatewayTrack && gatewayTrack.TRACK_NUMBER),
+  );
+  var isExplicit = !!(
+    trackData.explicit_lyrics ||
+    isTruthyMetadata(trackData.explicit_content_lyrics) ||
+    isTruthyMetadata(gatewayTrack && gatewayTrack.EXPLICIT_LYRICS) ||
+    isTruthyMetadata(gatewayTrack && gatewayTrack.EXPLICIT_TRACK_CONTENT)
+  );
 
   return {
     id: itemID,
@@ -452,34 +808,52 @@ function formatTrack(trackData, context) {
     album_name: String(albumName),
     album_artist: String(albumArtist || ""),
     artist_id: artistID,
+    artist_url: artistURL,
     album_id: albumID,
+    album_url: albumURL,
+    external_urls: trackURL,
+    external_links: { deezer: trackURL },
     duration_ms: Number(trackData.duration || 0) * 1000,
     preview_url: String(trackData.preview || ""),
     cover_url: coverURL,
     images: coverURL,
     release_date: normalizeDate(releaseDate),
-    track_number: Number(trackData.track_position || context.trackNumber || 0),
+    track_number: trackNumber,
     total_tracks: Number(totalTracks || 0),
-    disc_number: Number(trackData.disk_number || context.discNumber || 0),
+    disc_number: discNumber,
     total_discs: Number(context.totalDiscs || 0),
-    isrc: String(trackData.isrc || ""),
+    isrc: String(trackData.isrc || (gatewayTrack && gatewayTrack.ISRC) || ""),
     provider_id: "deezer",
     item_type: "track",
     album_type: albumTypeFromRecordType(
       context.albumType || (albumData && albumData.record_type),
     ),
-    label: String((albumData && albumData.label) || ""),
-    copyright: String((albumData && albumData.copyright) || ""),
+    upc: String((albumData && albumData.upc) || ""),
+    label: String(
+      (albumData && albumData.label) ||
+        (gatewayAlbum && gatewayAlbum.LABEL_NAME) ||
+        "",
+    ),
+    copyright: String(
+      (albumData && albumData.copyright) ||
+        (gatewayAlbum && gatewayAlbum.COPYRIGHT) ||
+        "",
+    ),
     genre: String(context.genre || ""),
-    composer: String(trackData.composer || ""),
+    composer: composerNames(trackData, gatewayTrack),
+    comment: contributorComment(gatewayTrack),
+    explicit: isExplicit,
     audio_quality: "16bit/44.1kHz",
   };
 }
 
-function formatAlbum(albumData) {
+function formatAlbum(albumData, context) {
   if (!albumData || !albumData.id) return null;
+  context = context || {};
 
   var coverURL = coverFromAlbum(albumData);
+  var gatewayAlbum = context.gatewayAlbum || null;
+  var albumURL = String(albumData.link || directURL("album", albumData.id));
   return {
     id: withPrefix(albumData.id),
     name: String(albumData.title || ""),
@@ -488,15 +862,46 @@ function formatAlbum(albumData) {
       albumData.artist && albumData.artist.id
         ? withPrefix(albumData.artist.id)
         : "",
+    artist_url:
+      albumData.artist && albumData.artist.id
+        ? directURL("artist", albumData.artist.id)
+        : "",
+    external_urls: albumURL,
+    external_links: { deezer: albumURL },
     cover_url: coverURL,
     images: coverURL,
-    release_date: normalizeDate(albumData.release_date),
-    total_tracks: Number(albumData.nb_tracks || 0),
+    release_date: normalizeDate(
+      albumData.release_date ||
+        (gatewayAlbum &&
+          (gatewayAlbum.PHYSICAL_RELEASE_DATE ||
+            gatewayAlbum.DIGITAL_RELEASE_DATE ||
+            gatewayAlbum.ORIGINAL_RELEASE_DATE)),
+    ),
+    total_tracks: Number(
+      albumData.nb_tracks || (gatewayAlbum && gatewayAlbum.NUMBER_TRACK) || 0,
+    ),
+    total_discs: numberValue(
+      context.totalDiscs || (gatewayAlbum && gatewayAlbum.NUMBER_DISK),
+    ),
     album_type: albumTypeFromRecordType(albumData.record_type),
     provider_id: "deezer",
     item_type: "album",
-    label: String(albumData.label || ""),
-    copyright: String(albumData.copyright || ""),
+    upc: String(albumData.upc || ""),
+    label: String(
+      albumData.label || (gatewayAlbum && gatewayAlbum.LABEL_NAME) || "",
+    ),
+    copyright: String(
+      albumData.copyright || (gatewayAlbum && gatewayAlbum.COPYRIGHT) || "",
+    ),
+    genre: extractGenres(albumData),
+    explicit: !!(
+      albumData.explicit_lyrics ||
+      isTruthyMetadata(
+        gatewayAlbum &&
+          gatewayAlbum.EXPLICIT_ALBUM_CONTENT &&
+          gatewayAlbum.EXPLICIT_ALBUM_CONTENT.EXPLICIT_LYRICS_STATUS,
+      )
+    ),
     audio_traits: ["lossless"],
   };
 }
@@ -505,12 +910,15 @@ function formatArtist(artistData) {
   if (!artistData || !artistData.id) return null;
 
   var imageURL = coverFromArtist(artistData);
+  var artistURL = String(artistData.link || directURL("artist", artistData.id));
   return {
     id: withPrefix(artistData.id),
     name: String(artistData.name || ""),
     image_url: imageURL,
     images: imageURL,
     header_image: imageURL,
+    external_urls: artistURL,
+    external_links: { deezer: artistURL },
     listeners: Number(artistData.nb_fan || 0),
     provider_id: "deezer",
     item_type: "artist",
@@ -527,6 +935,9 @@ function formatPlaylist(playlistData) {
       playlistData.picture ||
       "",
   );
+  var playlistURL = String(
+    playlistData.link || directURL("playlist", playlistData.id),
+  );
 
   return {
     id: withPrefix(playlistData.id),
@@ -535,12 +946,14 @@ function formatPlaylist(playlistData) {
     cover_url: coverURL,
     images: coverURL,
     total_tracks: Number(playlistData.nb_tracks || 0),
+    external_urls: playlistURL,
+    external_links: { deezer: playlistURL },
     provider_id: "deezer",
     item_type: "playlist",
   };
 }
 
-function extractPrimaryGenre(albumData) {
+function extractGenres(albumData) {
   if (
     !albumData ||
     !albumData.genres ||
@@ -549,8 +962,11 @@ function extractPrimaryGenre(albumData) {
   ) {
     return "";
   }
-  var first = albumData.genres.data[0];
-  return first && first.name ? String(first.name) : "";
+  return uniqueValues(
+    albumData.genres.data.map(function (genre) {
+      return genre && genre.name;
+    }),
+  ).join("; ");
 }
 
 function fetchTrack(trackID) {
@@ -566,6 +982,24 @@ function fetchTrack(trackID) {
       log.debug("[DeezerExt] Album fetch for track failed:", e.message);
     }
   }
+
+  var albumTrackItems = [];
+  if (albumData) {
+    try {
+      albumTrackItems = fetchAlbumTracks(albumData);
+    } catch (tracklistError) {
+      log.debug(
+        "[DeezerExt] Album tracklist fetch for track failed:",
+        tracklistError.message,
+      );
+    }
+  }
+  var gatewayTrack = fetchGatewayTrackData(rawID);
+  var gatewayAlbum =
+    albumData && albumData.id ? fetchGatewayAlbumData(albumData.id) : null;
+  var totalDiscs =
+    numberValue(gatewayAlbum && gatewayAlbum.NUMBER_DISK) ||
+    totalDiscsFromTracks(albumTrackItems);
 
   var formatted = formatTrack(trackData, {
     album: albumData || trackData.album,
@@ -592,17 +1026,24 @@ function fetchTrack(trackID) {
         ? albumData.release_date
         : trackData.release_date,
     totalTracks: albumData && albumData.nb_tracks ? albumData.nb_tracks : 0,
-    totalDiscs: albumData && albumData.nb_disk ? albumData.nb_disk : 0,
+    totalDiscs: totalDiscs,
     albumType: albumData && albumData.record_type ? albumData.record_type : "",
     coverURL: albumData
       ? coverFromAlbum(albumData)
       : coverFromAlbum(trackData.album),
-    genre: extractPrimaryGenre(albumData),
+    genre: extractGenres(albumData),
+    gatewayTrack: gatewayTrack,
+    gatewayAlbum: gatewayAlbum,
   });
 
   return {
     track: formatted,
-    album: albumData ? formatAlbum(albumData) : null,
+    album: albumData
+      ? formatAlbum(albumData, {
+          gatewayAlbum: gatewayAlbum,
+          totalDiscs: totalDiscs,
+        })
+      : null,
   };
 }
 
@@ -610,9 +1051,17 @@ function fetchAlbum(albumID) {
   var rawID = parseAlbumID(albumID);
   if (!rawID) throw new Error("invalid Deezer album ID");
   var albumData = fetchAlbumData(rawID);
-  var info = formatAlbum(albumData);
-  var genre = extractPrimaryGenre(albumData);
-  var trackItems = fetchCollectionTracks(albumData.tracks || {});
+  var gatewayAlbum = fetchGatewayAlbumData(rawID);
+  var trackItems = fetchAlbumTracks(albumData);
+  var gatewayTracks = fetchGatewayAlbumTracks(rawID, trackItems);
+  var totalDiscs =
+    numberValue(gatewayAlbum && gatewayAlbum.NUMBER_DISK) ||
+    totalDiscsFromTracks(trackItems);
+  var info = formatAlbum(albumData, {
+    gatewayAlbum: gatewayAlbum,
+    totalDiscs: totalDiscs,
+  });
+  var genre = extractGenres(albumData);
   var tracks = [];
 
   for (var i = 0; i < trackItems.length; i++) {
@@ -628,10 +1077,12 @@ function fetchAlbum(albumID) {
           : info.artist_id,
       releaseDate: albumData.release_date,
       totalTracks: albumData.nb_tracks,
-      totalDiscs: albumData.nb_disk,
+      totalDiscs: totalDiscs,
       albumType: albumData.record_type,
       coverURL: info.cover_url,
       genre: genre,
+      gatewayTrack: gatewayTracks[String(trackItems[i].id)] || null,
+      gatewayAlbum: gatewayAlbum,
     });
     if (formatted) tracks.push(formatted);
   }
@@ -976,6 +1427,28 @@ function getPlaylist(playlistID) {
   }
 }
 
+function enrichTrack(track) {
+  if (!track || typeof track !== "object") return track;
+  var rawID = parseTrackID(
+    track.deezer_id || track.id || track.spotify_id || "",
+  );
+  if (!rawID && track.isrc) {
+    rawID = resolveTrackIDFromISRC(track.isrc);
+  }
+  if (!rawID) return track;
+  try {
+    var complete = fetchTrack(rawID).track;
+    if (!complete) return track;
+    return Object.assign({}, track, complete, {
+      provider_id: "deezer",
+      item_type: "track",
+    });
+  } catch (e) {
+    log.debug("[DeezerExt] enrichTrack failed:", e.message);
+    return track;
+  }
+}
+
 function resolveTrackIDFromISRC(isrc) {
   if (!isrc) return "";
   try {
@@ -1186,6 +1659,10 @@ function decryptDownloadedFile(encryptedPath, outputPath, trackID, onProgress) {
     if (bytesRead <= 0) break;
 
     var chunkB64 = readResult.data || "";
+    // zarz serves the stream with every THIRD 2048-byte chunk (0, 3, 6, ...)
+    // Blowfish-CBC encrypted and the rest already in plaintext. Decrypting
+    // exactly those chunks (verified by full ffmpeg decode of the result)
+    // reproduces the original audio; decrypting any other chunk corrupts it.
     if (bytesRead === CONFIG.chunkSize && chunkIndex % 3 === 0) {
       var decryptResult = utils.decryptBlockCipher(chunkB64, {
         algorithm: "blowfish",
@@ -1235,20 +1712,9 @@ function download(trackID, quality, outputPath, onProgress) {
     };
   }
 
-  var metadata = null;
-  var albumData = null;
+  var completeMetadata = null;
   try {
-    metadata = fetchTrackData(resolvedTrackID);
-    if (metadata && metadata.album && metadata.album.id) {
-      try {
-        albumData = fetchAlbumData(metadata.album.id);
-      } catch (albumErr) {
-        log.debug(
-          "[DeezerExt] Album fetch during download failed:",
-          albumErr.message,
-        );
-      }
-    }
+    completeMetadata = fetchTrack(resolvedTrackID).track;
   } catch (e) {
     log.debug("[DeezerExt] Track metadata fetch failed:", e.message);
   }
@@ -1344,28 +1810,51 @@ function download(trackID, quality, outputPath, onProgress) {
   return {
     success: true,
     file_path: actualOutputPath,
-    title: metadata && metadata.title ? metadata.title : descriptor.title || "",
-    artist: metadata ? normalizeArtists(metadata) : descriptor.artist || "",
-    album: albumData && albumData.title ? albumData.title : "",
-    album_artist:
-      albumData && albumData.artist && albumData.artist.name
-        ? albumData.artist.name
-        : "",
-    track_number:
-      metadata && metadata.track_position ? metadata.track_position : 0,
-    disc_number: metadata && metadata.disk_number ? metadata.disk_number : 0,
-    release_date:
-      albumData && albumData.release_date
-        ? albumData.release_date
-        : metadata && metadata.release_date
-          ? metadata.release_date
-          : "",
-    cover_url: albumData
-      ? coverFromAlbum(albumData)
-      : metadata && metadata.album
-        ? coverFromAlbum(metadata.album)
-        : "",
-    isrc: metadata && metadata.isrc ? metadata.isrc : "",
+    title:
+      completeMetadata && completeMetadata.name
+        ? completeMetadata.name
+        : descriptor.title || "",
+    name:
+      completeMetadata && completeMetadata.name
+        ? completeMetadata.name
+        : descriptor.title || "",
+    artist:
+      completeMetadata && completeMetadata.artists
+        ? completeMetadata.artists
+        : descriptor.artist || "",
+    artists:
+      completeMetadata && completeMetadata.artists
+        ? completeMetadata.artists
+        : descriptor.artist || "",
+    album: completeMetadata ? completeMetadata.album_name : "",
+    album_name: completeMetadata ? completeMetadata.album_name : "",
+    album_artist: completeMetadata ? completeMetadata.album_artist : "",
+    artist_id: completeMetadata ? completeMetadata.artist_id : "",
+    artist_url: completeMetadata ? completeMetadata.artist_url : "",
+    album_id: completeMetadata ? completeMetadata.album_id : "",
+    album_url: completeMetadata ? completeMetadata.album_url : "",
+    external_urls: completeMetadata
+      ? completeMetadata.external_urls
+      : directURL("track", resolvedTrackID),
+    external_links: completeMetadata
+      ? completeMetadata.external_links
+      : { deezer: directURL("track", resolvedTrackID) },
+    track_number: completeMetadata ? completeMetadata.track_number : 0,
+    total_tracks: completeMetadata ? completeMetadata.total_tracks : 0,
+    disc_number: completeMetadata ? completeMetadata.disc_number : 0,
+    total_discs: completeMetadata ? completeMetadata.total_discs : 0,
+    release_date: completeMetadata ? completeMetadata.release_date : "",
+    album_type: completeMetadata ? completeMetadata.album_type : "album",
+    cover_url: completeMetadata ? completeMetadata.cover_url : "",
+    preview_url: completeMetadata ? completeMetadata.preview_url : "",
+    isrc: completeMetadata ? completeMetadata.isrc : "",
+    upc: completeMetadata ? completeMetadata.upc : "",
+    genre: completeMetadata ? completeMetadata.genre : "",
+    composer: completeMetadata ? completeMetadata.composer : "",
+    label: completeMetadata ? completeMetadata.label : "",
+    copyright: completeMetadata ? completeMetadata.copyright : "",
+    comment: completeMetadata ? completeMetadata.comment : "",
+    explicit: completeMetadata ? completeMetadata.explicit : false,
     bit_depth: 16,
     sample_rate: 44100,
   };
@@ -1376,122 +1865,6 @@ function searchTracks(query, limit) {
     limit: limit || 20,
     filter: "track",
   });
-}
-
-function getHomeFeed() {
-  var sections = [];
-  try {
-    // Deezer global charts: top tracks, albums and playlists in one call.
-    var chart = deezerGet("/chart");
-    if (!chart) {
-      return { success: false, error: "no chart data", sections: [] };
-    }
-
-    // Section 1: Top tracks.
-    try {
-      var trackItems = [];
-      var chartTracks =
-        chart.tracks && chart.tracks.data ? chart.tracks.data : [];
-      for (var i = 0; i < chartTracks.length && trackItems.length < 15; i++) {
-        var t = formatTrack(chartTracks[i], {
-          album: chartTracks[i].album,
-          artist: chartTracks[i].artist,
-        });
-        if (!t) continue;
-        trackItems.push({
-          name: t.name,
-          artists: t.artists,
-          duration_ms: t.duration_ms,
-          type: "track",
-          id: t.id,
-          album_id: t.album_id,
-          album_name: t.album_name,
-          cover_url: t.cover_url,
-        });
-      }
-      if (trackItems.length > 0) {
-        sections.push({
-          uri: "dz:charts:tracks",
-          title: "Tendencias de Deezer",
-          items: trackItems,
-        });
-      }
-    } catch (e1) {
-      log.debug("[DeezerExt] chart tracks failed:", e1 && e1.message);
-    }
-
-    // Section 2: Top albums.
-    try {
-      var albumItems = [];
-      var chartAlbums =
-        chart.albums && chart.albums.data ? chart.albums.data : [];
-      for (var j = 0; j < chartAlbums.length && albumItems.length < 12; j++) {
-        var a = formatAlbum(chartAlbums[j]);
-        if (!a) continue;
-        albumItems.push({
-          name: a.name,
-          artists: a.artists,
-          type: "album",
-          id: a.id,
-          cover_url: a.cover_url,
-          release_date: a.release_date,
-          total_tracks: a.total_tracks,
-        });
-      }
-      if (albumItems.length > 0) {
-        sections.push({
-          uri: "dz:charts:albums",
-          title: "Álbumes más escuchados",
-          items: albumItems,
-        });
-      }
-    } catch (e2) {
-      log.debug("[DeezerExt] chart albums failed:", e2 && e2.message);
-    }
-
-    // Section 3: Top playlists.
-    try {
-      var playlistItems = [];
-      var chartPlaylists =
-        chart.playlists && chart.playlists.data ? chart.playlists.data : [];
-      for (
-        var k = 0;
-        k < chartPlaylists.length && playlistItems.length < 12;
-        k++
-      ) {
-        var p = formatPlaylist(chartPlaylists[k]);
-        if (!p) continue;
-        playlistItems.push({
-          name: p.name,
-          type: "playlist",
-          id: p.id,
-          cover_url: p.cover_url,
-          total_tracks: p.total_tracks,
-        });
-      }
-      if (playlistItems.length > 0) {
-        sections.push({
-          uri: "dz:charts:playlists",
-          title: "Playlists populares",
-          items: playlistItems,
-        });
-      }
-    } catch (e3) {
-      log.debug("[DeezerExt] chart playlists failed:", e3 && e3.message);
-    }
-  } catch (e) {
-    log.debug("[DeezerExt] getHomeFeed failed:", e && e.message);
-    return {
-      success: false,
-      error: String((e && e.message) || e),
-      sections: [],
-    };
-  }
-
-  if (sections.length > 0) {
-    return { success: true, sections: sections };
-  }
-  return { success: false, error: "no home feed available", sections: [] };
 }
 
 function completeGrant() {
@@ -1505,32 +1878,49 @@ function completeGrant() {
   return session.completeGrant();
 }
 
-function getDownloadUrl(trackID, quality) {
+function getHomeFeed() {
   try {
-    var resolvedTrackID = parseTrackID(trackID);
-    if (!resolvedTrackID) return null;
-    var descriptor = resolveDownloadDescriptor(resolvedTrackID);
-    if (!descriptor || descriptor.success !== true) return null;
-    var downloadURL = resolveDescriptorDownloadURL(descriptor);
-    if (!downloadURL) return null;
-    // Encrypted (client-decryption) streams cannot be played directly by the
-    // media player — skip so the rescue chain can try the next provider.
-    if (descriptorRequiresClientDecryption(descriptor)) {
-      log.info(
-        "[DeezerExt] getDownloadUrl: stream requires client decryption, skipping",
-      );
-      return null;
+    var sections = [];
+
+    // Deezer public API (no auth needed for charts)
+    try {
+      var chartRes = http.get("https://api.deezer.com/chart/0?limit=20", {
+        Accept: "application/json",
+        "User-Agent": "Bitly/1.0",
+      });
+      if (chartRes && chartRes.body) {
+        var chart =
+          typeof chartRes.body === "string"
+            ? JSON.parse(chartRes.body)
+            : chartRes.body;
+        if (chart && chart.tracks && chart.tracks.data) {
+          var items = chart.tracks.data.map(function (t) {
+            return {
+              id: String(t.id),
+              type: "track",
+              name: t.title || "",
+              artists: t.artist ? t.artist.name : "",
+              duration_ms: (t.duration || 0) * 1000,
+              album_id: t.album ? String(t.album.id) : "",
+              album_name: t.album ? t.album.title : "",
+              cover_url:
+                t.album && t.album.cover_medium ? t.album.cover_medium : "",
+            };
+          });
+          if (items.length > 0) {
+            sections.push({ title: "Deezer Top Charts", items: items });
+          }
+        }
+      }
+    } catch (e) {
+      log.warn("[DeezerExt] getHomeFeed chart failed:", String(e));
     }
-    log.info("[DeezerExt] getDownloadUrl resolved stream for", resolvedTrackID);
-    return downloadURL;
+
+    log.info("[DeezerExt] getHomeFeed returning", sections.length, "sections");
+    return { success: true, sections: sections };
   } catch (e) {
-    // Re-throw instead of returning null so the Go layer sees the real error
-    // (e.g. "HTTP 429") and can cooldown the provider to stop hammering a
-    // rate-limited gateway. Returning null hid the error as a generic
-    // "stream not available", so the circuit breaker never engaged.
-    var _errMsg = e && e.message ? e.message : String(e);
-    log.warn("[DeezerExt] getDownloadUrl failed:", _errMsg);
-    throw new Error(_errMsg);
+    log.warn("[DeezerExt] getHomeFeed failed:", String(e));
+    return { success: false, error: String(e), sections: [] };
   }
 }
 
@@ -1544,11 +1934,46 @@ registerExtension({
   getAlbum: getAlbum,
   getArtist: getArtist,
   getPlaylist: getPlaylist,
+  enrichTrack: enrichTrack,
   searchTracks: searchTracks,
-  getHomeFeed: getHomeFeed,
   checkAvailability: checkAvailability,
   download: download,
-  getDownloadUrl: getDownloadUrl,
+  getHomeFeed: getHomeFeed,
+  // Real streaming URL (mirrors the standalone getDownloadUrl): resolves the
+  // Zarz download descriptor and returns the audio URL ONLY when it needs no
+  // client-side decryption (lossy tiers such as MP3/OGG come back directly
+  // downloadable, so the player streams them in ~1-2s after a verified
+  // session). Lossless/encrypted descriptors return null so the caller falls
+  // back to the download() pipeline, which applies the per-chunk Blowfish
+  // decryption. Transport errors (e.g. HTTP 429) are re-thrown so the Go
+  // circuit breaker engages and stops hammering a rate-limited gateway.
+  getDownloadUrl: function (trackID) {
+    try {
+      var resolvedTrackID = parseTrackID(trackID);
+      if (!resolvedTrackID) return null;
+      var descriptor = resolveDownloadDescriptor(resolvedTrackID);
+      if (!descriptor || descriptor.success !== true) return null;
+      var downloadURL = resolveDescriptorDownloadURL(descriptor);
+      if (!downloadURL) return null;
+      // Encrypted (client-decryption) streams cannot be played directly by
+      // the media player — skip so the rescue chain can try the next provider.
+      if (descriptorRequiresClientDecryption(descriptor)) {
+        log.info(
+          "[DeezerExt] getDownloadUrl: stream requires client decryption, skipping",
+        );
+        return null;
+      }
+      log.info(
+        "[DeezerExt] getDownloadUrl resolved stream for",
+        resolvedTrackID,
+      );
+      return downloadURL;
+    } catch (e) {
+      var _errMsg = e && e.message ? e.message : String(e);
+      log.warn("[DeezerExt] getDownloadUrl failed:", _errMsg);
+      throw new Error(_errMsg);
+    }
+  },
 });
 
 log.info("[DeezerExt] Deezer metadata and download extension loaded");

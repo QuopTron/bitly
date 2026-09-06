@@ -22,6 +22,7 @@ import '../../shared/widgets/track_card.dart';
 import '../../shared/widgets/cover_image.dart';
 import '../../shared/widgets/detail_header.dart';
 import '../../shared/widgets/download_options_sheet.dart';
+import '../../shared/theme/app_colors.dart';
 import '../../../backend/services/connectivity_service.dart';
 import '../../../injection.dart';
 import 'album_detail_page.dart';
@@ -114,24 +115,24 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
 
     if (_loading) {
       return Scaffold(
-        backgroundColor: isDark ? const Color(0xFF0A0A0A) : const Color(0xFFF5F5F5),
+        backgroundColor: AppColors.background(isDark),
         body: const DetailSkeleton(),
       );
     }
     if (_artist == null) {
       return Scaffold(
-        backgroundColor: isDark ? const Color(0xFF0A0A0A) : const Color(0xFFF5F5F5),
+        backgroundColor: AppColors.background(isDark),
         body: Center(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             Text(loc.setup.feedEmpty,
-              style: TextStyle(color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.4))),
+              style: TextStyle(color: AppColors.onSurface(isDark).withValues(alpha: 0.4))),
             if (_error)
               TextButton.icon(
                 onPressed: _load,
                 icon: Icon(Icons.refresh, size: 18,
-                  color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.6)),
+                  color: AppColors.onSurface(isDark).withValues(alpha: 0.6)),
                 label: Text(loc.setup.retry,
-                  style: TextStyle(color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.6))),
+                  style: TextStyle(color: AppColors.onSurface(isDark).withValues(alpha: 0.6))),
               ),
           ]),
         ),
@@ -171,7 +172,7 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
     ].join(' • ');
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0A0A0A) : const Color(0xFFF5F5F5),
+      backgroundColor: AppColors.background(isDark),
       body: DetailHeader(
         coverUrl: artistImage,
         title: artist.name,
@@ -200,7 +201,7 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
                 style: TextStyle(
                   fontSize: r.footerSize + 1,
                   fontWeight: FontWeight.w700,
-                  color: Colors.white,
+                  color: AppColors.onSurface(isDark),
                 ),
               ),
             ),
@@ -243,7 +244,7 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
                 style: TextStyle(
                   fontSize: r.footerSize + 1,
                   fontWeight: FontWeight.w700,
-                  color: Colors.white,
+                  color: AppColors.onSurface(isDark),
                 ),
               ),
             ),
@@ -333,10 +334,10 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
                                           shape: BoxShape.circle,
                                           color: Colors.black.withValues(alpha: 0.35),
                                         ),
-                                        child: Icon(
-                                          isAlbumLiked ? Icons.favorite : Icons.favorite_border,
-                                          color: isAlbumLiked ? Colors.red : Colors.white,
-                                          size: 16,
+                        child: Icon(
+                                           isAlbumLiked ? Icons.favorite : Icons.favorite_border,
+                                           color: isAlbumLiked ? Colors.red : AppColors.onSurface(isDark),
+                                           size: 16,
                                         ),
                                       ),
                                     ),
@@ -353,7 +354,7 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
                             style: TextStyle(
                               fontSize: r.footerSize - 1,
                               fontWeight: FontWeight.w500,
-                              color: Colors.white.withValues(alpha: 0.85),
+                              color: AppColors.onSurface(isDark).withValues(alpha: 0.85),
                             ),
                           ),
                         ],
@@ -370,13 +371,13 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
             SizedBox(height: r.spacingM),
             Padding(
               padding: EdgeInsets.symmetric(horizontal: r.spacingS),
-              child: Row(children: [
+              child:               Row(children: [
                 Icon(Icons.cloud_off, size: r.footerSize,
-                  color: Colors.white.withValues(alpha: 0.4)),
+                  color: AppColors.onSurface(isDark).withValues(alpha: 0.4)),
                 SizedBox(width: 6),
                 Text('${loc.setup.downloaded} ${loc.setup.miSpaceSongs.toLowerCase()}',
                   style: TextStyle(fontSize: r.footerSize,
-                    color: Colors.white.withValues(alpha: 0.4))),
+                    color: AppColors.onSurface(isDark).withValues(alpha: 0.4))),
               ]),
             ),
             SizedBox(height: r.spacingS),
@@ -429,10 +430,13 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
     }).toList();
   }
 
-  Widget _placeholder(Responsive r) => Container(
-    color: Colors.white.withValues(alpha: 0.06),
-    child: Icon(Icons.album, color: Colors.white.withValues(alpha: 0.2), size: r.titleSize * 0.5),
-  );
+  Widget _placeholder(Responsive r) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      color: AppColors.onSurface(isDark).withValues(alpha: 0.06),
+      child: Icon(Icons.album, color: AppColors.onSurface(isDark).withValues(alpha: 0.2), size: r.titleSize * 0.5),
+    );
+  }
 }
 
 /// Futuristic glassmorphism action button.
@@ -481,21 +485,21 @@ class _GlassActionBtnState extends State<_GlassActionBtn>
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final accent = widget.color ?? (isDark ? const Color(0xFF5AF13D) : const Color(0xFF0B5A1E));
+    final accent = widget.color ?? (isDark ? AppColors.success : AppColors.greenMedium);
     final enabled = widget.onTap != null;
 
     final bgAlpha = widget.filled ? 0.22 : 0.08;
     final bgColor = widget.filled
         ? accent.withValues(alpha: bgAlpha)
-        : (isDark ? Colors.white : Colors.black).withValues(alpha: bgAlpha);
+        : AppColors.onSurface(isDark).withValues(alpha: bgAlpha);
 
     final borderColor = widget.filled
         ? accent.withValues(alpha: 0.5)
-        : (isDark ? Colors.white : Colors.black).withValues(alpha: 0.12);
+        : AppColors.onSurface(isDark).withValues(alpha: 0.12);
 
     final fgColor = widget.filled
         ? accent
-        : widget.color ?? (isDark ? Colors.white : Colors.black);
+        : widget.color ?? AppColors.onSurface(isDark);
 
     return GestureDetector(
       onTapDown: enabled ? (_) => _scaleCtrl.forward() : null,

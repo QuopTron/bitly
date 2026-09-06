@@ -6,7 +6,6 @@ import '../../../backend/services/like_cubit.dart';
 import '../../../backend/services/player_cubit.dart';
 import '../../../backend/services/queue_cubit.dart';
 import '../../../injection.dart';
-import '../../shared/theme/app_colors.dart';
 import '../../shared/utils/responsive.dart';
 import '../../shared/utils/cover_palette.dart';
 import '../../shared/widgets/cover_image.dart';
@@ -233,7 +232,7 @@ class _LyricsSheetState extends State<_LyricsSheet> {
           Icon(
             Icons.lyrics_rounded,
             size: r.subtitleSize + 2,
-            color: isDark ? AppColors.greenBright : AppColors.greenMedium,
+            color: fg,
           ),
           SizedBox(width: r.spacingS),
           Expanded(
@@ -292,9 +291,9 @@ class _LyricsSheetState extends State<_LyricsSheet> {
               trackHeight: 2,
               thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
               overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
-              activeTrackColor: isDark ? AppColors.greenBright : AppColors.greenMedium,
+              activeTrackColor: fg.withValues(alpha: 0.7),
               inactiveTrackColor: fg.withValues(alpha: 0.12),
-              thumbColor: isDark ? AppColors.greenBright : AppColors.greenMedium,
+              thumbColor: fg.withValues(alpha: 0.8),
             ),
             child: Slider(
               value: progress,
@@ -323,8 +322,7 @@ class _LyricsSheetState extends State<_LyricsSheet> {
     final fg = isDark ? Colors.white : Colors.black;
     // Smart accent derived from the cover's colors (brand-green fallback
     // until the palette decodes or when there is no cover).
-    final accent = palette?.textAccent(onDarkSurface: isDark) ??
-        (isDark ? AppColors.greenBright : AppColors.greenMedium);
+    final accent = palette?.textAccent(onDarkSurface: isDark) ?? fg;
 
     Color color;
     FontWeight weight;

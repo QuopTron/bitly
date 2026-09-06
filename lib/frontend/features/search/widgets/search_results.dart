@@ -71,28 +71,20 @@ class SearchResultsBody extends StatelessWidget {
     final loc = AppLocalizations.of(context);
     final r = Responsive(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final onBg = isDark ? Colors.white : Colors.black;
+    final onBg = AppColors.onSurface(isDark);
     final glowColor = isDark ? AppColors.greenBright : AppColors.greenMedium;
 
-    // NOTE: search results deliberately do NOT pre-warm stream resolutions.
-    // The result set changes on every keystroke; firing getStreamPackage for
-    // the visible tracks (up to 12, 8-15s each) would saturate the backend
-    // bridge right as the user types the next query, making search feel slow.
-    // First-tap speed comes from the identifier-first resolution (ISRC /
-    // cross-provider ids resolve in ~1s instead of name-searching every
-    // provider), so a tap stays fast without the pre-warm storm.
-
     if (loading) {
-      return FeedSkeleton();
+      return SearchSkeleton(selectedType: selectedType);
     }
     if (error != null) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.error_outline_rounded, size: 48, color: Colors.redAccent.withValues(alpha: 0.3)),
+            Icon(Icons.error_outline_rounded, size: 48, color: AppColors.error.withValues(alpha: 0.3)),
             SizedBox(height: r.spacingM),
-            Text(error!, style: TextStyle(color: Colors.redAccent, fontSize: r.subtitleSize)),
+            Text(error!, style: TextStyle(color: AppColors.error, fontSize: r.subtitleSize)),
           ],
         ),
       );
@@ -137,7 +129,10 @@ class SearchResultsBody extends StatelessWidget {
         return Center(child: Text(loc.setup.noResults, style: TextStyle(fontSize: r.subtitleSize, color: onBg.withValues(alpha: 0.4))));
       }
       return ListView(
-        padding: EdgeInsets.symmetric(vertical: r.spacingS),
+        padding: EdgeInsets.only(
+          top: r.spacingS,
+          bottom: r.spacingS + r.val(120, 100, 150),
+        ),
         children: children,
       );
     }
@@ -168,7 +163,10 @@ class SearchResultsBody extends StatelessWidget {
         return Center(child: Text(loc.setup.noResults, style: TextStyle(fontSize: r.subtitleSize, color: onBg.withValues(alpha: 0.4))));
       }
       return ListView(
-        padding: EdgeInsets.symmetric(vertical: r.spacingS),
+        padding: EdgeInsets.only(
+          top: r.spacingS,
+          bottom: r.spacingS + r.val(120, 100, 150),
+        ),
         children: children,
       );
     }
@@ -180,12 +178,18 @@ class SearchResultsBody extends StatelessWidget {
     }
     if (selectedType == 'tracks') {
       return ListView(
-        padding: EdgeInsets.symmetric(vertical: r.spacingS),
+        padding: EdgeInsets.only(
+          top: r.spacingS,
+          bottom: r.spacingS + r.val(120, 100, 150),
+        ),
         children: [..._trackCards(context, items, r)],
       );
     }
     return ListView(
-      padding: EdgeInsets.symmetric(vertical: r.spacingS),
+      padding: EdgeInsets.only(
+        top: r.spacingS,
+        bottom: r.spacingS + r.val(120, 100, 150),
+      ),
       children: [
         _gridSection(context, items, r,
             glowColor: glowColor, onBg: onBg, title: _categoryLabel(loc, selectedType!)),
@@ -205,18 +209,7 @@ class SearchResultsBody extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.fromLTRB(r.spacingS + 4, r.spacingM, r.spacingS, r.spacingS),
       child: Row(children: [
-        Container(
-          width: 28, height: 28,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: RadialGradient(colors: [
-              glowColor.withValues(alpha: 0.3),
-              glowColor.withValues(alpha: 0.06),
-            ]),
-            border: Border.all(color: glowColor.withValues(alpha: 0.3), width: 0.8),
-          ),
-          child: Icon(_iconByCat[cat] ?? Icons.search, size: 16, color: glowColor),
-        ),
+        Icon(_iconByCat[cat] ?? Icons.search, size: 18, color: onBg.withValues(alpha: 0.6)),
         SizedBox(width: r.spacingS),
         Text(_categoryLabel(AppLocalizations.of(context), cat),
           style: TextStyle(fontSize: r.subtitleSize + 4, fontWeight: FontWeight.bold, color: onBg)),
@@ -244,18 +237,7 @@ class SearchResultsBody extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.fromLTRB(r.spacingS + 4, r.spacingM, r.spacingS, r.spacingS),
       child: Row(children: [
-        Container(
-          width: 28, height: 28,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: RadialGradient(colors: [
-              glowColor.withValues(alpha: 0.3),
-              glowColor.withValues(alpha: 0.06),
-            ]),
-            border: Border.all(color: glowColor.withValues(alpha: 0.3), width: 0.8),
-          ),
-          child: Icon(sourceIcons[source] ?? Icons.cloud_outlined, size: 16, color: glowColor),
-        ),
+        Icon(sourceIcons[source] ?? Icons.cloud_outlined, size: 18, color: onBg.withValues(alpha: 0.6)),
         SizedBox(width: r.spacingS),
         Text(sourceDisplayName(source),
           style: TextStyle(fontSize: r.subtitleSize + 4, fontWeight: FontWeight.bold, color: onBg)),
@@ -322,30 +304,17 @@ class SearchResultsBody extends StatelessWidget {
 
   Widget _gridSection(BuildContext context, List<FeedItem> items, Responsive r,
       {Color? glowColor, Color? onBg, String? title}) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return LayoutBuilder(
       builder: (_, constraints) {
-        // Mismo ancho disponible que el grid del Feed para que las tarjetas
-        // tengan exactamente el mismo tamaño en Search que en Home.
         final avail = constraints.maxWidth - 2 * r.spacingS;
         final crossAxisCount = avail > 700 ? 4 : avail > 340 ? 3 : 2;
         final gap = r.spacingXS;
-        // Uniform square cells -> every card same size, no ragged rows.
         return Column(children: [
           if (title != null) Padding(
             padding: EdgeInsets.fromLTRB(r.spacingS + 4, r.spacingM, r.spacingS, r.spacingS),
             child: Row(children: [
-              Container(
-                width: 24, height: 24,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(colors: [
-                    (glowColor ?? Colors.green).withValues(alpha: 0.3),
-                    (glowColor ?? Colors.green).withValues(alpha: 0.06),
-                  ]),
-                  border: Border.all(color: (glowColor ?? Colors.green).withValues(alpha: 0.3), width: 0.8),
-                ),
-                child: Center(child: Icon(Icons.folder_open, size: 14, color: glowColor ?? Colors.green)),
-              ),
+              Icon(Icons.folder_open, size: 18, color: (onBg ?? AppColors.onSurface(isDark)).withValues(alpha: 0.6)),
               SizedBox(width: r.spacingS),
               Text(title, style: TextStyle(fontSize: r.subtitleSize + 4, fontWeight: FontWeight.bold, color: onBg)),
             ]),
@@ -409,21 +378,20 @@ class SearchRecentList extends StatelessWidget {
   Widget build(BuildContext context) {
     final r = Responsive(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final onBg = isDark ? Colors.white : Colors.black;
-    final glowColor = isDark ? AppColors.greenBright : AppColors.greenMedium;
+    final onBg = AppColors.onSurface(isDark);
     final loc = AppLocalizations.of(context);
 
     return ListView(
-      padding: EdgeInsets.fromLTRB(r.spacingS, r.spacingM, r.spacingS, r.spacingS),
+      padding: EdgeInsets.fromLTRB(r.spacingS, r.spacingM, r.spacingS, r.spacingS + r.val(120, 100, 150)),
       children: [
         Row(children: [
-          Icon(Icons.history, size: r.footerSize + 4, color: glowColor.withValues(alpha: 0.5)),
+          Icon(Icons.history, size: r.footerSize + 4, color: onBg.withValues(alpha: 0.5)),
           SizedBox(width: r.spacingXS),
           Text(loc.setup.recentSearches, style: TextStyle(fontSize: r.subtitleSize + 3, fontWeight: FontWeight.bold, color: onBg)),
           const Spacer(),
           GestureDetector(
             onTap: onClearAll,
-            child: Text(loc.setup.clear, style: TextStyle(fontSize: r.footerSize, color: glowColor.withValues(alpha: 0.7))),
+            child: Text(loc.setup.clear, style: TextStyle(fontSize: r.footerSize, color: onBg.withValues(alpha: 0.5))),
           ),
         ]),
         SizedBox(height: r.spacingM),
@@ -463,8 +431,7 @@ class SearchUrlPaste extends StatelessWidget {
   Widget build(BuildContext context) {
     final r = Responsive(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final onBg = isDark ? Colors.white : Colors.black;
-    final glowColor = isDark ? AppColors.greenBright : AppColors.greenMedium;
+    final onBg = AppColors.onSurface(isDark);
     final loc = AppLocalizations.of(context);
 
     return Center(
@@ -478,25 +445,25 @@ class SearchUrlPaste extends StatelessWidget {
             textAlign: TextAlign.center),
           SizedBox(height: r.spacingM),
           Row(mainAxisSize: MainAxisSize.min, children: [
-            _badge(Icons.play_circle_fill, 'YouTube', r, glowColor, onBg),
+            _badge(Icons.play_circle_fill, 'YouTube', r, onBg),
             SizedBox(width: r.spacingS),
-            _badge(Icons.music_note, 'Spotify', r, glowColor, onBg),
+            _badge(Icons.music_note, 'Spotify', r, onBg),
           ]),
         ]),
       ),
     );
   }
 
-  Widget _badge(IconData icon, String label, Responsive r, Color glowColor, Color onBg) {
+  Widget _badge(IconData icon, String label, Responsive r, Color onBg) {
     return GlassContainer(
       borderRadius: 20,
-      borderColor: glowColor.withValues(alpha: 0.2),
-      bgColor: glowColor.withValues(alpha: 0.06),
+      borderColor: onBg.withValues(alpha: 0.1),
+      bgColor: onBg.withValues(alpha: 0.04),
       padding: EdgeInsets.symmetric(horizontal: r.spacingM, vertical: r.spacingXS),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: r.footerSize + 2, color: glowColor),
+        Icon(icon, size: r.footerSize + 2, color: onBg.withValues(alpha: 0.6)),
         SizedBox(width: r.spacingXS),
-        Text(label, style: TextStyle(fontSize: r.footerSize + 2, color: glowColor, fontWeight: FontWeight.w600)),
+        Text(label, style: TextStyle(fontSize: r.footerSize + 2, color: onBg.withValues(alpha: 0.7), fontWeight: FontWeight.w600)),
       ]),
     );
   }

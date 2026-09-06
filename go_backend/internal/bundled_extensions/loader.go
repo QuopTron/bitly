@@ -30,11 +30,37 @@ type RegisteredExtension struct {
 	// QualityOptions mirrors manifest.qualityOptions (id list), so the
 	// fallback can pick a quality token each extension recognizes.
 	QualityOptions []string `json:"qualityOptions,omitempty"`
+	// QualityTiers mirrors the full manifest qualityOptions entries (id +
+	// optional label + per-tier credential settings). SpotiFLAC's
+	// qualitySettings concept: a Hi-Res tier may need its own API key/endpoint
+	// settings that lower tiers don't. Exposed so UI/store surfaces can render
+	// per-quality credential fields.
+	QualityTiers []QualityTier `json:"qualityTiers,omitempty"`
 	// Search mirrors the manifest's searchBehavior block. It's how the
 	// extension declares its search category bubbles (id/label/icon) and
 	// thumbnail ratio — the source of truth for the search UI, same as
 	// SpotiFLAC reads it from the manifest.
 	Search Search `json:"searchBehavior,omitempty"`
+}
+
+// QualityTier is one quality entry from the manifest qualityOptions array,
+// optionally carrying per-tier credential settings (SpotiFLAC qualitySettings).
+type QualityTier struct {
+	ID       string          `json:"id"`
+	Label    string          `json:"label,omitempty"`
+	Settings []QualitySetting `json:"settings,omitempty"`
+}
+
+// QualitySetting is a credential/option a single quality tier requires
+// (e.g. a Hi-Res tier that needs its own apiKey). Type mirrors the setting
+// types (string/number/boolean/select).
+type QualitySetting struct {
+	Key     string   `json:"key"`
+	Label   string   `json:"label,omitempty"`
+	Hint    string   `json:"hint,omitempty"`
+	Type    string   `json:"type,omitempty"`
+	Default string   `json:"default,omitempty"`
+	Options []string `json:"options,omitempty"`
 }
 
 // SearchFilter describes a single search category bubble from the manifest.
@@ -88,7 +114,16 @@ func LoadAllToRegistry(reg *extensions.Registry) []RegisteredExtension {
 			HomeFeed bool     `json:"homeFeed"`
 		} `json:"capabilities"`
 		QualityOptions []struct {
-			ID string `json:"id"`
+			ID       string `json:"id"`
+			Label    string `json:"label"`
+			Settings []struct {
+				Key     string   `json:"key"`
+				Label   string   `json:"label"`
+				Hint    string   `json:"hint"`
+				Type    string   `json:"type"`
+				Default string   `json:"default"`
+				Options []string `json:"options"`
+			} `json:"settings"`
 		} `json:"qualityOptions"`
 		SearchBehavior struct {
 				Enabled        bool   `json:"enabled"`
@@ -123,10 +158,23 @@ func LoadAllToRegistry(reg *extensions.Registry) []RegisteredExtension {
 			}
 		}
 		qOpts := make([]string, 0, len(manifest.QualityOptions))
+		qTiers := make([]QualityTier, 0, len(manifest.QualityOptions))
 		for _, q := range manifest.QualityOptions {
-			if q.ID != "" {
-				qOpts = append(qOpts, q.ID)
+			if q.ID == "" {
+				continue
 			}
+			qOpts = append(qOpts, q.ID)
+			tier := QualityTier{ID: q.ID, Label: q.Label}
+			for _, s := range q.Settings {
+				if s.Key == "" {
+					continue
+				}
+				tier.Settings = append(tier.Settings, QualitySetting{
+					Key: s.Key, Label: s.Label, Hint: s.Hint,
+					Type: s.Type, Default: s.Default, Options: s.Options,
+				})
+			}
+			qTiers = append(qTiers, tier)
 		}
 
 		// Run the extension JS in sandbox
@@ -158,6 +206,7 @@ func LoadAllToRegistry(reg *extensions.Registry) []RegisteredExtension {
 			HasHomeFeed: manifest.Capabilities.HomeFeed,
 			IsDownloadProvider: isDownload,
 			QualityOptions:     qOpts,
+			QualityTiers:       qTiers,
 			Search: Search{
 				Enabled:        manifest.SearchBehavior.Enabled,
 				Primary:        manifest.SearchBehavior.Primary,

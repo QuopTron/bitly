@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_colors.dart';
 import '../utils/haptic.dart';
 import '../utils/responsive.dart';
 import '../../l10n/app_localizations.dart';
@@ -60,12 +61,10 @@ class TrackCard extends StatelessWidget {
     final r = Responsive(context);
     final loc = AppLocalizations.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    const textColor = Colors.white;
-    const mutedColor = Color(0xFFC8C8C8);
-    final fallbackBg =
-        isDark ? const Color(0xFF2A2A2A) : const Color(0xFFD0D0D0);
-    final fallbackIconColor =
-        isDark ? const Color(0xFF888888) : const Color(0xFF666666);
+    final fg = AppColors.onSurface(isDark);
+    final mutedColor = AppColors.onSurfaceMuted(isDark);
+    final fallbackBg = AppColors.surface(isDark);
+    final fallbackIconColor = AppColors.onSurfaceMuted(isDark);
     final iSize = r.footerSize * 1.6 * textScale;
     final ts = textScale;
 
@@ -80,16 +79,16 @@ class TrackCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: downloadState == DownloadState.completed
-                ? Colors.white.withValues(alpha: 0.2)
-                : Colors.white.withValues(alpha: 0.1),
+                ? fg.withValues(alpha: 0.2)
+                : fg.withValues(alpha: 0.1),
             width: downloadState == DownloadState.completed ? 1.0 : 0.7,
           ),
           boxShadow: [
             if (heavyEffects)
               BoxShadow(
                 color: downloadState == DownloadState.completed
-                    ? Colors.black.withValues(alpha: 0.35)
-                    : Colors.black.withValues(alpha: 0.3),
+                    ? AppColors.shadow(isDark).withValues(alpha: 0.35)
+                    : AppColors.shadow(isDark).withValues(alpha: 0.3),
                 blurRadius: 14,
                 spreadRadius: 0,
                 offset: const Offset(0, 5),
@@ -104,7 +103,7 @@ class TrackCard extends StatelessWidget {
               Positioned.fill(child: imageFromUrl(coverUrl, fit: BoxFit.cover,
                   width: 128, height: 128)),
             Positioned.fill(
-              child: Container(color: Colors.black.withValues(alpha: 0.4)),
+              child: Container(color: AppColors.shadow(isDark).withValues(alpha: 0.4)),
             ),
             if (readyKey != null && readyKey!.isNotEmpty)
               Positioned(
@@ -121,14 +120,8 @@ class TrackCard extends StatelessWidget {
                                   vertical: 2,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: Colors.black.withValues(alpha: 0.55),
+                                  color: AppColors.shadow(isDark).withValues(alpha: 0.55),
                                   borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(
-                                    color: const Color(
-                                      0xFF4CAF50,
-                                    ).withValues(alpha: 0.6),
-                                    width: 0.6,
-                                  ),
                                 ),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
@@ -136,7 +129,7 @@ class TrackCard extends StatelessWidget {
                                     Icon(
                                       Icons.bolt,
                                       size: r.footerSize - 2,
-                                      color: const Color(0xFF66BB6A),
+                                      color: fg.withValues(alpha: 0.8),
                                     ),
                                     SizedBox(width: 3),
                                     Text(
@@ -144,7 +137,7 @@ class TrackCard extends StatelessWidget {
                                       style: TextStyle(
                                         fontSize: r.footerSize - 3,
                                         fontWeight: FontWeight.w700,
-                                        color: const Color(0xFF81C784),
+                                        color: fg.withValues(alpha: 0.9),
                                       ),
                                     ),
                                   ],
@@ -160,9 +153,9 @@ class TrackCard extends StatelessWidget {
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: [
-                      Colors.white.withValues(alpha: isDark ? 0.05 : 0.0),
+                      fg.withValues(alpha: isDark ? 0.05 : 0.0),
                       Colors.transparent,
-                      Colors.black.withValues(alpha: heavyEffects ? 0.45 : 0.3),
+                      AppColors.shadow(isDark).withValues(alpha: heavyEffects ? 0.45 : 0.3),
                     ],
                     stops: const [0.0, 0.35, 1.0],
                   ),
@@ -179,8 +172,8 @@ class TrackCard extends StatelessWidget {
                   customBorder: const RoundedRectangleBorder(
                     borderRadius: BorderRadius.all(Radius.circular(18)),
                   ),
-                  splashColor: Colors.white.withValues(alpha: 0.14),
-                  highlightColor: Colors.white.withValues(alpha: 0.06),
+                  splashColor: fg.withValues(alpha: 0.14),
+                  highlightColor: fg.withValues(alpha: 0.06),
                 ),
               ),
             ),
@@ -197,14 +190,14 @@ class TrackCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(10),
                         color: coverUrl == null ? fallbackBg : null,
                         border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.15),
+                          color: fg.withValues(alpha: 0.15),
                           width: 0.5,
                         ),
                         boxShadow:
                             heavyEffects
                                 ? [
                                   BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.4),
+                                    color: AppColors.shadow(isDark).withValues(alpha: 0.4),
                                     blurRadius: 12,
                                     offset: const Offset(0, 4),
                                   ),
@@ -241,7 +234,7 @@ class TrackCard extends StatelessWidget {
                             fontSize: r.subtitleSize * ts,
                             fontWeight: FontWeight.w700,
                             letterSpacing: -0.3,
-                            color: textColor,
+                            color: fg,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -266,7 +259,8 @@ class TrackCard extends StatelessWidget {
                       loc,
                       iSize,
                       mutedColor,
-                      textColor,
+                      fg,
+                      isDark,
                     ),
                 ],
               ),
@@ -283,7 +277,8 @@ class TrackCard extends StatelessWidget {
     AppLocalizations loc,
     double iSize,
     Color mutedColor,
-    Color textColor,
+    Color fg,
+    bool isDark,
   ) {
     Widget cluster = Row(
       mainAxisSize: MainAxisSize.min,
@@ -307,7 +302,7 @@ class TrackCard extends StatelessWidget {
               child: Icon(
                 isLiked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
                 key: ValueKey(isLiked),
-                color: isLiked ? Colors.red : Colors.white.withValues(alpha: 0.6),
+                color: isLiked ? AppColors.error : fg.withValues(alpha: 0.6),
                 size: iSize,
               ),
             ),
@@ -322,7 +317,7 @@ class TrackCard extends StatelessWidget {
             child: Icon(
               _trackDownloadIcon,
               size: iSize,
-              color: _trackDownloadIconColor,
+              color: _trackDownloadIconColor(isDark),
             ),
           ),
         ),
@@ -353,7 +348,7 @@ class TrackCard extends StatelessWidget {
             child: Icon(
               Icons.more_horiz,
               size: iSize + 2,
-              color: textColor.withValues(alpha: 0.5),
+              color: fg.withValues(alpha: 0.5),
             ),
           ),
         ),
@@ -361,7 +356,7 @@ class TrackCard extends StatelessWidget {
           SizedBox(width: r.spacingXS),
           Semantics(
             button: true,
-            label: 'Edit tags',
+            label: loc.setup.editTags,
             child: GestureDetector(
               onTap: onEditTags,
               child: Icon(Icons.edit, size: iSize, color: mutedColor),
@@ -383,7 +378,7 @@ class TrackCard extends StatelessWidget {
       case DownloadState.interrupted:
         return loc.setup.downloadTooltipRetry;
       case DownloadState.inProgress:
-        return 'Pausar descarga';
+        return loc.setup.downloadTooltipPause;
       case DownloadState.completed:
         return loc.setup.downloadTooltipDelete;
       default:
@@ -419,17 +414,17 @@ class TrackCard extends StatelessWidget {
     }
   }
 
-  Color get _trackDownloadIconColor {
+  Color _trackDownloadIconColor(bool isDark) {
     final ds = showDeleteAnimation ? DownloadState.completed : downloadState;
     switch (ds) {
       case DownloadState.inProgress:
-        return const Color(0xFFFF9800); // orange
+        return AppColors.warning;
       case DownloadState.completed:
-        return Colors.red.withValues(alpha: 0.6);
+        return AppColors.error.withValues(alpha: 0.6);
       case DownloadState.interrupted:
-        return const Color(0xFFE53935);
+        return AppColors.error;
       default:
-        return Colors.white.withValues(alpha: 0.5);
+        return AppColors.onSurface(isDark).withValues(alpha: 0.5);
     }
   }
 

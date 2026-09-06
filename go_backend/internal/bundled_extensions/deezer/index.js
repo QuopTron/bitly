@@ -131,6 +131,20 @@ function postJSON(url, body, headers) {
   return JSON.parse(response.body);
 }
 
+// Gateway park: signed-session traffic flows through the shared zarz.moe
+// gateway. When that origin is down, Cloudflare answers 522/524/502/504 —
+// retrying every attempt per track is pointless. After the first gateway
+// error, park signed calls for 2 minutes (fail fast with a clear reason); a
+// healthy response clears the park immediately.
+var _deezerGatewayDownUntil = 0;
+
+function isGatewayError(message) {
+  var text = String(message || "");
+  return /HTTP 52[24]|HTTP 50[24]|bootstrap returned|origin connection|gateway/i.test(
+    text,
+  );
+}
+
 function signedJSON(method, path, body, headers) {
   if (
     typeof session === "undefined" ||
@@ -139,15 +153,26 @@ function signedJSON(method, path, body, headers) {
   ) {
     throw new Error("signed session runtime is not available");
   }
+  if (Date.now() < _deezerGatewayDownUntil) {
+    throw new Error("signed-session gateway down (522); retrying later");
+  }
   var response = session.signedFetch(method, path, body || null, headers || {});
   if (!response || response.error || response.needsVerification) {
     var error =
       response && response.error ? response.error : "signed request failed";
+    if (isGatewayError(error)) {
+      _deezerGatewayDownUntil = Date.now() + 2 * 60 * 1000;
+    }
     throw new Error(error);
   }
   if (response.statusCode !== 200) {
-    throw new Error("HTTP " + response.statusCode + " for " + path);
+    var statusError = "HTTP " + response.statusCode + " for " + path;
+    if (isGatewayError(statusError)) {
+      _deezerGatewayDownUntil = Date.now() + 2 * 60 * 1000;
+    }
+    throw new Error(statusError);
   }
+  _deezerGatewayDownUntil = 0;
   return JSON.parse(response.body || "{}");
 }
 
@@ -1634,6 +1659,10 @@ function decryptDownloadedFile(encryptedPath, outputPath, trackID, onProgress) {
     if (bytesRead <= 0) break;
 
     var chunkB64 = readResult.data || "";
+    // zarz serves the stream with every THIRD 2048-byte chunk (0, 3, 6, ...)
+    // Blowfish-CBC encrypted and the rest already in plaintext. Decrypting
+    // exactly those chunks (verified by full ffmpeg decode of the result)
+    // reproduces the original audio; decrypting any other chunk corrupts it.
     if (bytesRead === CONFIG.chunkSize && chunkIndex % 3 === 0) {
       var decryptResult = utils.decryptBlockCipher(chunkB64, {
         algorithm: "blowfish",
@@ -1849,6 +1878,52 @@ function completeGrant() {
   return session.completeGrant();
 }
 
+function getHomeFeed() {
+  try {
+    var sections = [];
+
+    // Deezer public API (no auth needed for charts)
+    try {
+      var chartRes = http.get("https://api.deezer.com/chart/0?limit=20", {
+        Accept: "application/json",
+        "User-Agent": "Bitly/1.0",
+      });
+      if (chartRes && chartRes.body) {
+        var chart =
+          typeof chartRes.body === "string"
+            ? JSON.parse(chartRes.body)
+            : chartRes.body;
+        if (chart && chart.tracks && chart.tracks.data) {
+          var items = chart.tracks.data.map(function (t) {
+            return {
+              id: String(t.id),
+              type: "track",
+              name: t.title || "",
+              artists: t.artist ? t.artist.name : "",
+              duration_ms: (t.duration || 0) * 1000,
+              album_id: t.album ? String(t.album.id) : "",
+              album_name: t.album ? t.album.title : "",
+              cover_url:
+                t.album && t.album.cover_medium ? t.album.cover_medium : "",
+            };
+          });
+          if (items.length > 0) {
+            sections.push({ title: "Deezer Top Charts", items: items });
+          }
+        }
+      }
+    } catch (e) {
+      log.warn("[DeezerExt] getHomeFeed chart failed:", String(e));
+    }
+
+    log.info("[DeezerExt] getHomeFeed returning", sections.length, "sections");
+    return { success: true, sections: sections };
+  } catch (e) {
+    log.warn("[DeezerExt] getHomeFeed failed:", String(e));
+    return { success: false, error: String(e), sections: [] };
+  }
+}
+
 registerExtension({
   initialize: initialize,
   cleanup: cleanup,
@@ -1863,8 +1938,41 @@ registerExtension({
   searchTracks: searchTracks,
   checkAvailability: checkAvailability,
   download: download,
-  getDownloadUrl: function () {
-    return null;
+  getHomeFeed: getHomeFeed,
+  // Real streaming URL (mirrors the standalone getDownloadUrl): resolves the
+  // Zarz download descriptor and returns the audio URL ONLY when it needs no
+  // client-side decryption (lossy tiers such as MP3/OGG come back directly
+  // downloadable, so the player streams them in ~1-2s after a verified
+  // session). Lossless/encrypted descriptors return null so the caller falls
+  // back to the download() pipeline, which applies the per-chunk Blowfish
+  // decryption. Transport errors (e.g. HTTP 429) are re-thrown so the Go
+  // circuit breaker engages and stops hammering a rate-limited gateway.
+  getDownloadUrl: function (trackID) {
+    try {
+      var resolvedTrackID = parseTrackID(trackID);
+      if (!resolvedTrackID) return null;
+      var descriptor = resolveDownloadDescriptor(resolvedTrackID);
+      if (!descriptor || descriptor.success !== true) return null;
+      var downloadURL = resolveDescriptorDownloadURL(descriptor);
+      if (!downloadURL) return null;
+      // Encrypted (client-decryption) streams cannot be played directly by
+      // the media player — skip so the rescue chain can try the next provider.
+      if (descriptorRequiresClientDecryption(descriptor)) {
+        log.info(
+          "[DeezerExt] getDownloadUrl: stream requires client decryption, skipping",
+        );
+        return null;
+      }
+      log.info(
+        "[DeezerExt] getDownloadUrl resolved stream for",
+        resolvedTrackID,
+      );
+      return downloadURL;
+    } catch (e) {
+      var _errMsg = e && e.message ? e.message : String(e);
+      log.warn("[DeezerExt] getDownloadUrl failed:", _errMsg);
+      throw new Error(_errMsg);
+    }
   },
 });
 

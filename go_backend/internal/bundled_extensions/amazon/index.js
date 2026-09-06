@@ -3682,10 +3682,31 @@ function resolveAmazonURLFromSpotifyPage(spotifyID) {
   return linksByPlatform.amazonMusic.url;
 }
 
+// Only track/album URLs are usable as a downloadable item. Artist and
+// storefront pages share the same B[0-9A-Z]{9} ASIN shape, so without this
+// check an artist ASIN slips through as "track available" and the download
+// then fails (or hits the wrong entity).
+function isTrackOrAlbumURL(url) {
+  if (typeof url !== "string") return false;
+  var u = url.toLowerCase();
+  if (u.indexOf("/artists/") !== -1) return false;
+  if (u.indexOf("/artist/") !== -1) return false;
+  if (u.indexOf("/storefront") !== -1) return false;
+  if (u.indexOf("/label/") !== -1) return false;
+  // Valid deep links point at a track, album, or dp page (or carry the
+  // trackAsin/albumAsin query param used on album pages).
+  if (u.indexOf("/tracks/") !== -1) return true;
+  if (u.indexOf("/albums/") !== -1) return true;
+  if (u.indexOf("/dp/") !== -1) return true;
+  if (u.indexOf("trackasin=") !== -1) return true;
+  if (u.indexOf("albumasin=") !== -1) return true;
+  return false;
+}
+
 function extractAmazonURLFromSongLink(data) {
   if (data && data.linksByPlatform && data.linksByPlatform.amazonMusic) {
     var u = data.linksByPlatform.amazonMusic.url;
-    if (u) return u;
+    if (u && isTrackOrAlbumURL(u)) return u;
   }
   return null;
 }
@@ -3752,7 +3773,11 @@ function extractAmazonFromJsonLD(obj) {
   if (obj.sameAs && Array.isArray(obj.sameAs)) {
     for (var j = 0; j < obj.sameAs.length; j++) {
       var link = obj.sameAs[j];
-      if (typeof link === "string" && link.indexOf("music.amazon.") !== -1) {
+      if (
+        typeof link === "string" &&
+        link.indexOf("music.amazon.") !== -1 &&
+        isTrackOrAlbumURL(link)
+      ) {
         return link;
       }
     }
@@ -3879,6 +3904,20 @@ function normalizeAudioCodec(codec) {
 // Performs an HMAC-signed request via the host runtime. The session secret
 // lives in Go and is scoped by namespace, base URL, app version, and platform,
 // so each provider must complete its own verification challenge.
+// Gateway park: signed-session traffic flows through the shared zarz.moe
+// gateway. When that origin is down, Cloudflare answers 522/524/502/504 —
+// retrying every attempt per track is pointless. After the first gateway
+// error, park signed calls for 2 minutes (fail fast with a clear reason); a
+// healthy response clears the park immediately.
+var _amazonGatewayDownUntil = 0;
+
+function isGatewayError(message) {
+  var text = String(message || "");
+  return /HTTP 52[24]|HTTP 50[24]|bootstrap returned|origin connection|gateway/i.test(
+    text,
+  );
+}
+
 function signedJSON(method, path, body, headers) {
   if (
     typeof session === "undefined" ||
@@ -3886,6 +3925,9 @@ function signedJSON(method, path, body, headers) {
     typeof session.signedFetch !== "function"
   ) {
     throw new Error("signed session runtime is not available");
+  }
+  if (Date.now() < _amazonGatewayDownUntil) {
+    throw new Error("signed-session gateway down (522); retrying later");
   }
   var response = session.signedFetch(method, path, body || null, headers || {});
   if (response && response.needsVerification) {
@@ -3895,13 +3937,21 @@ function signedJSON(method, path, body, headers) {
     throw verr;
   }
   if (!response || response.error) {
-    throw new Error(
-      response && response.error ? response.error : "signed request failed",
-    );
+    var error =
+      response && response.error ? response.error : "signed request failed";
+    if (isGatewayError(error)) {
+      _amazonGatewayDownUntil = Date.now() + 2 * 60 * 1000;
+    }
+    throw new Error(error);
   }
   if (response.statusCode !== 200) {
-    throw new Error("HTTP " + response.statusCode + " for " + path);
+    var statusError = "HTTP " + response.statusCode + " for " + path;
+    if (isGatewayError(statusError)) {
+      _amazonGatewayDownUntil = Date.now() + 2 * 60 * 1000;
+    }
+    throw new Error(statusError);
   }
+  _amazonGatewayDownUntil = 0;
   return JSON.parse(response.body || "null");
 }
 

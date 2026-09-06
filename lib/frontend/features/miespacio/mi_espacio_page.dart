@@ -8,7 +8,6 @@ import '../../../backend/cache/download_cache.dart';
 import '../../l10n/app_localizations.dart';
 import '../../shared/utils/responsive.dart';
 import '../../shared/utils/item_actions.dart';
-import '../../shared/theme/app_colors.dart';
 import '../../../backend/services/like_cubit.dart';
 import '../../../backend/services/download_cubit.dart';
 import '../../../backend/services/queue_cubit.dart';
@@ -400,7 +399,6 @@ class _MiEspacioPageState extends State<MiEspacioPage> {
     final r = Responsive(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final onBg = isDark ? Colors.white : Colors.black;
-    final glowColor = isDark ? AppColors.greenBright : AppColors.greenMedium;
     final loc = AppLocalizations.of(context);
 
     final likeState = context.watch<LikeCubit>().state;
@@ -445,7 +443,7 @@ class _MiEspacioPageState extends State<MiEspacioPage> {
             levelProgress: playerStats?.progress ?? 0.0,
             nextLevel: playerStats?.nextLevel ?? 1,
             onBg: onBg,
-            glowColor: glowColor,
+            glowColor: onBg,
             onThemeChanged: _onThemeChanged,
             onLanguageChanged: _onLanguageChanged,
           ),
@@ -453,7 +451,7 @@ class _MiEspacioPageState extends State<MiEspacioPage> {
 
           // ── Retry interrupted downloads banner ──────────────────
           if (hasRetryableBatches)
-            _retryBanner(context, r, onBg, glowColor, interruptedCount),
+            _retryBanner(context, r, onBg, onBg, interruptedCount),
 
           SizedBox(height: r.spacingS),
           Expanded(
@@ -465,10 +463,10 @@ class _MiEspacioPageState extends State<MiEspacioPage> {
                 final p = await loadOwnPlaylists();
                 if (mounted) setState(() => _playlists = p);
               },
-              color: glowColor,
+              color: onBg,
               child: GlassContainer(
                 borderRadius: 16,
-                borderColor: glowColor.withValues(alpha: 0.15),
+                borderColor: onBg.withValues(alpha: 0.06),
                 bgColor: onBg.withValues(alpha: 0.02),
                 child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -477,7 +475,7 @@ class _MiEspacioPageState extends State<MiEspacioPage> {
                     selectedTab: _selectedTab,
                     onTabChanged: _onTabChanged,
                     onBg: onBg,
-                    glowColor: glowColor,
+                    glowColor: onBg,
                   ),
                   SizedBox(height: r.spacingS),
                   Expanded(

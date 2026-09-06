@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../shared/models/feed_models.dart';
-import '../../../shared/theme/app_colors.dart';
 import '../../../shared/utils/responsive.dart';
 import '../../../shared/utils/item_actions.dart';
 import '../../../shared/constants/source_constants.dart';
@@ -14,6 +13,7 @@ import '../../../shared/widgets/source_accordion.dart';
 import '../bloc/search_bloc.dart';
 import '../bloc/search_event.dart';
 import '../bloc/search_state.dart';
+import '../../../shared/theme/app_colors.dart';
 import 'search_bar_widget.dart';
 import 'search_results.dart';
 
@@ -203,7 +203,7 @@ class _SearchPageState extends State<SearchPage> {
     }
     setState(() => _searching = true);
     final q = value.trim();
-    _debounceTimer = Timer(const Duration(milliseconds: 200), () {
+    _debounceTimer = Timer(const Duration(milliseconds: 150), () {
       if (!mounted) return;
       final filterId = _activeFilterId;
       final type = filterId ?? 'tracks';
@@ -249,8 +249,7 @@ class _SearchPageState extends State<SearchPage> {
   Widget build(BuildContext context) {
     final r = Responsive(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final onBg = isDark ? Colors.white : Colors.black;
-    final glowColor = isDark ? AppColors.greenBright : AppColors.greenMedium;
+    final onBg = AppColors.onSurface(isDark);
 
     return BlocListener<SearchBloc, SearchState>(
       listenWhen: (prev, cur) => prev.loading && !cur.loading,
@@ -264,7 +263,7 @@ class _SearchPageState extends State<SearchPage> {
           Expanded(
             child: GlassContainer(
               borderRadius: 16,
-              borderColor: glowColor.withValues(alpha: 0.15),
+              borderColor: onBg.withValues(alpha: 0.06),
               bgColor: onBg.withValues(alpha: 0.02),
               child: Column(mainAxisSize: MainAxisSize.min, children: [
                 SearchBarWidget(
@@ -279,7 +278,7 @@ class _SearchPageState extends State<SearchPage> {
                     sources: _searchSources(state),
                     selectedSource: _selectedSource,
                     onBg: onBg,
-                    glowColor: glowColor,
+                    glowColor: onBg,
                     onChanged: _onSourceChanged,
                   ),
                 ),

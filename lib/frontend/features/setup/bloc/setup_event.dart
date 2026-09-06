@@ -46,6 +46,15 @@ class SelectMode extends SetupEvent {
   List<Object?> get props => [mode];
 }
 
+class GoogleSignInStatusChanged extends SetupEvent {
+  final bool connected;
+
+  const GoogleSignInStatusChanged(this.connected);
+
+  @override
+  List<Object?> get props => [connected];
+}
+
 class PremiumCodeChanged extends SetupEvent {
   final String code;
 

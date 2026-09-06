@@ -157,14 +157,17 @@ func (s *Sandbox) SignedFetch(method, requestPath, body string, headers map[stri
 	return s.Session.signedFetch(client, cfg, record, method, requestPath, []byte(body), headers)
 }
 
-// signedHTTPClient returns a shared HTTP client for the sandbox.
+// signedHTTPClient returns a shared HTTP client for the sandbox. Its
+// transport is wrapped in the shared host breaker so a dead session gateway
+// (api.zarz.moe 522 storm) fails fast on bootstrap/exchange/refresh instead of
+// waiting out the 30s timeout on every signed request.
 func (s *Sandbox) signedHTTPClient() *http.Client {
 	if s.httpClient == nil {
 		s.httpClient = &http.Client{
 			Timeout: 30_000_000_000,
-			Transport: &http.Transport{
+			Transport: httpclient.NewBreakerTransport(&http.Transport{
 				DialContext: httpclient.NewDoHDialContext(),
-			},
+			}),
 		}
 	}
 	return s.httpClient

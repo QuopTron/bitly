@@ -101,8 +101,8 @@ class GridCard extends StatelessWidget {
     final r = Responsive(context);
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final fallbackBg =
-        isDark ? const Color(0xFF2A2A2A) : const Color(0xFFE0E0E0);
+    final fallbackBg = AppColors.surface(isDark);
+    final fg = AppColors.onSurface(isDark);
     final ts = textScale;
 
     return RepaintBoundary(
@@ -131,14 +131,14 @@ class GridCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: downloadState == DownloadState.completed
-                    ? Colors.white.withValues(alpha: 0.2)
-                    : Colors.white.withValues(alpha: 0.1),
+                    ? fg.withValues(alpha: 0.2)
+                    : AppColors.borderSubtle(isDark),
                 width: downloadState == DownloadState.completed ? 1.0 : 0.6,
               ),
               boxShadow: downloadState == DownloadState.completed
                   ? [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.3),
+                        color: AppColors.shadow(isDark),
                         blurRadius: 12,
                         spreadRadius: 1,
                       ),
@@ -171,7 +171,7 @@ class GridCard extends StatelessWidget {
                 ),
                 // Scrim so foreground stays readable over any artwork.
                 Positioned.fill(
-                  child: Container(color: Colors.black.withValues(alpha: 0.35)),
+                  child: Container(color: AppColors.scrim(isDark).withValues(alpha: 0.35)),
                 ),
                 // Bottom-up gradient so the info block always stays legible.
                 Positioned.fill(
@@ -181,9 +181,9 @@ class GridCard extends StatelessWidget {
                         begin: Alignment.bottomCenter,
                         end: Alignment.topCenter,
                         colors: [
-                          Colors.black.withValues(alpha: 0.95),
-                          Colors.black.withValues(alpha: 0.5),
-                          Colors.black.withValues(alpha: 0.1),
+                          AppColors.scrim(isDark).withValues(alpha: 0.95),
+                          AppColors.scrim(isDark).withValues(alpha: 0.5),
+                          AppColors.scrim(isDark).withValues(alpha: 0.1),
                           Colors.transparent,
                         ],
                         stops: const [0.0, 0.35, 0.7, 1.0],
@@ -212,19 +212,14 @@ class GridCard extends StatelessWidget {
                                 _isArtist ? null : BorderRadius.circular(14),
                             color: coverUrl == null ? fallbackBg : null,
                             border: Border.all(
-                              color:
-                                  isDark
-                                      ? Colors.white.withValues(alpha: 0.2)
-                                      : Colors.black.withValues(alpha: 0.1),
+                              color: AppColors.border(isDark),
                               width: 0.6,
                             ),
                             boxShadow:
                                 heavyEffects
                                     ? [
                                       BoxShadow(
-                                        color: Colors.black.withValues(
-                                          alpha: 0.45,
-                                        ),
+                                        color: AppColors.shadow(isDark).withValues(alpha: 0.45),
                                         blurRadius: 16,
                                         offset: const Offset(0, 6),
                                       ),
@@ -282,8 +277,9 @@ class GridCard extends StatelessWidget {
   }
 
   Widget _infoBlock(BuildContext context, Responsive r, double ts) {
-    const textColor = Colors.white;
-    const mutedColor = Color(0xFFB0B0B0);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = AppColors.onSurface(isDark);
+    final mutedColor = AppColors.onSurfaceMuted(isDark);
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -298,7 +294,7 @@ class GridCard extends StatelessWidget {
             fontWeight: FontWeight.w700,
             letterSpacing: -0.2,
             color: textColor,
-            shadows: const [Shadow(color: Colors.black, blurRadius: 8)],
+            shadows: [Shadow(color: AppColors.shadow(isDark), blurRadius: 8)],
           ),
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
@@ -311,7 +307,7 @@ class GridCard extends StatelessWidget {
             fontSize: (r.footerSize) * ts,
             fontWeight: FontWeight.w400,
             color: mutedColor,
-            shadows: const [Shadow(color: Colors.black, blurRadius: 4)],
+            shadows: [Shadow(color: AppColors.shadow(isDark), blurRadius: 4)],
           ),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
@@ -322,6 +318,8 @@ class GridCard extends StatelessWidget {
 
   Widget _actionRow(BuildContext context, Responsive r) {
     final loc = AppLocalizations.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final fg = AppColors.onSurface(isDark);
     final iconSize = r.footerSize * 1.8;
     Widget row = Wrap(
       alignment: WrapAlignment.center,
@@ -342,7 +340,7 @@ class GridCard extends StatelessWidget {
               child: Icon(
                 isLiked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
                 key: ValueKey(isLiked),
-                color: isLiked ? Colors.red : Colors.white.withValues(alpha: 0.8),
+                color: isLiked ? AppColors.error : fg.withValues(alpha: 0.8),
                 size: iconSize,
               ),
             ),
@@ -366,7 +364,7 @@ class GridCard extends StatelessWidget {
                   child: Icon(
                     _downloadIcon,
                     size: iconSize,
-                    color: _downloadIconColor,
+                    color: _downloadIconColor(isDark),
                   ),
                 ),
               ),
@@ -381,7 +379,7 @@ class GridCard extends StatelessWidget {
               child: Icon(
                 Icons.more_horiz,
                 size: iconSize + 2,
-                color: Colors.white.withValues(alpha: 0.6),
+                color: fg.withValues(alpha: 0.6),
               ),
             ),
           ),
@@ -399,7 +397,7 @@ class GridCard extends StatelessWidget {
       case DownloadState.interrupted:
         return loc.setup.downloadTooltipRetry;
       case DownloadState.inProgress:
-        return 'Pausar descarga';
+        return loc.setup.downloadTooltipPause;
       case DownloadState.completed:
         return loc.setup.downloadTooltipDelete;
       default:
@@ -433,28 +431,30 @@ class GridCard extends StatelessWidget {
     }
   }
 
-  Color get _downloadIconColor {
+  Color _downloadIconColor(bool isDark) {
+    final fg = AppColors.onSurface(isDark);
     switch (downloadState) {
       case DownloadState.inProgress:
-        return const Color(0xFFFF9800); // orange
+        return AppColors.warning;
       case DownloadState.completed:
-        return Colors.red.withValues(alpha: 0.6);
+        return AppColors.error.withValues(alpha: 0.6);
       case DownloadState.interrupted:
-        return const Color(0xFFE53935);
+        return AppColors.error;
       default:
-        return Colors.white.withValues(alpha: 0.6);
+        return fg.withValues(alpha: 0.6);
     }
   }
 
   LinearGradient _placeholderGradient(BuildContext context) {
-    final c = _glowColor(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final c = AppColors.onSurface(isDark);
     return LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
       colors: [
-        c.withValues(alpha: 0.22),
-        c.withValues(alpha: 0.05),
-        const Color(0xFF1A1A1A),
+        c.withValues(alpha: 0.08),
+        c.withValues(alpha: 0.02),
+        AppColors.surface(isDark),
       ],
       stops: const [0.0, 0.5, 1.0],
     );
@@ -462,22 +462,14 @@ class GridCard extends StatelessWidget {
 
   Color _glowColor(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return isDark ? AppColors.greenBright : AppColors.greenMedium;
+    return AppColors.onSurface(isDark);
   }
 
   Widget _placeholderIcon(double size, BuildContext context) {
     final c = _glowColor(context);
     return Container(
       decoration: BoxDecoration(
-        gradient: RadialGradient(
-          center: Alignment.center,
-          colors: [
-            c.withValues(alpha: 0.35),
-            c.withValues(alpha: 0.10),
-            c.withValues(alpha: 0.02),
-          ],
-          stops: const [0.0, 0.5, 1.0],
-        ),
+        color: c.withValues(alpha: 0.05),
       ),
       alignment: Alignment.center,
       child: Container(
@@ -485,14 +477,14 @@ class GridCard extends StatelessWidget {
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           border: Border.all(
-            color: c.withValues(alpha: 0.3),
+            color: c.withValues(alpha: 0.15),
             width: 1.2,
           ),
         ),
         child: Icon(
           _icon,
           size: size * 0.42,
-          color: Colors.white.withValues(alpha: 0.9),
+          color: c.withValues(alpha: 0.9),
         ),
       ),
     );

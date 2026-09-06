@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import '../utils/responsive.dart';
 import '../utils/format_size.dart';
@@ -7,6 +8,7 @@ import '../models/feed_models.dart';
 import '../models/download_settings.dart';
 import '../theme/app_colors.dart';
 import '../../../backend/services/download_cubit.dart';
+import '../../../backend/services/queue_cubit.dart';
 import '../../../backend/cache/settings_cache.dart';
 import '../../../backend/rpc/backend_service.dart';
 import '../utils/download_strategy.dart';
@@ -326,12 +328,15 @@ class _DownloadOptionsSheetState extends State<DownloadOptionsSheet> {
     final onBg = widget.isDark ? Colors.white : Colors.black;
     final glowColor =
         widget.isDark ? AppColors.greenBright : AppColors.greenMedium;
+    final hasTrack = sl<QueueCubit>().state.hasCurrent;
+    final sheetBg = hasTrack
+        ? (widget.isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF5F5F5)).withValues(alpha: 0.70)
+        : (widget.isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF5F5F5));
 
-    return Container(
+    Widget sheet = Container(
       margin: EdgeInsets.only(top: r.spacingXL * 2),
       decoration: BoxDecoration(
-        color:
-            widget.isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF5F5F5),
+        color: sheetBg,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: ClipRRect(
@@ -481,6 +486,16 @@ class _DownloadOptionsSheetState extends State<DownloadOptionsSheet> {
         ),
       ),
     );
+    if (hasTrack) {
+      sheet = ClipRRect(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+          child: sheet,
+        ),
+      );
+    }
+    return sheet;
   }
 }
 

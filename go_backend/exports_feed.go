@@ -131,6 +131,50 @@ func combinedToFeedItem(c provider.CombinedResult, source string) FeedItemGo {
 	}
 }
 
+// hasSignedSession reports whether an extension declares a signed-session
+// config. Only those sources can be mid-bootstrap when the first feed fires,
+// so only they are worth waiting on before retrying a zero-section result.
+func hasSignedSession(name string) bool {
+	if extRegistry == nil || extRegistry.Runtime() == nil {
+		return false
+	}
+	sb := extRegistry.Runtime().Sandbox(name)
+	return sb != nil && sb.SignedSession != nil
+}
+
+// signedSessionSourceReady reports whether an extension's signed session is
+// usable.
+func signedSessionSourceReady(name string) bool {
+	if extRegistry == nil || extRegistry.Runtime() == nil {
+		return false
+	}
+	sb := extRegistry.Runtime().Sandbox(name)
+	if sb == nil || sb.SignedSession == nil {
+		return false
+	}
+	st := sb.SignedSessionStatus()
+	auth, _ := st["authenticated"].(bool)
+	return auth
+}
+
+// waitForSignedSession polls a signed-session source until its session is
+// usable or the deadline passes. Bounded so a gateway that demands a human
+// challenge (never becomes authenticated without the user) can't stall the
+// whole feed — it only waits the full window when a bootstrap is genuinely
+// in flight.
+func waitForSignedSession(name string, maxWait time.Duration) bool {
+	deadline := time.Now().Add(maxWait)
+	for {
+		if signedSessionSourceReady(name) {
+			return true
+		}
+		if time.Now().After(deadline) {
+			return false
+		}
+		time.Sleep(300 * time.Millisecond)
+	}
+}
+
 // =========================================================================
 // GetHomeFeed — returns a JSON array of FeedSectionGo grouped by provider
 // =========================================================================
@@ -222,10 +266,41 @@ func GetHomeFeed(_locale string) string {
 					return
 				}
 				if len(res.sections) == 0 {
-					log.Printf("[feed] %s: no sections returned", name)
-					return
+					// A signed-session source (tidal/qobuz/amazon) can return zero
+					// sections when the first feed fires while provisionSignedSessions
+					// is still bootstrapping its session. Wait briefly for the session
+					// to become usable, then give the feed one more attempt before
+					// giving up — bounded, so an unverified source skips fast.
+					if !hasSignedSession(name) {
+						log.Printf("[feed] %s: no sections returned", name)
+						return
+					}
+					// Signed-session source that returned empty: wait for the session
+					// to become usable (bootstrap may still be in flight) and retry.
+					if !waitForSignedSession(name, 6*time.Second) {
+						log.Printf("[feed] %s: no sections returned (session not usable)", name)
+						return
+					}
+					retryCh := make(chan feedResult, 1)
+					go func() {
+						secs, err := prov.GetHomeFeed()
+						retryCh <- feedResult{sections: secs, err: err}
+					}()
+					select {
+					case res := <-retryCh:
+						if res.err == nil && len(res.sections) > 0 {
+							sections = res.sections
+						} else {
+							log.Printf("[feed] %s: no sections after session warm", name)
+							return
+						}
+					case <-time.After(feedSourceTimeout):
+						log.Printf("[feed] %s: retry timed out after %s", name, feedSourceTimeout)
+						return
+					}
+				} else {
+					sections = res.sections
 				}
-				sections = res.sections
 			case <-time.After(feedSourceTimeout):
 				log.Printf("[feed] %s: timed out after %s", name, feedSourceTimeout)
 				return

@@ -393,7 +393,7 @@ class MiEspacioContent extends StatelessWidget {
             )
             .toList();
     return ListView(
-      padding: EdgeInsets.all(r.spacingS),
+      padding: EdgeInsets.fromLTRB(r.spacingS, r.spacingS, r.spacingS, r.spacingS + r.val(120, 100, 150)),
       children:
           feedItems.asMap().entries.map((entry) {
             final feedItem = entry.value;
@@ -580,7 +580,7 @@ class MiEspacioContent extends StatelessWidget {
             (r.footerSize + 1) * ts * 1.18;
         final cardHeight = cardWidth + infoH;
         return SingleChildScrollView(
-          padding: EdgeInsets.symmetric(horizontal: r.spacingS * 0.5, vertical: r.spacingS),
+          padding: EdgeInsets.fromLTRB(r.spacingS * 0.5, r.spacingS, r.spacingS * 0.5, r.spacingS + r.val(120, 100, 150)),
           child: Column(
             children: [
               if (type == 'playlist')

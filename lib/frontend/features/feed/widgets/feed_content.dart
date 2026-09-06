@@ -14,6 +14,7 @@ import '../../../../injection.dart';
 import '../../../shared/widgets/track_card.dart';
 import '../../../shared/widgets/grid_card.dart';
 import '../../../shared/widgets/download_indicator.dart';
+import '../../../shared/theme/app_colors.dart';
 
 
 class FeedContent extends StatelessWidget {
@@ -87,23 +88,23 @@ class FeedContent extends StatelessWidget {
       ..._buildTrackCards(context, r),
       ..._buildGridCards(context, r),
     ];      final listView = ListView.builder(
-      padding: EdgeInsets.symmetric(vertical: r.spacingXS),
+      padding: EdgeInsets.only(
+        top: r.spacingXS,
+        bottom: r.spacingXS + r.val(120, 100, 150),
+      ),
       itemCount: children.length,
       itemBuilder: (context, index) => children[index],
     );
     if (onRefresh != null) {
+      final isDark = Theme.of(context).brightness == Brightness.dark;
       return RefreshIndicator(
         onRefresh: () async {
           onRefresh!();
           // Give the feed bloc a moment to start loading
           await Future.delayed(const Duration(milliseconds: 300));
         },
-        color: Theme.of(context).brightness == Brightness.dark
-            ? Colors.white.withValues(alpha: 0.7)
-            : Colors.black.withValues(alpha: 0.7),
-        backgroundColor: Theme.of(context).brightness == Brightness.dark
-            ? const Color(0xFF1A1A1A)
-            : const Color(0xFFF0F0F0),
+        color: onBg.withValues(alpha: 0.7),
+        backgroundColor: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
         child: listView,
       );
     }
@@ -248,6 +249,7 @@ class _SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final r = Responsive(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final onBg = AppColors.onSurface(isDark);
 
     return Padding(
       padding: EdgeInsets.only(
@@ -258,19 +260,7 @@ class _SectionHeader extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Container(
-            padding: EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: RadialGradient(
-                colors: [
-                  glowColor.withValues(alpha: isDark ? 0.25 : 0.15),
-                  glowColor.withValues(alpha: 0.02),
-                ],
-              ),
-            ),
-            child: Icon(icon, size: r.footerSize, color: glowColor.withValues(alpha: 0.7)),
-          ),
+          Icon(icon, size: r.footerSize, color: onBg.withValues(alpha: 0.6)),
           SizedBox(width: r.spacingS),
           Text(
             title,
@@ -278,7 +268,7 @@ class _SectionHeader extends StatelessWidget {
               fontSize: r.subtitleSize,
               fontWeight: FontWeight.w700,
               letterSpacing: -0.2,
-              color: Colors.white,
+              color: onBg,
             ),
           ),
           const SizedBox(width: 12),
@@ -287,7 +277,7 @@ class _SectionHeader extends StatelessWidget {
               height: 1,
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [glowColor.withValues(alpha: 0.3), Colors.transparent],
+                  colors: [onBg.withValues(alpha: 0.15), Colors.transparent],
                 ),
               ),
             ),

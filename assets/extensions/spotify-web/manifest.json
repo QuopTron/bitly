@@ -1,8 +1,8 @@
 {
   "name": "spotify-web",
   "displayName": "Spotify Web",
-  "version": "1.9.14",
-  "description": "Fetch Spotify metadata via web API. Supports personalized playlists like Daily Mix, Discover Weekly, and more. Includes Home Feed explore and metadata enrichment via Spotify native ISRC plus Deezer.",
+  "version": "1.10.2",
+  "description": "Spotify metadata provider for SpotiFLAC Mobile with complete native release, disc, catalog ID, credits, and artwork metadata plus guarded genre enrichment.",
   "homepage": "https://github.com/zarzet/spotify-web",
   "type": ["metadata_provider"],
   "minAppVersion": "4.2.3",
@@ -10,7 +10,6 @@
   "capabilities": {
     "homeFeed": true,
     "browseCategories": true,
-    "replacesBuiltInProviders": ["spotify"],
     "shareUrlTemplates": {
       "album": "https://open.spotify.com/album/{id}",
       "artist": "https://open.spotify.com/artist/{id}"

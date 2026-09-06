@@ -288,7 +288,7 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
   Widget build(BuildContext context) {
     final r = Responsive(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final onBg = isDark ? Colors.white : Colors.black;
+    final onBg = AppColors.onSurface(isDark);
     final glowColor = isDark ? AppColors.greenBright : AppColors.greenMedium;
     final loc = AppLocalizations.of(context);
 
@@ -387,7 +387,7 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
     ));
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0A0A0A) : const Color(0xFFF5F5F5),
+      backgroundColor: AppColors.background(isDark),
       body: DetailHeader(
       coverUrl: _resolvedAlbumCover,
       title: album.name,
@@ -465,16 +465,16 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
             margin: EdgeInsets.symmetric(horizontal: r.spacingS),
             padding: EdgeInsets.symmetric(horizontal: r.spacingS, vertical: 6),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.06),
+              color: onBg.withValues(alpha: 0.06),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
               Icon(Icons.cloud_off, size: r.footerSize - 2,
-                color: Colors.white.withValues(alpha: 0.4)),
+                color: onBg.withValues(alpha: 0.4)),
               SizedBox(width: 6),
               Text('${loc.setup.downloaded} ${loc.setup.miSpaceSongs.toLowerCase()}',
                 style: TextStyle(fontSize: r.footerSize - 1,
-                  color: Colors.white.withValues(alpha: 0.4))),
+                  color: onBg.withValues(alpha: 0.4))),
             ]),
           ),
         ...albumFeedItems.map((feedItem) {
@@ -566,17 +566,17 @@ class _CircleActionButtonState extends State<_CircleActionButton>
     final bgAlpha = widget.filled ? 0.22 : 0.08;
     final bgColor = widget.filled
         ? accent.withValues(alpha: bgAlpha)
-        : (isDark ? Colors.white : Colors.black).withValues(alpha: bgAlpha);
+        : AppColors.onSurface(isDark).withValues(alpha: bgAlpha);
 
     // Border: thin glow
     final borderColor = widget.filled
         ? accent.withValues(alpha: 0.5)
-        : (isDark ? Colors.white : Colors.black).withValues(alpha: 0.12);
+        : AppColors.onSurface(isDark).withValues(alpha: 0.12);
 
     // Icon color
     final fgColor = widget.filled
         ? accent
-        : widget.color ?? (isDark ? Colors.white : Colors.black);
+        : widget.color ?? AppColors.onSurface(isDark);
 
     return GestureDetector(
       onTapDown: enabled ? (_) => _scaleCtrl.forward() : null,

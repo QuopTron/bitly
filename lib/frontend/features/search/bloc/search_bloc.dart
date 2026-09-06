@@ -141,11 +141,20 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
   /// negative that makes the FIRST search of a session look dead while the
   /// second works. The retry starts after that congestion has drained, so it
   /// typically returns within the normal 1-3s.
+  ///
+  /// The same false negative happens when the backend DOES answer "done" but
+  /// fast and empty: on the first cold search the source's anonymous session
+  /// (Spotify sp_t cookie, etc.) is fetched on the critical path and can fail
+  /// or time out once, then succeed on the retry once the session is warm.
+  /// So a quick empty answer also triggers one silent re-run (single-source
+  /// only — "Todas" has other providers streaming in, so a fast empty there
+  /// is a genuine no-results).
   Future<void> _attemptSearch(
     PerformSearch event, Emitter<SearchState> emit, {
     required bool allowRetry,
   }) async {
     try {
+      final attemptStarted = DateTime.now();
       var gen = await _backend.searchStreaming(
         query: event.query, source: event.source,
         type: event.type, limit: event.limit,
@@ -175,7 +184,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
       const maxPolls = 160; // ~16s per attempt; the retry covers the rest.
       var backendDone = false;
       for (var i = 0; i < maxPolls; i++) {
-        await Future<void>.delayed(const Duration(milliseconds: 100));
+        await Future<void>.delayed(const Duration(milliseconds: 80));
         if (isClosed) return;
 
         try {
@@ -198,6 +207,25 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
 
           if (poll.done) {
             backendDone = true;
+            final elapsedMs =
+                DateTime.now().difference(attemptStarted).inMilliseconds;
+            final singleSource =
+                event.source.isNotEmpty && event.source != 'all';
+            // Fast empty answer on the first attempt = cold session false
+            // negative (see [_attemptSearch] doc). Re-run once after a beat
+            // so the source's session warm-up lands before the retry.
+            if (poll.items.isEmpty &&
+                allowRetry &&
+                singleSource &&
+                elapsedMs < 3500 &&
+                !isClosed) {
+              _log.i('[search] Primer resultado vacio rapido para '
+                  '${event.source} (${elapsedMs}ms) — reintentando');
+              await Future<void>.delayed(const Duration(milliseconds: 350));
+              if (isClosed) return;
+              await _attemptSearch(event, emit, allowRetry: false);
+              return;
+            }
             await _cacheAndFinalize(event.query, event.source, event.type, event.limit, poll.items, emit);
             return;
           }

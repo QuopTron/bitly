@@ -7,6 +7,7 @@ import 'dart:math';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:http/http.dart' as http;
 import 'package:media_kit/media_kit.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -25,8 +26,34 @@ import 'scrobble_service.dart';
 import 'stream_decrypt.dart';
 import 'verification_service.dart';
 
+/// A resolved stream URL kept in the in-memory/persistent cache.
+class _CachedStream {
+  final String url;
+  final bool withFallback;
+
+  /// URL's own expiry (YouTube URLs carry an exact `expire` param), or null
+  /// for local files / unknown — see [_expiryForUrl].
+  final DateTime? expiresAt;
+
+  const _CachedStream(this.url, this.withFallback, this.expiresAt);
+}
+
+/// Stream URLs whose own lifetime is within this window of expiring are
+/// treated as stale and re-resolved (ArchiveTune uses the same 60s safety
+/// margin) — a URL that dies mid-playback is worse than a cheap re-resolve.
+const _urlExpirySafety = Duration(seconds: 60);
+
+/// Conservative lifetime for direct http(s) streams that carry no explicit
+/// expiry (soundcloud CDN, deezer CDN, ...). YouTube URLs carry their own
+/// exact `expire` param which [_expiryForUrl] parses instead.
+const _defaultStreamTtl = Duration(hours: 6);
+
 class PlayerCubit extends Cubit<AudioPlayerState> {
-  final Player _player = Player();
+  // TEMP-DIAG: debug log level so the listener below can see mpv's open
+  // errors (403 etc.) while diagnosing dead YouTube URLs.
+  final Player _player = Player(
+    configuration: PlayerConfiguration(logLevel: MPVLogLevel.debug),
+  );
   final QueueCubit _queueCubit;
 
   StreamSubscription<Duration>? _posSub;
@@ -36,6 +63,14 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
   StreamSubscription? _errorSub;
   StreamSubscription? _queueSub;
   VoidCallback? _perfSub;
+
+  // ── Crossfade state ────────────────────────────────────────────────
+  // When true, the position listener will fade out near end-of-track and
+  // the completion handler will fade in the next track.
+  static const _crossfadeEnabled = true;
+  static const _crossfadeDuration = Duration(seconds: 3);
+  static const _crossfadeStartBeforeEnd = Duration(seconds: 5);
+  bool _crossfadingOut = false;
 
   /// Map of trackId → actual file path from download history.
   final Map<String, String> _localFiles = {};
@@ -49,14 +84,19 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
   /// Cleaned up after playback completes or on app close.
   final Set<String> _tempStreamFiles = {};
 
-  /// Cache of resolved stream URLs (normalized trackId → (url, withFallback)).
+  /// Cache of resolved stream URLs, keyed by `trackId|quality` so a quality
+  /// change never serves a URL resolved at the wrong tier.
   /// [withFallback] is true when the URL came from the download pipeline (a
   /// produced file on disk, same logic as a real download); false when it is
   /// just a direct http(s) probe from a background preload. Taps reuse only
   /// withFallback results — a preload-only URL is re-resolved WITH the
   /// fallback so playback gets the download-quality copy, and that preloaded
   /// URL becomes the plan B if the download pipeline comes up empty.
-  final Map<String, (String url, bool withFallback)> _streamUrlCache = {};
+  /// [expiresAt] tracks the URL's own lifetime (YouTube URLs carry an exact
+  /// `expire` param): entries within 60s of expiry are treated as stale and
+  /// re-resolved, so a dead URL is never served mid-playback. Local files
+  /// (file://) never expire.
+  final Map<String, _CachedStream> _streamUrlCache = {};
 
   /// Normalized track IDs that are ready to play instantly (stream already
   /// resolved or a local file available). Backs the "ready" indicator shown on
@@ -92,6 +132,15 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
   /// The URI last handed to the player (for diagnostics / broken tracking).
   String? _lastOpenedUri;
 
+  /// Base URL of the in-process Go streaming proxy, started lazily on first
+  /// YouTube playback. YouTube bot-gates some egress IPs: mpv's whole-file
+  /// HTTP request gets 403 while small bounded Range requests (a real client's
+  /// ≤1MB chunks) serve fine. googlevideo URLs are therefore played through
+  /// the local proxy, which fetches upstream in bounded chunks and pipes them
+  /// to mpv. Local files and non-YouTube URLs never go through it.
+  String? _streamProxyBase;
+  Future<String?>? _streamProxyFuture;
+
   /// Stream URLs that already failed to decode (normalized trackId → url),
   /// so a re-resolve can avoid handing the same dead URL back to the player.
   final Map<String, String> _brokenUrlByTrack = {};
@@ -100,6 +149,26 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
   /// so a provider that keeps producing undecodable files ends in an error
   /// state instead of an infinite re-download loop.
   final Map<String, int> _deadFileRetries = {};
+
+  /// Per-track count of open-stall re-resolutions (normalized trackId → count).
+  /// mpv fails dead/expired/403 stream opens without any Dart-visible error,
+  /// so the stall watchdog re-resolves once; this caps the loop.
+  final Map<String, int> _stallRetries = {};
+
+  /// Tracks already recovered from a short/preview stream (normalized trackId)
+  /// — a direct http stream that ended far before the track's real duration
+  /// (a 30s clip served as the full song) triggers ONE automatic re-open via
+  /// the download fallback (which validates full length); a second short
+  /// completion of the same track falls through to normal queue advance.
+  final Set<String> _previewRecoveredTracks = {};
+
+  /// Tracks already recovered from a dead/truncated-stream EOF (normalized
+  /// trackId) — a completion with a parsed duration that arrived with the
+  /// position still ≤10% of it (empty proxy response, silent 403-as-EOF, or
+  /// the proxy pipe breaking after its first chunk) triggers ONE automatic
+  /// re-resolve of the SAME track; a second identical death falls through so
+  /// the queue advances instead of sticking.
+  final Set<String> _deadStreamRecovered = {};
 
   /// True while a switch to a new non-local track is resolving: the previous
   /// audio is paused and the UI shows buffering until the new stream is ready.
@@ -143,26 +212,31 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
   /// wait >60s (RPC timeout). Excess tracks queue up and drain as slots free.
   static const int prefetchSlots = 3;
   int _prefetchUsed = 0;
-  final List<FeedItem> _prefetchQueue = [];
+  final List<(FeedItem, bool)> _prefetchQueue = [];
 
-  void _schedulePrefetch(FeedItem track) {
+  /// Queues a background stream resolution for [track]. Probe preloads only
+  /// resolve direct streams (cheap); a full preload ([withFallback] true) runs
+  /// the whole pipeline so the resolved URL/file is ready when the track is
+  /// actually tapped — used for the single immediate-next queue track.
+  void _schedulePrefetch(FeedItem track, {bool withFallback = false}) {
     if (_prefetchUsed >= prefetchSlots) {
-      _prefetchQueue.add(track);
+      _prefetchQueue.add((track, withFallback));
       return;
     }
     _prefetchUsed++;
-    unawaited(_runPrefetch(track));
+    unawaited(_runPrefetch(track, withFallback: withFallback));
   }
 
-  Future<void> _runPrefetch(FeedItem track) async {
+  Future<void> _runPrefetch(FeedItem track, {bool withFallback = false}) async {
     try {
-      await _resolveStreamUrl(track, isPreload: true);
+      await _resolveStreamUrl(track,
+          isPreload: true, withFallback: withFallback);
     } finally {
       _prefetchUsed--;
       if (_prefetchQueue.isNotEmpty) {
-        final next = _prefetchQueue.removeAt(0);
+        final (nextTrack, nextFull) = _prefetchQueue.removeAt(0);
         _prefetchUsed++;
-        unawaited(_runPrefetch(next));
+        unawaited(_runPrefetch(nextTrack, withFallback: nextFull));
       }
     }
   }
@@ -216,9 +290,9 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
   }
 
   /// Persistent stream URL cache: survives app restarts.
-  /// Key: normalized trackId → (url, timestamp). URLs older than 4 hours
-  /// are discarded (providers expire tokens).
-  static const _persistentCacheKey = 'stream_url_cache_v2';
+  /// Key: `trackId|quality` → (url, expiry). Entries older than 4 hours, or
+  /// whose own URL expiry has passed, are discarded (providers expire tokens).
+  static const _persistentCacheKey = 'stream_url_cache_v3';
   static const _cacheMaxAge = Duration(hours: 4);
   static const _cacheMaxEntries = 50;
 
@@ -229,18 +303,17 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
       if (raw == null || raw.isEmpty) return;
       final map = jsonDecode(raw) as Map<String, dynamic>;
       final now = DateTime.now();
-      var loaded = 0;
       for (final entry in map.entries) {
-        final data = entry.value as Map<String, dynamic>; 
+        final data = entry.value as Map<String, dynamic>;
         final url = data['url'] as String? ?? '';
         final ts = DateTime.tryParse(data['ts'] as String? ?? '');
-        if (url.isNotEmpty && ts != null && now.difference(ts) < _cacheMaxAge) {
-          _streamUrlCache[entry.key] = (url, true);
-          loaded++;
+        final exp = DateTime.tryParse(data['exp'] as String? ?? '');
+        if (url.isNotEmpty &&
+            ts != null &&
+            now.difference(ts) < _cacheMaxAge &&
+            (exp == null || now.add(_urlExpirySafety).isBefore(exp))) {
+          _streamUrlCache[entry.key] = _CachedStream(url, true, exp);
         }
-      }
-      if (loaded > 0) {
-  
       }
     } catch (_) {}
   }
@@ -254,9 +327,13 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
       for (final entry in _streamUrlCache.entries) {
         if (count >= _cacheMaxEntries) break;
         // Only cache http(s) URLs (not local file:// paths)
-        final url = entry.value.$1;
+        final url = entry.value.url;
         if (!url.startsWith('http')) continue;
-        map[entry.key] = {'url': url, 'ts': now.toIso8601String()};
+        map[entry.key] = {
+          'url': url,
+          'ts': now.toIso8601String(),
+          'exp': entry.value.expiresAt?.toIso8601String(),
+        };
         count++;
       }
       await prefs.setString(_persistentCacheKey, jsonEncode(map));
@@ -407,8 +484,64 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
   }
 
   void _initPlayer() {
+    // media_kit >= 1.2 enables `cache-on-disk` by default, which makes mpv try
+    // to create a disk cache file in the OS temp directory. On Android that
+    // directory is not writable, so mpv logs "Failed to create file cache" and
+    // the demuxer never starts — position advances but there is no audio. The
+    // in-memory cache (`cache: yes`) is enough for streaming; our download
+    // pipeline already handles on-disk caching where it matters.
+    try {
+      (_player.platform as dynamic).setProperty('cache-on-disk', 'no');
+    } catch (_) {}
+    // media_kit defaults to `ao=opensles` on Android (API > 25), but OpenSL ES
+    // is broken on several emulators/ROMs ("Configuration error: unknown key"
+    // → position advances with no audible audio). `ao=audiotrack` is mpv's
+    // modern Android audio output (used by mpv-android itself) and works on
+    // both emulators and physical devices.
+    try {
+      (_player.platform as dynamic).setProperty('ao', 'audiotrack');
+    } catch (_) {}
+    // mpv's audiotrack AO negotiates FLOAT sample output by default
+    // ("AO: [audiotrack] ... float"). Several Android emulator audio bridges
+    // (LDPlayer, etc.) only handle PCM16 and render silence (or static) for
+    // float buffers even though the guest mixer shows frames flowing and the
+    // position advances. Regular Android apps (YouTube, games) all deliver
+    // PCM16, which is why they sound fine while we don't. Force 16-bit PCM at
+    // 48kHz — the standard Android AudioTrack format — so emulator bridges
+    // receive samples they can actually render. Negligible quality impact:
+    // mpv resamples with its high-quality resampler and streamed sources are
+    // lossy (AAC/MP3) anyway.
+    try {
+      (_player.platform as dynamic).setProperty('audio-format', 's16');
+    } catch (_) {}
+    try {
+      (_player.platform as dynamic).setProperty('audio-samplerate', '48000');
+    } catch (_) {}
+    // TEMP-DIAG: dump mpv logs to logcat while diagnosing dead YouTube URLs.
+    _player.stream.log.listen((l) {
+      final lvl = l.level.toString();
+      if (lvl.contains('error') || lvl.contains('warn') ||
+          l.prefix == 'ffmpeg' || l.prefix == 'stream' ||
+          l.prefix == 'ao' || l.prefix == 'cplayer' ||
+          l.prefix == 'ad' || l.prefix == 'af') {
+        print('[MPV-DIAG] $lvl ${l.prefix}: ${l.text}');
+      }
+    });
     _posSub = _player.stream.position.listen((pos) {
       if (!isClosed) emit(state.copyWith(position: pos));
+      // Crossfade: when near end-of-track, start fading out volume.
+      if (_crossfadeEnabled && !_crossfadingOut) {
+        final dur = state.duration;
+        if (dur > Duration.zero && dur - pos <= _crossfadeStartBeforeEnd && dur - pos > Duration.zero) {
+          _crossfadingOut = true;
+          _fadeVolume(0, _crossfadeDuration);
+          // Kick off the next track's full resolution NOW so it's ready
+          // to play instantly when the current track completes. Without
+          // this, the resolution starts only AFTER completion — adding
+          // network latency to the crossfade gap.
+          _eagerPreloadNext();
+        }
+      }
     });
     _durSub = _player.stream.duration.listen((dur) {
       if (!isClosed) emit(state.copyWith(duration: dur));
@@ -466,9 +599,10 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
             }
             return;
           }
+          final failedNorm = normalizeTrackId(failed.id);
           _recovering = true;
-          _brokenUrlByTrack[normalizeTrackId(failed.id)] = deadUri;
-          _streamUrlCache.remove(normalizeTrackId(failed.id));
+          _brokenUrlByTrack[failedNorm] = deadUri;
+          _streamUrlCache.remove(_streamCacheKey(failedNorm));
           unawaited(_deleteDeadUriFile(deadUri));
           unawaited(_player.stop());
           unawaited(_openTrack(failed));
@@ -621,15 +755,57 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
 
     // Final supersede check right before touching the player.
     if (gen != _openGeneration) return;
-    _lastOpenedUri = uri;
+    // googlevideo URLs play through the local chunked proxy (YouTube 403s
+    // mpv's whole-file requests on bot-gated networks but serves ≤1MB bounded
+    // ranges fine; the proxy fetches bounded chunks and pipes them to mpv).
+    final String playUri = await _localProxyUrl(uri);
+    final normalizedId = normalizeTrackId(track.id);
+    _lastOpenedUri = playUri;
     _consecutiveErrors = 0;
     // A track that opened (or at least resolved) cleanly resets its dead-file
-    // retry budget, so a later corrupt download gets fresh retries.
-    _deadFileRetries.remove(normalizeTrackId(track.id));
+    // retry budget, so a later corrupt download gets fresh retries. Exception:
+    // when the URI is the SAME file:// path that already failed to decode,
+    // the retry budget is NOT reset — otherwise a corrupt source file that
+    // gets re-downloaded to the same path (stream-cache files use a fixed
+    // {id}.{ext} name) reopens forever: resolve → decode-fail ×3 → delete &
+    // re-resolve → same path → budget wiped → infinite ~30s re-download loop.
+    // Keeping the budget lets the 2-retry cap stop the loop with a visible
+    // error instead of redownloading a dead file forever.
+    if (playUri != _brokenUrlByTrack[normalizedId]) {
+      _deadFileRetries.remove(normalizedId);
+    }
     _recovering = false;
     _switchPending = false;
     try {
-      await _player.open(Media(uri));
+      final ytHeaders = _headersForUrl(playUri);
+      // mpv only actually sends these headers when http-header-fields is set
+      // on the mpv instance itself. media_kit's Media(httpHeaders:) applies
+      // them from an on_load hook that looks the URL up in an internal
+      // HashMap keyed by mpv's reported `path` vs normalizeURI() — with long
+      // signed googlevideo URLs that lookup silently misses, mpv sends its
+      // default User-Agent, and YouTube answers 403 Forbidden (curl with the
+      // client UA gets 206 on the SAME url). Set the property directly so
+      // every mpv request (playlist probe, ranges, redirects) carries the
+      // right headers. Header values here never contain commas, so the
+      // comma-joined list form parses correctly.
+      try {
+        await (_player.platform as dynamic).setProperty(
+          'http-header-fields',
+          ytHeaders == null || ytHeaders.isEmpty
+              ? ''
+              : ytHeaders.entries
+                  .map((e) => '${e.key}: ${e.value}')
+                  .join(','),
+        );
+      } catch (_) {}
+      await _player.open(Media(playUri, httpHeaders: ytHeaders));
+      // The main player is audio-only (video canvas uses its own Player in
+      // the full player). Tell mpv to skip any video track so streams that
+      // only expose video+audio (e.g. YouTube itag=18 fallback) decode their
+      // audio instead of stalling on H.264 video decode with no video output.
+      try {
+        await (_player.platform as dynamic).setProperty('vid', 'no');
+      } catch (_) {}
       await _player.play();
       // Re-apply the user's playback speed: media_kit resets rate to 1.0 on
       // every open().
@@ -638,11 +814,59 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
           await _player.setRate(state.rate);
         } catch (_) {}
       }
+      // Soft fade-in on every new track (transición suave): starts the audio
+      // at 0 and ramps to the user's volume in ~110ms so track changes and
+      // manual skips don't click/pop or jump abruptly. Fire-and-forget so it
+      // never adds latency to the open; a user volume change mid-ramp simply
+      // gets re-applied on the last step.
+      unawaited(_fadeInAudio());
       // Only a completion that happens with no newer open in flight can be a
       // real end-of-file; anything else belongs to media this open disposed.
       _openedAtGeneration = _openGeneration;
     } catch (e) {
       // debug removed
+    }
+
+    // Open-stall watchdog: mpv fails dead/expired/403 stream opens with NO
+    // Dart-visible error (the media never produces a stream-error event, it
+    // just never starts). Without this the player sits at 00:00 forever with
+    // the dead URL winning every re-tap. A few seconds after a network open,
+    // if the position has not advanced past zero, treat the URL as dead:
+    // invalidate it and re-resolve the SAME track once through the download
+    // pipeline (which validates formats before returning). Local files are
+    // exempt (decode failures surface through the error listener instead) and
+    // a newer open supersedes the check.
+    if (playUri.startsWith('http://') || playUri.startsWith('https://')) {
+      final watchGen = _openGeneration;
+      final watchKey = normalizedId;
+      Future<void> checkStall() async {
+        if (isClosed) return;
+        if (gen != _openGeneration || watchGen != _openedAtGeneration) return;
+        // Only when the position truly never started moving. A slow network
+        // buffer that eventually delivers must not be cut off.
+        if (_player.state.position >= const Duration(seconds: 1)) return;
+        // Give buffering/preview-probes a little more time before judging.
+        await Future<void>.delayed(const Duration(seconds: 6));
+        if (isClosed) return;
+        if (gen != _openGeneration || watchGen != _openedAtGeneration) return;
+        if (_player.state.position >= const Duration(seconds: 1)) return;
+        if (_player.state.playing == false) return;
+        final retries = _stallRetries[watchKey] ?? 0;
+        if (retries >= 1) return; // one fresh attempt is enough
+        _stallRetries[watchKey] = retries + 1;
+        debugPrint(
+          '[Player] Open stalled at 00:00 for $watchKey — re-resolving fresh.',
+        );
+        _streamUrlCache.remove(_streamCacheKey(watchKey));
+        _brokenUrlByTrack[watchKey] = playUri;
+        // Let the re-open pass the "same track" guard and reach resolution.
+        _forceReopen = true;
+        unawaited(_openTrack(track));
+      }
+
+      unawaited(
+        Future<void>.delayed(const Duration(seconds: 8), checkStall),
+      );
     }
 
     unawaited(_preloadNeighbors());
@@ -933,6 +1157,8 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
     'youtube',
     'soundcloud',
     'deezer',
+    'qobuz-web',
+    'tidal-web',
     'ytmusic',
   };
 
@@ -944,15 +1170,212 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
     return url.startsWith('http://') || url.startsWith('https://');
   }
 
+  /// Cache key for a track's stream URL: includes the current audio quality so
+  /// a quality change never serves a URL resolved at a different tier.
+  String _streamCacheKey(String normId) => '$normId|$_audioQuality';
+
+  /// Lazily starts the in-process Go streaming proxy (idempotent) and returns
+  /// its base URL, or null when unavailable (desktop without the Go server,
+  /// RPC failure). One RPC, cached forever.
+  Future<String?> _ensureStreamProxy() {
+    if (_streamProxyBase != null) {
+      return Future.value(_streamProxyBase);
+    }
+    return _streamProxyFuture ??= _startStreamProxy();
+  }
+
+  Future<String?> _startStreamProxy() async {
+    try {
+      final res = await sl<BackendService>().rpcCall(
+        'startStreamingServer',
+        {'port': 0},
+        const Duration(seconds: 10),
+      );
+      final data = _decodeRpcResult(res);
+      final base = (data?['url'] ?? '').toString();
+      if (base.isNotEmpty && base.startsWith('http://')) {
+        _streamProxyBase = base;
+        return base;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  /// Rewrites a resolved stream URL for playback: googlevideo URLs go through
+  /// the local chunked streaming proxy (see [_ensureStreamProxy]); everything
+  /// else (local files, soundcloud/deezer CDN URLs, ...) plays directly.
+  Future<String> _localProxyUrl(String url) async {
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      return url;
+    }
+    try {
+      final host = Uri.parse(url).host.toLowerCase();
+      if (!host.endsWith('googlevideo.com')) return url;
+    } catch (_) {
+      return url;
+    }
+    final base = await _ensureStreamProxy();
+    if (base == null || base.isEmpty) return url;
+    return '$base/stream?url=${Uri.encodeComponent(url)}';
+  }
+
+  /// Builds the HTTP headers mpv must send when opening [url] — mirrors what
+  /// ArchiveTune's OkHttp interceptor does for YouTube media. googlevideo URLs
+  /// carry a `c` (client) param; YouTube 403s requests whose User-Agent does
+  /// not match that client, and web/TV clients additionally require an
+  /// Origin/Referer. Without these headers every resolved YouTube stream dies
+  /// at open with "HTTP error 403 Forbidden" and the player sits at 00:00.
+  Map<String, String>? _headersForUrl(String url) {
+    try {
+      final uri = Uri.parse(url);
+      final host = uri.host.toLowerCase();
+      final isYoutube = host.endsWith('googlevideo.com') ||
+          host.endsWith('youtube.com') ||
+          host.endsWith('ytimg.com');
+      if (!isYoutube) return null;
+
+      final c = (uri.queryParameters['c'] ?? '').toUpperCase();
+      String ua;
+      String? origin;
+      String? referer;
+      if (c.startsWith('ANDROID_VR') || c == 'ANDROID') {
+        ua = c.startsWith('ANDROID_VR')
+            ? 'com.google.android.apps.youtube.vr.oculus/1.65.10 '
+                  '(Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip'
+            : 'com.google.android.youtube/20.02.30 (Linux; U; Android 11) '
+                  'gzip';
+      } else if (c == 'IOS' || c.startsWith('IOS')) {
+        ua = 'com.google.ios.youtube/21.02.3 (iPhone16,2; U; CPU iOS 18_3_2 '
+              'like Mac OS X)';
+      } else if (c == 'MWEB') {
+        ua = 'Mozilla/5.0 (iPad; CPU OS 16_7_10 like Mac OS X) '
+              'AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/'
+              '15E148 Safari/604.1,gzip(gfe)';
+        origin = 'https://www.youtube.com';
+        referer = 'https://www.youtube.com/';
+      } else if (c == 'WEB_REMIX') {
+        ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+              '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+        origin = 'https://music.youtube.com';
+        referer = 'https://music.youtube.com/';
+      } else if (c == 'WEB_EMBEDDED_PLAYER' || c == 'WEB') {
+        ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+              '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+        origin = 'https://www.youtube.com';
+        referer = 'https://www.youtube.com/';
+      } else if (c == 'TVHTML5' || c == 'TVHTML5_SIMPLY_EMBEDDED_PLAYER') {
+        ua = c == 'TVHTML5'
+            ? 'Mozilla/5.0 (SMART-TV; LINUX; Tizen 6.5) AppleWebKit/537.36 '
+                  '(KHTML, like Gecko) Version/6.5 TV Safari/537.36'
+            : 'Mozilla/5.0 (ChromiumStylePlatform) Cobalt/Version';
+        origin = 'https://www.youtube.com';
+        referer = 'https://www.youtube.com/tv';
+      } else {
+        ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+              '(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
+      }
+      return {
+        'User-Agent': ua,
+        if (origin != null) 'Origin': origin,
+        if (referer != null) 'Referer': referer,
+      };
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Cheap liveness probe for a cached http(s) stream URL. Cached URLs can
+  /// silently rot and mpv reports those open failures WITHOUT any Dart-visible
+  /// error — the player just sits at 00:00.
   ///
+  /// GATE DETECTION: YouTube bot-gates some formats (itag=251 audio-only opus)
+  /// on flagged egress IPs by serving only the FIRST ~1MB of the file and
+  /// answering 403 for any range at/past that point — while the same video's
+  /// itag=18 serves the whole file. A probe near the start (bytes=0-0) sees
+  /// 206 on those gated URLs and reports them alive, so the dead format wins
+  /// cache reuse and playback stalls mid-file. Probing the LAST byte of the
+  /// file (clen-1 from the URL) distinguishes them: gated URLs answer 403,
+  /// healthy files answer 206. 416 = the requested byte is past EOF, which
+  /// only happens when the whole file is under the probed offset (the gate
+  /// never applies) — counted alive. Only consulted on cache reuse for an
+  /// actual tap (never on fresh resolutions — those were already probed by
+  /// the backend) so healthy URLs pay ~one round trip.
+  Future<bool> _streamUrlAlive(String url) async {
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      return true;
+    }
+    try {
+      final m = RegExp(r'[?&]clen=(\d+)').firstMatch(url);
+      final probeEnd = (m != null && int.parse(m.group(1)!) > 0)
+          ? (int.parse(m.group(1)!) - 1).toString()
+          : '3145727'; // ~3MB: past every observed gate when clen is missing
+      final res = await http
+          .get(
+            Uri.parse(url),
+            headers: {
+              // A byte at the end of the file: gated URLs 403 here, healthy
+              // ones 206 (a short file answers 416 — the gate never applies).
+              'Range': 'bytes=$probeEnd-$probeEnd',
+              'User-Agent':
+                  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+                  'AppleWebKit/537.36 (KHTML, like Gecko) '
+                  'Chrome/131.0.0.0 Safari/537.36',
+            },
+          )
+          .timeout(const Duration(seconds: 4));
+      final code = res.statusCode;
+      // STRICT: only a confirmed 200/206/416 means the CDN will serve this
+      // URL's full content. A dead URL can surface as 403/404/410 OR as a
+      // network-level failure (timeout/abort/redirect chain) — both must
+      // count as dead, otherwise the dead URL wins and the player freezes at
+      // 00:00 with no error. The cost of a false negative is one
+      // re-resolution (which now probes and falls back to a serving format),
+      // far cheaper than a silent stall.
+      return code == 200 || code == 206 || code == 416;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Computes a stream URL's expiry: local files never expire; YouTube
+  /// googlevideo URLs carry an exact unix-seconds `expire` param; everything
+  /// else gets a conservative default TTL.
+  DateTime? _expiryForUrl(String url) {
+    if (url.startsWith('file://')) return null;
+    final m = RegExp(r'[?&]expire=(\d{10})').firstMatch(url);
+    if (m != null) {
+      return DateTime.fromMillisecondsSinceEpoch(int.parse(m.group(1)!) * 1000);
+    }
+    return DateTime.now().add(_defaultStreamTtl);
+  }
+
+  /// A cached URL within [_urlExpirySafety] of its expiry is stale — re-resolve.
+  bool _streamUrlStale(_CachedStream? cached) {
+    final exp = cached?.expiresAt;
+    if (exp == null) return false;
+    return DateTime.now().add(_urlExpirySafety).isAfter(exp);
+  }
+
+  ///
+  /// [withFallback] lets a background prefetch request the FULL resolution
+  /// pipeline (download fallback included) instead of the cheap direct-stream
+  /// probe. It is used for exactly one track — the immediate next in a
+  /// sequential queue on WiFi — so advancing the queue starts instantly even
+  /// for DRM/preview providers that have no direct stream (Tidal/Amazon/…).
   /// If [track] was already being prefetched (in-flight future), the same
   /// future is awaited so playback serves whatever is already resolved instead
   /// of starting the resolution from scratch.
   Future<String?> _resolveStreamUrl(
     FeedItem track, {
     bool isPreload = false,
+    bool withFallback = false,
   }) async {
-    final key = normalizeTrackId(track.id);
+    final normKey = normalizeTrackId(track.id);
+    final key = _streamCacheKey(normKey);
+    // A full-fallback resolution (real tap OR full preload) may reuse any
+    // cached result that itself came from a fallback-capable resolution. A
+    // plain preload may reuse any cached URL.
+    final wantsFallback = !isPreload || withFallback;
     final cached = _streamUrlCache[key];
     // A preload may reuse any cached URL. A real tap reuses a cached result
     // when it came from the download pipeline (file://, withFallback) OR when
@@ -961,38 +1384,58 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
     // never returned, so re-resolving would just re-hit every provider and
     // re-wait). A stream that already failed to decode forces re-resolution.
     if (cached != null &&
+        !_streamUrlStale(cached) &&
         (isPreload ||
-            cached.$2 ||
-            (_canReusePreloadDirectStream(track, cached.$1) &&
-                _brokenUrlByTrack[key] != cached.$1))) {
-      return cached.$1;
+            cached.withFallback ||
+            (_canReusePreloadDirectStream(track, cached.url) &&
+                _brokenUrlByTrack[normKey] != cached.url))) {
+      // A REAL tap about to reuse a cached URL must make sure the URL still
+      // serves. Cached URLs rot silently (YouTube 403s one format while
+      // others serve, DRM endpoints expire) and mpv fails those opens with no
+      // Dart-visible error — the player would sit at 00:00 forever with the
+      // dead URL winning every re-tap. Probe first; when dead, drop the cache
+      // entry and fall through to a fresh resolution (which runs the backend's
+      // client/format probe chain and picks a serving format). Preloads skip
+      // the probe (no user waiting); playback starts after the download
+      // pipeline validates anyway.
+      if (isPreload || await _streamUrlAlive(cached.url)) {
+        return cached.url;
+      }
+      debugPrint(
+        '[Player] Cached stream dead (${cached.url.length > 120 ? cached.url.substring(0, 120) : cached.url}) — re-resolving $normKey',
+      );
+      _streamUrlCache.remove(key);
+      _brokenUrlByTrack[normKey] = cached.url;
     }
     final inFlight = _streamFutures[key];
     if (inFlight != null) {
-      // A preload (no download fallback) is in flight but the user is now
-      // actually playing this track — start a fresh resolution WITH the
-      // fallback so playback still works.
-      if (!isPreload && inFlight.$2) {
+      // A probe-only resolution (no download fallback) is in flight but the
+      // caller wants the full pipeline (real tap OR full preload) — start a
+      // fresh resolution WITH the fallback instead of awaiting the probe.
+      if (wantsFallback && !inFlight.$2) {
         _streamFutures.remove(key);
       } else {
         return inFlight.$1;
       }
     }
 
-    final future = _resolveStreamUrlInner(track, isPreload: isPreload);
-    _streamFutures[key] = (future, isPreload);
+    final future =
+        _resolveStreamUrlInner(track, isPreload: isPreload, withFallback: withFallback);
+    _streamFutures[key] = (future, wantsFallback);
     try {
       final url = await future;
       if (url != null && url.isNotEmpty) {
-        // Taps resolve through the download pipeline (withFallback=true);
-        // background preloads only probe direct streams (withFallback=false).
-        // Never let a late-finishing preload downgrade a better entry that a
-        // tap already stored (both can be in flight for the same track).
+        // Taps and full preloads resolve through the download pipeline
+        // (withFallback=true); background probe preloads only probe direct
+        // streams (withFallback=false). Never let a late-finishing preload
+        // downgrade a better entry that a tap already stored (both can be in
+        // flight for the same track).
         final current = _streamUrlCache[key];
-        if (current == null || !isPreload || !current.$2) {
-          _streamUrlCache[key] = (url, !isPreload);
+        if (current == null || !isPreload || !current.withFallback) {
+          _streamUrlCache[key] =
+              _CachedStream(url, wantsFallback, _expiryForUrl(url));
         }
-        _markReady(key);
+        _markReady(normKey);
         // Persist to disk cache (fire-and-forget)
         unawaited(_savePersistentStreamCache());
         return url;
@@ -1000,8 +1443,8 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
       // A real tap that could not produce a download-quality copy still has
       // the preload's direct stream URL as plan B — better than silence.
       // Skip it if that probe URL already failed to decode on a prior open.
-      if (!isPreload && cached != null && !cached.$2) {
-        if (_brokenUrlByTrack[key] != cached.$1) return cached.$1;
+      if (!isPreload && cached != null && !cached.withFallback) {
+        if (_brokenUrlByTrack[normKey] != cached.url) return cached.url;
       }
       return url;
     } finally {
@@ -1017,6 +1460,7 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
   Future<String?> _resolveStreamUrlInner(
     FeedItem track, {
     bool isPreload = false,
+    bool withFallback = false,
   }) async {
     final name = track.name.trim();
     if (name.isEmpty) return null;
@@ -1037,9 +1481,10 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
         'deezerId': track.deezerId ?? '',
         'tidalId': track.tidalId ?? '',
         'qobuzId': track.qobuzId ?? '',
-        // Background prefetches skip the download fallback (no full audio
-        // downloads in the background); real taps allow it.
-        'allowFallback': !isPreload,
+        // Background probe preloads skip the download fallback (no full audio
+        // downloads in the background); real taps and the one-track full
+        // preload (immediate next on WiFi) allow it.
+        'allowFallback': !isPreload || withFallback,
         // A fallback tap can legitimately download a full FLAC (30s-90s on
         // slow networks) after walking several providers, so give the RPC a
         // comfortable window instead of the 60s defensive default.
@@ -1109,9 +1554,13 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
   /// so the first track the user taps plays instantly. Fire-and-forget, capped
   /// to [limit] tracks, honoring the preload profile and skipping any track
   /// already local or already cached/in-flight.
-  void precacheContext(List<FeedItem> tracks, {int? limit}) {
+  void precacheContext(List<FeedItem> tracks, {int? limit}) async {
     final profile = sl<ValueNotifier<PerformanceProfile>>().value;
     if (!profile.preloadEnabled) return;
+    // Skip feed preload on mobile data to save bandwidth — the user hasn't
+    // tapped anything yet, so this is purely speculative. Only preload on
+    // WiFi/ethernet where data is unlimited.
+    if (!await _isWifiNetwork()) return;
     // Bound by the device profile: a 4GB phone (medium) preloads 2 tracks, a
     // desktop-class device (high) 4. Screens pass a higher cap only when they
     // know their content is stable (album/playlist once loaded); unbounded
@@ -1124,7 +1573,7 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
       if (added >= cap) break;
       if (track.type != 'track') continue;
       if (track.name.trim().isEmpty) continue;
-      final key = normalizeTrackId(track.id);
+      final key = _streamCacheKey(normalizeTrackId(track.id));
       if (_streamUrlCache.containsKey(key)) continue;
       if (_resolveLocalUri(track) != null) continue;
       _schedulePrefetch(track);
@@ -1149,35 +1598,88 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
       // Shuffle: next/previous pick RANDOM tracks, so preloading sequential
       // neighbors is wasted work. Preload a few random candidates instead so
       // whichever random track actually plays next is likely already resolved.
-      var picked = 0;
-      var guard = 0;
-      while (picked < n && guard < qState.tracks.length * 4) {
-        guard++;
-        final track = qState.tracks[Random().nextInt(qState.tracks.length)];
-        if (normalizeTrackId(track.id) == currentKey) continue;
-        if (toPreload.add(track)) picked++;
+      // Only preload on WiFi to save mobile data — speculative shuffles are
+      // low priority.
+      if (await _isWifiNetwork()) {
+        var picked = 0;
+        var guard = 0;
+        while (picked < n && guard < qState.tracks.length * 4) {
+          guard++;
+          final track = qState.tracks[Random().nextInt(qState.tracks.length)];
+          if (normalizeTrackId(track.id) == currentKey) continue;
+          if (toPreload.add(track)) picked++;
+        }
       }
     } else {
       // Sequential: preload the upcoming and previous tracks in queue order.
-      for (int i = 1; i <= n; i++) {
-        final idx = qState.currentIndex + i;
-        if (idx >= qState.tracks.length) break;
-        toPreload.add(qState.tracks[idx]);
-      }
-      for (int i = 1; i <= n; i++) {
-        final idx = qState.currentIndex - i;
-        if (idx < 0) break;
-        toPreload.add(qState.tracks[idx]);
+      // Only preload on WiFi — the immediate next track is handled separately
+      // with withFallback:true for crossfade (runs on any network).
+      if (await _isWifiNetwork()) {
+        for (int i = 1; i <= n; i++) {
+          final idx = qState.currentIndex + i;
+          if (idx >= qState.tracks.length) break;
+          toPreload.add(qState.tracks[idx]);
+        }
+        for (int i = 1; i <= n; i++) {
+          final idx = qState.currentIndex - i;
+          if (idx < 0) break;
+          toPreload.add(qState.tracks[idx]);
+        }
       }
     }
 
     for (final track in toPreload) {
-      final key = normalizeTrackId(track.id);
-      if (key == currentKey) continue;
-      if (_streamUrlCache.containsKey(key)) continue;
+      final normId = normalizeTrackId(track.id);
+      if (normId == currentKey) continue;
+      if (_streamUrlCache.containsKey(_streamCacheKey(normId))) continue;
       if (_resolveLocalUri(track) != null) continue;
       _schedulePrefetch(track);
     }
+
+    // Full preload of the immediate next track: sequential listening will play
+    // it next with near-certainty, so resolve it through the WHOLE pipeline
+    // (download fallback included) — when the user hits next, it is already
+    // downloaded/resolved and starts instantly, even for DRM/preview providers
+    // that have no direct stream. Runs on ANY network (not just WiFi) because
+    // the silence gap between tracks is the #1 UX complaint. The probe loop
+    // above runs first: if the cheap probe already produced a usable direct
+    // stream, this full resolution just reuses it and no download happens.
+    if (!qState.shuffle && qState.tracks.isNotEmpty) {
+      final nextIdx = qState.currentIndex + 1;
+      if (nextIdx < qState.tracks.length) {
+        final next = qState.tracks[nextIdx];
+        final normId = normalizeTrackId(next.id);
+        if (normId != currentKey && _resolveLocalUri(next) == null) {
+          final cachedNext = _streamUrlCache[_streamCacheKey(normId)];
+          if (cachedNext == null ||
+              !cachedNext.withFallback ||
+              _streamUrlStale(cachedNext)) {
+            _schedulePrefetch(next, withFallback: true);
+          }
+        }
+      }
+    }
+  }
+
+  /// Called when the crossfade starts fading out. Immediately kicks off a
+  /// full resolution (with download fallback) for the next track so it's
+  /// ready to play the instant the current track completes. Unlike the
+  /// regular preload which may defer to WiFi, this runs on any network
+  /// because the crossfade is already happening — a few KB/s of resolution
+  /// traffic is worth eliminating the silence gap.
+  void _eagerPreloadNext() {
+    final qState = _queueCubit.state;
+    if (!qState.hasCurrent || qState.shuffle) return;
+    final nextIdx = qState.currentIndex + 1;
+    if (nextIdx >= qState.tracks.length) return;
+    final next = qState.tracks[nextIdx];
+    final normId = normalizeTrackId(next.id);
+    final currentKey = normalizeTrackId(qState.current!.id);
+    if (normId == currentKey) return;
+    if (_resolveLocalUri(next) != null) return; // already local
+    final cached = _streamUrlCache[_streamCacheKey(normId)];
+    if (cached != null && cached.withFallback && !_streamUrlStale(cached)) return; // already resolved
+    _schedulePrefetch(next, withFallback: true);
   }
 
   /// Resolves a local video file path for [track], or null if not found.
@@ -1364,8 +1866,26 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
     return null;
   }
 
+  /// Smoothly transitions volume from [from] to [to] over [duration].
+  Future<void> _fadeVolume(double to, Duration duration) async {
+    if (isClosed) return;
+    const steps = 20;
+    final stepMs = duration.inMilliseconds ~/ steps;
+    final currentVol = state.volume;
+    for (var i = 1; i <= steps; i++) {
+      if (isClosed) return;
+      final v = currentVol + (to - currentVol) * (i / steps);
+      _player.setVolume(v.clamp(0, 100));
+      emit(state.copyWith(volume: v.clamp(0, 100)));
+      await Future.delayed(Duration(milliseconds: stepMs));
+    }
+  }
+
   Future<void> _onTrackCompleted() async {
     if (isClosed) return;
+
+    // Reset crossfade state for the next track.
+    _crossfadingOut = false;
 
     // A `completed` event that arrived after a newer open started belongs to
     // the media that open disposed (or a stale race), not to a real end of
@@ -1381,12 +1901,73 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
     // cannot get stuck, and opens with missing duration must not skip to next.
     final durMs = state.duration.inMilliseconds;
     final posMs = state.position.inMilliseconds;
-    if (durMs <= 0 || posMs < durMs - 1500) {
+    final completedTrack = _queueCubit.state.current;
+    final fromHttp = _lastOpenedUri?.startsWith('http://') == true ||
+        _lastOpenedUri?.startsWith('https://') == true;
+
+    // ── Guard dead/truncated-stream EOF ─────────────────────────────────
+    // A completion with a REAL parsed duration (>0) but that died before
+    // delivering meaningful audio means the media was dead — e.g. the local
+    // streaming proxy served an empty/dead response for an expired URL, or a
+    // 403 became a silent EOF in mpv, or the proxy pipe broke after the first
+    // chunk so the stream "completed" after only ~10% of its duration. This is
+    // NOT an end of file: leaving it here puts the player in a phantom
+    // paused/playing limbo on the dead URL (the "se pausa sola y no reproduce
+    // nada" bug) that only clears when a background download happens to finish
+    // — which can take 30s+ of silence. Re-resolve the SAME track once through
+    // the download pipeline (which validates the result) instead. If the
+    // re-resolved track dies the same way, it is genuinely unplayable right
+    // now — fall through and advance past it.
+    final deadStreamEof =
+        completedTrack != null && fromHttp && durMs > 0 && posMs <= durMs * 0.10;
+    if (deadStreamEof) {
+      final normId = normalizeTrackId(completedTrack.id);
+      if (_deadStreamRecovered.add(normId)) {
+        debugPrint(
+          '[Player] Dead-stream EOF (pos=$posMs, dur=$durMs) for $normId — '
+          're-resolving via download fallback.',
+        );
+        _streamUrlCache.remove(_streamCacheKey(normId));
+        _streamFutures.remove(_streamCacheKey(normId));
+        _brokenUrlByTrack[normId] = _lastOpenedUri ?? '';
+        unawaited(_openTrack(completedTrack));
+        return;
+      }
+    } else if (durMs <= 0 || posMs < durMs - 1500) {
       return;
     }
 
+    // ── Guard anti-preview ───────────────────────────────────────────────
+    // A direct http stream that ends FAR short of the track's real duration is
+    // almost certainly a preview/clip served by the source (entitlement or a
+    // mirror returning 30s). Advancing the queue on that fake completion would
+    // silently skip the real song — instead, re-open the SAME track once via
+    // the download fallback, which validates full length before accepting a
+    // file. Only applies to real EOFs of http streams whose track metadata has
+    // a known duration; local produced files never trigger it.
+    final expectedMs = completedTrack?.durationMs ?? 0;
+    final playedMs = state.duration.inMilliseconds;
+    if (completedTrack != null &&
+        fromHttp &&
+        expectedMs >= 60000 &&
+        playedMs > 0 &&
+        playedMs <= expectedMs * 0.55) {
+      final normId = normalizeTrackId(completedTrack.id);
+      if (_previewRecoveredTracks.add(normId)) {
+        debugPrint('[Player] Short stream for $normId: played $playedMs ms of '
+            'expected $expectedMs ms — re-resolving via download fallback.');
+        // Forget the cached direct URL (and any in-flight resolution) so the
+        // re-open goes through the download pipeline, which rejects
+        // preview-length sources.
+        _streamUrlCache.remove(_streamCacheKey(normId));
+        _streamFutures.remove(_streamCacheKey(normId));
+        _brokenUrlByTrack[normId] = _lastOpenedUri!;
+        unawaited(_openTrack(completedTrack));
+        return; // do NOT advance the queue on the clip's fake completion
+      }
+    }
+
     // Registrar play en el historial local (Drift) antes de avanzar la cola.
-    final completedTrack = _queueCubit.state.current;
     if (completedTrack != null && _playbackCache != null) {
       final trackId = normalizeTrackId(completedTrack.id);
       final durMs = state.duration.inMilliseconds;
@@ -1417,8 +1998,7 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
       }
     }
 
-    final completedTrackId = _normalizeCurrentId();
-    if (completedTrackId != null) {
+    final completedTrackId = _normalizeCurrentId();      if (completedTrackId != null) {
       if (_streamedTrackIds.remove(completedTrackId)) {
         unawaited(_cleanupStreamCache(completedTrackId));
       }
@@ -1429,6 +2009,11 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
     // mark it so _listenQueue reopens instead of skipping the same track.
     _forceReopen = true;
     final hadNext = _queueCubit.next();
+
+    // Crossfade: fade in the volume for the next track.
+    if (_crossfadeEnabled) {
+      _fadeVolume(state.volume, _crossfadeDuration);
+    }
     // Si la cola terminó (no hay más tracks) y hay internet, intentar autoplay
     // con tracks similares (modo radio).
     if (!hadNext && _queueCubit.state.tracks.isNotEmpty) {
@@ -1630,8 +2215,36 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
   void previous() => _queueCubit.previous();
 
   void setVolume(double vol) {
-    _player.setVolume(vol.clamp(0.0, 1.0));
-    emit(state.copyWith(volume: vol.clamp(0.0, 1.0)));
+    // App state keeps volume in 0.0–1.0, but media_kit's setVolume forwards
+    // the value straight to mpv's `volume` property, which is 0–100 (default
+    // 100). Without the ×100 the app was playing at ~1% volume — technically
+    // "playing" (position advances, mixer active) but essentially inaudible.
+    final v = vol.clamp(0.0, 1.0);
+    _player.setVolume(v * 100);
+    emit(state.copyWith(volume: v));
+  }
+
+  /// Soft fade-in used right after every [_player.open]: ramps from silence to
+  /// the user's volume over ~110ms. Kept tiny on purpose — long crossfades over
+  /// the local↔stream switching logic risk audible gaps and added start
+  /// latency. If this ever needs to become a true overlap crossfade, it needs
+  /// a second Player + its own queue-sync (device-tested); see Fase-4 notes.
+  Future<void> _fadeInAudio() async {
+    final target = state.volume.clamp(0.0, 1.0);
+    if (target <= 0.001) return;
+    const steps = 8;
+    // Convert the 0–1 fade target to media_kit/mpv's 0–100 volume scale,
+    // otherwise the fade ends at mpv volume=1 (1%) and playback is inaudible.
+    final target100 = target * 100;
+    try {
+      for (var i = 1; i <= steps; i++) {
+        await _player.setVolume(target100 * i / steps);
+        await Future<void>.delayed(const Duration(milliseconds: 14));
+      }
+      await _player.setVolume(target100);
+    } catch (_) {
+      // Never let a cosmetic fade fail playback.
+    }
   }
 
   void setRate(double rate) {

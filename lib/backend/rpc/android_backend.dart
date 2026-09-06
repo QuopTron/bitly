@@ -70,12 +70,29 @@ class AndroidBackend extends BackendService
       if (!_initialized) {
         final dir = await getApplicationDocumentsDirectory();
         final ytDlpPath = '${dir.path}/yt-dlp';
-        await _channel.invokeMethod('initGoBackend', {'app_data_dir': dir.path, 'ytdlp_path': ytDlpPath});
+        // Timeouts on every init call so a slow cold start (loading the Go
+        // runtime + all extension JS engines) can never hang the splash
+        // forever — and so the splash's auto-retry can proceed if a transient
+        // first attempt fails.
+        // The native side waits up to 120s for the actual Go init (loading the
+        // runtime + all extension JS engines), so the Dart timeout must be at
+        // least that long — otherwise the first cold-start attempt gives up
+        // while Go is still initializing and every splash retry restarts the
+        // wait instead of converging on the in-flight init.
+        await _channel
+            .invokeMethod('initGoBackend', {'app_data_dir': dir.path, 'ytdlp_path': ytDlpPath})
+            .timeout(const Duration(seconds: 125));
         PremiumService().setGithubToken(githubToken);
         final extDir = '${dir.path}/extensions';
         await _ensureExtensions(extDir);
-        await _channel.invokeMethod('initExtensionSystem', {'extensions_dir': extDir, 'data_dir': '${dir.path}/ext_data'});
-        try { await _channel.invokeMethod('loadExtensionsFromDir', {'dir_path': extDir}); } catch (_) {}
+        await _channel
+            .invokeMethod('initExtensionSystem', {'extensions_dir': extDir, 'data_dir': '${dir.path}/ext_data'})
+            .timeout(const Duration(seconds: 30));
+        try {
+          await _channel
+              .invokeMethod('loadExtensionsFromDir', {'dir_path': extDir})
+              .timeout(const Duration(seconds: 30));
+        } catch (_) {}
 
         // Sync saved config to Go's in-memory config
         try {

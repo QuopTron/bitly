@@ -180,6 +180,20 @@ func dispatchRPC(method string, params map[string]interface{}) (interface{}, str
 		return backend.SetExtensionSettings(p()), ""
 	case "reinitializeExtension":
 		return backend.ReinitializeExtension(p()), ""
+	case "invokeExtensionAction":
+		return backend.InvokeExtensionAction(p()), ""
+
+	// ── YouTube OAuth ───────────────────────────────────────
+	case "startYoutubeOauth":
+		return backend.StartYoutubeOauth(p()), ""
+	case "pollYoutubeOauth":
+		return backend.PollYoutubeOauth(p()), ""
+	case "exchangeYoutubeOauth":
+		return backend.ExchangeYoutubeOauth(p()), ""
+	case "refreshYoutubeOauth":
+		return backend.RefreshYoutubeOauth(p()), ""
+	case "stopYoutubeOauth":
+		return backend.StopYoutubeOauth(p()), ""
 
 	// ── Signed Session ──────────────────────────────────────
 	case "getPendingVerificationUrl":
@@ -196,6 +210,10 @@ func dispatchRPC(method string, params map[string]interface{}) (interface{}, str
 		return backend.ClearSignedSession(pGet("extension_id")), ""
 	case "setSignedSessionCallbackUrl":
 		return backend.SetSignedSessionCallbackURL(pGet("url")), ""
+	case "provisionSignedSessions":
+		return backend.ProvisionSignedSessions(p()), ""
+	case "keepAliveSignedSessions":
+		return backend.KeepAliveSignedSessions(p()), ""
 
 	// ── Premium ─────────────────────────────────────────────
 	case "getPremiumStatus":

@@ -51,6 +51,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
   bool _precachedTracks = false;
 
   Future<void> _exportPlaylist(PlaylistDetail detail, bool isDark) async {
+    final loc = AppLocalizations.of(context);
     final result = await PlaylistExportService.exportPlaylist(
       name: detail.name,
       tracks: detail.tracks,
@@ -65,15 +66,15 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
+          content: Text(
           PlaylistExportService.formatExportSummary(result),
-          style: TextStyle(color: isDark ? Colors.white : Colors.black),
+          style: TextStyle(color: AppColors.onSurface(isDark)),
         ),
         backgroundColor: isDark ? const Color(0xFF2A2A3E) : const Color(0xFFE8E8F0),
         duration: const Duration(seconds: 4),
         action: result.success && outputDir != null
             ? SnackBarAction(
-                label: 'Abrir carpeta',
+                label: loc.setup.ok,
                 textColor: isDark ? Colors.white70 : Colors.black87,
                 onPressed: () => OpenFilex.open(outputDir),
               )
@@ -318,24 +319,24 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
 
     if (_loading) {
       return Scaffold(
-        backgroundColor: isDark ? const Color(0xFF0A0A0A) : const Color(0xFFF5F5F5),
+        backgroundColor: AppColors.background(isDark),
         body: const DetailSkeleton(),
       );
     }
     if (_detail == null) {
       return Scaffold(
-        backgroundColor: isDark ? const Color(0xFF0A0A0A) : const Color(0xFFF5F5F5),
+        backgroundColor: AppColors.background(isDark),
         body: Center(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Text(_error ? loc.setup.miSpaceEmptyPlaylists : loc.setup.miSpaceEmptyPlaylists,
-              style: TextStyle(color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.4))),
+            Text(_error ? loc.setup.feedError : loc.setup.miSpaceEmptyPlaylists,
+              style: TextStyle(color: AppColors.onSurface(isDark).withValues(alpha: 0.4))),
             if (_error)
               TextButton.icon(
                 onPressed: _load,
                 icon: Icon(Icons.refresh, size: 18,
-                  color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.6)),
+                  color: AppColors.onSurface(isDark).withValues(alpha: 0.6)),
                 label: Text(loc.setup.retry,
-                  style: TextStyle(color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.6))),
+                  style: TextStyle(color: AppColors.onSurface(isDark).withValues(alpha: 0.6))),
               ),
           ]),
         ),
@@ -406,7 +407,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
     ));
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0A0A0A) : const Color(0xFFF5F5F5),
+      backgroundColor: AppColors.background(isDark),
       body: DetailHeader(
         coverUrl: _resolvedCover,
         title: detail.name,
@@ -491,13 +492,13 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
                 color: Colors.white.withValues(alpha: 0.06),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
+              child:               Row(mainAxisSize: MainAxisSize.min, children: [
                 Icon(Icons.cloud_off, size: r.footerSize - 2,
-                  color: Colors.white.withValues(alpha: 0.4)),
+                  color: AppColors.onSurface(isDark).withValues(alpha: 0.4)),
                 SizedBox(width: 6),
                 Text('${loc.setup.downloaded} ${loc.setup.miSpaceSongs.toLowerCase()}',
                   style: TextStyle(fontSize: r.footerSize - 1,
-                    color: Colors.white.withValues(alpha: 0.4))),
+                    color: AppColors.onSurface(isDark).withValues(alpha: 0.4))),
               ]),
             ),
           ...playlistFeedItems.map((feedItem) {
@@ -584,15 +585,15 @@ class _GlassActionButtonState extends State<_GlassActionButton>
     final bgAlpha = widget.filled ? 0.22 : 0.08;
     final bgColor = widget.filled
         ? accent.withValues(alpha: bgAlpha)
-        : (isDark ? Colors.white : Colors.black).withValues(alpha: bgAlpha);
+        : AppColors.onSurface(isDark).withValues(alpha: bgAlpha);
 
     final borderColor = widget.filled
         ? accent.withValues(alpha: 0.5)
-        : (isDark ? Colors.white : Colors.black).withValues(alpha: 0.12);
+        : AppColors.onSurface(isDark).withValues(alpha: 0.12);
 
     final fgColor = widget.filled
         ? accent
-        : widget.color ?? (isDark ? Colors.white : Colors.black);
+        : widget.color ?? AppColors.onSurface(isDark);
 
     return GestureDetector(
       onTapDown: enabled ? (_) => _scaleCtrl.forward() : null,

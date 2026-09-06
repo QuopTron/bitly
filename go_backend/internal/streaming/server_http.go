@@ -2,13 +2,16 @@ package streaming
 
 import (
 	"fmt"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
 )
 
-// StartServer starts an HTTP server on the given port that proxies audio streams.
-// Only for desktop use. Returns the server address.
+// StartServer starts an HTTP server on loopback that proxies audio streams,
+// using an ephemeral port so app restarts / multiple instances never collide
+// (the port is read back from the bound listener and returned in the URL).
+// Returns the server base URL, e.g. http://127.0.0.1:41237.
 func (s *Streamer) StartServer(port int) (string, error) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/stream", func(w http.ResponseWriter, r *http.Request) {
@@ -17,7 +20,13 @@ func (s *Streamer) StartServer(port int) (string, error) {
 			http.Error(w, "missing url", http.StatusBadRequest)
 			return
 		}
-		if err := s.StreamURL(w, r, audioURL); err != nil {
+		// StreamURL writes its status/headers as soon as the FIRST upstream
+		// chunk succeeds; an error returned AFTER that must not trigger a
+		// second WriteHeader here ("superfluous response.WriteHeader call")
+		// — appending an error body to an already-started audio response is
+		// what produced corrupt "EOF with no data" streams for mpv.
+		wr := &headerGuard{ResponseWriter: w}
+		if err := s.StreamURL(wr, r, audioURL); err != nil && !wr.wroteHeader {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 	})
@@ -26,17 +35,42 @@ func (s *Streamer) StartServer(port int) (string, error) {
 		w.Write([]byte(`{"status":"ok"}`))
 	})
 
-	addr := fmt.Sprintf(":%d", port)
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return "", err
+	}
+	realPort := ln.Addr().(*net.TCPAddr).Port
 	s.server = &http.Server{
-		Addr:    addr,
+		Addr:    ln.Addr().String(),
 		Handler: mux,
 	}
 
 	go func() {
-		s.server.ListenAndServe()
+		_ = s.server.Serve(ln)
 	}()
 
-	return fmt.Sprintf("http://localhost%s", addr), nil
+	return fmt.Sprintf("http://127.0.0.1:%d", realPort), nil
+}
+
+// headerGuard wraps a ResponseWriter and records whether the response already
+// started, so the /stream handler can tell a pre-header failure (safe to answer
+// with a real error status) from a mid-stream failure (headers + bytes already
+// sent — the connection must just be dropped, never double-written).
+type headerGuard struct {
+	http.ResponseWriter
+	wroteHeader bool
+}
+
+func (g *headerGuard) WriteHeader(code int) {
+	if !g.wroteHeader {
+		g.wroteHeader = true
+		g.ResponseWriter.WriteHeader(code)
+	}
+}
+
+func (g *headerGuard) Write(b []byte) (int, error) {
+	g.wroteHeader = true
+	return g.ResponseWriter.Write(b)
 }
 
 // StopServer stops the streaming HTTP server.

@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/dop251/goja"
@@ -95,11 +96,34 @@ func registerCryptoUtils(vm *goja.Runtime) {
 		plaintext := make([]byte, len(ciphertext))
 		mode.CryptBlocks(plaintext, ciphertext)
 
-		// Remove PKCS7 padding
-		if len(plaintext) > 0 {
-			padLen := int(plaintext[len(plaintext)-1])
-			if padLen < len(plaintext) {
-				plaintext = plaintext[:len(plaintext)-padLen]
+		// Strip PKCS7 padding ONLY when the caller requested it. Deezer's
+		// stream encryption passes padding:"none" — every 2048-byte chunk is
+		// an exact multiple of the Blowfish block size, so the plaintext is
+		// the full 2048 bytes and the trailing byte is real audio data, NOT a
+		// pad length. Unconditionally trimming "plaintext[last]" bytes here
+		// chopped 0-255 bytes off every decrypted chunk, corrupting each chunk
+		// boundary (valid header, garbage frames → "Error decoding audio").
+		padding := strings.ToLower(opts["padding"])
+		if padding == "" {
+			padding = "pkcs7" // default to PKCS7 for API-compat callers
+		}
+		if padding == "pkcs7" || padding == "pkcs" {
+			if len(plaintext) > 0 {
+				padLen := int(plaintext[len(plaintext)-1])
+				if padLen > 0 && padLen <= block.BlockSize() && padLen < len(plaintext) {
+					// Validate the padding bytes before trimming (defensive: a
+					// real PKCS7 pad of length n has n copies of n at the end).
+					valid := true
+					for i := len(plaintext) - padLen; i < len(plaintext); i++ {
+						if plaintext[i] != byte(padLen) {
+							valid = false
+							break
+						}
+					}
+					if valid {
+						plaintext = plaintext[:len(plaintext)-padLen]
+					}
+				}
 			}
 		}
 

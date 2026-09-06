@@ -96,6 +96,27 @@ abstract class BackendService {
   /// for the given extension. Returns the auth URL, or empty string if not needed.
   Future<String> triggerExtensionVerification(String extensionId);
 
+  /// Startup provisioning pass: for every zarz v2 source, report status,
+  /// silently refresh a near-expiry session, and silently bootstrap missing
+  /// ones — all in parallel and bounded to a few seconds per source. Sources
+  /// that need a human challenge are only flagged (never auto-opened here).
+  /// Returns {extId: {authenticated, refreshed, needs_verification, expires_at}}.
+  Future<Map<String, dynamic>> provisionSignedSessions();
+
+  /// Background keepalive pass: silently refreshes every still-valid session
+  /// that is close to expiry (no bootstrap, no challenge URLs). Returns the
+  /// same per-source status shape as [provisionSignedSessions].
+  Future<Map<String, dynamic>> keepAliveSignedSessions();
+
+  // ── Extension actions (SpotiFLAC button settings) ──────────────────────
+  /// Runs a side-effect action exported by an extension (e.g. clear cached
+  /// PO tokens, restart session). Returns the decoded JSON result map.
+  Future<Map<String, dynamic>> invokeExtensionAction(
+    String provider,
+    String action, {
+    List<dynamic> args = const [],
+  });
+
   // ── Generic RPC ──────────────────────────────────────────────────────
   /// Execute an arbitrary RPC method on the backend.
   /// Returns the raw result (typically a JSON string or null).

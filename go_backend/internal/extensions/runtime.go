@@ -43,6 +43,7 @@ func (r *Runtime) RunJS(source, extID, extName string, cfg RuntimeConfig, dataDi
 		Store:   NewStorage(dataDir, extID),
 		ID:      extID,
 		DataDir: dataDir,
+		lockCh:  make(chan struct{}, 1),
 	}
 
 	// Register all sandbox APIs

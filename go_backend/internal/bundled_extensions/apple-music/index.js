@@ -3000,6 +3000,80 @@ function findTrackId(trackName, artistName, albumName, durationSec) {
 }
 
 // ============================================
+// HOME FEED (public RSS charts — no session/token required)
+// ============================================
+
+// getHomeFeed returns Apple Music's public Top Songs / Top Albums charts via
+// the RSS marketing tools API. It needs no developer token or media user
+// token, so the feed works for every user. The returned track/album ids are
+// real Apple Music catalog ids (same shape fetchTrack/fetchAlbum resolve), so
+// tapping an item resolves normally through the app's playback pipeline.
+function getHomeFeed() {
+  try {
+    var sections = [];
+    var cc = state.storefront || "us";
+    var rssBase =
+      "https://rss.applemarketingtools.com/api/v2/" +
+      cc +
+      "/music/most-played/25";
+
+    function biggerArtwork(url) {
+      if (!url) return "";
+      // artworkUrl100 -> 600x600, keeps the mzstatic thumb format
+      return url.replace(/100x100bb\.jpg/, "600x600bb.jpg");
+    }
+
+    function rssChart(kind, sectionTitle, type) {
+      try {
+        var res = http.get(rssBase + "/" + kind + ".json", {
+          Accept: "application/json",
+          "User-Agent": "Mozilla/5.0 (compatible; Bitly/1.0)",
+        });
+        if (!res || res.statusCode !== 200 || !res.body) return null;
+        var data =
+          typeof res.body === "string" ? JSON.parse(res.body) : res.body;
+        var results = (data && data.feed && data.feed.results) || [];
+        var items = [];
+        for (var i = 0; i < results.length && items.length < 15; i++) {
+          var r = results[i];
+          if (!r || !r.id) continue;
+          var item = {
+            id: String(r.id),
+            type: type,
+            name: r.name || r.collectionName || "",
+            artists: r.artistName || "",
+            cover_url: biggerArtwork(r.artworkUrl100 || r.artworkUrl60 || ""),
+            release_date: r.releaseDate || "",
+          };
+          // Extract the album id from the song URL
+          // (.../album/{slug}/{albumId}?i={trackId})
+          var url = r.url || "";
+          var m = url.match(/\/album\/[^/]+\/(\d+)(?:\?|$)/);
+          if (m) item.album_id = m[1];
+          items.push(item);
+        }
+        if (items.length === 0) return null;
+        return { title: sectionTitle, items: items };
+      } catch (e) {
+        log.warn("[AppleMusic] RSS " + kind + " failed:", String(e));
+        return null;
+      }
+    }
+
+    var songs = rssChart("songs", "Top Canciones (Apple Music)", "track");
+    if (songs) sections.push(songs);
+    var albums = rssChart("albums", "Top Álbumes (Apple Music)", "album");
+    if (albums) sections.push(albums);
+
+    log.info("[AppleMusic] getHomeFeed returning", sections.length, "sections");
+    return { success: true, sections: sections };
+  } catch (e) {
+    log.warn("[AppleMusic] getHomeFeed failed:", String(e));
+    return { success: false, error: String(e), sections: [] };
+  }
+}
+
+// ============================================
 // REGISTER EXTENSION
 // ============================================
 
@@ -3008,6 +3082,7 @@ registerExtension({
   cleanup: cleanup,
   customSearch: customSearch,
   handleUrl: handleURL,
+  getHomeFeed: getHomeFeed,
   getTrack: getTrack,
   getAlbum: getAlbum,
   getArtist: getArtist,

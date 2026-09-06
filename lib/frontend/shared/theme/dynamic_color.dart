@@ -30,7 +30,7 @@ class DynamicColorWrapper extends StatelessWidget {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
-      colorSchemeSeed: const Color(0xFF1DB954), // Spotify green
+      colorSchemeSeed: const Color(0xFF333333), // Neutral
       scaffoldBackgroundColor: const Color(0xFFF5F5F5),
     );
   }
@@ -39,7 +39,7 @@ class DynamicColorWrapper extends StatelessWidget {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
-      colorSchemeSeed: const Color(0xFF1DB954),
+      colorSchemeSeed: const Color(0xFFE0E0E0), // Neutral
       scaffoldBackgroundColor: const Color(0xFF121212),
     );
   }

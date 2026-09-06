@@ -112,6 +112,13 @@
       "default": "warn",
       "options": ["error", "warn", "info", "debug"],
       "description": "Controls extension logging verbosity. Use debug only while diagnosing YouTube Music issues."
+    },
+    {
+      "key": "clearCachedTokens",
+      "label": "Limpiar caché de tokens (PO / visitor / client)",
+      "type": "button",
+      "action": "clearCachedTokens",
+      "description": "Vacía la caché de PO tokens y datos de sesión de InnerTube. Úsalo si YouTube empieza a devolver 403 / rechazos a mitad de sesión."
     }
   ]
 }

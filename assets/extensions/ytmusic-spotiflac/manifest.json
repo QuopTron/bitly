@@ -1,8 +1,8 @@
 {
   "name": "ytmusic-spotiflac",
   "displayName": "YouTube Music",
-  "version": "2.3.9",
-  "description": "YouTube Music metadata & download provider for SpotiFLAC Mobile. Search tracks, albums, playlists on YouTube Music.",
+  "version": "2.4.1",
+  "description": "YouTube Music metadata and download provider with native album, artist, explicit, release, and song-credit metadata plus validated catalog enrichment.",
   "type": ["metadata_provider", "download_provider"],
   "icon": "icon.jpg",
   "minAppVersion": "4.5.1",
@@ -17,10 +17,13 @@
       "api.zarz.moe",
       "127.0.0.1",
       "localhost",
-      "api.song.link",
-      "odesli.io",
       "api.deezer.com",
-      "yt1d.io"
+      "yt1d.io",
+      "pipedapi.kavin.rocks",
+      "api.piped.yt",
+      "watchapi.whatever.social",
+      "piped-api.lunar.icu",
+      "piped-api.privacy.com.de"
     ],
     "allowHttp": true,
     "storage": true,
@@ -109,6 +112,13 @@
       "default": "warn",
       "options": ["error", "warn", "info", "debug"],
       "description": "Controls extension logging verbosity. Use debug only while diagnosing YouTube Music issues."
+    },
+    {
+      "key": "clearCachedTokens",
+      "label": "Limpiar caché de tokens (PO / visitor / client)",
+      "type": "button",
+      "action": "clearCachedTokens",
+      "description": "Vacía la caché de PO tokens y datos de sesión de InnerTube. Úsalo si YouTube empieza a devolver 403 / rechazos a mitad de sesión."
     }
   ]
 }

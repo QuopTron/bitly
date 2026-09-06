@@ -20,6 +20,25 @@ func marshalJSON(v interface{}) ([]byte, error) {
 
 const signedSessionRefreshSkew = time.Hour
 
+// Signed-session keepalive policy. While the app is in the foreground,
+// Flutter calls KeepAliveSignedSessions on a timer; each source's sandbox
+// silently refreshes its session when it is close to expiring so a still-valid
+// token never dies mid-use (which would otherwise surface VERIFY_REQUIRED on
+// the next stream/search/download). Refresh only happens while the record is
+// usable — an already-expired or missing session is left untouched: the app
+// only asks for a human challenge on an explicit user action.
+const (
+	// A session with less than this much time left is refreshed.
+	signedSessionKeepAliveLead = 5 * time.Minute
+	// Never refresh the same source more often than this (gateway pacing).
+	signedSessionKeepAliveMinInterval = 30 * time.Second
+	// After a failed refresh, wait this long before trying that source again.
+	signedSessionKeepAliveBackoff = 2 * time.Minute
+	// Per-call HTTP timeout for keepalive refreshes (never hold the bridge
+	// thread on a dead endpoint; the shared client defaults to 30s).
+	signedSessionKeepAliveTimeout = 8 * time.Second
+)
+
 // bootstrapSignedSession calls GET /bootstrap?app_version&install_id.
 // It either provisions a session silently or returns a challenge URL.
 func (s *SignedSessionState) bootstrapSignedSession(client *http.Client, cfg SignedSessionConfig, record *signedSessionRecord) (string, error) {
@@ -154,6 +173,41 @@ func (s *SignedSessionState) exchangeSignedSessionGrant(client *http.Client, cfg
 	s.AuthURL = ""
 	s.persistRecord(cfg)
 	return nil
+}
+
+// keepAliveRefresh silently refreshes the session when it is still usable and
+// within [signedSessionKeepAliveLead] of expiry. Paced per source and backed
+// off after failures so a periodic tick never hammers the gateway. Never
+// bootstraps and never returns a challenge URL — a session that needs human
+// verification is reported as-is and left to the explicit-action flows.
+func (s *SignedSessionState) keepAliveRefresh(client *http.Client, cfg SignedSessionConfig, record *signedSessionRecord) (bool, error) {
+	s.keepAliveMu.Lock()
+	defer s.keepAliveMu.Unlock()
+
+	now := time.Now()
+	if !s.keepAliveBackoffUntil.IsZero() && now.Before(s.keepAliveBackoffUntil) {
+		return false, nil // still in failure backoff
+	}
+	if !s.lastKeepAlive.IsZero() && now.Sub(s.lastKeepAlive) < signedSessionKeepAliveMinInterval {
+		return false, nil // still inside the pacing window
+	}
+	s.lastKeepAlive = now
+
+	if record == nil || record.SessionID == "" || record.SessionSecret == "" || !signedSessionRecordIsUsable(record) {
+		return false, nil // nothing usable to refresh — never bootstrap here
+	}
+	expiresAt, ok := parseSignedSessionTime(record.ExpiresAt)
+	if !ok {
+		return false, nil
+	}
+	if time.Until(expiresAt) > signedSessionKeepAliveLead {
+		return false, nil // plenty of life left
+	}
+	if err := s.refreshSignedSession(client, cfg, record); err != nil {
+		s.keepAliveBackoffUntil = time.Now().Add(signedSessionKeepAliveBackoff)
+		return false, err
+	}
+	return true, nil
 }
 
 // refreshSignedSession refreshes the session near expiry.

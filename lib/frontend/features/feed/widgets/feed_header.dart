@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../l10n/app_localizations.dart';
-import '../../../shared/theme/app_colors.dart';
 import '../../../shared/utils/responsive.dart';
 import '../../../shared/widgets/source_accordion.dart';
 import '../bloc/feed_bloc.dart';
@@ -24,7 +23,6 @@ class FeedHeader extends StatelessWidget {
     final loc = AppLocalizations.of(context);
     final r = Responsive(context);
     final state = context.watch<FeedBloc>().state;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final hour = DateTime.now().hour;
     final greeting = hour < 12
         ? loc.setup.feedGoodMorning
@@ -42,23 +40,15 @@ class FeedHeader extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Gradient greeting text
-                ShaderMask(
-                  shaderCallback: (bounds) => LinearGradient(
-                    colors: isDark
-                        ? [Colors.white, AppColors.greenPale]
-                        : [Colors.black, AppColors.greenDeep],
-                  ).createShader(bounds),
-                  child: Text(
-                    greeting,
-                    style: TextStyle(
-                      fontSize: r.titleSize * 1.15,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.5,
-                      color: Colors.white, // masked by shader
-                    ),
-                    overflow: TextOverflow.ellipsis,
+                Text(
+                  greeting,
+                  style: TextStyle(
+                    fontSize: r.titleSize * 1.15,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5,
+                    color: onBg,
                   ),
+                  overflow: TextOverflow.ellipsis,
                 ),
                 if (hasName) ...[
                   SizedBox(height: 2),
@@ -82,7 +72,7 @@ class FeedHeader extends StatelessWidget {
               sources: sources,
               selectedSource: state.selectedSource,
               onBg: onBg,
-              glowColor: glowColor,
+              glowColor: onBg,
               onChanged: (v) => context.read<FeedBloc>().add(FeedSourceChanged(v)),
             ),
           ],

@@ -53,10 +53,6 @@ class _SourceAccordionState extends State<SourceAccordion> {
   }
 
   Widget _button() {
-    // Circular, borderless, icon-only trigger: it shows the icon of the source
-    // currently in use (or the "apps" icon for Todas) with no visible border,
-    // like a floating snackbar. The source NAME ("Todas"/"Deezer"/...) is only
-    // revealed inside the accordion list when it opens.
     return Material(
       key: _buttonKey,
       color: Colors.transparent,
@@ -68,12 +64,7 @@ class _SourceAccordionState extends State<SourceAccordion> {
           height: 38,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            gradient: RadialGradient(
-              colors: [
-                widget.glowColor.withValues(alpha: _isDark ? 0.16 : 0.12),
-                widget.glowColor.withValues(alpha: 0.02),
-              ],
-            ),
+            color: widget.onBg.withValues(alpha: _isDark ? 0.08 : 0.06),
           ),
           child: Center(child: _roundIcon(_currentIcon, size: 19)),
         ),
@@ -167,18 +158,13 @@ class _SourceAccordionState extends State<SourceAccordion> {
   }
 
   Widget _roundIcon(IconData icon, {required double size, Color? tint}) {
-    final c = tint ?? widget.glowColor;
+    final c = tint ?? widget.onBg;
     return Container(
       width: size + 12,
       height: size + 12,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        gradient: RadialGradient(
-          colors: [
-            c.withValues(alpha: 0.3),
-            c.withValues(alpha: 0.08),
-          ],
-        ),
+        color: c.withValues(alpha: 0.08),
       ),
       child: Icon(icon, size: size, color: c.withValues(alpha: 0.95)),
     );
@@ -264,7 +250,7 @@ class _FloatingPanel extends StatelessWidget {
     final selected = selectedSource == row.value;
     return Material(
       color: selected
-          ? glowColor.withValues(alpha: isDark ? 0.16 : 0.2)
+          ? onBg.withValues(alpha: isDark ? 0.1 : 0.08)
           : Colors.transparent,
       child: InkWell(
         onTap: () => onSelect(row.value),
@@ -292,7 +278,7 @@ class _FloatingPanel extends StatelessWidget {
                   selected ? Icons.check_circle : Icons.circle_outlined,
                   size: 17,
                   color: selected
-                      ? glowColor
+                      ? onBg
                       : onBg.withValues(alpha: isDark ? 0.3 : 0.4),
                 ),
               ],
@@ -304,19 +290,13 @@ class _FloatingPanel extends StatelessWidget {
   }
 
   Widget _roundIconSmall(IconData icon) {
-    final c = glowColor;
+    final c = onBg;
     return Container(
       width: 26,
       height: 26,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        gradient: RadialGradient(
-          colors: [
-            c.withValues(alpha: isDark ? 0.3 : 0.25),
-            c.withValues(alpha: 0.06),
-          ],
-        ),
-        border: Border.all(color: c.withValues(alpha: 0.35), width: 0.8),
+        color: c.withValues(alpha: isDark ? 0.1 : 0.08),
       ),
       child: Icon(icon, size: 15, color: c.withValues(alpha: 0.9)),
     );

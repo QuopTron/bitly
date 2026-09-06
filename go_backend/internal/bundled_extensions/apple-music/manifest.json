@@ -8,7 +8,7 @@
   "minAppVersion": "4.2.3",
   "skipMetadataEnrichment": false,
   "capabilities": {
-    "homeFeed": false,
+    "homeFeed": true,
     "browseCategories": false,
     "shareUrlTemplates": {
       "track": "https://music.apple.com/us/song/{id}",

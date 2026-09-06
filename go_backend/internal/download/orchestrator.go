@@ -371,6 +371,15 @@ func (o *Orchestrator) Download(req Request) *Result {
 	var lastErr string
 	var encryptedSeen bool
 	var verificationService string
+	// verificationSeen tracks whether ANY provider hit a signed-session /
+	// Cloudflare challenge during the fallback. Providers run in parallel, so
+	// the last error to arrive (lastErr) may be a generic one from a different
+	// provider — but if some provider HAS the track and only needs its session
+	// verified, that is the most actionable outcome and must win the final
+	// error (errorType=verification_required + service), otherwise the client
+	// shows a generic "no stream" and never opens the verification modal even
+	// though completing it would make the song play.
+	var verificationSeen bool
 	fallbackStart := time.Now()
 
 	// Resolve the track's identity ONCE and share it across every provider: the
@@ -620,6 +629,14 @@ func (o *Orchestrator) Download(req Request) *Result {
 				}
 				if res.Error != "" {
 					lastErr = res.Error
+					// A verification-required failure is the most actionable outcome
+					// (the provider HAS the track, only its signed session needs
+					// refreshing): remember it and don't let a later generic error
+					// from another provider overwrite the signal below.
+					if res.ErrorType == "verification_required" ||
+						classifyVerificationError(res.Error) != "" {
+						verificationSeen = true
+					}
 				}
 				if res.Service != "" {
 					verificationService = res.Service
@@ -670,6 +687,15 @@ func (o *Orchestrator) Download(req Request) *Result {
 	errType := classifyVerificationError(lastErr)
 	if errType == "" && isOutputStorageWriteFailure(lastErr) {
 		errType = "storage_write_failure"
+	}
+	// A provider has the track but needs its signed session / Cloudflare
+	// challenge completed. That is strictly more actionable than "all providers
+	// failed": completing the verification makes the song play. Surface it as
+	// verification_required with the right service so the client opens the
+	// verification modal for THAT provider.
+	if verificationSeen && errType == "" {
+		errType = "verification_required"
+		lastErr = "verificacion requerida en " + verificationService
 	}
 	return &Result{
 		ItemID:    req.ItemID,

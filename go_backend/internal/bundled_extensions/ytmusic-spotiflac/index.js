@@ -4,7 +4,7 @@ const CONFIG = {
   baseBackoffMs: 250,
   cacheTtlMs: 120000,
   thumbnailSize: 512,
-  clientVersion: "1.20240801.01.00",
+  clientVersion: "1.20250101.01.00",
   debugRawJsonHead: 1200,
   maxResults: 12,
   allowlistHosts: [],
@@ -17,6 +17,14 @@ const CONFIG = {
   manualGvsPoToken: "",
   logLevel: "warn",
   poTokenFallbackTtlMs: 6 * 60 * 60 * 1000,
+  // Optional Google OAuth ("Iniciar sesión con YouTube"): an account access
+  // token makes InnerTube treat us as a signed-in client, which sidesteps the
+  // anonymous bot-gate 403s that plague flagged egress IPs. The token is only
+  // ever sent to Google's own endpoints and lives on-device.
+  oauthAccessToken: "",
+  oauthRefreshToken: "",
+  oauthClientId: "",
+  oauthClientSecret: "",
   // InnerTube ANDROID client config
   innerTubeApiKey: "AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w",
   innerTubeClientVersion: "21.02.35",
@@ -25,17 +33,39 @@ const CONFIG = {
   directAudioChunkSize: 1024 * 1024,
 };
 
+// Cooldown for Piped mirror instances: public proxies die and come back, but
+// within a session a mirror that just failed (5xx / no response / no audio
+// streams) will almost certainly fail for the next tracks too. Remember the
+// failure and skip the instance for a while so the per-track fallback chain
+// stops re-walking 5 dead mirrors sequentially (5+ seconds each time).
+var pipedInstanceCooldownMs = 10 * 60 * 1000; // 10 minutes
+var pipedInstanceFailures = {}; // baseUrl -> timestamp when it may be retried
+
+function pipedInstanceCooling(base) {
+  var until = pipedInstanceFailures[base];
+  if (!until) return false;
+  return Date.now() < until;
+}
+
+function pipedInstanceMarkFail(base) {
+  pipedInstanceFailures[base] = Date.now() + pipedInstanceCooldownMs;
+}
+
+function pipedInstanceMarkOk(base) {
+  delete pipedInstanceFailures[base];
+}
+
 const USER_AGENTS = [
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15",
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:121.0) Gecko/20100101 Firefox/121.0",
-  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0",
-  "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1",
-  "Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.144 Mobile Safari/537.36",
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Safari/605.1.15",
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0",
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:133.0) Gecko/20100101 Firefox/133.0",
+  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0",
+  "Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1",
+  "Mozilla/5.0 (Linux; Android 15; SM-S928B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.6778.81 Mobile Safari/537.36",
 ];
 
 function getRandomUserAgent() {
@@ -125,6 +155,76 @@ function poTokenCacheSet(k, token, expiresAt) {
 }
 function poTokenCacheDelete(k) {
   _poTokenCache.delete(k);
+}
+
+// Client health: remembers InnerTube clients that recently failed with a
+// block that applies to EVERY video (client deprecated, "not a bot" sign-in,
+// 403/429 from this IP) so the per-video client chain skips them instead of
+// burning one HTTP POST + latency on each track. Video-specific blocks
+// (age/inappropriate/region) never mark a client — they are handled by
+// isBlockedVideoError in the caller.
+const _clientHealth = new Map(); // name -> { until }
+// Last time an all-clients-blocked resolution was allowed to re-probe (ms).
+var _allClientsProbeAt = 0;
+
+const CLIENT_BLOCK_HARD_MS = 30 * 60 * 1000; // deprecated/account-level: 30 min
+const CLIENT_BLOCK_SOFT_MS = 8 * 60 * 1000; // 4xx / bot-adjacent: 8 min
+const CLIENT_BLOCK_TRANSIENT_MS = 3 * 60 * 1000; // 429/5xx/network: 3 min
+
+function innerTubeClientBlocked(name) {
+  var e = _clientHealth.get(name);
+  if (!e) return false;
+  if (now() >= e.until) {
+    _clientHealth.delete(name);
+    return false;
+  }
+  return true;
+}
+
+function noteInnerTubeClientBlock(name, err) {
+  var msg = String(err || "");
+  var ttl = CLIENT_BLOCK_SOFT_MS;
+  if (
+    /no longer supported in this application or device/i.test(msg) ||
+    /sign in to confirm you.?(re| are) not a bot/i.test(msg) ||
+    /confirm you.?re not a bot/i.test(msg)
+  ) {
+    ttl = CLIENT_BLOCK_HARD_MS;
+  } else if (
+    /HTTP 429|rate_limited|HTTP 5\d\d|HTTP 503/i.test(msg) ||
+    /abort|network|timeout|failed to fetch/i.test(msg)
+  ) {
+    ttl = CLIENT_BLOCK_TRANSIENT_MS;
+  }
+  _clientHealth.set(name, { until: now() + ttl });
+  L(
+    "info",
+    "[InnerTube] client health: " +
+      name +
+      " blocked for " +
+      ttl / 60000 +
+      "m: " +
+      msg.slice(0, 120),
+  );
+}
+
+// clearCachedTokens — exposed as a "button" setting action. Clears the PO-token
+// cache and the generic TTL cache (visitor data, client config, JS solver,
+// enrichment), forcing every InnerTube flow to re-resolve fresh. Use it when
+// YouTube starts rejecting tokens / returning 403s mid-session.
+function clearCachedTokens() {
+  var cleared = {
+    poTokens: _poTokenCache.size,
+    generic: _cache.size,
+    clientHealth: _clientHealth.size,
+    pageInfoSession: _pageInfoSession.size,
+  };
+  _poTokenCache.clear();
+  _cache.clear();
+  _clientHealth.clear();
+  _pageInfoSession.clear();
+  L("info", "clearCachedTokens: cleared", JSON.stringify(cleared));
+  return { ok: true, cleared: cleared };
 }
 
 const _inflight = new Map();
@@ -389,13 +489,13 @@ var INNERTUBE_CLIENTS = [
       context: {
         client: {
           clientName: "MWEB",
-          clientVersion: "2.20260115.01.00",
+          clientVersion: "2.20250101.01.00",
           hl: "en",
           gl: "US",
           timeZone: "UTC",
           utcOffsetMinutes: 0,
           userAgent:
-            "Mozilla/5.0 (iPad; CPU OS 16_7_10 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1,gzip(gfe)",
+            "Mozilla/5.0 (iPad; CPU OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1,gzip(gfe)",
         },
       },
     },
@@ -780,28 +880,105 @@ function extractYouTubePlayerURL(text) {
   return /^https?:\/\//i.test(playerURL) ? playerURL : "";
 }
 
+// Session page-info cache: visitorData + the player base.js URL are NOT
+// video-specific — they identify the browsing session. Consecutive songs must
+// not each fetch the watch page (a per-video fetch 429s under YouTube's burst
+// throttle and, worse, mints a FRESH visitor per video, which looks like a new
+// bot session and triggers the "confirm you're not a bot" blocks on the 2nd+
+// song). One successful fetch is reused for ~10 min across every video.
+const _pageInfoSession = new Map(); // -> { v, until }
+function pageInfoSessionGet() {
+  var e = _pageInfoSession.get("global");
+  if (!e) return null;
+  if (now() >= e.until) {
+    _pageInfoSession.delete("global");
+    return null;
+  }
+  return e.v;
+}
+function pageInfoSessionSet(pageInfo) {
+  _pageInfoSession.set("global", {
+    v: pageInfo,
+    until: now() + 10 * 60 * 1000,
+  });
+}
+
+// A 429/403 from the watch page means this IP is bot-gated for page fetches.
+// Without a gate every caller re-fetches and re-mints the block (observed:
+// 100+ fetches per track), burning seconds of resolution on a deterministically
+// dead endpoint. After the first block, page fetches are parked ~90s so
+// resolution fails fast and moves to another source; a healthy fetch clears
+// the gate immediately.
+var _ytWatchPageBlockedUntil = 0;
+
 function getYouTubePageInfo(videoID) {
+  if (now() < _ytWatchPageBlockedUntil) {
+    return { visitorData: "", playerUrl: "" };
+  }
   var cacheKey = "youtube:pageinfo:" + String(videoID || "");
   var cached = cacheGet(cacheKey);
   if (cached) return cached;
+  // A page info from another video in this session is fine: visitorData and
+  // the player base.js path are session-wide, so reusing them skips the fetch
+  // (and its 429/bot risk) entirely on subsequent songs.
+  var sessionInfo = pageInfoSessionGet();
+  if (sessionInfo && (sessionInfo.visitorData || sessionInfo.playerUrl)) {
+    cacheSet(cacheKey, sessionInfo);
+    return sessionInfo;
+  }
 
   var res = fetch(
     CONFIG.youtubeWatchURL + encodeURIComponent(String(videoID || "")),
     {
       method: "GET",
-      headers: {
-        Accept: "text/html,application/xhtml+xml",
-        "User-Agent": getRandomUserAgent(),
-      },
+      headers: buildWatchPageHeaders(),
     },
   );
   if (!res || !res.ok) {
-    L(
-      "warn",
-      "[InnerTube] visitorData page failed:",
-      res ? res.status : "no response",
-    );
-    return { visitorData: "", playerUrl: "" };
+    if (res && (res.status === 429 || res.status === 403)) {
+      // A signed-in fetch that got blocked may carry an expired access token.
+      // Refresh once and retry before parking — an anonymous 429 must not
+      // shadow a session that simply needs its bearer renewed.
+      if (CONFIG.oauthRefreshToken && CONFIG.oauthClientId) {
+        L(
+          "warn",
+          "[InnerTube] watch page " +
+            res.status +
+            "; refreshing OAuth and retrying once",
+        );
+        if (refreshYoutubeOauthToken()) {
+          var res2 = fetch(
+            CONFIG.youtubeWatchURL + encodeURIComponent(String(videoID || "")),
+            { method: "GET", headers: buildWatchPageHeaders() },
+          );
+          if (res2 && res2.ok) {
+            res = res2;
+          } else {
+            res = null;
+          }
+        }
+      }
+    }
+    if (!res || !res.ok) {
+      if (res && (res.status === 429 || res.status === 403)) {
+        if (!_ytWatchPageBlockedUntil) {
+          L(
+            "warn",
+            "[InnerTube] watch page blocked (" +
+              res.status +
+              "); parking page fetches ~90s",
+          );
+        }
+        _ytWatchPageBlockedUntil = now() + 90 * 1000;
+      } else {
+        L(
+          "warn",
+          "[InnerTube] visitorData page failed:",
+          res ? res.status : "no response",
+        );
+      }
+      return { visitorData: "", playerUrl: "" };
+    }
   }
 
   var html = "";
@@ -814,8 +991,29 @@ function getYouTubePageInfo(videoID) {
     visitorData: extractYouTubeVisitorData(html),
     playerUrl: extractYouTubePlayerURL(html),
   };
-  if (pageInfo.visitorData || pageInfo.playerUrl) cacheSet(cacheKey, pageInfo);
+  if (pageInfo.visitorData || pageInfo.playerUrl) {
+    // A healthy watch-page fetch proves the gate lifted — allow the next one.
+    _ytWatchPageBlockedUntil = 0;
+    cacheSet(cacheKey, pageInfo);
+    pageInfoSessionSet(pageInfo);
+  }
   return pageInfo;
+}
+
+// Headers for the watch-page (visitorData) fetch. When a Google account is
+// connected the fetch is signed-in: an anonymous watch fetch mints a fresh
+// bot-flagged visitor and 429s from flagged IPs, while the authenticated one
+// gets a real session visitor that InnerTube accepts.
+function buildWatchPageHeaders() {
+  var h = {
+    Accept: "text/html,application/xhtml+xml",
+    "User-Agent": getRandomUserAgent(),
+  };
+  if (CONFIG.oauthAccessToken) {
+    h["Authorization"] = "Bearer " + CONFIG.oauthAccessToken;
+    h["X-Goog-AuthUser"] = "0";
+  }
+  return h;
 }
 
 function getGlobalRoot() {
@@ -1049,6 +1247,57 @@ function buildYouTubeFormatURL(fmt, playerUrl) {
   }
 }
 
+// refreshYoutubeOauthToken exchanges the stored refresh token for a fresh
+// access token via Google's token endpoint. Returns true on success. Called
+// only when InnerTube answers 401/403 with an expired account token.
+function refreshYoutubeOauthToken() {
+  if (!CONFIG.oauthRefreshToken || !CONFIG.oauthClientId) {
+    L(
+      "warn",
+      "[InnerTube] OAuth refresh skipped: missing refresh token or client id",
+    );
+    return false;
+  }
+  try {
+    var body =
+      "client_id=" +
+      encodeURIComponent(CONFIG.oauthClientId) +
+      (CONFIG.oauthClientSecret
+        ? "&client_secret=" + encodeURIComponent(CONFIG.oauthClientSecret)
+        : "") +
+      "&refresh_token=" +
+      encodeURIComponent(CONFIG.oauthRefreshToken) +
+      "&grant_type=refresh_token";
+    var res = fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: body,
+    });
+    if (!res || !res.ok) {
+      L(
+        "warn",
+        "[InnerTube] OAuth refresh failed: HTTP " +
+          (res ? res.status : "no response"),
+      );
+      return false;
+    }
+    var data = typeof res.json === "function" ? res.json() : null;
+    if (!data || !data.access_token) {
+      L(
+        "warn",
+        "[InnerTube] OAuth refresh failed: no access_token in response",
+      );
+      return false;
+    }
+    CONFIG.oauthAccessToken = String(data.access_token);
+    L("info", "[InnerTube] OAuth access token refreshed");
+    return true;
+  } catch (e) {
+    L("warn", "[InnerTube] OAuth refresh failed:", String(e));
+    return false;
+  }
+}
+
 function _tryInnerTubeClient(videoID, clientConfig, pageInfo, options) {
   options = options || {};
   pageInfo = pageInfo || {};
@@ -1067,25 +1316,79 @@ function _tryInnerTubeClient(videoID, clientConfig, pageInfo, options) {
     "https://www.youtube.com/youtubei/v1/player?key=" +
     clientConfig.key +
     "&prettyPrint=false";
-  var headers = {
-    "Content-Type": "application/json",
-    "User-Agent": clientConfig.ua,
-    Origin: "https://www.youtube.com",
-    "X-YouTube-Client-Name": String(
-      clientConfig.clientHeaderName ||
-        clientConfig.body.context.client.clientName,
-    ),
-    "X-YouTube-Client-Version": clientConfig.body.context.client.clientVersion,
-  };
-  if (visitorData) {
-    headers["X-Goog-Visitor-Id"] = visitorData;
+
+  // Rebuilt per attempt so a token refresh above picks up the new bearer.
+  // withAuth=false drops the OAuth Authorization header so a request can be
+  // retried anonymously when the stored bearer is stale/expired and refresh
+  // failed — an anonymous innertube call still resolves most public tracks
+  // (rate-limited per IP, but functional), so a broken session must not take
+  // down streaming entirely.
+  function buildPlayerHeaders(withAuth) {
+    var h = {
+      "Content-Type": "application/json",
+      "User-Agent": clientConfig.ua,
+      Origin: "https://www.youtube.com",
+      "X-YouTube-Client-Name": String(
+        clientConfig.clientHeaderName ||
+          clientConfig.body.context.client.clientName,
+      ),
+      "X-YouTube-Client-Version":
+        clientConfig.body.context.client.clientVersion,
+    };
+    if (visitorData) {
+      h["X-Goog-Visitor-Id"] = visitorData;
+    }
+    if (withAuth && CONFIG.oauthAccessToken) {
+      h["Authorization"] = "Bearer " + CONFIG.oauthAccessToken;
+      h["X-Goog-AuthUser"] = "0";
+    }
+    return h;
   }
 
   var res = fetch(playerUrl, {
     method: "POST",
-    headers: headers,
+    headers: buildPlayerHeaders(true),
     body: JSON.stringify(reqBody),
   });
+
+  // Expired account token: refresh once and retry before giving up.
+  var triedRefresh = false;
+  if (
+    res &&
+    (res.status === 401 || res.status === 403) &&
+    CONFIG.oauthRefreshToken
+  ) {
+    if (refreshYoutubeOauthToken()) {
+      triedRefresh = true;
+      res = fetch(playerUrl, {
+        method: "POST",
+        headers: buildPlayerHeaders(true),
+        body: JSON.stringify(reqBody),
+      });
+    }
+  }
+
+  // Still blocked with the (refreshed) bearer, or refresh was unavailable:
+  // retry the same client anonymously. YouTube answers anonymous player
+  // requests from unflagged IPs with 200 (verified), so a stale session no
+  // longer kills streaming — it degrades to anonymous instead.
+  if (res && (res.status === 401 || res.status === 403)) {
+    L(
+      "warn",
+      "[InnerTube] " +
+        clientConfig.name +
+        " auth " +
+        (triedRefresh ? "still" : "") +
+        " " +
+        res.status +
+        "; retrying anonymous",
+    );
+    res = fetch(playerUrl, {
+      method: "POST",
+      headers: buildPlayerHeaders(false),
+      body: JSON.stringify(reqBody),
+    });
+  }
 
   if (!res || !res.ok) {
     return { error: "HTTP " + (res ? res.status : "no response") };
@@ -1111,6 +1414,17 @@ function _tryInnerTubeClient(videoID, clientConfig, pageInfo, options) {
   if (!sd) return { error: "no streamingData" };
 
   var formats = (sd.formats || []).concat(sd.adaptiveFormats || []);
+  // forceItag18: used as a same-client fallback when the client's preferred
+  // format (usually itag=251 opus) resolves to a URL that the CDN refuses to
+  // serve from this IP. itag=18 (video+audio mp4) is not PO-token-gated and is
+  // served reliably even to flagged egress IPs; mpv plays it as pure audio
+  // (vid=no in the app player). Narrow the candidate set to itag=18 so the
+  // rest of the pipeline (PO token, format scoring) picks exactly that.
+  if (options.forceItag18) {
+    formats = formats.filter(function (f) {
+      return Number((f && f.itag) || 0) === 18 && hasUsableYouTubeFormatURL(f);
+    });
+  }
   var gvsPoToken = getGvsPoToken(
     videoID,
     clientConfig,
@@ -1187,14 +1501,96 @@ function requestInnerTubeAudioDownload(videoID) {
     L("warn", "[InnerTube] page info failed:", String(pageErr));
   }
 
+  // If EVERY client is currently blocked (a previous 403/429 storm marked
+  // them all), the loop below would skip all of them and throw
+  // "all clients failed. Last: " with NO reason — a useless instant fail.
+  // Instead, clear the health map so this resolution makes one REAL probe:
+  // the failure now carries the actual status (recoverable when the block
+  // lifts) and a fresh success un-blocks every client in one shot. The probe
+  // runs at most every 5 minutes — between probes an all-blocked resolution
+  // fails fast so a flagged IP does not re-walk all 6 clients (each a real
+  // HTTP 403) on every single track.
+  var allBlocked = true;
+  for (var hci = 0; hci < INNERTUBE_CLIENTS.length; hci++) {
+    if (!innerTubeClientBlocked(INNERTUBE_CLIENTS[hci].name)) {
+      allBlocked = false;
+      break;
+    }
+  }
+  if (allBlocked && INNERTUBE_CLIENTS.length > 0) {
+    if (now() >= _allClientsProbeAt) {
+      L(
+        "warn",
+        "[InnerTube] all clients blocked; clearing health for one real probe",
+      );
+      _clientHealth.clear();
+      _allClientsProbeAt = now() + 5 * 60 * 1000;
+    } else {
+      throw new Error(
+        "innertube: all clients failed (IP blocked); next probe in " +
+          Math.max(1, Math.round((_allClientsProbeAt - now()) / 60000)) +
+          "m",
+      );
+    }
+  }
+
   for (var ci = 0; ci < INNERTUBE_CLIENTS.length; ci++) {
     var client = INNERTUBE_CLIENTS[ci];
+    if (innerTubeClientBlocked(client.name)) {
+      L("info", "[InnerTube] Skipping blocked client " + client.name);
+      continue;
+    }
     L("info", "[InnerTube] Trying " + client.name + " for " + videoID);
 
     var result = _tryInnerTubeClient(videoID, client, pageInfo);
     if (result.error) {
       L("warn", "[InnerTube] " + client.name + " failed: " + result.error);
+      // Video-level blocks apply to EVERY client: age-restricted and
+      // "inappropriate" videos return the same playability reason from every
+      // client config, so trying the remaining clients just burns N more HTTP
+      // calls for the same guaranteed failure. Fail fast with the real reason.
+      if (isBlockedVideoError(result.error)) {
+        throw new Error("innertube: blocked: " + result.error);
+      }
+      noteInnerTubeClientBlock(client.name, result.error);
       lastError = client.name + ": " + result.error;
+      continue;
+    }
+
+    // The client resolved a URL at the API level, but YouTube may refuse to
+    // serve it from this IP (bot-gated formats 403 while other formats/clients
+    // serve fine). A dead URL must NOT win the chain — it would stall or error
+    // at playback with no way for the caller to request a different format.
+    // Probe it; when it doesn't serve, retry the SAME client forcing itag=18
+    // (video+audio, never PO-gated, served reliably from flagged IPs) before
+    // moving to the next client — every other client prefers the same
+    // audio-only itag=251, so falling through blindly just repeats the dead
+    // format instead of finding a playable one.
+    if (!streamingUrlServesOk(result.url)) {
+      var fallback18 = _tryInnerTubeClient(videoID, client, pageInfo, {
+        forceItag18: true,
+      });
+      if (
+        fallback18 &&
+        !fallback18.error &&
+        fallback18.url &&
+        streamingUrlServesOk(fallback18.url)
+      ) {
+        L(
+          "info",
+          "[InnerTube] " +
+            client.name +
+            " itag=" +
+            result.itag +
+            " URL dead; same-client itag=18 fallback OK",
+        );
+        return fallback18;
+      }
+      var deadReason =
+        "URL dead (403/404) " + client.name + " itag=" + result.itag;
+      L("warn", "[InnerTube] " + deadReason + " — falling through");
+      noteInnerTubeClientBlock(client.name, deadReason);
+      lastError = deadReason;
       continue;
     }
 
@@ -1216,6 +1612,74 @@ function requestInnerTubeAudioDownload(videoID) {
   throw new Error("innertube: all clients failed. Last: " + lastError);
 }
 
+// streamingUrlServesOk probes whether a resolved googlevideo URL actually
+// serves media from this IP/network. A client can succeed at the InnerTube API
+// level yet hand back a URL that YouTube refuses to serve (bot-gated formats —
+// ANDROID_VR itag=251 audio has started 403ing from flagged egress IPs while
+// the same video's itag=18 serves fine). Without a probe that dead URL would
+// win the client chain and stall/error at playback, and the app has no way to
+// ask for a different format.
+//
+// GATE DETECTION: gated URLs are NOT fully dead — YouTube serves the first
+// ~1MB of the file (a tiny range request passes!) then 403s everything at or
+// past the 1MB offset. A 0-byte probe (bytes=0-0) therefore reports gated
+// URLs as alive and the dead format wins. The probe must ask for a byte AT the
+// 1MB offset: gated URLs answer 403, healthy files answer 206 (or 416 when
+// the whole file is smaller than 1MB — which is fine, the gate never applies).
+//
+// STRICT: only confirmed 200/206/416 counts as alive. A dead URL can surface
+// as 403/404/410 OR as a network-level failure (status 0 / abort / TLS error)
+// through the sandbox bridge — both must count as dead, otherwise the dead
+// URL wins and playback freezes at 00:00 with no error surfaced to Dart. The
+// cost of a false negative is one same-client itag=18 retry (see
+// requestInnerTubeAudioDownload), which is far cheaper than a silent stall.
+function streamingUrlServesOk(url) {
+  if (!url) return false;
+  try {
+    // Probe the LAST byte of the file (clen-1 from the URL). Gated URLs
+    // answer 403 for any range past the first ~1MB regardless of format; a
+    // probe near the start always passes and lets the dead format win.
+    var probeEnd = null;
+    try {
+      var clenMatch = String(url).match(/[?&]clen=(\d+)/);
+      if (clenMatch && Number(clenMatch[1]) > 0) {
+        probeEnd = String(Number(clenMatch[1]) - 1);
+      }
+    } catch (e) {}
+    if (probeEnd == null) probeEnd = "3145727"; // ~3MB: past every observed gate
+    var res = fetch(url, {
+      method: "GET",
+      headers: {
+        Range: "bytes=" + probeEnd + "-" + probeEnd,
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+      },
+    });
+    if (!res) return false;
+    var status = Number(res.status || res.statusCode || 0);
+    return status === 200 || status === 206 || status === 416;
+  } catch (e) {
+    return false;
+  }
+}
+
+// isBlockedVideoError reports whether an InnerTube playability error is a
+// video-level block that no client config can bypass (age-restriction,
+// inappropriate content, region/account blocks). These are returned verbatim as
+// playabilityStatus.reason by every client, so once seen there is no point
+// trying the rest of the client chain.
+function isBlockedVideoError(err) {
+  var msg = String(err || "");
+  return (
+    /confirm your age/i.test(msg) ||
+    /inappropriate/i.test(msg) ||
+    /age.?restricted|age restriction/i.test(msg) ||
+    /video unavailable/i.test(msg) ||
+    /not available in your country|unavailable in your region/i.test(msg) ||
+    /sign in to watch/i.test(msg)
+  );
+}
+
 // Returns an array of {url, extension, ua, clientName} for all clients that respond.
 // Used for download-level fallback: try downloading from each until one succeeds.
 function getInnerTubeAudioCandidates(videoID, pageInfo) {
@@ -1223,6 +1687,10 @@ function getInnerTubeAudioCandidates(videoID, pageInfo) {
   pageInfo = pageInfo || getYouTubePageInfo(videoID);
   for (var ci = 0; ci < INNERTUBE_CLIENTS.length; ci++) {
     var client = INNERTUBE_CLIENTS[ci];
+    if (innerTubeClientBlocked(client.name)) {
+      L("info", "[InnerTube] Skipping blocked client " + client.name);
+      continue;
+    }
     L(
       "info",
       "[InnerTube] Getting candidate from " + client.name + " for " + videoID,
@@ -1231,6 +1699,8 @@ function getInnerTubeAudioCandidates(videoID, pageInfo) {
     var result = _tryInnerTubeClient(videoID, client, pageInfo);
     if (result.error) {
       L("warn", "[InnerTube] " + client.name + " failed: " + result.error);
+      if (isBlockedVideoError(result.error)) continue;
+      noteInnerTubeClientBlock(client.name, result.error);
       continue;
     }
 
@@ -1247,6 +1717,24 @@ function getInnerTubeAudioCandidates(videoID, pageInfo) {
         "bps",
     );
     candidates.push(result);
+
+    // Also offer a same-client itag=18 candidate (video+audio, never
+    // PO-gated). The download loop tries candidates in order and only reaches
+    // this one when the preferred audio-only format fails to download, so it
+    // costs nothing on healthy networks and keeps downloads working on IPs
+    // where the CDN refuses the audio-only formats.
+    if (Number(result.itag) !== 18) {
+      var fallback18 = _tryInnerTubeClient(videoID, client, pageInfo, {
+        forceItag18: true,
+      });
+      if (fallback18 && !fallback18.error && fallback18.url) {
+        L(
+          "info",
+          "[InnerTube] " + client.name + " itag=18 fallback candidate added",
+        );
+        candidates.push(fallback18);
+      }
+    }
   }
   return candidates;
 }
@@ -5497,12 +5985,52 @@ registerExtension({
     CONFIG.logLevel = normalizeLogLevel(
       readSetting(settings, "logLevel", CONFIG.logLevel),
     );
+    // Google OAuth session tokens (only ever sent to Google endpoints).
+    CONFIG.oauthAccessToken = String(
+      readSetting(settings, "oauthAccessToken", CONFIG.oauthAccessToken) || "",
+    ).trim();
+    CONFIG.oauthRefreshToken = String(
+      readSetting(settings, "oauthRefreshToken", CONFIG.oauthRefreshToken) ||
+        "",
+    ).trim();
+    CONFIG.oauthClientId = String(
+      readSetting(settings, "oauthClientId", CONFIG.oauthClientId) || "",
+    ).trim();
+    CONFIG.oauthClientSecret = String(
+      readSetting(settings, "oauthClientSecret", CONFIG.oauthClientSecret) ||
+        "",
+    ).trim();
     L("info", "YouTube Music extension init", {
       poTokenMode: CONFIG.poTokenMode,
       hasProvider: !!CONFIG.poTokenProviderURL,
       hasManualToken: !!CONFIG.manualGvsPoToken,
+      hasOAuth: !!CONFIG.oauthAccessToken,
     });
+    // Default log level is "warn", so the info line above is invisible in
+    // device logs. Emit one warn line when a session is actually loaded so a
+    // mis-synced credential push is instantly diagnosable from logcat.
+    if (CONFIG.oauthAccessToken) {
+      L(
+        "warn",
+        "[InnerTube] YouTube session loaded (refresh=" +
+          !!CONFIG.oauthRefreshToken +
+          ")",
+      );
+    }
     return true;
+  },
+  // Expose whether a Google account is connected so the settings UI can show
+  // connection state and clear the session.
+  getOauthStatus: function () {
+    return {
+      connected: !!CONFIG.oauthAccessToken,
+      hasRefreshToken: !!CONFIG.oauthRefreshToken,
+    };
+  },
+  clearOauthSession: function () {
+    CONFIG.oauthAccessToken = "";
+    CONFIG.oauthRefreshToken = "";
+    return { success: true };
   },
   customSearch: function (query, options) {
     L("info", "customSearch", query, "options:", JSON.stringify(options));
@@ -5738,6 +6266,12 @@ registerExtension({
       ];
       for (var pi = 0; pi < pipedInstances.length; pi++) {
         var pipedBase = pipedInstances[pi];
+        // Skip mirrors that failed recently instead of timing out on them
+        // again (each dead mirror costs a full HTTP round-trip).
+        if (pipedInstanceCooling(pipedBase)) {
+          L("info", "[YTMusic] Piped", pipedBase, "cooling down, skipped");
+          continue;
+        }
         try {
           L("info", "[YTMusic] Trying Piped:", pipedBase, "for", videoID);
           var pipedRes = fetch(pipedBase + "/streams/" + videoID, {
@@ -5755,6 +6289,7 @@ registerExtension({
               "returned",
               pipedRes ? pipedRes.status : "no response",
             );
+            pipedInstanceMarkFail(pipedBase);
             continue;
           }
           var pipedData = pipedRes.json();
@@ -5768,6 +6303,7 @@ registerExtension({
               pipedBase,
               "returned no audio streams",
             );
+            pipedInstanceMarkFail(pipedBase);
             continue;
           }
           // Pick best audio stream (highest bitrate)
@@ -5799,6 +6335,7 @@ registerExtension({
             else actualOutputExt = ".m4a";
             downloadSource = "piped:" + pipedBase;
             downloadOptions = {};
+            pipedInstanceMarkOk(pipedBase);
             L(
               "info",
               "[YTMusic] Piped OK from",
@@ -5812,6 +6349,7 @@ registerExtension({
           }
         } catch (pipedErr) {
           L("warn", "[YTMusic] Piped", pipedBase, "failed:", String(pipedErr));
+          pipedInstanceMarkFail(pipedBase);
         }
       }
     }
@@ -5900,9 +6438,44 @@ registerExtension({
     );
   },
 
-  getDownloadUrl: function () {
+  // Progressive streaming: resolve a fresh googlevideo URL so the player
+  // streams the track directly (starts in ~1-2s) instead of forcing a full
+  // download-to-cache first. Mirrors ArchiveTune's InnerTube streaming: the
+  // URL is resolved at play time (never reused stale), carries the solved
+  // n-parameter + PO token, and any failure returns null so the caller falls
+  // back to the download pipeline exactly as before.
+  getDownloadUrl: function (trackID, quality) {
+    var videoID = String(trackID || "").trim();
+    if (!videoID) return null;
+    try {
+      var candidate = requestInnerTubeAudioDownload(videoID);
+      if (candidate && candidate.url) {
+        L(
+          "info",
+          "[YTMusic] streaming URL OK:",
+          candidate.clientName,
+          "itag=" + candidate.itag,
+          candidate.extension,
+        );
+        return candidate.url;
+      }
+    } catch (e) {
+      var resolveError = String(e);
+      L("warn", "[YTMusic] streaming resolve failed:", resolveError);
+      // A provider-level block (all InnerTube clients 403/429, gateway down)
+      // must NOT be swallowed into null: Go's circuit breaker only cools
+      // "ytmusic-spotiflac" when it sees the marker in the error ("all
+      // clients failed"), and without it every track re-runs the whole client
+      // chain. Re-throw so the cooldown trips and later tracks skip this
+      // source while the block lasts.
+      if (resolveError.indexOf("all clients failed") >= 0) {
+        throw new Error(resolveError);
+      }
+    }
     return null;
   },
+
+  clearCachedTokens: clearCachedTokens,
 
   cleanup: function () {
     L("info", "YouTube Music extension cleanup");

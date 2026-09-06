@@ -10,6 +10,7 @@ import 'bloc/setup_state.dart';
 import 'widgets/returning_prompt.dart';
 import 'widgets/language_slide.dart';
 import 'widgets/username_slide.dart';
+import 'widgets/google_signin_slide.dart';
 import 'widgets/mode_slide.dart';
 import 'widgets/feed_preview_slide.dart';
 import 'widgets/search_tutorial_slide.dart';
@@ -105,6 +106,10 @@ class _SetupPageState extends State<SetupPage> {
         return UsernameSlide(
           key: const ValueKey('username'), state: state, loc: loc, r: r, isDark: isDark,
           controller: _usernameController,
+        );
+      case SetupStep.googleSignIn:
+        return GoogleSignInSlide(
+          key: const ValueKey('googleSignIn'), state: state, loc: loc, r: r, isDark: isDark,
         );
       case SetupStep.mode:
         return ModeSlide(

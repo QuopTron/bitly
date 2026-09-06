@@ -41,7 +41,7 @@ class ParticleBackground extends StatefulWidget {
 
   const ParticleBackground({
     super.key, this.particleCount = 6,
-    this.glowColor = const Color(0xFF1ED760), this.particleColor = Colors.white,
+    this.glowColor = const Color(0x15FFFFFF), this.particleColor = Colors.white,
     this.maxParticleSize = 32, this.minParticleSize = 14, this.speedMultiplier = 1.0,
   });
 

@@ -2,7 +2,6 @@ package extensions
 
 import (
 	"net/http"
-	"sync"
 
 	"github.com/dop251/goja"
 )
@@ -31,15 +30,16 @@ func DefaultConfig() RuntimeConfig {
 }
 
 // Sandbox wraps a goja runtime with security controls.
-//
-// Mu serializes access to the goja VM. The Android bridge runs RPCs on a
-// single thread, but background downloads now execute extension JS in their
-// own goroutine, so a search on the bridge thread can touch the same sandbox
-// while a download is mid-call. goja is not thread-safe, so every CallMethod
-// (and Close) takes this lock; different extensions have different sandboxes
-// and never contend.
 type Sandbox struct {
-	Mu            sync.Mutex
+	// lockCh serializes access to the goja VM. The Android bridge runs RPCs on
+	// a single thread, but background downloads now execute extension JS in
+	// their own goroutine, so a search on the bridge thread can touch the same
+	// sandbox while a download is mid-call. goja is not thread-safe, so every
+	// CallMethod/HasMethod/Close takes this lock. Different extensions have
+	// different sandboxes and never contend. The channel form (instead of a
+	// plain sync.Mutex) lets callers bound the wait — see tryLock — so a
+	// sandbox stuck in a synchronous JS call can't deadlock later calls.
+	lockCh        chan struct{}
 	VM            *goja.Runtime
 	Config        RuntimeConfig
 	Store         *Storage

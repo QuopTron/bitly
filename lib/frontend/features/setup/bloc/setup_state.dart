@@ -5,6 +5,7 @@ enum SetupStep {
   returningPrompt,
   language,
   username,
+  googleSignIn,
   mode,
   feedTutorial,
   searchTutorial,
@@ -19,6 +20,7 @@ class SetupState extends Equatable {
   final SetupStep step;
   final String selectedLocale;
   final String username;
+  final bool googleConnected;
   final String? selectedMode;
   final String premiumCode;
   final bool saving;
@@ -38,6 +40,7 @@ class SetupState extends Equatable {
     this.step = SetupStep.checkingExisting,
     this.selectedLocale = 'es',
     this.username = '',
+    this.googleConnected = false,
     this.selectedMode,
     this.premiumCode = '',
     this.saving = false,
@@ -58,6 +61,7 @@ class SetupState extends Equatable {
     SetupStep? step,
     String? selectedLocale,
     String? username,
+    bool? googleConnected,
     String? selectedMode,
     String? premiumCode,
     bool? saving,
@@ -77,6 +81,7 @@ class SetupState extends Equatable {
         step: step ?? this.step,
         selectedLocale: selectedLocale ?? this.selectedLocale,
         username: username ?? this.username,
+        googleConnected: googleConnected ?? this.googleConnected,
         selectedMode: selectedMode ?? this.selectedMode,
         premiumCode: premiumCode ?? this.premiumCode,
         saving: saving ?? this.saving,
@@ -101,6 +106,7 @@ class SetupState extends Equatable {
         step,
         selectedLocale,
         username,
+        googleConnected,
         selectedMode,
         premiumCode,
         saving,

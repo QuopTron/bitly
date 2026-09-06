@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart' hide RepeatMode;
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -7,7 +6,6 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../shared/utils/responsive.dart';
-import '../../shared/utils/haptic.dart';
 import '../../shared/models/feed_models.dart';
 import '../../../backend/services/like_cubit.dart';
 import '../../../backend/services/player_cubit.dart';
@@ -17,6 +15,10 @@ import '../../../injection.dart';
 import '../../shared/widgets/cover_image.dart';
 import 'queue_modal.dart';
 import 'lyrics_sheet.dart';
+import 'now_playing/seek_bar.dart';
+import 'now_playing/player_controls.dart';
+import 'now_playing/speed_control.dart';
+import 'now_playing/cover_or_video_area.dart';
 
 class NowPlayingPage extends StatefulWidget {
   const NowPlayingPage({super.key});
@@ -219,64 +221,6 @@ class _NowPlayingPageState extends State<NowPlayingPage>
             .map((w) => w[0].toUpperCase() + w.substring(1))
             .join(' ');
     }
-  }
-
-  String? _resolveLocalVideoUrl(FeedItem track, String? downloadPath) {
-    if (downloadPath == null) return null;
-    final videoExts = ['mp4', 'webm', 'mkv', 'avi'];
-
-    // 1. Try by track id (legacy naming)
-    for (final ext in videoExts) {
-      final path = '$downloadPath\\${track.id}.$ext';
-      if (File(path).existsSync()) {
-        return 'file://${path.replaceAll('\\', '/')}';
-      }
-    }
-
-    // 2. Try by {Artist} - {Title}.ext (Go backend video naming)
-    if ((track.name.isNotEmpty && track.artists != null && track.artists!.isNotEmpty)) {
-      const invalid = ['/', '\\', ':', '*', '?', '"', '<', '>', '|'];
-      String sanitize(String s) {
-        var r = s;
-        for (final ch in invalid) { r = r.replaceAll(ch, '_'); }
-        r = r.replaceAll(RegExp(r'[. ]+$'), '');
-        return r.isEmpty ? 'unknown' : r;
-      }
-      final stem = '${sanitize(track.artists!)} - ${sanitize(track.name)}';
-      for (final ext in videoExts) {
-        final path = '$downloadPath\\$stem.$ext';
-        if (File(path).existsSync()) {
-          return 'file://${path.replaceAll('\\', '/')}';
-        }
-      }
-    }
-
-    return null;
-  }
-
-  Future<void> _toggleVideo(FeedItem track, String? downloadPath) async {
-    if (!_showVideo) {
-      String? videoUrl = sl<PlayerCubit>().preloadedVideoUrl;
-      videoUrl ??= _resolveLocalVideoUrl(track, downloadPath);
-      videoUrl ??= await sl<PlayerCubit>().downloadVideoToTemp(track);
-      if (videoUrl == null) return;
-      await _videoPlayer.setVolume(0.0);
-      try {
-        await _videoPlayer.open(Media(videoUrl));
-        await _videoPlayer.play();
-        setState(() { _showVideo = true; _hasVideo = true; });
-      } catch (_) {}
-    } else {
-      _stopVideoForCover();
-    }
-  }
-
-  /// Switches back to the static cover (used by the little image pill on the
-  /// video corner): stops the clip. The videocam button stays visible because
-  /// the video is still preloaded for this track.
-  void _stopVideoForCover() {
-    _videoPlayer.stop();
-    setState(() => _showVideo = false);
   }
 
   @override
@@ -490,352 +434,56 @@ class _NowPlayingPageState extends State<NowPlayingPage>
     FeedItem track,
     String? resolvedCover,
   ) {
-    // Cover side: 76% of screen width for a premium feel, capped at 420px.
-    final side = (r.width * 0.76).clamp(0.0, 420.0);
-    return RepaintBoundary(
-      child: GestureDetector(
-        onTap: () {
-          if (_hasVideo) {
-            _toggleVideo(track, context.read<PlayerCubit>().downloadPath);
-          }
-        },
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(28),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: isDark ? 0.55 : 0.30),
-                blurRadius: 44,
-                offset: const Offset(0, 14),
-              ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(28),
-            child: SizedBox(
-              width: side,
-              height: side,
-              child: _showVideo
-                  ? Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        Video(controller: _videoController!, fill: Colors.transparent, fit: BoxFit.cover),
-                        Positioned(
-                          top: 8,
-                          right: 8,
-                          child: GestureDetector(
-                            onTap: _stopVideoForCover,
-                            child: Container(
-                              padding: const EdgeInsets.all(6),
-                              decoration: BoxDecoration(
-                                color: Colors.black54,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: const Icon(Icons.image, color: Colors.white, size: 18),
-                            ),
-                          ),
-                        ),
-                      ],
-                    )
-                  : Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        // Same widget position across track changes lets
-                        // CachedNetworkImage keep the previous art visible
-                        // until the new cover is decoded (no flash / blank).
-                        CoverImage(
-                          coverUrl: resolvedCover,
-                          localPath: null,
-                          width: side,
-                          height: side,
-                        ),
-                        if (_hasVideo)
-                          Positioned(
-                            top: 8,
-                            right: 8,
-                            child: GestureDetector(
-                              onTap: () => _toggleVideo(track, context.read<PlayerCubit>().downloadPath),
-                              child: Container(
-                                padding: const EdgeInsets.all(6),
-                                decoration: BoxDecoration(
-                                  color: Colors.black54,
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: const Icon(Icons.videocam, color: Colors.white, size: 18),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-            ),
-          ),
-        ),
-      ),
+    return CoverOrVideoArea(
+      track: track,
+      resolvedCover: resolvedCover,
+      isDark: isDark,
+      showVideo: _showVideo,
+      hasVideo: _hasVideo,
+      videoController: _videoController,
+      onToggleVideo: () => _toggleVideo(track, context.read<PlayerCubit>().downloadPath),
+      onStopVideo: _stopVideoForCover,
     );
+  }
+
+  Future<void> _toggleVideo(FeedItem track, String? downloadPath) async {
+    if (!_showVideo) {
+      String? videoUrl = sl<PlayerCubit>().preloadedVideoUrl;
+      videoUrl ??= resolveLocalVideoUrl(track, downloadPath);
+      videoUrl ??= await sl<PlayerCubit>().downloadVideoToTemp(track);
+      if (videoUrl == null) return;
+      await _videoPlayer.setVolume(0.0);
+      try {
+        await _videoPlayer.open(Media(videoUrl));
+        await _videoPlayer.play();
+        setState(() { _showVideo = true; _hasVideo = true; });
+      } catch (_) {}
+    } else {
+      _stopVideoForCover();
+    }
+  }
+
+  void _stopVideoForCover() {
+    _videoPlayer.stop();
+    setState(() => _showVideo = false);
   }
 
   Widget _seekBar(BuildContext context, Responsive r, bool isDark, AudioPlayerState player) {
-    final duration = player.duration;
-    final position = player.position;
-    final remaining = duration - position;
-
-    return Column(
-      children: [
-        SliderTheme(
-          data: SliderThemeData(
-            trackHeight: 5,
-            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
-            overlayShape: const RoundSliderOverlayShape(overlayRadius: 18),
-            activeTrackColor: isDark ? AppColors.greenBright : AppColors.greenMedium,
-            inactiveTrackColor: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.15),
-            thumbColor: isDark ? AppColors.greenBright : AppColors.greenMedium,
-            overlayColor: (isDark ? AppColors.greenBright : AppColors.greenMedium).withValues(alpha: 0.15),
-          ),
-          child: Slider(
-            value: player.progress.clamp(0.0, 1.0),
-            onChanged: (v) => sl<PlayerCubit>().seekToProgress(v),
-          ),
-        ),
-        Padding(
-          padding: EdgeInsets.symmetric(horizontal: r.spacingS),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                _formatDuration(position),
-                style: TextStyle(
-                  fontSize: r.footerSize,
-                  color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.5),
-                ),
-              ),
-              Text(
-                '-${_formatDuration(remaining)}',
-                style: TextStyle(
-                  fontSize: r.footerSize,
-                  color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.5),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
+    return SeekBar(r: r, isDark: isDark, player: player);
   }
 
   Widget _controls(BuildContext context, Responsive r, bool isDark, QueueState queue) {
-    final player = context.read<PlayerCubit>().state;
-    final glowColor = isDark ? AppColors.greenBright : AppColors.greenMedium;
-    final muted = (isDark ? Colors.white : Colors.black).withValues(alpha: 0.45);
-    final active = isDark ? Colors.white : Colors.black;
     final track = queue.current!;
-    final iconM = r.subtitleSize + 4;   // medium side icons
-    final iconL = r.subtitleSize + 9;   // prev/next icons
-    final gap = r.spacingL;
-
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        // Like — rebuilt whenever LikeCubit changes so the heart is always in
-        // sync with the liked state (across sources, via ISRC/id matching).
-        BlocBuilder<LikeCubit, LikeState>(
-          builder: (context, _) {
-            final liked = context.read<LikeCubit>().isLiked(track);
-            return GestureDetector(
-              onTap: () { Haptic.medium(); context.read<LikeCubit>().toggleLike(track); },
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 250),
-                transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
-                child: Icon(
-                  liked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                  key: ValueKey(liked),
-                  color: liked ? Colors.redAccent : muted,
-                  size: iconM,
-                ),
-              ),
-            );
-          },
-        ),
-        SizedBox(width: gap),
-        // Shuffle
-        GestureDetector(
-          onTap: () { Haptic.tap(); sl<QueueCubit>().toggleShuffle(); },
-          child: Icon(
-            queue.shuffle ? Icons.shuffle_rounded : Icons.shuffle,
-            color: queue.shuffle ? glowColor : muted,
-            size: iconM,
-          ),
-        ),
-        SizedBox(width: gap),
-        // Previous
-        GestureDetector(
-          onTap: () { Haptic.tap(); sl<QueueCubit>().previous(); },
-          child: Icon(Icons.skip_previous_rounded, color: active, size: iconL),
-        ),
-        SizedBox(width: gap),
-        // Play/Pause — hero button
-        GestureDetector(
-          onTap: () { Haptic.medium(); sl<PlayerCubit>().togglePlayPause(); },
-          child: Container(
-            width: r.subtitleSize + 34,
-            height: r.subtitleSize + 34,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [glowColor, glowColor.withValues(alpha: 0.7)],
-              ),
-              boxShadow: [
-                BoxShadow(color: glowColor.withValues(alpha: 0.35), blurRadius: 16, spreadRadius: 2),
-              ],
-            ),
-            child: player.playbackState == PlayerPlaybackState.buffering
-                ? Center(
-                    child: SizedBox(
-                      width: r.subtitleSize + 2,
-                      height: r.subtitleSize + 2,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 3,
-                        valueColor: AlwaysStoppedAnimation(active),
-                      ),
-                    ),
-                  )
-                : Icon(
-                    player.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                    color: active,
-                    size: r.subtitleSize + 14,
-                  ),
-          ),
-        ),
-        SizedBox(width: gap),
-        // Next
-        GestureDetector(
-          onTap: () { Haptic.tap(); sl<QueueCubit>().next(); },
-          child: Icon(Icons.skip_next_rounded, color: active, size: iconL),
-        ),
-        SizedBox(width: gap),
-        // Repeat
-        GestureDetector(
-          onTap: () { Haptic.tap(); sl<QueueCubit>().cycleRepeatMode(); },
-          child: Icon(
-            _repeatIcon(queue.repeatMode),
-            color: queue.repeatMode != RepeatMode.none ? glowColor : muted,
-            size: iconM,
-          ),
-        ),
-        // Secondary toggles (lyrics / video) — plain icons to keep the row slim.
-        // The lyrics button is always present: it opens the karaoke modal from
-        // the preloaded LRC, or fetches it on the fly when needed.
-        SizedBox(width: r.spacingS),
-        GestureDetector(
-          onTap: _lyricsLoading ? null : () => _toggleLyrics(context),
-          child: _lyricsLoading
-              ? SizedBox(
-                  width: r.subtitleSize + 2,
-                  height: r.subtitleSize + 2,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2.5,
-                    color: glowColor,
-                  ),
-                )
-              : Icon(
-                  Icons.lyrics_outlined,
-                  color: muted,
-                  size: r.subtitleSize + 2,
-                ),
-        ),
-        // Video toggle appears only once the clip finished preloading (it is
-        // resolved in the background after the track starts playing).
-        if (_hasVideo) ...[
-          SizedBox(width: r.spacingS),
-          GestureDetector(
-            onTap: () => _videoToggleQuick(context),
-            child: Icon(
-              _showVideo ? Icons.image_outlined : Icons.videocam_outlined,
-              color: _showVideo ? glowColor : muted,
-              size: r.subtitleSize + 2,
-            ),
-          ),
-        ],
-      ],
+    return PlayerControls(
+      r: r, isDark: isDark, queue: queue, track: track,
+      lyricsLoading: _lyricsLoading, hasVideo: _hasVideo, showVideo: _showVideo,
+      onToggleLyrics: () => _toggleLyrics(context),
+      onToggleVideo: () => _videoToggleQuick(context),
     );
   }
 
   Widget _speedControl(BuildContext context, Responsive r, bool isDark, AudioPlayerState player) {
-    const speeds = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
-    final active = isDark ? Colors.white : Colors.black;
-    final inactive = active.withValues(alpha: 0.4);
-    final accent = isDark ? AppColors.greenBright : AppColors.greenMedium;
-
-    return Column(
-      children: [
-        Row(
-          children: [
-            Icon(Icons.speed_rounded, size: r.subtitleSize, color: inactive),
-            SizedBox(width: r.spacingS),
-            Text(
-              'Speed',
-              style: TextStyle(
-                fontSize: r.footerSize,
-                letterSpacing: 0.4,
-                color: inactive,
-              ),
-            ),
-            const Spacer(),
-            GestureDetector(
-              onTap: () => sl<PlayerCubit>().setRate(1.0),
-              child: Text(
-                player.rate == 1.0 ? '1.0×' : '${player.rate.toStringAsFixed(2).replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '')}×',
-                style: TextStyle(
-                  fontSize: r.footerSize,
-                  fontWeight: FontWeight.w600,
-                  color: player.rate == 1.0 ? active : inactive,
-                ),
-              ),
-            ),
-          ],
-        ),
-        SizedBox(height: r.spacingXS),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            for (final s in speeds) ...[
-              if (s != speeds.first) const SizedBox(width: 4),
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => sl<PlayerCubit>().setRate(s),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    curve: Curves.easeOut,
-                    alignment: Alignment.center,
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    decoration: BoxDecoration(
-                      color: (player.rate == s ? accent : Colors.transparent)
-                          .withValues(alpha: player.rate == s ? 0.22 : 0.0),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: player.rate == s
-                            ? accent.withValues(alpha: 0.6)
-                            : (isDark ? Colors.white : Colors.black).withValues(alpha: 0.12),
-                      ),
-                    ),
-                    child: Text(
-                      '${s.toStringAsFixed(2).replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '')}×',
-                      style: TextStyle(
-                        fontSize: r.footerSize - 1,
-                        fontWeight: player.rate == s ? FontWeight.w700 : FontWeight.w500,
-                        color: player.rate == s ? accent : inactive,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
-      ],
-    );
+    return SpeedControl(r: r, isDark: isDark, player: player);
   }
 
   void _videoToggleQuick(BuildContext context) {
@@ -848,23 +496,6 @@ class _NowPlayingPageState extends State<NowPlayingPage>
     _toggleVideo(queue.current!, context.read<PlayerCubit>().downloadPath);
   }
 
-  IconData _repeatIcon(RepeatMode mode) {
-    switch (mode) {
-      case RepeatMode.none:
-        return Icons.repeat_rounded;
-      case RepeatMode.one:
-        return Icons.repeat_one_rounded;
-      case RepeatMode.all:
-        return Icons.repeat_rounded;
-    }
-  }
-
-  String _formatDuration(Duration d) {
-    if (d.isNegative) d = Duration.zero;
-    final minutes = d.inMinutes.remainder(60);
-    final seconds = d.inSeconds.remainder(60);
-    return '${d.inHours > 0 ? '${d.inHours}:' : ''}${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
-  }
 }
 
 /// Blurred album-art backdrop that fills the whole page.

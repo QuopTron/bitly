@@ -54,6 +54,34 @@ function cleanup() {
   return true;
 }
 
+// signedSessionSourceReady returns true when the session is fully usable
+// (authenticated, not just present). Used by getHomeFeed to skip feeds when
+// the session exists but was never verified (TIDAL pages return 403).
+function signedSessionSourceReady() {
+  if (typeof session === "undefined" || !session) {
+    log.warn("[TidalWeb] sourceReady: no session");
+    return false;
+  }
+  if (typeof session.status !== "function") {
+    log.warn("[TidalWeb] sourceReady: session.status not a function");
+    return false;
+  }
+  try {
+    var status = session.status();
+    log.warn("[TidalWeb] sourceReady: status=" + JSON.stringify(status));
+    if (status && typeof status.authenticated === "boolean") {
+      return status.authenticated;
+    }
+    log.warn(
+      "[TidalWeb] sourceReady: authenticated not a bool or null, returning false",
+    );
+    return false;
+  } catch (e) {
+    log.warn("[TidalWeb] sourceReady: error=" + String(e));
+    return false;
+  }
+}
+
 function parseMirrorBaseURLs(value) {
   var text = String(value || "").trim();
   if (!text) return [];
@@ -299,6 +327,21 @@ function postJSON(url, body, headers) {
   return JSON.parse(response.body);
 }
 
+// Gateway park: most signed-session traffic (bootstrap + tickets + manifests)
+// flows through the shared zarz.moe gateway. When that origin is down,
+// Cloudflare answers 522/524/502/504 — retrying 5 attempts x 8 quality tiers
+// per track is pointless and burns ~40 sequential calls every song. After the
+// first gateway error, park signed calls for 2 minutes (fail fast with a clear
+// reason); a healthy response clears the park immediately.
+var _tidalGatewayDownUntil = 0;
+
+function isGatewayError(message) {
+  var text = String(message || "");
+  return /HTTP 52[24]|HTTP 50[24]|bootstrap returned|origin connection|gateway/i.test(
+    text,
+  );
+}
+
 function signedJSON(method, path, body, headers) {
   if (
     typeof session === "undefined" ||
@@ -307,15 +350,26 @@ function signedJSON(method, path, body, headers) {
   ) {
     throw new Error("signed session runtime is not available");
   }
+  if (Date.now() < _tidalGatewayDownUntil) {
+    throw new Error("signed-session gateway down (522); retrying later");
+  }
   var response = session.signedFetch(method, path, body || null, headers || {});
   if (!response || response.error || response.needsVerification) {
     var error =
       response && response.error ? response.error : "signed request failed";
+    if (isGatewayError(error)) {
+      _tidalGatewayDownUntil = Date.now() + 2 * 60 * 1000;
+    }
     throw new Error(error);
   }
   if (response.statusCode !== 200) {
-    throw new Error("HTTP " + response.statusCode + " for " + path);
+    var statusError = "HTTP " + response.statusCode + " for " + path;
+    if (isGatewayError(statusError)) {
+      _tidalGatewayDownUntil = Date.now() + 2 * 60 * 1000;
+    }
+    throw new Error(statusError);
   }
+  _tidalGatewayDownUntil = 0;
   return JSON.parse(response.body || "{}");
 }
 
@@ -2862,6 +2916,52 @@ function handleUrl(url) {
   }
 }
 
+// Streaming URL: expose TIDAL's direct single-file URL (kind "direct") when
+// the session/entitlement allows, so playback can begin in ~1-2s instead of
+// waiting for a full download. DASH/MPD segment manifests and anything else
+// return null so the caller falls back to download(), which assembles segments
+// and validates full-length vs previews before accepting a file.
+function getDownloadUrl(trackID, quality) {
+  var resolvedTrackID = String(trackID || "").trim();
+  if (!resolvedTrackID) return null;
+  var requested = String(quality || "").trim();
+  try {
+    var info = fetchDownloadInfo(resolvedTrackID, requested, {});
+    if (!info || info.kind !== "direct" || !info.directURL) return null;
+    var url = String(info.directURL).trim();
+    if (url.indexOf("http://") !== 0 && url.indexOf("https://") !== 0) {
+      return null;
+    }
+    log.info(
+      "[TidalWeb] streaming URL OK:",
+      info.audioQuality || "",
+      "kind=direct",
+    );
+    return url;
+  } catch (e) {
+    var msg = e && e.message ? e.message : String(e);
+    log.debug("[TidalWeb] getDownloadUrl failed:", msg);
+    // A gateway-down error must NOT be swallowed into null: Go's circuit
+    // breaker only cools "tidal-web" when it sees the marker in the error
+    // (522/gateway), and without it every track re-walks the whole 40-call
+    // quality matrix. Re-throw so the cooldown trips and later tracks skip
+    // this source entirely while the gateway is down.
+    if (isGatewayError(msg)) {
+      throw new Error(msg);
+    }
+    // Same for VERIFY_REQUIRED: without the marker reaching Go, the cooldown
+    // (which now matches "verify_required") never trips and the fallback
+    // attempts this source dozens of times per track — burning the whole
+    // streaming budget on a session that cannot serve until the user
+    // completes the challenge. Re-throw so Go cools tidal-web for the short
+    // verification window (cleared as soon as the grant completes).
+    if (isVerificationRequiredError(e)) {
+      throw new Error(msg);
+    }
+    return null;
+  }
+}
+
 function completeGrant() {
   if (
     typeof session === "undefined" ||
@@ -2873,6 +2973,114 @@ function completeGrant() {
   return session.completeGrant();
 }
 
+function getHomeFeed() {
+  try {
+    var sections = [];
+
+    // Try signed session first (requires verified session)
+    if (
+      typeof session !== "undefined" &&
+      session &&
+      typeof session.signedFetch === "function"
+    ) {
+      try {
+        // Try /pages/home first, fall back to /pages/charts -- but only if
+        // the session is actually authenticated. TIDAL pages endpoints return
+        // 403 when the session exists but was never verified (no human
+        // challenge completed). When that happens we stop the whole feed for
+        // this source instead of hammering zarz redirects.
+        var paths = [
+          "/pages/home?countryCode=US",
+          "/pages/charts?countryCode=US",
+        ];
+        for (var pi = 0; pi < paths.length && sections.length === 0; pi++) {
+          var homeRes = session.signedFetch("GET", paths[pi], null, {});
+          log.warn(
+            "[TidalWeb] home fetch attempted: " +
+              paths[pi] +
+              " -> HTTP " +
+              (homeRes ? homeRes.statusCode : "no response") +
+              " error=" +
+              (homeRes && homeRes.error ? homeRes.error : "") +
+              " needsVerification=" +
+              (homeRes && homeRes.needsVerification ? "yes" : "no"),
+          );
+          if (homeRes && homeRes.statusCode === 200 && homeRes.body) {
+            var home = JSON.parse(homeRes.body);
+            var rows = home && home.rows ? home.rows : [];
+            // Also handle the case where rows is under 'sections'
+            if (rows.length === 0 && home && home.sections)
+              rows = home.sections;
+            for (var i = 0; i < rows.length && sections.length < 5; i++) {
+              var row = rows[i];
+              if (!row || !row.items) continue;
+              var sectionTitle = "Tidal";
+              if (row.title) sectionTitle = row.title;
+              else if (row.name) sectionTitle = row.name;
+              var items = [];
+              var rowItems = row.items || [];
+              for (var j = 0; j < rowItems.length && items.length < 15; j++) {
+                var item = rowItems[j];
+                if (!item) continue;
+                var type = "track";
+                var id = "";
+                if (item.type === "album") type = "album";
+                else if (item.type === "playlist") type = "playlist";
+                else if (item.type === "artist") type = "artist";
+                if (item.id) id = String(item.id);
+                if (item.resource && item.resource.id)
+                  id = String(item.resource.id);
+                if (!id) continue;
+                var name =
+                  item.title || (item.resource && item.resource.title) || "";
+                var artists = "";
+                if (item.artist && item.artist.name) artists = item.artist.name;
+                else if (item.artists && item.artists.length > 0)
+                  artists = item.artists
+                    .map(function (a) {
+                      return a.name;
+                    })
+                    .join(", ");
+                var cover = "";
+                if (item.image && item.image.url) cover = item.image.url;
+                else if (
+                  item.resource &&
+                  item.resource.image &&
+                  item.resource.image.url
+                )
+                  cover = item.resource.image.url;
+                items.push({
+                  id: id,
+                  type: type,
+                  name: name,
+                  artists: artists,
+                  cover_url: cover,
+                });
+              }
+              if (items.length > 0) {
+                sections.push({ title: sectionTitle, items: items });
+              }
+            }
+          }
+        }
+        if (sections.length === 0) {
+          log.warn("[TidalWeb] home feed returned 0 from all endpoints");
+        }
+      } catch (e) {
+        log.warn("[TidalWeb] getHomeFeed signed request failed:", String(e));
+      }
+    } else {
+      log.warn("[TidalWeb] no session object for home feed");
+    }
+
+    log.info("[TidalWeb] getHomeFeed returning", sections.length, "sections");
+    return { success: true, sections: sections };
+  } catch (e) {
+    log.warn("[TidalWeb] getHomeFeed failed:", String(e));
+    return { success: false, error: String(e), sections: [] };
+  }
+}
+
 registerExtension({
   initialize: initialize,
   cleanup: cleanup,
@@ -2880,6 +3088,7 @@ registerExtension({
   customSearch: customSearch,
   checkAvailability: checkAvailability,
   download: download,
+  getDownloadUrl: getDownloadUrl,
   handleUrl: handleUrl,
   getTrack: getTrack,
   getAlbum: getAlbum,
@@ -2887,6 +3096,7 @@ registerExtension({
   getPlaylist: getPlaylist,
   enrichTrack: enrichTrack,
   searchTracks: searchTracks,
+  getHomeFeed: getHomeFeed,
 });
 
 log.info("[TidalWeb] TIDAL web metadata extension loaded");
