@@ -1764,12 +1764,22 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
         ? (batchData!.tracks.first['cover_url'] as String? ?? '')
         : '';
     // Save album/playlist cover locally for offline persistence.
+    // Retry 3 times with exponential backoff (same as single-track covers)
+    // so a transient network blip doesn't lose the cover.
     String batchCoverPath = '';
     if (batchCover.isNotEmpty) {
-      try {
-        final saved = await _backend.saveCover(batchCover);
-        if (saved != null && saved.isNotEmpty) batchCoverPath = saved;
-      } catch (_) {}
+      for (var attempt = 0; attempt < 3; attempt++) {
+        try {
+          final saved = await _backend.saveCover(batchCover);
+          if (saved != null && saved.isNotEmpty) {
+            batchCoverPath = saved;
+            break;
+          }
+        } catch (_) {}
+        if (attempt < 2) {
+          await Future<void>.delayed(Duration(seconds: 1 << attempt));
+        }
+      }
     }
     _batchMeta[batchKey] = _BatchMeta(batchName, itemType, itemId, src,
         coverUrl: batchCover, coverPath: batchCoverPath);
