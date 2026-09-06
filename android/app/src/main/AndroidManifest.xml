@@ -6,6 +6,8 @@
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+    <!-- Allow installing APKs from within the app (update modal) -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- Media playback in background (audio_service): keep the process alive
          while a track is playing and show the media notification. -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />

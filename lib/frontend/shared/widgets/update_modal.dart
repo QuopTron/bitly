@@ -3,8 +3,10 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:open_filex/open_filex.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:path_provider/path_provider.dart';
+
 import '../theme/app_colors.dart';
 import '../utils/responsive.dart';
 
@@ -34,18 +36,14 @@ class UpdateService {
       if (abi.contains('x86_64') || abi.contains('amd64')) return 'x86_64';
       if (abi.contains('x86') || abi.contains('i686')) return 'x86_64';
     } catch (_) {}
-    return 'arm64'; // fallback
+    return 'arm64';
   }
 
   String _getAndroidAbi() {
-    // Platform.environment['os.version'] doesn't give ABI
-    // We use a simple heuristic based on available info
-    // In production, use device_info_plus or check /proc/cpuinfo
     try {
       final result = Process.runSync('getprop', ['ro.product.cpu.abi']);
       return result.stdout.toString().trim().toLowerCase();
     } catch (_) {
-      // Non-Android or getprop unavailable; fallback
       return '';
     }
   }
@@ -100,7 +98,6 @@ class UpdateService {
         }
       }
 
-      // Fallback: any APK asset
       if (downloadUrl == null) {
         for (final asset in assets) {
           final name = asset['name'] as String? ?? '';
@@ -133,7 +130,6 @@ class UpdateService {
     }
   }
 
-  /// Returns true if `newVersion` is strictly newer than `currentVersion`.
   static bool? _isNewer(String newVersion, String currentVersion) {
     final newParts = newVersion.split('.').map(int.tryParse).toList();
     final curParts = currentVersion.split('.').map(int.tryParse).toList();
@@ -156,7 +152,6 @@ class UpdateService {
   }
 }
 
-/// Shows the update modal bottom sheet.
 Future<void> showUpdateModal(BuildContext context, UpdateInfo info) {
   return showModalBottomSheet(
     context: context,
@@ -166,16 +161,74 @@ Future<void> showUpdateModal(BuildContext context, UpdateInfo info) {
   );
 }
 
-class _UpdateSheet extends StatelessWidget {
+class _UpdateSheet extends StatefulWidget {
   final UpdateInfo info;
-
   const _UpdateSheet({required this.info});
+
+  @override
+  State<_UpdateSheet> createState() => _UpdateSheetState();
+}
+
+class _UpdateSheetState extends State<_UpdateSheet> {
+  bool _downloading = false;
+  double _progress = 0;
+  String? _error;
 
   String _formatBytes(int? bytes) {
     if (bytes == null) return '';
     if (bytes < 1024) return '$bytes B';
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    if (bytes < 1024 * 1024) {
+      return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    }
     return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+
+  Future<void> _downloadAndInstall() async {
+    if (_downloading) return;
+    setState(() {
+      _downloading = true;
+      _progress = 0;
+      _error = null;
+    });
+
+    try {
+      final dir = await getTemporaryDirectory();
+      final fileName = 'bitly_${widget.info.version}.apk';
+      final file = File('${dir.path}/$fileName');
+
+      final request = http.Request('GET', Uri.parse(widget.info.downloadUrl));
+      final response = await http.Client().send(request);
+
+      if (response.statusCode != 200) {
+        setState(() => _error = 'Error ${response.statusCode}');
+        return;
+      }
+
+      final contentLength = response.contentLength ?? 0;
+      int received = 0;
+      final sink = file.openWrite();
+
+      await response.stream.listen((chunk) {
+        sink.add(chunk);
+        received += chunk.length;
+        if (contentLength > 0) {
+          setState(() => _progress = received / contentLength);
+        }
+      }).asFuture();
+
+      await sink.flush();
+      await sink.close();
+
+      // Open APK with system installer
+      final result = await OpenFilex.open(file.path);
+      if (result.type != ResultType.done) {
+        setState(() => _error = 'No se pudo abrir el instalador: ${result.message}');
+      } else {
+        if (mounted) Navigator.of(context).pop();
+      }
+    } catch (e) {
+      setState(() => _error = 'Error: $e');
+    }
   }
 
   @override
@@ -187,8 +240,10 @@ class _UpdateSheet extends StatelessWidget {
     final muted = AppColors.onSurfaceMuted(isDark);
     final border = AppColors.border(isDark);
 
-    final sizeStr = _formatBytes(info.apkSize);
-    final versionLabel = sizeStr.isNotEmpty ? 'v${info.version}  •  $sizeStr' : 'v${info.version}';
+    final sizeStr = _formatBytes(widget.info.apkSize);
+    final versionLabel = sizeStr.isNotEmpty
+        ? 'v${widget.info.version}  •  $sizeStr'
+        : 'v${widget.info.version}';
 
     return Container(
       margin: EdgeInsets.only(top: r.spacingXL * 2),
@@ -224,7 +279,9 @@ class _UpdateSheet extends StatelessWidget {
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
-                  Icons.system_update,
+                  _downloading
+                      ? Icons.downloading_rounded
+                      : Icons.system_update,
                   size: 28,
                   color: AppColors.success,
                 ),
@@ -236,7 +293,9 @@ class _UpdateSheet extends StatelessWidget {
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: r.spacingXL),
                 child: Text(
-                  'Hay una nueva actualización',
+                  _downloading
+                      ? 'Descargando actualización...'
+                      : 'Hay una nueva actualización',
                   style: TextStyle(
                     fontSize: r.titleSize,
                     fontWeight: FontWeight.bold,
@@ -277,8 +336,53 @@ class _UpdateSheet extends StatelessWidget {
 
               SizedBox(height: r.spacingL),
 
+              // Download progress
+              if (_downloading)
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: r.spacingXL),
+                  child: Column(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: LinearProgressIndicator(
+                          value: _progress > 0 ? _progress : null,
+                          minHeight: 8,
+                          backgroundColor: onBg.withValues(alpha: 0.08),
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            AppColors.success,
+                          ),
+                        ),
+                      ),
+                      SizedBox(height: r.spacingS),
+                      Text(
+                        _progress > 0
+                            ? '${(_progress * 100).toStringAsFixed(0)}%'
+                            : 'Preparando...',
+                        style: TextStyle(
+                          fontSize: r.footerSize,
+                          color: muted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+              // Error message
+              if (_error != null)
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: r.spacingXL),
+                  child: Text(
+                    _error!,
+                    style: TextStyle(
+                      fontSize: r.footerSize,
+                      color: AppColors.error,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+
               // Release notes
-              if (info.body.isNotEmpty)
+              if (!_downloading && widget.info.body.isNotEmpty)
                 Padding(
                   padding: EdgeInsets.symmetric(horizontal: r.spacingXL),
                   child: Container(
@@ -290,7 +394,7 @@ class _UpdateSheet extends StatelessWidget {
                       border: Border.all(color: border),
                     ),
                     child: Text(
-                      info.body,
+                      widget.info.body,
                       style: TextStyle(
                         fontSize: r.footerSize,
                         color: onBg.withValues(alpha: 0.7),
@@ -304,71 +408,70 @@ class _UpdateSheet extends StatelessWidget {
 
               SizedBox(height: r.spacingXL),
 
-              // Download button
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: r.spacingXL),
-                child: SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: ElevatedButton(
-                    onPressed: () async {
-                      final uri = Uri.parse(info.downloadUrl);
-                      if (await canLaunchUrl(uri)) {
-                        await launchUrl(uri, mode: LaunchMode.externalApplication);
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.success,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      elevation: 0,
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.download_rounded, size: 20),
-                        SizedBox(width: r.spacingS),
-                        Text(
-                          'Descargar actualización',
-                          style: TextStyle(
-                            fontSize: r.subtitleSize,
-                            fontWeight: FontWeight.w600,
-                          ),
+              // Download & Install button
+              if (!_downloading)
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: r.spacingXL),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton(
+                      onPressed: _downloadAndInstall,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.success,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
                         ),
-                      ],
+                        elevation: 0,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.download_rounded, size: 20),
+                          SizedBox(width: r.spacingS),
+                          Text(
+                            'Descargar e instalar',
+                            style: TextStyle(
+                              fontSize: r.subtitleSize,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
 
               // Dismiss button
-              Padding(
-                padding: EdgeInsets.fromLTRB(
-                  r.spacingXL, r.spacingS, r.spacingXL, r.spacingXL,
-                ),
-                child: SizedBox(
-                  width: double.infinity,
-                  height: 44,
-                  child: TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    style: TextButton.styleFrom(
-                      foregroundColor: muted,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
+              if (!_downloading)
+                Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    r.spacingXL, r.spacingS, r.spacingXL, r.spacingXL,
+                  ),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 44,
+                    child: TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      style: TextButton.styleFrom(
+                        foregroundColor: muted,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
                       ),
-                    ),
-                    child: Text(
-                      'Ahora no',
-                      style: TextStyle(
-                        fontSize: r.footerSize,
-                        fontWeight: FontWeight.w500,
+                      child: Text(
+                        'Ahora no',
+                        style: TextStyle(
+                          fontSize: r.footerSize,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
+
+              SizedBox(height: r.spacingM),
             ],
           ),
         ),
