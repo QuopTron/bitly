@@ -246,7 +246,7 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
 
   /// Cache TTL para _localFiles: se inicializa desde DownloadSettings.
   /// Default 30s si no hay settings cargados aún.
-  Duration _localFilesTTL = const Duration(seconds: 30);
+  Duration _localFilesTTL = const Duration(seconds: 5);
   DateTime? _localFilesLoadedAt;
 
   /// Almacena el timestamp ISO 8601 de la última carga de _localFiles.
@@ -1780,7 +1780,7 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
   }
 
   Future<void> _refreshLocalFiles() async {
-    // Solo recargar si el caché expiró (30s TTL), para no llamar a
+    // Solo recargar si el caché expiró (5s TTL), para no llamar a
     // getDownloadHistory en cada cambio de track.
     final now = DateTime.now();
     if (_localFilesLoadedAt != null &&
@@ -1789,6 +1789,36 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
     }
     await _loadLocalFiles();
     // _localFilesLoadedAt se actualiza dentro de _loadLocalFiles()
+  }
+
+  /// Force-reloads the local files cache immediately, ignoring the TTL.
+  /// Called by DownloadCubit when a download completes so the player can
+  /// find the new file right away instead of waiting up to 5s.
+  Future<void> forceRefreshLocalFiles() async {
+    _localFilesLoadedAt = null;
+    await _loadLocalFiles();
+  }
+
+  /// Immediately registers a newly-downloaded file in the local files map
+  /// so playback can find it without waiting for a DB reload.
+  void registerLocalFile({
+    required String trackId,
+    required String filePath,
+    String? providerTrackId,
+    String? trackName,
+    String? artistName,
+    String? isrc,
+  }) {
+    if (trackId.isNotEmpty) _localFiles[trackId] = filePath;
+    if (providerTrackId != null && providerTrackId != trackId) {
+      _localFiles[providerTrackId] = filePath;
+    }
+    if (trackName != null && trackName.isNotEmpty) {
+      _localFiles[fingerprintFromName(trackName, artistName ?? '')] = filePath;
+    }
+    if (isrc != null && isrc.isNotEmpty) {
+      _localFiles[fingerprintIsrc(isrc)] = filePath;
+    }
   }
 
   String? _resolveLocalUri(FeedItem track) {

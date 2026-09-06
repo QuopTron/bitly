@@ -7,9 +7,11 @@ import '../../injection.dart' as inj;
 import '../rpc/backend_service.dart';
 import '../../frontend/shared/models/feed_models.dart';
 import '../cache/favorite_cache.dart';
+import 'download_cubit.dart';
 import 'item_fingerprint.dart';
 import '../cache/like_state.dart';
 import 'like_actions.dart';
+import '../../frontend/shared/utils/download_strategy.dart';
 
 class LikeCubit extends Cubit<LikeState> with LikeActions {
   @override
@@ -173,11 +175,40 @@ class LikeCubit extends Cubit<LikeState> with LikeActions {
   }
 
   /// Resolves the best cover URL for a FeedItem:
-  /// local cover path (if liked) → network coverUrl (original).
+  /// local liked cover → local downloaded cover → network coverUrl (original).
   /// Use this everywhere instead of raw [FeedItem.coverUrl] to
-  /// ensure liked items show their locally cached covers.
-  String? resolveCoverFor(FeedItem item) =>
-      localCoverFor(item) ?? item.coverUrl;
+  /// ensure liked/downloaded items show their locally cached covers.
+  String? resolveCoverFor(FeedItem item) {
+    // 1. Check liked items first (most specific)
+    final likedCover = localCoverFor(item);
+    if (likedCover != null && likedCover.isNotEmpty) return likedCover;
+
+    // 2. Check downloaded track covers
+    if (item.type == 'track') {
+      try {
+        final dlCover = inj.sl<DownloadCubit>().localTrackCover(
+          item.id,
+          item.source ?? '',
+        );
+        if (dlCover != null && dlCover.isNotEmpty) return dlCover;
+      } catch (_) {}
+    }
+
+    // 2.5 Check downloaded album/playlist batch covers so items from
+    // downloaded albums/playlists also show their locally saved cover.
+    if (item.type == 'album' || item.type == 'playlist') {
+      try {
+        final dlCubit = inj.sl<DownloadCubit>();
+        final batchKey =
+            '${item.type}_${normalizeTrackId(item.id)}_${item.source ?? ''}';
+        final batchCover = dlCubit.batchCoverFor(batchKey);
+        if (batchCover.isNotEmpty) return batchCover;
+      } catch (_) {}
+    }
+
+    // 3. Fall back to network URL
+    return item.coverUrl;
+  }
 
   List<LikedItemData> get tracks =>
       state.allLiked.values.where((i) => i.type == 'track').toList();

@@ -130,8 +130,10 @@ mixin LikeActions on Cubit<LikeState> {
   /// stale RPC can never resurrect a removed favorite's cover.
   Future<void> _saveCoverForLike(FeedItem item, String fp) async {
     String? coverPath;
-    try {
-      if (item.coverUrl != null && item.coverUrl!.isNotEmpty) {
+    const maxRetries = 3;
+    for (var attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        if (item.coverUrl == null || item.coverUrl!.isEmpty) break;
         if (item.type == 'track') {
           final localCover = await backend.getCoverPathForTrack(
             trackId: item.id,
@@ -148,9 +150,14 @@ mixin LikeActions on Cubit<LikeState> {
         } else {
           coverPath = await _saveCover(item.coverUrl!);
         }
+        if (coverPath != null && coverPath.isNotEmpty) break;
+      } catch (_) {
+        coverPath = null;
       }
-    } catch (_) {
-      coverPath = null;
+      // Exponential backoff: 1s, 2s, 4s
+      if (attempt < maxRetries - 1) {
+        await Future<void>.delayed(Duration(seconds: 1 << attempt));
+      }
     }
     if (coverPath == null || coverPath.isEmpty) return;
     // Solo parcheamos si el item sigue likeado (pudo quitarse el like mientras

@@ -1238,13 +1238,19 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
               final trackCoverUrl = meta?.coverUrl;
               String? coverPath;
               if (trackCoverUrl != null && trackCoverUrl.isNotEmpty) {
-                try {
-                  final coverPathResult = await _backend.saveCover(trackCoverUrl);
-                  if (coverPathResult != null && coverPathResult.isNotEmpty) {
-                    coverPath = coverPathResult;
+                for (var attempt = 0; attempt < 3; attempt++) {
+                  try {
+                    final coverPathResult = await _backend.saveCover(trackCoverUrl);
+                    if (coverPathResult != null && coverPathResult.isNotEmpty) {
+                      coverPath = coverPathResult;
+                      break;
+                    }
+                  } catch (_) {
+                    coverPath = null;
                   }
-                } catch (_) {
-                  coverPath = null;
+                  if (attempt < 2) {
+                    await Future<void>.delayed(Duration(seconds: 1 << attempt));
+                  }
                 }
                 if (coverPath != null && coverPath.isNotEmpty && meta != null) {
                   _trackMeta[stateKey] = _TrackInfo(
@@ -1276,6 +1282,25 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
               final fpArtist = trackName.isNotEmpty ? artistName : '';
               fps.add(fingerprintFromName(fpName, fpArtist));
               _completedPersisted.add(rawId);
+
+              // Immediately register the file in the player's local files map
+              // so it can play from disk without waiting for a DB reload.
+              if (playablePath.isNotEmpty) {
+                sl<PlayerCubit>().registerLocalFile(
+                  trackId: trackId,
+                  filePath: playablePath,
+                  providerTrackId: rawId.endsWith('_audio')
+                      ? rawId.substring(0, rawId.length - 6)
+                      : rawId.endsWith('_lyrics')
+                          ? rawId.substring(0, rawId.length - 7)
+                          : rawId.endsWith('_video')
+                              ? rawId.substring(0, rawId.length - 6)
+                              : rawId,
+                  trackName: trackName.isNotEmpty ? trackName : null,
+                  artistName: artistName.isNotEmpty ? artistName : null,
+                  isrc: isrc.isNotEmpty ? isrc : null,
+                );
+              }
             }
             _startedAt.remove(stateKey);
             changed = true;
