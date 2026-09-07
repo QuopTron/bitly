@@ -75,6 +75,7 @@ type youtubeOauthParams struct {
 // StartYoutubeOauth binds the loopback callback listener and returns the
 // Google consent URL to open in the system browser.
 func StartYoutubeOauth(payload string) string {
+	logYouTubeOAuth("start: initializing OAuth flow")
 	var p youtubeOauthParams
 	if err := json.Unmarshal([]byte(payload), &p); err != nil {
 		return jsonErrorStr("payload inválido")
@@ -186,6 +187,9 @@ func StopYoutubeOauth(payload string) string {
 // ExchangeYoutubeOauth swaps the authorization code for tokens. Payload:
 // {code}. Client id/secret come from the StartYoutubeOauth call.
 func ExchangeYoutubeOauth(payload string) string {
+	logYouTubeOAuth("exchange: starting code exchange")
+	start := time.Now()
+
 	var p struct {
 		Code string `json:"code"`
 	}
@@ -215,8 +219,10 @@ func ExchangeYoutubeOauth(payload string) string {
 
 	tokens, err := googleTokenCall(form)
 	if err != nil {
+		logYouTubeOAuth("exchange: FAILED after %v: %v", time.Since(start), err)
 		return jsonErrorStr("intercambio falló: " + err.Error())
 	}
+	logYouTubeOAuth("exchange: OK in %v", time.Since(start))
 	out, _ := json.Marshal(tokens)
 	return string(out)
 }
@@ -224,6 +230,9 @@ func ExchangeYoutubeOauth(payload string) string {
 // RefreshYoutubeOauth refreshes an access token. Payload:
 // {client_id, client_secret, refresh_token}.
 func RefreshYoutubeOauth(payload string) string {
+	logYouTubeOAuth("refresh: starting token refresh")
+	start := time.Now()
+
 	var p struct {
 		ClientID     string `json:"client_id"`
 		ClientSecret string `json:"client_secret"`
@@ -245,8 +254,10 @@ func RefreshYoutubeOauth(payload string) string {
 
 	tokens, err := googleTokenCall(form)
 	if err != nil {
+		logYouTubeOAuth("refresh: FAILED after %v: %v", time.Since(start), err)
 		return jsonErrorStr("refresh falló: " + err.Error())
 	}
+	logYouTubeOAuth("refresh: OK in %v", time.Since(start))
 	out, _ := json.Marshal(tokens)
 	return string(out)
 }

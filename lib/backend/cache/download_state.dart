@@ -33,6 +33,11 @@ class DownloadCubitState extends Equatable {
   /// dialog prompting the user to re-select the folder.
   final bool folderLost;
 
+  /// Non-null when a download was rejected by the free-tier gate (8h window
+  /// expired). The UI shows a one-time snackbar with the trial message, then
+  /// clears it via [DownloadCubit.acknowledgeGateBlocked].
+  final String? downloadGateBlocked;
+
   const DownloadCubitState({
     this.downloads = const {},
     this.downloadedFingerprints = const {},
@@ -40,6 +45,7 @@ class DownloadCubitState extends Equatable {
     this.backendRestarted = false,
     this.decryptError,
     this.folderLost = false,
+    this.downloadGateBlocked,
   });
 
   DownloadCubitState copyWith({
@@ -51,6 +57,8 @@ class DownloadCubitState extends Equatable {
     bool clearDecryptError = false,
     bool? folderLost,
     bool clearFolderLost = false,
+    String? downloadGateBlocked,
+    bool clearGateBlocked = false,
   }) =>
       DownloadCubitState(
         downloads: downloads ?? this.downloads,
@@ -59,8 +67,19 @@ class DownloadCubitState extends Equatable {
         backendRestarted: backendRestarted ?? this.backendRestarted,
         decryptError: clearDecryptError ? null : (decryptError ?? this.decryptError),
         folderLost: clearFolderLost ? false : (folderLost ?? this.folderLost),
+        downloadGateBlocked: clearGateBlocked
+            ? null
+            : (downloadGateBlocked ?? this.downloadGateBlocked),
       );
 
   @override
-  List<Object?> get props => [downloads, downloadedFingerprints, loading, backendRestarted, decryptError, folderLost];
+  List<Object?> get props => [
+    downloads,
+    downloadedFingerprints,
+    loading,
+    backendRestarted,
+    decryptError,
+    folderLost,
+    downloadGateBlocked,
+  ];
 }

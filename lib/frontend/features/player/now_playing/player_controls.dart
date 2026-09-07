@@ -14,10 +14,7 @@ class PlayerControls extends StatelessWidget {
   final QueueState queue;
   final FeedItem track;
   final bool lyricsLoading;
-  final bool hasVideo;
-  final bool showVideo;
   final VoidCallback? onToggleLyrics;
-  final VoidCallback? onToggleVideo;
 
   const PlayerControls({
     super.key,
@@ -26,10 +23,7 @@ class PlayerControls extends StatelessWidget {
     required this.queue,
     required this.track,
     this.lyricsLoading = false,
-    this.hasVideo = false,
-    this.showVideo = false,
     this.onToggleLyrics,
-    this.onToggleVideo,
   });
 
   @override
@@ -37,14 +31,20 @@ class PlayerControls extends StatelessWidget {
     final player = context.read<PlayerCubit>().state;
     final muted = (isDark ? Colors.white : Colors.black).withValues(alpha: 0.45);
     final active = isDark ? Colors.white : Colors.black;
-    final iconM = r.subtitleSize + 4;
-    final iconL = r.subtitleSize + 9;
+    final iconM = r.subtitleSize + 7;
+    final iconL = r.subtitleSize + 13;
     final gap = r.spacingL;
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
+    // FittedBox escala la fila hacia abajo cuando la pantalla es angosta:
+    // sin esto, en teléfonos chicos la Row desborda, Flutter recorta los
+    // iconos del extremo derecho (repeat / letra / video) y pinta las franjas
+    // amarillas de overflow ("líneas debug" que veías en el reproductor).
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
         BlocBuilder<LikeCubit, LikeState>(
           builder: (context, _) {
             final liked = context.read<LikeCubit>().isLiked(track);
@@ -81,8 +81,8 @@ class PlayerControls extends StatelessWidget {
         GestureDetector(
           onTap: () { Haptic.medium(); sl<PlayerCubit>().togglePlayPause(); },
           child: Container(
-            width: r.subtitleSize + 34,
-            height: r.subtitleSize + 34,
+            width: r.subtitleSize + 40,
+            height: r.subtitleSize + 40,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: active.withValues(alpha: 0.12),
@@ -94,8 +94,8 @@ class PlayerControls extends StatelessWidget {
             child: player.playbackState == PlayerPlaybackState.buffering
                 ? Center(
                     child: SizedBox(
-                      width: r.subtitleSize + 2,
-                      height: r.subtitleSize + 2,
+                      width: r.subtitleSize + 4,
+                      height: r.subtitleSize + 4,
                       child: CircularProgressIndicator(
                         strokeWidth: 3,
                         valueColor: AlwaysStoppedAnimation(active.withValues(alpha: 0.7)),
@@ -105,7 +105,7 @@ class PlayerControls extends StatelessWidget {
                 : Icon(
                     player.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
                     color: active,
-                    size: r.subtitleSize + 14,
+                    size: r.subtitleSize + 18,
                   ),
           ),
         ),
@@ -128,24 +128,14 @@ class PlayerControls extends StatelessWidget {
           onTap: lyricsLoading ? null : onToggleLyrics,
           child: lyricsLoading
               ? SizedBox(
-                  width: r.subtitleSize + 2,
-                  height: r.subtitleSize + 2,
+                  width: r.subtitleSize + 4,
+                  height: r.subtitleSize + 4,
                   child: CircularProgressIndicator(strokeWidth: 2.5, color: active.withValues(alpha: 0.6)),
                 )
-              : Icon(Icons.lyrics_outlined, color: muted, size: r.subtitleSize + 2),
+              : Icon(Icons.lyrics_outlined, color: muted, size: r.subtitleSize + 5),
         ),
-        if (hasVideo) ...[
-          SizedBox(width: r.spacingS),
-          GestureDetector(
-            onTap: onToggleVideo,
-            child: Icon(
-              showVideo ? Icons.image_outlined : Icons.videocam_outlined,
-              color: showVideo ? active : muted,
-              size: r.subtitleSize + 2,
-            ),
-          ),
-        ],
       ],
+      ),
     );
   }
 

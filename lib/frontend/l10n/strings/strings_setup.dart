@@ -153,6 +153,8 @@ class StringsSetup {
   // Version sheet
   final String versions, installed, latestVersion, newAvailable, download, downloading, upToDate, downloadError;
   final String reproductions;
+  // Report a bug / suggestion
+  final String reportBug, reportDesc, reportTypeBug, reportTypeSuggestion, reportTitle, reportBody, reportSend, reportSent, reportFailed;
 
   const StringsSetup({
     required this.selectLanguage,
@@ -353,6 +355,15 @@ class StringsSetup {
     required this.upToDate,
     required this.downloadError,
     required this.reproductions,
+    required this.reportBug,
+    required this.reportDesc,
+    required this.reportTypeBug,
+    required this.reportTypeSuggestion,
+    required this.reportTitle,
+    required this.reportBody,
+    required this.reportSend,
+    required this.reportSent,
+    required this.reportFailed,
   });
 
   static const en = StringsSetup(
@@ -364,7 +375,7 @@ class StringsSetup {
     chooseMode: 'Choose your usage mode',
     free: 'Free',
     premium: 'Premium',
-    freeInfo: 'Free download access for 6 hours',
+    freeInfo: 'Free download access for 8 hours',
     premiumInfo: 'Unlimited downloads forever',
     activateCode: 'Activate premium code',
     enterCode: 'Enter your premium code to activate',
@@ -378,7 +389,7 @@ class StringsSetup {
     yes: 'Yes',
     no: 'No',
     trialExpired:
-        'Your 6-hour free trial has ended. You can continue using the app for free but downloads are disabled. Activate Premium to download.',
+        'Your 8-hour free trial has ended. You can continue using the app for free but downloads are disabled. Activate Premium to download.',
     existingAccount: 'Existing account detected',
     startFresh:
         'If you select No, you will have to set up the application from scratch. If you already used your free trial, the system will detect it.',
@@ -390,7 +401,7 @@ class StringsSetup {
     usernameChanged: 'Change name',
     completingSetup: 'Completing setup...',
     freeDetailedInfo:
-        'With Free mode you get download access for 6 hours from your first activation. After the 6 hours, you will need to activate Premium to continue downloading.',
+        'With Free mode you get download access for 8 hours from your first activation. After the 8 hours, you will need to activate Premium to continue downloading.',
     premiumDetailedInfo:
         'With Premium mode you get unlimited downloads forever. Activate your account by entering a valid premium code available through our official channels.',
     previousNameWas: 'Your previous name was',
@@ -565,6 +576,15 @@ class StringsSetup {
     upToDate: 'You are on the latest version',
     downloadError: 'Download error',
     reproductions: 'plays',
+    reportBug: 'Report a bug',
+    reportDesc: 'Send bug reports and suggestions straight to the developer on GitHub.',
+    reportTypeBug: 'Bug',
+    reportTypeSuggestion: 'Suggestion',
+    reportTitle: 'Title',
+    reportBody: 'Describe what happened...',
+    reportSend: 'Send',
+    reportSent: 'Report sent. Thanks!',
+    reportFailed: "Couldn't send the report",
   );
 
 
@@ -577,7 +597,7 @@ class StringsSetup {
     chooseMode: 'Elige tu modo de uso',
     free: 'Gratis',
     premium: 'Premium',
-    freeInfo: 'Acceso a descargas gratis por 6 horas',
+    freeInfo: 'Acceso a descargas gratis por 8 horas',
     premiumInfo: 'Descargas ilimitadas para siempre',
     activateCode: 'Activar código premium',
     enterCode: 'Ingresa tu código premium para activar',
@@ -591,7 +611,7 @@ class StringsSetup {
     yes: 'Sí',
     no: 'No',
     trialExpired:
-        'Tu prueba gratis de 6 horas terminó. Puedes seguir usando la app gratis pero las descargas están desactivadas. Activa Premium para descargar.',
+        'Tu prueba gratis de 8 horas terminó. Puedes seguir usando la app gratis pero las descargas están desactivadas. Activa Premium para descargar.',
     existingAccount: 'Cuenta existente detectada',
     startFresh:
         'Si seleccionas No, tendrás que configurar la aplicación desde cero. Si ya usaste tu prueba gratis, el sistema lo detectará.',
@@ -603,7 +623,7 @@ class StringsSetup {
     usernameChanged: 'Cambiar nombre',
     completingSetup: 'Completando configuración...',
     freeDetailedInfo:
-        'Con el modo Gratis obtienes acceso a descargas por 6 horas desde tu primera activación. Una vez pasadas las 6 horas, necesitarás activar Premium para seguir descargando.',
+        'Con el modo Gratis obtienes acceso a descargas por 8 horas desde tu primera activación. Una vez pasadas las 8 horas, necesitarás activar Premium para seguir descargando.',
     premiumDetailedInfo:
         'Con el modo Premium obtienes descargas ilimitadas para siempre. Activa tu cuenta ingresando un código premium válido que puedes obtener a través de nuestros canales oficiales.',
     previousNameWas: 'Tu nombre anterior era',
@@ -783,5 +803,14 @@ class StringsSetup {
     upToDate: 'Estás en la última versión',
     downloadError: 'Error al descargar',
     reproductions: 'reproducciones',
+    reportBug: 'Reportar un bug',
+    reportDesc: 'Envía reportes de bugs y sugerencias directo al desarrollador en GitHub.',
+    reportTypeBug: 'Bug',
+    reportTypeSuggestion: 'Sugerencia',
+    reportTitle: 'Título',
+    reportBody: 'Describe qué pasó...',
+    reportSend: 'Enviar',
+    reportSent: '¡Reporte enviado, gracias!',
+    reportFailed: 'No se pudo enviar el reporte',
   );
 }

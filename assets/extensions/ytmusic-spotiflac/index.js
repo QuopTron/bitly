@@ -1490,10 +1490,15 @@ function refreshInnerTubeAudioCandidate(videoID, oldCandidate, pageInfo) {
   return null;
 }
 
-function requestInnerTubeAudioDownload(videoID) {
+function requestInnerTubeAudioDownload(videoID, forceVideo) {
   // Returns the first client that gives us a valid audio URL.
+  // [forceVideo] selects a VIDEO-capable format (itag=18, video+audio mp4)
+  // instead of the audio-only preference — used by the visualizer, which
+  // renders frames in a separate muted video player. itag=18 is never
+  // PO-token-gated and serves reliably even from flagged IPs.
   // No probe -- probing can invalidate single-use googlevideo URLs.
   var lastError = "";
+  var videoOpts = forceVideo ? { forceItag18: true } : null;
   var pageInfo = { visitorData: "", playerUrl: "" };
   try {
     pageInfo = getYouTubePageInfo(videoID);
@@ -1542,7 +1547,7 @@ function requestInnerTubeAudioDownload(videoID) {
     }
     L("info", "[InnerTube] Trying " + client.name + " for " + videoID);
 
-    var result = _tryInnerTubeClient(videoID, client, pageInfo);
+    var result = _tryInnerTubeClient(videoID, client, pageInfo, videoOpts);
     if (result.error) {
       L("warn", "[InnerTube] " + client.name + " failed: " + result.error);
       // Video-level blocks apply to EVERY client: age-restricted and
@@ -5729,7 +5734,46 @@ function parseHomeFeedItem(itemContainer) {
 
     var artists = "";
     var durationMs = 0;
-    if (item.subtitle && item.subtitle.runs) {
+
+    // Strategy 1: flexColumns[1] (musicResponsiveListItemRenderer format)
+    if (!artists && item.flexColumns && item.flexColumns.length > 1) {
+      var fcr1 = item.flexColumns[1].musicResponsiveListItemFlexColumnRenderer;
+      if (fcr1 && fcr1.text && fcr1.text.runs) {
+        var artistParts = [];
+        for (var i = 0; i < fcr1.text.runs.length; i++) {
+          var run = fcr1.text.runs[i];
+          if (run && run.text) {
+            var txt = run.text.trim();
+            if (txt === "•" || txt === " • " || txt === "," || txt === " & ")
+              continue;
+            var lowerTxt = txt.toLowerCase();
+            if (
+              lowerTxt === "single" ||
+              lowerTxt === "album" ||
+              lowerTxt === "ep" ||
+              lowerTxt === "playlist" ||
+              lowerTxt === "video" ||
+              lowerTxt === "song" ||
+              lowerTxt === "artist"
+            )
+              continue;
+            if (/^\d{4}$/.test(txt)) continue;
+            if (
+              /^\d+(\.\d+)?[KMB]?\s*(views|plays|listeners|subscribers)/i.test(
+                txt,
+              )
+            )
+              continue;
+            if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(txt)) continue;
+            if (txt.length > 1) artistParts.push(txt);
+          }
+        }
+        if (artistParts.length > 0) artists = artistParts.join(", ");
+      }
+    }
+
+    // Strategy 2: subtitle.runs (musicTwoRowItemRenderer format)
+    if (!artists && item.subtitle && item.subtitle.runs) {
       var artistParts = [];
       for (var i = 0; i < item.subtitle.runs.length; i++) {
         var run = item.subtitle.runs[i];
@@ -5766,6 +5810,15 @@ function parseHomeFeedItem(itemContainer) {
         }
       }
       artists = artistParts.join(", ");
+    }
+
+    // Strategy 3: subtitle.simpleText (flat text fallback)
+    if (!artists && item.subtitle && item.subtitle.simpleText) {
+      var parts = item.subtitle.simpleText.split(/[•·]/);
+      if (parts.length > 0) {
+        var candidate = parts[0].trim();
+        if (candidate.length > 1) artists = candidate;
+      }
     }
 
     var itemType = "track";
@@ -5884,16 +5937,65 @@ function getHomeFeed() {
       browseId: "FEmusic_home",
     });
 
-    var res = fetch(url, {
-      method: "POST",
-      headers: {
+    function buildFeedHeaders(withAuth) {
+      var h = {
         "Content-Type": "application/json",
         Origin: "https://music.youtube.com",
         Referer: "https://music.youtube.com/",
         "User-Agent": getRandomUserAgent(),
-      },
+      };
+      if (withAuth && CONFIG.oauthAccessToken) {
+        h["Authorization"] = "Bearer " + CONFIG.oauthAccessToken;
+        h["X-Goog-AuthUser"] = "0";
+      }
+      return h;
+    }
+
+    var res = fetch(url, {
+      method: "POST",
+      headers: buildFeedHeaders(!!CONFIG.oauthAccessToken),
       body: body,
     });
+
+    // Expired account token: refresh once and retry before giving up.
+    var triedRefresh = false;
+    if (
+      res &&
+      (res.status === 401 || res.status === 403) &&
+      CONFIG.oauthRefreshToken
+    ) {
+      L(
+        "warn",
+        "[feed] browse " + res.status + "; refreshing OAuth and retrying once",
+      );
+      if (refreshYoutubeOauthToken()) {
+        triedRefresh = true;
+        res = fetch(url, {
+          method: "POST",
+          headers: buildFeedHeaders(true),
+          body: body,
+        });
+      }
+    }
+
+    // Still blocked with the (refreshed) bearer, or refresh was unavailable:
+    // retry anonymously. Anonymous browse historically returns the home feed
+    // fine, so a stale session must not take down the feed entirely.
+    if (res && (res.status === 401 || res.status === 403)) {
+      L(
+        "warn",
+        "[feed] browse auth " +
+          (triedRefresh ? "still" : "") +
+          " " +
+          res.status +
+          "; retrying anonymous",
+      );
+      res = fetch(url, {
+        method: "POST",
+        headers: buildFeedHeaders(false),
+        body: body,
+      });
+    }
 
     if (!res || !res.ok) {
       L("error", "getHomeFeed fetch failed", res ? res.status : "no response");
@@ -6019,8 +6121,135 @@ registerExtension({
     }
     return true;
   },
-  // Expose whether a Google account is connected so the settings UI can show
-  // connection state and clear the session.
+  // Finds a YouTube video with REAL motion (official music video, lyric
+  // video, etc.) for [query] (Go sends "title artist") so the visualizer
+  // layer is never the static album-art loop that YT Music serves for plain
+  // audio tracks (that loop is exactly the "se ve como el cover" complaint).
+  // Two attempts:
+  //   1. `filter: "videos"` — uploaded videos (official MV first). Scores
+  //      results: official markers win, lyrics/audio are demoted, and a bare
+  //      "Song" title with no artist/suffix is a Topic auto-visualizer → hard
+  //      penalty (static art).
+  //   2. `filter: "tracks"` — the song's own playable video as a last resort
+  //      (may still be the static visualizer when the song has NO video at
+  //      all, but something always plays instead of failing).
+  // Returns a bare YouTube video id, or null.
+  resolveVisualizerVideoID: function (query, artistName) {
+    if (!query || !String(query).trim()) return null;
+    try {
+      var q = String(query).trim();
+      var qLower = q.toLowerCase();
+      var artist = String(artistName || "").trim();
+      var artistLower = artist.toLowerCase();
+      // Song-title guess: the query minus the artist string.
+      var songGuess = qLower;
+      if (artistLower && qLower.indexOf(artistLower) >= 0) {
+        songGuess = qLower.replace(artistLower, "").trim();
+      }
+      function words(s) {
+        var m = {};
+        String(s || "")
+          .toLowerCase()
+          .replace(/[^a-z0-9áéíóúñü ]+/g, " ")
+          .trim()
+          .split(/\s+/)
+          .forEach(function (w) {
+            if (w.length > 1) m[w] = true;
+          });
+        return m;
+      }
+      function overlap(a, b) {
+        var n = 0;
+        for (var k in a) {
+          if (Object.prototype.hasOwnProperty.call(b, k)) n++;
+        }
+        return n;
+      }
+      function cleanTitle(t) {
+        return String(t || "")
+          .toLowerCase()
+          .replace(/\s*\([^)]*\)/g, " ")
+          .replace(/\s*\[[^]]*\]/g, " ")
+          .replace(/\s+-\s+/g, " ")
+          .replace(/[^a-z0-9áéíóúñü ]+/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
+      }
+      var songW = words(songGuess);
+      var artistW = words(artist);
+      function scoreResult(item) {
+        var t = String(item.name || item.title || "").toLowerCase();
+        if (!t) return -1e9;
+        var s = 0;
+        // Static album-art loops look exactly like the cover → avoid hard.
+        if (/visuali[sz]er/.test(t)) s -= 200;
+        // Real music video markers are the goal.
+        if (/official|oficial/.test(t)) s += 160;
+        if (/lyrics?|letra/.test(t)) s -= 60; // moving, but not the MV
+        if (/\bofficial audio\b|\baudio\b/.test(t)) s -= 40;
+        var tw = words(cleanTitle(t));
+        s += overlap(songW, tw) * 30;
+        s += overlap(artistW, tw) * 15;
+        // A bare "Song" title (no artist, no suffix marker) is the auto
+        // "Artist - Topic" upload → static artwork → demote.
+        var hasMarker =
+          /official|lyrics?|visuali[sz]er|audio|live|video|letra|remix/.test(t);
+        var hasArtist =
+          artistW && Object.keys(artistW).length > 0
+            ? overlap(artistW, tw) >= 1
+            : true;
+        if (!hasArtist && !hasMarker) s -= 120;
+        return s;
+      }
+
+      // 1) Uploaded videos — official MVs and real footage with motion.
+      try {
+        var vids = customSearchSync(q, { limit: 12, filter: "videos" });
+        if (vids && vids.length > 0) {
+          var best = null;
+          var bestScore = -1e9;
+          for (var i = 0; i < vids.length; i++) {
+            var v = vids[i];
+            if (!v || !v.id) continue;
+            var sc = scoreResult(v);
+            if (sc > bestScore) {
+              bestScore = sc;
+              best = v;
+            }
+          }
+          if (best && bestScore >= 0) {
+            return String(best.id).replace(/^yt:/, "");
+          }
+        }
+      } catch (e) {
+        L("warn", "resolveVisualizerVideoID videos failed:", String(e));
+      }
+
+      // 2) Fallback: the track's own playable video id (static visualizer if
+      //    the song has no real video — something always plays).
+      try {
+        var results = customSearchSync(q, { limit: 10, filter: "tracks" });
+        if (!results || results.length === 0) return null;
+        var qTitle = qLower;
+        for (var j = 0; j < results.length; j++) {
+          var item = results[j];
+          if (!item || !item.id) continue;
+          var tt = String(item.name || item.title || "").toLowerCase();
+          if (tt.indexOf(qTitle) >= 0 || qTitle.indexOf(tt) >= 0) {
+            return String(item.id).replace(/^yt:/, "");
+          }
+        }
+        if (results[0] && results[0].id) {
+          return String(results[0].id).replace(/^yt:/, "");
+        }
+      } catch (e2) {
+        L("warn", "resolveVisualizerVideoID fallback failed:", String(e2));
+      }
+    } catch (e) {
+      L("warn", "resolveVisualizerVideoID failed:", String(e));
+    }
+    return null;
+  },
   getOauthStatus: function () {
     return {
       connected: !!CONFIG.oauthAccessToken,
@@ -6444,11 +6673,13 @@ registerExtension({
   // URL is resolved at play time (never reused stale), carries the solved
   // n-parameter + PO token, and any failure returns null so the caller falls
   // back to the download pipeline exactly as before.
-  getDownloadUrl: function (trackID, quality) {
+  // [forceVideo] selects a video+audio format (itag=18) instead of the
+  // audio-only preference — used for the visualizer layer (muted frames).
+  getDownloadUrl: function (trackID, quality, forceVideo) {
     var videoID = String(trackID || "").trim();
     if (!videoID) return null;
     try {
-      var candidate = requestInnerTubeAudioDownload(videoID);
+      var candidate = requestInnerTubeAudioDownload(videoID, !!forceVideo);
       if (candidate && candidate.url) {
         L(
           "info",

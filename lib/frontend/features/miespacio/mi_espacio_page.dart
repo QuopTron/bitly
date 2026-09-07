@@ -21,7 +21,7 @@ import '../detail/playlist_detail_page.dart';
 import '../detail/artist_detail_page.dart';
 import '../../shared/widgets/song_info_modal.dart';
 import '../../shared/models/feed_models.dart';
-import '../../../backend/rpc/backend_service.dart';
+import '../../../backend/cache/playback_cache.dart';
 import '../../../injection.dart';
 import 'mi_espacio_profile.dart';
 import 'mi_espacio_tabs.dart';
@@ -64,16 +64,15 @@ class _MiEspacioPageState extends State<MiEspacioPage> {
     final u = await loadUsername();
     final p = await loadOwnPlaylists();
     await sl<PlaylistCubit>().loadStats();
-    // Fetch play counts for showing on track cards
+    // Fetch play counts for showing on track cards (from the LOCAL Drift
+    // tables — the Go in-memory tracker is empty on device).
     Map<String, int> playCounts = {};
     try {
-      final backend = sl<BackendService>();
-      final topTracks = await backend.rpcCall('getTopTracks', {'limit': 100});
-      if (topTracks is List) {
-        for (final t in topTracks) {
-          if (t is Map && t['trackId'] != null) {
-            playCounts[t['trackId'] as String] = (t['count'] as int?) ?? 0;
-          }
+      final top = await sl<PlaybackCache>().getTopTracksWithNames(100);
+      for (final t in top) {
+        final id = t['trackId'];
+        if (id != null) {
+          playCounts[id as String] = (t['count'] as int?) ?? 0;
         }
       }
     } catch (_) {}

@@ -231,6 +231,46 @@ func reuseStreamCacheForDownload(req download.Request) bool {
 	return true
 }
 
+// ResolveVisualizerUrl streams the visualizer for a track: finds the song's
+// YouTube video id (any provider) and resolves a direct VIDEO-capable URL via
+// the InnerTube route (no yt-dlp dependency), so the full player can stream
+// the visualizer immediately instead of downloading a whole video file first.
+// Payload mirrors downloadByStrategy (same strategy JSON from Flutter).
+func ResolveVisualizerUrl(payload string) string {
+	var params struct {
+		Request string `json:"request"`
+	}
+	if err := json.Unmarshal([]byte(payload), &params); err != nil || params.Request == "" {
+		return jsonErrorStr("falta request")
+	}
+	var raw map[string]interface{}
+	if err := json.Unmarshal([]byte(params.Request), &raw); err != nil {
+		return jsonErrorStr("request inválido")
+	}
+	if downloadOrch == nil {
+		return jsonErrorStr("no inicializado")
+	}
+	req := download.Request{
+		ItemID:     strOf(raw, "item_id", "itemId"),
+		Title:      strOf(raw, "track_title", "title", "track_name", "name"),
+		Artist:     strOf(raw, "artist_name", "artist"),
+		ISRC:       strOf(raw, "isrc"),
+		Provider:   strOf(raw, "source", "provider"),
+		TrackID:    strOf(raw, "track_id", "trackId"),
+		Quality:    strOf(raw, "quality"),
+		SpotifyID:  strOf(raw, "spotify_id", "spotifyId"),
+		DeezerID:   strOf(raw, "deezer_id", "deezerId"),
+		TidalID:    strOf(raw, "tidal_id", "tidalId"),
+		QobuzID:    strOf(raw, "qobuz_id", "qobuzId"),
+		DurationMS: strInt(raw, "duration_ms", "durationMs"),
+	}
+	url, err := downloadOrch.ResolveVisualizerStream(req, req.Quality)
+	if err != nil || url == "" {
+		return `{"itemId":"` + req.ItemID + `","success":false,"error":"` + err.Error() + `"}`
+	}
+	return `{"itemId":"` + req.ItemID + `","success":true,"url":"` + url + `","provider":"ytmusic"}`
+}
+
 // downloadLyricsToDisk fetches lyrics and writes a .lrc sidecar next to the
 // audio file, matching the filename Flutter expects: lyrics_{sha1(id)}.{lrc,txt}.
 func downloadLyricsToDisk(req download.Request) string {

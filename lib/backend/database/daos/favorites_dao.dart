@@ -42,6 +42,11 @@ class FavoritesDao extends DatabaseAccessor<AppDatabase> with _$FavoritesDaoMixi
   Future<void> removeLovedTrack(String trackId) =>
       (delete(lovedTracks)..where((t) => t.trackId.equals(trackId))).go();
 
+  /// Updates the locally cached cover path for a loved track.
+  Future<void> updateLovedTrackCoverPath(String trackId, String coverPath) =>
+      (update(lovedTracks)..where((t) => t.trackId.equals(trackId)))
+          .write(LovedTracksCompanion(coverPath: Value(coverPath)));
+
   // ── Favorite Albums ─────────────────────────────────────────────
 
   Future<List<FavoriteAlbum>> getFavoriteAlbums() => select(favoriteAlbums).get();
@@ -68,6 +73,13 @@ class FavoritesDao extends DatabaseAccessor<AppDatabase> with _$FavoritesDaoMixi
   Future<void> removeFavoriteAlbum(String albumId) =>
       (delete(favoriteAlbums)..where((t) => t.albumId.equals(albumId))).go();
 
+  /// Updates the locally cached cover path for a favorite album (keeps the
+  /// cover offline after the async saveCover finishes — without this the row
+  /// keeps only the remote coverUrl and the grid card shows gray offline).
+  Future<void> updateFavoriteAlbumCoverPath(String albumId, String coverPath) =>
+      (update(favoriteAlbums)..where((t) => t.albumId.equals(albumId)))
+          .write(FavoriteAlbumsCompanion(coverPath: Value(coverPath)));
+
   // ── Favorite Artists ────────────────────────────────────────────
 
   Future<List<FavoriteArtist>> getFavoriteArtists() => select(favoriteArtists).get();
@@ -89,6 +101,12 @@ class FavoritesDao extends DatabaseAccessor<AppDatabase> with _$FavoritesDaoMixi
   Future<void> removeFavoriteArtist(String artistId) =>
       (delete(favoriteArtists)..where((t) => t.artistId.equals(artistId))).go();
 
+  /// Updates the locally cached image path for a favorite artist so the
+  /// portrait survives restart (column is imagePath, not coverPath).
+  Future<void> updateFavoriteArtistImagePath(String artistId, String imagePath) =>
+      (update(favoriteArtists)..where((t) => t.artistId.equals(artistId)))
+          .write(FavoriteArtistsCompanion(imagePath: Value(imagePath)));
+
   // ── Favorite Playlists ──────────────────────────────────────────
 
   Future<List<FavoritePlaylist>> getFavoritePlaylists() => select(favoritePlaylists).get();
@@ -98,5 +116,11 @@ class FavoritesDao extends DatabaseAccessor<AppDatabase> with _$FavoritesDaoMixi
 
   Future<void> removeFavoritePlaylist(String playlistId) =>
       (delete(favoritePlaylists)..where((t) => t.playlistId.equals(playlistId))).go();
+
+  /// Updates the locally cached cover path for a favorite playlist.
+  Future<void> updateFavoritePlaylistCoverPath(String playlistId, String coverPath) =>
+      (update(favoritePlaylists)..where((t) => t.playlistId.equals(playlistId)))
+          .write(FavoritePlaylistsCompanion(coverPath: Value(coverPath)));
 }
+
 

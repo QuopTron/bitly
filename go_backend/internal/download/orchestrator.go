@@ -1635,17 +1635,130 @@ func appendToFile(path string, resp *http.Response, existingSize int64, onProgre
 	return dest, nil
 }
 
-// ResolveVideoURL resolves a direct video stream URL for [trackID] at the
-// requested quality height. Prefers the YouTube provider; falls back to the
-// extension provider's video-capable provider if available.
-func (o *Orchestrator) ResolveVideoURL(trackID, quality string) (string, error) {
+// videoIDRe matches a bare YouTube video id (11 chars, [A-Za-z0-9_-]).
+var videoIDRe = regexp.MustCompile(`^[A-Za-z0-9_-]{11}$`)
+
+// ResolveVideoURL resolves a direct video stream URL for [videoID] at the
+// requested quality height. Two independent routes:
+//  1. native youtube provider (yt-dlp) → GetVideoURL — returns a real
+//     video+audio stream at the requested quality. Prefer it when the binary
+//     is installed (yt-dlp is downloaded in the background on Android); it is
+//     also what the visualizer used successfully before the streaming route
+//     existed.
+//  2. ytmusic-spotiflac extension → getDownloadUrl(id, quality, forceVideo=true),
+//     which resolves itag=18 (video+audio mp4) through the InnerTube player
+//     API — used when yt-dlp is not installed yet, or as a last-resort stream.
+//
+// [videoID] must be a bare YouTube id; foreign track ids must be mapped to one
+// first (see ResolveVisualizerStream below).
+func (o *Orchestrator) ResolveVideoURL(videoID, quality string) (string, error) {
+	id := strings.TrimPrefix(strings.TrimSpace(videoID), "yt:")
+	if id == "" {
+		return "", fmt.Errorf("video: falta ID de video")
+	}
+	// Route 1: native youtube provider via yt-dlp.
 	if p := o.providers.Get("youtube"); p != nil {
 		if yc, ok := p.(*youtube.Client); ok {
-			return yc.GetVideoURL(trackID, quality)
+			if url, err := yc.GetVideoURL(id, quality); err == nil && url != "" {
+				return url, nil
+			}
 		}
 	}
-	// Fallback: try GetStreamURL (audio) so video download degrades gracefully.
-	return o.resolveStreamURL(trackID, quality)
+	// Route 2: the bundled ytmusic extension (InnerTube, no external binary).
+	// Any registered extension exposing getDownloadUrl with video support wins;
+	// prefer ytmusic-spotiflac, then any -web extension in the fallback order.
+	for _, name := range o.fallbackOrder {
+		if cooldown.IsCooledOp(name, downloadCooldownOp) {
+			continue
+		}
+		p := o.providers.Get(name)
+		if p == nil {
+			continue
+		}
+		ep, ok := p.(*provider.ExtensionProvider)
+		if !ok {
+			continue
+		}
+		if url, err := ep.GetVisualizerURL(id, quality); err == nil && url != "" {
+			cooldown.MarkOpOk(name, downloadCooldownOp)
+			return url, nil
+		}
+	}
+	// Last resort: any stream URL (audio-only still lets the visualizer render
+	// the album art / waveform rather than failing outright).
+	return o.resolveStreamURL(id, quality)
+}
+
+// ResolveVisualizerStream finds the song's YouTube video id and resolves a
+// VIDEO-capable stream URL for it. It mirrors how audio resolution identifies
+// the exact track (ISRC first via each extension's CheckAvailability, then a
+// strict title+artist search) but never depends on the native youtube provider
+// / yt-dlp, so the visualizer works on any device where audio streaming works.
+func (o *Orchestrator) ResolveVisualizerStream(req Request, quality string) (string, error) {
+	// A real YouTube video id already in hand → resolve it directly.
+	tid := strings.TrimSpace(req.TrackID)
+	tid = stripTrackPrefix(tid)
+	if strings.HasPrefix(req.Provider, "yt") || strings.HasPrefix(tid, "yt:") ||
+		videoIDRe.MatchString(tid) {
+		return o.ResolveVideoURL(tid, quality)
+	}
+
+	queryTitle, artist := req.Title, req.Artist
+	q := strings.TrimSpace(queryTitle + " " + artist)
+
+	// 1) Native youtube provider (yt-dlp): returns a REAL YouTube video id for
+	// the song (usually the official music video). Prefer it — the visualizer
+	// needs actual video frames and yt-dlp has proven to work on this device.
+	// Only when the binary is not installed does this fail fast, letting the
+	// fallback below take over.
+	if yp := o.providers.Get("youtube"); yp != nil {
+		if yc, ok := yp.(*youtube.Client); ok && q != "" {
+			if results, err := yc.SearchTracks(q, 5); err == nil && len(results) > 0 {
+				for _, res := range results {
+					if res.ID == "" {
+						continue
+					}
+					if queryTitle != "" && artist != "" {
+						if provider.BestOriginal(queryTitle, artist, results) == nil {
+							continue
+						}
+					}
+					if u, err := o.ResolveVideoURL(res.ID, quality); err == nil && u != "" {
+						return u, nil
+					}
+					break // ResolveVideoURL already walked its own routes
+				}
+			}
+		}
+	}
+
+	// 2) ytmusic-spotiflac catalog search (InnerTube): returns the canonical
+	// music-video id for the track. Used when yt-dlp is unavailable.
+	ytName := "ytmusic-spotiflac"
+	yp := o.providers.Get(ytName)
+	if ep, ok := yp.(*provider.ExtensionProvider); ok {
+		if vid := ep.ResolveVisualizerVideoID(q, artist); vid != "" {
+			if u, err := o.ResolveVideoURL(vid, quality); err == nil && u != "" {
+				return u, nil
+			}
+		}
+		if q != "" {
+			if results, err := ep.SearchTracks(q, 8); err == nil && len(results) > 0 {
+				if queryTitle != "" && artist != "" {
+					if best := provider.BestOriginal(queryTitle, artist, results); best != nil && best.ID != "" {
+						if u, err2 := o.ResolveVideoURL(best.ID, quality); err2 == nil && u != "" {
+							return u, nil
+						}
+					}
+				} else if results[0].ID != "" {
+					if u, err2 := o.ResolveVideoURL(results[0].ID, quality); err2 == nil && u != "" {
+						return u, nil
+					}
+				}
+			}
+		}
+	}
+	return "", fmt.Errorf("video: no se encontro un video para la cancion")
 }
 
 // resolveStreamURL returns a stream URL for a track from any registered provider.

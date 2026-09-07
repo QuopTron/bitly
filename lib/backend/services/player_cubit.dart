@@ -489,6 +489,16 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
   }
 
   void _initPlayer() {
+    // This player is AUDIO-ONLY — the video canvas lives in its own Player in
+    // the full player. Set `vid=no` BEFORE any media opens so mpv never even
+    // selects a video track: when a fallback stream is a video+audio mp4
+    // (YouTube itag=18), decoding the H.264 video track with no video output
+    // surface stalls playback ("h264_mediacodec: Both surface and
+    // native_window are NULL"). Setting it after open() is too late — mpv
+    // auto-selects and starts the video track during open.
+    try {
+      (_player.platform as dynamic).setProperty('vid', 'no');
+    } catch (_) {}
     // media_kit >= 1.2 enables `cache-on-disk` by default, which makes mpv try
     // to create a disk cache file in the OS temp directory. On Android that
     // directory is not writable, so mpv logs "Failed to create file cache" and
@@ -646,6 +656,12 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
         unawaited(_openTrack(current));
       } else if (!queueState.hasCurrent) {
         _player.stop();
+        // Restore the real mpv volume too — the crossfade-out that runs before
+        // the last track ended may have left it at 0 (the state emit alone
+        // would only update the slider).
+        try {
+          _player.setVolume((_userVolume.clamp(0.0, 1.0)) * 100);
+        } catch (_) {}
         emit(AudioPlayerState(volume: _userVolume));
       }
     });
@@ -1088,6 +1104,12 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
     preloadingVideo = true;
     try {
       String? videoUrl = _resolveLocalVideoUrl(track);
+      // Fast progressive route first: a DIRECT streamable URL makes mpv load
+      // the video by sections as it plays, so the visualizer appears in ~1-2s
+      // ("se va cargando el video, no seguido") instead of waiting for a
+      // whole file download. The full download below stays only as a fallback
+      // (and resolveVisualizerUrl caches a copy for offline in the background).
+      videoUrl ??= await resolveVisualizerUrl(track);
       videoUrl ??= await downloadVideoToTemp(track);
       preloadedVideoUrl = videoUrl;
       preloadedVideoReady.value = videoUrl;
@@ -1750,6 +1772,76 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
   /// (stream_cache) via the Go backend and returns a playable file:// URL.
   /// The video is a separate visual feature (NowPlaying cover ↔ video toggle),
   /// never part of the audio stream resolution.
+  /// Resolves a DIRECT visualizer video URL for [track] through the Go
+  /// backend's InnerTube route (no full-file download, no yt-dlp dependency),
+  /// so the full player can start streaming the visualizer in ~1-2s. Returns
+  /// null when no visualizer could be resolved (caller falls back to a
+  /// previously downloaded video file, then to the full download pipeline).
+  Future<String?> resolveVisualizerUrl(FeedItem track) async {
+    try {
+      final strategy = <String, dynamic>{
+        'type': 'video',
+        'track_id': track.id,
+        'item_id': '${track.id}_video',
+        'track_title': track.name,
+        'artist_name': track.artists ?? '',
+        'source': track.source ?? '',
+        'isrc': track.isrc ?? '',
+        'quality': _videoQuality,
+        'duration_ms': track.durationMs ?? 0,
+        'spotify_id': track.spotifyId ?? '',
+        'deezer_id': track.deezerId ?? '',
+        'tidal_id': track.tidalId ?? '',
+        'qobuz_id': track.qobuzId ?? '',
+      };
+      final res = await sl<BackendService>().rpcCall('resolveVisualizerUrl', {
+        'request': jsonEncode(strategy),
+      });
+      final data = _decodeRpcResult(res);
+      final url = (data?['url'] ?? '').toString();
+      if (url.isEmpty) return null;
+      // Keep a working copy for offline use: the visualizer file lives in the
+      // stream cache, and re-using it later avoids another full download.
+      try {
+        final appCacheDir = await getApplicationCacheDirectory();
+        final cacheDir = Directory(
+          '${appCacheDir.path}${Platform.pathSeparator}stream_cache',
+        );
+        if (!await cacheDir.exists()) await cacheDir.create(recursive: true);
+        final fp = '${cacheDir.path}${Platform.pathSeparator}${track.id}.mp4';
+        if (!await File(fp).exists()) {
+          unawaited(_downloadUrlToFile(url, fp));
+        }
+      } catch (_) {}
+      return url;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Downloads a raw URL to [dest] in the background (visualizer caching).
+  Future<void> _downloadUrlToFile(String url, String dest) async {
+    try {
+      final client = http.Client();
+      try {
+        final req = http.Request('GET', Uri.parse(url));
+        final streamed = await client.send(req);
+        final file = File(dest);
+        final sink = file.openWrite();
+        try {
+          await streamed.stream.pipe(sink);
+        } finally {
+          await sink.close();
+        }
+      } finally {
+        client.close();
+      }
+    } catch (_) {
+      // Best-effort cache; failure is fine (visualizer still streams).
+      try { if (await File(dest).exists()) await File(dest).delete(); } catch (_) {}
+    }
+  }
+
   Future<String?> downloadVideoToTemp(FeedItem track) async {
     try {
       final appCacheDir = await getApplicationCacheDirectory();
@@ -2044,10 +2136,34 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
       unawaited(_cleanupTempFile(completedTrackId));
     }
 
-    // The advance is about to emit (possibly the SAME index for repeat-one):
-    // mark it so _listenQueue reopens instead of skipping the same track.
-    _forceReopen = true;
-    final hadNext = _queueCubit.next();
+    // ── Advance the queue honoring repeat modes ────────────────────────────
+    // Repeat-one must replay the SAME track at EOF. Routing that through
+    // _queueCubit.next() emits a QueueState with an identical currentIndex,
+    // and bloc ≥ 9 SUPPRESSES identical-state emits (`emit` drops states equal
+    // to the current one), so _listenQueue would never see the event and the
+    // song would just stop at the end. Reopen the finished track directly
+    // instead of round-tripping through the queue. Same for repeat-all when
+    // the queue has a single track (wrapping to index 0 is also an identical
+    // state that bloc would swallow).
+    final queueBefore = _queueCubit.state;
+    final replaySame =
+        queueBefore.repeatMode == RepeatMode.one ||
+        (queueBefore.repeatMode == RepeatMode.all &&
+            queueBefore.tracks.length <= 1);
+    bool hadNext;
+    if (replaySame) {
+      // Direct reopen — clear the flag immediately so an unrelated later queue
+      // edit (same key) doesn't trigger a second open through _listenQueue.
+      _forceReopen = false;
+      hadNext = true;
+      final same = queueBefore.current;
+      if (same != null) unawaited(_openTrack(same));
+    } else {
+      // The advance is about to emit a NEW index: mark it so _listenQueue
+      // reopens instead of skipping the same track.
+      _forceReopen = true;
+      hadNext = _queueCubit.next();
+    }
 
     // Note: crossfade-in is handled by _fadeInAudio() in _openTrack when the
     // next track opens. No need to fade in here — _fadeVolume would read the
@@ -2056,6 +2172,15 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
     // con tracks similares (modo radio).
     if (!hadNext && _queueCubit.state.tracks.isNotEmpty) {
       await _tryAutoplay();
+    }
+    // The queue really ended (no replacement was enqueued): the crossfade-out
+    // left mpv's volume at 0. Restore the user's volume so a manual replay or
+    // a later tap is never silent — the volume must survive "song finished".
+    if (!hadNext && _queueCubit.state.current == completedTrack) {
+      final target = _userVolume.clamp(0.0, 1.0);
+      try {
+        await _player.setVolume(target * 100);
+      } catch (_) {}
     }
   }
 

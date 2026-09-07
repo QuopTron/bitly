@@ -168,16 +168,18 @@ mixin LikeActions on Cubit<LikeState> {
     final newItems = Map<String, LikedItemData>.from(state.allLiked);
     newItems[item.id] = cur.copyWith(localCoverPath: coverPath);
     emit(state.copyWith(allLiked: newItems));
-    if (item.type == 'track') {
-      // Persistir también el coverPath en la fila de favoritos (upsert) para
-      // que sobreviva al reinicio.
-      unawaited(_fav.toggleLovedTrack(
-        trackId: item.id, trackName: item.name,
-        artistName: item.artists ?? '', albumName: item.albumName,
-        coverUrl: item.coverUrl, coverPath: coverPath,
-        isrc: item.isrc, durationMs: item.durationMs,
-        liked: true, source: item.source,
-      ));
+    // Persistir el coverPath en la fila de favoritos para que sobreviva al
+    // reinicio — tracks, albums, playlists y artistas guardan el cover local
+    // de forma permanente (solo el audio/video difiere entre stream/descarga).
+    switch (item.type) {
+      case 'track':
+        unawaited(_fav.updateLovedTrackCover(item.id, coverPath));
+      case 'album':
+        unawaited(_fav.updateFavoriteAlbumCover(item.id, coverPath));
+      case 'playlist':
+        unawaited(_fav.updateFavoritePlaylistCover(item.id, coverPath));
+      case 'artist':
+        unawaited(_fav.updateFavoriteArtistImage(item.id, coverPath));
     }
   }
 
@@ -257,6 +259,17 @@ mixin LikeActions on Cubit<LikeState> {
     final newItems = Map<String, LikedItemData>.from(state.allLiked);
     newItems[id] = cur.copyWith(localCoverPath: coverPath);
     emit(state.copyWith(allLiked: newItems));
+    // Persistir también a la DB para que el cover local sobreviva al reinicio.
+    switch (cur.type) {
+      case 'album':
+        unawaited(_fav.updateFavoriteAlbumCover(id, coverPath));
+      case 'playlist':
+        unawaited(_fav.updateFavoritePlaylistCover(id, coverPath));
+      case 'track':
+        unawaited(_fav.updateLovedTrackCover(id, coverPath));
+      case 'artist':
+        unawaited(_fav.updateFavoriteArtistImage(id, coverPath));
+    }
   }
 
   Future<void> _unlike(FeedItem item, String fp) async {

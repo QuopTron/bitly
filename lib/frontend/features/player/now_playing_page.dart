@@ -10,6 +10,7 @@ import '../../shared/models/feed_models.dart';
 import '../../../backend/services/like_cubit.dart';
 import '../../../backend/services/player_cubit.dart';
 import '../../../backend/services/queue_cubit.dart';
+import '../../../backend/services/connectivity_service.dart';
 import '../../shared/theme/app_colors.dart';
 import '../../../injection.dart';
 import '../../shared/widgets/cover_image.dart';
@@ -19,6 +20,17 @@ import 'now_playing/seek_bar.dart';
 import 'now_playing/player_controls.dart';
 import 'now_playing/speed_control.dart';
 import 'now_playing/cover_or_video_area.dart';
+import 'now_playing/video_backdrop_texture.dart';
+
+/// Remembers the cover/video choice of the last full-player session so
+/// minimizing the player (swipe-down / back) and reopening it for the SAME
+/// track restores the mode the user left it in — video stays video, cover
+/// stays cover — instead of always starting over on the cover.
+class _VideoSession {
+  static String? trackKey;
+  static String? url;
+  static bool enabled = false;
+}
 
 class NowPlayingPage extends StatefulWidget {
   const NowPlayingPage({super.key});
@@ -30,9 +42,14 @@ class NowPlayingPage extends StatefulWidget {
 class _NowPlayingPageState extends State<NowPlayingPage>
     with SingleTickerProviderStateMixin {
   bool _showVideo = false;
+  bool _videoLoading = false;
   final Player _videoPlayer = Player();
   VideoController? _videoController;
   StreamSubscription? _queueSub;
+  StreamSubscription<void>? _videoCompSub;
+  /// Set while the visualizer is playing so the completion handler restarts it
+  /// instead of leaving the last frame frozen on screen.
+  bool _videoLoopArmed = false;
   bool _hasVideo = false;
 
   /// True while a lyrics fetch triggered from the controls is in flight — the
@@ -44,6 +61,11 @@ class _NowPlayingPageState extends State<NowPlayingPage>
   /// cover (drives the videocam button on the artwork + controls row).
   String? _videoTrackId;
   ValueNotifier<String?>? _videoReadySrc;
+
+  /// Key of the track this page last acted on (id|source). Queue edits that
+  /// don't change the current song (addNext, autoplay append, reorder) no
+  /// longer kill an active visualizer — only real track changes do.
+  String? _lastQueueKey;
 
   // ── Swipe-down-to-dismiss ─────────────────────────────────────
   final ValueNotifier<double> _dragOffset = ValueNotifier(0);
@@ -59,9 +81,20 @@ class _NowPlayingPageState extends State<NowPlayingPage>
       vsync: this,
       duration: const Duration(milliseconds: 320),
     )..addListener(_onDragAnimTick);
-    // Reset video/lyrics when track changes
+    // Reset video/lyrics when the track ACTUALLY changes. Queue edits that
+    // keep the same current track (addNext, autoplay append, reorder) must
+    // not stop a visualizer that's playing.
     _queueSub = sl<QueueCubit>().stream.listen((queueState) {
+      final key = queueState.hasCurrent
+          ? '${queueState.current!.id}|${queueState.current!.source}'
+          : null;
+      if (key == _lastQueueKey) return;
+      _lastQueueKey = key;
       _hasVideo = false;
+      _videoLoopArmed = false;
+      _VideoSession.enabled = false;
+      _VideoSession.url = null;
+      _VideoSession.trackKey = null;
       if (_showVideo) {
         _videoPlayer.stop();
         setState(() => _showVideo = false);
@@ -70,18 +103,25 @@ class _NowPlayingPageState extends State<NowPlayingPage>
       // here we only reset our loading flag for the controls-row spinner.
       _lyricsLoading = false;
       _videoTrackId = null;
+      // Re-evaluate the video/visualizer toggle for the new track (needs a
+      // moment to check the local downloads + network state).
+      _refreshVideoAvailability();
     });
     // When the background video finishes preloading, we only flip the
     // videocam button visible on the cover — the user alternates manually.
     _videoReadySrc = sl<PlayerCubit>().preloadedVideoReady
       ..addListener(_onVideoReadyChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) => _onVideoReadyChanged());
+    // Restore the cover/video mode this page was left in for the same song
+    // (minimized the player while the visualizer was on → reopen in video).
+    WidgetsBinding.instance.addPostFrameCallback((_) => _restoreVideoSession());
   }
 
   @override
   void dispose() {
     _videoReadySrc?.removeListener(_onVideoReadyChanged);
     _queueSub?.cancel();
+    _videoCompSub?.cancel();
     _videoPlayer.dispose();
     _dragAnim.dispose();
     _dragOffset.dispose();
@@ -147,6 +187,41 @@ class _NowPlayingPageState extends State<NowPlayingPage>
     if (ready != _hasVideo) {
       setState(() => _hasVideo = ready);
     }
+    // Even when nothing is preloaded yet, the visualizer is still offered
+    // when the device is online (fetched on demand on tap) or when a video
+    // was already downloaded for this song. Re-check asynchronously so the
+    // icon doesn't need a successful preload to appear.
+    _refreshVideoAvailability();
+  }
+
+  /// Smart video/visualizer availability: the toggle is offered when the
+  /// preloaded video is ready, a local video was downloaded, or the device
+  /// has a network connection (the video is then fetched on demand). Only
+  /// when offline AND nothing downloaded does the icon stay hidden.
+  Future<void> _refreshVideoAvailability() async {
+    if (!mounted) return;
+    final cubit = sl<PlayerCubit>();
+    final queue = sl<QueueCubit>().state;
+    if (!queue.hasCurrent) return;
+    final track = queue.current!;
+    // Guard against racing the track that was current when the check started.
+    final checkKey = '${track.id}|${track.source}';
+    final preloaded = cubit.preloadedVideoReady.value;
+    final ready = preloaded != null && preloaded.isNotEmpty;
+    final downloaded =
+        resolveLocalVideoUrl(track, cubit.downloadPath) != null;
+    if (ready || downloaded) {
+      if (mounted && _hasVideo != true) setState(() => _hasVideo = true);
+      return;
+    }
+    final online = await ConnectivityService.isOnline();
+    if (!mounted) return;
+    final cur = sl<QueueCubit>().state;
+    if (!cur.hasCurrent ||
+        '${cur.current!.id}|${cur.current!.source}' != checkKey) {
+      return; // track changed while we awaited the network check
+    }
+    if (_hasVideo != online) setState(() => _hasVideo = online);
   }
 
   // ── Lyrics / karaoke helpers ──────────────────────────────────
@@ -287,7 +362,11 @@ class _NowPlayingPageState extends State<NowPlayingPage>
                             Icons.queue_music_rounded,
                             color: active.withValues(alpha: 0.7),
                           ),
-                          onPressed: () => showQueueModal(context),
+                          onPressed: () => showQueueModal(
+                            context,
+                            showVideo: _showVideo,
+                            videoController: _videoController,
+                          ),
                         ),
                         if (queue.tracks.length > 1)
                           Positioned(
@@ -328,11 +407,16 @@ class _NowPlayingPageState extends State<NowPlayingPage>
                   fit: StackFit.expand,
                   children: [
                     // Blurred album art filling the whole screen (theme-tinted,
-                    // no brand-green background color).
+                    // no brand-green background color). When the visualizer
+                    // video is playing, the SAME video becomes the backdrop
+                    // everywhere the cover would be — the state is either
+                    // cover or video, everywhere.
                     _AmbientBackdrop(
                       coverUrl: resolvedCover,
                       isDark: isDark,
                       bgColor: bgColor,
+                      showVideo: _showVideo,
+                      videoController: _videoController,
                     ),
                     SafeArea(
                       child: Padding(
@@ -440,6 +524,7 @@ class _NowPlayingPageState extends State<NowPlayingPage>
       isDark: isDark,
       showVideo: _showVideo,
       hasVideo: _hasVideo,
+      videoLoading: _videoLoading,
       videoController: _videoController,
       onToggleVideo: () => _toggleVideo(track, context.read<PlayerCubit>().downloadPath),
       onStopVideo: _stopVideoForCover,
@@ -447,25 +532,146 @@ class _NowPlayingPageState extends State<NowPlayingPage>
   }
 
   Future<void> _toggleVideo(FeedItem track, String? downloadPath) async {
-    if (!_showVideo) {
+    if (_showVideo) {
+      _stopVideoForCover();
+      return;
+    }
+    if (_videoLoading) return;
+    setState(() => _videoLoading = true);
+    try {
       String? videoUrl = sl<PlayerCubit>().preloadedVideoUrl;
       videoUrl ??= resolveLocalVideoUrl(track, downloadPath);
-      videoUrl ??= await sl<PlayerCubit>().downloadVideoToTemp(track);
-      if (videoUrl == null) return;
-      await _videoPlayer.setVolume(0.0);
+      if (videoUrl == null) {
+        // Not preloaded and no local file — fetch on demand only when online.
+        if (!await ConnectivityService.isOnline()) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Sin conexión y sin video descargado'),
+                behavior: SnackBarBehavior.floating,
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+          return;
+        }
+        // Fast path: resolve a DIRECT streamable visualizer URL through the
+        // InnerTube route — mpv then loads the video progressively (by
+        // sections) so frames appear in ~1-2s instead of waiting for a full
+        // file download.
+        videoUrl = await sl<PlayerCubit>().resolveVisualizerUrl(track);
+        // Fallback: full download-to-cache pipeline (works offline afterwards).
+        videoUrl ??= await sl<PlayerCubit>().downloadVideoToTemp(track);
+      }
+      if (videoUrl == null || videoUrl.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No se pudo obtener el video visualizer'),
+              behavior: SnackBarBehavior.floating,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+        return;
+      }
       try {
+        // The visualizer runs in a loop until the song ends or the user
+        // switches back to the cover. media_kit's playlist loop can stop on
+        // HTTP streams, so also restart from the completion event.
+        _armVideoLoopSubscription();
+        await _videoPlayer.setPlaylistMode(PlaylistMode.loop);
         await _videoPlayer.open(Media(videoUrl));
         await _videoPlayer.play();
+        // Mute AFTER open: mpv resets the volume on every open(), so setting
+        // it before would be wiped and the visualizer's own audio would play
+        // over the song. This is a pure visualizer — zero audio contribution.
+        await _videoPlayer.setVolume(0.0);
+        if (!mounted) return;
+        _videoLoopArmed = true;
+        // Remember the mode so reopening the player (after minimize) restores
+        // video for this same track instead of falling back to the cover.
+        _VideoSession.trackKey = '${track.id}|${track.source}';
+        _VideoSession.url = videoUrl;
+        _VideoSession.enabled = true;
         setState(() { _showVideo = true; _hasVideo = true; });
-      } catch (_) {}
-    } else {
-      _stopVideoForCover();
+      } catch (_) {
+        _VideoSession.enabled = false;
+        _VideoSession.url = null;
+        _VideoSession.trackKey = null;
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No se pudo reproducir el video visualizer'),
+              behavior: SnackBarBehavior.floating,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    } finally {
+      if (mounted) setState(() => _videoLoading = false);
+    }
+  }
+
+  /// Loop-restart listener for the visualizer: shared by the toggle and the
+  /// session restore so both behave identically.
+  void _armVideoLoopSubscription() {
+    _videoCompSub ??= _videoPlayer.stream.completed.listen((_) {
+      // Loop: jump back to the start instead of freezing on the last frame
+      // (or letting the page think the visualizer ended).
+      if (!_videoLoopArmed || !mounted) return;
+      _videoPlayer.seek(Duration.zero);
+      _videoPlayer.play();
+    });
+  }
+
+  /// Reopens the player already in video mode when the user minimized it while
+  /// the visualizer was on (same track). Kept fire-and-forget: if the stored
+  /// URL is dead by now it just falls back to the cover with a snackbar.
+  Future<void> _restoreVideoSession() async {
+    if (!mounted || !_VideoSession.enabled || _VideoSession.url == null) {
+      return;
+    }
+    final queue = sl<QueueCubit>().state;
+    if (!queue.hasCurrent) return;
+    final key = '${queue.current!.id}|${queue.current!.source}';
+    if (_VideoSession.trackKey != key) return;
+    final url = _VideoSession.url!;
+    _lastQueueKey = key;
+    setState(() {
+      _hasVideo = true;
+      _videoLoading = true;
+    });
+    try {
+      _armVideoLoopSubscription();
+      await _videoPlayer.setPlaylistMode(PlaylistMode.loop);
+      await _videoPlayer.open(Media(url));
+      await _videoPlayer.play();
+      await _videoPlayer.setVolume(0.0);
+      if (!mounted) return;
+      _videoLoopArmed = true;
+      setState(() => _showVideo = true);
+    } catch (_) {
+      _VideoSession.enabled = false;
+      _VideoSession.url = null;
+      _VideoSession.trackKey = null;
+      if (mounted) setState(() {
+        _showVideo = false;
+        _hasVideo = false;
+      });
+    } finally {
+      if (mounted) setState(() => _videoLoading = false);
     }
   }
 
   void _stopVideoForCover() {
+    _videoLoopArmed = false;
+    _VideoSession.enabled = false;
+    _VideoSession.url = null;
+    _VideoSession.trackKey = null;
     _videoPlayer.stop();
-    setState(() => _showVideo = false);
+    if (mounted) setState(() => _showVideo = false);
   }
 
   Widget _seekBar(BuildContext context, Responsive r, bool isDark, AudioPlayerState player) {
@@ -476,24 +682,13 @@ class _NowPlayingPageState extends State<NowPlayingPage>
     final track = queue.current!;
     return PlayerControls(
       r: r, isDark: isDark, queue: queue, track: track,
-      lyricsLoading: _lyricsLoading, hasVideo: _hasVideo, showVideo: _showVideo,
+      lyricsLoading: _lyricsLoading,
       onToggleLyrics: () => _toggleLyrics(context),
-      onToggleVideo: () => _videoToggleQuick(context),
     );
   }
 
   Widget _speedControl(BuildContext context, Responsive r, bool isDark, AudioPlayerState player) {
     return SpeedControl(r: r, isDark: isDark, player: player);
-  }
-
-  void _videoToggleQuick(BuildContext context) {
-    if (_showVideo) {
-      _stopVideoForCover();
-      return;
-    }
-    final queue = context.read<QueueCubit>().state;
-    if (!queue.hasCurrent || queue.current == null) return;
-    _toggleVideo(queue.current!, context.read<PlayerCubit>().downloadPath);
   }
 
 }
@@ -507,11 +702,15 @@ class _AmbientBackdrop extends StatelessWidget {
   final String? coverUrl;
   final bool isDark;
   final Color bgColor;
+  final bool showVideo;
+  final VideoController? videoController;
 
   const _AmbientBackdrop({
     required this.coverUrl,
     required this.isDark,
     required this.bgColor,
+    this.showVideo = false,
+    this.videoController,
   });
 
   @override
@@ -521,7 +720,14 @@ class _AmbientBackdrop extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          if (url != null && url.isNotEmpty) ...[
+          if (showVideo && videoController != null)
+            // The visualizer video IS the background (no per-frame blur — a
+            // full-screen blurred live video would repaint offscreen every
+            // frame; the theme veil below keeps the UI readable instead). It
+            // mirrors the SAME texture the cover square is playing so there's
+            // a single native output but two places render it.
+            VideoBackdropTexture(controller: videoController!)
+          else if (url != null && url.isNotEmpty) ...[
             ClipRect(
               child: ImageFiltered(
                 imageFilter: ImageFilter.blur(sigmaX: 50, sigmaY: 50),

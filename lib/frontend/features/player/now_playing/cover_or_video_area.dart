@@ -10,6 +10,7 @@ class CoverOrVideoArea extends StatelessWidget {
   final bool isDark;
   final bool showVideo;
   final bool hasVideo;
+  final bool videoLoading;
   final VideoController? videoController;
   final VoidCallback? onToggleVideo;
   final VoidCallback? onStopVideo;
@@ -21,6 +22,7 @@ class CoverOrVideoArea extends StatelessWidget {
     required this.isDark,
     this.showVideo = false,
     this.hasVideo = false,
+    this.videoLoading = false,
     this.videoController,
     this.onToggleVideo,
     this.onStopVideo,
@@ -48,55 +50,90 @@ class CoverOrVideoArea extends StatelessWidget {
             child: SizedBox(
               width: side,
               height: side,
-              child: showVideo
-                  ? Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        Video(controller: videoController!, fill: Colors.transparent, fit: BoxFit.cover),
-                        Positioned(
-                          top: 8,
-                          right: 8,
-                          child: GestureDetector(
-                            onTap: onStopVideo,
-                            child: Container(
-                              padding: const EdgeInsets.all(6),
-                              decoration: BoxDecoration(
-                                color: Colors.black54,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: const Icon(Icons.image, color: Colors.white, size: 18),
-                            ),
-                          ),
-                        ),
-                      ],
-                    )
-                  : Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        CoverImage(
+              // The Video widget is ALWAYS mounted (hidden under the cover
+              // until showVideo) so the video surface + texture exist before
+              // media is opened. Opening a video before its Video widget has
+              // mounted leaves mpv without a surface to decode onto
+              // (h264_mediacodec: Both surface and native_window are NULL)
+              // and playback stalls at loading forever.
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  // Video layer: transparent when hidden, on top when active.
+                  Video(
+                    controller: videoController!,
+                    fill: Colors.transparent,
+                    fit: BoxFit.cover,
+                    controls: NoVideoControls,
+                  ),
+                  // Cover layer: shown whenever video is NOT active; it also
+                  // blocks touches so taps land on the video toggle button
+                  // instead of the video surface underneath.
+                  if (!showVideo)
+                    Positioned.fill(
+                      child: GestureDetector(
+                        onTap: hasVideo ? onToggleVideo : null,
+                        child: CoverImage(
                           coverUrl: resolvedCover,
                           localPath: null,
                           width: side,
                           height: side,
                         ),
-                        if (hasVideo)
-                          Positioned(
-                            top: 8,
-                            right: 8,
-                            child: GestureDetector(
+                      ),
+                    ),
+                  if (showVideo)
+                    Positioned(
+                      top: 10,
+                      right: 10,
+                      child: GestureDetector(
+                        onTap: onStopVideo,
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.black54,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
+                          ),
+                          child: const Icon(Icons.image, color: Colors.white, size: 22),
+                        ),
+                      ),
+                    ),
+                  if (!showVideo && hasVideo)
+                    Positioned(
+                      top: 10,
+                      right: 10,
+                      child: videoLoading
+                          ? Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.black54,
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
+                              ),
+                              child: const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.5,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            )
+                          : GestureDetector(
                               onTap: onToggleVideo,
                               child: Container(
-                                padding: const EdgeInsets.all(6),
+                                padding: const EdgeInsets.all(8),
                                 decoration: BoxDecoration(
                                   color: Colors.black54,
-                                  borderRadius: BorderRadius.circular(12),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
                                 ),
-                                child: const Icon(Icons.videocam, color: Colors.white, size: 18),
+                                child: const Icon(Icons.videocam, color: Colors.white, size: 22),
                               ),
                             ),
-                          ),
-                      ],
                     ),
+                ],
+              ),
             ),
           ),
         ),

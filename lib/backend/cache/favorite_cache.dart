@@ -101,6 +101,24 @@ class FavoriteCache {
     }
   }
 
+  // ── Local cover path updates (after async saveCover) ────────────
+
+  /// Persists the local cover path on a liked album so it survives restart.
+  Future<void> updateFavoriteAlbumCover(String albumId, String coverPath) =>
+      _f.updateFavoriteAlbumCoverPath(albumId, coverPath);
+
+  /// Persists the local image path on a liked artist so it survives restart.
+  Future<void> updateFavoriteArtistImage(String artistId, String imagePath) =>
+      _f.updateFavoriteArtistImagePath(artistId, imagePath);
+
+  /// Persists the local cover path on a liked playlist so it survives restart.
+  Future<void> updateFavoritePlaylistCover(String playlistId, String coverPath) =>
+      _f.updateFavoritePlaylistCoverPath(playlistId, coverPath);
+
+  /// Persists the local cover path on a loved track so it survives restart.
+  Future<void> updateLovedTrackCover(String trackId, String coverPath) =>
+      _f.updateLovedTrackCoverPath(trackId, coverPath);
+
   // ── Favorite Playlists ──────────────────────────────────────────
 
   Future<String> getFavoritePlaylists() async {

@@ -14,6 +14,7 @@ import '../../injection.dart';
 import '../cache/settings_cache.dart';
 import '../cache/download_cache.dart';
 import '../cache/detail_cache.dart';
+import 'download_access.dart';
 import 'item_fingerprint.dart';
 import 'stream_decrypt.dart';
 import 'verification_service.dart';
@@ -1624,6 +1625,33 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
     }
   }
 
+  /// Clears the free-tier gate snackbar after the user has seen it.
+  void acknowledgeGateBlocked() {
+    if (state.downloadGateBlocked != null) {
+      emit(state.copyWith(downloadGateBlocked: null, clearGateBlocked: true));
+    }
+  }
+
+  /// Marks [baseId] as blocked by the free-tier gate (8h window expired),
+  /// surfaces the one-time [message] to the UI, and releases the sequential
+  /// queue processor so it does not stall waiting for a download that never
+  /// started. Used by [dispatchDownloads] when the gate rejects a request.
+  void blockDownload(String baseId, String message) {
+    final dl = Map<String, DownloadStateData>.from(state.downloads);
+    dl[baseId] = DownloadStateData(
+      state: DownloadState.interrupted,
+      progress: 0.0,
+      errorMessage: message,
+    );
+    emit(state.copyWith(downloads: dl, downloadGateBlocked: message));
+    // Release the queue processor if this was the current queued track.
+    if (_currentTrackDone != null &&
+        !_currentTrackDone!.isCompleted &&
+        _currentQueueTrackId == baseId) {
+      _currentTrackDone!.complete();
+    }
+  }
+
   /// Called when _pollProgress detects a "verification_required" status on one
   /// or more download items. Iterates through all known providers, checks for
   /// pending auth URLs, shows the verification WebView for each, and retries
@@ -2527,6 +2555,16 @@ class DownloadCubit extends Cubit<DownloadCubitState> {
     required String baseId,
     String? qualityOverride,
   }) async {
+    // Free-tier gate: premium = always; free = inside the 8h window only.
+    final access = await DownloadAccessChecker.check();
+    if (access == DownloadAccess.expired) {
+      _log.w('[dispatchSingleTrack] blocked by free-tier gate: $baseId');
+      blockDownload(
+        baseId,
+        'Tu prueba gratis de 8 horas terminó. Activa Premium para seguir descargando.',
+      );
+      return;
+    }
     if (!await _checkAllSessionsBeforeDownload()) return;
     final backend = sl<BackendService>();
     final itemId = commonMeta['item_id'] as String? ?? '';

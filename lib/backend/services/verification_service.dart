@@ -600,22 +600,51 @@ class _VerificationDialogState extends State<VerificationDialog> {
   }
 
   /// Cosmetic re-brand of the captcha page (served by zarz.moe, which we don't
-  /// control). Replaces the "SpotiFLAC-Mobile" chrome with the app's name while
-  /// leaving the Turnstile widget and the SpotiflacGrant bridge untouched, so
-  /// Cloudflare verification keeps working. Colors already match (both are
-  /// Spotify-green). Safe no-op if the page changes or the selectors vanish.
+  /// control). Replaces EVERY "SpotiFLAC"/"spotiflac" occurrence in the page
+  /// with "bitly" — text nodes, nav chrome, title and visible attributes — so
+  /// the rendered sandbox shows Bitly on top while remaining SpotiFLAC's
+  /// Cloudflare page underneath. The Turnstile widget lives in an iframe and
+  /// the `SpotiflacGrant` bridge is JS (not DOM text), so both are untouched
+  /// and Cloudflare verification keeps working. Safe no-op if the page
+  /// changes or selectors vanish.
   void _applyBranding(String url) {
     if (url.isEmpty || !url.contains('zarz.moe')) return;
     const js = '''
       (function(){
         function rebrand(){
           try {
-            document.title = 'Verification - Bitly';
+            document.title = document.title.replace(/spotiflac/gi, 'bitly');
+            // 1) Replace the brand in every text node (page chrome, footer,
+            //    headings, buttons — anything visible).
+            var walker = document.createTreeWalker(
+              document.body, NodeFilter.SHOW_TEXT, null, false);
+            var nodes = [];
+            while (walker.nextNode()) nodes.push(walker.currentNode);
+            for (var i = 0; i < nodes.length; i++) {
+              var t = nodes[i].nodeValue;
+              if (t && /spotiflac/i.test(t)) {
+                nodes[i].nodeValue = t.replace(/spotiflac/gi, 'bitly');
+              }
+            }
+            // 2) Fallback for the nav brand if it was not covered above.
             var nav = document.querySelector('.nav-brand');
             if (nav) {
               var spans = nav.querySelectorAll('span');
-              for (var i = 0; i < spans.length; i++) {
-                if (spans[i] && !spans[i].className) { spans[i].textContent = 'bitly'; }
+              for (var j = 0; j < spans.length; j++) {
+                if (spans[j] && /spotiflac/i.test(spans[j].textContent || '')) {
+                  spans[j].textContent = spans[j].textContent.replace(/spotiflac/gi, 'bitly');
+                }
+              }
+            }
+            // 3) Visible attributes that may carry the provider name.
+            var attrs = ['aria-label', 'alt', 'placeholder', 'title'];
+            var all = document.querySelectorAll('*');
+            for (var k = 0; k < all.length; k++) {
+              for (var a = 0; a < attrs.length; a++) {
+                var v = all[k].getAttribute(attrs[a]);
+                if (v && /spotiflac/i.test(v)) {
+                  all[k].setAttribute(attrs[a], v.replace(/spotiflac/gi, 'bitly'));
+                }
               }
             }
             // Re-map the challenge palette to Bitly's neon green + near-black.

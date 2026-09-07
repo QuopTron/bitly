@@ -12,13 +12,16 @@ import 'package:path_provider/path_provider.dart';
 import '../utils/responsive.dart';
 import '../../l10n/app_localizations.dart';
 import '../theme/app_colors.dart';
-import '../../../backend/rpc/backend_service.dart';
 import '../models/download_settings.dart';
+import '../models/premium_status.dart';
+import '../../../backend/cache/playback_cache.dart';
+import '../../../backend/cache/premium_cache.dart';
 import '../../../backend/cache/settings_cache.dart';
 import '../../../backend/services/like_cubit.dart';
 import '../../../backend/services/player_cubit.dart';
+import '../../../backend/services/premium_service.dart';
 import '../../../backend/services/queue_cubit.dart';
-import '../../../backend/services/youtube_oauth_service.dart';
+import '../../../config/secrets.dart';
 import '../../../injection.dart';
 import 'glass_container.dart';
 import 'settings_sections.dart';
@@ -195,6 +198,17 @@ class _SettingsSheetState extends State<SettingsSheet>
   late TabController _tabController;
   int? _selectedTab; // null = profile/stats view, 0..3 = specific tab
 
+  /// Real account tier read from the local premium DB (free/premium/lifetime),
+  /// so the header + advanced settings never claim "Premium" for free users.
+  PremiumStatus? _premium;
+
+  Future<void> _loadPremium() async {
+    try {
+      final status = await sl<PremiumCache>().getPremiumStatus();
+      if (mounted) setState(() => _premium = status);
+    } catch (_) {}
+  }
+
   // Tab order: Apariencia first (live color), then Descargas, Rendimiento, Más.
   static final List<({IconData icon, String label})> _bubbleTabs = [
     (icon: Icons.palette_outlined, label: 'Apariencia'),
@@ -210,6 +224,7 @@ class _SettingsSheetState extends State<SettingsSheet>
       ..addListener(() {
         if (mounted) setState(() {});
       });
+    _loadPremium();
   }
 
   @override
@@ -360,6 +375,7 @@ class _SettingsSheetState extends State<SettingsSheet>
               glowColor: glowColor,
               likedCount: widget.likedCount,
               downloadedCount: widget.downloadedCount,
+              premium: _premium,
             ),
             SizedBox(height: r.spacingM),
             // Bubble tabs — Apariencia first. Four small circular bubbles
@@ -383,6 +399,7 @@ class _SettingsSheetState extends State<SettingsSheet>
                       glowColor: glowColor,
                       likedCount: widget.likedCount,
                       downloadedCount: widget.downloadedCount,
+                      premium: _premium,
                     )
                   : TabBarView(
                       controller: _tabController,
@@ -394,7 +411,11 @@ class _SettingsSheetState extends State<SettingsSheet>
                         ),
                         _DownloadsTab(glowColor: glowColor),
                         _PerformanceTab(glowColor: glowColor),
-                        _MoreTab(glowColor: glowColor),
+                        _MoreTab(
+                          glowColor: glowColor,
+                          premium: _premium,
+                          onPremiumChanged: _loadPremium,
+                        ),
                       ],
                     ),
             ),
@@ -424,12 +445,14 @@ class _ProfileHeader extends StatelessWidget {
   final Color glowColor;
   final String likedCount;
   final String downloadedCount;
+  final PremiumStatus? premium;
 
   const _ProfileHeader({
     required this.username,
     required this.glowColor,
     required this.likedCount,
     required this.downloadedCount,
+    this.premium,
   });
 
   @override
@@ -471,9 +494,28 @@ class _ProfileHeader extends StatelessWidget {
                   maxLines: 1, overflow: TextOverflow.ellipsis,
                 ),
                 Row(children: [
-                  Icon(Icons.workspace_premium_rounded, size: r.footerSize - 1, color: glowColor),
+                  Icon(
+                    (premium?.isPremium ?? false)
+                        ? Icons.workspace_premium_rounded
+                        : Icons.person_outline_rounded,
+                    size: r.footerSize - 1,
+                    color: (premium?.isPremium ?? false)
+                        ? glowColor
+                        : onBg.withValues(alpha: 0.5),
+                  ),
                   SizedBox(width: 3),
-                  Text('Premium', style: TextStyle(fontSize: r.footerSize - 2, color: glowColor, fontWeight: FontWeight.w600)),
+                  Text(
+                    (premium?.isPremium ?? false)
+                        ? AppLocalizations.of(context).setup.premium
+                        : 'Free',
+                    style: TextStyle(
+                      fontSize: r.footerSize - 2,
+                      color: (premium?.isPremium ?? false)
+                          ? glowColor
+                          : onBg.withValues(alpha: 0.5),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ]),
               ],
             ),
@@ -508,7 +550,13 @@ class _ProfileStatsView extends StatefulWidget {
   final Color glowColor;
   final String likedCount;
   final String downloadedCount;
-  const _ProfileStatsView({required this.glowColor, required this.likedCount, required this.downloadedCount});
+  final PremiumStatus? premium;
+  const _ProfileStatsView({
+    required this.glowColor,
+    required this.likedCount,
+    required this.downloadedCount,
+    this.premium,
+  });
   @override
   State<_ProfileStatsView> createState() => _ProfileStatsViewState();
 }
@@ -517,8 +565,6 @@ class _ProfileStatsViewState extends State<_ProfileStatsView> {
   Map<String, dynamic> _stats = {};
   List<dynamic> _topTracks = [];
   bool _loading = true;
-  bool _youtubeConnected = false;
-  bool _youtubeConnecting = false;
 
   @override
   void initState() {
@@ -527,48 +573,17 @@ class _ProfileStatsViewState extends State<_ProfileStatsView> {
   }
 
   Future<void> _load() async {
+    // Stats come from the LOCAL Drift tables — the Go in-memory tracker is
+    // empty on device so the old RPCs always showed zeros.
     try {
-      final raw = await sl<BackendService>().rpcCall('getPlaybackStats', {});
-      if (raw is Map<String, dynamic>) _stats = raw;
+      final stats = await sl<PlaybackCache>().getProfileStats();
+      if (mounted) _stats = stats;
     } catch (_) {}
     try {
-      final top = await sl<BackendService>().rpcCall('getTopTracks', {'limit': 5});
-      if (top is List) _topTracks = top;
-    } catch (_) {}
-    // Check YouTube OAuth status
-    try {
-      final cache = sl<SettingsCache>();
-      final token = await cache.getSetting('ytmusic-spotiflac_oauthAccessToken');
-      _youtubeConnected = token != null && token.trim().isNotEmpty;
+      final top = await sl<PlaybackCache>().getTopTracksWithNames(5);
+      if (mounted) _topTracks = top;
     } catch (_) {}
     if (mounted) setState(() => _loading = false);
-  }
-
-  Future<void> _connectYouTube() async {
-    setState(() => _youtubeConnecting = true);
-    try {
-      final msg = await YoutubeOauthService().connect();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(msg),
-            backgroundColor: msg.startsWith('Sesión') ? Colors.green.shade700 : Colors.red.shade700,
-            duration: Duration(seconds: 3),
-          ),
-        );
-        if (msg.startsWith('Sesión')) {
-          setState(() => _youtubeConnected = true);
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red.shade700),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _youtubeConnecting = false);
-    }
   }
 
   @override
@@ -596,75 +611,70 @@ class _ProfileStatsViewState extends State<_ProfileStatsView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // YouTube connection banner
-          if (!_youtubeConnected)
+          // ── Tier banner: tells free users about the 8h download window ──
+          if (widget.premium?.isPremium ?? false)
             Container(
               margin: EdgeInsets.only(bottom: r.spacingM),
               padding: EdgeInsets.all(r.spacingM),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [Colors.red.shade900.withValues(alpha: 0.3), Colors.orange.shade900.withValues(alpha: 0.2)],
+                  colors: [glow.withValues(alpha: 0.20), glow.withValues(alpha: 0.07)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+                border: Border.all(color: glow.withValues(alpha: 0.4)),
               ),
-              child: Row(
-                children: [
-                  Icon(Icons.warning_amber_rounded, color: Colors.orange, size: r.subtitleSize),
-                  SizedBox(width: r.spacingS),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'YouTube no conectado',
-                          style: TextStyle(fontSize: r.subtitleSize - 1, fontWeight: FontWeight.w700, color: Colors.orange),
-                        ),
-                        SizedBox(height: 2),
-                        Text(
-                          'Conecta tu cuenta Google para streaming rápido',
-                          style: TextStyle(fontSize: r.footerSize, color: onBg.withValues(alpha: 0.6)),
-                        ),
-                      ],
-                    ),
+              child: Row(children: [
+                Icon(Icons.workspace_premium_rounded, color: glow, size: r.subtitleSize),
+                SizedBox(width: r.spacingS),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(loc.setup.premium,
+                          style: TextStyle(fontSize: r.subtitleSize - 1, fontWeight: FontWeight.w700, color: glow)),
+                      SizedBox(height: 2),
+                      Text(
+                        loc.setup.premiumInfo,
+                        style: TextStyle(fontSize: r.footerSize, color: onBg.withValues(alpha: 0.6)),
+                      ),
+                    ],
                   ),
-                  SizedBox(width: r.spacingS),
-                  _youtubeConnecting
-                      ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.orange))
-                      : TextButton.icon(
-                          onPressed: _connectYouTube,
-                          icon: Icon(Icons.login_rounded, size: 16, color: Colors.white),
-                          label: Text('Conectar', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-                          style: TextButton.styleFrom(
-                            backgroundColor: Colors.orange.shade700,
-                            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                          ),
-                        ),
-                ],
-              ),
-            ),
-          if (_youtubeConnected)
+                ),
+              ]),
+            )
+          else
             Container(
               margin: EdgeInsets.only(bottom: r.spacingM),
-              padding: EdgeInsets.symmetric(horizontal: r.spacingM, vertical: r.spacingS),
+              padding: EdgeInsets.all(r.spacingM),
               decoration: BoxDecoration(
-                color: Colors.green.withValues(alpha: 0.1),
+                gradient: LinearGradient(
+                  colors: [glow.withValues(alpha: 0.16), glow.withValues(alpha: 0.05)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+                border: Border.all(color: glow.withValues(alpha: 0.3)),
               ),
-              child: Row(
-                children: [
-                  Icon(Icons.check_circle_rounded, color: Colors.green, size: r.footerSize + 2),
-                  SizedBox(width: r.spacingS),
-                  Text(
-                    'YouTube conectado ✓',
-                    style: TextStyle(fontSize: r.footerSize, color: Colors.green, fontWeight: FontWeight.w600),
+              child: Row(children: [
+                Icon(Icons.timer_rounded, color: glow, size: r.subtitleSize),
+                SizedBox(width: r.spacingS),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Free',
+                          style: TextStyle(fontSize: r.subtitleSize - 1, fontWeight: FontWeight.w700, color: glow)),
+                      SizedBox(height: 2),
+                      Text(
+                        loc.setup.freeInfo,
+                        style: TextStyle(fontSize: r.footerSize, color: onBg.withValues(alpha: 0.6)),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ]),
             ),
           _sectionHeader(Icons.bar_chart_rounded, loc.setup.totalPlays, onBg, r),
           SizedBox(height: r.spacingS),
@@ -686,6 +696,8 @@ class _ProfileStatsViewState extends State<_ProfileStatsView> {
             _sectionHeader(Icons.leaderboard_rounded, loc.setup.mostPlayed, onBg, r),
             SizedBox(height: r.spacingS),
             ..._topTracks.map((t) {
+              final name = t is Map ? (t['name'] ?? '') : '';
+              final artist = t is Map ? (t['artist'] ?? '') : '';
               final id = t is Map ? (t['trackId'] ?? '') : '';
               final count = t is Map ? (t['count'] ?? 0) : 0;
               return Container(
@@ -698,7 +710,26 @@ class _ProfileStatsViewState extends State<_ProfileStatsView> {
                 child: Row(children: [
                   Icon(Icons.music_note_rounded, size: r.footerSize, color: glow.withValues(alpha: 0.6)),
                   SizedBox(width: r.spacingS),
-                  Expanded(child: Text(id, style: TextStyle(fontSize: r.subtitleSize - 1, color: onBg), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          name.isNotEmpty ? name : id,
+                          style: TextStyle(fontSize: r.subtitleSize - 1, color: onBg),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        if (artist.isNotEmpty)
+                          Text(
+                            artist,
+                            style: TextStyle(fontSize: r.footerSize - 2, color: onBg.withValues(alpha: 0.4)),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                      ],
+                    ),
+                  ),
                   Container(
                     padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                     decoration: BoxDecoration(color: glow.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(8)),
@@ -1244,64 +1275,18 @@ class _PerformanceTab extends StatelessWidget {
 // ═══════════════════════════════════════════════════════
 class _MoreTab extends StatefulWidget {
   final Color glowColor;
-  const _MoreTab({required this.glowColor});
+  final PremiumStatus? premium;
+  final Future<void> Function() onPremiumChanged;
+  const _MoreTab({
+    required this.glowColor,
+    this.premium,
+    required this.onPremiumChanged,
+  });
   @override
   State<_MoreTab> createState() => _MoreTabState();
 }
 
 class _MoreTabState extends State<_MoreTab> {
-  bool _youtubeConnected = false;
-  bool _youtubeConnecting = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _checkYouTube();
-  }
-
-  Future<void> _checkYouTube() async {
-    try {
-      final cache = sl<SettingsCache>();
-      final token = await cache.getSetting('ytmusic-spotiflac_oauthAccessToken');
-      _youtubeConnected = token != null && token.trim().isNotEmpty;
-    } catch (_) {}
-    if (mounted) setState(() {});
-  }
-
-  Future<void> _connectYouTube() async {
-    setState(() => _youtubeConnecting = true);
-    try {
-      final msg = await YoutubeOauthService().connect();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(msg),
-            backgroundColor: msg.startsWith('Sesión') ? Colors.green.shade700 : Colors.red.shade700,
-            duration: Duration(seconds: 3),
-          ),
-        );
-        if (msg.startsWith('Sesión')) setState(() => _youtubeConnected = true);
-      }
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red.shade700),
-      );
-    } finally {
-      if (mounted) setState(() => _youtubeConnecting = false);
-    }
-  }
-
-  Future<void> _disconnectYouTube() async {
-    try {
-      final msg = await YoutubeOauthService().logout();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(msg), backgroundColor: Colors.orange.shade700, duration: Duration(seconds: 3)),
-        );
-        setState(() => _youtubeConnected = false);
-      }
-    } catch (_) {}
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -1315,77 +1300,11 @@ class _MoreTabState extends State<_MoreTab> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(height: r.spacingS),
-          // ── YouTube Account ──
-          Row(children: [
-            Icon(Icons.account_circle_rounded, color: widget.glowColor, size: r.subtitleSize),
-            SizedBox(width: r.spacingS),
-            Text('Cuenta YouTube', style: TextStyle(fontSize: r.subtitleSize, fontWeight: FontWeight.w700, color: onBg)),
-          ]),
-          SizedBox(height: 4),
-          Text(
-            _youtubeConnected
-                ? 'Tu cuenta Google está conectada. Los streams de YouTube se resuelven con tu sesión autenticada.'
-                : 'Conecta tu cuenta Google para streaming rápido de YouTube sin límites anónimos.',
-            style: TextStyle(fontSize: r.footerSize - 1, color: onBg.withValues(alpha: 0.5), height: 1.3),
-          ),
-          SizedBox(height: r.spacingS),
-          Container(
-            width: double.infinity,
-            padding: EdgeInsets.all(r.spacingM),
-            decoration: BoxDecoration(
-              color: onBg.withValues(alpha: 0.04),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: _youtubeConnected ? Colors.green.withValues(alpha: 0.3) : onBg.withValues(alpha: 0.1)),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  _youtubeConnected ? Icons.check_circle_rounded : Icons.play_circle_outline_rounded,
-                  color: _youtubeConnected ? Colors.green : widget.glowColor,
-                  size: r.footerSize + 4,
-                ),
-                SizedBox(width: r.spacingM),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _youtubeConnected ? 'Conectado ✓' : 'No conectado',
-                        style: TextStyle(
-                          fontSize: r.subtitleSize - 1,
-                          fontWeight: FontWeight.w600,
-                          color: _youtubeConnected ? Colors.green : onBg,
-                        ),
-                      ),
-                      SizedBox(height: 2),
-                      Text(
-                        _youtubeConnected ? 'Sesión de YouTube activa' : 'Toca para conectar con Google',
-                        style: TextStyle(fontSize: r.footerSize - 2, color: onBg.withValues(alpha: 0.4)),
-                      ),
-                    ],
-                  ),
-                ),
-                if (_youtubeConnecting)
-                  SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: widget.glowColor))
-                else if (_youtubeConnected)
-                  TextButton(
-                    onPressed: _disconnectYouTube,
-                    child: Text('Desconectar', style: TextStyle(color: Colors.red.shade400, fontSize: r.footerSize - 1)),
-                  )
-                else
-                  TextButton.icon(
-                    onPressed: _connectYouTube,
-                    icon: Icon(Icons.login_rounded, size: 14, color: Colors.white),
-                    label: Text('Conectar', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: r.footerSize - 1)),
-                    style: TextButton.styleFrom(
-                      backgroundColor: Colors.orange.shade700,
-                      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
-                  ),
-              ],
-            ),
-          ),
+          // ── Premium status + activation ──
+          _premiumCard(context, onBg, r),
+          SizedBox(height: r.spacingM),
+          // ── Report a bug / suggestion ──
+          _reportCard(context, onBg, r),
           SizedBox(height: r.spacingM),
           // ── Streaming cache — explained ──
           _cacheExplained(context, onBg, r),
@@ -1394,6 +1313,395 @@ class _MoreTabState extends State<_MoreTab> {
         ],
       ),
     );
+  }
+
+  /// Report a bug / suggestion: opens a small form and submits it to the
+  /// developer's GitHub issues via the API, so reports land in the repo.
+  Widget _reportCard(BuildContext context, Color onBg, Responsive r) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Icon(Icons.bug_report_rounded, color: widget.glowColor, size: r.subtitleSize),
+        SizedBox(width: r.spacingS),
+        Text(AppLocalizations.of(context).setup.reportBug,
+            style: TextStyle(fontSize: r.subtitleSize, fontWeight: FontWeight.w700, color: onBg)),
+      ]),
+      SizedBox(height: 4),
+      Text(
+        AppLocalizations.of(context).setup.reportDesc,
+        style: TextStyle(fontSize: r.footerSize - 1, color: onBg.withValues(alpha: 0.5), height: 1.3),
+      ),
+      SizedBox(height: r.spacingS),
+      GestureDetector(
+        onTap: _showReportDialog,
+        child: Container(
+          width: double.infinity,
+          padding: EdgeInsets.symmetric(horizontal: r.spacingM, vertical: r.spacingM),
+          decoration: BoxDecoration(
+            color: onBg.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: widget.glowColor.withValues(alpha: 0.25)),
+          ),
+          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(Icons.edit_rounded, size: r.subtitleSize + 2, color: widget.glowColor),
+            SizedBox(width: r.spacingS),
+            Text(AppLocalizations.of(context).setup.reportBug,
+                style: TextStyle(fontSize: r.subtitleSize, fontWeight: FontWeight.w600, color: onBg.withValues(alpha: 0.8))),
+          ]),
+        ),
+      ),
+    ]);
+  }
+
+  /// Opens the report form dialog. On send, creates a GitHub issue in the
+  /// app's repo so the developer receives it directly.
+  Future<void> _showReportDialog() async {
+    final loc = AppLocalizations.of(context);
+    final r = Responsive(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final onBg = AppColors.onSurface(isDark);
+    final bg = AppColors.surface(isDark);
+    final glow = widget.glowColor;
+
+    var isBug = true;
+    final titleCtrl = TextEditingController();
+    final bodyCtrl = TextEditingController();
+    var sending = false;
+    var sent = false;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            return AlertDialog(
+              backgroundColor: bg,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              title: Row(children: [
+                Icon(isBug ? Icons.bug_report_rounded : Icons.lightbulb_rounded,
+                    color: isBug ? Colors.redAccent : Colors.amber, size: 22),
+                SizedBox(width: r.spacingS),
+                Text(loc.setup.reportBug,
+                    style: TextStyle(color: onBg, fontSize: 18, fontWeight: FontWeight.w700)),
+              ]),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Type toggle: Bug / Sugerencia
+                    Row(children: [
+                      Expanded(
+                        child: _reportTypeChip(
+                          label: loc.setup.reportTypeBug,
+                          selected: isBug,
+                          color: Colors.redAccent,
+                          onBg: onBg, glow: glow,
+                          onTap: () => setModalState(() => isBug = true),
+                        ),
+                      ),
+                      SizedBox(width: r.spacingS),
+                      Expanded(
+                        child: _reportTypeChip(
+                          label: loc.setup.reportTypeSuggestion,
+                          selected: !isBug,
+                          color: Colors.amber,
+                          onBg: onBg, glow: glow,
+                          onTap: () => setModalState(() => isBug = false),
+                        ),
+                      ),
+                    ]),
+                    SizedBox(height: r.spacingM),
+                    TextField(
+                      controller: titleCtrl,
+                      style: TextStyle(color: onBg),
+                      decoration: InputDecoration(
+                        labelText: loc.setup.reportTitle,
+                        labelStyle: TextStyle(color: onBg.withValues(alpha: 0.5)),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: onBg.withValues(alpha: 0.2)),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: glow),
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: r.spacingS),
+                    TextField(
+                      controller: bodyCtrl,
+                      maxLines: 4,
+                      style: TextStyle(color: onBg),
+                      decoration: InputDecoration(
+                        hintText: loc.setup.reportBody,
+                        hintStyle: TextStyle(color: onBg.withValues(alpha: 0.4)),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: onBg.withValues(alpha: 0.2)),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: glow),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: sending ? null : () => Navigator.pop(ctx),
+                  child: Text(loc.setup.cancel, style: TextStyle(color: onBg.withValues(alpha: 0.6))),
+                ),
+                FilledButton(
+                  onPressed: sending
+                      ? null
+                      : () async {
+                          setModalState(() => sending = true);
+                          final ok = await _submitReport(
+                            isBug: isBug,
+                            title: titleCtrl.text.trim(),
+                            body: bodyCtrl.text.trim(),
+                          );
+                          sent = ok;
+                          if (ctx.mounted) Navigator.pop(ctx);
+                        },
+                  style: FilledButton.styleFrom(
+                    backgroundColor: isBug ? Colors.redAccent : glow,
+                  ),
+                  child: sending
+                      ? SizedBox(
+                          width: 18, height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : Text(loc.setup.reportSend, style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(sent ? loc.setup.reportSent : loc.setup.reportFailed),
+          backgroundColor: sent ? Colors.green.shade700 : Colors.red.shade700,
+          duration: const Duration(seconds: 4),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Widget _reportTypeChip({
+    required String label,
+    required bool selected,
+    required Color color,
+    required Color onBg,
+    required Color glow,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: selected ? color.withValues(alpha: 0.18) : onBg.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected ? color.withValues(alpha: 0.6) : onBg.withValues(alpha: 0.12),
+            width: 1.4,
+          ),
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+              color: selected ? color : onBg.withValues(alpha: 0.6),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Creates a GitHub issue in QuopTron/bitly using the configured token.
+  /// Returns true when the issue was created successfully.
+  Future<bool> _submitReport({
+    required bool isBug,
+    required String title,
+    required String body,
+  }) async {
+    if (title.isEmpty) return false;
+    try {
+      final pkg = await PackageInfo.fromPlatform();
+      final appVersion = 'v${pkg.version}';
+      final prefix = isBug ? '[Bug]' : '[Sugerencia]';
+      final issueBody = [
+        body,
+        '',
+        '---',
+        'App: Bitly $appVersion',
+        'Plataforma: ${Platform.isAndroid ? 'Android' : Platform.isIOS ? 'iOS' : Platform.isLinux ? 'Linux' : Platform.isWindows ? 'Windows' : Platform.isMacOS ? 'macOS' : 'desktop'}',
+      ].join('\n');
+      final resp = await http.post(
+        Uri.parse('https://api.github.com/repos/QuopTron/bitly/issues'),
+        headers: {
+          'Authorization': 'token $githubToken',
+          'Accept': 'application/vnd.github.v3+json',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'title': '$prefix $title',
+          'body': issueBody,
+        }),
+      );
+      return resp.statusCode == 201 || resp.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Premium card: shows the real tier (Free/Premium) and lets free users
+  /// activate a premium code right from settings.
+  Widget _premiumCard(BuildContext context, Color onBg, Responsive r) {
+    final isPremium = widget.premium?.isPremium ?? false;
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Icon(
+          isPremium ? Icons.workspace_premium_rounded : Icons.person_outline_rounded,
+          color: widget.glowColor,
+          size: r.subtitleSize,
+        ),
+        SizedBox(width: r.spacingS),
+        Text('Cuenta', style: TextStyle(fontSize: r.subtitleSize, fontWeight: FontWeight.w700, color: onBg)),
+      ]),
+      SizedBox(height: 4),
+      Text(
+        isPremium
+            ? 'Tienes Premium: descargas ilimitadas para siempre.'
+            : 'Modo Free: acceso a descargas gratis por 8 horas desde tu primera activación.',
+        style: TextStyle(fontSize: r.footerSize - 1, color: onBg.withValues(alpha: 0.5), height: 1.3),
+      ),
+      SizedBox(height: r.spacingS),
+      Container(
+        width: double.infinity,
+        padding: EdgeInsets.all(r.spacingM),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: isPremium
+                ? [widget.glowColor.withValues(alpha: 0.16), widget.glowColor.withValues(alpha: 0.05)]
+                : [widget.glowColor.withValues(alpha: 0.10), onBg.withValues(alpha: 0.02)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: widget.glowColor.withValues(alpha: 0.35)),
+        ),
+        child: Row(children: [
+          Icon(
+            isPremium ? Icons.check_circle_rounded : Icons.workspace_premium_rounded,
+            color: widget.glowColor,
+            size: r.footerSize + 4,
+          ),
+          SizedBox(width: r.spacingM),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isPremium ? 'Premium activo' : 'Free',
+                  style: TextStyle(
+                    fontSize: r.subtitleSize - 1,
+                    fontWeight: FontWeight.w600,
+                    color: isPremium ? widget.glowColor : onBg,
+                  ),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  isPremium
+                      ? 'Cuenta con todos los beneficios'
+                      : 'Activa un código para descargas ilimitadas',
+                  style: TextStyle(fontSize: r.footerSize - 2, color: onBg.withValues(alpha: 0.4)),
+                ),
+              ],
+            ),
+          ),
+          if (!isPremium)
+            TextButton(
+              onPressed: _activatePremium,
+              child: Text('Activar', style: TextStyle(color: widget.glowColor, fontWeight: FontWeight.w700, fontSize: r.footerSize)),
+            ),
+        ]),
+      ),
+    ]);
+  }
+
+  /// Asks for a premium code and validates it against the GitHub registry,
+  /// then persists the tier locally so the whole app sees it.
+  Future<void> _activatePremium() async {
+    final controller = TextEditingController();
+    final code = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        final isDark = Theme.of(ctx).brightness == Brightness.dark;
+        final onBg = AppColors.onSurface(isDark);
+        return AlertDialog(
+          backgroundColor: AppColors.surface(isDark),
+          title: Text('Activar código premium',
+              style: TextStyle(color: onBg, fontSize: 18, fontWeight: FontWeight.w700)),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            style: TextStyle(color: onBg),
+            decoration: InputDecoration(
+              hintText: 'Código premium',
+              hintStyle: TextStyle(color: onBg.withValues(alpha: 0.4)),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: onBg.withValues(alpha: 0.2)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: widget.glowColor),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('Cancelar', style: TextStyle(color: onBg.withValues(alpha: 0.6))),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+              child: Text('Activar', style: TextStyle(color: widget.glowColor, fontWeight: FontWeight.w700)),
+            ),
+          ],
+        );
+      },
+    );
+    if (code == null || code.isEmpty) return;
+    final error = await PremiumService().validatePremiumCode(code);
+    if (!mounted) return;
+    if (error == null) {
+      await sl<PremiumCache>().activatePremium(code);
+      await widget.onPremiumChanged();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Premium activado ✓'), backgroundColor: Colors.green.shade700),
+        );
+      }
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error), backgroundColor: Colors.red.shade700),
+      );
+    }
   }
 
   Widget _cacheExplained(BuildContext context, Color onBg, Responsive r) {

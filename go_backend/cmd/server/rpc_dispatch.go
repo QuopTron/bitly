@@ -138,6 +138,8 @@ func dispatchRPC(method string, params map[string]interface{}) (interface{}, str
 		return backend.GetStreamURL(p()), ""
 	case "getStreamPackage":
 		return backend.GetStreamPackage(p()), ""
+	case "resolveVisualizerUrl":
+		return backend.ResolveVisualizerUrl(p()), ""
 	case "startStreamingServer":
 		return backend.StartStreamingServer(intFrom(params, "port", 18765)), ""
 	case "stopStreamingServer":

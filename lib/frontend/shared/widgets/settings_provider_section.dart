@@ -5,6 +5,7 @@ import '../../../backend/cache/settings_cache.dart';
 import '../../../backend/rpc/backend_service.dart';
 import '../../../backend/services/provider_credential_service.dart';
 import '../../../backend/services/youtube_oauth_service.dart';
+import '../../../config/secrets.dart';
 import '../../../injection.dart';
 import '../models/provider_config.dart';
 import 'glass_container.dart';
@@ -74,9 +75,9 @@ class _SettingsProviderSectionState extends State<SettingsProviderSection> {
         }
         // Pre-fill built-in OAuth client values for the YouTube provider.
         if (entry.key == 'ytmusic-spotiflac_oauthClientId') {
-          entry.value.text = YoutubeOauthService.defaultClientId;
+          entry.value.text = defaultOAuthClientId;
         } else if (entry.key == 'ytmusic-spotiflac_oauthClientSecret') {
-          entry.value.text = YoutubeOauthService.defaultClientSecret;
+          entry.value.text = defaultOAuthClientSecret;
         }
       }());
     }
@@ -312,7 +313,7 @@ class _SettingsProviderSectionState extends State<SettingsProviderSection> {
     // not as JS extension exports.
     if (_selected.id == 'ytmusic-spotiflac') {
       if (action.action == 'youtubeOauthConnect') {
-        final msg = await YoutubeOauthService().connect();
+        final msg = await YoutubeOauthService().connect(context);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text(msg),

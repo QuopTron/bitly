@@ -84,11 +84,7 @@ class PlaybackCache {
   /// Returns a map matching the same shape as the old Go response:
   /// {level, totalPlays, dailyLimit, playsToday, playsRemaining, blocked}
   Future<Map<String, dynamic>> getListeningLevel() async {
-    final topTracks = await _ph.getTop('track');
-    final totalPlays = topTracks.fold<int>(
-      0,
-      (sum, t) => sum + (t.playCount ?? 0),
-    );
+    final totalPlays = await _ph.sumPlayCounts('track');
 
     final today = DateTime.now().toUtc().toIso8601String().substring(0, 10);
     final playsToday = await _pm.getDailyPlayCount(today);
@@ -176,6 +172,45 @@ class PlaybackCache {
       nextLevel: levelData['nextLevel'] as int? ?? 1,
       progress: levelData['progress'] as double? ?? 0.0,
     );
+  }
+
+  /// Playback stats for the settings profile, computed from the LOCAL Drift
+  /// tables (the Go in-memory tracker is empty on device, so the old
+  /// `getPlaybackStats` RPC always showed zeros). Same key names the profile
+  /// view expects: totalPlays, uniqueTracks, uniqueArtists, totalDuration.
+  Future<Map<String, dynamic>> getProfileStats() async {
+    final levelData = await getListeningLevel();
+    final uniqueTracks = await _ph.countAggregates('track');
+    final uniqueArtists = await _ph.getDistinctArtistsCount();
+    final totalDuration = await _ph.getTotalPlaybackMs();
+    return {
+      'totalPlays': levelData['totalPlays'] ?? 0,
+      'uniqueTracks': uniqueTracks,
+      'uniqueArtists': uniqueArtists,
+      'totalDuration': totalDuration,
+      'playsToday': levelData['playsToday'] ?? 0,
+      'dailyLimit': levelData['dailyLimit'] ?? 50,
+      'playsRemaining': levelData['playsRemaining'] ?? 0,
+      'level': levelData['level'] ?? 'free',
+      'blocked': levelData['blocked'] ?? false,
+    };
+  }
+
+  /// Most-played tracks with real titles/artists (from local play history),
+  /// ready to render in the settings profile. Returns:
+  /// [{trackId, name, artist, count}]
+  Future<List<Map<String, dynamic>>> getTopTracksWithNames(int limit) async {
+    final aggs = await _ph.getTop('track', limit: limit);
+    final names = await _ph.getLatestNames();
+    return aggs.map((a) {
+      final meta = names[a.itemId];
+      return {
+        'trackId': a.itemId,
+        'count': a.playCount ?? 0,
+        'name': (meta?.name.isNotEmpty ?? false) ? meta!.name : a.itemId,
+        'artist': meta?.artist ?? '',
+      };
+    }).toList();
   }
 
   /// [getUserStats] as a JSON-encoded string (for BackendService compatibility).

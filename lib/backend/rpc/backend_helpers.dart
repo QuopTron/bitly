@@ -28,7 +28,7 @@ class BackendHelpers {
       // preserve them to prevent trial extension abuse.
       data['trial_started_at'] = existingTrialStartedAt ?? DateTime.now().toIso8601String();
       data['trial_expires_at'] = existingTrialExpiresAt ??
-          DateTime.now().add(const Duration(hours: 6)).toIso8601String();
+          DateTime.now().add(const Duration(hours: 8)).toIso8601String();
       data['trial_used'] = true;
     }
     if (premiumCode != null) {

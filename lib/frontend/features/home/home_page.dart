@@ -84,6 +84,7 @@ class _HomePageState extends State<HomePage>
   StreamSubscription? _downloadSub;
   bool _restartSnackShown = false;
   bool _decryptSnackShown = false;
+  bool _gateSnackShown = false;
   StreamSubscription<FeedState>? _feedSub;
   bool _feedPrecached = false;
 
@@ -191,6 +192,23 @@ class _HomePageState extends State<HomePage>
               onPressed: () {
                 _decryptSnackShown = false;
                 _downloadCubit.acknowledgeDecryptError();
+              },
+            ),
+          ),
+        );
+      }
+      if (state.downloadGateBlocked != null && !_gateSnackShown) {
+        _gateSnackShown = true;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(loc.setup.trialExpired),
+            duration: const Duration(seconds: 7),
+            behavior: SnackBarBehavior.floating,
+            action: SnackBarAction(
+              label: loc.setup.ok,
+              onPressed: () {
+                _gateSnackShown = false;
+                _downloadCubit.acknowledgeGateBlocked();
               },
             ),
           ),

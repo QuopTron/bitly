@@ -58,9 +58,13 @@ func GetLyricsLRCWithSource(payload string) string {
 	if err != nil || lyrics == nil {
 		return `{"lyrics":"","instrumental":false}`
 	}
-	text := lyrics.PlainLyrics
+	// Prefer SYNCED lyrics (LRC with [mm:ss.xx] timestamps): that is the only
+	// format the karaoke view can follow second by second (neon fill, active
+	// line pinned to the current phrase). Plain text is the fallback when a
+	// provider (e.g. Genius) only has unsynced lyrics.
+	text := lyrics.SyncedLyrics
 	if text == "" {
-		text = lyrics.SyncedLyrics
+		text = lyrics.PlainLyrics
 	}
 	instrumental := text == ""
 	data, _ := json.Marshal(map[string]interface{}{

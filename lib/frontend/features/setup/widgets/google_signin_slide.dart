@@ -7,6 +7,7 @@ import '../../../shared/theme/app_colors.dart';
 import '../../../shared/utils/responsive.dart';
 import '../../../shared/widgets/glass_button.dart';
 import '../../../shared/widgets/glass_container.dart';
+import '../../../shared/widgets/google_logo.dart';
 import '../bloc/setup_bloc.dart';
 import '../bloc/setup_event.dart';
 import '../bloc/setup_state.dart';
@@ -48,7 +49,7 @@ class _GoogleSignInSlideState extends State<GoogleSignInSlide> {
     final bloc = context.read<SetupBloc>();
     final messenger = ScaffoldMessenger.of(context);
     setState(() => _connecting = true);
-    final msg = await YoutubeOauthService().connect();
+    final msg = await YoutubeOauthService().connect(context);
     if (!mounted) return;
     setState(() => _connecting = false);
     final ok = msg.startsWith('Sesión de YouTube conectada');
@@ -79,17 +80,17 @@ class _GoogleSignInSlideState extends State<GoogleSignInSlide> {
           Text(
             _t('Inicia sesión con Google', 'Sign in with Google'),
             style: TextStyle(
-              fontSize: widget.r.titleSize,
+              fontSize: widget.r.titleSize + 3,
               fontWeight: FontWeight.bold,
               color: onBg,
-              letterSpacing: 1,
+              letterSpacing: 0.6,
             ),
           ),
-          SizedBox(height: 2),
+          SizedBox(height: 4),
           Text(
             _t('Opcional — mejora tu reproducción', 'Optional — better playback'),
             style: TextStyle(
-              fontSize: widget.r.footerSize,
+              fontSize: widget.r.footerSize + 1,
               color: onBg.withValues(alpha: 0.5),
             ),
           ),
@@ -109,24 +110,21 @@ class _GoogleSignInSlideState extends State<GoogleSignInSlide> {
   }
 
   Widget _googleBadge() {
+    // Real Google logo (white tile keeps the 4 colors crisp on dark/light).
     return Container(
-      padding: EdgeInsets.all(widget.r.spacingS),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: Colors.white.withValues(alpha: 0.06),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.15),
-          width: 0.8,
-        ),
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.25),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
-      child: const Text(
-        'G',
-        style: TextStyle(
-          fontSize: 30,
-          fontWeight: FontWeight.w800,
-          color: Color(0xFF4285F4),
-        ),
-      ),
+      child: GoogleLogo(size: 52),
     );
   }
 
@@ -186,7 +184,7 @@ class _GoogleSignInSlideState extends State<GoogleSignInSlide> {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(row.$1, size: widget.r.subtitleSize, color: glowColor),
+                Icon(row.$1, size: widget.r.subtitleSize + 2, color: glowColor),
                 SizedBox(width: widget.r.spacingS),
                 Expanded(
                   child: Column(
@@ -195,7 +193,7 @@ class _GoogleSignInSlideState extends State<GoogleSignInSlide> {
                       Text(
                         row.$2,
                         style: TextStyle(
-                          fontSize: widget.r.footerSize + 1,
+                          fontSize: widget.r.footerSize + 2,
                           fontWeight: FontWeight.w600,
                           color: onBg,
                         ),
@@ -203,7 +201,7 @@ class _GoogleSignInSlideState extends State<GoogleSignInSlide> {
                       Text(
                         row.$3,
                         style: TextStyle(
-                          fontSize: widget.r.footerSize - 2,
+                          fontSize: widget.r.footerSize,
                           color: onBg.withValues(alpha: 0.55),
                         ),
                       ),
@@ -232,7 +230,9 @@ class _GoogleSignInSlideState extends State<GoogleSignInSlide> {
           onPressed: _connecting ? null : () => _connect(context),
           height: widget.r.continueButtonHeight,
           accent: glowColor,
-          icon: Icon(_connecting ? Icons.hourglass_top : Icons.login),
+          icon: _connecting
+              ? const Icon(Icons.hourglass_top, size: 22)
+              : const GoogleLogo(size: 20),
         ),
       ),
     );

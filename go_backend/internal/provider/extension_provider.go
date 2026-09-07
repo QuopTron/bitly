@@ -341,6 +341,40 @@ func (p *ExtensionProvider) GetStreamURL(id, quality string) (string, error) {
 	return "", fmt.Errorf("ext %s: getDownloadUrl returned no URL", p.extID)
 }
 
+// GetVisualizerURL resolves a VIDEO-capable stream URL (itag=18, video+audio)
+// for [id] via the extension's getDownloadUrl(id, quality, forceVideo=true).
+// This powers the visualizer layer (muted frames over the cover), which needs
+// actual video frames — the audio-only formats getDownloadUrl normally picks
+// would render nothing. Returns an error when the extension cannot serve a
+// video format so the caller can fall back to the native youtube provider.
+func (p *ExtensionProvider) GetVisualizerURL(id, quality string) (string, error) {
+	result, err := p.call("getDownloadUrl", id, quality, true)
+	if err != nil {
+		return "", fmt.Errorf("ext %s getVisualizerUrl: %w", p.extID, err)
+	}
+	if result == nil {
+		return "", fmt.Errorf("ext %s: visualizer not available", p.extID)
+	}
+	if s, ok := result.(string); ok && s != "" {
+		return s, nil
+	}
+	return "", fmt.Errorf("ext %s: getDownloadUrl returned no video URL", p.extID)
+}
+
+// ResolveVisualizerVideoID finds a YouTube music-video id for a song via the
+// extension's resolveVisualizerVideoID(query, artist) helper. Returns "" when
+// the extension has no such helper or no match was found.
+func (p *ExtensionProvider) ResolveVisualizerVideoID(query, artist string) string {
+	result, err := p.call("resolveVisualizerVideoID", query, artist)
+	if err != nil || result == nil {
+		return ""
+	}
+	if s, ok := result.(string); ok {
+		return strings.TrimSpace(s)
+	}
+	return ""
+}
+
 // HomeFeedSection represents a section from a JS extension's getHomeFeed().
 type HomeFeedSection struct {
 	URI   string         `json:"uri"`
