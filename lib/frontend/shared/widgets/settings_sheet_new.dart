@@ -18,6 +18,7 @@ import '../../../backend/cache/settings_cache.dart';
 import '../../../backend/services/like_cubit.dart';
 import '../../../backend/services/player_cubit.dart';
 import '../../../backend/services/queue_cubit.dart';
+import '../../../backend/services/youtube_oauth_service.dart';
 import '../../../injection.dart';
 import 'glass_container.dart';
 import 'settings_sections.dart';
@@ -516,6 +517,8 @@ class _ProfileStatsViewState extends State<_ProfileStatsView> {
   Map<String, dynamic> _stats = {};
   List<dynamic> _topTracks = [];
   bool _loading = true;
+  bool _youtubeConnected = false;
+  bool _youtubeConnecting = false;
 
   @override
   void initState() {
@@ -532,7 +535,40 @@ class _ProfileStatsViewState extends State<_ProfileStatsView> {
       final top = await sl<BackendService>().rpcCall('getTopTracks', {'limit': 5});
       if (top is List) _topTracks = top;
     } catch (_) {}
+    // Check YouTube OAuth status
+    try {
+      final cache = sl<SettingsCache>();
+      final token = await cache.getSetting('ytmusic-spotiflac_oauthAccessToken');
+      _youtubeConnected = token != null && token.trim().isNotEmpty;
+    } catch (_) {}
     if (mounted) setState(() => _loading = false);
+  }
+
+  Future<void> _connectYouTube() async {
+    setState(() => _youtubeConnecting = true);
+    try {
+      final msg = await YoutubeOauthService().connect();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(msg),
+            backgroundColor: msg.startsWith('Sesión') ? Colors.green.shade700 : Colors.red.shade700,
+            duration: Duration(seconds: 3),
+          ),
+        );
+        if (msg.startsWith('Sesión')) {
+          setState(() => _youtubeConnected = true);
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red.shade700),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _youtubeConnecting = false);
+    }
   }
 
   @override
@@ -560,6 +596,76 @@ class _ProfileStatsViewState extends State<_ProfileStatsView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // YouTube connection banner
+          if (!_youtubeConnected)
+            Container(
+              margin: EdgeInsets.only(bottom: r.spacingM),
+              padding: EdgeInsets.all(r.spacingM),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.red.shade900.withValues(alpha: 0.3), Colors.orange.shade900.withValues(alpha: 0.2)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.warning_amber_rounded, color: Colors.orange, size: r.subtitleSize),
+                  SizedBox(width: r.spacingS),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'YouTube no conectado',
+                          style: TextStyle(fontSize: r.subtitleSize - 1, fontWeight: FontWeight.w700, color: Colors.orange),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'Conecta tu cuenta Google para streaming rápido',
+                          style: TextStyle(fontSize: r.footerSize, color: onBg.withValues(alpha: 0.6)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(width: r.spacingS),
+                  _youtubeConnecting
+                      ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.orange))
+                      : TextButton.icon(
+                          onPressed: _connectYouTube,
+                          icon: Icon(Icons.login_rounded, size: 16, color: Colors.white),
+                          label: Text('Conectar', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                          style: TextButton.styleFrom(
+                            backgroundColor: Colors.orange.shade700,
+                            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                        ),
+                ],
+              ),
+            ),
+          if (_youtubeConnected)
+            Container(
+              margin: EdgeInsets.only(bottom: r.spacingM),
+              padding: EdgeInsets.symmetric(horizontal: r.spacingM, vertical: r.spacingS),
+              decoration: BoxDecoration(
+                color: Colors.green.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.check_circle_rounded, color: Colors.green, size: r.footerSize + 2),
+                  SizedBox(width: r.spacingS),
+                  Text(
+                    'YouTube conectado ✓',
+                    style: TextStyle(fontSize: r.footerSize, color: Colors.green, fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ),
+            ),
           _sectionHeader(Icons.bar_chart_rounded, loc.setup.totalPlays, onBg, r),
           SizedBox(height: r.spacingS),
           _statsGrid([
@@ -1136,9 +1242,66 @@ class _PerformanceTab extends StatelessWidget {
 // ═══════════════════════════════════════════════════════
 //  TAB 4: Más — cache + version info
 // ═══════════════════════════════════════════════════════
-class _MoreTab extends StatelessWidget {
+class _MoreTab extends StatefulWidget {
   final Color glowColor;
   const _MoreTab({required this.glowColor});
+  @override
+  State<_MoreTab> createState() => _MoreTabState();
+}
+
+class _MoreTabState extends State<_MoreTab> {
+  bool _youtubeConnected = false;
+  bool _youtubeConnecting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkYouTube();
+  }
+
+  Future<void> _checkYouTube() async {
+    try {
+      final cache = sl<SettingsCache>();
+      final token = await cache.getSetting('ytmusic-spotiflac_oauthAccessToken');
+      _youtubeConnected = token != null && token.trim().isNotEmpty;
+    } catch (_) {}
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _connectYouTube() async {
+    setState(() => _youtubeConnecting = true);
+    try {
+      final msg = await YoutubeOauthService().connect();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(msg),
+            backgroundColor: msg.startsWith('Sesión') ? Colors.green.shade700 : Colors.red.shade700,
+            duration: Duration(seconds: 3),
+          ),
+        );
+        if (msg.startsWith('Sesión')) setState(() => _youtubeConnected = true);
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red.shade700),
+      );
+    } finally {
+      if (mounted) setState(() => _youtubeConnecting = false);
+    }
+  }
+
+  Future<void> _disconnectYouTube() async {
+    try {
+      final msg = await YoutubeOauthService().logout();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(msg), backgroundColor: Colors.orange.shade700, duration: Duration(seconds: 3)),
+        );
+        setState(() => _youtubeConnected = false);
+      }
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1152,10 +1315,82 @@ class _MoreTab extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(height: r.spacingS),
+          // ── YouTube Account ──
+          Row(children: [
+            Icon(Icons.account_circle_rounded, color: widget.glowColor, size: r.subtitleSize),
+            SizedBox(width: r.spacingS),
+            Text('Cuenta YouTube', style: TextStyle(fontSize: r.subtitleSize, fontWeight: FontWeight.w700, color: onBg)),
+          ]),
+          SizedBox(height: 4),
+          Text(
+            _youtubeConnected
+                ? 'Tu cuenta Google está conectada. Los streams de YouTube se resuelven con tu sesión autenticada.'
+                : 'Conecta tu cuenta Google para streaming rápido de YouTube sin límites anónimos.',
+            style: TextStyle(fontSize: r.footerSize - 1, color: onBg.withValues(alpha: 0.5), height: 1.3),
+          ),
+          SizedBox(height: r.spacingS),
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.all(r.spacingM),
+            decoration: BoxDecoration(
+              color: onBg.withValues(alpha: 0.04),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: _youtubeConnected ? Colors.green.withValues(alpha: 0.3) : onBg.withValues(alpha: 0.1)),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  _youtubeConnected ? Icons.check_circle_rounded : Icons.play_circle_outline_rounded,
+                  color: _youtubeConnected ? Colors.green : widget.glowColor,
+                  size: r.footerSize + 4,
+                ),
+                SizedBox(width: r.spacingM),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _youtubeConnected ? 'Conectado ✓' : 'No conectado',
+                        style: TextStyle(
+                          fontSize: r.subtitleSize - 1,
+                          fontWeight: FontWeight.w600,
+                          color: _youtubeConnected ? Colors.green : onBg,
+                        ),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        _youtubeConnected ? 'Sesión de YouTube activa' : 'Toca para conectar con Google',
+                        style: TextStyle(fontSize: r.footerSize - 2, color: onBg.withValues(alpha: 0.4)),
+                      ),
+                    ],
+                  ),
+                ),
+                if (_youtubeConnecting)
+                  SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: widget.glowColor))
+                else if (_youtubeConnected)
+                  TextButton(
+                    onPressed: _disconnectYouTube,
+                    child: Text('Desconectar', style: TextStyle(color: Colors.red.shade400, fontSize: r.footerSize - 1)),
+                  )
+                else
+                  TextButton.icon(
+                    onPressed: _connectYouTube,
+                    icon: Icon(Icons.login_rounded, size: 14, color: Colors.white),
+                    label: Text('Conectar', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: r.footerSize - 1)),
+                    style: TextButton.styleFrom(
+                      backgroundColor: Colors.orange.shade700,
+                      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          SizedBox(height: r.spacingM),
           // ── Streaming cache — explained ──
           _cacheExplained(context, onBg, r),
           SizedBox(height: r.spacingM),
-          _versionInfoCard(context, r, onBg, glowColor),
+          _versionInfoCard(context, r, onBg, widget.glowColor),
         ],
       ),
     );
@@ -1164,7 +1399,7 @@ class _MoreTab extends StatelessWidget {
   Widget _cacheExplained(BuildContext context, Color onBg, Responsive r) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
-        Icon(Icons.cached_rounded, color: glowColor, size: r.subtitleSize),
+        Icon(Icons.cached_rounded, color: widget.glowColor, size: r.subtitleSize),
         SizedBox(width: r.spacingS),
         Text('Caché de streaming', style: TextStyle(fontSize: r.subtitleSize, fontWeight: FontWeight.w700, color: onBg)),
       ]),
@@ -1174,7 +1409,7 @@ class _MoreTab extends StatelessWidget {
         style: TextStyle(fontSize: r.footerSize - 1, color: onBg.withValues(alpha: 0.5), height: 1.3),
       ),
       SizedBox(height: r.spacingS),
-      SettingsCacheSection(onBg: onBg, glowColor: glowColor),
+      SettingsCacheSection(onBg: onBg, glowColor: widget.glowColor),
     ]);
   }
 

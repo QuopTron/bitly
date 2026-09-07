@@ -70,6 +70,37 @@ func isClientDecryptionError(errMsg string) bool {
 	return false
 }
 
+// verifyBlocklist remembers providers that returned VERIFY_REQUIRED during a
+// rescue walk.  tidal-web with an unverified session ALWAYS returns
+// VERIFY_REQUIRED — without this, every phase (identifiers, ISRC, name
+// search) re-hits tidal at ~0.5s each, burning 3-5s of the rescue budget on
+// a guaranteed failure.  Keyed by provider name with a short TTL matching
+// the rescue walk duration.
+var (
+	verifyBlockMu sync.Mutex
+	verifyBlockMem = map[string]time.Time{}
+)
+
+const verifyBlockTTL = 60 * time.Second
+
+func verifyBlockSet(name string) {
+	if name == "" {
+		return
+	}
+	verifyBlockMu.Lock()
+	defer verifyBlockMu.Unlock()
+	verifyBlockMem[name] = time.Now().Add(verifyBlockTTL)
+}
+
+func verifyBlockHit(name string) bool {
+	if name == "" {
+		return false
+	}
+	verifyBlockMu.Lock()
+	defer verifyBlockMu.Unlock()
+	return time.Now().Before(verifyBlockMem[name])
+}
+
 // decryptMemo remembers providers that resolved a track but can only serve it
 // via the download() pipeline (client-side decryption required — deezer
 // Blowfish FLAC). The streaming chain probes the same track in several phases
@@ -135,7 +166,13 @@ func classifyStreamError(name, errMsg string) (bool, error) {
 		return true, fmt.Errorf("stream de %s requiere descifrado cliente (solo download)", name)
 	}
 	if isVerificationError(errMsg) {
-		cooldown.MarkOk(name)
+		// Cool the provider with the SHORT verification window instead of
+		// uncooling (MarkOk). Without this, tidal-web with an unverified session
+		// returns VERIFY_REQUIRED 6+ times across rescue phases, burning 3-5s on
+		// a guaranteed failure. The 45s verification cooldown stops the hammering
+		// while still allowing quick retry if the user completes the modal.
+		cooldown.MarkError(name, errMsg)
+		verifyBlockSet(name)
 		return true, &VerifyRequiredError{Service: name}
 	}
 	cooldown.MarkError(name, errMsg)
