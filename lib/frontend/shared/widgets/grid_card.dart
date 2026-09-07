@@ -157,19 +157,21 @@ class GridCard extends StatelessWidget {
                 // (blur masks detail anyway) to halve memory usage.
                 Positioned.fill(
                   child:
-                      coverUrl != null && coverUrl!.isNotEmpty
-                          ? heavyEffects
-                              ? ImageFiltered(
-                                  imageFilter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-                                  child: imageFromUrl(coverUrl, fit: BoxFit.cover,
-                                      width: 128, height: 128),
-                                )
-                              : Container(color: fallbackBg)
-                          : Container(
-                            decoration: BoxDecoration(
-                              gradient: _placeholderGradient(context),
-                            ),
-                          ),
+                      coverUrl != null && coverUrl!.startsWith('gradient:')
+                          ? _gradientCover(coverUrl!, 128)
+                          : coverUrl != null && coverUrl!.isNotEmpty
+                              ? heavyEffects
+                                  ? ImageFiltered(
+                                      imageFilter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                                      child: imageFromUrl(coverUrl, fit: BoxFit.cover,
+                                          width: 128, height: 128),
+                                    )
+                                  : Container(color: fallbackBg)
+                              : Container(
+                                decoration: BoxDecoration(
+                                  gradient: _placeholderGradient(context),
+                                ),
+                              ),
                 ),
                 // Scrim so foreground stays readable over any artwork.
                 Positioned.fill(
@@ -234,7 +236,9 @@ class GridCard extends StatelessWidget {
                           child: Stack(
                             fit: StackFit.expand,
                             children: [
-                              if (coverUrl != null && coverUrl!.isNotEmpty)
+                              if (coverUrl != null && coverUrl!.startsWith('gradient:'))
+                                _gradientCover(coverUrl!, coverSide)
+                              else if (coverUrl != null && coverUrl!.isNotEmpty)
                                 imageFromUrl(
                                   coverUrl,
                                   fit: BoxFit.cover,
@@ -510,6 +514,34 @@ class GridCard extends StatelessWidget {
           size: size * 0.42,
           color: c.withValues(alpha: 0.9),
         ),
+      ),
+    );
+  }
+
+  static const _presetGradients = [
+    [Color(0xFF66A6FF), Color(0xFF00B4D8)],
+    [Color(0xFF7B2FF7), Color(0xFFFF6B6B)],
+    [Color(0xFFFFB347), Color(0xFFFF6B6B)],
+    [Color(0xFF4ECDC4), Color(0xFF556270)],
+  ];
+
+  Widget _gradientCover(String coverUrl, double size) {
+    final idx = int.tryParse(coverUrl.replaceFirst('gradient:', '')) ?? 0;
+    final colors = idx >= 0 && idx < _presetGradients.length
+        ? _presetGradients[idx]
+        : _presetGradients[0];
+    return Container(
+      width: size, height: size,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: colors,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Center(
+        child: Icon(Icons.music_note_rounded,
+            color: Colors.white.withValues(alpha: 0.7), size: size * 0.4),
       ),
     );
   }

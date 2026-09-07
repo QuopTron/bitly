@@ -21,6 +21,7 @@ import 'now_playing/player_controls.dart';
 import 'now_playing/speed_control.dart';
 import 'now_playing/cover_or_video_area.dart';
 import 'now_playing/video_backdrop_texture.dart';
+import '../../shared/models/performance_profile.dart';
 
 /// Remembers the cover/video choice of the last full-player session so
 /// minimizing the player (swipe-down / back) and reopening it for the SAME
@@ -730,13 +731,17 @@ class _AmbientBackdrop extends StatelessWidget {
           else if (url != null && url.isNotEmpty) ...[
             ClipRect(
               child: ImageFiltered(
-                imageFilter: ImageFilter.blur(sigmaX: 50, sigmaY: 50),
+                imageFilter: ImageFilter.blur(
+                  sigmaX: backdropBlurSigma,
+                  sigmaY: backdropBlurSigma,
+                ),
                 child: Transform.scale(
                   scale: 1.25,
                   child: imageFromUrl(
                     url,
                     fit: BoxFit.cover,
-                    width: double.infinity,
+                    // Bounded decode — blur masks detail anyway.
+                    width: 512,
                     height: double.infinity,
                   ),
                 ),

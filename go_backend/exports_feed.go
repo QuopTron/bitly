@@ -65,6 +65,10 @@ func trackToFeedItem(t provider.TrackResult, source string) FeedItemGo {
 		AlbumName:  t.Album,
 		DurationMs: t.Duration,
 		ISRC:       t.ISRC,
+		SpotifyID:  t.SpotifyID,
+		DeezerID:   t.DeezerID,
+		TidalID:    t.TidalID,
+		QobuzID:    t.QobuzID,
 	}
 }
 

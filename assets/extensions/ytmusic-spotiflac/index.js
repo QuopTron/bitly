@@ -1447,8 +1447,30 @@ function _tryInnerTubeClient(videoID, clientConfig, pageInfo, options) {
 
   var ext = outputExtensionFromYouTubeFormat(bestAudio);
 
+  // When requested, also build the itag=18 (video+audio mp4) candidate from
+  // THIS SAME response. itag=18 is never PO-gated, so if the preferred
+  // audio-only format's URL is refused by the CDN the caller can fall back to
+  // it without a second InnerTube POST (the chain is the slow part on
+  // flagged/anonymous IPs).
+  var itag18Url = "";
+  if (options.includeItag18) {
+    for (var f18i = 0; f18i < formats.length; f18i++) {
+      var cand18 = formats[f18i];
+      if (Number((cand18 && cand18.itag) || 0) !== 18) continue;
+      if (!hasUsableYouTubeFormatURL(cand18)) continue;
+      var url18 = buildYouTubeFormatURL(cand18, playerUrlForChallenges);
+      if (!url18) continue;
+      if (gvsPoToken && isGvsPoTokenRequiredFormat(cand18)) {
+        url18 = updateUrlQuery(url18, { pot: gvsPoToken });
+      }
+      itag18Url = url18;
+      break;
+    }
+  }
+
   return {
     url: bestAudioURL,
+    itag18Url: itag18Url,
     extension: ext,
     itag: bestAudio.itag,
     mimeType: bestAudio.mimeType || "",
@@ -1490,6 +1512,48 @@ function refreshInnerTubeAudioCandidate(videoID, oldCandidate, pageInfo) {
   return null;
 }
 
+// Builds a fresh result object overriding the URL/format fields, used when the
+// preferred audio-only format's URL is CDN-gated and the same-response itag=18
+// candidate wins without a second InnerTube call.
+function buildStreamResult(r, url, itag, extension) {
+  return {
+    url: url,
+    extension: extension,
+    itag: itag,
+    mimeType: r.mimeType || "",
+    contentLength: r.contentLength || "",
+    bitrate: r.bitrate || 0,
+    clientName: r.clientName,
+    needsGvsPoToken: false,
+    poTokenUsed: r.poTokenUsed,
+    ua: r.ua,
+  };
+}
+
+// Short-lived cache of the last successfully-probed streaming URL per video.
+// Replaying the same track (feed → now playing → search → same track again)
+// skips the whole InnerTube client chain + probes. googlevideo URLs stay valid
+// for a while, and the streaming caller falls back to the download pipeline if
+// one ever 403s, so a short TTL is safe.
+const _streamUrlCache = new Map();
+const STREAM_URL_CACHE_TTL_MS = 4 * 60 * 1000;
+function streamUrlCacheKey(videoID) {
+  return "yt:stream:" + String(videoID || "");
+}
+function streamUrlCacheGet(videoID) {
+  var e = _streamUrlCache.get(streamUrlCacheKey(videoID));
+  if (!e) return null;
+  if (now() - e.t > STREAM_URL_CACHE_TTL_MS) {
+    _streamUrlCache.delete(streamUrlCacheKey(videoID));
+    return null;
+  }
+  return e.v;
+}
+function streamUrlCacheSet(videoID, result) {
+  if (!result || !result.url) return;
+  _streamUrlCache.set(streamUrlCacheKey(videoID), { v: result, t: now() });
+}
+
 function requestInnerTubeAudioDownload(videoID, forceVideo) {
   // Returns the first client that gives us a valid audio URL.
   // [forceVideo] selects a VIDEO-capable format (itag=18, video+audio mp4)
@@ -1497,124 +1561,201 @@ function requestInnerTubeAudioDownload(videoID, forceVideo) {
   // renders frames in a separate muted video player. itag=18 is never
   // PO-token-gated and serves reliably even from flagged IPs.
   // No probe -- probing can invalidate single-use googlevideo URLs.
+
+  // Replays within a couple of minutes are served from the cached URL (the
+  // client chain is the slow part, especially anonymous).
+  if (!forceVideo) {
+    var cachedStream = streamUrlCacheGet(videoID);
+    if (cachedStream && cachedStream.url) {
+      L(
+        "info",
+        "[InnerTube] cached streaming URL for " +
+          videoID +
+          " (itag=" +
+          cachedStream.itag +
+          ")",
+      );
+      return cachedStream;
+    }
+  }
+
   var lastError = "";
-  var videoOpts = forceVideo ? { forceItag18: true } : null;
-  var pageInfo = { visitorData: "", playerUrl: "" };
+  var videoOpts = forceVideo ? { forceItag18: true } : { includeItag18: true };
+
+  // Streaming only needs the watch page (visitorData + player base.js path)
+  // when a format requires signature/n solving. tv_embedded/tv hand back plain
+  // URLs, so an anonymous first play skips the multi-MB watch-page fetch and
+  // goes straight to InnerTube. The signed-in path keeps the existing cached
+  // fetch (authenticated visitorData improves success and is session-cached).
+  var pageInfo = pageInfoSessionGet() || { visitorData: "", playerUrl: "" };
+  var pageInfoFetched = false;
   try {
-    pageInfo = getYouTubePageInfo(videoID);
+    if (CONFIG.oauthAccessToken) {
+      pageInfo = getYouTubePageInfo(videoID);
+      pageInfoFetched = true;
+    }
   } catch (pageErr) {
     L("warn", "[InnerTube] page info failed:", String(pageErr));
   }
 
-  // If EVERY client is currently blocked (a previous 403/429 storm marked
-  // them all), the loop below would skip all of them and throw
-  // "all clients failed. Last: " with NO reason — a useless instant fail.
-  // Instead, clear the health map so this resolution makes one REAL probe:
-  // the failure now carries the actual status (recoverable when the block
-  // lifts) and a fresh success un-blocks every client in one shot. The probe
-  // runs at most every 5 minutes — between probes an all-blocked resolution
-  // fails fast so a flagged IP does not re-walk all 6 clients (each a real
-  // HTTP 403) on every single track.
-  var allBlocked = true;
-  for (var hci = 0; hci < INNERTUBE_CLIENTS.length; hci++) {
-    if (!innerTubeClientBlocked(INNERTUBE_CLIENTS[hci].name)) {
-      allBlocked = false;
-      break;
-    }
-  }
-  if (allBlocked && INNERTUBE_CLIENTS.length > 0) {
-    if (now() >= _allClientsProbeAt) {
-      L(
-        "warn",
-        "[InnerTube] all clients blocked; clearing health for one real probe",
-      );
-      _clientHealth.clear();
-      _allClientsProbeAt = now() + 5 * 60 * 1000;
-    } else {
-      throw new Error(
-        "innertube: all clients failed (IP blocked); next probe in " +
-          Math.max(1, Math.round((_allClientsProbeAt - now()) / 60000)) +
-          "m",
-      );
-    }
-  }
-
-  for (var ci = 0; ci < INNERTUBE_CLIENTS.length; ci++) {
-    var client = INNERTUBE_CLIENTS[ci];
-    if (innerTubeClientBlocked(client.name)) {
-      L("info", "[InnerTube] Skipping blocked client " + client.name);
-      continue;
-    }
-    L("info", "[InnerTube] Trying " + client.name + " for " + videoID);
-
-    var result = _tryInnerTubeClient(videoID, client, pageInfo, videoOpts);
-    if (result.error) {
-      L("warn", "[InnerTube] " + client.name + " failed: " + result.error);
-      // Video-level blocks apply to EVERY client: age-restricted and
-      // "inappropriate" videos return the same playability reason from every
-      // client config, so trying the remaining clients just burns N more HTTP
-      // calls for the same guaranteed failure. Fail fast with the real reason.
-      if (isBlockedVideoError(result.error)) {
-        throw new Error("innertube: blocked: " + result.error);
+  function resolveOnce() {
+    // If EVERY client is currently blocked (a previous 403/429 storm marked
+    // them all), the loop below would skip all of them and throw
+    // "all clients failed. Last: " with NO reason — a useless instant fail.
+    // Instead, clear the health map so this resolution makes one REAL probe:
+    // the failure now carries the actual status (recoverable when the block
+    // lifts) and a fresh success un-blocks every client in one shot. The probe
+    // runs at most every 5 minutes — between probes an all-blocked resolution
+    // fails fast so a flagged IP does not re-walk all 6 clients (each a real
+    // HTTP 403) on every single track.
+    var allBlocked = true;
+    for (var hci = 0; hci < INNERTUBE_CLIENTS.length; hci++) {
+      if (!innerTubeClientBlocked(INNERTUBE_CLIENTS[hci].name)) {
+        allBlocked = false;
+        break;
       }
-      noteInnerTubeClientBlock(client.name, result.error);
-      lastError = client.name + ": " + result.error;
-      continue;
     }
-
-    // The client resolved a URL at the API level, but YouTube may refuse to
-    // serve it from this IP (bot-gated formats 403 while other formats/clients
-    // serve fine). A dead URL must NOT win the chain — it would stall or error
-    // at playback with no way for the caller to request a different format.
-    // Probe it; when it doesn't serve, retry the SAME client forcing itag=18
-    // (video+audio, never PO-gated, served reliably from flagged IPs) before
-    // moving to the next client — every other client prefers the same
-    // audio-only itag=251, so falling through blindly just repeats the dead
-    // format instead of finding a playable one.
-    if (!streamingUrlServesOk(result.url)) {
-      var fallback18 = _tryInnerTubeClient(videoID, client, pageInfo, {
-        forceItag18: true,
-      });
-      if (
-        fallback18 &&
-        !fallback18.error &&
-        fallback18.url &&
-        streamingUrlServesOk(fallback18.url)
-      ) {
+    if (allBlocked && INNERTUBE_CLIENTS.length > 0) {
+      if (now() >= _allClientsProbeAt) {
         L(
-          "info",
-          "[InnerTube] " +
-            client.name +
-            " itag=" +
-            result.itag +
-            " URL dead; same-client itag=18 fallback OK",
+          "warn",
+          "[InnerTube] all clients blocked; clearing health for one real probe",
         );
-        return fallback18;
+        _clientHealth.clear();
+        _allClientsProbeAt = now() + 5 * 60 * 1000;
+      } else {
+        throw new Error(
+          "innertube: all clients failed (IP blocked); next probe in " +
+            Math.max(1, Math.round((_allClientsProbeAt - now()) / 60000)) +
+            "m",
+        );
       }
-      var deadReason =
-        "URL dead (403/404) " + client.name + " itag=" + result.itag;
-      L("warn", "[InnerTube] " + deadReason + " — falling through");
-      noteInnerTubeClientBlock(client.name, deadReason);
-      lastError = deadReason;
-      continue;
     }
 
-    L(
-      "info",
-      "[InnerTube] " +
-        client.name +
-        " OK: itag=" +
-        result.itag +
-        " " +
-        result.extension +
-        " " +
-        result.bitrate +
-        "bps",
-    );
-    return result;
+    for (var ci = 0; ci < INNERTUBE_CLIENTS.length; ci++) {
+      var client = INNERTUBE_CLIENTS[ci];
+      if (innerTubeClientBlocked(client.name)) {
+        L("info", "[InnerTube] Skipping blocked client " + client.name);
+        continue;
+      }
+      L("info", "[InnerTube] Trying " + client.name + " for " + videoID);
+
+      var result = _tryInnerTubeClient(videoID, client, pageInfo, videoOpts);
+      if (result.error) {
+        L("warn", "[InnerTube] " + client.name + " failed: " + result.error);
+        // Video-level blocks apply to EVERY client: age-restricted and
+        // "inappropriate" videos return the same playability reason from every
+        // client config, so trying the remaining clients just burns N more HTTP
+        // calls for the same guaranteed failure. Fail fast with the real reason.
+        if (isBlockedVideoError(result.error)) {
+          throw new Error("innertube: blocked: " + result.error);
+        }
+        noteInnerTubeClientBlock(client.name, result.error);
+        lastError = client.name + ": " + result.error;
+        continue;
+      }
+
+      // The client resolved a URL at the API level, but YouTube may refuse to
+      // serve it from this IP (bot-gated formats 403 while other formats/clients
+      // serve fine). A dead URL must NOT win the chain — it would stall or error
+      // at playback with no way for the caller to request a different format.
+      // Probe it; when it doesn't serve, retry the SAME client forcing itag=18
+      // (video+audio, never PO-gated, served reliably from flagged IPs) before
+      // moving to the next client — every other client prefers the same
+      // audio-only itag=251, so falling through blindly just repeats the dead
+      // format instead of finding a playable one.
+      if (!streamingUrlServesOk(result.url)) {
+        // First try the itag=18 URL built from THIS SAME player response — no
+        // second InnerTube POST (the chain is the slow part on flagged/
+        // anonymous IPs).
+        if (result.itag18Url && Number(result.itag) !== 18) {
+          if (streamingUrlServesOk(result.itag18Url)) {
+            L(
+              "info",
+              "[InnerTube] " +
+                client.name +
+                " itag=" +
+                result.itag +
+                " URL dead; same-response itag=18 OK (no refetch)",
+            );
+            return buildStreamResult(result, result.itag18Url, 18, ".mp4");
+          }
+        }
+        var fallback18 = _tryInnerTubeClient(videoID, client, pageInfo, {
+          forceItag18: true,
+        });
+        if (
+          fallback18 &&
+          !fallback18.error &&
+          fallback18.url &&
+          streamingUrlServesOk(fallback18.url)
+        ) {
+          L(
+            "info",
+            "[InnerTube] " +
+              client.name +
+              " itag=" +
+              result.itag +
+              " URL dead; same-client itag=18 fallback OK",
+          );
+          return fallback18;
+        }
+        var deadReason =
+          "URL dead (403/404) " + client.name + " itag=" + result.itag;
+        L("warn", "[InnerTube] " + deadReason + " — falling through");
+        noteInnerTubeClientBlock(client.name, deadReason);
+        lastError = deadReason;
+        continue;
+      }
+
+      L(
+        "info",
+        "[InnerTube] " +
+          client.name +
+          " OK: itag=" +
+          result.itag +
+          " " +
+          result.extension +
+          " " +
+          result.bitrate +
+          "bps",
+      );
+      return result;
+    }
+
+    throw new Error("innertube: all clients failed. Last: " + lastError);
   }
 
-  throw new Error("innertube: all clients failed. Last: " + lastError);
+  try {
+    var resolved = resolveOnce();
+    streamUrlCacheSet(videoID, resolved);
+    return resolved;
+  } catch (err) {
+    var resolveError = String(err);
+    // The anonymous chain skips the watch-page fetch; if resolution failed
+    // because a client needed the player base.js (cipher/n solving), fetch the
+    // page info once and retry the chain with a real visitor/player URL. Only
+    // cipher-shaped failures retry — an IP-level 403 storm would just burn the
+    // same HTTP calls again.
+    if (
+      !pageInfoFetched &&
+      resolveError.indexOf("all clients failed") >= 0 &&
+      (lastError.indexOf("solving failed") >= 0 ||
+        lastError.indexOf("no usable audio URL") >= 0)
+    ) {
+      try {
+        pageInfo = getYouTubePageInfo(videoID);
+        pageInfoFetched = true;
+        _clientHealth.clear();
+        var retried = resolveOnce();
+        streamUrlCacheSet(videoID, retried);
+        return retried;
+      } catch (retryErr) {
+        throw retryErr;
+      }
+    }
+    throw err;
+  }
 }
 
 // streamingUrlServesOk probes whether a resolved googlevideo URL actually

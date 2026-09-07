@@ -53,16 +53,20 @@ func convertToTrackResults(result interface{}, providerName string) ([]TrackResu
 			continue
 		}
 		t := TrackResult{
-			ID:       getString(m, "id"),
-			Title:    getString(m, "name", "title"),
-			Artist:   getString(m, "artists", "artist"),
-			ArtistID: getString(m, "artist_id", "artistId", "artistID"),
-			Album:    getString(m, "album_name", "album"),
-			AlbumID:  getString(m, "album_id", "albumId", "albumID"),
-			Duration: toInt(m["duration_ms"]),
-			ISRC:     getString(m, "isrc"),
-			CoverURL: getCoverURL(m),
-			Provider: providerName,
+			ID:        getString(m, "id"),
+			Title:     getString(m, "name", "title"),
+			Artist:    getString(m, "artists", "artist"),
+			ArtistID:  getString(m, "artist_id", "artistId", "artistID"),
+			Album:     getString(m, "album_name", "album"),
+			AlbumID:   getString(m, "album_id", "albumId", "albumID"),
+			Duration:  toInt(m["duration_ms"]),
+			ISRC:      getString(m, "isrc"),
+			CoverURL:  getCoverURL(m),
+			Provider:  providerName,
+			SpotifyID: getString(m, "spotify_id", "spotifyId"),
+			DeezerID:  getString(m, "deezer_id", "deezerId"),
+			TidalID:   getString(m, "tidal_id", "tidalId"),
+			QobuzID:   getString(m, "qobuz_id", "qobuzId"),
 		}
 		if t.ID == "" {
 			continue
@@ -88,16 +92,20 @@ func convertToTrackResult(result interface{}, providerName string) (*TrackResult
 		}
 	}
 	t := TrackResult{
-		ID:       getString(m, "id"),
-		Title:    getString(m, "name", "title"),
-		Artist:   getString(m, "artists", "artist"),
-		ArtistID: getString(m, "artist_id", "artistId", "artistID"),
-		Album:    getString(m, "album_name", "album"),
-		AlbumID:  getString(m, "album_id", "albumId", "albumID"),
-		Duration: toInt(m["duration_ms"]),
-		ISRC:     getString(m, "isrc"),
-		CoverURL: getCoverURL(m),
-		Provider: providerName,
+		ID:        getString(m, "id"),
+		Title:     getString(m, "name", "title"),
+		Artist:    getString(m, "artists", "artist"),
+		ArtistID:  getString(m, "artist_id", "artistId", "artistID"),
+		Album:     getString(m, "album_name", "album"),
+		AlbumID:   getString(m, "album_id", "albumId", "albumID"),
+		Duration:  toInt(m["duration_ms"]),
+		ISRC:      getString(m, "isrc"),
+		CoverURL:  getCoverURL(m),
+		Provider:  providerName,
+		SpotifyID: getString(m, "spotify_id", "spotifyId"),
+		DeezerID:  getString(m, "deezer_id", "deezerId"),
+		TidalID:   getString(m, "tidal_id", "tidalId"),
+		QobuzID:   getString(m, "qobuz_id", "qobuzId"),
 	}
 	if t.ID != "" {
 		t.ID = stripPrefix(t.ID)

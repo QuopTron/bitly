@@ -16,8 +16,9 @@ import '../bloc/setup_state.dart';
 ///
 /// Explains what the account session is used for before connecting, so the
 /// user decides at onboarding time instead of being asked inside the app.
-/// The flow itself is handled by [YoutubeOauthService] (Google's own consent
-/// page in the system browser; tokens stay on-device).
+/// The flow itself is handled by [YoutubeOauthService]: native Google
+/// Sign-In (Credential Manager) with an in-app WebView fallback — Google's
+/// consent never leaves the app (no external Chrome). Tokens stay on-device.
 class GoogleSignInSlide extends StatefulWidget {
   final SetupState state;
   final AppLocalizations loc;

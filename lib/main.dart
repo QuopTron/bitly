@@ -5,7 +5,9 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'app.dart';
 import 'backend/services/media_notification.dart';
+import 'backend/services/audio_focus_service.dart';
 import 'backend/services/share_intent_service.dart';
+import 'backend/services/deep_link_service.dart';
 import 'backend/services/runtime_profile.dart';
 import 'injection.dart';
 
@@ -50,7 +52,7 @@ void main() async {
   // pushPerformanceProfileToBackend in android_backend/ios_backend) — calling
   // it before init can stall the splash while Go loads extension engines.
   await loadPerformanceProfile();
-
+            
   // Load and configure device performance profile (image cache, etc.).
   final prefs = await SharedPreferences.getInstance();
   final profile = await loadRuntimeProfile(prefs);
@@ -58,10 +60,15 @@ void main() async {
 
   // Initialize share intent listener (Android/iOS).
   ShareIntentService.instance.initialize();
+  DeepLinkService.instance.initialize();
 
   // Registrar el manejador de audio del sistema (notificación multimedia,
   // controles de lock screen y servicio en primer plano en Android). Se hace
   // DESPUÉS de GetIt para poder enlazar los cubits de reproducción.
   await MediaNotificationBridge.instance.init();
+
+  // Pausa automática cuando otra app toma el audio (focus). Se enlaza a los
+  // mismos cubits de reproducción, por lo que también va después de GetIt.
+  await AudioFocusService.instance.init();
   runApp(const BitlyApp());
 }

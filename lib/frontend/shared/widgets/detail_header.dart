@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
+import '../models/performance_profile.dart';
 import '../utils/responsive.dart';
 
 /// Decode image via Flutter's pipeline and extract dominant color.
@@ -263,7 +264,10 @@ class _DetailHeaderState extends State<DetailHeader>
                   child: Opacity(
                     opacity: t * 0.65,
                     child: ImageFiltered(
-                      imageFilter: ui.ImageFilter.blur(sigmaX: 50, sigmaY: 50),
+                      imageFilter: ui.ImageFilter.blur(
+                        sigmaX: backdropBlurSigma,
+                        sigmaY: backdropBlurSigma,
+                      ),
                       child: Transform.scale(
                         scale: 1.5,
                         child: _blurredBg(),
@@ -371,8 +375,10 @@ class _DetailHeaderState extends State<DetailHeader>
                     ),
                   ),
                   ...widget.children,
+                  // Espacio inferior suficiente para el chrome flotante global
+                  // (miniplayer + navbar) sobre las páginas de detalle.
                   SizedBox(
-                      height: MediaQuery.paddingOf(context).bottom + 90),
+                      height: MediaQuery.paddingOf(context).bottom + 176),
                 ],
               ),
             ),

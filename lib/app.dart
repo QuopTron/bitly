@@ -9,8 +9,10 @@ import 'frontend/features/splash/bloc/splash_bloc.dart';
 import 'frontend/features/setup/bloc/setup_bloc.dart';
 import 'backend/services/oauth_callback_service.dart';
 import 'backend/services/verification_service.dart';
+import 'backend/services/deep_link_service.dart';
 import 'frontend/shared/widgets/app_navigator_observer.dart';
 import 'frontend/shared/widgets/global_mini_player_overlay.dart';
+import 'frontend/shared/widgets/shared_overlay.dart';
 import 'backend/cache/settings_cache.dart';
 import 'injection.dart';
 
@@ -29,17 +31,28 @@ class _BitlyAppState extends State<BitlyApp> {
   late final GoRouter _router =
       AppRouter(navigatorKey: _navigatorKey, navigatorObservers: [_navigatorObserver]).router;
 
+  DeepLinkData? _sharedLink;
+
   @override
   void initState() {
     super.initState();
     _locale.addListener(_onSettingChanged);
     _themeMode.addListener(_onSettingChanged);
-    // Load saved preferences from DB
     _loadSavedSettings();
-    // Initialize the shared verification service with the root navigator key
-    // so the Cloudflare WebView flow works from setup, search AND downloads.
     VerificationService().init(_navigatorKey);
     OAuthCallbackService().init();
+    // Check for initial deep link (app opened via link from WhatsApp/etc)
+    final initial = DeepLinkService.instance.consumePending();
+    if (initial != null) {
+      // Delay so the home page renders first, then show overlay
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _sharedLink = initial);
+      });
+    }
+    // Listen for incoming deep links while the app is running
+    DeepLinkService.instance.onDeepLink.listen((link) {
+      if (mounted) setState(() => _sharedLink = link);
+    });
   }
 
   Future<void> _loadSavedSettings() async {
@@ -58,6 +71,16 @@ class _BitlyAppState extends State<BitlyApp> {
 
   void _onSettingChanged() {
     setState(() {});
+  }
+
+  void _dismissSharedOverlay() {
+    setState(() => _sharedLink = null);
+  }
+
+  void _playSharedItem() {
+    if (_sharedLink == null) return;
+    setState(() => _sharedLink = null);
+    // Navigate to home and the item will be searchable from there
   }
 
   @override
@@ -104,6 +127,17 @@ class _BitlyAppState extends State<BitlyApp> {
                     router: _router,
                   ),
                 ),
+                // TikTok-style "shared with you" overlay
+                if (_sharedLink != null)
+                  Positioned.fill(
+                    child: SharedOverlay(
+                      type: _sharedLink!.type,
+                      id: _sharedLink!.id,
+                      query: _sharedLink!.query,
+                      onDismiss: _dismissSharedOverlay,
+                      onPlay: _playSharedItem,
+                    ),
+                  ),
               ],
             ),
           ),

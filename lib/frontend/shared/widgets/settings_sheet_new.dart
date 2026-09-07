@@ -21,6 +21,7 @@ import '../../../backend/services/like_cubit.dart';
 import '../../../backend/services/player_cubit.dart';
 import '../../../backend/services/premium_service.dart';
 import '../../../backend/services/queue_cubit.dart';
+import '../../../backend/services/youtube_oauth_service.dart';
 import '../../../config/secrets.dart';
 import '../../../injection.dart';
 import 'glass_container.dart';
@@ -31,6 +32,7 @@ import 'settings_stats.dart';
 import 'update_modal.dart';
 import '../utils/cover_palette.dart';
 import 'cover_image.dart' show imageFromUrl;
+import '../models/performance_profile.dart';
 
 /// Reacts to the current queue + playback: when a track is loaded (and has a
 /// cover) the sheet gets tinted with the cover's dominant color via a blurred
@@ -118,13 +120,16 @@ class _SongTintedBackgroundState extends State<_SongTintedBackground> {
           if (_hasTrack && _cover != null && _cover!.isNotEmpty)
             Positioned.fill(
               child: ImageFiltered(
-                imageFilter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
+                imageFilter: ImageFilter.blur(
+                  sigmaX: backdropBlurSigma,
+                  sigmaY: backdropBlurSigma,
+                ),
                 child: Transform.scale(
                   scale: 1.3,
                   child: imageFromUrl(
                     _cover!,
                     fit: BoxFit.cover,
-                    width: double.infinity,
+                    width: 512,
                     height: double.infinity,
                   ),
                 ),
@@ -428,7 +433,10 @@ class _SettingsSheetState extends State<SettingsSheet>
       sheet = ClipRRect(
         borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 26, sigmaY: 26),
+          filter: ImageFilter.blur(
+            sigmaX: backdropBlurSigma,
+            sigmaY: backdropBlurSigma,
+          ),
           child: sheet,
         ),
       );
@@ -565,6 +573,7 @@ class _ProfileStatsViewState extends State<_ProfileStatsView> {
   Map<String, dynamic> _stats = {};
   List<dynamic> _topTracks = [];
   bool _loading = true;
+  String? _trialRemaining;
 
   @override
   void initState() {
@@ -573,8 +582,7 @@ class _ProfileStatsViewState extends State<_ProfileStatsView> {
   }
 
   Future<void> _load() async {
-    // Stats come from the LOCAL Drift tables — the Go in-memory tracker is
-    // empty on device so the old RPCs always showed zeros.
+    // Stats come from the LOCAL Drift tables
     try {
       final stats = await sl<PlaybackCache>().getProfileStats();
       if (mounted) _stats = stats;
@@ -582,6 +590,23 @@ class _ProfileStatsViewState extends State<_ProfileStatsView> {
     try {
       final top = await sl<PlaybackCache>().getTopTracksWithNames(5);
       if (mounted) _topTracks = top;
+    } catch (_) {}
+    // Load trial remaining time for free users
+    try {
+      final setup = await sl<SettingsCache>().loadSetupData();
+      if (setup != null && setup.mode == 'free' && setup.trialExpiresAt != null) {
+        final expires = DateTime.tryParse(setup.trialExpiresAt!);
+        if (expires != null) {
+          final diff = expires.difference(DateTime.now());
+          if (diff.isNegative) {
+            if (mounted) _trialRemaining = 'EXPIRADO';
+          } else {
+            final h = diff.inHours;
+            final m = (diff.inMinutes % 60);
+            if (mounted) _trialRemaining = '${h}h ${m}m restantes';
+          }
+        }
+      }
     } catch (_) {}
     if (mounted) setState(() => _loading = false);
   }
@@ -658,17 +683,45 @@ class _ProfileStatsViewState extends State<_ProfileStatsView> {
                 border: Border.all(color: glow.withValues(alpha: 0.3)),
               ),
               child: Row(children: [
-                Icon(Icons.timer_rounded, color: glow, size: r.subtitleSize),
+                Icon(
+                  _trialRemaining == 'EXPIRADO' ? Icons.timer_off_rounded : Icons.timer_rounded,
+                  color: _trialRemaining == 'EXPIRADO' ? Colors.redAccent : glow,
+                  size: r.subtitleSize,
+                ),
                 SizedBox(width: r.spacingS),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Free',
-                          style: TextStyle(fontSize: r.subtitleSize - 1, fontWeight: FontWeight.w700, color: glow)),
+                      Row(children: [
+                        Text('Free',
+                            style: TextStyle(fontSize: r.subtitleSize - 1, fontWeight: FontWeight.w700, color: glow)),
+                        if (_trialRemaining != null) ...[
+                          SizedBox(width: r.spacingS),
+                          Container(
+                            padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: _trialRemaining == 'EXPIRADO'
+                                  ? Colors.redAccent.withValues(alpha: 0.2)
+                                  : glow.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              _trialRemaining!,
+                              style: TextStyle(
+                                fontSize: r.footerSize - 2,
+                                color: _trialRemaining == 'EXPIRADO' ? Colors.redAccent : glow,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ]),
                       SizedBox(height: 2),
                       Text(
-                        loc.setup.freeInfo,
+                        _trialRemaining == 'EXPIRADO'
+                            ? 'Tu periodo de descarga gratis ha expirado. Activa Premium para descargar ilimitado.'
+                            : loc.setup.freeInfo,
                         style: TextStyle(fontSize: r.footerSize, color: onBg.withValues(alpha: 0.6)),
                       ),
                     ],
@@ -1271,7 +1324,7 @@ class _PerformanceTab extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════
-//  TAB 4: Más — cache + version info
+//  TAB 4: Más — Premium, Google, Bug Report, Cache, Version
 // ═══════════════════════════════════════════════════════
 class _MoreTab extends StatefulWidget {
   final Color glowColor;
@@ -1287,6 +1340,32 @@ class _MoreTab extends StatefulWidget {
 }
 
 class _MoreTabState extends State<_MoreTab> {
+  String? _trialRemaining;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTrialRemaining();
+  }
+
+  Future<void> _loadTrialRemaining() async {
+    try {
+      final setup = await sl<SettingsCache>().loadSetupData();
+      if (setup != null && setup.mode == 'free' && setup.trialExpiresAt != null) {
+        final expires = DateTime.tryParse(setup.trialExpiresAt!);
+        if (expires != null) {
+          final diff = expires.difference(DateTime.now());
+          if (diff.isNegative) {
+            if (mounted) setState(() => _trialRemaining = 'EXPIRADO');
+          } else {
+            final h = diff.inHours;
+            final m = (diff.inMinutes % 60);
+            if (mounted) setState(() => _trialRemaining = '${h}h ${m}m restantes');
+          }
+        }
+      }
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1303,6 +1382,9 @@ class _MoreTabState extends State<_MoreTab> {
           // ── Premium status + activation ──
           _premiumCard(context, onBg, r),
           SizedBox(height: r.spacingM),
+          // ── Google connection ──
+          _googleConnectionCard(context, onBg, r, isDark),
+          SizedBox(height: r.spacingM),
           // ── Report a bug / suggestion ──
           _reportCard(context, onBg, r),
           SizedBox(height: r.spacingM),
@@ -1313,6 +1395,24 @@ class _MoreTabState extends State<_MoreTab> {
         ],
       ),
     );
+  }
+
+  // ── Google connection card ──
+  Widget _googleConnectionCard(BuildContext context, Color onBg, Responsive r, bool isDark) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Icon(Icons.account_circle_rounded, color: widget.glowColor, size: r.subtitleSize),
+        SizedBox(width: r.spacingS),
+        Text('Google', style: TextStyle(fontSize: r.subtitleSize, fontWeight: FontWeight.w700, color: onBg)),
+      ]),
+      SizedBox(height: 4),
+      Text(
+        'Conecta tu cuenta de Google para mejorar la calidad del streaming y obtener contenido personalizado.',
+        style: TextStyle(fontSize: r.footerSize - 1, color: onBg.withValues(alpha: 0.5), height: 1.3),
+      ),
+      SizedBox(height: r.spacingS),
+      _GoogleConnectionTile(glowColor: widget.glowColor),
+    ]);
   }
 
   /// Report a bug / suggestion: opens a small form and submits it to the
@@ -1586,122 +1686,258 @@ class _MoreTabState extends State<_MoreTab> {
       Text(
         isPremium
             ? 'Tienes Premium: descargas ilimitadas para siempre.'
-            : 'Modo Free: acceso a descargas gratis por 8 horas desde tu primera activación.',
+            : 'Modo Free: acceso a descargas gratis por 8 horas desde tu primera activacion.',
         style: TextStyle(fontSize: r.footerSize - 1, color: onBg.withValues(alpha: 0.5), height: 1.3),
       ),
       SizedBox(height: r.spacingS),
-      Container(
-        width: double.infinity,
-        padding: EdgeInsets.all(r.spacingM),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: isPremium
-                ? [widget.glowColor.withValues(alpha: 0.16), widget.glowColor.withValues(alpha: 0.05)]
-                : [widget.glowColor.withValues(alpha: 0.10), onBg.withValues(alpha: 0.02)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+      GestureDetector(
+        onTap: isPremium ? null : _showPremiumActivationSheet,
+        child: Container(
+          width: double.infinity,
+          padding: EdgeInsets.all(r.spacingM),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: isPremium
+                  ? [widget.glowColor.withValues(alpha: 0.16), widget.glowColor.withValues(alpha: 0.05)]
+                  : [widget.glowColor.withValues(alpha: 0.10), onBg.withValues(alpha: 0.02)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: widget.glowColor.withValues(alpha: 0.35)),
           ),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: widget.glowColor.withValues(alpha: 0.35)),
-        ),
-        child: Row(children: [
-          Icon(
-            isPremium ? Icons.check_circle_rounded : Icons.workspace_premium_rounded,
-            color: widget.glowColor,
-            size: r.footerSize + 4,
-          ),
-          SizedBox(width: r.spacingM),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  isPremium ? 'Premium activo' : 'Free',
-                  style: TextStyle(
-                    fontSize: r.subtitleSize - 1,
-                    fontWeight: FontWeight.w600,
-                    color: isPremium ? widget.glowColor : onBg,
+          child: Row(children: [
+            Icon(
+              isPremium ? Icons.check_circle_rounded : Icons.workspace_premium_rounded,
+              color: widget.glowColor,
+              size: r.footerSize + 4,
+            ),
+            SizedBox(width: r.spacingM),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    Text(
+                      isPremium ? 'Premium activo' : 'Free',
+                      style: TextStyle(
+                        fontSize: r.subtitleSize - 1,
+                        fontWeight: FontWeight.w600,
+                        color: isPremium ? widget.glowColor : onBg,
+                      ),
+                    ),
+                    if (!isPremium && _trialRemaining != null) ...[
+                      SizedBox(width: r.spacingS),
+                      Container(
+                        padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: _trialRemaining == 'EXPIRADO'
+                              ? Colors.redAccent.withValues(alpha: 0.2)
+                              : widget.glowColor.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          _trialRemaining!,
+                          style: TextStyle(
+                            fontSize: r.footerSize - 3,
+                            color: _trialRemaining == 'EXPIRADO' ? Colors.redAccent : widget.glowColor,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ]),
+                  SizedBox(height: 2),
+                  Text(
+                    isPremium
+                        ? 'Cuenta con todos los beneficios'
+                        : (_trialRemaining == 'EXPIRADO'
+                            ? 'Activa Premium para descargar ilimitado'
+                            : 'Toca para activar un codigo premium'),
+                    style: TextStyle(fontSize: r.footerSize - 2, color: onBg.withValues(alpha: 0.4)),
                   ),
-                ),
-                SizedBox(height: 2),
-                Text(
-                  isPremium
-                      ? 'Cuenta con todos los beneficios'
-                      : 'Activa un código para descargas ilimitadas',
-                  style: TextStyle(fontSize: r.footerSize - 2, color: onBg.withValues(alpha: 0.4)),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          if (!isPremium)
-            TextButton(
-              onPressed: _activatePremium,
-              child: Text('Activar', style: TextStyle(color: widget.glowColor, fontWeight: FontWeight.w700, fontSize: r.footerSize)),
-            ),
-        ]),
+            if (!isPremium)
+              Icon(Icons.chevron_right_rounded, color: widget.glowColor, size: r.subtitleSize),
+          ]),
+        ),
       ),
     ]);
   }
 
-  /// Asks for a premium code and validates it against the GitHub registry,
-  /// then persists the tier locally so the whole app sees it.
-  Future<void> _activatePremium() async {
+  /// Opens a beautiful bottom-sheet modal for premium activation.
+  Future<void> _showPremiumActivationSheet() async {
     final controller = TextEditingController();
-    final code = await showDialog<String>(
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final onBg = AppColors.onSurface(isDark);
+    final bg = AppColors.surface(isDark);
+    final glow = widget.glowColor;
+    final r = Responsive(context);
+    var sending = false;
+    var activated = false;
+    String? errorMsg;
+
+    await showModalBottomSheet(
       context: context,
-      builder: (ctx) {
-        final isDark = Theme.of(ctx).brightness == Brightness.dark;
-        final onBg = AppColors.onSurface(isDark);
-        return AlertDialog(
-          backgroundColor: AppColors.surface(isDark),
-          title: Text('Activar código premium',
-              style: TextStyle(color: onBg, fontSize: 18, fontWeight: FontWeight.w700)),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            style: TextStyle(color: onBg),
-            decoration: InputDecoration(
-              hintText: 'Código premium',
-              hintStyle: TextStyle(color: onBg.withValues(alpha: 0.4)),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: onBg.withValues(alpha: 0.2)),
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setModalState) {
+          return Container(
+            height: MediaQuery.of(ctx).size.height * 0.4,
+            margin: EdgeInsets.only(top: r.spacingXL * 2),
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDark ? 0.45 : 0.18),
+                  blurRadius: 30,
+                  offset: const Offset(0, -6),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+              child: Column(
+                children: [
+                  SizedBox(height: r.spacingM),
+                  Container(
+                    width: 40, height: 4,
+                    decoration: BoxDecoration(
+                      color: onBg.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  SizedBox(height: r.spacingL),
+                  // Header with icon
+                  Container(
+                    width: 56, height: 56,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [glow, glow.withValues(alpha: 0.6)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(color: glow.withValues(alpha: 0.4), blurRadius: 20, spreadRadius: 2),
+                      ],
+                    ),
+                    child: Icon(Icons.workspace_premium_rounded, color: Colors.white, size: 32),
+                  ),
+                  SizedBox(height: r.spacingM),
+                  Text(
+                    'Activar Premium',
+                    style: TextStyle(
+                      fontSize: r.titleSize,
+                      fontWeight: FontWeight.w800,
+                      color: onBg,
+                    ),
+                  ),
+                  SizedBox(height: r.spacingXS),
+                  Text(
+                    'Ingresa tu codigo para desbloquear descargas ilimitadas',
+                    style: TextStyle(
+                      fontSize: r.footerSize,
+                      color: onBg.withValues(alpha: 0.5),
+                    ),
+                  ),
+                  SizedBox(height: r.spacingL),
+                  // Code input
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: r.spacingXL),
+                    child: TextField(
+                      controller: controller,
+                      autofocus: true,
+                      style: TextStyle(color: onBg, fontSize: 16, letterSpacing: 2),
+                      textAlign: TextAlign.center,
+                      decoration: InputDecoration(
+                        hintText: 'XXXX-XXXX-XXXX',
+                        hintStyle: TextStyle(color: onBg.withValues(alpha: 0.25), letterSpacing: 3),
+                        filled: true,
+                        fillColor: onBg.withValues(alpha: 0.04),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide(color: onBg.withValues(alpha: 0.15)),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide(color: onBg.withValues(alpha: 0.15)),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide(color: glow, width: 1.6),
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (errorMsg != null) ...[
+                    SizedBox(height: r.spacingS),
+                    Text(errorMsg!, style: TextStyle(color: Colors.redAccent, fontSize: r.footerSize)),
+                  ],
+                  SizedBox(height: r.spacingL),
+                  // Activate button
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: r.spacingXL),
+                    child: SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton(
+                        onPressed: sending || activated
+                            ? null
+                            : () async {
+                                setModalState(() { sending = true; errorMsg = null; });
+                                final code = controller.text.trim();
+                                if (code.isEmpty) {
+                                  setModalState(() {
+                                    sending = false;
+                                    errorMsg = 'Ingresa un codigo valido';
+                                  });
+                                  return;
+                                }
+                                final err = await PremiumService().validatePremiumCode(code);
+                                if (err != null) {
+                                  setModalState(() { sending = false; errorMsg = err; });
+                                  return;
+                                }
+                                await sl<PremiumCache>().activatePremium(code);
+                                await widget.onPremiumChanged();
+                                setModalState(() { activated = true; sending = false; });
+                                if (ctx.mounted) {
+                                  await Future.delayed(const Duration(milliseconds: 800));
+                                  if (ctx.mounted) Navigator.pop(ctx);
+                                }
+                              },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: activated ? Colors.green : glow,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          elevation: 0,
+                        ),
+                        child: activated
+                            ? Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                                Icon(Icons.check_circle_rounded, size: 22),
+                                SizedBox(width: 8),
+                                Text('Premium activado', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                              ])
+                            : sending
+                                ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                                : Text('Activar', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: r.bottomPadding),
+                ],
               ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: widget.glowColor),
-              ),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text('Cancelar', style: TextStyle(color: onBg.withValues(alpha: 0.6))),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-              child: Text('Activar', style: TextStyle(color: widget.glowColor, fontWeight: FontWeight.w700)),
-            ),
-          ],
-        );
-      },
+          );
+        },
+      ),
     );
-    if (code == null || code.isEmpty) return;
-    final error = await PremiumService().validatePremiumCode(code);
-    if (!mounted) return;
-    if (error == null) {
-      await sl<PremiumCache>().activatePremium(code);
-      await widget.onPremiumChanged();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Premium activado ✓'), backgroundColor: Colors.green.shade700),
-        );
-      }
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error), backgroundColor: Colors.red.shade700),
-      );
-    }
+    controller.dispose();
   }
 
   Widget _cacheExplained(BuildContext context, Color onBg, Responsive r) {
@@ -1754,6 +1990,160 @@ class _MoreTabState extends State<_MoreTab> {
       isScrollControlled: true,
       builder: (_) => _VersionSheet(glowColor: glow),
     );
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  Google Connection Tile
+// ═══════════════════════════════════════════════════════
+class _GoogleConnectionTile extends StatefulWidget {
+  final Color glowColor;
+  const _GoogleConnectionTile({required this.glowColor});
+
+  @override
+  State<_GoogleConnectionTile> createState() => _GoogleConnectionTileState();
+}
+
+class _GoogleConnectionTileState extends State<_GoogleConnectionTile> {
+  bool _isConnected = false;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkConnection();
+  }
+
+  Future<void> _checkConnection() async {
+    try {
+      final connected = await YoutubeOauthService().isConnected;
+      if (mounted) {
+        setState(() {
+          _isConnected = connected;
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final r = Responsive(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final onBg = AppColors.onSurface(isDark);
+    final glow = widget.glowColor;
+
+    if (_loading) {
+      return Container(
+        padding: EdgeInsets.all(r.spacingM),
+        decoration: BoxDecoration(
+          color: onBg.withValues(alpha: 0.04),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: onBg.withValues(alpha: 0.1)),
+        ),
+        child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: glow)),
+      );
+    }
+
+    return GestureDetector(
+      onTap: _isConnected ? null : _connectGoogle,
+      child: Container(
+        width: double.infinity,
+        padding: EdgeInsets.all(r.spacingM),
+        decoration: BoxDecoration(
+          gradient: _isConnected
+              ? LinearGradient(
+                  colors: [glow.withValues(alpha: 0.16), glow.withValues(alpha: 0.05)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                )
+              : null,
+          color: _isConnected ? null : onBg.withValues(alpha: 0.04),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: _isConnected ? glow.withValues(alpha: 0.35) : onBg.withValues(alpha: 0.1),
+          ),
+        ),
+        child: Row(children: [
+          // Google icon
+          Container(
+            width: 36, height: 36,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 8)],
+            ),
+            child: Center(
+              child: Text(
+                'G',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF4285F4),
+                ),
+              ),
+            ),
+          ),
+          SizedBox(width: r.spacingM),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _isConnected ? 'Google conectado' : 'Conectar con Google',
+                  style: TextStyle(
+                    fontSize: r.subtitleSize - 1,
+                    fontWeight: FontWeight.w600,
+                    color: _isConnected ? glow : onBg,
+                  ),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  _isConnected
+                      ? 'Tu cuenta de Google esta conectada'
+                      : 'Mejora la calidad del streaming',
+                  style: TextStyle(
+                    fontSize: r.footerSize - 2,
+                    color: onBg.withValues(alpha: 0.4),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (_isConnected)
+            Icon(Icons.check_circle_rounded, color: glow, size: r.subtitleSize)
+          else
+            Icon(Icons.chevron_right_rounded, color: onBg.withValues(alpha: 0.3), size: r.subtitleSize),
+        ]),
+      ),
+    );
+  }
+
+  Future<void> _connectGoogle() async {
+    try {
+      final msg = await YoutubeOauthService().connect(context);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(msg),
+          backgroundColor: msg.startsWith('Sesion de YouTube conectada')
+              ? Colors.green.shade700
+              : Colors.red.shade700,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 3),
+        ));
+        _checkConnection();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Error al conectar: $e'),
+          backgroundColor: Colors.red.shade700,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    }
   }
 }
 

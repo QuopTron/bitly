@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_android/webview_flutter_android.dart';
 
 import '../../config/secrets.dart';
 import '../../injection.dart';
@@ -122,6 +123,13 @@ class _OAuthWebViewPageState extends State<_OAuthWebViewPage> {
   final bool _loading = true;
   bool _popped = false;
 
+  /// Real Chrome mobile UA so Google does not detect the embedded WebView and
+  /// refuse the sign-in (Google blocks OAuth inside WebViews flagged by UA;
+  /// this keeps the whole flow in-app instead of bouncing to external Chrome).
+  static const _chromeMobileUA =
+      'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 '
+      '(KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36';
+
   @override
   void initState() {
     super.initState();
@@ -134,6 +142,13 @@ class _OAuthWebViewPageState extends State<_OAuthWebViewPage> {
         ),
       )
       ..loadRequest(Uri.parse(widget.authUrl));
+
+    // Chrome-like UA so Google's consent page renders inside this WebView
+    // instead of showing "browser may not be secure" / redirecting to Chrome.
+    final platform = _controller.platform;
+    if (platform is AndroidWebViewController) {
+      unawaited(platform.setUserAgent(_chromeMobileUA));
+    }
   }
 
   void _onUrlChange(String url) {

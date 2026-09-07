@@ -1,9 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, kIsWeb, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import '../platform/play_services_check.dart';
 
 import '../../config/secrets.dart';
 import '../../injection.dart';
@@ -14,13 +15,23 @@ import 'youtube_in_app_oauth.dart';
 
 /// YouTube OAuth — native Google Sign-In with in-app WebView fallback.
 ///
-/// Primary: `authenticate()` → `authorizeScopes()` (native, no browser).
-/// Fallback: In-app WebView showing Google consent (never leaves the app).
+/// Strategy 1 (pretty, no Chrome): native Google Sign-In via Credential
+/// Manager on Android (and the native picker on iOS/macOS).
+/// Strategy 2 (in-app): Google consent rendered inside an embedded WebView.
+/// Strategy 3 (last resort): the system browser.
 ///
 /// The access token is pushed to the ytmusic-spotiflac extension.
 class YoutubeOauthService {
   static const extId = 'ytmusic-spotiflac';
   static const _scope = 'https://www.googleapis.com/auth/youtube.readonly';
+
+  /// Android OAuth client (registered with package + SHA-1). On Android the
+  /// plugin ignores `clientId` and matches the app by package/SHA-1, but the
+  /// client must exist in the console so Credential Manager can resolve it.
+  static const _androidClientId = androidOAuthClientId;
+
+  /// Web OAuth client — passed as `serverClientId`, which is what the native
+  /// Credential Manager flow on Android requires to mint the token.
   static const _webClientId = defaultOAuthClientId;
   static const _webClientSecret = defaultOAuthClientSecret;
 
@@ -29,10 +40,28 @@ class YoutubeOauthService {
   static Future<void> _ensureInitialized() async {
     if (_initialized) return;
     await GoogleSignIn.instance.initialize(
-      clientId: _webClientId,
+      // On Android the clientId parameter is ignored (app is matched by
+      // package + SHA-1); the Android OAuth client is required in the console.
+      // On iOS/macOS/web it is the app's own client id.
+      clientId: _androidClientId,
+      // Credential Manager on Android REQUIRES a web client as serverClientId.
       serverClientId: _webClientId,
     );
     _initialized = true;
+  }
+
+  /// Whether google_sign_in exposes a native authenticate() flow on this
+  /// platform (Android, iOS, macOS, web). Windows/Linux desktop do not.
+  static bool _nativeSupported() {
+    if (kIsWeb) return true;
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.android:
+      case TargetPlatform.iOS:
+      case TargetPlatform.macOS:
+        return true;
+      default:
+        return false;
+    }
   }
 
   SettingsCache get _cache => sl<SettingsCache>();
@@ -45,33 +74,27 @@ class YoutubeOauthService {
 
   // ─── Connect ───────────────────────────────────────────────────────
 
-  /// Must be called with a BuildContext for the in-app WebView fallback.
+  /// Must be called with a BuildContext for the in-app fallbacks.
+  ///
+  /// Order: native pretty picker → in-app WebView → system browser (only if
+  /// the in-app flows are impossible on this platform). Never opens Chrome
+  /// on Android when the native flow is available.
   Future<String> connect([BuildContext? context]) async {
-    // Check Play Services status with version awareness.
-    PlayServicesStatus? psStatus;
-    try {
-      psStatus = await checkPlayServices();
-    } catch (e) {
-      debugPrint('Play Services check failed: $e');
-    }
-
-    // Strategy 1: Native Google Sign-In (only if Play Services is current).
-    if (psStatus != null && psStatus.canUseNativeAuth) {
+    // Strategy 1: Native Google Sign-In (pretty account picker, no browser).
+    if (_nativeSupported()) {
       try {
         return await _connectNative();
       } on _UserCanceledException {
         return 'Inicio de sesión cancelado.';
       } catch (e) {
-        final err = e.toString();
-        debugPrint('YouTube OAuth: native flow failed ($err)');
-        // Fall through to WebView.
+        debugPrint('YouTube OAuth: native flow failed ($e)');
+        // Fall through to the in-app WebView.
       }
     } else {
-      final reason = psStatus?.message ?? 'unknown';
-      debugPrint('Skipping native auth (Play Services: $reason) — using PKCE');
+      debugPrint('YouTube OAuth: no native flow on this platform');
     }
 
-    // Strategy 2: In-app WebView PKCE flow with single retry.
+    // Strategy 2: In-app WebView (Google consent inside the app, no Chrome).
     if (context != null && context.mounted) {
       return _connectInAppWithRetry(context);
     }
@@ -79,7 +102,7 @@ class YoutubeOauthService {
     return 'No se pudo conectar YouTube en este dispositivo.';
   }
 
-  /// Native: `authenticate()` → `authorizeScopes()`.
+  /// Native: `authenticate()` → `authorizeScopes()` (pretty picker, no Chrome).
   Future<String> _connectNative() async {
     await _ensureInitialized();
     await GoogleSignIn.instance.signOut();

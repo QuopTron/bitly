@@ -15,6 +15,13 @@ type TrackResult struct {
 	ISRC      string `json:"isrc"`
 	CoverURL  string `json:"coverUrl"`
 	Provider  string `json:"provider"`
+	// Cross-provider IDs for fast stream resolution. Any extension that
+	// resolves a track can return these so the rescue chain can use
+	// CheckAvailability (identifier-based, ~1-2s) instead of a slow name search.
+	SpotifyID string `json:"spotify_id,omitempty"`
+	DeezerID  string `json:"deezer_id,omitempty"`
+	TidalID   string `json:"tidal_id,omitempty"`
+	QobuzID   string `json:"qobuz_id,omitempty"`
 }
 
 // AlbumResult is the normalized album result across all providers.

@@ -1,10 +1,66 @@
 import 'dart:math';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 class _Particle {
   double x, y, size, speedX, speedY, opacity, rotation, rotationSpeed;
   final String iconLabel;
-  _Particle({required this.x, required this.y, required this.size, required this.speedX, required this.speedY, required this.opacity, required this.rotation, required this.rotationSpeed, required this.iconLabel});
+
+  /// Cached radial-gradient glow (no per-frame MaskFilter blur). Rebuilt only
+  /// when the particle is created or reset (opacity changes).
+  ui.Paint? glowPaint;
+
+  /// Cached glyph (TextPainter layout is expensive — never per frame).
+  TextPainter? glyph;
+  double _glyphAlpha = -1;
+  Color _glyphColor = const Color(0x00000000);
+  double _glyphSize = -1;
+
+  _Particle({
+    required this.x,
+    required this.y,
+    required this.size,
+    required this.speedX,
+    required this.speedY,
+    required this.opacity,
+    required this.rotation,
+    required this.rotationSpeed,
+    required this.iconLabel,
+  });
+
+  /// Builds (or rebuilds when stale) the cached glow + glyph for this
+  /// particle. Cheap enough to call on every frame; it no-ops unless the
+  /// appearance actually changed.
+  void ensureCached(Color glowColor, Color particleColor) {
+    if (glowPaint == null) {
+      final c = glowColor.withValues(alpha: opacity * 0.45);
+      glowPaint = ui.Paint()
+        ..shader = ui.Gradient.radial(
+          Offset.zero,
+          size * 1.6,
+          [c, c.withValues(alpha: 0.0)],
+        );
+    }
+    if (glyph == null ||
+        _glyphAlpha != opacity ||
+        _glyphColor != particleColor ||
+        _glyphSize != size) {
+      _glyphAlpha = opacity;
+      _glyphColor = particleColor;
+      _glyphSize = size;
+      glyph = TextPainter(
+        text: TextSpan(
+          text: iconLabel,
+          style: TextStyle(
+            fontSize: size,
+            height: 1,
+            color: particleColor.withValues(alpha: opacity),
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+    }
+  }
 }
 
 class _ParticlePainter extends CustomPainter {
@@ -15,15 +71,16 @@ class _ParticlePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     for (final p in particles) {
+      p.ensureCached(glowColor, particleColor);
+      final tp = p.glyph;
+      final gp = p.glowPaint;
+      if (tp == null || gp == null) continue;
       final cx = p.x * size.width, cy = p.y * size.height;
       canvas.save();
       canvas.translate(cx, cy);
       canvas.rotate(p.rotation);
-      final gp = Paint()..color = glowColor.withValues(alpha: p.opacity * 0.08)..maskFilter = const MaskFilter.blur(BlurStyle.normal, 30);
-      canvas.drawCircle(const Offset(0, 0), p.size * 0.7, gp);
-      final mp = Paint()..color = glowColor.withValues(alpha: p.opacity * 0.15)..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12);
-      canvas.drawCircle(const Offset(0, 0), p.size * 0.4, mp);
-      final tp = TextPainter(text: TextSpan(text: p.iconLabel, style: TextStyle(fontSize: p.size, color: particleColor.withValues(alpha: p.opacity))), textDirection: TextDirection.ltr)..layout();
+      // Soft glow: one radial-gradient circle (cached) — no saveLayer/blur.
+      canvas.drawCircle(Offset.zero, p.size * 1.6, gp);
       tp.paint(canvas, Offset(-tp.width / 2, -tp.height / 2));
       canvas.restore();
     }
@@ -31,7 +88,9 @@ class _ParticlePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_ParticlePainter oldDelegate) =>
-      oldDelegate.particles != particles;
+      oldDelegate.particles != particles ||
+      oldDelegate.glowColor != glowColor ||
+      oldDelegate.particleColor != particleColor;
 }
 
 class ParticleBackground extends StatefulWidget {
@@ -78,6 +137,8 @@ class _ParticleBackgroundState extends State<ParticleBackground> with SingleTick
     p.speedX = (_rng.nextDouble() - 0.5) * 0.012 * widget.speedMultiplier;
     p.speedY = -_rng.nextDouble() * 0.018 * widget.speedMultiplier;
     p.opacity = 0.15 + _rng.nextDouble() * 0.3;
+    // Appearance changed → cached glow/glyph will be rebuilt lazily.
+    p.glowPaint = null;
   }
 
   @override
@@ -99,4 +160,3 @@ class _ParticleBackgroundState extends State<ParticleBackground> with SingleTick
     });
   }
 }
-

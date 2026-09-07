@@ -77,6 +77,11 @@ class _HomePageState extends State<HomePage>
   bool _ready = false;
   Timer? _unlockTimer;
   bool _feedRequested = false;
+  /// Notifier global del tab activo de la Home. El navbar flotante global
+  /// (visible sobre detalles/otras páginas empujadas) lo escribe para volver a
+  /// la Home en la pestaña correcta; acá lo escuchamos para animar el PageView.
+  late final ValueNotifier<int> _homeTabN;
+  bool _applyingExternalTab = false;
 
   late final LikeCubit _likeCubit;
   late final DownloadCubit _downloadCubit;
@@ -109,6 +114,9 @@ class _HomePageState extends State<HomePage>
   void initState() {
     super.initState();
     _backend = sl<BackendService>();
+    _homeTabN = sl<ValueNotifier<int>>();
+    _tab = _homeTabN.value.clamp(0, 2);
+    _homeTabN.addListener(_onHomeTabRequested);
     _likeCubit = sl<LikeCubit>()..initialize();
     _downloadCubit = sl<DownloadCubit>()..initialize();
     _playlistCubit = sl<PlaylistCubit>()..initialize();
@@ -270,6 +278,7 @@ class _HomePageState extends State<HomePage>
 
   @override
   void dispose() {
+    _homeTabN.removeListener(_onHomeTabRequested);
     _unlockTimer?.cancel();
     _downloadSub?.cancel();
     _feedSub?.cancel();
@@ -302,8 +311,7 @@ class _HomePageState extends State<HomePage>
             final trackCover = queue.hasCurrent
                 ? context.read<LikeCubit>().resolveCoverFor(queue.current!)
                 : null;
-            return Stack(
-            children: [
+            return Stack(            children: [
               if (trackCover != null && trackCover.isNotEmpty)
                 AmbientBackdrop(
                   coverUrl: trackCover,
@@ -319,7 +327,12 @@ class _HomePageState extends State<HomePage>
                         child: BlocProvider.value(value: playerCubit,
                           child: PageView(
                             controller: _pageCtrl,
-                            onPageChanged: (i) => setState(() => _tab = i),
+                            onPageChanged: (i) {
+                              setState(() => _tab = i);
+                              // Espejo al notifier global para que el navbar
+                              // flotante (detalles) refleje la pestaña real.
+                              _homeTabN.value = i;
+                            },
                             children: [
                               _PageAnimatedWrapper(index: 0, controller: _pageCtrl,
                                 child: BlocProvider.value(value: _searchBloc,
@@ -430,5 +443,16 @@ class _HomePageState extends State<HomePage>
 
   void _onNavTap(int i) {
     _pageCtrl.animateToPage(i, duration: const Duration(milliseconds: 300), curve: Curves.easeOutCubic);
+  }
+
+  /// El navbar global (visible sobre detalles) pidió cambiar de pestaña y volver
+  /// a la Home. Animamos el PageView y reflejamos el índice en el notifier.
+  void _onHomeTabRequested() {
+    final i = _homeTabN.value;
+    if (!mounted || _applyingExternalTab) return;
+    if (i == _tab) return;
+    _applyingExternalTab = true;
+    _pageCtrl.animateToPage(i, duration: const Duration(milliseconds: 320), curve: Curves.easeOutCubic)
+        .whenComplete(() => _applyingExternalTab = false);
   }
 }

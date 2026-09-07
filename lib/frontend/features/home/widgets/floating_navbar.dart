@@ -35,6 +35,16 @@ class _FloatingNavbarState extends State<FloatingNavbar> {
   }
 
   @override
+  void didUpdateWidget(FloatingNavbar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Mantener la selección sincronizada si el padre cambia currentIndex
+    // (p.ej. el navbar global sobre detalles, que refleja la Home real).
+    if (widget.currentIndex != oldWidget.currentIndex) {
+      _selected = widget.currentIndex;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final r = Responsive(context);
     final onBg = AppColors.onSurface(widget.isDark);
@@ -65,7 +75,7 @@ class _FloatingNavbarState extends State<FloatingNavbar> {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeOutCubic,
-        padding: EdgeInsets.symmetric(vertical: r.spacingS * 0.8),
+        padding: EdgeInsets.symmetric(vertical: r.spacingS * 1.1),
         decoration: BoxDecoration(
           color: sel ? onBg.withValues(alpha: 0.08) : Colors.transparent,
           borderRadius: BorderRadius.circular(16),
@@ -79,7 +89,7 @@ class _FloatingNavbarState extends State<FloatingNavbar> {
               curve: Curves.easeOutBack,
               child: Icon(
                 _items[i].icon,
-                size: r.subtitleSize + 4,
+                size: r.subtitleSize + 10,
                 color: sel ? onBg : onBg.withValues(alpha: 0.35),
               ),
             ),

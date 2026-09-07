@@ -11,6 +11,7 @@ import '../../shared/models/feed_models.dart';
 import '../../shared/theme/app_colors.dart';
 import '../../shared/utils/cover_palette.dart';
 import '../../shared/utils/haptic.dart';
+import '../../shared/models/performance_profile.dart';
 import '../../shared/utils/responsive.dart';
 import '../../shared/widgets/cover_image.dart';
 import '../../shared/widgets/empty_state.dart';
@@ -263,13 +264,16 @@ class _QueueSheet extends StatelessWidget {
     if (cover == null || cover.isEmpty) return const SizedBox.shrink();
     return ClipRRect(
       child: ImageFiltered(
-        imageFilter: ImageFilter.blur(sigmaX: 60, sigmaY: 60),
+        imageFilter: ImageFilter.blur(
+          sigmaX: backdropBlurSigma,
+          sigmaY: backdropBlurSigma,
+        ),
         child: Transform.scale(
           scale: 1.3,
           child: imageFromUrl(
             cover,
             fit: BoxFit.cover,
-            width: double.infinity,
+            width: 512,
             height: double.infinity,
           ),
         ),

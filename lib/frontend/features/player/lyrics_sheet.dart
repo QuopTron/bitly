@@ -6,6 +6,7 @@ import '../../../backend/services/like_cubit.dart';
 import '../../../backend/services/player_cubit.dart';
 import '../../../backend/services/queue_cubit.dart';
 import '../../../injection.dart';
+import '../../shared/models/performance_profile.dart';
 import '../../shared/utils/responsive.dart';
 import '../../shared/utils/cover_palette.dart';
 import '../../shared/widgets/cover_image.dart';
@@ -265,10 +266,18 @@ class _LyricsSheetState extends State<_LyricsSheet> {
     return ClipRRect(
       borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
       child: ImageFiltered(
-        imageFilter: ImageFilter.blur(sigmaX: 60, sigmaY: 60),
+        imageFilter: ImageFilter.blur(
+          sigmaX: backdropBlurSigma,
+          sigmaY: backdropBlurSigma,
+        ),
         child: Transform.scale(
           scale: 1.3,
-          child: imageFromUrl(cover, fit: BoxFit.cover, width: double.infinity, height: double.infinity),
+          child: imageFromUrl(
+            cover,
+            fit: BoxFit.cover,
+            width: 512,
+            height: double.infinity,
+          ),
         ),
       ),
     );

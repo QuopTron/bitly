@@ -1,5 +1,4 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import '../../../injection.dart';
 
 /// Current global "heavy effects" flag from the performance profile. Kept in
@@ -11,6 +10,22 @@ bool get heavyEffects {
   } catch (_) {
     return true;
   }
+}
+
+/// Adaptive blur strength for full-screen backdrops (album art behind home,
+/// now-playing, lyrics, queue, settings).
+///
+/// A sigma-50 gaussian over a 720p+ surface is very expensive on mobile GPUs
+/// (especially Impeller), so phones get a gentler radius that looks almost
+/// identical once the theme veil is applied, while desktop keeps the deep
+/// blur. When heavy effects are off the backdrop drops to a cheap frosted
+/// hint. Kept in one place so every backdrop reads the same value.
+double get backdropBlurSigma {
+  if (!heavyEffects) return 10;
+  final mobile = !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS);
+  return mobile ? 26 : 48;
 }
 
 /// Niveles de perfil de rendimiento del dispositivo.

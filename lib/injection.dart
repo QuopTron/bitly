@@ -98,6 +98,10 @@ Future<void> configureDependencies() async {
 
   // ── 7. Navigation ───────────────────────────────────────────
   sl.registerLazySingleton<AppNavigatorObserver>(() => AppNavigatorObserver());
+  // Índice de la pestaña activa de la Home (0=búsqueda, 1=inicio, 2=mi espacio).
+  // El navbar global (sobre páginas empujadas como detalles) lo escribe para
+  // volver a la Home en la pestaña correcta; HomePage lo escucha para animar.
+  sl.registerLazySingleton<ValueNotifier<int>>(() => ValueNotifier<int>(1));
 
   // ── 8. Blocs (factory para que cada screen tenga su instancia) ─
   sl.registerFactory(() => SplashBloc(backend));

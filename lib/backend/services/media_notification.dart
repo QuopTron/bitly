@@ -40,6 +40,12 @@ class MediaNotificationBridge {
 
   bool _initialized = false;
 
+  // Last values sent to the handler, so a play/pause or buffering flip forces
+  // an immediate notification update instead of waiting out the 1 s position
+  // throttle (otherwise the notification icon can lag behind reality).
+  bool? _lastSentPlaying;
+  String? _lastSentProcessing;
+
   /// Initialises [AudioService] and wires the cubits to the handler. Called
   /// once from [main] after GetIt is configured.
   Future<void> init() async {
@@ -126,6 +132,14 @@ class MediaNotificationBridge {
     final player = _lastPlayer;
     if (queue == null || player == null) return;
 
+    final playing = player.isPlaying;
+    final processing = _processingFrom(player.playbackState);
+    // Play/pause and buffering flips are visually important — bypass the
+    // throttle so the notification icon always matches the real state.
+    if (playing != _lastSentPlaying || processing != _lastSentProcessing) {
+      force = true;
+    }
+
     final now = DateTime.now();
     if (!force &&
         now.difference(_lastPush) < const Duration(milliseconds: 1000)) {
@@ -149,14 +163,16 @@ class MediaNotificationBridge {
 
     _handlerStatePort!.send({
       ...media,
-      'playing': player.isPlaying,
-      'processing': _processingFrom(player.playbackState),
+      'playing': playing,
+      'processing': processing,
       'positionMs': player.position.inMilliseconds,
       'bufferedMs': player.position.inMilliseconds,
       'shuffle': queue.shuffle,
       'repeat': _repeatFrom(queue.repeatMode),
       'queueIndex': queue.currentIndex,
     });
+    _lastSentPlaying = playing;
+    _lastSentProcessing = processing;
     _lastPush = now;
   }
 

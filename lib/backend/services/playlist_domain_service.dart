@@ -20,13 +20,14 @@ class PlaylistDomainService {
 
   /// Create a new playlist. Returns the created [PlaylistDomain] on success,
   /// or `null` if the backend rejected the request.
-  Future<PlaylistDomain?> create(String name, {String description = ''}) async {
-    final id = await _collections.createCollection(name, '');
+  Future<PlaylistDomain?> create(String name, {String description = '', String? coverPath}) async {
+    final id = await _collections.createCollection(name, coverPath ?? '');
     if (id == null || id.isEmpty) return null;
     return PlaylistDomain(
       id: id,
       name: name,
       description: description,
+      coverUrl: coverPath,
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
     );

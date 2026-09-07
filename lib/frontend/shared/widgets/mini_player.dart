@@ -80,7 +80,13 @@ class _MiniPlayerState extends State<MiniPlayer> {
                       filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
                       child: Container(
                         decoration: BoxDecoration(
-                          color: fg.withValues(alpha: 0.08),
+                          // Fondo completamente opaco: evita que el
+                          // contenido del detalle que pasa por debajo se vea
+                          // como lineas fantasmas sobre el titulo/artista/
+                          // tiempos (rayas amarillas de debug).
+                          color: isDark
+                              ? const Color(0xFF0B0B14)
+                              : const Color(0xFFFFFFFF),
                           borderRadius: BorderRadius.vertical(
                             top: Radius.circular(8),
                           ),
@@ -157,10 +163,10 @@ class _MiniPlayerState extends State<MiniPlayer> {
                                   GestureDetector(
                                     onTap: () => context.read<QueueCubit>().toggleShuffle(),
                                     child: Padding(
-                                      padding: const EdgeInsets.all(2),
+                                      padding: const EdgeInsets.all(3),
                                       child: Icon(
                                         shuffleOn ? Icons.shuffle_rounded : Icons.shuffle,
-                                        size: r.footerSize,
+                                        size: r.footerSize + 8,
                                         color: shuffleOn ? fg : fg.withValues(alpha: 0.3),
                                       ),
                                     ),
@@ -169,10 +175,10 @@ class _MiniPlayerState extends State<MiniPlayer> {
                                   GestureDetector(
                                     onTap: () => context.read<PlayerCubit>().previous(),
                                     child: Padding(
-                                      padding: const EdgeInsets.all(2),
+                                      padding: const EdgeInsets.all(3),
                                       child: Icon(
                                         Icons.skip_previous_rounded,
-                                        size: r.footerSize + 2,
+                                        size: r.footerSize + 11,
                                         color: fg.withValues(alpha: 0.5),
                                       ),
                                     ),
@@ -184,8 +190,8 @@ class _MiniPlayerState extends State<MiniPlayer> {
                                       context.read<PlayerCubit>().togglePlayPause();
                                     },
                                     child: Container(
-                                      width: 28,
-                                      height: 28,
+                                      width: 42,
+                                      height: 42,
                                       decoration: BoxDecoration(
                                         shape: BoxShape.circle,
                                         color: fg.withValues(alpha: 0.12),
@@ -193,10 +199,10 @@ class _MiniPlayerState extends State<MiniPlayer> {
                                       child: Center(
                                         child: isBuffering
                                             ? SizedBox(
-                                                width: 14,
-                                                height: 14,
+                                                width: 20,
+                                                height: 20,
                                                 child: CircularProgressIndicator(
-                                                  strokeWidth: 2,
+                                                  strokeWidth: 2.6,
                                                   color: fg.withValues(alpha: 0.7),
                                                 ),
                                               )
@@ -205,7 +211,7 @@ class _MiniPlayerState extends State<MiniPlayer> {
                                                     ? Icons.pause_rounded
                                                     : Icons.play_arrow_rounded,
                                                 color: fg,
-                                                size: 18,
+                                                size: 28,
                                               ),
                                       ),
                                     ),
@@ -214,10 +220,10 @@ class _MiniPlayerState extends State<MiniPlayer> {
                                   GestureDetector(
                                     onTap: () => context.read<PlayerCubit>().next(),
                                     child: Padding(
-                                      padding: const EdgeInsets.all(2),
+                                      padding: const EdgeInsets.all(3),
                                       child: Icon(
                                         Icons.skip_next_rounded,
-                                        size: r.footerSize + 2,
+                                        size: r.footerSize + 11,
                                         color: fg.withValues(alpha: 0.5),
                                       ),
                                     ),
@@ -226,12 +232,12 @@ class _MiniPlayerState extends State<MiniPlayer> {
                                   GestureDetector(
                                     onTap: () => context.read<QueueCubit>().cycleRepeatMode(),
                                     child: Padding(
-                                      padding: const EdgeInsets.all(2),
+                                      padding: const EdgeInsets.all(3),
                                       child: Icon(
                                         repeatMode == RepeatMode.one
                                             ? Icons.repeat_one_rounded
                                             : Icons.repeat_rounded,
-                                        size: r.footerSize,
+                                        size: r.footerSize + 8,
                                         color: repeatMode == RepeatMode.none
                                             ? fg.withValues(alpha: 0.3)
                                             : fg,

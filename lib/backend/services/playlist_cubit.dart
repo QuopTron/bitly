@@ -102,7 +102,7 @@ class PlaylistCubit extends Cubit<PlaylistState> {
 
   Future<String?> createPlaylist(String name, {String? coverPath}) async {
     try {
-      final domain = await _domainService.create(name);
+      final domain = await _domainService.create(name, coverPath: coverPath);
       if (domain != null) {
         await loadPlaylists();
         return domain.id;

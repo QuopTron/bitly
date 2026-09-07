@@ -57,6 +57,21 @@
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="spotiflac" android:host="callback"/>
             </intent-filter>
+            <!-- Deep link for shared items: bitly://open?type=track&id=...&q=...
+                 Also matches https://bitly.app/open?... so shared links from
+                 WhatsApp/Telegram/etc open the "shared with you" overlay. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="bitly" android:host="open"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https" android:host="bitly.app" android:pathPrefix="/open"/>
+            </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->

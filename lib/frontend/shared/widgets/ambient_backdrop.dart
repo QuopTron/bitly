@@ -1,5 +1,6 @@
 import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
+import '../models/performance_profile.dart';
 import 'cover_image.dart';
 
 /// Blurred album-art backdrop that fills its parent.
@@ -30,13 +31,18 @@ class AmbientBackdrop extends StatelessWidget {
           if (url != null && url.isNotEmpty) ...[
             ClipRect(
               child: ImageFiltered(
-                imageFilter: ImageFilter.blur(sigmaX: 50, sigmaY: 50),
+                imageFilter: ImageFilter.blur(
+                  sigmaX: backdropBlurSigma,
+                  sigmaY: backdropBlurSigma,
+                ),
                 child: Transform.scale(
                   scale: 1.25,
                   child: imageFromUrl(
                     url,
                     fit: BoxFit.cover,
-                    width: double.infinity,
+                    // Bounded decode — blur masks detail anyway, and a small
+                    // source keeps the full-screen gaussian cheap on mobile.
+                    width: 512,
                     height: double.infinity,
                   ),
                 ),
