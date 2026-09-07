@@ -134,8 +134,12 @@ func StartYoutubeOauth(payload string) string {
 	ytOauthVerifier = verifier
 	ytOauthRedirect = redirect
 
+	// Capture the server pointer locally so the goroutine uses the freshly
+	// created server even if another call sets ytOauthServer to nil (the mutex
+	// is released before this goroutine runs).
+	srv := ytOauthServer
 	go func() {
-		_ = ytOauthServer.Serve(ln)
+		_ = srv.Serve(ln)
 	}()
 
 	params := url.Values{}

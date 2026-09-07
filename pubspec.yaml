@@ -23,6 +23,7 @@ dependencies:
   go_router: ^17.2.3
 
   # Storage
+  flutter_svg: ^2.3.0
   shared_preferences: ^2.5.3
   path_provider: ^2.1.5
   path: ^1.9.0
@@ -67,11 +68,12 @@ dependencies:
   crypto: ^3.0.4
 
   # WebView for Cloudflare verification
-  webview_flutter: ^4.0.0
+  webview_flutter: ^4.9.0
   webview_flutter_android: ^3.16.9
   audio_service: ^0.18.19
   package_info_plus: ^10.2.1
   google_sign_in: ^7.2.0
+  google_api_availability: ^5.0.1
 
 dev_dependencies:
   flutter_test:
