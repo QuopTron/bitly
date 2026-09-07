@@ -71,6 +71,7 @@ dependencies:
   webview_flutter_android: ^3.16.9
   audio_service: ^0.18.19
   package_info_plus: ^10.2.1
+  google_sign_in: ^7.2.0
 
 dev_dependencies:
   flutter_test:
