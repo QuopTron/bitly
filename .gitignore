@@ -98,3 +98,19 @@ lib/config/secrets.dart
 
 # Build outputs for sharing (Drive) — keep out of git
 /APKs Bitly/
+
+# ── Debug / temp files ──────────────────────────────────────────────
+tmp_*
+probe_*
+dying_url.txt
+fresh_*
+trace_*
+urlapp.txt
+ytp.json
+test_url.txt
+itag*_url.txt
+APK_INSTALLATION_GUIDE.txt
+installed_base.apk
+prefs_check.xml
+prefs_dump.xml
+go_backend/all_ext_test.go
