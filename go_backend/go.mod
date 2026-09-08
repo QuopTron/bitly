@@ -1,6 +1,6 @@
 module github.com/zarz/bitly/go_backend
 
-go 1.26.0
+go 1.26.6
 
 require (
 	github.com/refraction-networking/utls v1.8.2
