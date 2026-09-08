@@ -2,8 +2,8 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../config/secrets.dart';
+import '../cache/premium_cache.dart';
 import '../cache/settings_cache.dart';
-import '../services/premium_service.dart';
 import '../services/provider_credential_service.dart';
 import 'backend_service.dart';
 import 'mixins/settings_mixin.dart';
@@ -11,6 +11,7 @@ import 'mixins/feed_search_mixin.dart';
 import 'mixins/actions_mixin.dart';
 import 'mixins/detail_mixin.dart';
 import 'mixins/infra_mixin.dart';
+import 'mixins/premium_mixin.dart';
 import 'mixins/tag_editor_mixin.dart';
 import 'rpc_backend_mixin.dart';
 import '../../injection.dart' as inj;
@@ -22,6 +23,7 @@ class AndroidBackend extends BackendService
         ActionsMixin,
         DetailMixin,
         InfraMixin,
+        PremiumMixin,
         TagEditorMixin,
         RpcBackendMixin {
   static const _channel = MethodChannel('com.bitly/backend');
@@ -82,7 +84,7 @@ class AndroidBackend extends BackendService
         await _channel
             .invokeMethod('initGoBackend', {'app_data_dir': dir.path, 'ytdlp_path': ytDlpPath})
             .timeout(const Duration(seconds: 125));
-        PremiumService().setGithubToken(githubToken);
+        await setPremiumGithubToken(githubToken);
         final extDir = '${dir.path}/extensions';
         await _ensureExtensions(extDir);
         await _channel
@@ -102,6 +104,14 @@ class AndroidBackend extends BackendService
           if (setupData != null) {
             await syncBackendConfig(mode: setupData.mode);
           }
+          // Sync premium state (drift) to Go so the download gate respects
+          // codes already activated in a previous session.
+          final premium = await inj.sl<PremiumCache>().getPremiumStatus();
+          await syncPremiumStatus(
+            isPremium: premium.isPremium,
+            tier: premium.tier,
+            expiresAt: premium.premiumUntil,
+          );
           // Push the performance profile (concurrency/buffer settings) now
           // that the Go runtime is confirmed up — before init it could block
           // the native bridge and stall the splash.

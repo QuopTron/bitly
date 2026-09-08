@@ -6,38 +6,13 @@ import (
 	"net/http"
 	"strconv"
 
-	backend "github.com/zarz/bitly/go_backend"
+	backend "github.com/zarz/bitly/go_backend/internal/gobackend"
 )
 
-// registerPlaybackRoutes registers premium, playback, queue, rescue, and similar endpoints.
+// registerPlaybackRoutes registers playback, queue, rescue, and similar endpoints.
 func registerPlaybackRoutes(mux *http.ServeMux) {
-	// ─── PREMIUM ──────────────────────────────────────────────
-	mux.HandleFunc("/premium/status", func(w http.ResponseWriter, r *http.Request) {
-		jsonStr(w, backend.GetPremiumStatus())
-	})
-	mux.HandleFunc("/premium/validate", func(w http.ResponseWriter, r *http.Request) {
-		body, _ := io.ReadAll(r.Body)
-		var req struct { Code string `json:"code"` }
-		if err := json.Unmarshal(body, &req); err != nil || req.Code == "" {
-			http.Error(w, `{"error":"falta el código"}`, 400); return
-		}
-		jsonStr(w, backend.ValidatePremiumCode(req.Code))
-	})
-	mux.HandleFunc("/premium/set", func(w http.ResponseWriter, r *http.Request) {
-		body, _ := io.ReadAll(r.Body)
-		var req struct {
-			IsPremium bool   `json:"isPremium"`
-			Tier      string `json:"tier"`
-		}
-		if err := json.Unmarshal(body, &req); err != nil {
-			http.Error(w, `{"error":"cuerpo inválido"}`, 400); return
-		}
-		payload, _ := json.Marshal(map[string]interface{}{"isPremium": req.IsPremium, "tier": req.Tier})
-		jsonStr(w, backend.SetPremiumStatus(string(payload)))
-	})
-	mux.HandleFunc("/premium/check-download", func(w http.ResponseWriter, r *http.Request) {
-		jsonStr(w, backend.CheckDownloadAllowed())
-	})
+	// Las rutas /premium/* viven en routes_premium.go.
+	registerPremiumRoutes(mux)
 
 	// ─── PLAYBACK ─────────────────────────────────────────────
 	mux.HandleFunc("/playback/now-playing", func(w http.ResponseWriter, r *http.Request) {
@@ -58,7 +33,9 @@ func registerPlaybackRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/playback/history", func(w http.ResponseWriter, r *http.Request) {
 		limitStr := r.URL.Query().Get("limit")
 		limit := 20
-		if l, err := strconv.Atoi(limitStr); err == nil { limit = l }
+		if l, err := strconv.Atoi(limitStr); err == nil {
+			limit = l
+		}
 		jsonStr(w, backend.GetPlayHistory(limit))
 	})
 
@@ -70,7 +47,9 @@ func registerPlaybackRoutes(mux *http.ServeMux) {
 		case "POST":
 			body, _ := io.ReadAll(r.Body)
 			addedBy := r.URL.Query().Get("addedBy")
-			if addedBy == "" { addedBy = "user" }
+			if addedBy == "" {
+				addedBy = "user"
+			}
 			payload, _ := json.Marshal(map[string]string{"trackJSON": string(body), "addedBy": addedBy})
 			jsonStr(w, backend.AddToQueue(string(payload)))
 		case "DELETE":
@@ -99,7 +78,9 @@ func registerPlaybackRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/playback/recommendations", func(w http.ResponseWriter, r *http.Request) {
 		limitStr := r.URL.Query().Get("limit")
 		limit := 10
-		if l, err := strconv.Atoi(limitStr); err == nil { limit = l }
+		if l, err := strconv.Atoi(limitStr); err == nil {
+			limit = l
+		}
 		jsonStr(w, backend.GetRecommendationsFromHistory(limit))
 	})
 
@@ -109,8 +90,13 @@ func registerPlaybackRoutes(mux *http.ServeMux) {
 		track := r.URL.Query().Get("track")
 		artist := r.URL.Query().Get("artist")
 		quality := r.URL.Query().Get("quality")
-		if quality == "" { quality = "FLAC" }
-		if isrc == "" { http.Error(w, `{"error":"falta el ISRC"}`, 400); return }
+		if quality == "" {
+			quality = "FLAC"
+		}
+		if isrc == "" {
+			http.Error(w, `{"error":"falta el ISRC"}`, 400)
+			return
+		}
 		payload, _ := json.Marshal(map[string]string{"isrc": isrc, "trackName": track, "artistName": artist, "quality": quality})
 		jsonStr(w, backend.RescueTrack(string(payload)))
 	})
@@ -120,7 +106,10 @@ func registerPlaybackRoutes(mux *http.ServeMux) {
 	})
 	mux.HandleFunc("/rescue/enrich", func(w http.ResponseWriter, r *http.Request) {
 		isrc := r.URL.Query().Get("isrc")
-		if isrc == "" { http.Error(w, `{"error":"falta el ISRC"}`, 400); return }
+		if isrc == "" {
+			http.Error(w, `{"error":"falta el ISRC"}`, 400)
+			return
+		}
 		jsonStr(w, backend.EnrichMetadata(isrc))
 	})
 
@@ -130,8 +119,13 @@ func registerPlaybackRoutes(mux *http.ServeMux) {
 		artist := r.URL.Query().Get("artist")
 		limitStr := r.URL.Query().Get("limit")
 		limit := 10
-		if l, err := strconv.Atoi(limitStr); err == nil { limit = l }
-		if track == "" { http.Error(w, `{"error":"falta la canción"}`, 400); return }
+		if l, err := strconv.Atoi(limitStr); err == nil {
+			limit = l
+		}
+		if track == "" {
+			http.Error(w, `{"error":"falta la canción"}`, 400)
+			return
+		}
 		payload, _ := json.Marshal(map[string]interface{}{"trackTitle": track, "artistName": artist, "limit": limit})
 		jsonStr(w, backend.GetSimilarTracks(string(payload)))
 	})
@@ -139,8 +133,13 @@ func registerPlaybackRoutes(mux *http.ServeMux) {
 		artist := r.URL.Query().Get("artist")
 		limitStr := r.URL.Query().Get("limit")
 		limit := 10
-		if l, err := strconv.Atoi(limitStr); err == nil { limit = l }
-		if artist == "" { http.Error(w, `{"error":"falta el artista"}`, 400); return }
+		if l, err := strconv.Atoi(limitStr); err == nil {
+			limit = l
+		}
+		if artist == "" {
+			http.Error(w, `{"error":"falta el artista"}`, 400)
+			return
+		}
 		payload, _ := json.Marshal(map[string]interface{}{"artistName": artist, "limit": limit})
 		jsonStr(w, backend.GetSimilarArtists(string(payload)))
 	})

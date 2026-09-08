@@ -36,7 +36,7 @@ func TestLoadOrInitStableInstallID(t *testing.T) {
 
 	// Wipe the persisted file so a disk-backed read would generate a new id
 	// (equivalent to an unwritable dataDir on Android).
-	if path, err := signedSessionFilePath(dir, cfg); err == nil {
+	if path, err := rutaArchivoSesionFirmada(dir, cfg); err == nil {
 		os.Remove(path)
 	}
 

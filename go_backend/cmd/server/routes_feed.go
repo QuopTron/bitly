@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
-	backend "github.com/zarz/bitly/go_backend"
+	backend "github.com/zarz/bitly/go_backend/internal/gobackend"
 )
 
 // registerFeedRoutes registers feed-related endpoints.

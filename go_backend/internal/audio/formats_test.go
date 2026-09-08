@@ -12,10 +12,10 @@ func TestReadBits(t *testing.T) {
 		want int64
 	}{
 		{[]byte{0xFF}, 8, 255},
-		{[]byte{0xF0}, 4, 15},  // top 4 bits of 0xF0 = 15
+		{[]byte{0xF0}, 4, 15}, // top 4 bits of 0xF0 = 15
 		{[]byte{0xAB, 0xCD}, 16, 0xABCD},
 		{[]byte{0x12, 0x34}, 12, 0x123}, // 12 bits: 0x12 (8) + top 4 of 0x34 (0x3)
-		{[]byte{0x80}, 1, 1},             // top bit of 0x80 = 1
+		{[]byte{0x80}, 1, 1},            // top bit of 0x80 = 1
 		{[]byte{0x12}, 5, 2},            // top 5 bits of 0x12 = 00010 = 2
 	}
 
@@ -38,8 +38,8 @@ func TestReadFLACMagic(t *testing.T) {
 	// Write FLAC header: fLaC + STREAMINFO block
 	header := []byte{
 		0x66, 0x4C, 0x61, 0x43, // "fLaC"
-		0x80,                                           // last-metadata-block flag + STREAMINFO
-		0x00, 0x00, 0x22,                               // block length: 34 bytes
+		0x80,             // last-metadata-block flag + STREAMINFO
+		0x00, 0x00, 0x22, // block length: 34 bytes
 		// STREAMINFO (34 bytes, simplified)
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // min/max block size
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // min/max frame size (0=unknown)

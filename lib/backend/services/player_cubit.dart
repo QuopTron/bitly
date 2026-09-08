@@ -20,9 +20,9 @@ import '../../frontend/shared/models/feed_models.dart';
 import '../../frontend/shared/utils/download_strategy.dart';
 import '../cache/playback_cache.dart';
 import '../cache/player_state.dart';
+import 'connectivity_service.dart';
 import 'item_fingerprint.dart';
 import 'queue_cubit.dart';
-import 'scrobble_service.dart';
 import 'stream_decrypt.dart';
 import 'verification_service.dart';
 
@@ -432,6 +432,15 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
           final fp = (m['filePath'] ?? m['file_path'] ?? '') as String;
           if (tid.isNotEmpty && fp.isNotEmpty && await File(fp).exists()) {
             _localFiles[tid] = fp;
+            // Indexar también por id normalizado: los FeedItems que arma la UI
+            // (p.ej. la lista de descargas en Mi Espacio) llevan
+            // `normalizeTrackId(rawId)` como id, así que si la fila guarda un
+            // id crudo con prefijo de provider ("spotify:track:X") el lookup
+            // por id fallaría y la reproducción local dependería solo del
+            // fingerprint de nombre — que puede fallar offline si el título
+            // difiere. Con ambas claves el archivo local siempre gana.
+            final normTid = normalizeTrackId(tid);
+            if (normTid != tid) _localFiles[normTid] = fp;
           }
 
           final providerTrackId = (m['providerTrackId'] ?? '').toString();
@@ -439,6 +448,8 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
               providerTrackId != tid &&
               await File(fp).exists()) {
             _localFiles[providerTrackId] = fp;
+            final normPid = normalizeTrackId(providerTrackId);
+            if (normPid != providerTrackId) _localFiles[normPid] = fp;
           }
 
           // Index by name-fingerprint so a downloaded track is found even when
@@ -718,7 +729,18 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
         emit(state.copyWith(playbackState: PlayerPlaybackState.buffering));
       }
       unawaited(_player.pause());
-      uri = await _resolveStreamUrl(track);
+      // Sin internet y sin archivo local: fallar rápido con un mensaje claro
+      // en vez de esperar el timeout del backend (los RPCs pueden tardar 60s
+      // y el usuario vería "buffering" eterno al reproducir un track que
+      // nunca descargó). La reproducción de descargas NO pasa por acá porque
+      // _resolveLocalUri ya devolvió el file:// más arriba.
+      if (!await ConnectivityService.isOnline()) {
+        uri = null;
+        _lastStreamError = 'Sin conexión a internet';
+        _lastStreamErrorType = 'offline';
+      } else {
+        uri = await _resolveStreamUrl(track);
+      }
       // A newer track started resolving/opening while we were waiting — don't
       // hand our stale URL to the player over the newer track.
       if (gen != _openGeneration) return;
@@ -759,6 +781,11 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
         msg =
             'Proveedor temporalmente saturado (429) — inténtalo de nuevo '
             'en unos segundos.';
+      } else if (_lastStreamErrorType.toLowerCase() == 'offline' ||
+          rawLower.contains('sin conexión')) {
+        msg =
+            'Sin conexión a internet — descarga esta canción para '
+            'reproducirla sin red.';
       } else if (raw.isNotEmpty) {
         msg = 'No se pudo obtener un stream original para esta canción.';
       }
@@ -901,17 +928,45 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
 
     unawaited(_preloadLyrics(track));
     unawaited(_preloadVideo(track));
+    unawaited(_reportNowPlaying(track));
+  }
 
-    final scrobble = ScrobbleService();
-    if (scrobble.hasLastfm || scrobble.hasListenBrainz) {
-      unawaited(
-        scrobble.updateNowPlaying(
-          artist: track.artists ?? '',
-          track: track.name,
-          album: track.albumName,
-        ),
-      );
-    }
+  /// Reporta la canción en reproducción a los servicios de scrobbling del
+  /// backend Go (Last.fm track.updateNowPlaying + ListenBrainz playing_now).
+  /// Fire-and-forget: si el scrobbling no está configurado, Go responde
+  /// error y acá se ignora (igual que el ScrobbleService Dart anterior).
+  Future<void> _reportNowPlaying(FeedItem track) async {
+    try {
+      await sl<BackendService>().rpcCall('updateNowPlaying', {
+        'trackJSON': jsonEncode({
+          'trackName': track.name,
+          'artistName': track.artists ?? '',
+          'albumName': track.albumName,
+        }),
+        'lastfmSessionKey': '',
+      });
+    } catch (_) {}
+  }
+
+  /// Envía el scrobble final (track.scrobble + ListenBrainz import) al backend
+  /// Go. Fire-and-forget; los errores se ignoran igual que antes.
+  Future<void> _reportScrobble(
+    FeedItem track, {
+    required int timestamp,
+    required int durationSec,
+  }) async {
+    try {
+      await sl<BackendService>().rpcCall('scrobbleTrack', {
+        'trackJSON': jsonEncode({
+          'trackName': track.name,
+          'artistName': track.artists ?? '',
+          'albumName': track.albumName,
+          'durationMs': durationSec * 1000,
+          'timestamp': timestamp,
+        }),
+        'lastfmSessionKey': '',
+      });
+    } catch (_) {}
   }
 
   /// Signed-session (Cloudflare) gate before playing a track [track].
@@ -2115,18 +2170,13 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
     }
 
     if (completedTrack != null) {
-      final scrobble = ScrobbleService();
-      if (scrobble.hasLastfm || scrobble.hasListenBrainz) {
-        unawaited(
-          scrobble.scrobble(
-            artist: completedTrack.artists ?? '',
-            track: completedTrack.name,
-            timestamp: DateTime.now().millisecondsSinceEpoch ~/ 1000,
-            album: completedTrack.albumName,
-            duration: state.duration.inMilliseconds ~/ 1000,
-          ),
-        );
-      }
+      unawaited(
+        _reportScrobble(
+          completedTrack,
+          timestamp: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+          durationSec: state.duration.inMilliseconds ~/ 1000,
+        ),
+      );
     }
 
     final completedTrackId = _normalizeCurrentId();      if (completedTrackId != null) {

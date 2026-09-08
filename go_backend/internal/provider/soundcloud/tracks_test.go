@@ -18,7 +18,7 @@ func TestSearchTracks_Success(t *testing.T) {
 			"collection": []map[string]interface{}{
 				{
 					"id": 123456, "title": "Test Track", "duration": 240000, "genre": "Pop",
-					"user":       map[string]interface{}{"id": 789, "username": "Test Artist"},
+					"user":        map[string]interface{}{"id": 789, "username": "Test Artist"},
 					"artwork_url": "https://i1.sndcdn.com/artworks-test-t500x500.jpg",
 				},
 			},

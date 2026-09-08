@@ -10,17 +10,17 @@ type SearchItem struct {
 
 // SearchResult represents a single track/album/artist hit from any provider.
 type SearchResult struct {
-	ID         string `json:"id"`
-	Title      string `json:"title"`
-	Artist     string `json:"artist"`
-	ArtistID   string `json:"artistId"`
-	Album      string `json:"album"`
-	AlbumID    string `json:"albumId"`
-	Duration   int    `json:"durationMs"`
-	ISRC       string `json:"isrc"`
-	Provider   string `json:"provider"`
-	CoverURL   string `json:"coverUrl"`
-	TrackType  string `json:"trackType,omitempty"`
+	ID        string `json:"id"`
+	Title     string `json:"title"`
+	Artist    string `json:"artist"`
+	ArtistID  string `json:"artistId"`
+	Album     string `json:"album"`
+	AlbumID   string `json:"albumId"`
+	Duration  int    `json:"durationMs"`
+	ISRC      string `json:"isrc"`
+	Provider  string `json:"provider"`
+	CoverURL  string `json:"coverUrl"`
+	TrackType string `json:"trackType,omitempty"`
 }
 
 // SearchCache caches search results per provider+query with TTL.

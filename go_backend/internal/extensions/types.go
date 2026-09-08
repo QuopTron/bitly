@@ -20,7 +20,7 @@ type RuntimeConfig struct {
 // DefaultConfig returns a safe default sandbox config.
 func DefaultConfig() RuntimeConfig {
 	return RuntimeConfig{
-		TimeoutMs:      10000,            // 10 seconds
+		TimeoutMs:      10000, // 10 seconds
 		AllowedDomains: []string{},
 		EnableFS:       false,
 		EnableCrypto:   true,

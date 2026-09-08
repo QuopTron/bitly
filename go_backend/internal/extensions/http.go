@@ -16,7 +16,7 @@ func registerHTTP(s *Sandbox) {
 
 	httpObj.Set("get", func(call goja.FunctionCall) goja.Value {
 		url := call.Argument(0).String()
-		if err := checkDomain(s, url); err != nil {
+		if err := verificarDominio(s, url); err != nil {
 			panic(vm.NewTypeError(err.Error()))
 		}
 		headers := extractHeaders(call.Argument(1))
@@ -26,7 +26,7 @@ func registerHTTP(s *Sandbox) {
 	httpObj.Set("post", func(call goja.FunctionCall) goja.Value {
 		url := call.Argument(0).String()
 		body := call.Argument(1).String()
-		if err := checkDomain(s, url); err != nil {
+		if err := verificarDominio(s, url); err != nil {
 			panic(vm.NewTypeError(err.Error()))
 		}
 		headers := extractHeaders(call.Argument(2))
@@ -36,7 +36,7 @@ func registerHTTP(s *Sandbox) {
 	httpObj.Set("put", func(call goja.FunctionCall) goja.Value {
 		url := call.Argument(0).String()
 		body := call.Argument(1).String()
-		if err := checkDomain(s, url); err != nil {
+		if err := verificarDominio(s, url); err != nil {
 			panic(vm.NewTypeError(err.Error()))
 		}
 		headers := extractHeaders(call.Argument(2))
@@ -44,7 +44,7 @@ func registerHTTP(s *Sandbox) {
 	})
 
 	httpObj.Set("head", func(call goja.FunctionCall) goja.Value {
-		if err := checkDomain(s, call.Argument(0).String()); err != nil {
+		if err := verificarDominio(s, call.Argument(0).String()); err != nil {
 			panic(vm.NewTypeError(err.Error()))
 		}
 		return doHTTPCompat(vm, "HEAD", call.Argument(0).String(), "", nil)

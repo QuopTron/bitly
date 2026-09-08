@@ -81,6 +81,22 @@ abstract class BackendService {
   /// mirroring SpotiFLAC's SetProviderPriority. Empty restores the default order.
   Future<void> syncDownloadProviderPriority(List<String> providers);
 
+  // ── Premium ───────────────────────────────────────────────────────────
+  /// Validates a premium code in the Go backend. Returns `null` if valid,
+  /// or the error message string if invalid.
+  Future<String?> validatePremiumCode(String code);
+
+  /// Sends the GitHub token so the Go backend can check the codes registry.
+  Future<void> setPremiumGithubToken(String token);
+
+  /// Sincroniza el estado premium (drift) hacia el backend Go para que el
+  /// gate de descargas respete códigos ya activados tras un reinicio.
+  Future<void> syncPremiumStatus({
+    required bool isPremium,
+    required String tier,
+    int? expiresAt,
+  });
+
   // ── Signed Session ───────────────────────────────────────────────────
   /// Returns the pending verification auth URL for an extension, or empty string.
   Future<String> getPendingVerificationUrl(String extensionId);

@@ -57,7 +57,7 @@ func signAndBuildRequest(
 		return nil, err
 	}
 	ts := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
-	nonce := randomHex(12)
+	nonce := hexAleatorio(12)
 	bodyHashBytes := sha256.Sum256(body)
 	bodyHash := hex.EncodeToString(bodyHashBytes[:])
 	parsedTs, _ := time.Parse("2006-01-02T15:04:05.000Z", ts)
@@ -123,24 +123,4 @@ func parseSignedErrorContract(body []byte) (signedSessionErrorContract, bool) {
 		contract.RetryAfterSeconds = 0
 	}
 	return contract, contract.Code != "" || contract.Origin != "" || contract.Action != ""
-}
-
-func signedRetryAfterSeconds(resp *http.Response) int {
-	if resp == nil {
-		return 0
-	}
-	value := strings.TrimSpace(resp.Header.Get("Retry-After"))
-	if value == "" {
-		return 0
-	}
-	if seconds, err := strconv.Atoi(value); err == nil && seconds >= 0 {
-		return seconds
-	}
-	if retryAt, err := http.ParseTime(value); err == nil {
-		seconds := int(time.Until(retryAt).Seconds())
-		if seconds > 0 {
-			return seconds
-		}
-	}
-	return 0
 }

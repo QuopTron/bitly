@@ -19,7 +19,7 @@ func registerFileDownload(s *Sandbox, fileObj *goja.Object) {
 	fileObj.Set("download", func(call goja.FunctionCall) goja.Value {
 		url := call.Argument(0).String()
 		destPath := call.Argument(1).String()
-		fullPath, resErr := resolvePath(s, destPath)
+		fullPath, resErr := resolverRuta(s, destPath)
 		if resErr != nil {
 			return vm.ToValue(map[string]interface{}{"success": false, "error": resErr.Error()})
 		}
@@ -91,8 +91,8 @@ func registerFileDownload(s *Sandbox, fileObj *goja.Object) {
 	})
 }
 
-// resolvePath checks that the path is within allowed directories.
-func resolvePath(s *Sandbox, path string) (string, error) {
+// resolverRuta comprueba que la ruta este dentro de los directorios permitidos.
+func resolverRuta(s *Sandbox, path string) (string, error) {
 	abs, err := filepath.Abs(path)
 	if err != nil {
 		return "", err

@@ -53,6 +53,35 @@ jobs:
       - name: Go test
         run: cd go_backend && go test ./... -count=1 -timeout=180s
 
+      # ── Calidad extra (mejores prácticas Go) ────────────────────────
+      # Formato: el árbol debe estar gofmt-limpio (gofmt -l vacío). Atrapa
+      # CRLF reintroducido y archivos sin formatear.
+      - name: Go format check
+        run: |
+          cd go_backend
+          UNFORMATTED=$(gofmt -l .)
+          if [ -n "$UNFORMATTED" ]; then
+            echo "::error::Archivos sin gofmt:"
+            echo "$UNFORMATTED" | while IFS= read -r line; do echo "::error::$line"; done
+            exit 1
+          fi
+
+      # staticcheck: atrapa bugs que el compilador no ve (código muerto,
+      # condiciones sin efecto, literales mágicos, uso de APIs deprecadas).
+      - name: Go staticcheck
+        run: cd go_backend && go run honnef.co/go/tools/cmd/staticcheck@v0.8.1 ./...
+
+      # govulncheck: alerta si alguna dependencia tiene vulnerabilidades
+      # alcanzables por el código (falla solo con vulns reales).
+      - name: Go govulncheck
+        run: cd go_backend && go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...
+
+      # Race detector en los paquetes concurrentes: detecta data races en
+      # goroutines (rescue, orquestador, DNS, sandboxes goja, bridge).
+      # Ubuntu runners tienen cgo habilitado, así que -race funciona.
+      - name: Go test -race (paquetes concurrentes)
+        run: cd go_backend && go test -race -count=1 -timeout=240s ./internal/streaming/ ./internal/download/ ./internal/httpclient/ ./internal/cache/ ./internal/extensions/ ./internal/gobackend/
+
       # Fijada a la versión que compila localmente (3.41.6). `stable` instala
       # la ÚLTIMA versión y su plugin Flutter-Gradle choca con el AGP 8.9.1
       # del proyecto (error: exception applying dev.flutter.flutter-gradle-plugin).

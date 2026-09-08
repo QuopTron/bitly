@@ -28,10 +28,10 @@ func DefaultRetryConfig() RetryConfig {
 // isRetryable returns true if the response status warrants a retry.
 func isRetryable(statusCode int) bool {
 	switch statusCode {
-	case http.StatusTooManyRequests,       // 429
-		http.StatusServiceUnavailable,     // 503
-		http.StatusBadGateway,             // 502
-		http.StatusGatewayTimeout:          // 504
+	case http.StatusTooManyRequests, // 429
+		http.StatusServiceUnavailable, // 503
+		http.StatusBadGateway,         // 502
+		http.StatusGatewayTimeout:     // 504
 		return true
 	}
 	return false

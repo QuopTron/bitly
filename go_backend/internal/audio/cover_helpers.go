@@ -71,9 +71,9 @@ func buildAPICFrameData(mimeBytes, coverData []byte) []byte {
 	f.Write([]byte{0, 0})       // flags
 	f.WriteByte(3)              // encoding: UTF-8
 	f.Write(mimeBytes)
-	f.WriteByte(0)   // null terminator
-	f.WriteByte(3)   // picture type: front cover
-	f.WriteByte(0)   // description null terminator
+	f.WriteByte(0) // null terminator
+	f.WriteByte(3) // picture type: front cover
+	f.WriteByte(0) // description null terminator
 	f.Write(coverData)
 	data := f.Bytes()
 	frameSize := len(data) - 10

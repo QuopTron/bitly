@@ -3,8 +3,8 @@
 package search
 
 import (
-	"time"
 	"github.com/zarz/bitly/go_backend/internal/provider"
+	"time"
 )
 
 // Config defines search engine behavior.
@@ -25,9 +25,9 @@ func DefaultConfig() Config {
 
 // SearchResult is the final deduplicated search result.
 type SearchResult struct {
-	Track    provider.TrackResult `json:"track"`
-	Score    float64              `json:"score"`
-	Source   string               `json:"source"` // "primary" or "fallback"
+	Track  provider.TrackResult `json:"track"`
+	Score  float64              `json:"score"`
+	Source string               `json:"source"` // "primary" or "fallback"
 }
 
 // Results is a sortable slice of SearchResult.

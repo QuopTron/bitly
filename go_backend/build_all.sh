@@ -118,7 +118,7 @@ build_aar() {
         -androidapi 24 \
         -ldflags="-s -w -X main.version=$VERSION -X main.buildDate=$DATE" \
         -o "$AAR_OUTPUT" \
-        ./
+        .
 
     if [ -f "$AAR_OUTPUT" ]; then
         local size; size=$(du -h "$AAR_OUTPUT" | cut -f1)

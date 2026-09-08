@@ -30,5 +30,3 @@ func okJSON(body interface{}) *http.Response {
 		Header:     make(http.Header),
 	}
 }
-
-

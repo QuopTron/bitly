@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../backend/cache/premium_cache.dart';
 import '../../../../backend/cache/settings_cache.dart';
-import '../../../../backend/services/premium_service.dart';
+import '../../../../backend/rpc/backend_service.dart';
 import '../../../shared/utils/random_names.dart';
 import '../../../../injection.dart' as inj;
 import 'setup_event.dart';
@@ -88,7 +88,7 @@ mixin SetupHandlers on Bloc<SetupEvent, SetupState> {
   Future<void> onValidatePremiumCode$(ValidatePremiumCode event, Emitter<SetupState> emit) async {
     if (state.premiumCode.trim().isEmpty) return;
     emit(state.copyWith(codeValidating: true, codeValid: false, codeError: null));
-    final error = await PremiumService().validatePremiumCode(state.premiumCode.trim());
+    final error = await inj.sl<BackendService>().validatePremiumCode(state.premiumCode.trim());
     if (error == null) {
       emit(state.copyWith(codeValidating: false, codeValid: true, codeError: null));
     } else {

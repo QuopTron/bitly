@@ -21,11 +21,11 @@ type item[T any] struct {
 
 // Cache is a generic TTL cache with automatic cleanup.
 type Cache[T any] struct {
-	mu          sync.RWMutex
-	items       map[string]item[T]
-	defaultTTL  time.Duration
-	stopCh      chan struct{}
-	stopped     bool
+	mu         sync.RWMutex
+	items      map[string]item[T]
+	defaultTTL time.Duration
+	stopCh     chan struct{}
+	stopped    bool
 }
 
 // New creates a Cache. If cleanupInterval > 0 a background goroutine

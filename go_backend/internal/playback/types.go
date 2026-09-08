@@ -25,7 +25,7 @@ type PlayEvent struct {
 
 // QueueItem is a track in the playback queue.
 type QueueItem struct {
-	Track     TrackInfo `json:"track"`
-	AddedBy   string    `json:"addedBy"`   // "user", "auto", "similar"
-	Position  int       `json:"position"`
+	Track    TrackInfo `json:"track"`
+	AddedBy  string    `json:"addedBy"` // "user", "auto", "similar"
+	Position int       `json:"position"`
 }

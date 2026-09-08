@@ -12,9 +12,9 @@ import (
 
 func TestBreakerParsAtTwoGateway5xx(t *testing.T) {
 	// Fresh state so prior tests can't pollute this one.
-	hostBreaker.mu.Lock()
-	hostBreaker.entries = map[string]*hostBreakerEntry{}
-	hostBreaker.mu.Unlock()
+	breakerHosts.mutex.Lock()
+	breakerHosts.entradas = map[string]*entradaBreaker{}
+	breakerHosts.mutex.Unlock()
 
 	url := "https://api.zarz.moe/v2/some/endpoint"
 	BreakerRecord(url, 522, nil)
@@ -28,13 +28,13 @@ func TestBreakerParsAtTwoGateway5xx(t *testing.T) {
 	// While parked the transport short-circuits, so a real response can only
 	// arrive after the window expires — backdate it and confirm a healthy
 	// reply clears the counters and unparks the host.
-	hostBreaker.mu.Lock()
-	e := hostBreaker.entries["api.zarz.moe"]
+	breakerHosts.mutex.Lock()
+	e := breakerHosts.entradas["api.zarz.moe"]
 	if e == nil {
 		t.Fatal("expected a breaker entry")
 	}
-	e.parkedUntil = time.Now().Add(-time.Second)
-	hostBreaker.mu.Unlock()
+	e.estacionadoHasta = time.Now().Add(-time.Second)
+	breakerHosts.mutex.Unlock()
 	BreakerRecord(url, 200, nil)
 	if BreakerBlocked(url) {
 		t.Fatal("a healthy 200 after the window must clear the parked state")
@@ -42,9 +42,9 @@ func TestBreakerParsAtTwoGateway5xx(t *testing.T) {
 }
 
 func TestBreakerIgnoresDefinitiveErrors(t *testing.T) {
-	hostBreaker.mu.Lock()
-	hostBreaker.entries = map[string]*hostBreakerEntry{}
-	hostBreaker.mu.Unlock()
+	breakerHosts.mutex.Lock()
+	breakerHosts.entradas = map[string]*entradaBreaker{}
+	breakerHosts.mutex.Unlock()
 
 	// 429 / 404 prove the origin is reachable — never park on them.
 	for i := 0; i < 5; i++ {
@@ -57,9 +57,9 @@ func TestBreakerIgnoresDefinitiveErrors(t *testing.T) {
 }
 
 func TestBreakerParsAtThreeNetworkHangs(t *testing.T) {
-	hostBreaker.mu.Lock()
-	hostBreaker.entries = map[string]*hostBreakerEntry{}
-	hostBreaker.mu.Unlock()
+	breakerHosts.mutex.Lock()
+	breakerHosts.entradas = map[string]*entradaBreaker{}
+	breakerHosts.mutex.Unlock()
 
 	url := "https://slow.example/api"
 	BreakerRecord(url, 0, context.DeadlineExceeded)
@@ -74,20 +74,20 @@ func TestBreakerParsAtThreeNetworkHangs(t *testing.T) {
 }
 
 func TestBreakerResetsAfterWindow(t *testing.T) {
-	hostBreaker.mu.Lock()
-	hostBreaker.entries = map[string]*hostBreakerEntry{}
-	hostBreaker.mu.Unlock()
+	breakerHosts.mutex.Lock()
+	breakerHosts.entradas = map[string]*entradaBreaker{}
+	breakerHosts.mutex.Unlock()
 
 	url := "https://api.zarz.moe/x"
 	// Backdate the first failure beyond the window so the second failure is a
 	// fresh window and must NOT park.
 	BreakerRecord(url, 522, nil)
-	hostBreaker.mu.Lock()
-	e := hostBreaker.entries["api.zarz.moe"]
+	breakerHosts.mutex.Lock()
+	e := breakerHosts.entradas["api.zarz.moe"]
 	if e != nil {
-		e.fiveXXAt = time.Now().Add(-hostBreakerWindow - time.Second)
+		e.horaCincoXX = time.Now().Add(-breakerHostsWindow - time.Second)
 	}
-	hostBreaker.mu.Unlock()
+	breakerHosts.mutex.Unlock()
 	BreakerRecord(url, 522, nil)
 	if BreakerBlocked(url) {
 		t.Fatal("failures older than the window must not accumulate")
@@ -95,16 +95,16 @@ func TestBreakerResetsAfterWindow(t *testing.T) {
 }
 
 func TestBreakerTransportShortCircuitsParkedHost(t *testing.T) {
-	hostBreaker.mu.Lock()
-	hostBreaker.entries = map[string]*hostBreakerEntry{}
-	hostBreaker.mu.Unlock()
+	breakerHosts.mutex.Lock()
+	breakerHosts.entradas = map[string]*entradaBreaker{}
+	breakerHosts.mutex.Unlock()
 
 	var calls int32
 	inner := roundTripFunc(func(*http.Request) (*http.Response, error) {
 		atomic.AddInt32(&calls, 1)
 		return &http.Response{StatusCode: 522, Status: "522", Header: http.Header{}, Body: io.NopCloser(strings.NewReader(""))}, nil
 	})
-	tr := NewBreakerTransport(inner).(*breakerTransport)
+	tr := NewBreakerTransport(inner).(*transporteBreaker)
 
 	req, _ := http.NewRequest("GET", "https://api.zarz.moe/v2/dl/x", nil)
 	resp, err := tr.RoundTrip(req)

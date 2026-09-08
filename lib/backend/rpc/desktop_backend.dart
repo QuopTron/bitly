@@ -4,10 +4,10 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../../config/secrets.dart';
-import '../services/premium_service.dart';
 import '../../injection.dart';
 import '../services/provider_credential_service.dart';
 import '../services/desktop_callback_server.dart';
+import '../cache/premium_cache.dart';
 import '../cache/settings_cache.dart';
 import 'backend_service.dart';
 import 'mixins/settings_mixin.dart';
@@ -15,6 +15,7 @@ import 'mixins/feed_search_mixin.dart';
 import 'mixins/actions_mixin.dart';
 import 'mixins/detail_mixin.dart';
 import 'mixins/infra_mixin.dart';
+import 'mixins/premium_mixin.dart';
 import 'mixins/tag_editor_mixin.dart';
 import 'rpc_backend_mixin.dart';
 
@@ -25,6 +26,7 @@ class DesktopBackend extends BackendService
         ActionsMixin,
         DetailMixin,
         InfraMixin,
+        PremiumMixin,
         TagEditorMixin,
         RpcBackendMixin {
   final String baseUrl;
@@ -100,7 +102,18 @@ class DesktopBackend extends BackendService
           }
         } catch (_) {}
       }
-      PremiumService().setGithubToken(githubToken);
+      await setPremiumGithubToken(githubToken);
+
+      // Sync premium state (drift) to Go so the download gate respects
+      // codes already activated in a previous session.
+      try {
+        final premium = await sl<PremiumCache>().getPremiumStatus();
+        await syncPremiumStatus(
+          isPremium: premium.isPremium,
+          tier: premium.tier,
+          expiresAt: premium.premiumUntil,
+        );
+      } catch (_) {}
 
       // Push saved provider credentials to extensions
       try {

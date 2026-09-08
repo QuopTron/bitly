@@ -11,8 +11,9 @@ type mockTransport struct {
 	roundTrip func(req *http.Request) (*http.Response, error)
 }
 
-func (m *mockTransport) RoundTrip(req *http.Request) (*http.Response, error) {		return m.roundTrip(req)
-	}
+func (m *mockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	return m.roundTrip(req)
+}
 
 func mockClient(handler func(req *http.Request) (*http.Response, error)) *Client {
 	return NewClient(&http.Client{Transport: &mockTransport{roundTrip: handler}}, "")

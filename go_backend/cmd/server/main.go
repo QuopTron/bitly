@@ -9,7 +9,7 @@ import (
 	"strings"
 	"syscall"
 
-	backend "github.com/zarz/bitly/go_backend"
+	backend "github.com/zarz/bitly/go_backend/internal/gobackend"
 )
 
 func main() {

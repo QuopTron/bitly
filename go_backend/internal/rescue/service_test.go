@@ -13,16 +13,22 @@ type mockRescueProvider struct {
 	streamURL string
 }
 
-func (m *mockRescueProvider) Name() string                                         { return m.name }
+func (m *mockRescueProvider) Name() string { return m.name }
 func (m *mockRescueProvider) SearchTracks(q string, l int) ([]provider.TrackResult, error) {
 	if t, ok := m.tracks[q]; ok && t != nil {
 		return []provider.TrackResult{*t}, nil
 	}
 	return nil, nil
 }
-func (m *mockRescueProvider) SearchAlbums(q string, l int) ([]provider.AlbumResult, error)   { return nil, nil }
-func (m *mockRescueProvider) SearchArtists(q string, l int) ([]provider.ArtistResult, error)  { return nil, nil }
-func (m *mockRescueProvider) SearchPlaylists(q string, l int) ([]provider.PlaylistResult, error) { return nil, nil }
+func (m *mockRescueProvider) SearchAlbums(q string, l int) ([]provider.AlbumResult, error) {
+	return nil, nil
+}
+func (m *mockRescueProvider) SearchArtists(q string, l int) ([]provider.ArtistResult, error) {
+	return nil, nil
+}
+func (m *mockRescueProvider) SearchPlaylists(q string, l int) ([]provider.PlaylistResult, error) {
+	return nil, nil
+}
 func (m *mockRescueProvider) GetTrack(id string) (*provider.TrackResult, error) {
 	if t, ok := m.tracks[id]; ok {
 		return t, nil

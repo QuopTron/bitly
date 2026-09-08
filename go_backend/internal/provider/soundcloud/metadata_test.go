@@ -108,7 +108,7 @@ func TestGetArtist_Success(t *testing.T) {
 		}
 		return okJSON(map[string]interface{}{
 			"id": 789, "username": "Test Artist",
-			"avatar_url": "https://i1.sndcdn.com/avatars-user-t500x500.jpg",
+			"avatar_url":  "https://i1.sndcdn.com/avatars-user-t500x500.jpg",
 			"description": "A great artist", "followers_count": 1500, "track_count": 25,
 		}), nil
 	})

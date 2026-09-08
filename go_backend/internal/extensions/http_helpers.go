@@ -2,115 +2,19 @@ package extensions
 
 import (
 	"context"
-	"crypto/tls"
 	"io"
 	"log"
-	"net"
 	"net/http"
-	"net/http/cookiejar"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/dop251/goja"
-	"golang.org/x/net/http2"
 	"github.com/zarz/bitly/go_backend/internal/httpclient"
 )
 
-// extHTTPClient is the shared HTTP client used by extension fetch()/http.*
-// calls. It enables HTTP/2 and keeps a persistent cookie jar so providers like
-// amazon that maintain session cookies across requests see them — mirroring the
-// reference SpotiFLAC runtime, where a per-extension cookie jar keeps the
-// anonymous web session alive so search/feed don't fall back to a login
-// DialogTemplate (which parses to zero results).
-var (
-	extHTTPClientOnce sync.Once
-	extHTTPClient     *http.Client
-)
-
-// YouTube domains that require uTLS fingerprinting to avoid 403 bot-gate.
-var youtubeHosts = map[string]bool{
-	"www.youtube.com":   true,
-	"youtube.com":       true,
-	"ytimg.com":         true,
-	"googlevideo.com":   true,
-	"youtu.be":          true,
-	"music.youtube.com": true,
-}
-
-func isYouTubeHost(url string) bool {
-	for host := range youtubeHosts {
-		if strings.Contains(url, host) {
-			return true
-		}
-	}
-	return false
-}
-
-// isGooglevideoHost reports whether [url] points at YouTube's media CDN
-// (rr*.googlevideo.com/videoplayback). These carry a signed URL, are served
-// over plain HTTP/1.1, and are NOT bot-gated like the InnerTube API — they
-// must use the standard DoH client instead of the uTLS/HTTP2 one (whose
-// HTTP2 framing breaks on the CDN: "http2: frame too large").
-func isGooglevideoHost(url string) bool {
-	return strings.Contains(url, "googlevideo.com")
-}
-
-// extHTTPClientFor returns the shared, lazily-initialized extension HTTP
-// client with a persistent cookie jar.
-func extHTTPClientFor() *http.Client {
-	extHTTPClientOnce.Do(func() {
-		jar, _ := cookiejar.New(nil)
-		transport := &http.Transport{
-			DialContext:         httpclient.NewDoHDialContext(),
-			ForceAttemptHTTP2:   true,
-			MaxIdleConns:        100,
-			MaxIdleConnsPerHost: 10,
-			IdleConnTimeout:     90 * time.Second,
-			TLSHandshakeTimeout: 10 * time.Second,
-			DisableCompression:  true,
-		}
-		extHTTPClient = &http.Client{
-			Timeout:   30 * time.Second,
-			Transport: transport,
-			Jar:       jar,
-		}
-	})
-	return extHTTPClient
-}
-
-// ytHTTPClient is a separate HTTP client for YouTube/InnerTube requests that
-// uses uTLS fingerprinting to mimic a real Chrome browser TLS handshake.
-// YouTube bot-gates IPs with a Go TLS fingerprint → 403; uTLS solves this.
-var (
-	ytHTTPClientOnce sync.Once
-	ytHTTPClient     *http.Client
-)
-
-func ytHTTPClientFor() *http.Client {
-	ytHTTPClientOnce.Do(func() {
-		jar, _ := cookiejar.New(nil)
-		// uTLS dialer mimics Chrome's TLS fingerprint to bypass YouTube bot
-		// detection, resolving via DoH so Android's system resolver never
-		// fails the dial.
-		dialFn := httpclient.NewUTLSDialer(httpclient.FingerprintChrome)
-		// YouTube's servers negotiate HTTP/2 over ALPN EVEN when the client
-		// only offers http/1.1 (verified: music.youtube.com answers h2), so a
-		// plain http/1.1 transport breaks on the h2 frames with "malformed
-		// HTTP response". Speak HTTP/2 over the uTLS connection instead.
-		tr := &http2.Transport{
-			DialTLSContext: func(ctx context.Context, network, addr string, _ *tls.Config) (net.Conn, error) {
-				return dialFn(network, addr)
-			},
-		}
-		ytHTTPClient = &http.Client{
-			Timeout:   30 * time.Second,
-			Transport: tr,
-			Jar:       jar,
-		}
-	})
-	return ytHTTPClient
-}
+// Los clientes HTTP compartidos (extHTTPClient/ytHTTPClient y sus helpers
+// esHostYouTube/esHostGooglevideo/clienteHTTPExtPara/ytHTTPClientFor) viven en
+// http_helpers_clients.go (splits de la sesión de desestructuración).
 
 // doHTTPCompat returns the old-style {status, body, headers} object.
 func doHTTPCompat(vm *goja.Runtime, method, url, body string, headers map[string]string) goja.Value {
@@ -157,8 +61,8 @@ func doHTTPWithTimeout(method, url, body string, headers map[string]string, time
 	// is the opposite: signed URLs served over plain HTTP/1.1 — the uTLS/H2
 	// client breaks there ("http2: frame too large"), so it uses the standard
 	// DoH client.
-	client := extHTTPClientFor()
-	if isYouTubeHost(url) && !isGooglevideoHost(url) {
+	client := clienteHTTPExtPara()
+	if esHostYouTube(url) && !esHostGooglevideo(url) {
 		client = ytHTTPClientFor()
 	}
 	req, err := http.NewRequest(method, url, strings.NewReader(body))
@@ -182,7 +86,7 @@ func doHTTPWithTimeout(method, url, body string, headers map[string]string, time
 		// Diagnostic: the ytmusic extension surfaces this as "bad response 0"
 		// with no detail; log the real dial/TLS error so Android-only failures
 		// (DNS, uTLS handshake) are visible in logcat.
-		if isYouTubeHost(url) {
+		if esHostYouTube(url) {
 			log.Printf("[ext-http] youtube fetch failed: %s -> %v", url, err)
 		}
 		return nil, "", err
@@ -208,32 +112,6 @@ func extractHeaders(v goja.Value) map[string]string {
 	return ToStringMap(obj)
 }
 
-func checkDomain(s *Sandbox, url string) error {
-	if len(s.Config.AllowedDomains) == 0 {
-		return nil
-	}
-	for _, domain := range s.Config.AllowedDomains {
-		if strings.Contains(url, domain) {
-			return nil
-		}
-	}
-	return errDomainBlocked(url)
-}
-
-func errDomainBlocked(url string) error {
-	return &extError{msg: "domain not allowed: " + url}
-}
-
-type extError struct{ msg string }
-
-func (e *extError) Error() string { return e.msg }
-
-func toString(v interface{}) string {
-	if v == nil {
-		return ""
-	}
-	if s, ok := v.(string); ok {
-		return s
-	}
-	return ""
-}
+// checkDomain/errDomainBlocked/extError/toString viven en http_helpers_misc.go
+// (verificarDominio/errDominioBloqueado/extError/toString) y en
+// http_helpers.go se conservan solo las funciones de HTTP (doHTTP*).

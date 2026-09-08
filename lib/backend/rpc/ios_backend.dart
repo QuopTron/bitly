@@ -1,13 +1,14 @@
 import 'package:flutter/services.dart';
 import '../../config/secrets.dart';
+import '../cache/premium_cache.dart';
 import '../cache/settings_cache.dart';
-import '../services/premium_service.dart';
 import 'backend_service.dart';
 import 'mixins/settings_mixin.dart';
 import 'mixins/feed_search_mixin.dart';
 import 'mixins/actions_mixin.dart';
 import 'mixins/detail_mixin.dart';
 import 'mixins/infra_mixin.dart';
+import 'mixins/premium_mixin.dart';
 import 'mixins/tag_editor_mixin.dart';
 import 'rpc_backend_mixin.dart';
 import '../../injection.dart' as inj;
@@ -19,6 +20,7 @@ class IOSBackend extends BackendService
         ActionsMixin,
         DetailMixin,
         InfraMixin,
+        PremiumMixin,
         TagEditorMixin,
         RpcBackendMixin {
   static const _channel = MethodChannel('com.bitly/backend');
@@ -38,7 +40,7 @@ class IOSBackend extends BackendService
       if (!_initialized) {
         final dir = await _channel.invokeMethod('getApplicationDocumentsDirectory');
         await _channel.invokeMethod('initGoBackend', {'app_data_dir': dir});
-        PremiumService().setGithubToken(githubToken);
+        await setPremiumGithubToken(githubToken);
         await _channel.invokeMethod('loadExtensionsFromDir', {'dir_path': '$dir/extensions'});
 
         // Sync saved config to Go's in-memory config
@@ -49,6 +51,14 @@ class IOSBackend extends BackendService
           if (setupData != null) {
             await syncBackendConfig(mode: setupData.mode);
           }
+          // Sync premium state (drift) to Go so the download gate respects
+          // codes already activated in a previous session.
+          final premium = await inj.sl<PremiumCache>().getPremiumStatus();
+          await syncPremiumStatus(
+            isPremium: premium.isPremium,
+            tier: premium.tier,
+            expiresAt: premium.premiumUntil,
+          );
           // Push performance profile now that the Go runtime is up (before
           // init it could block and stall the splash).
           await inj.pushPerformanceProfileToBackend();

@@ -85,12 +85,12 @@ func TestBestOriginal_AcceptsFeat(t *testing.T) {
 
 // The log on the device showed real tracks being rejected even though the
 // candidate was the original song. These cases lock the fixes:
-// 1. Official titles that contain "remix" ("MORNING DEW (DONK) REMIX") were
-//    rejected because IsNonOriginalTitle flagged any "remix".
-// 2. SoundCloud re-uploads carry the real artist in the TITLE and the uploader
-//    in Artist ("Shakira - DAI DAI" / "minecraftdiablo") -> a=0, rejected.
-// 3. Apple candidates reorder bonus/feat tokens ("suave. [bonus track]
-//    (feat. Tokischa)" vs "suave. (feat. Tokischa) [bonus track]") -> t=1.
+//  1. Official titles that contain "remix" ("MORNING DEW (DONK) REMIX") were
+//     rejected because IsNonOriginalTitle flagged any "remix".
+//  2. SoundCloud re-uploads carry the real artist in the TITLE and the uploader
+//     in Artist ("Shakira - DAI DAI" / "minecraftdiablo") -> a=0, rejected.
+//  3. Apple candidates reorder bonus/feat tokens ("suave. [bonus track]
+//     (feat. Tokischa)" vs "suave. (feat. Tokischa) [bonus track]") -> t=1.
 func TestOriginalStrength_AcceptsRealDeviceCases(t *testing.T) {
 	cases := []struct {
 		name        string

@@ -120,4 +120,3 @@ func TestStorageEmptyDirDoesNotPanic(t *testing.T) {
 	// load with empty dir should not panic
 	s.load()
 }
-

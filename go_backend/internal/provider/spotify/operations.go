@@ -23,9 +23,9 @@ type spotifySearchAlbum struct {
 
 // spotifySearchArtist represents an artist from Spotify search.
 type spotifySearchArtist struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	Images    []struct {
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Images []struct {
 		URL string `json:"url"`
 	} `json:"images"`
 	Followers struct {

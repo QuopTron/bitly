@@ -9,11 +9,11 @@ import (
 
 // Playlist is a high-level playlist entry used by Flutter.
 type Playlist struct {
-	ID         string         `json:"id"`
-	Name       string         `json:"name"`
-	Creator    string         `json:"creator"`
-	Date       string         `json:"date"`
-	TrackCount int            `json:"trackCount"`
+	ID         string          `json:"id"`
+	Name       string          `json:"name"`
+	Creator    string          `json:"creator"`
+	Date       string          `json:"date"`
+	TrackCount int             `json:"trackCount"`
 	Tracks     []PlaylistTrack `json:"tracks"`
 }
 

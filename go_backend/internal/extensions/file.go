@@ -17,7 +17,7 @@ func registerFileOps(s *Sandbox) {
 
 	fileObj.Set("read", func(call goja.FunctionCall) goja.Value {
 		path := call.Argument(0).String()
-		fullPath, err := resolvePath(s, path)
+		fullPath, err := resolverRuta(s, path)
 		if err != nil {
 			panic(vm.NewTypeError(err.Error()))
 		}
@@ -31,7 +31,7 @@ func registerFileOps(s *Sandbox) {
 	fileObj.Set("write", func(call goja.FunctionCall) goja.Value {
 		path := call.Argument(0).String()
 		data := call.Argument(1).String()
-		fullPath, err := resolvePath(s, path)
+		fullPath, err := resolverRuta(s, path)
 		if err != nil {
 			panic(vm.NewTypeError(err.Error()))
 		}

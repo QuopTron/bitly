@@ -32,11 +32,11 @@ func NewClient(httpClient *http.Client, clientID string) *Client {
 func (c *Client) Name() string { return "soundcloud" }
 
 type scTrack struct {
-	ID          int64  `json:"id"`
-	Title       string `json:"title"`
-	Duration    int    `json:"duration"`
-	Genre       string `json:"genre"`
-	User        struct {
+	ID       int64  `json:"id"`
+	Title    string `json:"title"`
+	Duration int    `json:"duration"`
+	Genre    string `json:"genre"`
+	User     struct {
 		ID       int64  `json:"id"`
 		Username string `json:"username"`
 	} `json:"user"`

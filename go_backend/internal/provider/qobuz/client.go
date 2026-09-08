@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	baseURL    = "https://www.qobuz.com/api.json/0.2"
-	appID      = "123456789" // placeholder, replaced by user
+	baseURL = "https://www.qobuz.com/api.json/0.2"
+	appID   = "123456789" // placeholder, replaced by user
 )
 
 // Client is the Qobuz API client.

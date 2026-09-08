@@ -11,9 +11,9 @@ import (
 
 // Entry represents a single library entry (file).
 type Entry struct {
-	FilePath string        `json:"filePath"`
+	FilePath string          `json:"filePath"`
 	Metadata *audio.Metadata `json:"metadata,omitempty"`
-	Size     int64         `json:"size"`
+	Size     int64           `json:"size"`
 }
 
 // Stats holds library statistics.

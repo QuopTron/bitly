@@ -93,3 +93,22 @@ func TestStatus_ShortCodeMask(t *testing.T) {
 		t.Errorf("short code should not be masked, got %q", s.Code)
 	}
 }
+
+func TestSetPremiumConExpiracion_Expirado(t *testing.T) {
+	c := NewChecker(nil)
+	// Premium con expiración en el pasado: el gate de descargas debe bloquear.
+	c.SetPremiumConExpiracion(true, "premium", time.Now().Add(-time.Hour).Unix())
+	if err := c.CheckDownloadAllowed(); err == nil {
+		t.Error("esperaba error para premium expirado")
+	}
+}
+
+func TestSetPremiumConExpiracion_Futuro(t *testing.T) {
+	c := NewChecker(nil)
+	// Premium con expiración futura (lo que sincroniza drift→Go al arrancar):
+	// el gate de descargas debe dejar pasar.
+	c.SetPremiumConExpiracion(true, "premium", time.Now().Add(24*time.Hour).Unix())
+	if err := c.CheckDownloadAllowed(); err != nil {
+		t.Errorf("esperaba nil para premium vigente: %v", err)
+	}
+}

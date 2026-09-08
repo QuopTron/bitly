@@ -14,10 +14,10 @@ func TestMarshalUnmarshalRoundTrip(t *testing.T) {
 		TrackList: TrackList{
 			Track: []XSPFTrack{
 				{
-					Title:    "Song A",
-					Creator:  "Artist A",
-					Album:    "Album A",
-					Duration: 200000,
+					Title:      "Song A",
+					Creator:    "Artist A",
+					Album:      "Album A",
+					Duration:   200000,
 					Identifier: "isrc:GBUM71029604",
 				},
 				{

@@ -14,7 +14,7 @@ func registerFileReadOps(s *Sandbox, fileObj *goja.Object) {
 
 	fileObj.Set("readBytes", func(call goja.FunctionCall) goja.Value {
 		filePath := call.Argument(0).String()
-		fullPath, resErr := resolvePath(s, filePath)
+		fullPath, resErr := resolverRuta(s, filePath)
 		if resErr != nil {
 			return vm.ToValue(map[string]interface{}{"success": false, "error": resErr.Error()})
 		}
@@ -71,7 +71,7 @@ func registerFileReadOps(s *Sandbox, fileObj *goja.Object) {
 
 	fileObj.Set("getSize", func(call goja.FunctionCall) goja.Value {
 		filePath := call.Argument(0).String()
-		fullPath, resErr := resolvePath(s, filePath)
+		fullPath, resErr := resolverRuta(s, filePath)
 		if resErr != nil {
 			return vm.ToValue(map[string]interface{}{"success": false, "error": resErr.Error()})
 		}
@@ -84,7 +84,7 @@ func registerFileReadOps(s *Sandbox, fileObj *goja.Object) {
 
 	fileObj.Set("exists", func(call goja.FunctionCall) goja.Value {
 		path := call.Argument(0).String()
-		fullPath, err := resolvePath(s, path)
+		fullPath, err := resolverRuta(s, path)
 		if err != nil {
 			return vm.ToValue(false)
 		}
@@ -94,7 +94,7 @@ func registerFileReadOps(s *Sandbox, fileObj *goja.Object) {
 
 	fileObj.Set("delete", func(call goja.FunctionCall) goja.Value {
 		path := call.Argument(0).String()
-		fullPath, err := resolvePath(s, path)
+		fullPath, err := resolverRuta(s, path)
 		if err != nil {
 			panic(vm.NewTypeError(err.Error()))
 		}
@@ -106,7 +106,7 @@ func registerFileReadOps(s *Sandbox, fileObj *goja.Object) {
 
 	fileObj.Set("list", func(call goja.FunctionCall) goja.Value {
 		path := call.Argument(0).String()
-		fullPath, err := resolvePath(s, path)
+		fullPath, err := resolverRuta(s, path)
 		if err != nil {
 			panic(vm.NewTypeError(err.Error()))
 		}

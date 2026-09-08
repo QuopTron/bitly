@@ -61,12 +61,12 @@ func (c *Client) SearchAlbums(query string, limit int) ([]provider.AlbumResult, 
 	results := make([]provider.AlbumResult, 0, len(resp.Albums.Items))
 	for _, a := range resp.Albums.Items {
 		al := provider.AlbumResult{
-			ID:         fmt.Sprintf("qobuz:%d", a.ID),
-			Title:      a.Title,
+			ID:          fmt.Sprintf("qobuz:%d", a.ID),
+			Title:       a.Title,
 			ReleaseDate: a.ReleaseDate,
-			TrackCount: a.TrackCount,
-			CoverURL:   a.Image.Large,
-			Provider:   "qobuz",
+			TrackCount:  a.TrackCount,
+			CoverURL:    a.Image.Large,
+			Provider:    "qobuz",
 		}
 		if a.Artist != nil {
 			al.Artist = a.Artist.Name

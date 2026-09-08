@@ -18,12 +18,12 @@ func (c *Client) SearchTracks(query string, limit int) ([]provider.TrackResult, 
 
 	type recordingResp struct {
 		Recordings []struct {
-			ID      string          `json:"id"`
-			Title   string          `json:"title"`
-			Length  int             `json:"length"`
-			ISRCs   json.RawMessage `json:"isrcs"`
+			ID           string          `json:"id"`
+			Title        string          `json:"title"`
+			Length       int             `json:"length"`
+			ISRCs        json.RawMessage `json:"isrcs"`
 			ArtistCredit []struct {
-				Name  string `json:"name"`
+				Name   string `json:"name"`
 				Artist struct {
 					ID string `json:"id"`
 				} `json:"artist"`

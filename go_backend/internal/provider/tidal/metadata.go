@@ -15,7 +15,7 @@ type PlaylistSearchItem struct {
 		ID   int64  `json:"id"`
 		Name string `json:"name"`
 	} `json:"creator"`
-	TrackCount int    `json:"numberOfItems"`
+	TrackCount int `json:"numberOfItems"`
 	Images     []struct {
 		URL string `json:"url"`
 	} `json:"images,omitempty"`

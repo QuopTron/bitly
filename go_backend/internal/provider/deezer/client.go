@@ -16,10 +16,10 @@ import (
 
 // Client is the Deezer API client.
 type Client struct {
-	http   *http.Client
-	base   string
-	arl    string
-	rate   *httpclient.RateLimiter
+	http *http.Client
+	base string
+	arl  string
+	rate *httpclient.RateLimiter
 }
 
 // NewClient creates a Deezer client with the given HTTP client.

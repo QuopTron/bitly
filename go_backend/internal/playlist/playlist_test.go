@@ -74,11 +74,11 @@ func TestFromXSPF(t *testing.T) {
 		TrackList: TrackList{
 			Track: []XSPFTrack{
 				{
-					Title:    "Song X",
-					Creator:  "Artist X",
-					Album:    "Album X",
-					Duration: 400000,
-					Image:    "http://cover",
+					Title:      "Song X",
+					Creator:    "Artist X",
+					Album:      "Album X",
+					Duration:   400000,
+					Image:      "http://cover",
 					Identifier: "isrc:ISRC003",
 					Extension: &Extension{
 						Application: "bitly",

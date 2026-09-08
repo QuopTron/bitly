@@ -4,17 +4,17 @@ package tidal
 
 // Track represents a Tidal track.
 type Track struct {
-	ID          int64      `json:"id"`
-	Title       string     `json:"title"`
-	Duration    int        `json:"duration"`
-	ISRC        string     `json:"isrc"`
-	TrackNumber int        `json:"trackNumber"`
-	VolumeNumber int       `json:"volumeNumber"`
-	Explicit    bool       `json:"explicit"`
-	Artist      ArtistRef  `json:"artist"`
-	Album       AlbumRef   `json:"album"`
-	StreamReady bool       `json:"streamReady"`
-	StreamStartDate string `json:"streamStartDate"`
+	ID              int64     `json:"id"`
+	Title           string    `json:"title"`
+	Duration        int       `json:"duration"`
+	ISRC            string    `json:"isrc"`
+	TrackNumber     int       `json:"trackNumber"`
+	VolumeNumber    int       `json:"volumeNumber"`
+	Explicit        bool      `json:"explicit"`
+	Artist          ArtistRef `json:"artist"`
+	Album           AlbumRef  `json:"album"`
+	StreamReady     bool      `json:"streamReady"`
+	StreamStartDate string    `json:"streamStartDate"`
 }
 
 // Album represents a Tidal album.
@@ -75,6 +75,6 @@ type ArtistSearchResponse struct {
 
 // StreamURLResponse contains a Tidal stream URL.
 type StreamURLResponse struct {
-	URL  string `json:"url"`
+	URL   string `json:"url"`
 	Codec string `json:"codec"`
 }

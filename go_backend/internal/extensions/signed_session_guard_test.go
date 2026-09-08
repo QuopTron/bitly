@@ -28,7 +28,7 @@ func TestBootstrapGuardCooldownOnFailure(t *testing.T) {
 	client := &http.Client{Transport: tr}
 	state := &SignedSessionState{}
 	record := &signedSessionRecord{InstallID: "test-install"}
-	cfg := signedSessionConfigWithDefaults(&SignedSessionConfig{Namespace: "deezer", BaseURL: "https://example.com", AppVersion: "ext-1.0"})
+	cfg := configSesionFirmadaConDefaults(&SignedSessionConfig{Namespace: "deezer", BaseURL: "https://example.com", AppVersion: "ext-1.0"})
 
 	// First attempt fails with 429.
 	_, err1 := state.bootstrapWithGuard(client, cfg, record)

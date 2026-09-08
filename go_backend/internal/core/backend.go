@@ -1,0 +1,64 @@
+// Package gobackend manages the Go middleware lifecycle.
+//
+// Architecture:
+//
+//	exports.go → gobackend.InitBackend() → dispatcher → handlers
+//	                                                │
+//	        ┌───────────────────────────────────────┼───────────────┐
+//	        ▼                                       ▼               ▼
+//	provider/ (Deezer, Qobuz...)          cache/ (memoria)   download/
+package core
+
+import (
+	"log"
+	"sync"
+)
+
+var (
+	globalBackend   *Backend
+	globalBackendMu sync.Mutex
+)
+
+// Backend holds all global state for the Go middleware.
+type Backend struct {
+	started bool
+}
+
+// InitBackend initializes the Go backend.
+// Must be called once at app start.
+func InitBackend() error {
+	// Política de recursos del runtime (límite de RAM + GOMAXPROCS) antes de
+	// arrancar cualquier servicio: evita OOM y pausas de GC en móviles.
+	AjustarRuntimeMemoria()
+
+	globalBackendMu.Lock()
+	defer globalBackendMu.Unlock()
+
+	if globalBackend != nil && globalBackend.started {
+		return nil
+	}
+	if globalBackend == nil {
+		globalBackend = &Backend{}
+	}
+	globalBackend.started = true
+	log.Println("[backend] Initialized")
+	return nil
+}
+
+// CloseBackend cleanly shuts down the backend.
+func CloseBackend() {
+	globalBackendMu.Lock()
+	defer globalBackendMu.Unlock()
+	if globalBackend != nil {
+		globalBackend.started = false
+	}
+	globalBackend = nil
+	log.Println("[backend] Closed")
+}
+
+// IsReady returns true if the backend has been initialized.
+func IsReady() bool {
+	globalBackendMu.Lock()
+	defer globalBackendMu.Unlock()
+	return globalBackend != nil && globalBackend.started
+}

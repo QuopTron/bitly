@@ -60,7 +60,7 @@ func readMP3(path string, meta *Metadata) (*Metadata, error) {
 		// For now, approximate duration from file size at 192kbps
 		estBitrate := 192
 		meta.Bitrate = estBitrate
-		meta.DurationMs = int((meta.FileSize-int64(tagSize)) * 8 / int64(estBitrate) / 1000 * 1000)
+		meta.DurationMs = int((meta.FileSize - int64(tagSize)) * 8 / int64(estBitrate) / 1000 * 1000)
 	}
 
 	meta.SampleRate = 44100
@@ -116,7 +116,7 @@ func readOGG(path string, meta *Metadata) (*Metadata, error) {
 func readWAV(path string, meta *Metadata) (*Metadata, error) {
 	meta.SampleRate = 44100
 	meta.BitDepth = 16
-	meta.Bitrate = 1411 // CD quality
+	meta.Bitrate = 1411     // CD quality
 	if meta.FileSize > 44 { // WAV header is 44 bytes
 		audioBytes := meta.FileSize - 44
 		meta.DurationMs = int(audioBytes * 8 / int64(meta.SampleRate) / int64(meta.BitDepth/8) / 2 * 1000)

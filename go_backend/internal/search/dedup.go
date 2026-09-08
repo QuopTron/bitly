@@ -1,9 +1,9 @@
 package search
 
 import (
+	"github.com/zarz/bitly/go_backend/internal/provider"
 	"strings"
 	"unicode"
-	"github.com/zarz/bitly/go_backend/internal/provider"
 )
 
 // Deduper removes duplicate results across providers.

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 )
 
@@ -45,30 +44,21 @@ func (c *Client) ScrobbleLastFM(track Track, sessionKey string) error {
 		return fmt.Errorf("scrobble: last.fm not configured")
 	}
 	data := url.Values{
-		"method":       {"track.scrobble"},
-		"api_key":      {c.lastfmKey},
-		"sk":           {sessionKey},
-		"track":        {track.TrackName},
-		"artist":       {track.ArtistName},
-		"album":        {track.AlbumName},
-		"timestamp":    {fmt.Sprintf("%d", track.Timestamp)},
-		"duration":     {fmt.Sprintf("%d", track.DurationMs/1000)},
-		"format":       {"json"},
+		"method":    {"track.scrobble"},
+		"api_key":   {c.lastfmKey},
+		"sk":        {sessionKey},
+		"track":     {track.TrackName},
+		"artist":    {track.ArtistName},
+		"album":     {track.AlbumName},
+		"timestamp": {fmt.Sprintf("%d", track.Timestamp)},
+		"duration":  {fmt.Sprintf("%d", track.DurationMs/1000)},
+		"format":    {"json"},
 	}
 	apiURL := c.lastfmURL
 	if apiURL == "" {
 		apiURL = "https://ws.audioscrobbler.com/2.0/"
 	}
-	req, _ := http.NewRequest("POST", apiURL,
-		strings.NewReader(data.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-	resp, err := c.http.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	return nil
+	return postForm(c, apiURL, data)
 }
 
 // ScrobbleListenBrainz sends a listen to ListenBrainz.
@@ -77,12 +67,12 @@ func (c *Client) ScrobbleListenBrainz(track Track) error {
 		return fmt.Errorf("scrobble: listenbrainz not configured")
 	}
 	payload := map[string]interface{}{
-		"listen_type": "single",
+		"listen_type": "import", // igual que el ScrobbleService Dart
 		"payload": []map[string]interface{}{
 			{
 				"track_metadata": map[string]interface{}{
-					"artist_name": track.ArtistName,
-					"track_name":  track.TrackName,
+					"artist_name":  track.ArtistName,
+					"track_name":   track.TrackName,
 					"release_name": track.AlbumName,
 					"additional_info": map[string]interface{}{
 						"duration_ms": track.DurationMs,
@@ -92,20 +82,13 @@ func (c *Client) ScrobbleListenBrainz(track Track) error {
 			},
 		},
 	}
-	body, _ := json.Marshal(payload)
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
 	apiURL := c.lbURL
 	if apiURL == "" {
 		apiURL = "https://api.listenbrainz.org/1/submit-listens"
 	}
-	req, _ := http.NewRequest("POST", apiURL,
-		strings.NewReader(string(body)))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Token "+c.lbToken)
-
-	resp, err := c.http.Do(req)
-	if err != nil {
-		return err
-	}
-	resp.Body.Close()
-	return nil
+	return postJSON(c, apiURL, body, c.lbToken)
 }

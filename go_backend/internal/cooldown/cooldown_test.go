@@ -37,14 +37,14 @@ func TestMarkError_OnlyRateLimitMarkersCool(t *testing.T) {
 
 func TestMarkError_BackoffExtendsWindow(t *testing.T) {
 	MarkError("tidal-web", "HTTP 429 rate limited")
-	firstUntil := cooled["tidal-web"]
+	firstUntil := enfriados["tidal-web"]
 	if time.Now().After(firstUntil) {
 		t.Fatal("expected cooldown deadline in the future")
 	}
 
-	// A second event while still cooled must extend (double) the deadline.
+	// A second event while still enfriados must extend (double) the deadline.
 	MarkError("tidal-web", "HTTP 429 rate limited")
-	secondUntil := cooled["tidal-web"]
+	secondUntil := enfriados["tidal-web"]
 	if !secondUntil.After(firstUntil) {
 		t.Fatalf("expected backoff to extend the deadline: %v -> %v", firstUntil, secondUntil)
 	}
@@ -62,7 +62,7 @@ func TestOpBuckets_AreIsolated(t *testing.T) {
 	// bucket nor the detail bucket.
 	MarkOpError("amazon", "feed", "HTTP 429 for showHomeBrowse")
 	if !IsCooledOp("amazon", "feed") {
-		t.Fatal("feed bucket should be cooled")
+		t.Fatal("feed bucket should be enfriados")
 	}
 	if IsCooled("amazon") {
 		t.Fatal("feed 429 must not cool the provider-wide bucket")
@@ -80,7 +80,7 @@ func TestOpBuckets_AreIsolated(t *testing.T) {
 	// A provider-wide 429 must NOT cool any op bucket.
 	MarkError("amazon", "HTTP 429 for /dl/dzr")
 	if !IsCooled("amazon") {
-		t.Fatal("provider-wide bucket should be cooled")
+		t.Fatal("provider-wide bucket should be enfriados")
 	}
 	if IsCooledOp("amazon", "detail") || IsCooledOp("amazon", "feed") {
 		t.Fatal("provider-wide 429 must not cool op buckets")
@@ -90,7 +90,7 @@ func TestOpBuckets_AreIsolated(t *testing.T) {
 	// Detail bucket is independent from feed bucket.
 	MarkOpError("deezer", "detail", "Provider temporarily unavailable")
 	if !IsCooledOp("deezer", "detail") {
-		t.Fatal("detail bucket should be cooled")
+		t.Fatal("detail bucket should be enfriados")
 	}
 	if IsCooledOp("deezer", "feed") || IsCooled("deezer") {
 		t.Fatal("detail 429 must not cool other buckets")
@@ -115,11 +115,11 @@ func TestRateLimitedOrBlocked_Markers(t *testing.T) {
 		"precondition required",
 		"HTTP 428",
 	} {
-		if !rateLimitedOrBlocked(msg) {
+		if !limitadoObloqueado(msg) {
 			t.Errorf("expected %q to be treated as rate-limited/blocked", msg)
 		}
 	}
-	if rateLimitedOrBlocked("") {
+	if limitadoObloqueado("") {
 		t.Error("empty message must not match")
 	}
 }

@@ -18,10 +18,10 @@ func coverArtURL(releaseID string) string {
 // ─── API response types ──────────────────────────────────────────
 
 type mbRelease struct {
-	ID          string `json:"id"`
-	Title       string `json:"title"`
-	Date        string `json:"date"`
-	TrackCount  int    `json:"track-count"`
+	ID           string `json:"id"`
+	Title        string `json:"title"`
+	Date         string `json:"date"`
+	TrackCount   int    `json:"track-count"`
 	ArtistCredit []struct {
 		Name   string `json:"name"`
 		Artist struct {

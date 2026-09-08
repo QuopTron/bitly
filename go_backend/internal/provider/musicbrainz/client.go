@@ -32,8 +32,8 @@ func NewClient(httpClient *http.Client, appName string) *Client {
 		appName = "BitlyApp/1.0"
 	}
 	return &Client{
-		http:  httpClient,
-		app:   appName,
+		http: httpClient,
+		app:  appName,
 		limit: httpclient.NewRateLimiter(httpclient.RateLimitConfig{
 			RequestsPerSecond: 1, // MusicBrainz requires 1 req/s
 			Burst:             1,

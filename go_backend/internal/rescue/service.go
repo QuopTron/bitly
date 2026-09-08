@@ -17,12 +17,12 @@ var priority = []string{
 
 // Result holds the rescue outcome.
 type Result struct {
-	Found      bool                `json:"found"`
-	Provider   string              `json:"provider"`
-	Track      *provider.TrackResult `json:"track,omitempty"`
-	StreamURL  string              `json:"streamUrl,omitempty"`
-	Error      string              `json:"error,omitempty"`
-	Attempted  []string            `json:"attempted"`
+	Found     bool                  `json:"found"`
+	Provider  string                `json:"provider"`
+	Track     *provider.TrackResult `json:"track,omitempty"`
+	StreamURL string                `json:"streamUrl,omitempty"`
+	Error     string                `json:"error,omitempty"`
+	Attempted []string              `json:"attempted"`
 }
 
 // Rescuer orchestrates multi-provider rescue attempts.
@@ -131,8 +131,8 @@ func (r *Rescuer) RescueBatch(tracks []RescueRequest) []*Result {
 
 // RescueRequest represents a single rescue job.
 type RescueRequest struct {
-	ISRC        string `json:"isrc"`
-	TrackName   string `json:"trackName"`
-	ArtistName  string `json:"artistName"`
-	Quality     string `json:"quality"`
+	ISRC       string `json:"isrc"`
+	TrackName  string `json:"trackName"`
+	ArtistName string `json:"artistName"`
+	Quality    string `json:"quality"`
 }

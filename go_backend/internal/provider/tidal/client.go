@@ -17,9 +17,9 @@ const baseURL = "https://api.tidal.com/v1"
 
 // Client is the Tidal API client.
 type Client struct {
-	http      *http.Client
-	clientID  string
-	token     string
+	http     *http.Client
+	clientID string
+	token    string
 }
 
 // NewClient creates a Tidal client. Pass an empty token for public-only access

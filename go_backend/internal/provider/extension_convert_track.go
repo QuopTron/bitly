@@ -35,13 +35,14 @@ func getString(m map[string]interface{}, keys ...string) string {
 	return ""
 }
 
-func getCoverURL(m map[string]interface{}) string {
+func obtenerURLPortada(m map[string]interface{}) string {
 	return getString(m, "cover_url", "coverUrl", "cover",
 		"images", "image_url", "picture_xl", "picture_big",
 		"picture_medium", "picture")
 }
 
-func convertToTrackResults(result interface{}, providerName string) ([]TrackResult, error) {
+// convertirATrackResults normaliza un arreglo JS de tracks a []TrackResult.
+func convertirATrackResults(result interface{}, providerName string) ([]TrackResult, error) {
 	list, ok := result.([]interface{})
 	if !ok {
 		return nil, fmt.Errorf("expected array, got %T", result)
@@ -61,7 +62,7 @@ func convertToTrackResults(result interface{}, providerName string) ([]TrackResu
 			AlbumID:   getString(m, "album_id", "albumId", "albumID"),
 			Duration:  toInt(m["duration_ms"]),
 			ISRC:      getString(m, "isrc"),
-			CoverURL:  getCoverURL(m),
+			CoverURL:  obtenerURLPortada(m),
 			Provider:  providerName,
 			SpotifyID: getString(m, "spotify_id", "spotifyId"),
 			DeezerID:  getString(m, "deezer_id", "deezerId"),
@@ -71,13 +72,14 @@ func convertToTrackResults(result interface{}, providerName string) ([]TrackResu
 		if t.ID == "" {
 			continue
 		}
-		t.ID = stripPrefix(t.ID)
+		t.ID = quitarPrefijo(t.ID)
 		tracks = append(tracks, t)
 	}
 	return tracks, nil
 }
 
-func convertToTrackResult(result interface{}, providerName string) (*TrackResult, error) {
+// convertirATrackResult normaliza un objeto JS de track a *TrackResult.
+func convertirATrackResult(result interface{}, providerName string) (*TrackResult, error) {
 	m, ok := result.(map[string]interface{})
 	if !ok {
 		if wrapper, ok := result.(map[string]interface{}); ok {
@@ -100,7 +102,7 @@ func convertToTrackResult(result interface{}, providerName string) (*TrackResult
 		AlbumID:   getString(m, "album_id", "albumId", "albumID"),
 		Duration:  toInt(m["duration_ms"]),
 		ISRC:      getString(m, "isrc"),
-		CoverURL:  getCoverURL(m),
+		CoverURL:  obtenerURLPortada(m),
 		Provider:  providerName,
 		SpotifyID: getString(m, "spotify_id", "spotifyId"),
 		DeezerID:  getString(m, "deezer_id", "deezerId"),
@@ -108,7 +110,7 @@ func convertToTrackResult(result interface{}, providerName string) (*TrackResult
 		QobuzID:   getString(m, "qobuz_id", "qobuzId"),
 	}
 	if t.ID != "" {
-		t.ID = stripPrefix(t.ID)
+		t.ID = quitarPrefijo(t.ID)
 	}
 	return &t, nil
 }

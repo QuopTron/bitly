@@ -23,8 +23,8 @@ type PrepCache struct {
 }
 
 const (
-	prepCacheMax    = 128
-	prepCacheTTL    = 5 * time.Minute
+	prepCacheMax = 128
+	prepCacheTTL = 5 * time.Minute
 )
 
 // NewPrepCache creates a new preparation cache.

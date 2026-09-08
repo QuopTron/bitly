@@ -111,7 +111,7 @@ func TestSearchArtists_Success(t *testing.T) {
 			t.Errorf("unexpected path: %s", req.URL.Path)
 		}
 		return okJSON(ArtistSearchResponse{
-			Items: []Artist{{ID: 456, Name: "Test Artist", PictureURL: "https://pic.url/1"}},
+			Items:      []Artist{{ID: 456, Name: "Test Artist", PictureURL: "https://pic.url/1"}},
 			TotalCount: 1,
 		}), nil
 	})

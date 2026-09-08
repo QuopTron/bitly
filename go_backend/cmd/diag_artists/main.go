@@ -40,7 +40,7 @@ func main() {
 		dumpRaw("amazon getArtist", res, 2500)
 	}
 
-	// Amazon getAlbum raw — buscar un album de queen en search
+	// Amazon getAlbum crudo — buscar un album de queen en search
 	fmt.Println("\n########## amazon getAlbum RAW ##########")
 	opts := map[string]interface{}{"limit": 3, "filter": "album"}
 	albs, errA := rt.CallMethod("amazon", "customSearch", "queen", opts)

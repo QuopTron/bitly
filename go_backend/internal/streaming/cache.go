@@ -22,10 +22,10 @@ func SetChunkSize(bytes int) {
 
 // Chunk holds a streamed audio segment.
 type Chunk struct {
-	Data     []byte `json:"data"`
-	Index    int    `json:"index"`
-	Size     int    `json:"size"`
-	IsLast   bool   `json:"isLast"`
+	Data   []byte `json:"data"`
+	Index  int    `json:"index"`
+	Size   int    `json:"size"`
+	IsLast bool   `json:"isLast"`
 }
 
 // Cache caches streamed audio chunks in memory for playback.

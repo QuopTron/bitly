@@ -12,9 +12,10 @@ var secretKey = []byte("bitly-premium-secret-2026")
 
 // Checker manages premium status and code validation.
 type Checker struct {
-	mu       sync.RWMutex
-	status   Status
-	codes    []CodeEntry
+	mu          sync.RWMutex
+	status      Status
+	codes       []CodeEntry
+	githubToken string // token personal de GitHub para el registro de códigos
 }
 
 // NewChecker creates a premium checker. Optionally loads initial codes.
@@ -44,13 +45,40 @@ func (c *Checker) Status() Status {
 	return s
 }
 
+// SetGithubToken guarda el token personal de GitHub que usa la validación
+// del formato legacy (validador_app.go) para consultar el registro de códigos.
+// Lo pasa Flutter al iniciar el backend (antes vivía en PremiumService Dart).
+func (c *Checker) SetGithubToken(token string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.githubToken = token
+}
+
+// githubTokenValue devuelve el token actual (copia bajo lock).
+func (c *Checker) githubTokenValue() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.githubToken
+}
+
 // SetPremium manually sets premium status (e.g., after login restore).
+// expiresAt = 0 significa sin expiración (nunca expira).
 func (c *Checker) SetPremium(isPremium bool, tier string) {
+	c.SetPremiumConExpiracion(isPremium, tier, 0)
+}
+
+// SetPremiumConExpiracion igual que SetPremium pero fijando también la fecha
+// de expiración en epoch seconds. Lo usa el sync drift→Go al arrancar para
+// que el gate de descargas respete la expiración que el usuario tiene
+// guardada localmente (CheckDownloadAllowed la valida).
+func (c *Checker) SetPremiumConExpiracion(isPremium bool, tier string, expiresAt int64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.status.IsPremium = isPremium
 	c.status.Tier = tier
-	if !isPremium {
+	if isPremium {
+		c.status.ExpiresAt = expiresAt
+	} else {
 		c.status.Tier = "free"
 		c.status.Code = ""
 		c.status.ExpiresAt = 0

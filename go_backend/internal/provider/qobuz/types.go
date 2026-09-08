@@ -4,39 +4,39 @@ package qobuz
 
 // Track represents a Qobuz track.
 type Track struct {
-	ID           int64    `json:"id"`
-	Title        string   `json:"title"`
-	Duration     int      `json:"duration"`
-	ISRC         string   `json:"isrc"`
-	TrackNumber  int      `json:"track_number"`
-	Streamable   bool     `json:"streamable"`
-	MaximumBitrate int    `json:"maximum_bitrate"`
-	Album        *Album   `json:"album,omitempty"`
-	Performer    *Artist  `json:"performer,omitempty"`
+	ID             int64   `json:"id"`
+	Title          string  `json:"title"`
+	Duration       int     `json:"duration"`
+	ISRC           string  `json:"isrc"`
+	TrackNumber    int     `json:"track_number"`
+	Streamable     bool    `json:"streamable"`
+	MaximumBitrate int     `json:"maximum_bitrate"`
+	Album          *Album  `json:"album,omitempty"`
+	Performer      *Artist `json:"performer,omitempty"`
 }
 
 // Album represents a Qobuz album.
 type Album struct {
-	ID            int64    `json:"id"`
-	Title         string   `json:"title"`
-	UPC           string   `json:"upc"`
-	ReleaseDate   string   `json:"release_date"`
-	Duration      int      `json:"duration"`
-	TrackCount    int      `json:"tracks_count"`
+	ID             int64   `json:"id"`
+	Title          string  `json:"title"`
+	UPC            string  `json:"upc"`
+	ReleaseDate    string  `json:"release_date"`
+	Duration       int     `json:"duration"`
+	TrackCount     int     `json:"tracks_count"`
 	MaximumBitrate int     `json:"maximum_bitrate"`
-	Image         Image    `json:"image"`
-	Artist        *Artist  `json:"artist,omitempty"`
-	Tracks        *struct {
+	Image          Image   `json:"image"`
+	Artist         *Artist `json:"artist,omitempty"`
+	Tracks         *struct {
 		Items []Track `json:"items"`
 	} `json:"tracks,omitempty"`
 }
 
 // Artist represents a Qobuz artist.
 type Artist struct {
-	ID      int64  `json:"id"`
-	Name    string `json:"name"`
-	Image   Image  `json:"image"`
-	AlbumsCount int `json:"albums_count"`
+	ID          int64  `json:"id"`
+	Name        string `json:"name"`
+	Image       Image  `json:"image"`
+	AlbumsCount int    `json:"albums_count"`
 }
 
 // Image represents an image in various sizes.

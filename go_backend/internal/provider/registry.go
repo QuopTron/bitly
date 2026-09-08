@@ -5,16 +5,16 @@ package provider
 
 // TrackResult is the normalized track result across all providers.
 type TrackResult struct {
-	ID        string `json:"id"`
-	Title     string `json:"title"`
-	Artist    string `json:"artist"`
-	ArtistID  string `json:"artistId"`
-	Album     string `json:"album"`
-	AlbumID   string `json:"albumId"`
-	Duration  int    `json:"durationMs"`
-	ISRC      string `json:"isrc"`
-	CoverURL  string `json:"coverUrl"`
-	Provider  string `json:"provider"`
+	ID       string `json:"id"`
+	Title    string `json:"title"`
+	Artist   string `json:"artist"`
+	ArtistID string `json:"artistId"`
+	Album    string `json:"album"`
+	AlbumID  string `json:"albumId"`
+	Duration int    `json:"durationMs"`
+	ISRC     string `json:"isrc"`
+	CoverURL string `json:"coverUrl"`
+	Provider string `json:"provider"`
 	// Cross-provider IDs for fast stream resolution. Any extension that
 	// resolves a track can return these so the rescue chain can use
 	// CheckAvailability (identifier-based, ~1-2s) instead of a slow name search.
@@ -38,11 +38,11 @@ type AlbumResult struct {
 
 // ArtistResult is the normalized artist result.
 type ArtistResult struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
+	ID         string `json:"id"`
+	Name       string `json:"name"`
 	PictureURL string `json:"pictureUrl"`
-	Fans      int    `json:"fans"`
-	Provider  string `json:"provider"`
+	Fans       int    `json:"fans"`
+	Provider   string `json:"provider"`
 }
 
 // PlaylistResult is the normalized playlist result across all providers.

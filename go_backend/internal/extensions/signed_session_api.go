@@ -36,7 +36,7 @@ func registerSignedSession(s *Sandbox) {
 		if len(call.Arguments) > 3 {
 			headers = toStringMapValue(call.Arguments[3])
 		}
-		cfg := signedSessionConfigWithDefaults(s.SignedSession)
+		cfg := configSesionFirmadaConDefaults(s.SignedSession)
 		if s.Session == nil {
 			s.Session = &SignedSessionState{}
 		}
@@ -63,7 +63,7 @@ func registerSignedSession(s *Sandbox) {
 		if grant == "" {
 			return vm.ToValue(map[string]any{"success": false, "error": "no pending grant"})
 		}
-		cfg := signedSessionConfigWithDefaults(s.SignedSession)
+		cfg := configSesionFirmadaConDefaults(s.SignedSession)
 		if s.Session == nil {
 			s.Session = &SignedSessionState{}
 		}
@@ -82,7 +82,7 @@ func registerSignedSession(s *Sandbox) {
 		if s.SignedSession == nil {
 			return vm.ToValue(map[string]any{"authenticated": false, "error": "signedSession is not configured"})
 		}
-		cfg := signedSessionConfigWithDefaults(s.SignedSession)
+		cfg := configSesionFirmadaConDefaults(s.SignedSession)
 		if s.Session == nil {
 			s.Session = &SignedSessionState{}
 		}

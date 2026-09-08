@@ -26,15 +26,15 @@ func TestIsPlainAudioFile(t *testing.T) {
 		{"ogg magic", write("a.ogg", []byte("OggS\x00\x02")), true},
 		{"riff magic", write("a.wav", []byte("RIFF\x24\x00\x00\x00")), true},
 		// MP4/M4A (Apple Music .m4a, etc.) is a plain playable container: the
-// ftyp box lives at offset 4 ([size:4][ftyp:4]) and the file must be served
-// directly, not fed to the mov-key decryptor.
-{"mp4 ftyp is plain (M4A/Apple Music)", write("a.mp4", []byte("\x00\x00\x00\x18ftypmp42")), true},
+		// ftyp box lives at offset 4 ([size:4][ftyp:4]) and the file must be served
+		// directly, not fed to the mov-key decryptor.
+		{"mp4 ftyp is plain (M4A/Apple Music)", write("a.mp4", []byte("\x00\x00\x00\x18ftypmp42")), true},
 		{"empty file", write("empty", nil), false},
 		{"missing file", filepath.Join(dir, "nope.flac"), false},
 	}
 	for _, c := range cases {
-		if got := isPlainAudioFile(c.path); got != c.want {
-			t.Errorf("%s: isPlainAudioFile(%q) = %v, want %v", c.name, c.path, got, c.want)
+		if got := esArchivoAudioPlano(c.path); got != c.want {
+			t.Errorf("%s: esArchivoAudioPlano(%q) = %v, want %v", c.name, c.path, got, c.want)
 		}
 	}
 }
@@ -67,7 +67,7 @@ func TestDecryptionKeyCandidates(t *testing.T) {
 		},
 	}
 	for _, c := range cases {
-		got := decryptionKeyCandidates(c.in)
+		got := candidatosClaveDescifrado(c.in)
 		for _, want := range c.wantHas {
 			found := false
 			for _, g := range got {
@@ -91,7 +91,7 @@ func TestDecryptionKeyCandidates(t *testing.T) {
 		"abc123",    // too short
 		"not-a-key", // not hex at all
 	} {
-		if got := decryptionKeyCandidates(bad); len(got) != 0 {
+		if got := candidatosClaveDescifrado(bad); len(got) != 0 {
 			t.Errorf("%q: expected no candidates, got %v", bad, got)
 		}
 	}

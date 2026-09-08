@@ -9,10 +9,10 @@ import (
 
 // DirExtensionManifest is the subset of manifest fields needed at load time.
 type DirExtensionManifest struct {
-	Name          string                `json:"name"`
-	DisplayName   string                `json:"displayName"`
-	Version       string                `json:"version"`
-	SignedSession *SignedSessionConfig  `json:"signedSession,omitempty"`
+	Name          string               `json:"name"`
+	DisplayName   string               `json:"displayName"`
+	Version       string               `json:"version"`
+	SignedSession *SignedSessionConfig `json:"signedSession,omitempty"`
 }
 
 // LoadDirExtensionsInto loads every extension stored as a subdirectory

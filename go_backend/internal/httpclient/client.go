@@ -14,14 +14,14 @@ import (
 
 // Config defines transport-level tuning for HTTP clients.
 type Config struct {
-	Timeout              time.Duration
-	KeepAlive            time.Duration
-	MaxIdleConns         int
-	MaxIdleConnsPerHost  int
-	DisableKeepAlive     bool
-	FollowRedirects      bool
-	InsecureSkipVerify   bool
-	ProxyURL             string // optional HTTP/SOCKS proxy URL
+	Timeout             time.Duration
+	KeepAlive           time.Duration
+	MaxIdleConns        int
+	MaxIdleConnsPerHost int
+	DisableKeepAlive    bool
+	FollowRedirects     bool
+	InsecureSkipVerify  bool
+	ProxyURL            string // optional HTTP/SOCKS proxy URL
 }
 
 // DefaultConfig returns a sensible default configuration.

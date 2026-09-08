@@ -62,7 +62,7 @@ build_aar() {
         -androidapi 24 \
         -ldflags="-s -w" \
         -o "$BUILD_DIR/bitly-backend.aar" \
-        ./
+        .
 
     if [ -f "$BUILD_DIR/bitly-backend.aar" ]; then
         ok "AAR: $BUILD_DIR/bitly-backend.aar ($(du -h "$BUILD_DIR/bitly-backend.aar" | cut -f1))"
@@ -90,7 +90,7 @@ build_ios() {
         -target="ios" \
         -ldflags="-s -w" \
         -o "$BUILD_DIR/BitlyBackend.xcframework" \
-        ./
+        ./internal/gobackend/
     ok "iOS: $BUILD_DIR/BitlyBackend.xcframework"
 }
 

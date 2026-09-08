@@ -5,7 +5,8 @@ import (
 	"strings"
 )
 
-func convertToAlbumResults(result interface{}, providerName string) ([]AlbumResult, error) {
+// convertirAAlbumResults normaliza un arreglo JS de albumes a []AlbumResult.
+func convertirAAlbumResults(result interface{}, providerName string) ([]AlbumResult, error) {
 	list, ok := result.([]interface{})
 	if !ok {
 		return nil, fmt.Errorf("expected array, got %T", result)
@@ -21,13 +22,13 @@ func convertToAlbumResults(result interface{}, providerName string) ([]AlbumResu
 			Title:       getString(m, "name", "title"),
 			Artist:      getString(m, "artists", "artist"),
 			ArtistID:    getString(m, "artist_id", "artistId", "artistID"),
-			CoverURL:    getCoverURL(m),
+			CoverURL:    obtenerURLPortada(m),
 			ReleaseDate: getString(m, "release_date", "releaseDate"),
 			TrackCount:  toInt(m["total_tracks"]),
 			Provider:    providerName,
 		}
 		if a.ID != "" {
-			a.ID = stripPrefix(a.ID)
+			a.ID = quitarPrefijo(a.ID)
 		}
 		if a.ID != "" {
 			albums = append(albums, a)
@@ -36,7 +37,8 @@ func convertToAlbumResults(result interface{}, providerName string) ([]AlbumResu
 	return albums, nil
 }
 
-func convertToAlbumResult(result interface{}, providerName string) (*AlbumResult, error) {
+// convertirAAlbumResult normaliza un objeto JS de album a *AlbumResult.
+func convertirAAlbumResult(result interface{}, providerName string) (*AlbumResult, error) {
 	m, ok := result.(map[string]interface{})
 	if !ok {
 		return nil, fmt.Errorf("expected object, got %T", result)
@@ -46,18 +48,19 @@ func convertToAlbumResult(result interface{}, providerName string) (*AlbumResult
 		Title:       getString(m, "name", "title"),
 		Artist:      getString(m, "artists", "artist"),
 		ArtistID:    getString(m, "artist_id", "artistId", "artistID"),
-		CoverURL:    getCoverURL(m),
+		CoverURL:    obtenerURLPortada(m),
 		ReleaseDate: getString(m, "release_date", "releaseDate"),
 		TrackCount:  toInt(m["total_tracks"]),
 		Provider:    providerName,
 	}
 	if a.ID != "" {
-		a.ID = stripPrefix(a.ID)
+		a.ID = quitarPrefijo(a.ID)
 	}
 	return &a, nil
 }
 
-func convertToArtistResults(result interface{}, providerName string) ([]ArtistResult, error) {
+// convertirAArtistResults normaliza un arreglo JS de artistas a []ArtistResult.
+func convertirAArtistResults(result interface{}, providerName string) ([]ArtistResult, error) {
 	list, ok := result.([]interface{})
 	if !ok {
 		return nil, fmt.Errorf("expected array, got %T", result)
@@ -71,12 +74,12 @@ func convertToArtistResults(result interface{}, providerName string) ([]ArtistRe
 		a := ArtistResult{
 			ID:         getString(m, "id"),
 			Name:       getString(m, "name"),
-			PictureURL: getCoverURL(m),
+			PictureURL: obtenerURLPortada(m),
 			Fans:       toInt(m["listeners"]),
 			Provider:   providerName,
 		}
 		if a.ID != "" {
-			a.ID = stripPrefix(a.ID)
+			a.ID = quitarPrefijo(a.ID)
 		}
 		if a.ID != "" {
 			artists = append(artists, a)
@@ -85,7 +88,8 @@ func convertToArtistResults(result interface{}, providerName string) ([]ArtistRe
 	return artists, nil
 }
 
-func convertToArtistResult(result interface{}, providerName string) (*ArtistResult, error) {
+// convertirAArtistResult normaliza un objeto JS de artista a *ArtistResult.
+func convertirAArtistResult(result interface{}, providerName string) (*ArtistResult, error) {
 	m, ok := result.(map[string]interface{})
 	if !ok {
 		return nil, fmt.Errorf("expected object, got %T", result)
@@ -93,17 +97,18 @@ func convertToArtistResult(result interface{}, providerName string) (*ArtistResu
 	a := ArtistResult{
 		ID:         getString(m, "id"),
 		Name:       getString(m, "name"),
-		PictureURL: getCoverURL(m),
+		PictureURL: obtenerURLPortada(m),
 		Fans:       toInt(m["listeners"]),
 		Provider:   providerName,
 	}
 	if a.ID != "" {
-		a.ID = stripPrefix(a.ID)
+		a.ID = quitarPrefijo(a.ID)
 	}
 	return &a, nil
 }
 
-func convertToPlaylistResults(result interface{}, providerName string) ([]PlaylistResult, error) {
+// convertirAPlaylistResults normaliza un arreglo JS de listas a []PlaylistResult.
+func convertirAPlaylistResults(result interface{}, providerName string) ([]PlaylistResult, error) {
 	list, ok := result.([]interface{})
 	if !ok {
 		return nil, fmt.Errorf("expected array, got %T", result)
@@ -120,11 +125,11 @@ func convertToPlaylistResults(result interface{}, providerName string) ([]Playli
 			Description: getString(m, "description"),
 			Creator:     getString(m, "owner", "creator", "artist", "artists"),
 			TrackCount:  toInt(m["track_count"]),
-			CoverURL:    getCoverURL(m),
+			CoverURL:    obtenerURLPortada(m),
 			Provider:    providerName,
 		}
 		if p.ID != "" {
-			p.ID = stripPrefix(p.ID)
+			p.ID = quitarPrefijo(p.ID)
 		}
 		if p.ID != "" {
 			playlists = append(playlists, p)
@@ -133,8 +138,8 @@ func convertToPlaylistResults(result interface{}, providerName string) ([]Playli
 	return playlists, nil
 }
 
-// stripPrefix removes provider: prefix from IDs (e.g., "deezer:123" -> "123").
-func stripPrefix(id string) string {
+// quitarPrefijo elimina el prefijo de proveedor de los IDs (p. ej. "deezer:123" -> "123").
+func quitarPrefijo(id string) string {
 	if idx := strings.IndexByte(id, ':'); idx >= 0 {
 		return id[idx+1:]
 	}

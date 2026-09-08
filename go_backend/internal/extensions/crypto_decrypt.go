@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/dop251/goja"
+	//lint:ignore SA1019 Deezer Blowfish DRM: el algoritmo lo exige el cifrado de Deezer (no reemplazable por AES).
 	"golang.org/x/crypto/blowfish"
 )
 

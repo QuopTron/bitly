@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	backend "github.com/zarz/bitly/go_backend"
+	backend "github.com/zarz/bitly/go_backend/internal/gobackend"
 )
 
 // registerCoverRoute serves cached cover images under /cover/<filename>.

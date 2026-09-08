@@ -9,12 +9,12 @@ import (
 
 // Sheet represents a parsed CUE sheet.
 type Sheet struct {
-	Title      string  `json:"title"`
-	Artist     string  `json:"artist"`
-	Performer  string  `json:"performer"`
-	File       string  `json:"file"`
-	FileType   string  `json:"fileType"`
-	Tracks     []Track `json:"tracks"`
+	Title     string  `json:"title"`
+	Artist    string  `json:"artist"`
+	Performer string  `json:"performer"`
+	File      string  `json:"file"`
+	FileType  string  `json:"fileType"`
+	Tracks    []Track `json:"tracks"`
 }
 
 // Track represents a single track in a CUE sheet.
@@ -127,5 +127,5 @@ func timeToMs(timeStr string) int {
 	if len(parts) >= 3 {
 		frames, _ = strconv.Atoi(parts[2])
 	}
-	return (mins*60 + secs) * 1000 + frames * 1000 / 75
+	return (mins*60+secs)*1000 + frames*1000/75
 }

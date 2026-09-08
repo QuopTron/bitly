@@ -7,14 +7,16 @@ import (
 	"runtime"
 )
 
-func exeSuffix() string {
+// sufijoExe devuelve el sufijo del ejecutable según la plataforma.
+func sufijoExe() string {
 	if runtime.GOOS == "windows" {
 		return ".exe"
 	}
 	return ""
 }
 
-func ytdlpDownloadURL() string {
+// urlDescargaYtDLP devuelve la URL de descarga de yt-dlp para la plataforma.
+func urlDescargaYtDLP() string {
 	base := "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp"
 	switch runtime.GOOS {
 	case "windows":
@@ -50,7 +52,8 @@ func ytdlpDownloadURL() string {
 	}
 }
 
-func ffmpegDownloadURL() string {
+// urlDescargaFFmpeg devuelve la URL de descarga de FFmpeg para la plataforma.
+func urlDescargaFFmpeg() string {
 	// Static ffmpeg builds from johnvansickle (Linux) and gyan.dev (Windows)
 	// cover desktop; mobile relies on embedded/extended providers instead.
 	switch runtime.GOOS {
@@ -70,7 +73,8 @@ func ffmpegDownloadURL() string {
 	}
 }
 
-func (m *Manager) download(url, dest string, mode os.FileMode) error {
+// descargar baja un archivo a [dest] con permisos [mode] vía temp + rename.
+func (m *Manager) descargar(url, dest string, mode os.FileMode) error {
 	resp, err := m.http.Get(url)
 	if err != nil {
 		return err
