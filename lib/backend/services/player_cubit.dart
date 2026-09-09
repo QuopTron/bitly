@@ -68,10 +68,13 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
   // When true, the position listener will fade out near end-of-track and
   // the completion handler will fade in the next track.
   static const _crossfadeEnabled = true;
-  static const _crossfadeDuration = Duration(seconds: 3);
-  static const _crossfadeStartBeforeEnd = Duration(seconds: 5);
+  // Ventana corta a propósito: el fade-out empieza 1.5s antes del final y
+  // dura 0.8s, así el silencio entre canciones queda en ~0.7s máximo.
+  // Antes era 5s/3s → el volumen llegaba a 0 con 2s de canción restante y
+  // el usuario percibía un "muteo" de 2 segundos entre canciones.
+  static const _crossfadeDuration = Duration(milliseconds: 800);
+  static const _crossfadeStartBeforeEnd = Duration(milliseconds: 1500);
   bool _crossfadingOut = false;
-  int _crossfadeGeneration = 0; // monotonically increasing; _fadeVolume checks this
 
   /// The user's intended volume (0.0–1.0). Crossfade animations modify the
   /// actual mpv volume without touching this value, so the user's volume
@@ -557,9 +560,20 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
     _posSub = _player.stream.position.listen((pos) {
       if (!isClosed) emit(state.copyWith(position: pos));
       // Crossfade: when near end-of-track, start fading out volume.
-      if (_crossfadeEnabled && !_crossfadingOut) {
+      // Guard: solo cuando el media actual está totalmente abierto
+      // (_openGeneration == _openedAtGeneration). Sin esto, un evento de
+      // posición OBSOLETO del track anterior (su última posición, cercana a
+      // su duración) puede llegar justo después de que el siguiente track
+      // publique su duración — si las duraciones son parecidas, el crossfade
+      // se disparaba en el track NUEVO a los ~2-3s de empezar y lo dejaba
+      // mudo el resto de la canción (el muteo intermitente "a veces").
+      if (_crossfadeEnabled &&
+          !_crossfadingOut &&
+          _openGeneration == _openedAtGeneration) {
         final dur = state.duration;
-        if (dur > Duration.zero && dur - pos <= _crossfadeStartBeforeEnd && dur - pos > Duration.zero) {
+        if (dur > Duration.zero &&
+            dur - pos <= _crossfadeStartBeforeEnd &&
+            dur - pos > Duration.zero) {
           _crossfadingOut = true;
           _fadeVolume(0, _crossfadeDuration);
           // Kick off the next track's full resolution NOW so it's ready
@@ -682,6 +696,11 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
   Future<void> _openTrack(FeedItem track) async {
     final gen = ++_openGeneration;
     _openedTrackKey = '${track.id}|${track.source}';
+    // Un crossfade-out en curso (del track anterior) queda cancelado al abrir
+    // uno nuevo: si el usuario hizo skip antes de que terminara la canción, el
+    // flag no debe quedarse pegado (eso mataba el crossfade de todos los
+    // tracks siguientes). El volumen lo restaura _fadeInAudio() más abajo.
+    _crossfadingOut = false;
     await _refreshLocalFiles();
     // A newer _openTrack superseded us while we were on disk — abort quietly.
     if (gen != _openGeneration) return;
@@ -2409,18 +2428,36 @@ class PlayerCubit extends Cubit<AudioPlayerState> {
   }
 
   Future<void> seek(Duration position) async {
+    // Si el crossfade-out estaba bajando el volumen (últimos 1.5s de la
+    // canción) y el usuario busca hacia atrás, la canción seguiría sonando
+    // muda el resto del tema — restaurar el volumen del usuario YA.
+    _cancelCrossfadeOut();
     await _player.seek(position);
   }
 
   Future<void> seekToProgress(double fraction) async {
     final dur = state.duration;
     if (dur.inMilliseconds > 0) {
+      _cancelCrossfadeOut();
       await _player.seek(
         Duration(
           milliseconds: (dur.inMilliseconds * fraction.clamp(0.0, 1.0)).round(),
         ),
       );
     }
+  }
+
+  /// Cancela un crossfade-out en curso y restaura el volumen del usuario en
+  /// mpv + state. Un fade-out interrumpido (seek atrás, pausa, error) que no
+  /// llegara a completarse dejaría el volumen real del player en ~0 y la
+  /// canción sonaría muda hasta que abriera el siguiente track.
+  void _cancelCrossfadeOut() {
+    if (!_crossfadingOut) return;
+    _crossfadingOut = false;
+    try {
+      _player.setVolume((_userVolume.clamp(0.0, 1.0)) * 100);
+    } catch (_) {}
+    if (!isClosed) emit(state.copyWith(volume: _userVolume));
   }
 
   void next() => _queueCubit.next();
