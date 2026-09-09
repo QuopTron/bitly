@@ -221,8 +221,12 @@ jobs:
           gomobile init
 
       # El AAR está gitignored; Flutter lo enlaza desde android/app/libs.
+      # El directorio no existe en un checkout fresco (gitignored), y gomobile
+      # no crea el padre del archivo de salida — sin el mkdir el paso falla
+      # con "open ../android/app/libs/bitly.aar: no such file or directory".
       - name: Build Go backend AAR (Android)
         run: |
+          mkdir -p ../android/app/libs
           cd go_backend
           gomobile bind -target=android -androidapi=24 -o "../android/app/libs/bitly.aar" .
         # ANDROID_* ya están en GITHUB_ENV desde el paso Resolve Android SDK/NDK.
