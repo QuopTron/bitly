@@ -75,6 +75,13 @@ func InitGlobalState() string {
 	// Initialize cancel registry (context-based download cancellation).
 	cancelReg = download.NewCancelRegistry()
 
+	// Capturar el manager en una local ANTES del goroutine: el goroutine corre
+	// en segundo plano y puede seguir vivo cuando otro test/llamada vuelva a
+	// ejecutar InitGlobalState (que reescribe el global binMgr). Leer el global
+	// desde el goroutine tras esa reescritura es un data race que `go test
+	// -race` detecta (lectura en exports_init.go vs escritura en la llamada
+	// siguiente) — con la copia local el goroutine queda aislado del global.
+	bm := binMgr
 	go func() {
 		// Background tool-binary download must never crash the app: a panic
 		// here (e.g. nil deref in the network/download path) would abort the
@@ -84,11 +91,11 @@ func InitGlobalState() string {
 				log.Println("[goBackend] bin ensure recovered:", r)
 			}
 		}()
-		if binMgr == nil {
+		if bm == nil {
 			return
 		}
-		binMgr.EnsureYTDLP()
-		if ff, err := binMgr.EnsureFFmpeg(); err == nil && ff != nil && ff.Path != "" {
+		bm.EnsureYTDLP()
+		if ff, err := bm.EnsureFFmpeg(); err == nil && ff != nil && ff.Path != "" {
 			download.SetFFmpegPath(ff.Path)
 		}
 	}()
