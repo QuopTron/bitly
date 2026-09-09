@@ -7,7 +7,7 @@ import (
 )
 
 var (
-	ffmpegMu     sync.RWMutex
+	ffmpegMu      sync.RWMutex
 	ffmpegBinPath string
 )
 
