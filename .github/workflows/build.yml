@@ -224,10 +224,13 @@ jobs:
       # El directorio no existe en un checkout fresco (gitignored), y gomobile
       # no crea el padre del archivo de salida — sin el mkdir el paso falla
       # con "open ../android/app/libs/bitly.aar: no such file or directory".
+      # OJO: el mkdir debe correr DENTRO de go_backend (donde ../ apunta a la
+      # raíz del repo); desde la raíz, ../android/app/libs caería FUERA del
+      # repo y gomobile seguiría sin encontrar el directorio.
       - name: Build Go backend AAR (Android)
         run: |
-          mkdir -p ../android/app/libs
           cd go_backend
+          mkdir -p ../android/app/libs
           gomobile bind -target=android -androidapi=24 -o "../android/app/libs/bitly.aar" .
         # ANDROID_* ya están en GITHUB_ENV desde el paso Resolve Android SDK/NDK.
         # (El contexto `env` de Actions no expone las predefinidas del runner.)
