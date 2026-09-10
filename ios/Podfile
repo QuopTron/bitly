@@ -34,7 +34,7 @@ target 'Runner' do
   # Framework Go embebido (gomobile bind -target=ios). El workflow de Apple
   # lo deposita en ios/Frameworks/ antes de pod install; sin el archivo, el
   # pod se salta con un aviso y la app compila con el stub del AppDelegate.
-  pod 'GoBackend', :podspec => 'GoBackend.podspec'
+  pod 'GoBackend', :path => '.'
 
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
 
