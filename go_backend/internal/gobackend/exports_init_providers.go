@@ -1,6 +1,8 @@
 package gobackend
 
 import (
+	"log"
+
 	"github.com/zarz/bitly/go_backend/internal/bundled_extensions"
 	"github.com/zarz/bitly/go_backend/internal/extensions"
 	"github.com/zarz/bitly/go_backend/internal/provider"
@@ -22,6 +24,15 @@ import (
 // would otherwise show duplicates, e.g. qobuz AND qobuz-web).
 func inicializarProviders(reg *provider.Registry) []bundled_extensions.RegisteredExtension {
 	extRegistry = extensions.NewRegistryBestEffort(dirExtensiones())
+	// Actualización SILENCIOSA de extensiones: el registro empaquetado es la
+	// fuente de verdad. Si una extensión instalada en disco quedó vieja (p.ej.
+	// de una versión anterior de la app que no reescribió el archivo), se
+	// reescribe acá sola, sin molestar al usuario. Best-effort: nunca rompe el
+	// arranque.
+	if actualizadas := bundled_extensions.SincronizarConDisco(dirExtensiones()); len(actualizadas) > 0 {
+		log.Printf("[extensions] %d extensiones actualizadas en disco: %v",
+			len(actualizadas), actualizadas)
+	}
 	bundledExts = bundled_extensions.LoadAllToRegistry(extRegistry)
 	// Names of built-in providers superseded by a bundled extension. We must
 	// not register those natives, otherwise the source picker shows duplicates

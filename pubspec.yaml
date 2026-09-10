@@ -1,7 +1,7 @@
 name: bitly
 description: Download Spotify tracks in FLAC from Tidal, Qobuz & Deezer
 publish_to: "none"
-version: 0.9.9+12057
+version: 0.9.10+12058
 
 environment:
   sdk: ^3.7.0
@@ -70,6 +70,10 @@ dependencies:
   # WebView for Cloudflare verification
   webview_flutter: ^4.9.0
   webview_flutter_android: ^3.16.9
+  # Desktop implementation of the webview_flutter API (Windows WebView2 /
+  # Linux webkit2gtk), so the Cloudflare challenge renders in-app on PC
+  # instead of opening the system browser.
+  webview_win_floating: ^2.3.2
   audio_service: ^0.18.19
   package_info_plus: ^10.2.1
   google_sign_in: ^7.2.0

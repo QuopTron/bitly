@@ -1,15 +1,15 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
-import 'package:bitly/frontend/features/splash/widgets/pulsing_logo.dart';
-import 'package:bitly/frontend/shared/utils/responsive.dart';
+import 'package:bitly/features/splash/widgets/logo_pulsante.dart';
+import 'package:bitly/shared/utilidades/responsive.dart';
 
 void main() {
-  group('PulsingLogo', () {
+  group('LogoPulsante', () {
     Widget buildTest({required double pulseValue, required bool isDark}) {
       return MaterialApp(
         home: Builder(
           builder: (context) => Scaffold(
-            body: PulsingLogo(
+            body: LogoPulsante(
               pulse: AlwaysStoppedAnimation(pulseValue),
               r: Responsive(context),
               isDark: isDark,

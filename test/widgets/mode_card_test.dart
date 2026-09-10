@@ -1,14 +1,14 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
-import 'package:bitly/frontend/shared/widgets/mode_card.dart';
+import 'package:bitly/shared/widgets/tarjeta_modo.dart';
 
 void main() {
-  group('ModeCard', () {
+  group('TarjetaModo', () {
     testWidgets('renders icon, title and subtitle', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: ModeCard(
+            body: TarjetaModo(
               title: 'Free',
               subtitle: 'Free access for 6 hours',
               icon: Icons.music_note,
@@ -28,7 +28,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: ModeCard(
+            body: TarjetaModo(
               title: 'Premium',
               subtitle: 'Unlimited',
               icon: Icons.verified,
@@ -47,7 +47,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: ModeCard(
+            body: TarjetaModo(
               title: 'Free',
               subtitle: 'Basic',
               icon: Icons.music_note,
@@ -66,7 +66,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: ModeCard(
+            body: TarjetaModo(
               title: 'Free',
               subtitle: 'Details',
               icon: Icons.music_note,
@@ -85,7 +85,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: ModeCard(
+            body: TarjetaModo(
               title: 'Free',
               subtitle: 'Details',
               icon: Icons.music_note,
@@ -105,7 +105,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: ModeCard(
+            body: TarjetaModo(
               title: 'Free',
               subtitle: 'Info',
               icon: Icons.music_note,

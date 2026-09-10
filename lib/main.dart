@@ -1,74 +1,93 @@
+// ─────────────────────────────────────────────────────────────
+// main.dart — Punto de entrada de la app: limpia archivos stale de
+// media_kit, inicializa media_kit, configura la inyección de
+// dependencias (GetIt + drift + backend Go), carga el perfil de
+// rendimiento, configura el caché de imágenes según el perfil de
+// runtime y arranca los servicios de plataforma (share intent, deep
+// link, notificación multimedia, foco de audio).
+// Se conecta con: app.dart (raíz) + inyeccion (sl) + servicios de
+// plataforma + perfil_runtime.
+// Parte del flujo: arranque (primer código que corre la app).
+// ─────────────────────────────────────────────────────────────
+
 import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'app.dart';
-import 'backend/services/media_notification.dart';
-import 'backend/services/audio_focus_service.dart';
-import 'backend/services/share_intent_service.dart';
-import 'backend/services/deep_link_service.dart';
-import 'backend/services/runtime_profile.dart';
-import 'injection.dart';
 
-void main() async {
+import 'app.dart';
+import 'app/inyeccion.dart';
+import 'core/plataforma/perfil_runtime.dart';
+import 'core/plataforma/puente_notificacion_media.dart';
+import 'core/plataforma/servicio_deep_link.dart';
+import 'core/plataforma/servicio_foco_audio.dart';
+import 'core/plataforma/servicio_share_intent.dart';
+import 'estado/cubit_reproductor.dart';
+
+/// Punto de entrada de la app.
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Clean stale media_kit NativeReferenceHolder temp files from previous
-  // debug sessions. These files store a native memory address for hot-restart
-  // cleanup; if the app was killed the file persists with a stale address,
-  // causing FormatException("Invalid number") on the next launch.
-  //
-  // On Android, NativeReferenceHolder uses AndroidHelper.filesDir which maps
-  // to Context.getFilesDir() = <pkg>/files. getApplicationSupportDirectory()
-  // returns <pkg>/app_flutter, so we derive the native files dir from it.
+  // Limpia archivos temporales stale de media_kit (NativeReferenceHolder)
+  // de sesiones previas. Estos archivos guardan una dirección de memoria
+  // nativa para el cleanup del hot-restart; si la app se mató, el archivo
+  // persiste con una dirección obsoleta y causa FormatException al iniciar.
+  // En Android, NativeReferenceHolder usa Context.getFilesDir() =
+  // <pkg>/files; getApplicationSupportDirectory() devuelve <pkg>/app_flutter,
+  // así que derivamos el dir nativo del padre.
   try {
-    final supportDir = await getApplicationSupportDirectory();
-    final prefix = 'com.alexmercerind.media_kit.NativeReferenceHolder.';
-    // On Android, try both the Flutter support dir and the native files dir.
-    final dirsToClean = <Directory>[supportDir];
+    final soporte = await getApplicationSupportDirectory();
+    const prefijo = 'com.alexmercerind.media_kit.NativeReferenceHolder.';
+    final dirsALimpiar = <Directory>[soporte];
     if (Platform.isAndroid) {
-      // <pkg>/app_flutter → <pkg>/files
-      final parent = supportDir.parent;
-      final nativeFilesDir = Directory('${parent.path}/files');
-      if (nativeFilesDir.existsSync()) dirsToClean.add(nativeFilesDir);
+      final padre = soporte.parent;
+      final dirNativo = Directory('${padre.path}/files');
+      if (dirNativo.existsSync()) dirsALimpiar.add(dirNativo);
     }
-    for (final dir in dirsToClean) {
+    for (final dir in dirsALimpiar) {
       final stale = dir.listSync().whereType<File>().where((f) {
-        final name = f.uri.pathSegments.last;
-        return name.startsWith(prefix);
+        final nombre = f.uri.pathSegments.last;
+        return nombre.startsWith(prefijo);
       });
       for (final f in stale) {
-        try { await f.delete(); } catch (_) {}
+        try {
+          await f.delete();
+        } catch (_) {}
       }
     }
   } catch (_) {}
 
-  // Inicializar media_kit ANTES de crear cualquier Player (PlayerCubit).
+  // media_kit DEBE inicializarse antes de crear cualquier Player.
   MediaKit.ensureInitialized();
-  await configureDependencies();
-  // Loads the saved profile into the UI notifier. The Go-side push happens
-  // later, after healthCheck confirms the runtime is up (see
-  // pushPerformanceProfileToBackend in android_backend/ios_backend) — calling
-  // it before init can stall the splash while Go loads extension engines.
-  await loadPerformanceProfile();
-            
-  // Load and configure device performance profile (image cache, etc.).
+  await configurarDependencias();
+
+  // Carga el perfil de rendimiento guardado al notificador global. El push
+  // al backend Go ocurre dentro del healthCheck del splash (después del
+  // init nativo) para no colgar el arranque.
+  await cargarPerfilRendimiento();
+
+  // Perfil de runtime: configura el caché de imágenes según el nivel.
   final prefs = await SharedPreferences.getInstance();
-  final profile = await loadRuntimeProfile(prefs);
-  configureImageCache(profile);
+  final perfil = await cargarPerfilRuntime(prefs);
+  configurarCacheImagenes(perfil);
 
-  // Initialize share intent listener (Android/iOS).
-  ShareIntentService.instance.initialize();
-  DeepLinkService.instance.initialize();
+  // Listener de share intents (Android/iOS).
+  await ServicioShareIntent.instance.initialize();
 
-  // Registrar el manejador de audio del sistema (notificación multimedia,
-  // controles de lock screen y servicio en primer plano en Android). Se hace
-  // DESPUÉS de GetIt para poder enlazar los cubits de reproducción.
-  await MediaNotificationBridge.instance.init();
+  // Deep links (abrir la app desde un link externo).
+  await ServicioDeepLink.instance.initialize();
 
-  // Pausa automática cuando otra app toma el audio (focus). Se enlaza a los
-  // mismos cubits de reproducción, por lo que también va después de GetIt.
-  await AudioFocusService.instance.init();
+  // Conecta el foco de audio al cubit del reproductor antes de iniciar.
+  ServicioFocoAudio.instance.controlador = sl<CubitReproductor>();
+
+  // Notificación multimedia + controles de lock screen + servicio en
+  // primer plano (Android). Va después de GetIt para enlazar los cubits.
+  await PuenteNotificacionMedia.instancia.init();
+
+  // Pausa automática cuando otra app toma el audio. Después de GetIt.
+  await ServicioFocoAudio.instance.init();
+
   runApp(const BitlyApp());
 }

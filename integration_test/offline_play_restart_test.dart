@@ -19,10 +19,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:media_kit/media_kit.dart';
 
-import 'package:bitly/backend/services/player_cubit.dart';
-import 'package:bitly/backend/services/queue_cubit.dart';
-import 'package:bitly/frontend/shared/models/feed_models.dart';
-import 'package:bitly/injection.dart' as inj;
+import 'package:bitly/estado/cubit_reproductor.dart';
+import 'package:bitly/estado/cubit_cola.dart';
+import 'package:bitly/core/modelos/item_feed.dart';
+import 'package:bitly/app/inyeccion.dart' as inj;
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -30,12 +30,12 @@ void main() {
   testWidgets('offline: track descargado se reproduce tras reinicio sin red',
       (tester) async {
     MediaKit.ensureInitialized();
-    await inj.configureDependencies();
+    await inj.configurarDependencias();
 
     // 1. Pipeline real en proceso nuevo: el historial viene de drift (local).
-    final queue = inj.sl<QueueCubit>();
-    final player = inj.sl<PlayerCubit>();
-    final track = FeedItem(
+    final queue = inj.sl<CubitCola>();
+    final player = inj.sl<CubitReproductor>();
+    final track = ItemFeed(
       id: 'offline_test_1',
       type: 'track',
       name: 'Offline Test Track',
@@ -43,7 +43,7 @@ void main() {
       source: 'ytmusic-spotiflac',
       durationMs: 3000,
     );
-    queue.play(track);
+    queue.reproducir(track);
 
     // 2. Debe arrancar SIN internet (si intenta streaming, falla y queda error).
     var state = player.state;
@@ -51,21 +51,21 @@ void main() {
     while (DateTime.now().isBefore(deadline)) {
       await Future<void>.delayed(const Duration(milliseconds: 500));
       state = player.state;
-      if (state.isPlaying || state.playbackState.name == 'error') break;
+      if (state.estaReproduciendo || state.estadoReproduccion.name == 'error') break;
     }
-    expect(state.playbackState.name, 'playing',
+    expect(state.estadoReproduccion.name, 'reproduciendo',
         reason: 'track descargado debe reproducirse offline (estado: '
-            '${state.playbackState.name}, error: ${state.errorMessage})');
+            '${state.estadoReproduccion.name}, error: ${state.mensajeError})');
 
     // 3. El position debe avanzar: audio real decodificándose, no stall.
     final deadline2 = DateTime.now().add(const Duration(seconds: 30));
     while (DateTime.now().isBefore(deadline2) &&
-        state.position.inMilliseconds < 1000) {
+        state.posicion.inMilliseconds < 1000) {
       await Future<void>.delayed(const Duration(milliseconds: 500));
       state = player.state;
     }
-    expect(state.position.inMilliseconds, greaterThanOrEqualTo(1000),
+    expect(state.posicion.inMilliseconds, greaterThanOrEqualTo(1000),
         reason: 'el audio debe estar decodificándose offline (position: '
-            '${state.position.inMilliseconds}ms)');
+            '${state.posicion.inMilliseconds}ms)');
   });
 }

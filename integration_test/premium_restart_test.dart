@@ -15,16 +15,16 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
-import 'package:bitly/backend/rpc/android_backend.dart';
-import 'package:bitly/injection.dart' as inj;
+import 'package:bitly/core/backend_go/backend_android.dart';
+import 'package:bitly/app/inyeccion.dart' as inj;
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets('premium: tras reiniciar, el sync drift→Go mantiene descargas',
       (tester) async {
-    await inj.configureDependencies();
-    final backend = AndroidBackend();
+    await inj.configurarDependencias();
+    final backend = BackendAndroid();
 
     // 1. Init + sync drift→Go automático (lo que hace la app al arrancar).
     final healthy = await backend.healthCheck();
@@ -32,7 +32,7 @@ void main() {
 
     // 2. El estado premium en Go debe estar activo (vino de drift, no de
     //    una nueva validación de código).
-    final status = await backend.rpcCall('getPremiumStatus');
+    final status = await backend.rpcCall('getEstadoPremium');
     expect(status.toString(), contains('"isPremium":true'),
         reason: 'Go debe haber restaurado premium desde drift: $status');
 

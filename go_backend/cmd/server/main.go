@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -14,6 +15,18 @@ import (
 
 func main() {
 	log.SetFlags(log.LstdFlags)
+
+	// Si el padre (bitly.exe) muere, el backend debe salir solo: en PC la app
+	// y el backend son procesos separados y al cerrar la ventana no quedan
+	// huérfanos ocupando el puerto/RAM. Se vigila el PID del padre cada 2s.
+	// vigilarPadre está implementado por plataforma (watchdog_windows.go con
+	// OpenProcess, watchdog_other.go con Signal(0)).
+	if len(os.Args) > 1 {
+		if v, err := strconv.Atoi(os.Args[1]); err == nil && v > 0 {
+			vigilarPadre(v)
+		}
+	}
+
 	result := backend.InitGlobalState()
 	if strings.Contains(result, `"error"`) {
 		log.Fatalf("[server] Init failed: %s", result)

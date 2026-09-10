@@ -94,7 +94,7 @@ jobs:
       # secrets.dart está gitignored (token real). El código lo importa en
       # compilación, así que hay que generarlo desde el template también aquí.
       - name: Generate secrets.dart
-        run: cp lib/config/secrets.example.dart lib/config/secrets.dart
+        run: cp lib/config/secretos.example.dart lib/config/secretos.dart
 
       - name: Flutter pub get
         run: flutter pub get
@@ -151,7 +151,7 @@ jobs:
           cache: true
 
       - name: Generate secrets.dart
-        run: cp lib/config/secrets.example.dart lib/config/secrets.dart
+        run: cp lib/config/secretos.example.dart lib/config/secretos.dart
 
       - name: Flutter pub get
         run: flutter pub get
@@ -249,7 +249,7 @@ jobs:
           cache: true
 
       - name: Generate secrets.dart
-        run: cp lib/config/secrets.example.dart lib/config/secrets.dart
+        run: cp lib/config/secretos.example.dart lib/config/secretos.dart
 
       - name: Flutter pub get
         run: flutter pub get
@@ -314,7 +314,7 @@ jobs:
           cache: true
 
       - name: Generate secrets.dart
-        run: cp lib/config/secrets.example.dart lib/config/secrets.dart
+        run: cp lib/config/secretos.example.dart lib/config/secretos.dart
 
       - name: Flutter pub get
         run: flutter pub get

@@ -1,14 +1,14 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
-import 'package:bitly/frontend/shared/widgets/language_card.dart';
+import 'package:bitly/shared/widgets/tarjeta_idioma.dart';
 
 void main() {
-  group('LanguageCard', () {
+  group('TarjetaIdioma', () {
     testWidgets('renders icon and name', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: LanguageCard(
+            body: TarjetaIdioma(
               icon: Icons.language,
               iconColor: Colors.blue,
               name: 'English',
@@ -28,7 +28,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: LanguageCard(
+            body: TarjetaIdioma(
               icon: Icons.language,
               iconColor: Colors.blue,
               name: 'Español',
@@ -47,7 +47,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: LanguageCard(
+            body: TarjetaIdioma(
               icon: Icons.language,
               iconColor: Colors.blue,
               name: 'Français',
@@ -67,7 +67,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: LanguageCard(
+            body: TarjetaIdioma(
               icon: Icons.language,
               iconColor: Colors.blue,
               name: 'Deutsch',

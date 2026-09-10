@@ -1,14 +1,14 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
-import 'package:bitly/frontend/shared/widgets/glass_button.dart';
+import 'package:bitly/shared/widgets/boton_vidrio.dart';
 
 void main() {
-  group('GlassButton', () {
+  group('BotonVidrio', () {
     testWidgets('renders label text', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: GlassButton(
+            body: BotonVidrio(
               label: 'Continue',
               onPressed: () {},
             ),
@@ -24,7 +24,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: GlassButton(
+            body: BotonVidrio(
               label: 'Tap me',
               onPressed: () => pressed = true,
             ),
@@ -40,7 +40,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: GlassButton(
+            body: BotonVidrio(
               label: 'Loading',
               onPressed: () {},
               isLoading: true,
@@ -58,7 +58,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: GlassButton(
+            body: BotonVidrio(
               label: 'Not loading',
               onPressed: () {},
               isLoading: false,
@@ -74,7 +74,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: GlassButton(
+            body: BotonVidrio(
               onPressed: () {},
               customChild: const Icon(Icons.star, key: Key('custom')),
             ),
@@ -89,7 +89,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: GlassButton(
+            body: BotonVidrio(
               label: 'With icon',
               icon: const Icon(Icons.check, key: Key('btnIcon')),
               onPressed: () {},
@@ -106,7 +106,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: GlassButton(
+            body: BotonVidrio(
               label: 'Enabled',
               onPressed: () {},
             ),
@@ -122,7 +122,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: GlassButton(
+            body: BotonVidrio(
               label: 'Tall',
               onPressed: () {},
               height: 60,

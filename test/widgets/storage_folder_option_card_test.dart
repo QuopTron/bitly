@@ -1,14 +1,14 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
-import 'package:bitly/frontend/features/setup/widgets/storage_folder_option_card.dart';
+import 'package:bitly/features/setup/widgets/tarjeta_opcion_carpeta.dart';
 
 void main() {
-  group('StorageOptionCard', () {
+  group('TarjetaOpcionCarpeta', () {
     testWidgets('renders icon, title and subtitle', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: StorageOptionCard(
+            body: TarjetaOpcionCarpeta(
               icon: Icons.folder,
               title: 'Choose folder',
               subtitle: 'Pick a custom location',
@@ -31,7 +31,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: StorageOptionCard(
+            body: TarjetaOpcionCarpeta(
               icon: Icons.folder,
               title: 'Selected',
               subtitle: 'This is selected',
@@ -52,7 +52,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: StorageOptionCard(
+            body: TarjetaOpcionCarpeta(
               icon: Icons.folder,
               title: 'Not selected',
               subtitle: 'Not selected',
@@ -74,7 +74,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: StorageOptionCard(
+            body: TarjetaOpcionCarpeta(
               icon: Icons.folder,
               title: 'Tap me',
               subtitle: 'Tappable',
@@ -97,7 +97,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: StorageOptionCard(
+            body: TarjetaOpcionCarpeta(
               icon: Icons.folder,
               title: 'Disabled',
               subtitle: 'Cannot tap',

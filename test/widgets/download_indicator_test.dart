@@ -1,90 +1,90 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
-import 'package:bitly/frontend/shared/widgets/download_indicator.dart';
+import 'package:bitly/shared/widgets/indicador_descarga.dart';
 
 void main() {
-  group('DownloadState', () {
+  group('EstadoDescarga', () {
     test('none is default', () {
-      expect(DownloadState.none.index, 0);
+      expect(EstadoDescarga.ninguno.index, 0);
     });
 
     test('queued is second', () {
-      expect(DownloadState.queued.index, 1);
+      expect(EstadoDescarga.enCola.index, 1);
     });
 
     test('inProgress is third', () {
-      expect(DownloadState.inProgress.index, 2);
+      expect(EstadoDescarga.enProgreso.index, 2);
     });
 
     test('completed is fourth', () {
-      expect(DownloadState.completed.index, 3);
+      expect(EstadoDescarga.completado.index, 3);
     });
   });
 
-  group('DownloadIndicator', () {
+  group('IndicadorDescarga', () {
     testWidgets('renders nothing specific in none state', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: DownloadIndicator(state: DownloadState.none),
+            body: IndicadorDescarga(estado: EstadoDescarga.ninguno),
           ),
         ),
       );
 
       // The widget renders a SizedBox with a dot inside
-      expect(find.byType(DownloadIndicator), findsOneWidget);
+      expect(find.byType(IndicadorDescarga), findsOneWidget);
     });
 
     testWidgets('renders inProgress ring', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: const DownloadIndicator(
-              state: DownloadState.inProgress,
+            body: const IndicadorDescarga(
+              estado: EstadoDescarga.enProgreso,
             ),
           ),
         ),
       );
 
-      expect(find.byType(DownloadIndicator), findsOneWidget);
+      expect(find.byType(IndicadorDescarga), findsOneWidget);
     });
 
     testWidgets('renders completed ring', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: DownloadIndicator(state: DownloadState.completed),
+            body: IndicadorDescarga(estado: EstadoDescarga.completado),
           ),
         ),
       );
 
-      expect(find.byType(DownloadIndicator), findsOneWidget);
+      expect(find.byType(IndicadorDescarga), findsOneWidget);
     });
 
-    testWidgets('accepts custom size', (tester) async {
+    testWidgets('accepts custom tamano', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: DownloadIndicator(state: DownloadState.none, size: 24),
+            body: IndicadorDescarga(estado: EstadoDescarga.ninguno, tamano: 24),
           ),
         ),
       );
 
-      final indicator = tester.widget<DownloadIndicator>(find.byType(DownloadIndicator));
-      expect(indicator.size, 24);
+      final indicator = tester.widget<IndicadorDescarga>(find.byType(IndicadorDescarga));
+      expect(indicator.tamano, 24);
     });
 
-    testWidgets('uses default size of 8', (tester) async {
+    testWidgets('uses default tamano of 8', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: const DownloadIndicator(),
+            body: const IndicadorDescarga(),
           ),
         ),
       );
 
-      final indicator = tester.widget<DownloadIndicator>(find.byType(DownloadIndicator));
-      expect(indicator.size, DownloadIndicator.defaultSize);
+      final indicator = tester.widget<IndicadorDescarga>(find.byType(IndicadorDescarga));
+      expect(indicator.tamano, IndicadorDescarga.tamanoPorDefecto);
     });
   });
 }

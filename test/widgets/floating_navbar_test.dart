@@ -1,14 +1,14 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
-import 'package:bitly/frontend/features/home/widgets/floating_navbar.dart';
+import 'package:bitly/features/home/widgets/barra_navegacion_flotante.dart';
 
 void main() {
-  group('FloatingNavbar', () {
+  group('BarraNavegacionFlotante', () {
     testWidgets('renders 3 navigation items', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: FloatingNavbar(isDark: false),
+            body: BarraNavegacionFlotante(isDark: false),
           ),
         ),
       );
@@ -23,21 +23,21 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: FloatingNavbar(isDark: false, currentIndex: 0),
+            body: BarraNavegacionFlotante(isDark: false, currentIndex: 0),
           ),
         ),
       );
 
       // Index 0 = search, should be selected
       // We can verify by checking the GlassContainer is rendered
-      expect(find.byType(FloatingNavbar), findsOneWidget);
+      expect(find.byType(BarraNavegacionFlotante), findsOneWidget);
     });
 
     testWidgets('shows middle item (home) selected by default', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: FloatingNavbar(isDark: false, currentIndex: 1),
+            body: BarraNavegacionFlotante(isDark: false, currentIndex: 1),
           ),
         ),
       );
@@ -51,7 +51,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: FloatingNavbar(
+            body: BarraNavegacionFlotante(
               isDark: false,
               currentIndex: 1,
               onTap: (i) => tappedIndex = i,
@@ -72,7 +72,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: FloatingNavbar(
+            body: BarraNavegacionFlotante(
               isDark: false,
               currentIndex: 0,
               onTap: (i) => tappedIndex = i,
@@ -94,7 +94,7 @@ void main() {
           themeMode: ThemeMode.dark,
           darkTheme: ThemeData(brightness: Brightness.dark),
           home: Scaffold(
-            body: FloatingNavbar(isDark: true),
+            body: BarraNavegacionFlotante(isDark: true),
           ),
         ),
       );

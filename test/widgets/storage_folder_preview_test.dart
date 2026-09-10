@@ -1,20 +1,20 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
-import 'package:bitly/frontend/features/setup/widgets/storage_folder_preview.dart';
+import 'package:bitly/features/setup/widgets/vista_previa_carpeta.dart';
 
 void main() {
-  group('StorageFolderPreview', () {
+  group('VistaPreviaCarpeta', () {
     testWidgets('shows folder icon and selectedLabel when hasPath', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: StorageFolderPreview(
-              hasPath: true,
-              usingDefault: false,
-              picking: false,
-              displayPath: '/storage/music',
-              selectedLabel: 'Selected folder',
-              noFolderLabel: 'No folder',
+            body: VistaPreviaCarpeta(
+              tieneRuta: true,
+              usandoPorDefecto: false,
+              eligiendo: false,
+              rutaMostrada: '/storage/music',
+              etiquetaSeleccionada: 'Selected folder',
+              etiquetaSinCarpeta: 'No folder',
               onBg: Colors.black,
               glowColor: Colors.green,
             ),
@@ -31,13 +31,13 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: StorageFolderPreview(
-              hasPath: false,
-              usingDefault: false,
-              picking: false,
-              displayPath: '',
-              selectedLabel: 'Selected folder',
-              noFolderLabel: 'No folder',
+            body: VistaPreviaCarpeta(
+              tieneRuta: false,
+              usandoPorDefecto: false,
+              eligiendo: false,
+              rutaMostrada: '',
+              etiquetaSeleccionada: 'Selected folder',
+              etiquetaSinCarpeta: 'No folder',
               onBg: Colors.black,
               glowColor: Colors.green,
             ),
@@ -53,13 +53,13 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: StorageFolderPreview(
-              hasPath: false,
-              usingDefault: false,
-              picking: true,
-              displayPath: '',
-              selectedLabel: 'Selected',
-              noFolderLabel: 'No folder',
+            body: VistaPreviaCarpeta(
+              tieneRuta: false,
+              usandoPorDefecto: false,
+              eligiendo: true,
+              rutaMostrada: '',
+              etiquetaSeleccionada: 'Selected',
+              etiquetaSinCarpeta: 'No folder',
               onBg: Colors.black,
               glowColor: Colors.green,
             ),
@@ -74,13 +74,13 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: StorageFolderPreview(
-              hasPath: false,
-              usingDefault: false,
-              picking: false,
-              displayPath: '',
-              selectedLabel: 'Selected',
-              noFolderLabel: 'No folder',
+            body: VistaPreviaCarpeta(
+              tieneRuta: false,
+              usandoPorDefecto: false,
+              eligiendo: false,
+              rutaMostrada: '',
+              etiquetaSeleccionada: 'Selected',
+              etiquetaSinCarpeta: 'No folder',
               onBg: Colors.black,
               glowColor: Colors.green,
             ),

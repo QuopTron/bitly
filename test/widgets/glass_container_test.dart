@@ -1,14 +1,14 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
-import 'package:bitly/frontend/shared/widgets/glass_container.dart';
+import 'package:bitly/shared/widgets/contenedor_vidrio.dart';
 
 void main() {
-  group('GlassContainer', () {
+  group('ContenedorVidrio', () {
     testWidgets('renders child widget', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: GlassContainer(
+            body: ContenedorVidrio(
               child: const Text('Hello'),
             ),
           ),
@@ -22,7 +22,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: GlassContainer(
+            body: ContenedorVidrio(
               padding: const EdgeInsets.all(24),
               child: const Text('Padded'),
             ),
@@ -38,7 +38,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: GlassContainer(
+            body: ContenedorVidrio(
               margin: const EdgeInsets.all(16),
               child: const Text('Margined'),
             ),
@@ -55,7 +55,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: GlassContainer(
+            body: ContenedorVidrio(
               borderRadius: 8,
               child: const Text('Rounded'),
             ),
@@ -70,7 +70,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: GlassContainer(
+            body: ContenedorVidrio(
               borderColor: Colors.red,
               child: const Text('Bordered'),
             ),
@@ -85,7 +85,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: GlassContainer(
+            body: ContenedorVidrio(
               bgColor: Colors.blue.withValues(alpha: 0.1),
               child: const Text('Colored bg'),
             ),

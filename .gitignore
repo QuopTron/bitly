@@ -90,14 +90,20 @@ scripts/
 signed_sessions/
 null
 
-# Secrets
+# Secrets (archivo real con token — NUNCA subir; el template es
+# secretos.example.dart y el CI lo genera)
 lib/config/secrets.dart
+lib/config/secretos.dart
 
 # Backups locales (no versionar)
 *.rar
 
 # Build outputs for sharing (Drive) — keep out of git
 /APKs Bitly/
+
+# Binarios del release (APKs/instaladores) — se suben a la GitHub Release,
+# nunca al repo
+/dist/
 
 # ── Debug / temp files ──────────────────────────────────────────────
 tmp_*

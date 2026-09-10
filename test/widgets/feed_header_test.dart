@@ -2,20 +2,20 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:bitly/frontend/features/feed/widgets/feed_header.dart';
-import 'package:bitly/frontend/features/feed/bloc/feed_bloc.dart';
-import 'package:bitly/frontend/shared/widgets/source_accordion.dart';
-import 'package:bitly/frontend/features/feed/bloc/feed_state.dart';
-import 'package:bitly/backend/rpc/backend_service.dart';
-import 'package:bitly/frontend/l10n/app_localizations.dart';
+import 'package:bitly/features/feed/widgets/cabecera_feed.dart';
+import 'package:bitly/features/feed/bloc/feed_bloc.dart';
+import 'package:bitly/shared/widgets/acordeon_fuente.dart';
+import 'package:bitly/features/feed/bloc/feed_estado.dart';
+import 'package:bitly/core/backend_go/contrato_backend.dart';
+import 'package:bitly/l10n/app_localizations.dart';
 
 class _MockBackend extends Mock implements BackendService {}
 
 /// Helper: builds widget tree, emits state after mount, pumps again.
 Future<void> pumpWithState(
   WidgetTester tester, {
-  required FeedBloc bloc,
-  required FeedState state,
+  required BlocFeed bloc,
+  required EstadoFeed state,
   Map<String, String> sources = const {},
 }) async {
   await tester.pumpWidget(
@@ -24,12 +24,12 @@ Future<void> pumpWithState(
       home: Scaffold(
         body: SizedBox(
           width: 400,
-          child: BlocProvider<FeedBloc>.value(
+          child: BlocProvider<BlocFeed>.value(
             value: bloc,
-            child: FeedHeader(
+            child: CabeceraFeed(
               onBg: Colors.black,
-              glowColor: Colors.green,
-              sources: sources,
+              colorBrillo: Colors.green,
+              fuentes: sources,
             ),
           ),
         ),
@@ -43,23 +43,23 @@ Future<void> pumpWithState(
 
 void main() {
   late _MockBackend backend;
-  late FeedBloc bloc;
+  late BlocFeed bloc;
 
   setUp(() {
     backend = _MockBackend();
-    bloc = FeedBloc(backend);
+    bloc = BlocFeed(backend);
   });
 
   tearDown(() {
     bloc.close();
   });
 
-  group('FeedHeader', () {
+  group('CabeceraFeed', () {
     testWidgets('shows greeting with username when provided', (tester) async {
       await pumpWithState(
         tester,
         bloc: bloc,
-        state: const FeedState(username: 'Alice', selectedSource: ''),
+        state: const EstadoFeed(usuario: 'Alice'),
         sources: {},
       );
 
@@ -70,7 +70,7 @@ void main() {
       await pumpWithState(
         tester,
         bloc: bloc,
-        state: const FeedState(username: ''),
+        state: const EstadoFeed(),
         sources: {},
       );
 
@@ -83,13 +83,13 @@ void main() {
       await pumpWithState(
         tester,
         bloc: bloc,
-        state: const FeedState(selectedSource: 'deezer'),
+        state: const EstadoFeed(fuenteSeleccionada: 'deezer'),
         sources: {'deezer': 'Deezer', 'spotify-web': 'Spotify'},
       );
 
       // The accordion trigger is an icon-only circular button now (the
       // source NAME only appears inside the floating list when opened).
-      expect(find.byType(SourceAccordion), findsOneWidget);
+      expect(find.byType(AcordeonFuente), findsOneWidget);
       expect(find.text('Todas las fuentes'), findsNothing);
     });
 
@@ -98,32 +98,32 @@ void main() {
       await pumpWithState(
         tester,
         bloc: bloc,
-        state: const FeedState(),
+        state: const EstadoFeed(),
         sources: {},
       );
 
-      expect(find.byType(SourceAccordion), findsNothing);
+      expect(find.byType(AcordeonFuente), findsNothing);
       expect(find.text('Todas las fuentes'), findsNothing);
     });
 
-    testWidgets('changing source dispatches FeedSourceChanged',
+    testWidgets('changing source dispatches FuenteFeedCambiada',
         (tester) async {
       await pumpWithState(
         tester,
         bloc: bloc,
-        state: const FeedState(selectedSource: 'deezer'),
+        state: const EstadoFeed(fuenteSeleccionada: 'deezer'),
         sources: {'deezer': 'Deezer', 'spotify-web': 'Spotify'},
       );
 
       // Open the accordion: tap the trigger (icon button, no label).
-      await tester.tap(find.byType(SourceAccordion));
+      await tester.tap(find.byType(AcordeonFuente));
       await tester.pumpAndSettle();
 
       // The floating list shows the source names — tap 'Spotify'.
       await tester.tap(find.text('Spotify').last);
       await tester.pumpAndSettle();
 
-      expect(bloc.state.selectedSource, 'spotify-web');
+      expect(bloc.state.fuenteSeleccionada, 'spotify-web');
     });
   });
 }

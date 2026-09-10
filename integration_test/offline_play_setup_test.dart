@@ -2,9 +2,9 @@
 //
 // Simula una descarga real SIN depender de ningún provider: genera un archivo
 // de audio WAV válido (sine wave, 3s) directamente en el directorio de
-// descargas de la app y registra la fila en drift (DownloadCache), exactamente
+// descargas de la app y registra la fila en drift (CacheDescargas), exactamente
 // como lo haría una descarga real. Luego reproduce el track con el pipeline
-// real (QueueCubit → PlayerCubit → _resolveLocalUri → media_kit).
+// real (CubitCola → CubitReproductor → _resolveLocalUri → media_kit).
 //
 // CORRER EN ORDEN: primero este archivo (con red), luego
 // offline_play_restart_test.dart CON LA RED APAGADA en el emulador
@@ -20,12 +20,12 @@ import 'package:integration_test/integration_test.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:path_provider/path_provider.dart';
 
-import 'package:bitly/backend/cache/download_cache.dart';
-import 'package:bitly/backend/rpc/android_backend.dart';
-import 'package:bitly/backend/services/player_cubit.dart';
-import 'package:bitly/backend/services/queue_cubit.dart';
-import 'package:bitly/frontend/shared/models/feed_models.dart';
-import 'package:bitly/injection.dart' as inj;
+import 'package:bitly/core/cache/cache_descargas.dart';
+import 'package:bitly/core/backend_go/backend_android.dart';
+import 'package:bitly/estado/cubit_reproductor.dart';
+import 'package:bitly/estado/cubit_cola.dart';
+import 'package:bitly/core/modelos/item_feed.dart';
+import 'package:bitly/app/inyeccion.dart' as inj;
 
 /// Genera un WAV PCM 16-bit mono 44.1kHz de [seconds] segundos (sine 440Hz)
 /// y lo escribe en [path]. Devuelve la ruta. No usa red.
@@ -72,8 +72,8 @@ void main() {
   testWidgets('offline: descarga local se reproduce online y queda en drift',
       (tester) async {
     MediaKit.ensureInitialized();
-    await inj.configureDependencies();
-    final backend = AndroidBackend();
+    await inj.configurarDependencias();
+    final backend = BackendAndroid();
 
     // 1. Init real del backend Go (el app arranca bien online).
     final healthy = await backend.healthCheck();
@@ -85,7 +85,7 @@ void main() {
     expect(File(wavPath).existsSync(), isTrue, reason: 'el WAV debe existir');
 
     // 3. Registrar en drift igual que una descarga real.
-    await inj.sl<DownloadCache>().saveDownloadedTrack(
+    await inj.sl<CacheDescargas>().guardarTrackDescargado(
       id: 'offline_test_1',
       trackName: 'Offline Test Track',
       artistName: 'Tester',
@@ -93,13 +93,13 @@ void main() {
       service: 'ytmusic-spotiflac',
       duration: 3000,
     );
-    final saved = await inj.sl<DownloadCache>().getFilePathById('offline_test_1');
+    final saved = await inj.sl<CacheDescargas>().getRutaArchivoPorId('offline_test_1');
     expect(saved, wavPath, reason: 'drift debe recordar el archivo descargado');
 
     // 4. Reproducir con el pipeline real (proceso online).
-    final queue = inj.sl<QueueCubit>();
-    final player = inj.sl<PlayerCubit>();
-    final track = FeedItem(
+    final queue = inj.sl<CubitCola>();
+    final player = inj.sl<CubitReproductor>();
+    final track = ItemFeed(
       id: 'offline_test_1',
       type: 'track',
       name: 'Offline Test Track',
@@ -107,7 +107,7 @@ void main() {
       source: 'ytmusic-spotiflac',
       durationMs: 3000,
     );
-    queue.play(track);
+    queue.reproducir(track);
 
     // Esperar a que arranque la reproducción (media_kit en emulador es lento).
     var state = player.state;
@@ -115,22 +115,22 @@ void main() {
     while (DateTime.now().isBefore(deadline)) {
       await Future<void>.delayed(const Duration(milliseconds: 500));
       state = player.state;
-      if (state.isPlaying || state.playbackState.name == 'error') break;
+      if (state.estaReproduciendo || state.estadoReproduccion.name == 'error') break;
     }
-    expect(state.playbackState.name, 'playing',
+    expect(state.estadoReproduccion.name, 'reproduciendo',
         reason: 'debe reproducir el archivo local (estado: '
-            '${state.playbackState.name}, error: ${state.errorMessage})');
+            '${state.estadoReproduccion.name}, error: ${state.mensajeError})');
 
     // 5. Esperar a que el position avance (>1s) = audio decodificado real.
     final deadline2 = DateTime.now().add(const Duration(seconds: 30));
     while (DateTime.now().isBefore(deadline2) &&
-        state.position.inMilliseconds < 1000) {
+        state.posicion.inMilliseconds < 1000) {
       await Future<void>.delayed(const Duration(milliseconds: 500));
       state = player.state;
     }
-    expect(state.position.inMilliseconds, greaterThanOrEqualTo(1000),
+    expect(state.posicion.inMilliseconds, greaterThanOrEqualTo(1000),
         reason: 'el audio debe estar decodificándose (position: '
-            '${state.position.inMilliseconds}ms)');
+            '${state.posicion.inMilliseconds}ms)');
 
     // Dejar el track registrado en drift para el Test B (reinicio offline).
   });

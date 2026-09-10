@@ -1,31 +1,30 @@
-# Release — Genera el APK y lo publica como GitHub Release
+# Release — Compila los binarios y los publica como GitHub Release
 #
 # Reemplaza al Play Store: cada vez que se crea un tag vX.Y.Z (o se ejecuta
 # manualmente con workflow_dispatch), este workflow:
-#   1. Compila el backend Go como AAR (gomobile) y el APK release universal
-#      (todos los celulares, sin x86_64).
-#   2. Opcionalmente (input `include_emulator`) también genera el APK con
-#      x86_64 para emuladores de PC.
-#   3. Crea una GitHub Release con las notas generadas automáticamente desde
-#      los commits/PRs desde el último tag, y adjunta los APKs con nombres
-#      descriptivos.
+#   1. release-android: compila el backend Go como AAR (gomobile) y los APKs
+#      release con --split-per-abi, uno por arquitectura.
+#   2. release-windows: compila el backend Go, la app Windows release y arma
+#      el instalador .exe con Inno Setup.
+#   3. Publica todo en la MISMA GitHub Release con NOMBRES CONSISTENTES (los
+#      mismos que lee el detector de versiones de la app y el sitio web del
+#      proyecto):
+#        · Android: app-arm64-v8a-release.apk
+#                   app-armeabi-v7a-release.apk
+#                   app-x86_64-release.apk
+#        · Windows: Bitly-Setup-X.Y.Z.exe
 #
 # La firma usa el keystore de debug (como el build local), así que el APK
 # instala encima de versiones anteriores sin perder datos — no se necesitan
 # secretos de firma.
 
-name: Release APK
+name: Release
 
 on:
   push:
     tags:
       - "v*"
   workflow_dispatch:
-    inputs:
-      include_emulator:
-        description: "Incluir también el APK con x86_64 (para emuladores de PC)"
-        type: boolean
-        default: false
 
 permissions:
   contents: write # necesario para crear el Release y subir los assets
@@ -36,7 +35,7 @@ concurrency:
 
 jobs:
   release-android:
-    name: Build & Release APK
+    name: Build & Release Android
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -47,7 +46,7 @@ jobs:
       - name: Read version from pubspec
         id: version
         run: |
-          VERSION=$(grep -E '^version:' pubspec.yaml | sed 's/version: *//')
+          VERSION=$(grep -E '^version:' pubspec.yaml | sed 's/version: *//' | cut -d'+' -f1)
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Usando versión: $VERSION"
 
@@ -99,8 +98,6 @@ jobs:
             tail -40 /tmp/gomobile.log | while IFS= read -r line; do echo "::error::$line"; done
             exit 1
           fi
-        # ANDROID_* ya están en GITHUB_ENV desde el paso Resolve Android SDK/NDK.
-        # (El contexto `env` de Actions no expone las predefinidas del runner.)
         env:
           ANDROID_SDK_ROOT: ${{ steps.ndk.outputs.sdk_root }}
           ANDROID_HOME: ${{ steps.ndk.outputs.sdk_root }}
@@ -108,7 +105,7 @@ jobs:
 
       # Fijada a la versión que compila localmente (3.41.6). `stable` instala
       # la ÚLTIMA versión y su plugin Flutter-Gradle choca con el AGP 8.9.1
-      # del proyecto (error: exception applying dev.flutter.flutter-gradle-plugin).
+      # del proyecto.
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -116,12 +113,10 @@ jobs:
           cache: true
 
       # secrets.dart está gitignored (token real). Se genera desde el template
-      # con el token guardado como secret PREMIUM_GITHUB_TOKEN (Settings →
-      # Secrets and variables → Actions). Si el secret no existe, compila con
-      # el placeholder (el APK se genera pero la validación premium fallará).
+      # con el token guardado como secret PREMIUM_GITHUB_TOKEN.
       - name: Generate secrets.dart
         run: |
-          cp lib/config/secrets.example.dart lib/config/secrets.dart
+          cp lib/config/secretos.example.dart lib/config/secretos.dart
           TOKEN="${{ secrets.PREMIUM_GITHUB_TOKEN }}"
           if [ -n "$TOKEN" ]; then
             sed -i "s|tu_github_token_aqui|$TOKEN|" lib/config/secrets.dart
@@ -130,36 +125,119 @@ jobs:
       - name: Flutter pub get
         run: flutter pub get
 
-      - name: Build release APK (todos los celulares)
+      # Split-per-abi: un APK delgado por arquitectura. Flutter genera los tres
+      # (arm64-v8a, armeabi-v7a y x86_64) con los nombres que la app y el sitio
+      # esperan — NO se renombran.
+      - name: Build release APKs (split-per-abi)
         run: |
           set -o pipefail
-          if ! flutter build apk --release 2>&1 | tee /tmp/flutter_build.log; then
+          if ! flutter build apk --release --split-per-abi 2>&1 | tee /tmp/flutter_build.log; then
             echo "::error::=== flutter build apk FAILED (tail del log) ==="
             tail -50 /tmp/flutter_build.log | while IFS= read -r line; do echo "::error::$line"; done
             exit 1
           fi
 
-      - name: Rename universal APK
+      # Nombres consistentes: app-<abi>-release.apk (tal cual los produce
+      # Flutter y tal cual los busca el detector de versiones).
+      - name: Collect APKs
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
           mkdir -p dist
-          cp build/app/outputs/flutter-apk/app-release.apk "dist/Bitly_v${VERSION}_TODOS-los-celulares.apk"
+          cd build/app/outputs/flutter-apk
+          for abi in arm64-v8a armeabi-v7a x86_64; do
+            if [ -f "app-$abi-release.apk" ]; then
+              cp "app-$abi-release.apk" "$GITHUB_WORKSPACE/dist/app-$abi-release.apk"
+            else
+              echo "::error::Falta el APK app-$abi-release.apk"
+              exit 1
+            fi
+          done
+          ls -lh "$GITHUB_WORKSPACE/dist"
 
-      - name: Build emulator APK (x86_64)
-        if: github.event_name == 'workflow_dispatch' && inputs.include_emulator == true
-        run: |
-          INCLUDE_X86_64=true flutter build apk --release
-          VERSION="${{ steps.version.outputs.version }}"
-          cp build/app/outputs/flutter-apk/app-release.apk "dist/Bitly_v${VERSION}_Emulador-PC-(con-x86_64).apk"
-
-      - name: List artifacts
-        run: ls -lh dist/
-
-      - name: Publish GitHub Release
+      - name: Publish GitHub Release (Android)
         uses: softprops/action-gh-release@v2
         with:
           name: "Bitly ${{ steps.version.outputs.version }}"
           tag_name: ${{ github.ref_name }}
           generate_release_notes: true
           files: dist/*
+          fail_on_unmatched_files: true
+
+  release-windows:
+    name: Build & Release Windows
+    runs-on: windows-latest
+    needs: release-android
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read version from pubspec
+        id: version
+        shell: bash
+        run: |
+          VERSION=$(grep -E '^version:' pubspec.yaml | sed 's/version: *//' | cut -d'+' -f1)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Usando versión: $VERSION"
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go_backend/go.mod
+          cache-dependency-path: go_backend/go.sum
+
+      # El backend Go se bundlea junto al runner (windows/CMakeLists.txt).
+      - name: Build Go backend (Windows)
+        shell: bash
+        run: |
+          mkdir -p windows/backend
+          cd go_backend
+          go build -ldflags="-s -w" -o "../windows/backend/bitly-backend.exe" ./cmd/server
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.41.6
+          cache: true
+
+      - name: Generate secrets.dart
+        shell: bash
+        run: |
+          cp lib/config/secretos.example.dart lib/config/secretos.dart
+          TOKEN="${{ secrets.PREMIUM_GITHUB_TOKEN }}"
+          if [ -n "$TOKEN" ]; then
+            sed -i "s|tu_github_token_aqui|$TOKEN|" lib/config/secrets.dart
+          fi
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Build Windows release
+        run: flutter build windows --release
+
+      # El instalador debe salir SIEMPRE limpio (sin sesiones firmadas ni
+      # stores cacheados) para forzar verificar las extensiones en cada
+      # instalación nueva.
+      - name: Clean signed sessions
+        shell: bash
+        run: |
+          RELEASE="build/windows/x64/runner/Release"
+          rm -rf "$RELEASE/signed_sessions" "$RELEASE/ext_data/signed_sessions"
+          rm -f "$RELEASE/signed_session_debug.log" "$RELEASE/ext_data/signed_session_debug.log"
+          rm -f "$RELEASE"/*_store.json || true
+
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Build installer
+        shell: bash
+        run: |
+          ISCC="/c/Program Files (x86)/Inno Setup 6/ISCC.exe"
+          mkdir -p dist
+          "$ISCC" "/DMyAppVersion=${{ steps.version.outputs.version }}" scripts/instalador_windows.iss
+          ls -lh dist/
+
+      - name: Publish GitHub Release (Windows)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: dist/Bitly-Setup-*.exe
           fail_on_unmatched_files: true

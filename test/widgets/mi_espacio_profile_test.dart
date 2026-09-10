@@ -1,20 +1,20 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
-import 'package:bitly/frontend/features/miespacio/mi_espacio_profile.dart';
-import 'package:bitly/frontend/l10n/app_localizations.dart';
+import 'package:bitly/features/mi_espacio/perfil_mi_espacio.dart';
+import 'package:bitly/l10n/app_localizations.dart';
 
 void main() {
-  group('MiEspacioProfile', () {
+  group('PerfilMiEspacio', () {
     Widget buildTest({required String username, int loved = 0, int playlists = 0}) {
       return MaterialApp(
         localizationsDelegates: const [AppLocalizations.delegate],
         home: Scaffold(
-          body: MiEspacioProfile(
+          body: PerfilMiEspacio(
             username: username,
-            lovedSongsCount: loved,
+            cancionesAmadas: loved,
             playlistsCount: playlists,
             onBg: Colors.black,
-            glowColor: Colors.green,
+            colorBrillo: Colors.green,
           ),
         ),
       );

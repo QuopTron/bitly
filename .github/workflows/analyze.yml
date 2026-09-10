@@ -24,7 +24,7 @@ jobs:
           cache: true
 
       - name: Generate secrets.dart
-        run: cp lib/config/secrets.example.dart lib/config/secrets.dart
+        run: cp lib/config/secretos.example.dart lib/config/secretos.dart
 
       - name: Flutter pub get
         run: flutter pub get

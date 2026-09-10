@@ -1,68 +1,67 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:bitly/frontend/shared/constants/source_constants.dart';
+import 'package:bitly/shared/constantes/constantes_fuente.dart';
 
 void main() {
-  group('formatId', () {
+  group('formatearId', () {
     test('formats hyphenated ID correctly', () {
-      expect(formatId('spotify-web'), 'Spotify Web');
+      expect(formatearId('spotify-web'), 'Spotify Web');
     });
 
     test('formats double-hyphenated ID correctly', () {
-      expect(formatId('ytmusic-spotiflac'), 'Ytmusic Spotiflac');
+      expect(formatearId('ytmusic-spotiflac'), 'Ytmusic Spotiflac');
     });
 
     test('handles single word ID', () {
-      expect(formatId('deezer'), 'Deezer');
+      expect(formatearId('deezer'), 'Deezer');
     });
 
     test('handles empty string', () {
-      expect(formatId(''), '');
+      expect(formatearId(''), '');
     });
 
     test('formats apple-music correctly', () {
-      expect(formatId('apple-music'), 'Apple Music');
+      expect(formatearId('apple-music'), 'Apple Music');
     });
 
     test('formats qobuz-web correctly', () {
-      expect(formatId('qobuz-web'), 'Qobuz Web');
+      expect(formatearId('qobuz-web'), 'Qobuz Web');
     });
   });
 
-  group('sourceIcons', () {
+  group('iconosFuente', () {
     test('contains all known sources', () {
-      expect(sourceIcons.keys, containsAll([
+      expect(iconosFuente.keys, containsAll([
         'deezer', 'apple-music', 'soundcloud', 'spotify-web',
         'pandora', 'amazon', 'qobuz-web', 'tidal-web', 'ytmusic-spotiflac',
       ]));
     });
 
     test('has 11 entries (incl. todas/empty)', () {
-      expect(sourceIcons.length, 11);
+      expect(iconosFuente.length, 11);
     });
   });
 
-  group('allSources', () {
-    test('matches sourceIcons keys', () {
-      for (final src in allSources) {
-        expect(sourceIcons, contains(src));
+  group('todasLasFuentes', () {
+    test('matches iconosFuente keys', () {
+      for (final src in todasLasFuentes) {
+        expect(iconosFuente, contains(src));
       }
     });
   });
 
-  group('sourceLabels', () {
+  group('etiquetasFuente', () {
     test('all sources have labels', () {
-      for (final src in allSources) {
-        expect(sourceLabels, containsPair(src, isA<String>()));
+      for (final src in todasLasFuentes) {
+        expect(etiquetasFuente, containsPair(src, isA<String>()));
       }
     });
 
     test('deezer label is Deezer', () {
-      expect(sourceLabels['deezer'], 'Deezer');
+      expect(etiquetasFuente['deezer'], 'Deezer');
     });
 
     test('spotify-web label is Spotify', () {
-      expect(sourceLabels['spotify-web'], 'Spotify');
+      expect(etiquetasFuente['spotify-web'], 'Spotify');
     });
   });
-}
-
+}

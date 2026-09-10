@@ -1,75 +1,60 @@
+// ─────────────────────────────────────────────────────────────
+// app_router.dart — Router raíz de la app (go_router): define las
+// rutas splash ('/'), setup ('/setup'), home ('/home') y tutorial
+// ('/tutorial') con sus transiciones. El reproductor completo NO
+// tiene ruta propia: se abre con RutaDeslizarArriba (Navigator.push)
+// desde el ensamblador de la home.
+// Se conecta con: route_names + pagina_splash + pagina_setup +
+// ensamblador_home + tutorial_pagina.
+// Parte del flujo: navegación raíz (primera pantalla → home/setup).
+// ─────────────────────────────────────────────────────────────
+
 import 'package:flutter/material.dart';
-import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
+
+import '../features/home/ensamblador_home.dart';
+import '../features/setup/pagina_setup.dart';
+import '../features/splash/pagina_splash.dart';
+import '../features/tutorial/tutorial_pagina.dart';
 import 'route_names.dart';
-import '../frontend/features/splash/splash_page.dart';
-import '../frontend/features/setup/setup_page.dart';
-import '../frontend/features/home/home_page.dart';
-import '../frontend/features/player/now_playing_page.dart';
-import '../frontend/features/tutorial/tutorial_page.dart';
 
-/// Slide-up + fade transition used by [CustomTransitionPage] below.
-Widget _slideUpTransitions(
-  BuildContext context,
-  Animation<double> animation,
-  Animation<double> secondaryAnimation,
-  Widget child,
-) {
-  final curved = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
-  return SlideTransition(
-    position: Tween<Offset>(begin: const Offset(0, 0.12), end: Offset.zero).animate(curved),
-    child: FadeTransition(opacity: curved, child: child),
-  );
-}
-
+/// Construye el GoRouter con las rutas raíz de la app.
 class AppRouter {
   final GlobalKey<NavigatorState>? navigatorKey;
   final List<NavigatorObserver>? navigatorObservers;
-  AppRouter({this.navigatorKey, this.navigatorObservers});
+
+  const AppRouter({this.navigatorKey, this.navigatorObservers});
 
   GoRouter get router => GoRouter(
-    navigatorKey: navigatorKey,
-    observers: navigatorObservers,
-    initialLocation: RouteNames.splash.path,
-    routes: [
-      GoRoute(
-        path: RouteNames.splash.path,
-        name: 'splash',
-        builder: (_, _) => const SplashPage(),
-      ),
-      GoRoute(
-        path: RouteNames.setup.path,
-        name: 'setup',
-        pageBuilder: (_, _) => CustomTransitionPage(
-          key: const ValueKey('setup'),
-          child: const SetupPage(),
-          transitionsBuilder: (_, animation, _, child) =>
-            FadeTransition(opacity: animation, child: child),
-        ),
-      ),
-      GoRoute(
-        path: RouteNames.home.path,
-        name: 'home',
-        builder: (_, _) => const HomePage(),
-      ),
-      GoRoute(
-        path: RouteNames.nowPlaying.path,
-        name: 'now_playing',
-        // `name` makes the route observable by AppNavigatorObserver so the
-        // global MiniPlayer overlay can hide while the full-screen player is up.
-        pageBuilder: (_, _) => CustomTransitionPage<void>(
-          name: 'now_playing',
-          key: const ValueKey('now_playing_page'),
-          child: const NowPlayingPage(),
-          transitionsBuilder: _slideUpTransitions,
-        ),
-      ),
-      GoRoute(
-        path: RouteNames.tutorial.path,
-        name: 'tutorial',
-        builder: (_, _) => const TutorialPage(),
-      ),
-    ],
-  );
+        navigatorKey: navigatorKey,
+        observers: navigatorObservers,
+        initialLocation: RouteNames.splash.path,
+        routes: [
+          GoRoute(
+            path: RouteNames.splash.path,
+            name: 'splash',
+            builder: (_, _) => const PaginaSplash(),
+          ),
+          GoRoute(
+            path: RouteNames.setup.path,
+            name: 'setup',
+            pageBuilder: (_, _) => CustomTransitionPage(
+              key: const ValueKey('setup'),
+              child: const PaginaSetup(),
+              transitionsBuilder: (_, animacion, _, hijo) =>
+                  FadeTransition(opacity: animacion, child: hijo),
+            ),
+          ),
+          GoRoute(
+            path: RouteNames.home.path,
+            name: 'home',
+            builder: (_, _) => const EnsambladorHome(),
+          ),
+          GoRoute(
+            path: RouteNames.tutorial.path,
+            name: 'tutorial',
+            builder: (_, _) => const TutorialPagina(),
+          ),
+        ],
+      );
 }
-

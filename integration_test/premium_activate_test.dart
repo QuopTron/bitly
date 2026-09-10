@@ -7,7 +7,7 @@
 //      puede tocar desde un test; la validación contra ese registro ya está
 //      cubierta por unit tests Go con el formato exacto)
 //   3. validatePremiumCode(código) → valida estructura + firma en Go
-//   4. PremiumCache.activatePremium → persiste premium en drift (365 días)
+//   4. CachePremium.activarPremium → persiste premium en drift (365 días)
 //   5. checkDownloadAllowed → el gate permite descargas
 //
 // CORRER EN ORDEN: primero este archivo, luego premium_restart_test.dart
@@ -19,9 +19,9 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
-import 'package:bitly/backend/cache/premium_cache.dart';
-import 'package:bitly/backend/rpc/android_backend.dart';
-import 'package:bitly/injection.dart' as inj;
+import 'package:bitly/core/cache/cache_premium.dart';
+import 'package:bitly/core/backend_go/backend_android.dart';
+import 'package:bitly/app/inyeccion.dart' as inj;
 
 /// Replica exacta del generador de códigos del lado emisor (PremiumService
 /// Dart / generarCodeApp en Go): payload {p: palabra, e: expiración} →
@@ -42,8 +42,8 @@ void main() {
 
   testWidgets('premium: activar código válido y gate permite descargas',
       (tester) async {
-    await inj.configureDependencies();
-    final backend = AndroidBackend();
+    await inj.configurarDependencias();
+    final backend = BackendAndroid();
 
     // 1. Init real del backend Go en el dispositivo.
     final healthy = await backend.healthCheck();
@@ -59,9 +59,9 @@ void main() {
     expect(error, isNull, reason: 'código válido no debe devolver error: $error');
 
     // 4. Persistir en drift igual que hace la app tras validar.
-    await inj.sl<PremiumCache>().activatePremium(code);
-    final stored = await inj.sl<PremiumCache>().getPremiumStatus();
-    expect(stored.isPremium, isTrue, reason: 'drift debe guardar premium');
+    await inj.sl<CachePremium>().activarPremium(code);
+    final stored = await inj.sl<CachePremium>().getEstadoPremium();
+    expect(stored.activo, isTrue, reason: 'drift debe guardar premium');
     expect(stored.tier, 'premium');
 
     // 5. Gate de descargas en Go debe permitir.
