@@ -1,0 +1,124 @@
+// ─────────────────────────────────────────────────────────────
+// descargas_borrar.dart — PART de cubit_descargas.dart: borrado de
+// la descarga de un ÁLBUM: remueve archivos del disco (cuando ya no
+// se usan), filas de la BD, carátulas (solo si el álbum ya no está
+// amado), fingerprints y estado en memoria, y pide a Go cancelar los
+// trackers para que el poll no resucite la descarga borrada. Cuando
+// el lote está en memoria usa _borrarLote (descargas_borrar_lote.dart);
+// tras un reinicio resuelve los tracks desde la fila del lote en BD.
+// Se conecta con: descargas_inicio_playlist.dart (misma library).
+// Parte del flujo: descargas (borrar álbum de Mi Espacio).
+// ─────────────────────────────────────────────────────────────
+
+part of 'cubit_descargas.dart';
+
+/// Borrado de descargas de álbum. Mixin aplicado en CubitDescargas.
+mixin DescargasBorrar on DescargasInicioPlaylist {
+  /// Borra un lote completo que aún vive en memoria — implementación concreta
+  /// en DescargasBorrarLote (arriba en la cadena).
+  Future<void> _borrarLote(String batchKey);
+
+  /// Borra todos los tracks descargados de un lote de álbum.
+  Future<void> borrarDescargaAlbum(String albumId, String source) async {
+    final batchKey = 'album_${normalizarId(albumId)}_$source';
+    final data = _datosLote[batchKey];
+    if (data != null) {
+      await _borrarLote(batchKey);
+      return;
+    }
+    // Tras reinicio: obtener los track IDs desde la entrada del lote.
+    var batch = await _downloadCache.getLotePorItem('album', albumId, source);
+    var sourceEfectiva = source;
+    if (batch == null && source.isNotEmpty) {
+      batch = await _downloadCache.getLotePorItem('album', albumId, '');
+      if (batch != null) sourceEfectiva = '';
+    }
+    final stateKeys = <String>[];
+    if (batch?.trackIds != null && batch!.trackIds!.isNotEmpty) {
+      final decoded = jsonDecode(batch.trackIds!) as List<dynamic>;
+      for (final entry in decoded) {
+        if (entry is String) {
+          stateKeys.add(entry);
+        } else if (entry is Map<String, dynamic>) {
+          final id = (entry['id'] ?? '') as String;
+          if (id.isNotEmpty) stateKeys.add(id);
+        }
+      }
+    }
+    if (stateKeys.isNotEmpty) {
+      // stateKeys son "track_idNormalizado_fuente"; extraer IDs normalizados
+      // y también probar formatos originales para un borrado robusto en BD.
+      final allIds = <String>{};
+      final fileStems = <String>{};
+      final coversToDelete = <String>{};
+      for (final stateKey in stateKeys) {
+        allIds.add(stateKey);
+        final parts = stateKey.split('_');
+        if (parts.length >= 3) {
+          final extractedId = parts.sublist(1, parts.length - 1).join('_');
+          allIds.add(extractedId);
+          fileStems.add(extractedId);
+          fileStems.add('lyrics_${_sha1Hex(extractedId)}');
+          final meta = _metaTrack[stateKey];
+          if (meta != null) {
+            fileStems.add('lyrics_${_sha1Hex(meta.trackId)}');
+            if (meta.name.isNotEmpty && meta.artist != null && meta.artist!.isNotEmpty) {
+              fileStems.add('${_sanitizarNombreArchivo(meta.artist!)} - ${_sanitizarNombreArchivo(meta.name)}');
+            }
+            if (meta.coverUrl != null && meta.coverUrl!.isNotEmpty) {
+              coversToDelete.add(meta.coverUrl!);
+            }
+          }
+          // Limpiar la caché en memoria para que iniciarDescargaAlbum ya no
+          // salte estos tracks como "ya descargados".
+          _idsTracksDescargados.remove(extractedId);
+        }
+      }
+      // Carátulas: borrar cada URL una sola vez y solo si el álbum ya no está
+      // amado (el like muestra la misma portada en Mi Espacio).
+      if (coversToDelete.isNotEmpty && !_padreAmado(batchKey)) {
+        for (final coverUrl in coversToDelete) {
+          try { await _backend.deleteCover(coverUrl); } catch (_) {}
+        }
+      }
+      await _downloadCache.borrarTracksDescargados(allIds.toList());
+      di.sl<CubitReproductor>().eliminarArchivosLocalesPorProveedores(fileStems.toList(), borrarArchivos: true);
+    }
+    await _downloadCache.quitarLotePorItem('album', albumId, sourceEfectiva);
+    di.sl<CacheBiblioteca>().invalidarTodo();
+    final dl = Map<String, DatosEstadoDescarga>.from(state.descargas);
+    final fps = Set<String>.from(state.huellasDescargadas);
+    dl.remove(batchKey);
+    // Quitar los tracks individuales del estado para que tracksCompletados ya
+    // no los devuelva en la pestaña "Canciones" de Mi Espacio.
+    final trackerIds = <String>[];
+    for (final stateKey in stateKeys) {
+      dl.remove(stateKey);
+      final meta = _metaTrack[stateKey];
+      if (meta != null) {
+        final fpName = meta.name.isNotEmpty ? meta.name : normalizarId(meta.trackId);
+        final fpArtist = meta.artist ?? '';
+        fps.remove(huellaDesdeNombre(fpName, fpArtist));
+      }
+      _metaTrack.remove(stateKey);
+      final parts = stateKey.split('_');
+      if (parts.length >= 3) {
+        final normId = parts.sublist(1, parts.length - 1).join('_');
+        _idsTracksDescargados.remove(normId);
+      }
+      trackerIds.addAll(_itemIdAKeyEstado.entries
+          .where((e) => e.value == stateKey)
+          .map((e) => e.key));
+      _itemIdAKeyEstado.removeWhere((k, v) => v == stateKey);
+      dl.remove('${stateKey}_video');
+      dl.remove('${stateKey}_lyrics');
+      _itemIdAKeyEstado.removeWhere((k, v) =>
+          v == '${stateKey}_video' || v == '${stateKey}_lyrics');
+    }
+    _borradosPendientes.addAll(trackerIds);
+    for (final tid in trackerIds) {
+      unawaited(_backend.cancelDownload(tid));
+    }
+    emit(state.copiarCon(descargas: dl, huellasDescargadas: fps));
+  }
+}

@@ -105,6 +105,14 @@ lib/config/secretos.dart
 # nunca al repo
 /dist/
 
+# Capturas de prueba en la raíz (emuladores/PC) — no versionar
+/emul*.png
+/shot*.png
+/setup*.png
+/pc_*.png
+/s*.png
+/error_texto*.png
+
 # ── Debug / temp files ──────────────────────────────────────────────
 tmp_*
 probe_*
