@@ -1,7 +1,14 @@
-# Uncomment this line to define a global platform for your project
-platform :ios, '14.0'
+# Podfile de macOS (igual que el template de Flutter + fix de firma).
+#
+# ffmpeg_kit_flutter_new_audio distribuye sus frameworks (libavfilter, etc.)
+# SIN firma: el paso CodeSign final de la app falla con "code object is not
+# signed at all" cuando el bundle los embebe. En pod install se firman
+# ad-hoc para que el deep-sign del bundle los re-firme sin problema.
+# (La app SÍ debe quedar firmada —aunque sea ad-hoc— o Gatekeeper la mata
+#  en Apple Silicon.)
 
-# CocoaPods analytics sends network stats synchronously affecting flutter build latency.
+platform :osx, '10.15'
+
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
 
 project 'Runner', {
@@ -25,18 +32,13 @@ end
 
 require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelper'), flutter_root)
 
-flutter_ios_podfile_setup
+flutter_macos_podfile_setup
 
 target 'Runner' do
   use_frameworks!
   use_modular_headers!
 
-  # Framework Go embebido (gomobile bind -target=ios). El workflow de Apple
-  # lo deposita en ios/Frameworks/ antes de pod install; sin el archivo, el
-  # pod se salta con un aviso y la app compila con el stub del AppDelegate.
-  pod 'GoBackend', :podspec => 'GoBackend.podspec'
-
-  flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
+  flutter_install_all_macos_pods File.dirname(File.realpath(__FILE__))
 
   target 'RunnerTests' do
     inherit! :search_paths
@@ -45,6 +47,15 @@ end
 
 post_install do |installer|
   installer.pods_project.targets.each do |target|
-    flutter_additional_ios_build_settings(target)
+    flutter_additional_macos_build_settings(target)
+  end
+
+  # Fix ffmpeg-kit: frameworks sin firma → CodeSign final falla. Se firman
+  # ad-hoc aquí (pod install corre antes del build de Xcode).
+  frameworks_dir = File.expand_path('Pods/ffmpeg_kit_flutter_new_audio/Frameworks', __dir__)
+  if Dir.exist?(frameworks_dir)
+    Dir.glob(File.join(frameworks_dir, '*.framework')).each do |fw|
+      system('codesign', '--force', '--sign', '-', fw)
+    end
   end
 end

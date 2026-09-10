@@ -20,7 +20,7 @@ Pod::Spec.new do |s|
   s.authors          = { 'Bitly' => 'dev@bitly.local' }
   s.source           = { :path => '.' }
 
-  s.ios.deployment_target = '13.0'
+  s.ios.deployment_target = '14.0'
   if File.exist?('Frameworks/Gobackend.xcframework') || File.exist?('Frameworks/Gobackend.xcframework.zip')
     s.vendored_frameworks = 'Frameworks/Gobackend.xcframework'
   else
