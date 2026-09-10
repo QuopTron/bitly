@@ -20,10 +20,11 @@
 
 name: Release
 
+# SOLO manual (workflow_dispatch). El release se sube a mano desde la app
+# (gh release / drag & drop): así los binarios salen del build local con los
+# secretos reales y con los nombres consistentes, y el workflow de CI no
+# pisa esa release con binarios de placeholders.
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
 
 permissions:
