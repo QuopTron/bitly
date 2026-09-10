@@ -1,11 +1,7 @@
-# Podfile de macOS (igual que el template de Flutter + fix de firma).
-#
-# ffmpeg_kit_flutter_new_audio distribuye sus frameworks (libavfilter, etc.)
-# SIN firma: el paso CodeSign final de la app falla con "code object is not
-# signed at all" cuando el bundle los embebe. En pod install se firman
-# ad-hoc para que el deep-sign del bundle los re-firme sin problema.
-# (La app SÍ debe quedar firmada —aunque sea ad-hoc— o Gatekeeper la mata
-#  en Apple Silicon.)
+# Podfile de macOS — Flutter 3.41+ genera Flutter-Generated.xcconfig en
+# ephemeral/, no en la raíz. Este Podfile sigue el template oficial con
+# una adición: firma ad-hoc de los frameworks de ffmpeg_kit_flutter_new_audio
+# (vienen sin firma y el CodeSign final de la app falla en CI).
 
 platform :osx, '10.15'
 
@@ -18,7 +14,7 @@ project 'Runner', {
 }
 
 def flutter_root
-  generated_xcode_build_settings_path = File.expand_path(File.join('..', 'Flutter', 'Generated.xcconfig'), __FILE__)
+  generated_xcode_build_settings_path = File.expand_path(File.join('..', 'Flutter', 'ephemeral', 'Flutter-Generated.xcconfig'), __FILE__)
   unless File.exist?(generated_xcode_build_settings_path)
     raise "#{generated_xcode_build_settings_path} must exist. If you're running pod install manually, make sure flutter pub get is executed first"
   end
