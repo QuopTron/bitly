@@ -82,7 +82,11 @@ Future<void> configurarDependencias() async {
     if (Platform.isWindows) {
       rutaExe = '${Platform.resolvedExecutable}$sep..${sep}bitly-backend.exe';
     } else if (Platform.isMacOS) {
-      rutaExe = '${Platform.resolvedExecutable}$sep..$sep..${sep}Frameworks${sep}Gobackend.framework${sep}Gobackend';
+      // macOS usa el MISMO patrón que Windows/Linux: el backend Go va como
+      // binario al lado del runner (Runner.app/Contents/MacOS/bitly-backend)
+      // y habla JSON-RPC por 127.0.0.1:55009. El workflow de release lo copia
+      // dentro del .app antes de armar el DMG.
+      rutaExe = '${Platform.resolvedExecutable}$sep..${sep}bitly-backend';
     } else if (Platform.isLinux) {
       rutaExe = '${Platform.resolvedExecutable}$sep..${sep}bitly-backend';
     }

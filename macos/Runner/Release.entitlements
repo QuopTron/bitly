@@ -2,7 +2,14 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- Sin sandbox: la app lanza el backend Go como subproceso (bitly-backend)
+	     y escucha RPC en 127.0.0.1:55009 — igual que Windows/Linux. El sandbox
+	     de la App Store bloquea ambos, pero distribuimos por DMG directo. -->
 	<key>com.apple.security.app-sandbox</key>
+	<false/>
+	<key>com.apple.security.network.client</key>
+	<true/>
+	<key>com.apple.security.network.server</key>
 	<true/>
 </dict>
 </plist>

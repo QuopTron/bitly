@@ -1,0 +1,214 @@
+# Release Apple — Compila las versiones macOS e iOS en el runner de GitHub.
+#
+# La toolchain de Apple (Xcode) SOLO corre en macOS: este workflow es la vía
+# para construir las versiones Apple desde una máquina Windows, usando los
+# runners macOS de GitHub Actions (gratis en repos públicos).
+#
+#   1. release-macos: backend Go nativo (darwin) + flutter build macos →
+#      binario del backend embebido en bitly.app/Contents/MacOS/ (el mismo
+#      patrón que Windows: proceso separado + JSON-RPC en 127.0.0.1:55009)
+#      + extensiones junto al runner → DMG sin firmar.
+#   2. release-ios: gomobile bind -target=ios → Gobackend.xcframework
+#      embebido vía el pod local GoBackend + flutter build ipa --no-codesign
+#      → IPA sin firmar (instalable cuando haya cuenta Apple Developer).
+#
+# SOLO manual (workflow_dispatch), igual que release.yml: los releases se
+# publican a mano con los binarios consistentes.
+#   · macOS:  Bitly-X.Y.Z-macos.dmg
+#   · iOS:    Bitly-X.Y.Z-ios.ipa (sin firmar)
+#
+# La app macOS sale sin firma de desarrollador: el usuario hace click
+# derecho → Abrir la primera vez (Gatekeeper). Para firma real se necesitan
+# los certificados de Apple Developer como secrets.
+
+name: Release Apple
+
+on:
+  workflow_dispatch:
+    inputs:
+      upload_release:
+        description: "Adjuntar los binarios a la GitHub Release del tag indicado"
+        type: boolean
+        default: false
+      tag:
+        description: "Tag del release (ej. v0.9.10) — solo si upload_release=true"
+        type: string
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-apple-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release-macos:
+    name: Build macOS (DMG)
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read version from pubspec
+        id: version
+        run: |
+          VERSION=$(grep -E '^version:' pubspec.yaml | sed 's/version: *//' | cut -d'+' -f1)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Usando versión: $VERSION"
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go_backend/go.mod
+          cache-dependency-path: go_backend/go.sum
+
+      # Backend Go nativo para macOS (arm64, Apple Silicon). El watchdog de
+      # Unix (watchdog_other.go) aplica: vigila el PID de la app y sale solo.
+      - name: Build Go backend (macOS arm64)
+        run: |
+          mkdir -p macos/backend
+          cd go_backend
+          GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o ../macos/backend/bitly-backend ./cmd/server
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.41.6
+          cache: true
+
+      # secrets.dart está gitignored (token real). Se genera desde el template.
+      - name: Generate secrets.dart
+        run: |
+          cp lib/config/secretos.example.dart lib/config/secretos.dart
+          TOKEN="${{ secrets.PREMIUM_GITHUB_TOKEN }}"
+          if [ -n "$TOKEN" ]; then
+            sed -i '' "s|tu_github_token_aqui|$TOKEN|" lib/config/secretos.dart
+          fi
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Build macOS app (release)
+        run: flutter build macos --release
+
+      # Embebe backend + extensiones dentro del .app (mismo layout que
+      # Windows: todo junto al ejecutable del runner). El bundle es de solo
+      # lectura al ejecutarse; los stores de datos van a Application Support
+      # (BackendEscritorio los redirige ahí en macOS).
+      - name: Embed backend + extensions into .app
+        run: |
+          APP="build/macos/Build/Products/Release/bitly.app"
+          cp macos/backend/bitly-backend "$APP/Contents/MacOS/bitly-backend"
+          chmod +x "$APP/Contents/MacOS/bitly-backend"
+          mkdir -p "$APP/Contents/MacOS/extensions"
+          cp -R assets/extensions/* "$APP/Contents/MacOS/extensions/"
+          ls -lh "$APP/Contents/MacOS"
+
+      # DMG sin firmar (ad-hoc). El usuario: click derecho → Abrir (1ra vez).
+      - name: Create DMG
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          mkdir -p dist
+          hdiutil create -volname "Bitly $VERSION" \
+            -srcfolder "build/macos/Build/Products/Release/bitly.app" \
+            -ov -format UDZO \
+            "dist/Bitly-$VERSION-macos.dmg"
+          ls -lh dist/
+
+      - name: Upload artifact (DMG)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Bitly-macos
+          path: dist/*.dmg
+
+      - name: Attach to GitHub Release
+        if: ${{ inputs.upload_release && inputs.tag != '' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag }}
+          files: dist/*.dmg
+          fail_on_unmatched_files: true
+
+  release-ios:
+    name: Build iOS (IPA sin firmar)
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read version from pubspec
+        id: version
+        run: |
+          VERSION=$(grep -E '^version:' pubspec.yaml | sed 's/version: *//' | cut -d'+' -f1)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Usando versión: $VERSION"
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go_backend/go.mod
+          cache-dependency-path: go_backend/go.sum
+
+      - name: Install gomobile
+        run: |
+          go install golang.org/x/mobile/cmd/gomobile@latest
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          gomobile init
+
+      # Framework Go para iOS: el pod local GoBackend (ios/GoBackend.podspec)
+      # lo inyecta en el build de Xcode. El dispatcher InvokeRPC
+      # (go_backend/bridge_rpc.go) expone TODOS los métodos al canal nativo.
+      - name: Build Gobackend.xcframework (iOS)
+        run: |
+          cd go_backend
+          gomobile bind -target=ios -o ../ios/Frameworks/Gobackend.xcframework .
+          ls -lh ../ios/Frameworks/
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.41.6
+          cache: true
+
+      - name: Generate secrets.dart
+        run: |
+          cp lib/config/secretos.example.dart lib/config/secretos.dart
+          TOKEN="${{ secrets.PREMIUM_GITHUB_TOKEN }}"
+          if [ -n "$TOKEN" ]; then
+            sed -i '' "s|tu_github_token_aqui|$TOKEN|" lib/config/secretos.dart
+          fi
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      # --no-codesign: sin cuenta Apple Developer no hay certificados. La
+      # IPA resultante sirve para TestFlight/Ad Hoc una vez que se firmen.
+      - name: Build iOS (release, sin firma)
+        run: |
+          flutter build ios --release --no-codesign
+          ls -lh build/ios/iphoneos/
+
+      - name: Package unsigned IPA
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          mkdir -p dist/Payload
+          cp -R build/ios/iphoneos/Runner.app dist/Payload/Bitly.app
+          cd dist
+          zip -qry "Bitly-$VERSION-ios.ipa" Payload
+          rm -rf Payload
+          ls -lh
+
+      - name: Upload artifact (IPA)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Bitly-ios
+          path: dist/*.ipa
+
+      - name: Attach to GitHub Release
+        if: ${{ inputs.upload_release && inputs.tag != '' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag }}
+          files: dist/*.ipa
+          fail_on_unmatched_files: true

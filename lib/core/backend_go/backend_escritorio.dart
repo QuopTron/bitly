@@ -64,7 +64,23 @@ class BackendEscritorio extends BackendService
     // En móvil no hay proceso separado (gomobile embebido) — no aplica.
     // `pid` de dart:io nunca es null en un proceso real; el backend Go lo usa
     // para vigilar que la app siga viva y salir si se cierra.
-    _proceso = await Process.start(rutaEjecutable!, [pid.toString()]);
+    //
+    // CWD escribible: en macOS una app GUI lanzada por Finder/Dock hereda "/"
+    // como directorio de trabajo (solo lectura) y el gestor de bins (yt-dlp)
+    // + los stores de extensiones fallarían al crear carpetas ahí. Apuntamos
+    // el CWD al directorio de datos de la app (mismo rol que app_data_dir en
+    // Android). En Windows/Linux el exe ya vive en una carpeta escribible.
+    String? cwd;
+    if (Platform.isMacOS) {
+      try {
+        final home = Platform.environment['HOME'] ?? '';
+        final dirDatos = '$home/Library/Application Support/com.example.bitly';
+        await Directory(dirDatos).create(recursive: true);
+        cwd = dirDatos;
+      } catch (_) {}
+    }
+    _proceso = await Process.start(rutaEjecutable!, [pid.toString()],
+        workingDirectory: cwd);
     _proceso!.stdout.transform(utf8.decoder).listen((l) => debugPrint('[backend] $l'));
     _proceso!.stderr.transform(utf8.decoder).listen((l) => debugPrint('[backend:err] $l'));
     _proceso!.exitCode.then((c) => debugPrint('[backend] salió con código $c'));
@@ -107,8 +123,25 @@ class BackendEscritorio extends BackendService
       }
 
       if (dirExt != null) {
-        await rpcCall('initExtensionSystem', {'extensions_dir': dirExt, 'data_dir': '$dirExt/../ext_data'});
-        await rpcCall('loadExtensionsFromDir', {'dir_path': dirExt});
+        // No fatal: si la init del sistema de extensiones falla (p.ej. CWD
+        // bloqueado o disco lleno), la app sigue arriba — feed, búsqueda y
+        // streaming no dependen de las extensiones; el re-intento llega por
+        // el keepalive / sync de extensiones del arranque.
+        try {
+          // En macOS el bundle .app es de SOLO LECTURA: los JS de las
+          // extensiones se leen de ahí, pero stores/sesiones/cookies deben
+          // vivir en Application Support (escribible) o el init fallará.
+          var dirDatos = '$dirExt/../ext_data';
+          if (Platform.isMacOS) {
+            final home = Platform.environment['HOME'] ?? '';
+            dirDatos = '$home/Library/Application Support/com.example.bitly/ext_data';
+            await Directory(dirDatos).create(recursive: true);
+          }
+          await rpcCall('initExtensionSystem', {'extensions_dir': dirExt, 'data_dir': dirDatos});
+          await rpcCall('loadExtensionsFromDir', {'dir_path': dirExt});
+        } catch (e) {
+          debugPrint('[backend] init de extensiones falló (no fatal): $e');
+        }
       }
       // Sin webview (Win/Linux): grants Cloudflare por servidor HTTP loopback
       // local en vez del deep link spotiflac:// (macOS usa el WebView in-app).

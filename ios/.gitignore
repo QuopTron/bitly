@@ -26,6 +26,10 @@ Flutter/flutter_assets/
 Flutter/flutter_export_environment.sh
 ServiceDefinitions.json
 Runner/GeneratedPluginRegistrant.*
+# Framework Go (gomobile) generado por el workflow de Apple — nunca se commitea.
+Frameworks/
+*.xcframework
+*.xcframework.zip
 
 # Exceptions to above rules.
 !default.mode1v3

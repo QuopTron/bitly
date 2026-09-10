@@ -57,6 +57,9 @@ dependencies:
   media_kit_video: ^2.0.1
   media_kit_libs_android_video: ^1.0.4
   media_kit_libs_windows_video: ^1.0.4
+  # Libs nativas del player para las plataformas Apple (mismo media_kit).
+  media_kit_libs_macos_video: ^1.1.4
+  media_kit_libs_ios_video: ^1.1.4
 
   # Database (Drift ORM). sqlite3_flutter_libs bundles libsqlite3.so into the
   # APK — without it the FFI loader can't find SQLite on Android and the app
