@@ -3,12 +3,11 @@
 # El workflow de Apple compila el framework ANTES de flutter build ios:
 #   gomobile bind -target=ios -o ios/Frameworks/Gobackend.xcframework .
 # (desde go_backend/) y este podspec lo inyecta como vendored_framework.
-# Si el .xcframework no está (build local sin compilar Go), el pod se
-# declara vacío para que el build no muera — AppDelegate compila con el
-# stub canImport(GoBackend) y el canal responde NO_GO.
 #
-# Se conecta con: ios/Podfile (pod 'GoBackend') + ios/Runner/AppDelegate.swift
-# (import GoBackend) + go_backend/bridge_rpc.go (InvokeRPC).
+# Cuando el .xcframework no existe (build local), el pod queda vacío y
+# AppDelegate compila con #if canImport(GoBackend) → stub funcional.
+#
+# Se conecta con: ios/Podfile (pod 'GoBackend', :path => '.') + ios/Runner/AppDelegate.swift
 
 Pod::Spec.new do |s|
   s.name             = 'GoBackend'
@@ -18,13 +17,17 @@ Pod::Spec.new do |s|
   s.homepage         = 'https://github.com/zarz/bitly'
   s.license          = { :type => 'MIT' }
   s.authors          = { 'Bitly' => 'dev@bitly.local' }
-  s.source           = { :path => '.' }
+  s.source           = { :git => 'https://github.com/zarz/bitly.git', :tag => s.version.to_s }
 
   s.ios.deployment_target = '14.0'
-  if File.exist?('Frameworks/Gobackend.xcframework') || File.exist?('Frameworks/Gobackend.xcframework.zip')
-    s.vendored_frameworks = 'Frameworks/Gobackend.xcframework'
+
+  # Si el xcframework existe (generado por el workflow CI), lo embebe.
+  # Si no (build local sin compilar Go), el pod queda vacío — no rompe
+  # el build; AppDelegate compila con canImport(GoBackend) → stub.
+  fw = 'Frameworks/Gobackend.xcframework'
+  if File.exist?(fw) || File.exist?("#{fw}.zip")
+    s.vendored_frameworks = fw
   else
-    # Sin framework: pod vacío. keeps pod install verde en builds locales.
-    s.preserve_paths = ''
+    s.source_files = 'Classes/**/*'
   end
 end

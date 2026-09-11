@@ -89,8 +89,26 @@ jobs:
       - name: Flutter pub get
         run: flutter pub get
 
-      - name: Build macOS app (release)
+      # ffmpeg_kit_flutter_new_audio trae frameworks (libavfilter, etc.) SIN
+      # firma: el CodeSign del bundle falla con "code object is not signed at
+      # all". Deshabilitamos la firma durante el build y la hacemos ad-hoc
+      # después de que todo esté en su lugar (backend + extensiones).
+      - name: Build macOS app (sin firma durante build)
         run: flutter build macos --release
+        env:
+          CODE_SIGNING_ALLOWED: "NO"
+
+      # Firma ad-hoc de toda la app (sin certificado Apple Developer).
+      # En Apple Silicon una app sin firma NO arranca; la ad-hoc (-) es el
+      # mínimo necesario para que Gatekeeper la deje pasar con click derecho
+      # → Abrir.
+      - name: Ad-hoc sign the .app
+        run: |
+          APP="build/macos/Build/Products/Release/bitly.app"
+          codesign --force --deep --sign - \
+            --entitlements macos/Runner/Release.entitlements \
+            "$APP"
+          echo "Ad-hoc signed OK"
 
       # Embebe backend + extensiones dentro del .app (mismo layout que
       # Windows: todo junto al ejecutable del runner). El bundle es de solo
@@ -105,7 +123,7 @@ jobs:
           cp -R assets/extensions/* "$APP/Contents/MacOS/extensions/"
           ls -lh "$APP/Contents/MacOS"
 
-      # DMG sin firmar (ad-hoc). El usuario: click derecho → Abrir (1ra vez).
+      # DMG sin firma (ad-hoc). El usuario: click derecho → Abrir (1ra vez).
       - name: Create DMG
         run: |
           VERSION="${{ steps.version.outputs.version }}"
