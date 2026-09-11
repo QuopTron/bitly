@@ -110,24 +110,42 @@ jobs:
       # En Apple Silicon una app sin firma NO arranca; la ad-hoc (-) es el
       # mínimo necesario para que Gatekeeper la deje pasar con click derecho
       # → Abrir.
-      # IMPORTANTE: firmar cada framework individualmente primero porque
-      # ffmpeg_kit tiene archivos extra (LICENSE, README) que rompen
-      # codesign --deep con "unsealed contents".
+      # IMPORTANTE: ffmpeg_kit frameworks contienen archivos extra (LICENSE,
+      # README, etc.) en su raíz que codesign rechaza con "unsealed contents".
+      # Eliminamos esos archivos antes de firmar cada framework individualmente.
       - name: Ad-hoc sign the .app
         run: |
           APP="build/macos/Build/Products/Release/bitly.app"
-          # 1) Firmar cada framework individualmente
-          find "$APP/Contents/Frameworks" -name "*.framework" -type d \
+          FW_DIR="$APP/Contents/Frameworks"
+
+          # 1) Limpiar archivos extra de TODOS los frameworks
+          #    (ffmpeg_kit incluye LICENSE, README, etc. que rompen codesign)
+          find "$FW_DIR" -name "*.framework" -type d | while read fw; do
+            find "$fw" -maxdepth 1 -type f \
+              ! -name "Info.plist" \
+              -delete 2>/dev/null || true
+            # Eliminar directorios no estándar (excepto Headers, Modules,
+            # Resources, _CodeSignature y el binario)
+            BASENAME=$(basename "$fw" .framework)
+            find "$fw" -maxdepth 1 -type d \
+              ! -name "$BASENAME" \
+              ! -name "Headers" \
+              ! -name "Modules" \
+              ! -name "Resources" \
+              ! -name "_CodeSignature" \
+              -exec rm -rf {} + 2>/dev/null || true
+          done
+
+          # 2) Firmar CADA framework individualmente (sin --deep)
+          find "$FW_DIR" -name "*.framework" -type d \
             -exec codesign --force --sign - {} \;
-          # 2) Firmar cada dylib suelto
-          find "$APP/Contents/Frameworks" -name "*.dylib" -type f \
-            -exec codesign --force --sign - {} \;
-          # 3) Firmar la app completa
+
+          # 3) Firmar la app SIN --deep (los frameworks ya están firmados)
           codesign --force --sign - \
             --entitlements macos/Runner/Release.entitlements \
             "$APP"
           echo "Ad-hoc signed OK"
-          codesign --verify --verbose=2 "$APP" || echo "Verify warnings expected for ad-hoc"
+          codesign --verify --verbose=0 "$APP" 2>&1 || true
 
       # Embebe backend + extensiones dentro del .app (mismo layout que
       # Windows: todo junto al ejecutable del runner). El bundle es de solo
