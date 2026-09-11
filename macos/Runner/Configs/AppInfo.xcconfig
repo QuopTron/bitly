@@ -8,7 +8,7 @@
 PRODUCT_NAME = bitly
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = com.quoptron.bitly
+PRODUCT_BUNDLE_IDENTIFIER = com.example.bitly
 
 // The copyright displayed in application information
 PRODUCT_COPYRIGHT = Copyright © 2026 QuopTron. All rights reserved.

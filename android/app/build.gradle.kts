@@ -17,6 +17,11 @@ val includeX86_64: Boolean = System.getenv("INCLUDE_X86_64") == "true"
 // NO existe (build de dev sin secretos), se cae al keystore de debug para que
 // el proyecto siga compilando; en CI el workflow crea key.properties desde los
 // secretos del repo ANTES de compilar.
+//
+// ⚠️ La firma es la HISTÓRICA de la app (el keystore debug original). Android
+// identifica una app por (package name + certificado), así que cambiar el
+// keystore rompe las actualizaciones de los usuarios existentes. NO tocar el
+// keystore, el alias ni las contraseñas de key.properties.
 val keystorePropertiesFile = rootProject.file("key.properties")
 val keystoreProperties = Properties()
 val hayKeystore = keystorePropertiesFile.exists()
@@ -25,7 +30,7 @@ if (hayKeystore) {
 }
 
 android {
-    namespace = "com.quoptron.bitly"
+    namespace = "com.example.bitly"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -55,7 +60,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.quoptron.bitly"
+        applicationId = "com.example.bitly"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
