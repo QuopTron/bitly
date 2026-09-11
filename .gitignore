@@ -95,6 +95,14 @@ null
 lib/config/secrets.dart
 lib/config/secretos.dart
 
+# Keystore de release + credenciales de firma — NUNCA versionar.
+# Si se filtran, cualquiera puede firmar apps en tu nombre; si se pierden,
+# no podrás volver a actualizar la app. Backup fuera del repo.
+/android/key.properties
+/android/keystore/
+*.jks
+*.keystore
+
 # Backups locales (no versionar)
 *.rar
 

@@ -126,6 +126,31 @@ jobs:
       - name: Flutter pub get
         run: flutter pub get
 
+      # Firma de release: decodifica el keystore desde los secretos y crea
+      # android/key.properties para que Gradle firme con el keystore propio
+      # (no el debug). Sin este paso la build cae al keystore de debug y las
+      # actualizaciones entre releases dejarían de ser compatibles.
+      - name: Prepare Android signing keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::Falta el secret ANDROID_KEYSTORE_BASE64"
+            exit 1
+          fi
+          mkdir -p android/keystore
+          echo "$KEYSTORE_BASE64" | base64 -d > android/keystore/bitly-release.keystore
+          cat > android/key.properties <<EOF
+          storePassword=$KEYSTORE_PASSWORD
+          keyPassword=$KEY_PASSWORD
+          keyAlias=$KEY_ALIAS
+          storeFile=keystore/bitly-release.keystore
+          EOF
+          echo "Keystore de release listo"
+
       # Split-per-abi: un APK delgado por arquitectura. Flutter genera los tres
       # (arm64-v8a, armeabi-v7a y x86_64) con los nombres que la app y el sitio
       # esperan — NO se renombran.

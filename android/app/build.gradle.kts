@@ -1,3 +1,6 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -9,6 +12,18 @@ plugins {
 // Default: phone-only build (armeabi-v7a + arm64-v8a).
 val includeX86_64: Boolean = System.getenv("INCLUDE_X86_64") == "true"
 
+// ── Firma de release ────────────────────────────────────────────────────
+// Las credenciales viven en android/key.properties (gitignored). Si el archivo
+// NO existe (build de dev sin secretos), se cae al keystore de debug para que
+// el proyecto siga compilando; en CI el workflow crea key.properties desde los
+// secretos del repo ANTES de compilar.
+val keystorePropertiesFile = rootProject.file("key.properties")
+val keystoreProperties = Properties()
+val hayKeystore = keystorePropertiesFile.exists()
+if (hayKeystore) {
+    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+}
+
 android {
     namespace = "com.quoptron.bitly"
     compileSdk = flutter.compileSdkVersion
@@ -16,6 +31,17 @@ android {
 
     repositories {
         flatDir { dirs("libs") }
+    }
+
+    signingConfigs {
+        create("release") {
+            if (hayKeystore) {
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+                storeFile = rootProject.file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+            }
+        }
     }
 
     compileOptions {
@@ -72,7 +98,12 @@ android {
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("debug")
+            // Keystore propio si hay key.properties; si no, debug (dev).
+            signingConfig = if (hayKeystore) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
             // Minify/shrink breaks the native Go backend bridge (bitly.aar) and
             // ffmpeg-kit's JNI registration, leaving the app stuck on the splash
             // screen in release builds. Disabled so release behaves like debug.
