@@ -106,6 +106,20 @@ jobs:
       - name: Build macOS app
         run: flutter build macos --release
 
+      # Embebe backend + extensiones dentro del .app ANTES de firmar.
+      # (mismo layout que Windows: todo junto al ejecutable del runner).
+      - name: Embed backend + extensions into .app
+        run: |
+          APP="build/macos/Build/Products/Release/bitly.app"
+          cp macos/backend/bitly-backend "$APP/Contents/MacOS/bitly-backend"
+          chmod +x "$APP/Contents/MacOS/bitly-backend"
+          mkdir -p "$APP/Contents/MacOS/extensions"
+          cp -R assets/extensions/* "$APP/Contents/MacOS/extensions/"
+          echo "=== Contents/MacOS ==="
+          ls -lh "$APP/Contents/MacOS"
+          echo "=== App total ==="
+          du -sh "$APP"
+
       # Firma ad-hoc de toda la app (sin certificado Apple Developer).
       # En Apple Silicon una app sin firma NO arranca; la ad-hoc (-) es el
       # mínimo necesario para que Gatekeeper la deje pasar con click derecho
@@ -118,14 +132,16 @@ jobs:
           APP="build/macos/Build/Products/Release/bitly.app"
           FW_DIR="$APP/Contents/Frameworks"
 
-          # 1) Limpiar archivos extra de TODOS los frameworks
-          #    (ffmpeg_kit incluye LICENSE, README, etc. que rompen codesign)
+          # 1) Limpiar SOLO archivos problemáticos de frameworks.
+          #    ffmpeg_kit incluye LICENSE, README, COPYING, .git, etc.
+          #    que rompen codesign con "unsealed contents".
+          #    IMPORTANTE: NO borramos los binarios del framework.
           find "$FW_DIR" -name "*.framework" -type d | while read fw; do
-            find "$fw" -maxdepth 1 -type f \
-              ! -name "Info.plist" \
-              -delete 2>/dev/null || true
-            # Eliminar directorios no estándar (excepto Headers, Modules,
-            # Resources, _CodeSignature y el binario)
+            rm -f "$fw/LICENSE" "$fw/LICENSE.md" "$fw/LICENSE.txt"
+            rm -f "$fw/COPYING" "$fw/COPYING.md"
+            rm -f "$fw/README" "$fw/README.md" "$fw/README.txt"
+            rm -f "$fw/CHANGELOG" "$fw/CHANGELOG.md"
+            rm -rf "$fw/.git" "$fw/.gitignore"
             BASENAME=$(basename "$fw" .framework)
             find "$fw" -maxdepth 1 -type d \
               ! -name "$BASENAME" \
@@ -145,20 +161,8 @@ jobs:
             --entitlements macos/Runner/Release.entitlements \
             "$APP"
           echo "Ad-hoc signed OK"
-          codesign --verify --verbose=0 "$APP" 2>&1 || true
-
-      # Embebe backend + extensiones dentro del .app (mismo layout que
-      # Windows: todo junto al ejecutable del runner). El bundle es de solo
-      # lectura al ejecutarse; los stores de datos van a Application Support
-      # (BackendEscritorio los redirige ahí en macOS).
-      - name: Embed backend + extensions into .app
-        run: |
-          APP="build/macos/Build/Products/Release/bitly.app"
-          cp macos/backend/bitly-backend "$APP/Contents/MacOS/bitly-backend"
-          chmod +x "$APP/Contents/MacOS/bitly-backend"
-          mkdir -p "$APP/Contents/MacOS/extensions"
-          cp -R assets/extensions/* "$APP/Contents/MacOS/extensions/"
-          ls -lh "$APP/Contents/MacOS"
+          echo "=== App size ==="
+          du -sh "$APP"
 
       # DMG sin firma (ad-hoc). El usuario: click derecho → Abrir (1ra vez).
       - name: Create DMG
