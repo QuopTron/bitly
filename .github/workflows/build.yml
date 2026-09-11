@@ -348,11 +348,65 @@ jobs:
           path: build/ios/iphoneos/*.app
           if-no-files-found: warn
 
+  # ─── Build Web (PWA) ──────────────────────────────────────────────
+  build-web:
+    name: Build Web (PWA)
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go_backend/go.mod
+          cache-dependency-path: go_backend/go.sum
+
+      # El binario Go se compila para Linux (el VPS probablemente es Linux)
+      - name: Build Go backend (Linux amd64)
+        run: |
+          cd go_backend
+          go build -ldflags="-s -w" -o ../build/web/bitly-backend ./cmd/server
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.41.6
+          cache: true
+
+      - name: Generate secrets.dart
+        run: cp lib/config/secretos.example.dart lib/config/secretos.dart
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Build Flutter web
+        run: flutter build web --release --base-href /
+
+      # Copiar el binario Go al directorio de build web
+      - name: Prepare web artifact
+        run: |
+          mkdir -p dist/web
+          cp -R build/web/* dist/web/
+          chmod +x build/web/bitly-backend
+          cp build/web/bitly-backend dist/web/
+          echo "=== Web build contents ==="
+          ls -lh dist/web/
+          du -sh dist/web/
+
+      - name: Upload artifact (Web/PWA)
+        uses: actions/upload-artifact@v4
+        with:
+          name: bitly-web
+          path: dist/web/
+          if-no-files-found: error
+
   # ─── Notificación del estado de builds ──────────────────────────────
   notify:
     name: Notify build status
     runs-on: ubuntu-latest
-    needs: [build-windows, build-android, build-ios]
+    needs: [build-windows, build-android, build-ios, build-web]
     if: always()
     permissions:
       contents: read
@@ -366,6 +420,7 @@ jobs:
           AND="${{ needs.build-android.result }}"
           IOS_JOB="${{ needs.build-ios.result }}"
           IOS_OUT="${{ needs.build-ios.outputs.ios_status }}"
+          WEB="${{ needs.build-web.result }}"
 
           echo "## 🏗️ Bitly — Estado de builds" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
@@ -373,6 +428,7 @@ jobs:
           echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
           echo "| 🪟 Windows | $WIN |" >> "$GITHUB_STEP_SUMMARY"
           echo "| 🤖 Android | $AND |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 🌐 Web (PWA) | $WEB |" >> "$GITHUB_STEP_SUMMARY"
           if [ "$IOS_JOB" = "skipped" ]; then
             echo "| 🍎 iOS | ⚠️ No generado |" >> "$GITHUB_STEP_SUMMARY"
           elif [ "$IOS_OUT" = "built" ]; then
