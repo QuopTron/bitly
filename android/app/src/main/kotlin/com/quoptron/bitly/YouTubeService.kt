@@ -1,4 +1,4 @@
-package com.example.bitly
+package com.quoptron.bitly
 
 import android.util.Log
 

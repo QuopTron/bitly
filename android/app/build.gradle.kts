@@ -10,7 +10,7 @@ plugins {
 val includeX86_64: Boolean = System.getenv("INCLUDE_X86_64") == "true"
 
 android {
-    namespace = "com.example.bitly"
+    namespace = "com.quoptron.bitly"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -29,7 +29,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.bitly"
+        applicationId = "com.quoptron.bitly"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode

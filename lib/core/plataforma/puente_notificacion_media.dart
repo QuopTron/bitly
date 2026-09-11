@@ -57,7 +57,7 @@ class PuenteNotificacionMedia {
       _handler = await AudioService.init(
         builder: () => ManejadorAudioBitly(enviarAHandler),
         config: AudioServiceConfig(
-          androidNotificationChannelId: 'com.example.bitly.channel.audio',
+          androidNotificationChannelId: 'com.quoptron.bitly.channel.audio',
           androidNotificationChannelName: 'Bitly Music',
           // Mantiene el servicio en foreground incluso en pausa para no
           // chocar con la restricción Android 12+ de arrancar un servicio

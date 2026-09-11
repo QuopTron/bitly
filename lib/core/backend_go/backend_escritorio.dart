@@ -74,7 +74,7 @@ class BackendEscritorio extends BackendService
     if (Platform.isMacOS) {
       try {
         final home = Platform.environment['HOME'] ?? '';
-        final dirDatos = '$home/Library/Application Support/com.example.bitly';
+        final dirDatos = '$home/Library/Application Support/com.quoptron.bitly';
         await Directory(dirDatos).create(recursive: true);
         cwd = dirDatos;
       } catch (_) {}
@@ -134,7 +134,7 @@ class BackendEscritorio extends BackendService
           var dirDatos = '$dirExt/../ext_data';
           if (Platform.isMacOS) {
             final home = Platform.environment['HOME'] ?? '';
-            dirDatos = '$home/Library/Application Support/com.example.bitly/ext_data';
+            dirDatos = '$home/Library/Application Support/com.quoptron.bitly/ext_data';
             await Directory(dirDatos).create(recursive: true);
           }
           await rpcCall('initExtensionSystem', {'extensions_dir': dirExt, 'data_dir': dirDatos});

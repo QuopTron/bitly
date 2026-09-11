@@ -1,4 +1,4 @@
-package com.example.bitly
+package com.quoptron.bitly
 
 import android.app.Activity
 import android.content.Intent
