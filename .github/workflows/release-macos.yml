@@ -106,19 +106,16 @@ jobs:
       - name: Build macOS app
         run: flutter build macos --release
 
-      # Embebe backend + extensiones dentro del .app ANTES de firmar.
-      # (mismo layout que Windows: todo junto al ejecutable del runner).
-      - name: Embed backend + extensions into .app
+      # Embebe solo el backend Go ANTES de firmar.
+      # Las extensiones NO van antes porque codesign las rechaza
+      # (JSON/JS no firmables). Se copian DESPUÉS de la firma.
+      - name: Embed backend into .app
         run: |
           APP="build/macos/Build/Products/Release/bitly.app"
           cp macos/backend/bitly-backend "$APP/Contents/MacOS/bitly-backend"
           chmod +x "$APP/Contents/MacOS/bitly-backend"
-          mkdir -p "$APP/Contents/MacOS/extensions"
-          cp -R assets/extensions/* "$APP/Contents/MacOS/extensions/"
-          echo "=== Contents/MacOS ==="
-          ls -lh "$APP/Contents/MacOS"
-          echo "=== App total ==="
-          du -sh "$APP"
+          echo "=== Backend embedded ==="
+          ls -lh "$APP/Contents/MacOS/bitly-backend"
 
       # Firma ad-hoc de toda la app (sin certificado Apple Developer).
       # En Apple Silicon una app sin firma NO arranca; la ad-hoc (-) es el
@@ -162,6 +159,20 @@ jobs:
             "$APP"
           echo "Ad-hoc signed OK"
           echo "=== App size ==="
+          du -sh "$APP"
+
+      # Copiar extensiones DESPUÉS de firmar.
+      # codesign rechaza archivos JSON/JS dentro del bundle firmado.
+      # Las extensiones viven en Contents/MacOS/extensions/ que el
+      # backend Go busca al arrancar.
+      - name: Embed extensions after signing
+        run: |
+          APP="build/macos/Build/Products/Release/bitly.app"
+          mkdir -p "$APP/Contents/MacOS/extensions"
+          cp -R assets/extensions/* "$APP/Contents/MacOS/extensions/"
+          echo "=== Extensions embedded ==="
+          ls -lh "$APP/Contents/MacOS/extensions/"
+          echo "=== Final app size ==="
           du -sh "$APP"
 
       # DMG sin firma (ad-hoc). El usuario: click derecho → Abrir (1ra vez).
