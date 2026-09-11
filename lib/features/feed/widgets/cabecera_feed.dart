@@ -14,6 +14,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/utilidades/responsive.dart';
 import '../../../shared/widgets/acordeon_fuente.dart';
+import '../../../shared/widgets/indicador_red.dart';
 import '../bloc/feed_bloc.dart';
 import '../bloc/feed_evento.dart';
 
@@ -79,8 +80,10 @@ class CabeceraFeed extends StatelessWidget {
               ],
             ),
           ),
+          // Indicador global de red: vive junto al título de cada sección.
+          IndicadorRed(onBg: onBg, conEtiqueta: r.width > 520),
           if (fuentes.isNotEmpty) ...[
-            SizedBox(width: r.spacingM),
+            SizedBox(width: r.spacingS),
             AcordeonFuente(
               fuentes: fuentes,
               fuenteSeleccionada: state.fuenteSeleccionada,

@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 import '../../shared/tema/colores_app.dart';
 import '../../shared/utilidades/responsive.dart';
 import '../../shared/widgets/contenedor_vidrio.dart';
+import '../../shared/widgets/indicador_red.dart';
 
 /// Layout móvil de la búsqueda (diseño Android actual).
 class BusquedaMovil extends StatelessWidget {
@@ -35,7 +36,15 @@ class BusquedaMovil extends StatelessWidget {
 
     return Column(
       children: [
-        SizedBox(height: r.spacingM),
+        // Indicador global de red: barra superior de la sección.
+        Padding(
+          padding: EdgeInsets.only(top: r.spacingM, right: r.spacingS),
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: IndicadorRed(onBg: onBg, conEtiqueta: r.width > 520),
+          ),
+        ),
+        SizedBox(height: r.spacingXS),
         Expanded(
           child: ContenedorVidrio(
             borderRadius: 16,

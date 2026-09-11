@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 import '../../shared/tema/colores_app.dart';
 import '../../shared/utilidades/responsive.dart';
 import '../../shared/widgets/contenedor_vidrio.dart';
+import '../../shared/widgets/indicador_red.dart';
 
 /// Layout de escritorio de la búsqueda (panel centrado).
 class BusquedaEscritorio extends StatelessWidget {
@@ -47,6 +48,12 @@ class BusquedaEscritorio extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                // Indicador global de red: barra superior de la sección.
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: IndicadorRed(onBg: onBg, conEtiqueta: true),
+                ),
+                SizedBox(height: r.spacingS),
                 barra,
                 SizedBox(height: r.spacingS),
                 chips,

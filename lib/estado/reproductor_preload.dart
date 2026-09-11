@@ -1,12 +1,15 @@
 // ─────────────────────────────────────────────────────────────
 // reproductor_preload.dart — PART de cubit_reproductor.dart:
 // precarga de contexto y vecinos de la cola: resuelve streams de
-// tracks próximos en segundo plano (solo WiFi, acotado por el perfil
-// de rendimiento), preload completo del siguiente inmediato (cualquier
-// red, para eliminar el gap del crossfade) y candidatos aleatorios
-// en shuffle. Las letras/video del track actual viven en
-// reproductor_preload_media.dart.
-// Se conecta con: reproductor_video_fondo.dart (misma library).
+// tracks próximos en segundo plano, el preload completo del siguiente
+// inmediato (cualquier red, para eliminar el gap del crossfade) y
+// candidatos aleatorios en shuffle. Las letras/video del track actual
+// viven en reproductor_preload_media.dart.
+// El tope de vecinos es ADAPTATIVO: sale del perfil de rendimiento y se
+// recorta según la calidad de red medida (ServicioCalidadRed), de modo
+// que una red excelente precarga más y una red lenta no malgasta datos.
+// Se conecta con: reproductor_video_fondo.dart (misma library) +
+// servicio_calidad_red (nivel medido).
 // Parte del flujo: reproducción (prefetch de fondo).
 // ─────────────────────────────────────────────────────────────
 
@@ -14,14 +17,40 @@ part of 'cubit_reproductor.dart';
 
 /// Precarga de contexto/vecinos. Mixin aplicado en CubitReproductor.
 mixin ReproductorPreload on ReproductorVideoFondo {
+  /// Tope de vecinos a precargar según la calidad de red medida.
+  ///
+  /// - **Excelente**: se respeta el valor del perfil, incluso en datos
+  ///   móviles (la red sobra y el usuario gana fluidez).
+  /// - **Buena / sin dato todavía**: completo en red fija; en móvil se
+  ///   recorta a 2 para no gastar megas de más.
+  /// - **Regular**: solo 1 vecino, y únicamente en red fija.
+  /// - **Lenta**: 0 — nada especulativo (el siguiente inmediato sigue
+  ///   resolviéndose aparte, porque eso no es especulativo).
+  int _topePrecargaAdaptativo(int configurado) {
+    if (configurado < 1) return 0;
+    final calidad = ServicioCalidadRed.instancia;
+    switch (calidad.estado.value.nivel) {
+      case NivelRed.excelente:
+        return configurado;
+      case NivelRed.buena:
+      case NivelRed.desconocido:
+        return calidad.redFija
+            ? configurado
+            : (configurado > 2 ? 2 : configurado);
+      case NivelRed.regular:
+        return calidad.redFija ? 1 : 0;
+      case NivelRed.mala:
+        return 0;
+    }
+  }
+
   /// Pre-resuelve streams de los tracks visibles de [tracks] hasta [limit],
   /// solo en WiFi y según el perfil. Un feed recién cargado disparar 10+
   /// resoluciones saturaría el bridge del backend mientras el usuario busca.
   Future<void> precachearContexto(List<ItemFeed> tracks, {int? limit}) async {
     final perfil = di.sl<ValueNotifier<PerfilRendimiento>>().value;
     if (!perfil.precargaHabilitada) return;
-    if (!await _esRedWifi()) return;
-    var tope = limit ?? perfil.precargaTracks;
+    final tope = _topePrecargaAdaptativo(limit ?? perfil.precargaTracks);
     if (tope < 1) return;
     var agregados = 0;
     for (final track in tracks) {
@@ -49,14 +78,16 @@ mixin ReproductorPreload on ReproductorVideoFondo {
 
     final claveActual = normalizarId(estado.actual!.id);
     final aPrecargar = <ItemFeed>{};
-    final n = perfil.precargaTracks;
+    // Tope adaptativo: en red excelente mantiene el perfil completo, en
+    // red regular/lenta se recorta (o se apaga) para no gastar datos.
+    final n = _topePrecargaAdaptativo(perfil.precargaTracks);
 
     if (estado.shuffle && estado.tracks.length > 1) {
       // Shuffle: siguiente/anterior eligen tracks ALEATORIOS, así que
       // precargar vecinos secuenciales es trabajo perdido. Precargar algunos
       // candidatos aleatorios para que el que suene tenga más chance de estar
-      // resuelto. Solo WiFi (especulativo = baja prioridad).
-      if (await _esRedWifi()) {
+      // resuelto. Especulativo = baja prioridad: lo decide la calidad.
+      if (n > 0) {
         var elegidos = 0;
         var guardia = 0;
         while (elegidos < n && guardia < estado.tracks.length * 4) {
@@ -66,7 +97,7 @@ mixin ReproductorPreload on ReproductorVideoFondo {
           if (aPrecargar.add(track)) elegidos++;
         }
       }
-    } else if (await _esRedWifi()) {
+    } else if (n > 0) {
       // Secuencial: precargar los próximos y anteriores en orden de cola.
       for (int i = 1; i <= n; i++) {
         final idx = estado.indiceActual + i;

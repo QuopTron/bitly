@@ -65,6 +65,9 @@ class _MoreTabState extends State<_MoreTab> {
           // Google connection
           _GoogleConnectionCard(glowColor: widget.glowColor),
           SizedBox(height: r.spacingM),
+          // Sesiones firmadas por fuente (renovar/verificar de a una)
+          _SesionesCard(glowColor: widget.glowColor),
+          SizedBox(height: r.spacingM),
           // Report a bug / suggestion
           _ReportCardWidget(glowColor: widget.glowColor),
           SizedBox(height: r.spacingM),

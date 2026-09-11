@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'strings/strings_red.dart';
 import 'strings/strings_splash.dart';
 import 'strings/strings_setup.dart';
 import 'strings/strings_tutorial.dart';
@@ -8,12 +9,14 @@ class AppLocalizations {
   late final StringsSplash splash;
   late final StringsSetup setup;
   late final StringsTutorial tutorial;
+  late final StringsRed red;
 
   AppLocalizations(this.locale) {
     final isEn = locale.languageCode == 'en';
     splash = isEn ? StringsSplash.en : StringsSplash.es;
     setup = isEn ? StringsSetup.en : StringsSetup.es;
     tutorial = isEn ? StringsTutorial.en : StringsTutorial.es;
+    red = isEn ? StringsRed.en : StringsRed.es;
   }
 
   static AppLocalizations of(BuildContext context) {

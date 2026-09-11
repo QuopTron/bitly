@@ -104,6 +104,11 @@ Widget _filaAvatar(PerfilMiEspacio p, BuildContext context) {
             ],
           ),
         ),
+      // Indicador global de red: misma píldora que en la barra del feed.
+      Padding(
+        padding: EdgeInsets.only(left: r.spacingS),
+        child: IndicadorRed(onBg: p.onBg),
+      ),
       if (p.onTemaCambiado != null)
         GestureDetector(
           onTap: () => showSettingsSheet(

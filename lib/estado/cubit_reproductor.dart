@@ -39,6 +39,7 @@ import '../core/cache/estado_reproductor.dart';
 import '../core/cache/reproduccion_cache.dart';
 import '../core/modelos/item_feed.dart';
 import '../core/modelos/perfil_rendimiento.dart';
+import '../core/plataforma/servicio_calidad_red.dart';
 import '../core/plataforma/servicio_conectividad.dart';
 import '../core/plataforma/servicio_foco_audio.dart';
 import '../core/servicios/desencriptado_stream.dart';

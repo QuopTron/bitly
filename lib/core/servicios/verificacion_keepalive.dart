@@ -2,18 +2,27 @@
 // verificacion_keepalive.dart — PART de servicio_verificacion.dart:
 // keepalive silencioso de sesiones firmadas (Cloudflare). Las
 // sesiones del gateway zarz son de vida corta (~1-2 min TTL), así
-// que mientras la app está en primer plano un pase en segundo plano
-// refresca cada sesión vigente antes de que expire — sin modal, sin
-// challenge URL, sin bootstrap. El lado Go pacea cada fuente
-// (intervalo mínimo + backoff) y solo refresca sesiones cuya
-// expiración está dentro del lead del keepalive.
-// Se conecta con: servicio_verificacion.dart (misma library).
+// que un pase silencioso refresca cada sesión vigente antes de que
+// expire — sin modal, sin challenge URL, sin bootstrap. El lado Go
+// pacea cada fuente (intervalo mínimo + backoff) y solo refresca
+// sesiones cuya expiración está dentro del lead del keepalive.
+//
+// IMPORTANTE: con un TTL tan corto, dejar de refrescar = perder la
+// sesión en menos de 2 minutos y volver a pedir un challenge humano.
+// Por eso el timer NO se detiene al pasar a segundo plano: el proceso
+// sigue vivo mientras suena audio (servicio en foreground) y ese
+// refresh es justo lo que mantiene la sesión caliente. Solo se detiene
+// cuando el proceso va a morir (detached).
+// Se conecta con: servicio_verificacion.dart (misma library) +
+// connectivity_plus (refresco inmediato al recuperar red).
 // Parte del flujo: verificación de sesiones (keepalive en 2º plano).
 // ─────────────────────────────────────────────────────────────
 
 part of 'servicio_verificacion.dart';
 
-/// Intervalo del pase silencioso de refresh de sesiones.
+/// Intervalo del pase silencioso de refresh de sesiones. Debe quedar por
+/// debajo del TTL del gateway (~1-2 min) para alcanzar 2-3 refrescos por
+/// vida de sesión; si se sube, la sesión puede morir entre pases.
 const _intervaloKeepalive = Duration(seconds: 25);
 
 /// Keepalive silencioso. Mixin aplicado en ServicioVerificacion.
@@ -22,6 +31,27 @@ mixin VerificacionKeepalive on VerificacionEstado {
   bool _keepaliveCorriendo = false;
   bool _appEnUso = false;
   bool _keepaliveAlgunaVezExitoso = false;
+  StreamSubscription<List<ConnectivityResult>>? _subRedKeepalive;
+
+  /// Escucha cambios de conectividad: al recuperar red se fuerza un pase
+  /// inmediato, porque el timer pudo perderse refrescos durante el corte y
+  /// la sesión quizá esté a segundos de expirar.
+  void _escucharRedParaKeepalive() {
+    if (_subRedKeepalive != null) return;
+    try {
+      _subRedKeepalive = Connectivity().onConnectivityChanged.listen((res) {
+        final hayRed = res.any((r) => r != ConnectivityResult.none);
+        if (hayRed) unawaited(_keepaliveTick());
+      });
+    } catch (_) {
+      // Sin plugin de conectividad el timer sigue bastando.
+    }
+  }
+
+  void _dejarDeEscucharRed() {
+    _subRedKeepalive?.cancel();
+    _subRedKeepalive = null;
+  }
 
   void _iniciarTimerKeepalive() {
     _timerKeepalive ??= Timer.periodic(_intervaloKeepalive, (_) {
@@ -70,21 +100,30 @@ mixin VerificacionKeepalive on VerificacionEstado {
     }
   }
 
-  /// Maneja los cambios de lifecycle para el keepalive: refrescar sesiones solo
-  /// mientras la app está en uso (foreground/resumed). Pausar o backgroundear
-  /// detiene el timer para nunca refrescar en segundo plano — las sesiones
-  /// vencidas se re-challengen con una acción explícita del usuario al volver.
+  /// Maneja los cambios de lifecycle para el keepalive.
+  ///
+  /// El timer sigue corriendo en segundo plano a propósito: las sesiones
+  /// viven ~1-2 min y el proceso permanece vivo mientras suena audio, así que
+  /// refrescar en background es lo que evita el Turnstile al volver. Solo se
+  /// apaga cuando el proceso se desmonta (detached). Al volver al primer
+  /// plano se dispara un pase inmediato para recuperar la sesión antes de
+  /// cualquier acción del usuario.
   void _onLifecycle(AppLifecycleState estado) {
-    if (estado == AppLifecycleState.resumed) {
-      if (!_appEnUso) {
-        _appEnUso = true;
-        _iniciarTimerKeepalive();
-      }
-    } else {
-      if (_appEnUso) {
-        _appEnUso = false;
-        _detenerTimerKeepalive();
-      }
+    if (estado == AppLifecycleState.detached) {
+      _appEnUso = false;
+      _detenerTimerKeepalive();
+      _dejarDeEscucharRed();
+      return;
     }
+    if (estado == AppLifecycleState.resumed) {
+      _appEnUso = true;
+      _iniciarTimerKeepalive();
+      _escucharRedParaKeepalive();
+      unawaited(_keepaliveTick());
+      return;
+    }
+    // paused / inactive / hidden: mantener el refresh silencioso.
+    _appEnUso = true;
+    _iniciarTimerKeepalive();
   }
 }

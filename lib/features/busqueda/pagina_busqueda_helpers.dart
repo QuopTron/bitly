@@ -25,8 +25,13 @@ List<ConfigFiltroBusqueda> _filtrosPara(EstadoBusqueda state, String fuente) {
 }
 
 /// Fuentes buscables del backend (la primaria primero), con fallback.
+///
+/// La PRIMERA entrada es "Todas" (id vacío): el backend la interpreta como
+/// búsqueda multi-fuente en paralelo (runSearchStream con `source` vacío),
+/// deduplica por ISRC y va emitiendo resultados a medida que cada fuente
+/// responde — así la primera coincidencia aparece sin esperar a la más lenta.
 Map<String, String> _fuentesBusqueda(EstadoBusqueda state) {
-  final ordenadas = <String, String>{};
+  final ordenadas = <String, String>{'': nombreFuente('')};
   final cfg = state.configBusqueda;
   if (cfg.isNotEmpty) {
     final primarias = cfg.entries.where((e) => e.value.primary).toList();

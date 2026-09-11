@@ -12,6 +12,7 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../shared/utilidades/responsive.dart';
+import '../../shared/widgets/indicador_red.dart';
 import '../ajustes/settings_sheet_new.dart';
 
 part 'perfil_mi_espacio_avatar.dart';

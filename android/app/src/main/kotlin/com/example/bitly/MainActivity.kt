@@ -18,11 +18,19 @@ class MainActivity : AudioServiceActivity() {
     private val CHANNEL = "com.bitly/backend"
     private val SESSION_CHANNEL = "com.bitly/session_grant"
     private val OAUTH_CHANNEL = "com.bitly/oauth_callback"
-    // Go calls run on a small pool (NOT a single thread): if one Go call gets
-    // stuck in a JS call that never returns, the rest of the app must keep
-    // working. Each call also has a hard timeout (see dispatchGoCall) so the
-    // Dart side always gets a response instead of hanging forever.
-    private val executor = Executors.newFixedThreadPool(4)
+    // Go calls run on a pool (NOT a single thread): if one Go call gets stuck
+    // in a JS call that never returns, the rest of the app must keep working.
+    // Each call also has a hard timeout (see dispatchGoCall) so the Dart side
+    // always gets a response instead of hanging forever.
+    //
+    // El tamaño se ADAPTA a los núcleos del equipo (4-8): en telefonos de 8
+    // nucleos, un pool fijo de 4 serializaba busquedas/descargas/resolucion de
+    // streams detras de 4 llamadas lentas y el resto de la app parecia colgada.
+    // El tope de 8 mantiene el uso de RAM acotado (cada llamada de Go puede
+    // abrir un motor JS de extension).
+    private val executor = Executors.newFixedThreadPool(
+        Runtime.getRuntime().availableProcessors().coerceIn(4, 8),
+    )
     // Dedicated watcher thread: waits on the Go-call Future with a timeout so
     // a stuck call never consumes a pool thread as a waiter.
     private val callWatcher = Executors.newSingleThreadExecutor()

@@ -16,6 +16,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../app/inyeccion.dart';
 import '../../core/backend_go/contrato_backend.dart';
 import '../../core/cache/cache_busqueda.dart';
+import '../../core/plataforma/servicio_calidad_red.dart';
 import '../../core/servicios/servicio_verificacion.dart';
 import '../../core/modelos/item_feed.dart';
 import '../../estado/cubit_cola.dart';
@@ -53,6 +54,9 @@ class _EnsambladorHomeState extends State<EnsambladorHome> {
     final backend = sl<BackendService>();
     _blocBusqueda = BlocBusqueda(backend, sl<CacheBusqueda>());
     _blocFeed = BlocFeed(backend)..add(const CargarFeed());
+    // Monitoreo global de red: alimenta el indicador de la barra superior y
+    // las precargas adaptativas (se pausa solo cuando la app va a segundo plano).
+    ServicioCalidadRed.instancia.iniciar();
     _provisionarSesionesAlArrancar();
   }
 
@@ -106,6 +110,7 @@ class _EnsambladorHomeState extends State<EnsambladorHome> {
 
   @override
   void dispose() {
+    ServicioCalidadRed.instancia.detener();
     _blocBusqueda.close();
     _blocFeed.close();
     super.dispose();
