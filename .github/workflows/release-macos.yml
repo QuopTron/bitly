@@ -133,16 +133,32 @@ jobs:
           #    ffmpeg_kit incluye LICENSE, README, COPYING, .git, etc.
           #    que rompen codesign con "unsealed contents".
           #    IMPORTANTE: NO borramos los binarios del framework.
-          # SOLO borramos archivos conocidos problemáticos.
-          # NO tocar directorios: los frameworks macOS usan
-          # Versions/A/ con symlinks — borrar directorios destruye
-          # los binarios completos.
+          # Diagnosticar y limpiar archivos extra de frameworks.
+          # Los frameworks macOS estándar solo deben contener:
+          #   binario, Info.plist, Headers/, Modules/, Resources/,
+          #   _CodeSignature/, Versions/
+          # Cualquier otro archivo en la raíz causa "unsealed contents".
+          echo "=== Framework contents before cleanup ==="
           find "$FW_DIR" -name "*.framework" -type d | while read fw; do
-            rm -f "$fw/LICENSE" "$fw/LICENSE.md" "$fw/LICENSE.txt" 2>/dev/null || true
-            rm -f "$fw/COPYING" "$fw/COPYING.md" 2>/dev/null || true
-            rm -f "$fw/README" "$fw/README.md" "$fw/README.txt" 2>/dev/null || true
-            rm -f "$fw/CHANGELOG" "$fw/CHANGELOG.md" 2>/dev/null || true
-            rm -rf "$fw/.git" "$fw/.gitignore" 2>/dev/null || true
+            echo "--- $(basename "$fw") ---"
+            ls -la "$fw/" 2>/dev/null
+          done
+          # Eliminar TODOS los archivos que NO sean parte del estándar
+          find "$FW_DIR" -name "*.framework" -type d | while read fw; do
+            BASENAME=$(basename "$fw" .framework)
+            find "$fw" -maxdepth 1 -type f \
+              ! -name "Info.plist" \
+              ! -name "$BASENAME" \
+              -delete 2>/dev/null || true
+            # Eliminar directorios no estándar (preservar Versions)
+            find "$fw" -maxdepth 1 -type d \
+              ! -name "$BASENAME" \
+              ! -name "Headers" \
+              ! -name "Modules" \
+              ! -name "Resources" \
+              ! -name "_CodeSignature" \
+              ! -name "Versions" \
+              -exec rm -rf {} + 2>/dev/null || true
           done
 
           # 2) Firmar CADA framework individualmente (sin --deep)
