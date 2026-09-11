@@ -133,20 +133,16 @@ jobs:
           #    ffmpeg_kit incluye LICENSE, README, COPYING, .git, etc.
           #    que rompen codesign con "unsealed contents".
           #    IMPORTANTE: NO borramos los binarios del framework.
+          # SOLO borramos archivos conocidos problemáticos.
+          # NO tocar directorios: los frameworks macOS usan
+          # Versions/A/ con symlinks — borrar directorios destruye
+          # los binarios completos.
           find "$FW_DIR" -name "*.framework" -type d | while read fw; do
-            rm -f "$fw/LICENSE" "$fw/LICENSE.md" "$fw/LICENSE.txt"
-            rm -f "$fw/COPYING" "$fw/COPYING.md"
-            rm -f "$fw/README" "$fw/README.md" "$fw/README.txt"
-            rm -f "$fw/CHANGELOG" "$fw/CHANGELOG.md"
-            rm -rf "$fw/.git" "$fw/.gitignore"
-            BASENAME=$(basename "$fw" .framework)
-            find "$fw" -maxdepth 1 -type d \
-              ! -name "$BASENAME" \
-              ! -name "Headers" \
-              ! -name "Modules" \
-              ! -name "Resources" \
-              ! -name "_CodeSignature" \
-              -exec rm -rf {} + 2>/dev/null || true
+            rm -f "$fw/LICENSE" "$fw/LICENSE.md" "$fw/LICENSE.txt" 2>/dev/null || true
+            rm -f "$fw/COPYING" "$fw/COPYING.md" 2>/dev/null || true
+            rm -f "$fw/README" "$fw/README.md" "$fw/README.txt" 2>/dev/null || true
+            rm -f "$fw/CHANGELOG" "$fw/CHANGELOG.md" 2>/dev/null || true
+            rm -rf "$fw/.git" "$fw/.gitignore" 2>/dev/null || true
           done
 
           # 2) Firmar CADA framework individualmente (sin --deep)
