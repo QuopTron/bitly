@@ -274,7 +274,8 @@ jobs:
     runs-on: macos-latest
     needs: test
     if: >-
-      (github.event_name == 'workflow_dispatch' && inputs.include_ios == true)
+      github.event_name == 'push'
+      || (github.event_name == 'workflow_dispatch' && inputs.include_ios == true)
       || startsWith(github.ref, 'refs/tags/')
     # continue-on-error: un fallo de iOS no rompe el workflow. Nota: con este
     # flag el job se reporta como 'success' en needs.*.result incluso si falla;
