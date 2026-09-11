@@ -1,0 +1,320 @@
+<!--
+  ═══════════════════════════════════════════════════════════════════════
+  BITLY — Descarga para iPhone (TrollStore + AltStore)
+  ═══════════════════════════════════════════════════════════════════════
+  Componente autocontenido para pegar en tu sitio web.
+
+  Qué hace:
+    1. Detecta la última versión desde la API de GitHub Releases.
+    2. Si el usuario está en iPhone, muestra las dos opciones:
+       · TrollStore  → instalación permanente, directa con un tap.
+       · AltStore    → instalación con PC/Mac (renovación automática).
+    3. Si NO está en iPhone, muestra un aviso.
+
+  Dónde pegarlo: en la sección de descargas, donde hoy tienes el botón
+  "Descargar para iPhone".
+
+  Personaliza: cambia GITHUB_REPO si tu repo cambia.
+  ═══════════════════════════════════════════════════════════════════════
+-->
+
+<section class="bitly-ios-download" id="bitly-ios">
+  <style>
+    .bitly-ios-download {
+      --bg: #0d0d0d;
+      --card: #1a1a1a;
+      --card-hover: #232323;
+      --border: #2a2a2a;
+      --text: #f5f5f5;
+      --muted: #9a9a9a;
+      --accent: #1db954;
+      --accent-hover: #1ed760;
+      font-family:
+        -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: var(--text);
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 24px 16px;
+    }
+    .bitly-ios-download h2 {
+      font-size: 1.5rem;
+      margin: 0 0 4px;
+    }
+    .bitly-ios-download .sub {
+      color: var(--muted);
+      font-size: 0.95rem;
+      margin: 0 0 20px;
+    }
+    .bitly-ios-download .alert {
+      background: #2a1a1a;
+      border: 1px solid #553333;
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin-bottom: 16px;
+      font-size: 0.9rem;
+      color: #ffb4b4;
+      display: none;
+    }
+    .bitly-ios-download .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 16px;
+      transition:
+        border-color 0.2s,
+        background 0.2s;
+    }
+    .bitly-ios-download .card:hover {
+      background: var(--card-hover);
+    }
+    .bitly-ios-download .card.recommended {
+      border-color: var(--accent);
+    }
+    .bitly-ios-download .badge {
+      display: inline-block;
+      background: var(--accent);
+      color: #000;
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 6px;
+      margin-left: 8px;
+      vertical-align: middle;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .bitly-ios-download .card h3 {
+      margin: 0 0 6px;
+      font-size: 1.15rem;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+    .bitly-ios-download .card .desc {
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.5;
+      margin: 0 0 16px;
+    }
+    .bitly-ios-download .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      padding: 14px 20px;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 600;
+      text-decoration: none;
+      border: none;
+      cursor: pointer;
+      transition:
+        transform 0.15s,
+        background 0.2s;
+    }
+    .bitly-ios-download .btn:active {
+      transform: scale(0.98);
+    }
+    .bitly-ios-download .btn-primary {
+      background: var(--accent);
+      color: #000;
+    }
+    .bitly-ios-download .btn-primary:hover {
+      background: var(--accent-hover);
+    }
+    .bitly-ios-download .btn-secondary {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .bitly-ios-download .btn-secondary:hover {
+      background: #2a2a2a;
+    }
+    .bitly-ios-download .steps {
+      margin: 16px 0 0;
+      padding-left: 20px;
+      color: var(--muted);
+      font-size: 0.85rem;
+      line-height: 1.7;
+    }
+    .bitly-ios-download .steps li {
+      margin-bottom: 4px;
+    }
+    .bitly-ios-download .steps a {
+      color: var(--accent);
+    }
+    .bitly-ios-download .note {
+      color: var(--muted);
+      font-size: 0.8rem;
+      margin-top: 14px;
+      line-height: 1.5;
+    }
+    .bitly-ios-download .version-tag {
+      color: var(--muted);
+      font-size: 0.8rem;
+      text-align: center;
+      margin-top: 8px;
+    }
+  </style>
+
+  <h2>Descargar para iPhone</h2>
+  <p class="sub">
+    Elige cómo instalarlo. Las dos formas son gratis y no necesitan la App
+    Store.
+  </p>
+
+  <div class="alert" id="bitly-not-ios">
+    ⚠️ Parece que no estás en un iPhone. Abre esta página desde tu iPhone para
+    instalar Bitly.
+  </div>
+
+  <!-- ── Opción 1: TrollStore (recomendado) ─────────────────────────── -->
+  <div class="card recommended">
+    <h3>TrollStore <span class="badge">Recomendado</span></h3>
+    <p class="desc">
+      Instalación <strong>permanente y directa</strong> — sin PC, sin
+      expiración, sin renovaciones. Si ya tienes TrollStore, un solo tap y
+      listo.
+    </p>
+    <a class="btn btn-primary" id="bitly-trollstore-btn" href="#">
+      Instalar con TrollStore
+    </a>
+    <ol class="steps">
+      <li>
+        ¿No tienes TrollStore? Descárgalo en
+        <a
+          href="https://ios.cfw.guide/installing-trollstore/"
+          target="_blank"
+          rel="noopener"
+          >ios.cfw.guide</a
+        >
+        (solo iOS 14.0 – 16.6.1, 16.7 RC o 17.0).
+      </li>
+      <li>Vuelve a esta página y toca el botón de arriba otra vez.</li>
+      <li>
+        TrollStore abrirá solo y te preguntará si quieres instalar Bitly →
+        acepta.
+      </li>
+    </ol>
+    <p class="note">
+      Requiere <strong>iOS 14.0 – 16.6.1, 16.7 RC o 17.0</strong>. En 16.7.x o
+      17.0.1+ no es posible (Apple lo parcheó); usa AltStore en ese caso.
+    </p>
+  </div>
+
+  <!-- ── Opción 2: AltStore ─────────────────────────────────────────── -->
+  <div class="card">
+    <h3>AltStore</h3>
+    <p class="desc">
+      Funciona en <strong>cualquier versión de iOS</strong>. Necesitas una PC o
+      Mac una vez para instalar AltServer; después Bitly se renueva solo por
+      WiFi cada 7 días.
+    </p>
+    <a class="btn btn-secondary" id="bitly-altstore-btn" href="#">
+      Descargar Bitly.ipa
+    </a>
+    <ol class="steps">
+      <li>
+        Instala <strong>AltServer</strong> en tu PC/Mac desde
+        <a href="https://altstore.io" target="_blank" rel="noopener"
+          >altstore.io</a
+        >.
+      </li>
+      <li>
+        Conecta tu iPhone por USB y ejecuta AltServer → "Install AltStore".
+      </li>
+      <li>
+        En el iPhone:
+        <em>Ajustes → General → VPN y gestión de dispositivos</em> → confiar en
+        tu Apple ID.
+      </li>
+      <li>
+        Abre el archivo <strong>.ipa</strong> descargado arriba y elige "Abrir
+        en AltStore".
+      </li>
+      <li>
+        Activa el <strong>Modo Desarrollador</strong> (Ajustes → Privacidad y
+        seguridad) si iOS lo pide.
+      </li>
+    </ol>
+    <p class="note">
+      Solo se pueden mantener 3 apps a la vez y expira cada 7 días, pero
+      AltStore las
+      <strong>renueva automáticamente por WiFi</strong> si tu PC está encendido.
+    </p>
+  </div>
+
+  <p class="version-tag" id="bitly-ios-version"></p>
+
+  <script>
+    (function () {
+      var GITHUB_REPO = "QuopTron/bitly"; // ← cambia si mueves el repo
+
+      var trollBtn = document.getElementById("bitly-trollstore-btn");
+      var altBtn = document.getElementById("bitly-altstore-btn");
+      var verTag = document.getElementById("bitly-ios-version");
+      var notIos = document.getElementById("bitly-not-ios");
+
+      var IPA_URL = null;
+
+      // Detectar iPhone/iPad
+      var ua = navigator.userAgent || "";
+      var isIOS =
+        /iPad|iPhone|iPod/.test(ua) ||
+        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+      if (!isIOS) notIos.style.display = "block";
+
+      // Buscar la última release y armar la URL del .ipa
+      fetch("https://api.github.com/repos/" + GITHUB_REPO + "/releases/latest")
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (data) {
+          var tag = data.tag_name || "";
+          var version = tag.replace(/^v/, "");
+          var asset = (data.assets || []).filter(function (a) {
+            return /\.ipa$/i.test(a.name);
+          })[0];
+
+          if (asset) IPA_URL = asset.browser_download_url;
+
+          if (verTag && version) {
+            verTag.textContent =
+              "Última versión: " +
+              version +
+              (IPA_URL
+                ? " · " + (asset.size / 1048576).toFixed(1) + " MB"
+                : "");
+          }
+
+          altBtn.href = IPA_URL || "#";
+          altBtn.setAttribute("download", "");
+
+          // TrollStore: URL scheme que instala directo si está instalado.
+          // Si no lo está, el esquema abre la app Lupa (inofensivo) → el
+          // usuario ve las instrucciones en el paso 1.
+          trollBtn.href = IPA_URL
+            ? "apple-magnifier://install?url=" + encodeURIComponent(IPA_URL)
+            : "#";
+
+          trollBtn.addEventListener("click", function (e) {
+            if (!IPA_URL) {
+              e.preventDefault();
+              alert(
+                "No se pudo obtener la última versión. Inténtalo de nuevo en unos segundos.",
+              );
+            }
+          });
+        })
+        .catch(function () {
+          if (verTag)
+            verTag.textContent = "No se pudo consultar la última versión.";
+          altBtn.href = "#";
+          trollBtn.href = "#";
+        });
+    })();
+  </script>
+</section>
