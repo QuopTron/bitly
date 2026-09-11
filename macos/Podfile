@@ -46,12 +46,18 @@ post_install do |installer|
     flutter_additional_macos_build_settings(target)
   end
 
-  # Fix ffmpeg-kit: frameworks sin firma → CodeSign final falla. Se firman
-  # ad-hoc aquí (pod install corre antes del build de Xcode).
-  frameworks_dir = File.expand_path('Pods/ffmpeg_kit_flutter_new_audio/Frameworks', __dir__)
-  if Dir.exist?(frameworks_dir)
-    Dir.glob(File.join(frameworks_dir, '*.framework')).each do |fw|
-      system('codesign', '--force', '--sign', '-', fw)
+  # Fix firma: TODOS los frameworks vendidos por pods (ffmpeg_kit, media_kit,
+  # etc.) vienen sin firma. Xcode falla al firmar el .app porque los
+  # sub-frameworks están unsigned. Los firmamos ad-hoc aquí, ANTES de que
+  # xcodebuild copie al .app.
+  pods_dir = File.expand_path('Pods', __dir__)
+  Dir.glob(File.join(pods_dir, '**', '*.framework')).each do |fw|
+    system('codesign', '--force', '--sign', '-', fw) rescue nil
+  end
+  # También firmar .xcframework si existe (go_backend)
+  Dir.glob(File.join(pods_dir, '**', '*.xcframework')).each do |xcfw|
+    Dir.glob(File.join(xcfw, '*', '*.framework')).each do |fw|
+      system('codesign', '--force', '--sign', '-', fw) rescue nil
     end
   end
 end

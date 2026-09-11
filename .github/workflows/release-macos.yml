@@ -92,14 +92,19 @@ jobs:
       # ffmpeg_kit_flutter_new_audio trae frameworks (libavfilter, etc.) SIN
       # firma: el CodeSign del bundle falla con "code object is not signed at
       # all". Deshabilitamos la firma pasando flags directamente a xcodebuild
-      # con la sintaxis -- de Flutter. Después firmamos ad-hoc.
-      - name: Build macOS app (sin firma durante build)
+      # Deshabilitamos firma en el proyecto Xcode ANTES del build:
+      # - CODE_SIGNING_REQUIRED=NO evita que Xcode busque certificados
+      # - CODE_SIGNING_ALLOWED=NO evita que intente firmar el .app
+      # El Podfile post_install ya firma ad-hoc TODOS los frameworks de pods
+      # (ffmpeg_kit, media_kit, etc.) para que Xcode no falle al copiarlos.
+      - name: Disable code signing for CI build
         run: |
-          flutter build macos --release -- \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGN_IDENTITY="-" \
-            DEVELOPMENT_TEAM="" \
-            ENABLE_HARDENED_RUNTIME=NO
+          PROJ="macos/Runner.xcodeproj/project.pbxproj"
+          sed -i '' 's/CODE_SIGN_STYLE = Manual;/CODE_SIGN_STYLE = Manual;\n\t\t\t\tCODE_SIGNING_REQUIRED = NO;\n\t\t\t\tCODE_SIGNING_ALLOWED = NO;/' "$PROJ"
+          echo "Code signing disabled for CI"
+
+      - name: Build macOS app
+        run: flutter build macos --release
 
       # Firma ad-hoc de toda la app (sin certificado Apple Developer).
       # En Apple Silicon una app sin firma NO arranca; la ad-hoc (-) es el
