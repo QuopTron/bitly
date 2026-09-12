@@ -93,7 +93,9 @@ func resolverTrackIDProvider(p provider.Provider, name string, req Request) (str
 		if results, err := p.SearchTracks(title+" "+artist, 8); err == nil && len(results) > 0 {
 			// Only resolve the ORIGINAL track (strong artist + title, no
 			// remix/live/cover variants) so a fallback never pulls a different song.
-			if best := provider.BestOriginal(title, artist, results); best != nil {
+			// req.DurationMS desempata cuando varias subidas comparten título y
+			// artista (YouTube/SoundCloud, que no exponen ISRC).
+			if best := provider.BestOriginalDuracion(title, artist, req.DurationMS, results); best != nil {
 				return best.ID, best.Title, best.Artist
 			}
 		}

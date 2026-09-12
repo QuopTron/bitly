@@ -66,27 +66,29 @@ https://github.com/QuopTron/bitly/releases/latest/download/app-arm64-v8a-release
 4. Tocar **Go** → descargar → **Instalar**.
 5. Abrir **Bitly** desde la fila de apps de la TV.
 
-### 3.2 De dónde sale el código corto
+### 3.2 Las URL cortas (ya creadas, sin captcha)
 
-El código es una función de Downloader: convierte una URL en un número de 5
-dígitos que el usuario escribe con el control remoto (mucho más cómodo que
-teclear una URL).
+El campo de Downloader acepta **código numérico, búsqueda o URL completa**.
+El acortador oficial de AFTVnews (`go.aftvnews.com`) exige resolver un
+reCAPTCHA para emitir el número de 5 dígitos, así que usamos **URLs cortas
+propias** (creadas en spoo.me, sin captcha) que hacen exactamente lo mismo:
 
-1. Entrar a **https://go.aftvnews.com/** (el acortador *oficial* de Downloader).
-2. Pegar la URL del APK de la sección 2.
-3. El sitio devuelve un **código numérico** + una URL corta.
-4. Guardar ese código y publicarlo con la app (web, redes, tutorial).
+| URL corta a escribir en Downloader | Baja |
+|---|---|
+| **`https://spoo.me/bitly-tv`** | arm64-v8a (TVs y sticks modernos) |
+| **`https://spoo.me/bitly-tv32`** | armeabi-v7a (Fire TV Stick viejo, 32 bits) |
+| **`https://spoo.me/bitly-tvx64`** | x86_64 (emulador / boxes Intel) |
 
-> El código apunta a una URL fija. Como usamos
-> `releases/latest/download/...`, el código sirve **para todas las versiones
-> futuras** sin volver a generarlo.
+> Apuntan a `releases/latest/download/...`, así que **sirven para todas las
+> versiones futuras** sin volver a generarlas. Si querés igual el número de 5
+> dígitos, entrá a **https://go.aftvnews.com/**, pegá la URL del APK y resolvé
+> el captcha **una sola vez** (queda fijo para siempre).
 
-### 3.3 Alternativas si no querés código
+### 3.3 Alternativa sin ningún acortador
 
-- **URL corta propia**: acortar la URL del APK con el dominio de la web y
-  escribirla en Downloader (el campo acepta URLs completas).
 - **Tu web**: publicar un enlace `/tv` que redirija al último APK; el usuario
-  escribe `tudominio.com/tv` en Downloader.
+  escribe `bitly-site.pages.dev/tv` en Downloader.
+- **URL directa**: pegar la URL completa de GitHub de la sección 2.
 
 ---
 
@@ -145,7 +147,7 @@ con el control todavía no.
 
 > **Bitly en tu TV**
 > 1. Instala **Downloader** desde la tienda de tu TV.
-> 2. Ábrela y escribe el código **`XXXXX`**.
+> 2. Ábrela y escribe **`spoo.me/bitly-tv`** (o el código corto que te demos).
 > 3. Espera la descarga y toca **Instalar**.
 > 4. Abre **Bitly** y listo.
 >

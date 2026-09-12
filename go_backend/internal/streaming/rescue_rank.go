@@ -6,8 +6,13 @@ import (
 	"github.com/zarz/bitly/go_backend/internal/provider"
 )
 
-func matchesRankeados(queryTitle, queryArtist string, results []provider.TrackResult) []provider.TrackResult {
-	ranked := provider.RankOriginalCandidates(queryTitle, queryArtist, results)
+// matchesRankeados ordena los resultados de una búsqueda POR NOMBRE quedándose
+// solo con el original. [queryDurationMS] (0 = desconocida) desempata entre
+// candidatos que empatan en título+artista — el caso de YouTube/SoundCloud, que
+// no exponen ISRC y tienen la misma canción subida varias veces con distinta
+// duración (video oficial vs. audio vs. re-subido).
+func matchesRankeados(queryTitle, queryArtist string, queryDurationMS int, results []provider.TrackResult) []provider.TrackResult {
+	ranked := provider.RankOriginalCandidatesDuracion(queryTitle, queryArtist, queryDurationMS, results)
 	if len(results) > 0 && len(ranked) == 0 {
 		log.Printf("[rescue] %q / %q: %d results, sin candidato reproducible. Candidatos:",
 			queryTitle, queryArtist, len(results))

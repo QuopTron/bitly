@@ -70,4 +70,15 @@ func (o *Orchestrator) enrichISRC(req *Request) {
 			}
 		}
 	}
+
+	// Último recurso: derivar el ISRC desde un catálogo que SÍ lo publica
+	// (Deezer/Qobuz/Tidal/Apple), verificando título, artista y duración. Es el
+	// caso de YouTube/SoundCloud sin cross-ids: sin esto, ni la resolución
+	// exacta por ISRC ni el rescate FLAC entran en juego, y la descarga queda
+	// condenada al stream lossy por nombre. Best-effort y cacheado.
+	if req.ISRC == "" && req.Title != "" && req.Artist != "" {
+		if isrc := provider.DerivarISRC(o.providers, req.Title, req.Artist, req.DurationMS); isrc != "" {
+			req.ISRC = isrc
+		}
+	}
 }

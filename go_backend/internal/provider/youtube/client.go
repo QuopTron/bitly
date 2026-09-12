@@ -102,7 +102,7 @@ func (c *Client) SearchTracks(query string, limit int) ([]provider.TrackResult, 
 			ID:       "yt:" + sr.ID,
 			Title:    sr.Title,
 			Artist:   sr.Channel,
-			Duration: sr.Duration,
+			Duration: duracionMS(sr.Duration),
 			CoverURL: sr.Thumbnail,
 			Provider: "youtube",
 		})

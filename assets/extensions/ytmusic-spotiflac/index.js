@@ -53,11 +53,13 @@ const CONFIG = {
   oauthRefreshToken: "",
   oauthClientId: "",
   oauthClientSecret: "",
-  // InnerTube ANDROID client config
+  // InnerTube ANDROID client config. La versión va sincronizada con
+  // INNERTUBE_ANON_CLIENT_VERSIONS.android (yt-dlp); un cliente Android viejo
+  // recibe SABR/formatos vacíos en vez de URLs directas.
   innerTubeApiKey: "AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w",
-  innerTubeClientVersion: "21.02.35",
+  innerTubeClientVersion: "21.26.364",
   innerTubeUserAgent:
-    "com.google.android.youtube/21.02.35 (Linux; U; Android 11) gzip",
+    "com.google.android.youtube/21.26.364 (Linux; U; Android 11) gzip",
   directAudioChunkSize: 1024 * 1024,
 };
 
@@ -264,7 +266,12 @@ function noteInnerTubeClientBlock(name, err) {
     ttl = CLIENT_BLOCK_HARD_MS;
   } else if (
     /HTTP 429|rate_limited|HTTP 5\d\d|HTTP 503/i.test(msg) ||
-    /abort|network|timeout|failed to fetch/i.test(msg)
+    /abort|network|timeout|failed to fetch/i.test(msg) ||
+    // Cliente que responde 200 pero sin formatos útiles: es el caso SABR
+    // (YouTube devuelve una respuesta sin URLs descargables a los clientes
+    // cuyo clientVersion quedó viejo, p. ej. android_vr >1.65). Sin esto la
+    // cadena volvía a pagar un POST por canción en ese cliente para siempre.
+    /no usable audio URL/i.test(msg)
   ) {
     ttl = CLIENT_BLOCK_TRANSIENT_MS;
   }
@@ -481,17 +488,75 @@ function getYt1dConfig() {
 // InnerTube client configs for fallback chain.
 // ORDER MATTERS: try clients least likely to be blocked first.
 //
-// Qué cliente necesita PO Token (tabla oficial de yt-dlp, actualizada 2026):
-//   tv_embedded / web_embedded / tv / android_vr → NO requieren PO Token.
-//   tv_simply / mweb / web_safari / android / ios → requieren PO Token (GVS
-//   o player) para los formatos de audio.
+// ── Cómo se "engaña" a InnerTube sin cuenta ────────────────────────────────
+// La tabla oficial es la de yt-dlp (yt_dlp/extractor/youtube/_base.py,
+// INNERTUBE_CLIENTS). Lo que cambió en 2026 y hay que tener en cuenta:
 //
-// web_embedded se agregó porque tv_embedded dejó de servir en varias IPs
-// ("YouTube is no longer supported in this application or device"). Es el
-// otro cliente que YouTube documenta como libre de PO Token, y sirve los
-// videos incrustables — que son casi todos los de música. Sin sesión iniciada
-// es, junto a android_vr, la vía anónima real.
+//   1. CASI TODOS los clientes con audio solo-audio (android, ios, mweb,
+//      web, web_music) ahora EXIGEN un GVS PO Token. Sin token, esos clientes
+//      devuelven los formatos vacíos y solo sobrevive itag=18 (video+audio de
+//      ~96 kbps): audio pobre. Por eso el orden con proveedor de PO Token los
+//      pone primero.
+//   2. android_vr (Oculus) fue LA vía anónima, pero desde el 2026.08.17 TODOS
+//      sus formatos responden 403 con clientVersion 1.65.10 en IPs marcadas.
+//      Sigue en la lista (con proveedor y en IPs limpias funciona) pero ya no
+//      es el ancla anónima.
+//   3. El ancla anónima ahora es **visionos**: es el único cliente con
+//      REQUIRE_JS_PLAYER=false (devuelve URLs directas, sin firma cifrada) Y
+//      sin política de PO Token. Eso significa audio solo-audio sin cuenta y
+//      sin proveedor externo — exactamente lo que se busca para quien no
+//      inicia sesión con Google.
+//   4. Clientes embebidos (tv_embedded / web_embedded): el truco de yt-dlp
+//      (_fix_embedded_ytcfg) es mandar un `thirdParty.embedUrl` que NO sea de
+//      YouTube (usa reddit.com). Con embedUrl=YouTube el cliente se cae solo;
+//      con un sitió tercero válido pasa como incrustación legítima.
+//   5. tv / tv_downgraded (Cobalt, smart TV) no piden PO Token y son muy
+//      estables, pero requieren descifrar la firma (REQUIRE_JS_PLAYER=true) —
+//      de eso se encarga solveYouTubePlayerChallenge.
+//
+// La versión de cada cliente se copia de yt-dlp; cuando YouTube sube la suya,
+// se actualizan estas constantes (es el único punto a tocar).
+var INNERTUBE_ANON_CLIENT_VERSIONS = {
+  visionos: "1.02",
+  web_embedded: "2.20260708.00.00",
+  tv: "7.20260707.07.00",
+  tv_downgraded: "5.20260707",
+  mweb: "2.20260708.05.00",
+  android: "21.26.364",
+  ios: "21.26.4",
+  android_vr: "1.65.10",
+};
+
+// URL externa que se declara como embedUrl de los clientes embebidos. NO
+// puede ser de YouTube (ver punto 4 del comentario de arriba); yt-dlp usa
+// esta misma, así que es la que YouTube ya tiene por "incrustación normal".
+var INNERTUBE_EMBED_URL = "https://www.reddit.com/";
+
 var INNERTUBE_CLIENTS = [
+  // ── Ancla anónima: sin PO Token y sin JS player (URLs directas) ─────────
+  {
+    name: "visionos",
+    clientHeaderName: "101",
+    requiresGvsPoToken: false,
+    body: {
+      context: {
+        client: {
+          clientName: "VISIONOS",
+          clientVersion: "1.02",
+          deviceMake: "Apple",
+          deviceModel: "RealityDevice17,1",
+          hl: "en",
+          gl: "US",
+          timeZone: "UTC",
+          utcOffsetMinutes: 0,
+          osName: "visionOS",
+          osVersion: "26.5.23O471",
+        },
+      },
+    },
+    ua: "Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7_3) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15",
+    key: CONFIG.innerTubeApiKey,
+  },
   {
     name: "tv_embedded",
     clientHeaderName: "85",
@@ -507,7 +572,7 @@ var INNERTUBE_CLIENTS = [
           utcOffsetMinutes: 0,
         },
         thirdParty: {
-          embedUrl: "https://www.youtube.com",
+          embedUrl: INNERTUBE_EMBED_URL,
         },
       },
     },
@@ -522,14 +587,14 @@ var INNERTUBE_CLIENTS = [
       context: {
         client: {
           clientName: "WEB_EMBEDDED_PLAYER",
-          clientVersion: "1.20250310.01.00",
+          clientVersion: INNERTUBE_ANON_CLIENT_VERSIONS.web_embedded,
           hl: "en",
           gl: "US",
           timeZone: "UTC",
           utcOffsetMinutes: 0,
         },
         thirdParty: {
-          embedUrl: "https://www.youtube.com/",
+          embedUrl: INNERTUBE_EMBED_URL,
         },
       },
     },
@@ -544,7 +609,7 @@ var INNERTUBE_CLIENTS = [
       context: {
         client: {
           clientName: "TVHTML5",
-          clientVersion: "7.20240717.13.00",
+          clientVersion: INNERTUBE_ANON_CLIENT_VERSIONS.tv,
           hl: "en",
           gl: "US",
           timeZone: "UTC",
@@ -555,18 +620,49 @@ var INNERTUBE_CLIENTS = [
         },
       },
     },
-    ua: "Mozilla/5.0 (SMART-TV; LINUX; Tizen 6.5) AppleWebKit/537.36 (KHTML, like Gecko) Version/6.5 TV Safari/537.36",
+    // UA de Cobalt real (yt-dlp): un TV browser de mentira (Tizen/Safari)
+    // delata al cliente y YouTube lo degrada. Este UA es el que usa la app de
+    // YouTube para TV, así que pasa como tráfico legítimo.
+    ua: "Mozilla/5.0 (ChromiumStylePlatform) Cobalt/25.lts.30.1034943-gold (unlike Gecko), Unknown_TV_Unknown_0/Unknown (Unknown, Unknown)",
+    key: CONFIG.innerTubeApiKey,
+  },
+  // Variante "downgraded" de TVHTML5 (clientVersion 5.x): es un cliente
+  // distinto para YouTube y suele seguir sirviendo cuando la versión 7.x queda
+  // bloqueada. No pide PO Token.
+  {
+    name: "tv_downgraded",
+    clientHeaderName: "7",
+    requiresGvsPoToken: false,
+    body: {
+      context: {
+        client: {
+          clientName: "TVHTML5",
+          clientVersion: INNERTUBE_ANON_CLIENT_VERSIONS.tv_downgraded,
+          hl: "en",
+          gl: "US",
+          timeZone: "UTC",
+          utcOffsetMinutes: 0,
+          osName: "",
+          osVersion: "",
+          platform: "TV",
+        },
+      },
+    },
+    ua: "Mozilla/5.0 (ChromiumStylePlatform) Cobalt/Version",
     key: CONFIG.innerTubeApiKey,
   },
   {
     name: "android_vr",
     clientHeaderName: "28",
-    requiresGvsPoToken: false,
+    // yt-dlp: android_vr SÍ exige GVS PO Token. Marcarlo como "sin token" hacía
+    // que la cadena gastara un intento en sus formatos solo-audio para luego
+    // recibir 403; ahora, sin proveedor, se salta directo a lo que sí responde.
+    requiresGvsPoToken: true,
     body: {
       context: {
         client: {
           clientName: "ANDROID_VR",
-          clientVersion: "1.65.10",
+          clientVersion: INNERTUBE_ANON_CLIENT_VERSIONS.android_vr,
           androidSdkVersion: 32,
           hl: "en",
           gl: "US",
@@ -591,7 +687,7 @@ var INNERTUBE_CLIENTS = [
       context: {
         client: {
           clientName: "MWEB",
-          clientVersion: "2.20250101.01.00",
+          clientVersion: INNERTUBE_ANON_CLIENT_VERSIONS.mweb,
           hl: "en",
           gl: "US",
           timeZone: "UTC",
@@ -612,7 +708,7 @@ var INNERTUBE_CLIENTS = [
       context: {
         client: {
           clientName: "ANDROID",
-          clientVersion: CONFIG.innerTubeClientVersion,
+          clientVersion: INNERTUBE_ANON_CLIENT_VERSIONS.android,
           androidSdkVersion: 30,
           hl: "en",
           gl: "US",
@@ -635,7 +731,7 @@ var INNERTUBE_CLIENTS = [
       context: {
         client: {
           clientName: "IOS",
-          clientVersion: "21.02.3",
+          clientVersion: INNERTUBE_ANON_CLIENT_VERSIONS.ios,
           deviceMake: "Apple",
           deviceModel: "iPhone16,2",
           hl: "en",
@@ -648,7 +744,10 @@ var INNERTUBE_CLIENTS = [
         },
       },
     },
-    ua: "com.google.ios.youtube/21.02.3 (iPhone16,2; U; CPU iOS 18_3_2 like Mac OS X;)",
+    ua:
+      "com.google.ios.youtube/" +
+      INNERTUBE_ANON_CLIENT_VERSIONS.ios +
+      " (iPhone16,2; U; CPU iOS 18_3_2 like Mac OS X;)",
     key: "AIzaSyB-63vPrdThhKuerbB2N_l7Kwwcxj6yUAc",
   },
 ];
@@ -1695,7 +1794,7 @@ function clientesInnerTubeEnOrden() {
         disponibles +
         (disponibles
           ? " -> se priorizan android/ios/mweb (audio solo-audio)"
-          : " -> sin proveedor: orden clásico (itag=18 y baja calidad)"),
+          : " -> sin proveedor: se prioriza visionos (audio solo-audio anónimo)"),
     );
   }
   if (!proveedorPoTokenDisponible()) return INNERTUBE_CLIENTS;

@@ -110,7 +110,9 @@ function cargar(fetchImpl) {
     " streamUrlCacheGet: streamUrlCacheGet," +
     " streamUrlCacheSet: streamUrlCacheSet," +
     " esFormatoSoloAudio: esFormatoSoloAudio," +
-    " nombresClientesOriginales: INNERTUBE_CLIENTS.map(function (c) { return c.name; }) };\n";
+    " nombresClientesOriginales: INNERTUBE_CLIENTS.map(function (c) { return c.name; })," +
+    " clientesOriginales: INNERTUBE_CLIENTS," +
+    " embedUrlDeclarada: INNERTUBE_EMBED_URL };\n";
   vm.runInContext(source + hook, sandbox, { filename: ruta });
   return { sandbox, llamadas, avisos, t: sandbox.__t, ext: sandbox.__ext };
 }
@@ -370,9 +372,14 @@ console.log("\n== 6) orden de clientes: solo se priorizan los que dan audio-only
   );
   const clasico = sinProv.t.clientesInnerTubeEnOrden().map((c) => c.name);
   check(
-    "proveedor caído: el orden VUELVE al clásico (empieza tv_embedded)",
+    "proveedor caído: el orden VUELVE al anónimo (empieza visionos)",
     clasico.join(",") === sinProv.t.nombresClientesOriginales.join(","),
     clasico.join(","),
+  );
+  check(
+    "proveedor caído: el primero es visionos (anónimo sin PO token ni JS player)",
+    clasico[0] === "visionos",
+    clasico[0],
   );
 
   // Con proveedor sano: los clientes que exigen token van PRIMERO.
@@ -389,8 +396,9 @@ console.log("\n== 6) orden de clientes: solo se priorizan los que dan audio-only
     orden.join(","),
   );
   check(
-    "con proveedor: los clientes sin token quedan como respaldo",
-    orden.slice(3).join(",") === "tv_embedded,web_embedded,tv,android_vr",
+    "con proveedor: los clientes sin token quedan como respaldo (visionos primero)",
+    orden.slice(3).join(",") ===
+      "android_vr,visionos,tv_embedded,web_embedded,tv,tv_downgraded",
     orden.join(","),
   );
   check(
@@ -406,6 +414,79 @@ console.log("\n== 6) orden de clientes: solo se priorizan los que dan audio-only
     "mode=off: no se prioriza nada aunque el proveedor esté vivo",
     apagado.t.clientesInnerTubeEnOrden().map((c) => c.name).join(",") ===
       apagado.t.nombresClientesOriginales.join(","),
+  );
+}
+
+console.log("\n== 6b) los trucos de clientes anónimos (lo que hace yt-dlp) ==");
+{
+  const { t } = cargar(serverBgutil2x());
+  const porNombre = {};
+  t.clientesOriginales.forEach((c) => (porNombre[c.name] = c));
+
+  // 1) visionos: sin PO Token Y sin JS player. Es EL ancla anónima: devuelve
+  //    URLs directas de audio solo-audio sin cuenta y sin proveedor externo.
+  check("existe el cliente visionos", !!porNombre.visionos);
+  check(
+    "visionos no exige PO Token ni JS player",
+    !!porNombre.visionos && porNombre.visionos.requiresGvsPoToken === false,
+  );
+  check(
+    "visionos se declara como VISIONOS con su versión de yt-dlp",
+    porNombre.visionos &&
+      porNombre.visionos.body.context.client.clientName === "VISIONOS" &&
+      porNombre.visionos.body.context.client.clientVersion === "1.02",
+    JSON.stringify(porNombre.visionos && porNombre.visionos.body),
+  );
+  check(
+    "visionos va ANTES que cualquier cliente con token",
+    t.nombresClientesOriginales.indexOf("visionos") === 0,
+    t.nombresClientesOriginales.join(","),
+  );
+
+  // 2) Clientes embebidos: el embedUrl NO puede ser de YouTube. Un embedUrl
+  //    de youtube.com hace que YouTube trate el pedido como no-incrustable y
+  //    lo rechace; con un sitio tercero válido pasa como embed legítimo.
+  check(
+    "el embedUrl declarado por los clientes embebidos no es de YouTube",
+    t.embedUrlDeclarada.indexOf("youtube.com") === -1,
+    t.embedUrlDeclarada,
+  );
+  ["tv_embedded", "web_embedded"].forEach((n) => {
+    const emb = porNombre[n] && porNombre[n].body.context.thirdParty;
+    check(
+      "" + n + " usa un embedUrl tercero (no youtube.com)",
+      !!emb && String(emb.embedUrl).indexOf("youtube.com") === -1,
+      JSON.stringify(emb),
+    );
+  });
+
+  // 3) tv y tv_downgraded: la vía estable sin token (requiere descifrar firma,
+  //    que la extensión hace con solveYouTubePlayerChallenge).
+  check(
+    "existe tv_downgraded (variante TV con versión 5.x)",
+    !!porNombre.tv_downgraded &&
+      porNombre.tv_downgraded.body.context.client.clientVersion === "5.20260707",
+    JSON.stringify(porNombre.tv_downgraded && porNombre.tv_downgraded.body),
+  );
+  check(
+    "tv y tv_downgraded usan el UA de Cobalt, no un Tizen falso",
+    porNombre.tv.ua.indexOf("Cobalt") !== -1 &&
+      porNombre.tv_downgraded.ua.indexOf("Cobalt") !== -1,
+    porNombre.tv.ua + " | " + porNombre.tv_downgraded.ua,
+  );
+
+  // 4) android_vr sigue existiendo (con proveedor sirve en IPs limpias) pero
+  //    ya no es el ancla: YouTube 403ea todos sus formatos con 1.65.10.
+  check(
+    "android_vr sigue en la cadena como respaldo con token",
+    !!porNombre.android_vr && porNombre.android_vr.requiresGvsPoToken === true,
+  );
+  check(
+    "siguen estando los clientes móviles que dan audio-only con token",
+    !!porNombre.android && !!porNombre.ios && !!porNombre.mweb &&
+      porNombre.android.requiresGvsPoToken &&
+      porNombre.ios.requiresGvsPoToken &&
+      porNombre.mweb.requiresGvsPoToken,
   );
 }
 

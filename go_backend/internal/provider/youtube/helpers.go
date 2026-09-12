@@ -33,3 +33,16 @@ func nonEmpty(vals ...string) string {
 	}
 	return ""
 }
+
+// duracionMS convierte la duración de yt-dlp (SEGUNDOS) a milisegundos, que es
+// la unidad de provider.TrackResult.Duration (json durationMs) en TODO el
+// backend: las extensiones emiten duration_ms, duracionCoincide compara en ms y
+// el feed serializa durationMs. Sin esta conversión YouTube reportaba 210 en vez
+// de 210000, así que la verificación por duración rechazaba coincidencias
+// correctas (y el feed mostraba "0:00").
+func duracionMS(segundos int) int {
+	if segundos <= 0 {
+		return 0
+	}
+	return segundos * 1000
+}

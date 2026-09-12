@@ -71,6 +71,59 @@ func TestOriginalStrength_RejectsNonOriginal(t *testing.T) {
 	}
 }
 
+// Las fuentes sin ISRC (YouTube/SoundCloud) suben la misma canción varias veces
+// con el mismo título y artista. Sin desempate por duración el backend podía
+// servir el audio equivocado (otra toma/corte). Estos casos lo bloquean.
+func TestRankOriginalCandidatesDuracion_DesempataMismaCancion(t *testing.T) {
+	// Mismo título y artista; distintas duraciones (versión de álbum vs. una
+	// toma extendida subida al mismo canal).
+	results := []TrackResult{
+		{ID: "larga", Title: "La Bachata", Artist: "Manuel Turizo", Duration: 5 * 60 * 1000},
+		{ID: "buena", Title: "La Bachata", Artist: "Manuel Turizo", Duration: 200 * 1000},
+		{ID: "corta", Title: "La Bachata", Artist: "Manuel Turizo", Duration: 60 * 1000},
+	}
+	best := BestOriginalDuracion("La Bachata", "Manuel Turizo", 201*1000, results)
+	if best == nil || best.ID != "buena" {
+		t.Fatalf("BestOriginalDuracion eligió %+v, quería la de duración más cercana (buena)", best)
+	}
+}
+
+func TestRankOriginalCandidatesDuracion_NoDescartaSinDuracion(t *testing.T) {
+	// SoundCloud no siempre expone duración: el candidato sin duración no se
+	// descarta (perdería contra uno con duración conocida, pero sigue válido si
+	// es el único). Acá es el único original -> debe devolverse.
+	results := []TrackResult{
+		{ID: "sin-dur", Title: "Dai Dai", Artist: "minecraftdiablo", Duration: 0},
+	}
+	best := BestOriginalDuracion("Dai Dai", "Shakira", 190*1000, results)
+	if best == nil || best.ID != "sin-dur" {
+		t.Fatalf("BestOriginalDuracion descartó un candidato sin duración: %+v", best)
+	}
+}
+
+func TestRankOriginalCandidatesDuracion_NuncaPromuevePeor(t *testing.T) {
+	// El candidato con título EXACTO y duración lejana no debe ceder su lugar
+	// ante uno de título más débil que casualmente dura lo mismo: la duración
+	// es desempate, no criterio principal.
+	results := []TrackResult{
+		{ID: "exacto", Title: "La Bachata", Artist: "Manuel Turizo", Duration: 5 * 60 * 1000},
+		{ID: "parecido", Title: "La Bachata (Cover)", Artist: "Manuel Turizo", Duration: 200 * 1000},
+	}
+	best := BestOriginalDuracion("La Bachata", "Manuel Turizo", 200*1000, results)
+	if best == nil || best.ID != "exacto" {
+		t.Fatalf("la duración promovió un candidato peor: %+v", best)
+	}
+}
+
+func TestDistanciaDuracionMS(t *testing.T) {
+	if distanciaDuracionMS(200000, 205000) != 5000 {
+		t.Fatal("distancia con ambas conocidas")
+	}
+	if distanciaDuracionMS(200000, 0) != duracionDesconocida {
+		t.Fatal("candidato sin duración debe pesar como desconocido")
+	}
+}
+
 func TestBestOriginal_AcceptsFeat(t *testing.T) {
 	results := []TrackResult{
 		{ID: "1", Title: "DÁKITI", Artist: "Bad Bunny & Jhay Cortez"},

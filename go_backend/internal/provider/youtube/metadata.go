@@ -27,7 +27,7 @@ func (c *Client) GetTrack(id string) (*provider.TrackResult, error) {
 	artist := nonEmpty(track.Artist, track.Channel)
 	return &provider.TrackResult{
 		ID: "yt:" + track.ID, Title: track.Title, Artist: artist,
-		Duration: track.Duration, CoverURL: track.Thumbnail,
+		Duration: duracionMS(track.Duration), CoverURL: track.Thumbnail,
 		Provider: "youtube", Album: track.Album,
 	}, nil
 }

@@ -13,7 +13,28 @@ import (
 // segundos en vez de arrastrar 60-100s como el walk serial anterior.
 // [verified] reports that a provider HAS the exact track but needs its signed
 // session to stream it — the caller fails fast on that verdict.
+// duracionQuery devuelve la duración consultada en ms (0 si no la conocemos),
+// para que el ranking por nombre pueda desempatar versiones de la misma
+// canción cuando la fuente no expone ISRC.
+func duracionQuery(track *provider.TrackResult) int {
+	if track == nil || track.Duration <= 0 {
+		return 0
+	}
+	return track.Duration
+}
+
 func rescueStream(reg *provider.Registry, track *provider.TrackResult, trackName, artistName, quality string) (url, prov string, attempted []string, verified bool) {
+	// Fuentes sin ISRC (YouTube, SoundCloud, re-subidos): derivar el ISRC de un
+	// catálogo que SÍ lo publica habilita la fase exacta por ISRC y el rescate
+	// FLAC, sin pedirle nada al usuario y sin sesión. Es best-effort y cacheado:
+	// si no se confirma, todo sigue igual (búsqueda por nombre).
+	if track != nil && track.ISRC == "" && trackName != "" && artistName != "" {
+		if isrc := provider.DerivarISRC(reg, trackName, artistName, duracionQuery(track)); isrc != "" {
+			copia := *track
+			copia.ISRC = isrc
+			track = &copia
+		}
+	}
 	names := ordenProvidersStreaming(reg)
 	// Un proveedor que tiene la cancion exacta pero necesita su sesion
 	// verificada se RECUERDA, nunca es fatal: la siguiente fase (busqueda por
@@ -62,7 +83,7 @@ func rescueStream(reg *provider.Registry, track *provider.TrackResult, trackName
 				return "", false
 			}
 			var sawVerify bool
-			for _, cand := range matchesRankeados(trackName, artistName, results) {
+			for _, cand := range matchesRankeados(trackName, artistName, duracionQuery(track), results) {
 				candURL, cv := rescueProviderUnaVez(p, cand.ID, quality)
 				if cv {
 					sawVerify = true

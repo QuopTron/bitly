@@ -66,6 +66,28 @@ func TestNonEmpty(t *testing.T) {
 	}
 }
 
+// yt-dlp entrega la duración en SEGUNDOS, pero provider.TrackResult.Duration
+// (json durationMs) está en MILISEGUNDOS en todo el backend: las extensiones
+// emiten duration_ms y duracionCoincide compara en ms. Reportar segundos hacía
+// que la verificación por duración rechazara coincidencias correctas.
+func TestDuracionMS(t *testing.T) {
+	tests := []struct {
+		segundos int
+		want     int
+	}{
+		{0, 0},
+		{-5, 0},
+		{1, 1000},
+		{210, 210000},
+		{3600, 3600000},
+	}
+	for _, tt := range tests {
+		if got := duracionMS(tt.segundos); got != tt.want {
+			t.Errorf("duracionMS(%d) = %d, want %d", tt.segundos, got, tt.want)
+		}
+	}
+}
+
 // ─── Client initialization ───────────────────────────────────────
 
 func TestNewClient(t *testing.T) {

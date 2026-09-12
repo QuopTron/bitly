@@ -142,50 +142,54 @@ if [[ "$SUBIR_RELEASE" == "true" ]]; then
   # Las notas van sin interpolar ($ y backticks romperían el heredoc) y la
   # versión se sustituye después con __VERSION__.
   NOTAS_ES=$(cat <<'EOF'
-## 🎵 Bitly v__VERSION__ — Android + PC + TV
+## 🎵 Bitly v__VERSION__ — Android + PC + TV + macOS + iOS
 
 ### ✨ Novedades
-- **Bitly en tu Smart TV**: el mismo APK ahora se instala en Android TV, Google TV y Fire TV, aparece en el menú de la TV y usa el diseño de escritorio adaptado a la pantalla grande.
-- **Tutorial interactivo de primera vez**: la app te guía paso a paso (con foco sobre cada elemento) por el feed, las fuentes, la búsqueda, la reproducción, el miniplayer, los ajustes y Premium. Podés saltar un paso o el tutorial completo.
-- **Indicador de red**: ves el estado de tu conexión y su calidad sin salir de la app.
-- **Búsquedas y metadatos más rápidos**: caché y precarga de metadatos de todas las fuentes.
-- **Sesiones firmadas con rotación**: menos caídas al verificar las fuentes.
+- **Streaming sin sesión mejorado**: se modernizaron los clientes InnerTube de YouTube (nuevo cliente `visionos`, UA de Cobalt real, `tv_downgraded`, `embedUrl` anti-detección). YouTube reproduce audio solo-audio de mejor calidad sin iniciar sesión y sin proveedor externo.
+- **ISRC derivado automáticamente**: cuando la fuente (YouTube/SoundCloud) no expone ISRC, la app busca la misma canción en Deezer/Qobuz/Tidal/Apple, verifica que sea el original por título+artista+duración y usa su ISRC. Esto habilita el rescate FLAC sin login.
+- **Matching reforzado por duración**: dos subidas con el mismo título y artista (common en YouTube/SoundCloud) ahora se desempatan por duración, así sirve la versión correcta.
+- **Bitly en tu Smart TV**: el mismo APK se instala en Android TV, Google TV y Fire TV, usa el diseño de escritorio y aparece en el menú de la TV.
+- **Tutorial interactivo**: la app guía paso a paso por feed, fuentes, búsqueda, reproducción, miniplayer, ajustes y Premium (con spotlight, flechas, skip por paso o todo).
 
 ### 🐛 Correcciones
-- **Audio de YouTube**: cuando hay proveedor de PO Token se priorizan los formatos solo-audio de mayor calidad en vez del itag=18.
-- **Enlaces de Spotify y YouTube**: pegar un enlace ahora lo resuelve y lo reproduce bien.
-- **Descargas paralelas y rescate de FLAC**: descargas más rápidas y con más opciones de calidad.
-- **Reproductor**: el miniplayer, la notificación y el reproductor grande muestran siempre la misma canción que suena.
+- **YouTube**: duración de los tracks ahora en milisegundos (antes mostraba 0:00 y la verificación fallaba).
+- **SABR de YouTube**: clientes que devuelven respuestas sin URLs usables ahora se saltan automáticamente (ya no pagan un POST extra por canción).
+- **Enlaces de Spotify/YouTube**: pegar un enlace resuelve y reproduce correctamente.
+- **Descargas paralelas**: rescate de FLAC más rápido y con más opciones de calidad.
+- **Reproductor**: miniplayer, notificación y reproductor grande muestran siempre la misma canción.
 
 ### ⬇️ Descargas
 - Android: app-arm64-v8a-release.apk / app-armeabi-v7a-release.apk / app-x86_64-release.apk
 - Windows: Bitly-Setup-__VERSION__.exe
-- TV (Android TV / Google TV / Fire TV): instalá app-arm64-v8a-release.apk con la app Downloader.
+- macOS/iOS: se generan en el workflow de Apple (link en la release).
+- TV (Android TV / Google TV / Fire TV): instalá app-arm64-v8a-release.apk con Downloader.
 EOF
 )
   NOTAS_EN=$(cat <<'EOF'
 
 ---
 
-## 🎵 Bitly v__VERSION__ — Android + PC + TV
+## 🎵 Bitly v__VERSION__ — Android + PC + TV + macOS + iOS
 
 ### ✨ Highlights
-- **Bitly on your Smart TV**: the same APK now installs on Android TV, Google TV and Fire TV, shows up in the TV launcher and uses the desktop layout adapted to the big screen.
-- **First-time interactive tutorial**: the app walks you through (with a spotlight on each element) the feed, sources, search, playback, miniplayer, settings and Premium. You can skip a step or the whole tutorial.
-- **Network indicator**: see your connection status and quality without leaving the app.
-- **Faster search and metadata**: caching and precaching for every source's metadata.
-- **Signed sessions with rotation**: fewer failures when verifying sources.
+- **YouTube streaming without login**: modernized InnerTube clients (new `visionos` anchor, real Cobalt UA, `tv_downgraded`, anti-detection `embedUrl`). YouTube plays higher-quality audio-only without login.
+- **Auto-derived ISRC**: when the source (YouTube/SoundCloud) has no ISRC, the app finds the same track in Deezer/Qobuz/Tidal/Apple, verifies it's the original by title+artist+duration, and uses its ISRC. This enables FLAC rescue without login.
+- **Duration-aware matching**: duplicate uploads with the same title+artist are now desempated by duration, serving the correct version.
+- **Bitly on Smart TV**: the same APK installs on Android TV, Google TV and Fire TV, uses the desktop layout and appears in the TV launcher.
+- **Interactive tutorial**: first-time guided tour through feed, sources, search, playback, miniplayer, settings and Premium.
 
 ### 🐛 Fixes
-- **YouTube audio**: when a PO Token provider is available, higher-quality audio-only formats are preferred over itag=18.
-- **Spotify and YouTube links**: pasting a link now resolves and plays correctly.
-- **Parallel downloads and FLAC rescue**: faster downloads with more quality options.
-- **Player**: miniplayer, notification and the full player always show the same track that is playing.
+- **YouTube duration**: track durations now in milliseconds (was showing 0:00 and verification was failing).
+- **YouTube SABR**: clients returning empty format lists are now skipped automatically.
+- **Spotify/YouTube links**: pasting a link resolves and plays correctly.
+- **Parallel downloads**: faster FLAC rescue with more quality options.
+- **Player**: miniplayer, notification and full player always show the same playing track.
 
 ### ⬇️ Downloads
 - Android: app-arm64-v8a-release.apk / app-armeabi-v7a-release.apk / app-x86_64-release.apk
 - Windows: Bitly-Setup-__VERSION__.exe
-- TV (Android TV / Google TV / Fire TV): install app-arm64-v8a-release.apk with the Downloader app.
+- macOS/iOS: generated in the Apple workflow (link in release).
+- TV (Android TV / Google TV / Fire TV): install app-arm64-v8a-release.apk with Downloader.
 EOF
 )
   # La versión real entra acá (los heredocs de arriba no interpolan nada).
@@ -195,7 +199,7 @@ EOF
   echo "==> Creando GitHub Release v${NEW_VERSION}..."
   gh release create "v${NEW_VERSION}" \
     --repo QuopTron/bitly \
-    --title "Bitly v${NEW_VERSION} — Android + PC" \
+    --title "Bitly v${NEW_VERSION} — Android + PC + TV + macOS + iOS" \
     --notes "${NOTAS_ES}${NOTAS_EN}" \
     dist/app-arm64-v8a-release.apk \
     dist/app-armeabi-v7a-release.apk \
