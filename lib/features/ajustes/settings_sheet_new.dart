@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' show ImageFilter;
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:http/http.dart' as http;
@@ -21,8 +22,7 @@ import '../../core/cache/cache_premium.dart';
 import '../../core/cache/cache_ajustes.dart';
 import '../../estado/cubit_like.dart';
 import '../../core/backend_go/contrato_backend.dart';
-import '../../core/backend_go/estado_sesion_firmada.dart';
-import '../../core/servicios/servicio_verificacion.dart';
+import '../../core/servicios/importacion_biblioteca.dart';
 import '../../estado/cubit_reproductor.dart';
 import '../../estado/cubit_cola.dart';
 import '../../core/servicios/servicio_oauth_youtube.dart';
@@ -35,7 +35,12 @@ import 'settings_performance_section.dart';
 import 'settings_stats.dart';
 import 'update_modal.dart';
 import '../../shared/utilidades/paleta_portada.dart';
+import '../../shared/utilidades/estilo_helper.dart';
+import '../tutorial_interactivo/tutorial_controller.dart';
+import '../tutorial_interactivo/tutorial_pasos.dart';
 import '../../shared/widgets/imagen_portada.dart' show imagenDesdeUrl;
+import '../../core/modelos/estilo_visual.dart';
+import '../../core/modelos/preferencias_estilo.dart';
 import '../../core/modelos/perfil_rendimiento.dart';
 part 'settings_sheet_background.dart';
 part 'settings_sheet_profile_header.dart';
@@ -72,8 +77,8 @@ part 'settings_sheet_report_submit.dart';
 part 'settings_sheet_report_chip.dart';
 part 'settings_sheet_report_type_toggle.dart';
 part 'settings_sheet_more_cards.dart';
-part 'settings_sheet_sesiones.dart';
 part 'settings_sheet_cache_card.dart';
+part 'settings_sheet_biblioteca_local.dart';
 part 'settings_sheet_version_sheet.dart';
 part 'settings_sheet_version_releases.dart';
 part 'settings_sheet_sheet_state.dart';
@@ -100,7 +105,10 @@ final List<({IconData icon, String label})> _bubbleTabs = [
 /// cover) the sheet gets tinted with the cover's dominant color via a blurred
 /// ambient backdrop; when playback stops / queue empties it fades back to the
 /// theme's default surface. Colors animate so the transition is smooth.
-void showSettingsSheet(
+///
+/// [tutorial] es opcional: cuando el tutorial interactivo abre la hoja, se la
+/// pasa para que la hoja siga el paso (qué pestaña mostrar).
+Future<void> showSettingsSheet(
   BuildContext context, {
   required String username,
   required bool isDark,
@@ -108,8 +116,11 @@ void showSettingsSheet(
   required VoidCallback onLanguageChanged,
   String likedCount = '0',
   String downloadedCount = '0',
+  TutorialController? tutorial,
 }) {
-  showModalBottomSheet(
+  // Devuelve el Future de la ruta: quien la abre sabe cuándo se cerró (el
+  // tutorial lo necesita para no cerrar algo que el usuario ya cerró).
+  return showModalBottomSheet<void>(
     context: context,
     backgroundColor: Colors.transparent,
     isScrollControlled: true,
@@ -123,6 +134,7 @@ void showSettingsSheet(
             onLanguageChanged: onLanguageChanged,
             likedCount: likedCount,
             downloadedCount: downloadedCount,
+            tutorial: tutorial,
           ),
         ),
   );
@@ -139,6 +151,10 @@ class SettingsSheet extends StatefulWidget {
   final String likedCount;
   final String downloadedCount;
 
+  /// Si el tutorial interactivo abrió la hoja, para seguirlo pestaña por
+  /// pestaña. null = uso normal.
+  final TutorialController? tutorial;
+
   const SettingsSheet({
     super.key,
     required this.username,
@@ -147,6 +163,7 @@ class SettingsSheet extends StatefulWidget {
     required this.onLanguageChanged,
     this.likedCount = '0',
     this.downloadedCount = '0',
+    this.tutorial,
   });
 
   @override

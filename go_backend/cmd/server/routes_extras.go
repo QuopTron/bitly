@@ -51,6 +51,21 @@ func registerExtraRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/library/stats", func(w http.ResponseWriter, r *http.Request) {
 		jsonStr(w, backend.GetLibraryStats())
 	})
+	mux.HandleFunc("/library/import", func(w http.ResponseWriter, r *http.Request) {
+		dir := r.URL.Query().Get("dir")
+		if dir == "" {
+			http.Error(w, `{"error":"falta el directorio"}`, 400)
+			return
+		}
+		jsonStr(w, backend.ImportarBibliotecaLocal(dir))
+	})
+	mux.HandleFunc("/library/faltantes", func(w http.ResponseWriter, r *http.Request) {
+		// Los ISRCs viajan como JSON en el query (ej: ["USRC17607839"]).
+		jsonStr(w, backend.FaltantesLocales(r.URL.Query().Get("isrcs")))
+	})
+	mux.HandleFunc("/library/ruta", func(w http.ResponseWriter, r *http.Request) {
+		jsonStr(w, backend.RutaLocalISRC(r.URL.Query().Get("isrc")))
+	})
 
 	// ─── FILE METADATA ───────────────────────────────────────
 	mux.HandleFunc("/metadata/file", func(w http.ResponseWriter, r *http.Request) {

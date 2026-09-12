@@ -66,8 +66,16 @@ class ServicioDeepLink {
       final type = uri.queryParameters['type'] ?? 'track';
       final id = uri.queryParameters['id'] ?? '';
       final query = uri.queryParameters['q'] ?? '';
-      if (id.isEmpty && query.isEmpty) return null;
-      return DatosDeepLink(type: type, id: id, query: query);
+      // Enlace completo de una fuente (Spotify/YouTube/...). Cuando viene, la
+      // app lo resuelve contra Go en vez de buscar por nombre.
+      final enlace = uri.queryParameters['url'] ?? '';
+      if (id.isEmpty && query.isEmpty && enlace.isEmpty) return null;
+      return DatosDeepLink(
+        type: type,
+        id: id,
+        query: query,
+        url: enlace,
+      );
     } catch (_) {
       return null;
     }
@@ -83,9 +91,14 @@ class DatosDeepLink {
   final String id;
   final String query;
 
+  /// Enlace completo de la fuente (p. ej. https://open.spotify.com/track/x).
+  /// Vacío cuando el deep link solo trae tipo/id/consulta.
+  final String url;
+
   const DatosDeepLink({
     required this.type,
     required this.id,
     required this.query,
+    this.url = '',
   });
 }

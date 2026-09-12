@@ -63,11 +63,14 @@ func InitGlobalState() string {
 	// de búsqueda/descarga.
 	wireExtensionLyricsProviders(lyricsClient, reg)
 	lib = library.New()
+	indiceLocal = library.NuevoIndiceLocal()
 	playbackTracker = playback.NewTracker(200)
 	premiumChecker = premium.NewChecker(nil)
 	sessionMgr = extensions.NewSessionManager()
-	sessionConfigs = make(map[string]*extensions.SignedSessionConfig)
-	extSettings = make(map[string]map[string]string)
+	// Se reinician bajo el candado: InitGlobalState puede re-ejecutarse
+	// mientras otra goroutine lee estos mapas (tests y re-init en caliente).
+	reiniciarSesionesFirmadas()
+	reiniciarAjustesExtensiones()
 
 	// Initialize download staging (atomic writes via .partial files).
 	staging = download.NewStagingManager()

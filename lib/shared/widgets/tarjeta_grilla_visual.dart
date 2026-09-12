@@ -23,10 +23,30 @@ Widget _fondoTarjeta(
   BuildContext context,
   bool efectosPesados,
   bool esOscuro,
+  Color? acento,
 ) {
   if (t.coverUrl != null && t.coverUrl!.startsWith('gradient:')) {
     return _portadaGradienteDe(t, t.coverUrl!, 128);
   }
+  // En modo Spotify (acento != null), no mostramos cover borroso —
+  // usamos el color dominante como fondo sólido de la card.
+  if (acento != null) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeOutCubic,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color.lerp(ColoresApp.superficie(esOscuro), acento, 0.40)!,
+            Color.lerp(ColoresApp.superficie(esOscuro), acento, 0.18)!,
+          ],
+        ),
+      ),
+    );
+  }
+  // Modo Clásico: cover borroso o gradiente placeholder.
   if (t.coverUrl != null && t.coverUrl!.isNotEmpty) {
     if (efectosPesados) {
       return ImageFiltered(

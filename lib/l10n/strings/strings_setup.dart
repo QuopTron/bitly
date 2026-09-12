@@ -33,7 +33,9 @@ class StringsSetup {
   final String searchTutorialTitle,
       searchTutorialDesc,
       searchHint,
-      searchPasteHint;
+      searchPasteHint,
+      linkResolving,
+      linkResolveFailed;
   final String searchTracks, searchArtists, searchAlbums, searchPlaylists;
   final String feedTutorialTitle,
       feedTutorialDesc,
@@ -207,6 +209,8 @@ class StringsSetup {
     required this.searchTutorialDesc,
     required this.searchHint,
     required this.searchPasteHint,
+    required this.linkResolving,
+    required this.linkResolveFailed,
     required this.searchTracks,
     required this.searchArtists,
     required this.searchAlbums,
@@ -452,6 +456,9 @@ class StringsSetup {
         'Search any song, artist, album or playlist. Pick from multiple sources like Spotify, Deezer and more, or paste a direct link.',
     searchHint: 'Search...',
     searchPasteHint: 'Or paste a Spotify or YouTube link',
+    linkResolving: 'Resolving link...',
+    linkResolveFailed:
+        'Could not resolve that link. Try again or search by name.',
     searchTracks: 'Tracks',
     searchArtists: 'Artists',
     searchAlbums: 'Albums',
@@ -683,6 +690,9 @@ class StringsSetup {
         'Busca cualquier canción, artista, álbum o playlist. Elige entre múltiples fuentes como Spotify, Deezer y más, o pega un enlace directo.',
     searchHint: 'Buscar...',
     searchPasteHint: 'O pega un enlace de Spotify o YouTube',
+    linkResolving: 'Resolviendo enlace...',
+    linkResolveFailed:
+        'No se pudo resolver ese enlace. Probá de nuevo o buscá por nombre.',
     searchTracks: 'Canciones',
     searchArtists: 'Artistas',
     searchAlbums: 'Álbumes',

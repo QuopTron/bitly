@@ -45,6 +45,7 @@ List<Widget> _construirGrillas(
 /// Grilla responsiva de ítems no-track (2/3/4 columnas según ancho).
 Widget _grillaDe(ContenidoFeed c, BuildContext context, Responsive r,
     List<ItemFeed> items) {
+  final estilo = EstiloHelper.esSpotify(context);
   return LayoutBuilder(
     builder: (context, constraints) {
       final disponible = constraints.maxWidth - 2 * r.spacingS;
@@ -52,9 +53,9 @@ Widget _grillaDe(ContenidoFeed c, BuildContext context, Responsive r,
       // móvil 3/2 — el box de PC se estira más que antes (1120px).
       final columnas =
           disponible > 1000 ? 6 : disponible > 700 ? 4 : disponible > 340 ? 3 : 2;
-      final gap = r.spacingXS;
+      final gap = estilo ? r.spacingXS * 0.5 : r.spacingXS;
       return Padding(
-        padding: EdgeInsets.symmetric(horizontal: r.spacingS * 0.5),
+        padding: EdgeInsets.symmetric(horizontal: estilo ? 2 : r.spacingS * 0.5),
         child: GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),

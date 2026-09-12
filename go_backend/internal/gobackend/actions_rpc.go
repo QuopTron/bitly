@@ -74,7 +74,7 @@ func DownloadByStrategy(payload string) string {
 	}
 	outDir := strOf(raw, "output_dir", "outputDir")
 	if outDir == "" {
-		outDir = downloadDir
+		outDir = getDownloadDir()
 	}
 	// Always map from the raw (snake_case) strategy payload. The strategy keys
 	// ("item_id", "track_title", ...) never match the Request camelCase struct

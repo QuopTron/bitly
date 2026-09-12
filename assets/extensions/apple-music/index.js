@@ -1,6 +1,6 @@
 // ============================================
 // Apple Music Extension for SpotiFLAC Mobile
-// Version: 1.4.2
+// Version: 1.4.3
 //
 // Uses Apple Music's public catalog API (amp-api)
 // to fetch metadata including ISRC. No login required.
@@ -14,9 +14,18 @@
 // ============================================
 
 const API_BASE = "https://amp-api.music.apple.com/v1/catalog/";
-const DOWNLOAD_PROXY_BASE = "https://api.zarz.moe/v1/dl/app";
-const DOWNLOAD_PROXY_FALLBACK_BASE = "https://api.zarz.moe/v1/dl/app2";
-const DOWNLOAD_URL_CACHE_LIMIT = 200;
+const CACHE_MAX_ENTRIES = 500;
+const METADATA_CACHE_TTL_MS = 5 * 60 * 1000;
+const SEARCH_CACHE_TTL_MS = 60 * 1000;
+const LYRICS_CACHE_TTL_MS = 10 * 60 * 1000;
+const NEGATIVE_CACHE_TTL_MS = 30 * 1000;
+const API_MAX_ATTEMPTS = 4;
+const RETRY_BASE_DELAY_MS = 250;
+const RETRY_MAX_DELAY_MS = 4000;
+const RETRY_MAX_SERVER_DELAY_MS = 30000;
+const MIN_TRACK_MATCH_SCORE = 70;
+const CACHE_MISS = { cacheMiss: true };
+const MEMORY_CACHE = new Map();
 
 let state = {
   token: null,
@@ -25,14 +34,11 @@ let state = {
   mediaUserToken: "",
   lyricsTranslation: "",
   lyricsPronunciation: "",
-  proxyApiKey: "",
-  downloadPollIntervalMs: 2500,
-  downloadMaxWaitMinutes: 60,
-  trackURLCache: {},
 };
 
 function initialize(config) {
   log.info("Apple Music Extension initializing...");
+  MEMORY_CACHE.clear();
 
   // The host passes the flat settings object as the argument. Accept both the
   // flat form and a legacy { settings: {...} } wrapper for safety.
@@ -47,19 +53,6 @@ function initialize(config) {
     state.lyricsPronunciation = (s.lyricsPronunciation || "")
       .trim()
       .toLowerCase();
-    state.proxyApiKey = (s.proxyApiKey || "").trim();
-    state.downloadPollIntervalMs = clampInt(
-      s.downloadPollIntervalMs,
-      2500,
-      500,
-      30000,
-    );
-    state.downloadMaxWaitMinutes = clampInt(
-      s.downloadMaxWaitMinutes,
-      60,
-      1,
-      24 * 60,
-    );
   }
 
   try {
@@ -79,9 +72,6 @@ function initialize(config) {
             " min)",
         );
       }
-      if (parsed.trackURLCache && typeof parsed.trackURLCache === "object") {
-        state.trackURLCache = parsed.trackURLCache;
-      }
     }
   } catch (e) {}
 
@@ -95,7 +85,6 @@ function persistState() {
       JSON.stringify({
         token: state.token,
         tokenExpiry: state.tokenExpiry,
-        trackURLCache: state.trackURLCache,
       }),
     );
   } catch (e) {
@@ -106,113 +95,200 @@ function persistState() {
 
 function cleanup() {
   persistState();
+  MEMORY_CACHE.clear();
+  return true;
 }
 
-function clampInt(value, fallback, minValue, maxValue) {
-  var num = parseInt(value, 10);
-  if (isNaN(num)) {
-    num = fallback;
-  }
-  if (num < minValue) num = minValue;
-  if (num > maxValue) num = maxValue;
-  return num;
+function scopedCacheKey(kind, value) {
+  return (
+    String(state.storefront || "us") +
+    "|" +
+    String(kind || "") +
+    "|" +
+    String(value || "")
+  );
 }
 
-function parseJSONSafe(text) {
-  try {
-    return JSON.parse(text);
-  } catch (e) {
+function cacheGet(key) {
+  var entry = MEMORY_CACHE.get(key);
+  if (!entry) return null;
+  if (Date.now() >= entry.expiresAt) {
+    MEMORY_CACHE.delete(key);
     return null;
   }
+  MEMORY_CACHE.delete(key);
+  MEMORY_CACHE.set(key, entry);
+  return entry.value;
 }
 
-function appUserAgent() {
-  if (utils && typeof utils.appUserAgent === "function") {
-    return String(utils.appUserAgent() || "").trim() || "SpotiFLAC-Mobile";
+function cacheSet(key, value, ttlMs) {
+  if (!key || value === null || value === undefined) return value;
+  if (MEMORY_CACHE.has(key)) MEMORY_CACHE.delete(key);
+  MEMORY_CACHE.set(key, {
+    value: value,
+    expiresAt: Date.now() + Number(ttlMs || METADATA_CACHE_TTL_MS),
+  });
+  while (MEMORY_CACHE.size > CACHE_MAX_ENTRIES) {
+    MEMORY_CACHE.delete(MEMORY_CACHE.keys().next().value);
   }
-  return "SpotiFLAC-Mobile";
+  return value;
 }
 
-function proxyHeaders() {
-  var headers = {
-    Accept: "application/json",
-    "User-Agent": appUserAgent(),
-  };
-
-  if (state.proxyApiKey) {
-    headers["Authorization"] = "Bearer " + state.proxyApiKey;
-    headers["X-API-Key"] = state.proxyApiKey;
-  }
-
-  return headers;
+function rememberCacheMiss(key) {
+  cacheSet(key, CACHE_MISS, NEGATIVE_CACHE_TTL_MS);
+  return null;
 }
 
-function proxyErrorMessage(response, fallback) {
-  if (!response) return fallback;
-
-  var headers = response.headers || {};
-  var cfMitigated = headers["cf-mitigated"] || headers["Cf-Mitigated"];
-  if (cfMitigated === "challenge") {
-    return "Apple downloader proxy is blocked by a Cloudflare challenge";
-  }
-
-  var parsed = parseJSONSafe(response.body || "");
-  if (parsed) {
-    if (parsed.error && typeof parsed.error === "string") {
-      return parsed.error;
+function operationCancelled() {
+  try {
+    if (typeof utils !== "undefined" && utils) {
+      if (
+        typeof utils.isDownloadCancelled === "function" &&
+        utils.isDownloadCancelled()
+      )
+        return true;
+      if (
+        typeof utils.isRequestCancelled === "function" &&
+        utils.isRequestCancelled()
+      )
+        return true;
     }
-    if (parsed.message && typeof parsed.message === "string") {
-      return parsed.message;
-    }
-  }
-
-  return fallback;
+  } catch (e) {}
+  return false;
 }
 
-function ensureLeadingDot(ext) {
-  ext = String(ext || "").trim();
-  if (!ext) return "";
-  return ext.charAt(0) === "." ? ext : "." + ext;
-}
-
-function ensureOutputExtension(outputPath, extension) {
-  var normalizedExt = ensureLeadingDot(extension);
-  if (!normalizedExt) return outputPath;
-
-  var dotIndex = outputPath.lastIndexOf(".");
-  if (dotIndex < 0) {
-    return outputPath + normalizedExt;
-  }
+function cancellableSleep(ms) {
+  var remaining = Math.max(0, Math.round(Number(ms || 0)));
   if (
-    outputPath.substring(dotIndex).toLowerCase() === normalizedExt.toLowerCase()
+    typeof utils === "undefined" ||
+    !utils ||
+    typeof utils.sleep !== "function"
   ) {
-    return outputPath;
+    return !operationCancelled();
   }
-  return outputPath.substring(0, dotIndex) + normalizedExt;
+  while (remaining > 0) {
+    if (operationCancelled()) return false;
+    var step = Math.min(remaining, 100);
+    if (!utils.sleep(step)) return false;
+    remaining -= step;
+  }
+  return !operationCancelled();
 }
 
-function rememberTrackURL(trackID, url) {
-  trackID = String(trackID || "").trim();
-  url = String(url || "").trim();
-  if (!trackID || !url) return;
-
-  state.trackURLCache[trackID] = url;
-
-  var keys = [];
-  for (var key in state.trackURLCache) {
-    if (state.trackURLCache.hasOwnProperty(key)) {
-      keys.push(key);
+function responseHeader(headers, name) {
+  var wanted = String(name || "").toLowerCase();
+  headers = headers || {};
+  for (var key in headers) {
+    if (
+      Object.prototype.hasOwnProperty.call(headers, key) &&
+      String(key).toLowerCase() === wanted
+    ) {
+      return String(headers[key] || "");
     }
   }
-  while (keys.length > DOWNLOAD_URL_CACHE_LIMIT) {
-    delete state.trackURLCache[keys.shift()];
-  }
+  return "";
 }
 
-function getCachedTrackURL(trackID) {
-  trackID = String(trackID || "").trim();
-  if (!trackID) return "";
-  return String(state.trackURLCache[trackID] || "").trim();
+function retryAfterMilliseconds(response) {
+  var raw = responseHeader(response && response.headers, "Retry-After").trim();
+  if (!raw) return 0;
+  if (/^\d+(?:\.\d+)?$/.test(raw)) {
+    return Math.max(0, Math.round(Number(raw) * 1000));
+  }
+  var timestamp = Date.parse(raw);
+  return isNaN(timestamp) ? 0 : Math.max(0, timestamp - Date.now());
+}
+
+function retryableStatus(status) {
+  return status === 408 || status === 425 || status === 429 || status >= 500;
+}
+
+function retryableNetworkError(error) {
+  var message = String(error || "").toLowerCase();
+  return (
+    message.indexOf("timeout") >= 0 ||
+    message.indexOf("network") >= 0 ||
+    message.indexOf("connection") >= 0 ||
+    message.indexOf("reset") >= 0 ||
+    message.indexOf("refused") >= 0 ||
+    message.indexOf("temporar") >= 0
+  );
+}
+
+function waitBeforeRetry(attempt, response) {
+  var exponential = Math.min(
+    RETRY_BASE_DELAY_MS * Math.pow(2, Math.max(0, attempt)),
+    RETRY_MAX_DELAY_MS,
+  );
+  var serverDelay = Math.min(
+    retryAfterMilliseconds(response),
+    RETRY_MAX_SERVER_DELAY_MS,
+  );
+  var delay = Math.max(exponential, serverDelay);
+  delay += Math.floor(
+    Math.random() * Math.max(25, Math.floor(exponential / 4)),
+  );
+  return cancellableSleep(delay);
+}
+
+function httpGetWithRetry(url, headers, label) {
+  var lastResponse = null;
+  var lastError = "";
+  for (var attempt = 0; attempt < API_MAX_ATTEMPTS; attempt++) {
+    if (operationCancelled()) throw new Error("request cancelled");
+    var response = null;
+    try {
+      response = http.get(url, headers || {});
+    } catch (e) {
+      lastError = String(e || "network request failed");
+      if (!retryableNetworkError(e) || attempt === API_MAX_ATTEMPTS - 1)
+        throw e;
+      log.warn(
+        "[AppleMusic] " +
+          label +
+          " retry " +
+          (attempt + 2) +
+          "/" +
+          API_MAX_ATTEMPTS +
+          " after " +
+          lastError,
+      );
+      if (!waitBeforeRetry(attempt, null)) throw new Error("request cancelled");
+      continue;
+    }
+    lastResponse = response;
+    if (
+      response &&
+      !response.error &&
+      response.statusCode >= 200 &&
+      response.statusCode < 300
+    ) {
+      return response;
+    }
+    lastError =
+      response && response.error
+        ? String(response.error)
+        : "HTTP " + (response ? response.statusCode : "no response");
+    var retryable =
+      !response ||
+      (response.error && retryableNetworkError(response.error)) ||
+      (response && retryableStatus(response.statusCode));
+    if (!retryable || attempt === API_MAX_ATTEMPTS - 1) break;
+    log.warn(
+      "[AppleMusic] " +
+        label +
+        " retry " +
+        (attempt + 2) +
+        "/" +
+        API_MAX_ATTEMPTS +
+        " after " +
+        lastError,
+    );
+    if (!waitBeforeRetry(attempt, response))
+      throw new Error("request cancelled");
+  }
+  if (lastResponse) return lastResponse;
+  throw new Error(label + " failed: " + lastError);
 }
 
 // ============================================
@@ -222,10 +298,13 @@ function getCachedTrackURL(trackID) {
 function fetchToken() {
   log.info("Fetching Apple Music developer token...");
 
-  var response = http.get("https://music.apple.com/us/browse", {
-    "User-Agent": utils.randomUserAgent(),
-    "Accept-Encoding": "identity",
-  });
+  var response = httpGetWithRetry(
+    "https://music.apple.com/us/browse",
+    {
+      "User-Agent": utils.randomUserAgent(),
+    },
+    "developer token page",
+  );
 
   if (!response || response.error || response.statusCode !== 200) {
     throw new Error(
@@ -264,10 +343,13 @@ function fetchToken() {
         var bundleURL = "https://music.apple.com" + srcMatch[1];
         log.debug("Checking bundle:", srcMatch[1]);
         try {
-          var bundleResp = http.get(bundleURL, {
-            "User-Agent": utils.randomUserAgent(),
-            "Accept-Encoding": "identity",
-          });
+          var bundleResp = httpGetWithRetry(
+            bundleURL,
+            {
+              "User-Agent": utils.randomUserAgent(),
+            },
+            "developer token bundle",
+          );
           if (
             bundleResp &&
             !bundleResp.error &&
@@ -376,85 +458,215 @@ function ensureToken() {
 // API HELPERS
 // ============================================
 
-function apiGet(path, allowRetry) {
-  ensureToken();
+function apiGet(path, allowTokenRefresh) {
+  var tokenRefreshed = false;
+  var lastMessage = "API request failed";
 
-  var url = API_BASE + state.storefront + "/" + path;
-  var response = http.get(url, {
-    Authorization: "Bearer " + state.token,
-    Origin: "https://music.apple.com",
-    Referer: "https://music.apple.com/",
-    "User-Agent": utils.randomUserAgent(),
-  });
+  for (var attempt = 0; attempt < API_MAX_ATTEMPTS; attempt++) {
+    if (operationCancelled()) throw new Error("request cancelled");
+    try {
+      ensureToken();
+    } catch (tokenError) {
+      lastMessage =
+        tokenError && tokenError.message
+          ? tokenError.message
+          : String(tokenError);
+      if (
+        attempt === API_MAX_ATTEMPTS - 1 ||
+        !retryableNetworkError(lastMessage)
+      ) {
+        throw tokenError;
+      }
+      if (!waitBeforeRetry(attempt, null)) throw new Error("request cancelled");
+      continue;
+    }
 
-  if (!response || response.error) {
-    throw new Error(
-      "API request failed: " + (response ? response.error : "no response"),
+    var url = API_BASE + state.storefront + "/" + path;
+    var response = null;
+    try {
+      response = http.get(url, {
+        Authorization: "Bearer " + state.token,
+        Origin: "https://music.apple.com",
+        Referer: "https://music.apple.com/",
+        "User-Agent": utils.randomUserAgent(),
+      });
+    } catch (networkError) {
+      lastMessage =
+        "API request failed: " + String(networkError || "network error");
+      if (
+        !retryableNetworkError(networkError) ||
+        attempt === API_MAX_ATTEMPTS - 1
+      ) {
+        throw networkError;
+      }
+      log.warn(
+        "[AppleMusic] Catalog retry " +
+          (attempt + 2) +
+          "/" +
+          API_MAX_ATTEMPTS +
+          " after " +
+          lastMessage,
+      );
+      if (!waitBeforeRetry(attempt, null)) throw new Error("request cancelled");
+      continue;
+    }
+
+    if (response && !response.error && response.statusCode === 200) {
+      return JSON.parse(response.body);
+    }
+
+    if (
+      response &&
+      response.statusCode === 401 &&
+      allowTokenRefresh !== false &&
+      !tokenRefreshed
+    ) {
+      log.info("Developer token rejected, refreshing once...");
+      state.token = null;
+      state.tokenExpiry = 0;
+      persistState();
+      tokenRefreshed = true;
+      continue;
+    }
+
+    lastMessage =
+      response && response.error
+        ? "API request failed: " + response.error
+        : "API request failed: HTTP " +
+          (response ? response.statusCode : "no response");
+    var retryable =
+      !response ||
+      (response.error && retryableNetworkError(response.error)) ||
+      (response && retryableStatus(response.statusCode));
+    if (!retryable || attempt === API_MAX_ATTEMPTS - 1) {
+      throw new Error(lastMessage);
+    }
+    log.warn(
+      "[AppleMusic] Catalog retry " +
+        (attempt + 2) +
+        "/" +
+        API_MAX_ATTEMPTS +
+        " after " +
+        lastMessage,
     );
+    if (!waitBeforeRetry(attempt, response))
+      throw new Error("request cancelled");
   }
 
-  if (response.statusCode === 401 && allowRetry !== false) {
-    log.info("Token expired, refreshing...");
-    state.token = null;
-    state.tokenExpiry = 0;
-    persistState();
-    return apiGet(path, false);
-  }
-
-  if (response.statusCode !== 200) {
-    throw new Error("API request failed: HTTP " + response.statusCode);
-  }
-
-  return JSON.parse(response.body);
+  throw new Error(lastMessage);
 }
 
 /**
  * API GET with both developer token and Media-User-Token (for lyrics etc.).
- * Returns parsed JSON or null if the request fails (404 = no lyrics available).
+ * Refreshes a rejected developer token once; a persistent 401/403 is treated
+ * as an invalid or expired Media User Token.
  */
 function apiGetWithUserToken(path) {
-  ensureToken();
+  var tokenRefreshed = false;
 
-  var url = API_BASE + state.storefront + "/" + path;
-  var headers = {
-    Authorization: "Bearer " + state.token,
-    "Media-User-Token": state.mediaUserToken,
-    Origin: "https://music.apple.com",
-    Referer: "https://music.apple.com/",
-    "User-Agent": utils.randomUserAgent(),
-  };
+  for (var attempt = 0; attempt < API_MAX_ATTEMPTS; attempt++) {
+    if (operationCancelled()) return null;
+    try {
+      ensureToken();
+    } catch (tokenError) {
+      if (
+        attempt === API_MAX_ATTEMPTS - 1 ||
+        !retryableNetworkError(tokenError && tokenError.message)
+      ) {
+        log.debug(
+          "Lyrics developer token refresh failed:",
+          tokenError.message || String(tokenError),
+        );
+        return null;
+      }
+      if (!waitBeforeRetry(attempt, null)) return null;
+      continue;
+    }
 
-  var response = http.get(url, headers);
+    var url = API_BASE + state.storefront + "/" + path;
+    var headers = {
+      Authorization: "Bearer " + state.token,
+      "Media-User-Token": state.mediaUserToken,
+      Origin: "https://music.apple.com",
+      Referer: "https://music.apple.com/",
+      "User-Agent": utils.randomUserAgent(),
+    };
+    var response = null;
+    try {
+      response = http.get(url, headers);
+    } catch (networkError) {
+      if (
+        !retryableNetworkError(networkError) ||
+        attempt === API_MAX_ATTEMPTS - 1
+      ) {
+        log.debug(
+          "Lyrics API request failed:",
+          String(networkError || "network error"),
+        );
+        return null;
+      }
+      log.warn(
+        "[AppleMusic] Lyrics retry " +
+          (attempt + 2) +
+          "/" +
+          API_MAX_ATTEMPTS +
+          " after " +
+          String(networkError || "network error"),
+      );
+      if (!waitBeforeRetry(attempt, null)) return null;
+      continue;
+    }
 
-  if (!response || response.error) {
-    return null;
-  }
+    if (response && !response.error && response.statusCode === 200) {
+      try {
+        return JSON.parse(response.body);
+      } catch (parseError) {
+        log.debug("Failed to parse lyrics API response:", parseError.message);
+        return null;
+      }
+    }
+    if (response && response.statusCode === 404) return null;
 
-  // 404 = no lyrics for this song; 403 = token invalid/expired
-  if (response.statusCode === 404) {
-    return null;
-  }
+    if (response && response.statusCode === 401 && !tokenRefreshed) {
+      log.info("Lyrics request rejected developer token, refreshing once...");
+      state.token = null;
+      state.tokenExpiry = 0;
+      persistState();
+      tokenRefreshed = true;
+      continue;
+    }
+    if (
+      response &&
+      (response.statusCode === 401 || response.statusCode === 403)
+    ) {
+      log.warn(
+        "Lyrics API auth failed (HTTP " +
+          response.statusCode +
+          "). Media User Token may be invalid or expired.",
+      );
+      return null;
+    }
 
-  if (response.statusCode === 401 || response.statusCode === 403) {
+    var retryable =
+      !response ||
+      (response.error && retryableNetworkError(response.error)) ||
+      (response && retryableStatus(response.statusCode));
+    if (!retryable || attempt === API_MAX_ATTEMPTS - 1) {
+      log.debug(
+        "Lyrics API request failed:",
+        response && response.error
+          ? response.error
+          : "HTTP " + (response ? response.statusCode : "no response"),
+      );
+      return null;
+    }
     log.warn(
-      "Lyrics API auth failed (HTTP " +
-        response.statusCode +
-        "). Media User Token may be invalid or expired.",
+      "[AppleMusic] Lyrics retry " + (attempt + 2) + "/" + API_MAX_ATTEMPTS,
     );
-    return null;
+    if (!waitBeforeRetry(attempt, response)) return null;
   }
 
-  if (response.statusCode !== 200) {
-    log.debug("Lyrics API returned HTTP " + response.statusCode);
-    return null;
-  }
-
-  try {
-    return JSON.parse(response.body);
-  } catch (e) {
-    log.debug("Failed to parse lyrics API response:", e.message);
-    return null;
-  }
+  return null;
 }
 
 function artworkURL(artwork, size) {
@@ -755,8 +967,6 @@ function formatSong(song, albumData, totalDiscsOverride) {
   );
   var genre = appleGenres(attr) || appleGenres(albumAttr);
 
-  rememberTrackURL(song.id || "", attr.url || "");
-
   return {
     id: song.id || "",
     name: attr.name || "",
@@ -877,34 +1087,44 @@ function collectRelationshipItems(resource, relationshipName) {
   return items;
 }
 
-function hydrateAlbumsForSongs(songs) {
+function hydrateAlbumsForSongs(songs, includeTrackRelationships) {
   var albumIDs = [];
   var seen = {};
+  var albumsByID = {};
   songs = songs || [];
   for (var i = 0; i < songs.length; i++) {
     var albumID = albumIDFromSong(songs[i]);
     if (!albumID || seen[albumID]) continue;
     seen[albumID] = true;
-    albumIDs.push(albumID);
+    var cachedAlbum = cacheGet(scopedCacheKey("raw-album", albumID));
+    if (cachedAlbum && cachedAlbum !== CACHE_MISS) {
+      albumsByID[albumID] = cachedAlbum;
+    } else {
+      albumIDs.push(albumID);
+    }
   }
 
-  var albumsByID = {};
   for (var offset = 0; offset < albumIDs.length; offset += 25) {
     var chunk = albumIDs.slice(offset, offset + 25);
     try {
       var data = apiGet(
         "albums?ids=" +
           encodeURIComponent(chunk.join(",")) +
-          "&include=tracks,artists" +
+          "&include=" +
+          (includeTrackRelationships === false ? "artists" : "tracks,artists") +
           "&extend=artistUrl,editorialArtwork,trackCount,upc",
       );
       var albums = data.data || [];
       for (var j = 0; j < albums.length; j++) {
         var album = albums[j];
-        album._totalDiscs = totalDiscsFromSongs(
-          collectRelationshipItems(album, "tracks"),
-        );
-        albumsByID[String(album.id || "")] = album;
+        album._totalDiscs =
+          includeTrackRelationships === false
+            ? 0
+            : totalDiscsFromSongs(collectRelationshipItems(album, "tracks"));
+        var id = String(album.id || "");
+        if (!id) continue;
+        albumsByID[id] = album;
+        cacheSet(scopedCacheKey("raw-album", id), album, METADATA_CACHE_TTL_MS);
       }
     } catch (e) {
       log.debug("Batch album hydration failed:", e.message);
@@ -914,8 +1134,13 @@ function hydrateAlbumsForSongs(songs) {
 }
 
 function fetchTrack(trackID) {
-  log.info("Fetching track:", trackID);
+  trackID = String(trackID || "").trim();
+  var cacheKey = scopedCacheKey("track", trackID);
+  var cached = cacheGet(cacheKey);
+  if (cached === CACHE_MISS) throw new Error("Track not found: " + trackID);
+  if (cached) return cached;
 
+  log.info("Fetching track:", trackID);
   var data = apiGet(
     "songs/" +
       trackID +
@@ -924,11 +1149,11 @@ function fetchTrack(trackID) {
   );
   var songs = data.data || [];
   if (songs.length === 0) {
+    rememberCacheMiss(cacheKey);
     throw new Error("Track not found: " + trackID);
   }
 
   var song = songs[0];
-  // Try to get album details for label/copyright
   var albumData = null;
   var albumRel = song.relationships && song.relationships.albums;
   if (albumRel && albumRel.data && albumRel.data.length > 0) {
@@ -937,22 +1162,32 @@ function fetchTrack(trackID) {
 
   var albumID = (albumData && albumData.id) || albumIDFromSong(song);
   if (albumID) {
-    try {
-      var fullAlbumData = apiGet(
-        "albums/" +
-          albumID +
-          "?include=tracks,artists" +
-          "&extend=artistUrl,editorialArtwork,trackCount,upc",
-      );
-      var fullAlbums = fullAlbumData.data || [];
-      if (fullAlbums.length) {
-        albumData = fullAlbums[0];
-        albumData._totalDiscs = totalDiscsFromSongs(
-          collectRelationshipItems(albumData, "tracks"),
+    var cachedAlbum = cacheGet(scopedCacheKey("raw-album", albumID));
+    if (cachedAlbum && cachedAlbum !== CACHE_MISS) {
+      albumData = cachedAlbum;
+    } else {
+      try {
+        var fullAlbumData = apiGet(
+          "albums/" +
+            albumID +
+            "?include=tracks,artists" +
+            "&extend=artistUrl,editorialArtwork,trackCount,upc",
         );
+        var fullAlbums = fullAlbumData.data || [];
+        if (fullAlbums.length) {
+          albumData = fullAlbums[0];
+          albumData._totalDiscs = totalDiscsFromSongs(
+            collectRelationshipItems(albumData, "tracks"),
+          );
+          cacheSet(
+            scopedCacheKey("raw-album", albumID),
+            albumData,
+            METADATA_CACHE_TTL_MS,
+          );
+        }
+      } catch (e) {
+        log.debug("Full album hydration failed:", e.message);
       }
-    } catch (e) {
-      log.debug("Full album hydration failed:", e.message);
     }
   }
 
@@ -965,14 +1200,20 @@ function fetchTrack(trackID) {
     "ISRC:",
     track.isrc,
   );
-
-  return {
-    type: "track",
-    track: track,
-  };
+  return cacheSet(
+    cacheKey,
+    { type: "track", track: track },
+    METADATA_CACHE_TTL_MS,
+  );
 }
 
 function fetchAlbum(albumID) {
+  albumID = String(albumID || "").trim();
+  var cacheKey = scopedCacheKey("album", albumID);
+  var cached = cacheGet(cacheKey);
+  if (cached === CACHE_MISS) throw new Error("Album not found: " + albumID);
+  if (cached) return cached;
+
   log.info("Fetching album:", albumID);
 
   var data = apiGet(
@@ -983,6 +1224,7 @@ function fetchAlbum(albumID) {
   );
   var albums = data.data || [];
   if (albums.length === 0) {
+    rememberCacheMiss(cacheKey);
     throw new Error("Album not found: " + albumID);
   }
 
@@ -991,6 +1233,7 @@ function fetchAlbum(albumID) {
   var totalDiscs =
     totalDiscsFromSongs(trackItems) || (trackItems.length ? 1 : 0);
   album._totalDiscs = totalDiscs;
+  cacheSet(scopedCacheKey("raw-album", albumID), album, METADATA_CACHE_TTL_MS);
   var albumAttributes = album.attributes || {};
   var traitValues = (albumAttributes.audioTraits || []).slice();
   for (var traitIndex = 0; traitIndex < trackItems.length; traitIndex++) {
@@ -1011,14 +1254,25 @@ function fetchAlbum(albumID) {
 
   log.info("Fetched", tracks.length, "tracks from album");
 
-  return {
-    type: "album",
-    album_info: albumInfo,
-    track_list: tracks,
-  };
+  return cacheSet(
+    cacheKey,
+    {
+      type: "album",
+      album_info: albumInfo,
+      track_list: tracks,
+    },
+    METADATA_CACHE_TTL_MS,
+  );
 }
 
 function fetchPlaylist(playlistID) {
+  playlistID = String(playlistID || "").trim();
+  var cacheKey = scopedCacheKey("playlist", playlistID);
+  var cached = cacheGet(cacheKey);
+  if (cached === CACHE_MISS)
+    throw new Error("Playlist not found: " + playlistID);
+  if (cached) return cached;
+
   log.info("Fetching playlist:", playlistID);
 
   var data = apiGet(
@@ -1028,6 +1282,7 @@ function fetchPlaylist(playlistID) {
   );
   var playlists = data.data || [];
   if (playlists.length === 0) {
+    rememberCacheMiss(cacheKey);
     throw new Error("Playlist not found: " + playlistID);
   }
 
@@ -1077,14 +1332,24 @@ function fetchPlaylist(playlistID) {
 
   log.info("Fetched", tracks.length, "tracks from playlist");
 
-  return {
-    type: "playlist",
-    playlist_info: playlistInfo,
-    track_list: tracks,
-  };
+  return cacheSet(
+    cacheKey,
+    {
+      type: "playlist",
+      playlist_info: playlistInfo,
+      track_list: tracks,
+    },
+    METADATA_CACHE_TTL_MS,
+  );
 }
 
 function fetchArtist(artistID) {
+  artistID = String(artistID || "").trim();
+  var cacheKey = scopedCacheKey("artist", artistID);
+  var cached = cacheGet(cacheKey);
+  if (cached === CACHE_MISS) throw new Error("Artist not found: " + artistID);
+  if (cached) return cached;
+
   log.info("Fetching artist:", artistID);
 
   var data = apiGet(
@@ -1094,6 +1359,7 @@ function fetchArtist(artistID) {
   );
   var artists = data.data || [];
   if (artists.length === 0) {
+    rememberCacheMiss(cacheKey);
     throw new Error("Artist not found: " + artistID);
   }
 
@@ -1170,22 +1436,26 @@ function fetchArtist(artistID) {
   var headerImage =
     motionArtworkPreviewURL(editorialVideo) || artworkURL(attr.artwork);
 
-  return {
-    type: "artist",
-    artist: {
-      id: artistID,
-      name: attr.name || "",
-      image_url: artworkURL(attr.artwork),
-      header_image: headerImage,
-      header_video: headerVideo,
-      artist_url: attr.url || "",
-      external_urls: attr.url || "",
-      listeners: 0,
-      albums: albums,
-      top_tracks: topTracks,
-      provider_id: "apple-music",
+  return cacheSet(
+    cacheKey,
+    {
+      type: "artist",
+      artist: {
+        id: artistID,
+        name: attr.name || "",
+        image_url: artworkURL(attr.artwork),
+        header_image: headerImage,
+        header_video: headerVideo,
+        artist_url: attr.url || "",
+        external_urls: attr.url || "",
+        listeners: 0,
+        albums: albums,
+        top_tracks: topTracks,
+        provider_id: "apple-music",
+      },
     },
-  };
+    METADATA_CACHE_TTL_MS,
+  );
 }
 
 // ============================================
@@ -1200,6 +1470,19 @@ function customSearch(searchQuery, options) {
   var filter = (options && options.filter) || null;
 
   if (limit <= 0 || limit > 25) limit = 25;
+
+  var searchCacheKey = scopedCacheKey(
+    "search",
+    normalizeText(searchQuery) +
+      "|" +
+      String(filter || "all") +
+      "|" +
+      limit +
+      "|" +
+      offset,
+  );
+  var cachedSearch = cacheGet(searchCacheKey);
+  if (cachedSearch) return cachedSearch;
 
   var isFiltered = filter && filter !== "all";
 
@@ -1233,11 +1516,12 @@ function customSearch(searchQuery, options) {
   if (searchResults.songs && (!isFiltered || filter === "tracks")) {
     var songs = searchResults.songs.data || [];
     if (!isFiltered) songs = songs.slice(0, limit);
-    var searchAlbumsByID = hydrateAlbumsForSongs(songs);
+    // Search only needs album-level metadata. Hydrating and paginating every
+    // album track list here made one search fan out into many extra requests.
+    var searchAlbumsByID = hydrateAlbumsForSongs(songs, false);
 
     for (var i = 0; i < songs.length; i++) {
       var songAttr = songs[i].attributes || {};
-      rememberTrackURL(songs[i].id || "", songAttr.url || "");
       var searchAlbum = searchAlbumsByID[albumIDFromSong(songs[i])] || null;
       var formattedSearchSong = formatSong(
         songs[i],
@@ -1324,7 +1608,7 @@ function customSearch(searchQuery, options) {
   }
 
   log.info("Found", results.length, "items (filter:", filter || "all", ")");
-  return results;
+  return cacheSet(searchCacheKey, results, SEARCH_CACHE_TTL_MS);
 }
 
 // ============================================
@@ -1343,14 +1627,142 @@ function overlayTrackMetadata(target, source) {
   return target;
 }
 
+function normalizeProviderID(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/_/g, "-")
+    .replace(/\s+/g, "-");
+}
+
+function directAppleTrackID(track) {
+  track = track || {};
+  var id = String(track.id || "").trim();
+  var prefixed = id.match(/^apple-music:(\d+)$/i);
+  if (prefixed) return prefixed[1];
+  var provider = normalizeProviderID(
+    track.provider_id || track.providerId || track.source || track.service,
+  );
+  return provider === "apple-music" && /^\d+$/.test(id) ? id : "";
+}
+
+function searchAppleSongs(searchTerm, limit) {
+  var normalizedLimit = Math.max(1, Math.min(25, Number(limit || 10)));
+  var key = scopedCacheKey(
+    "song-search",
+    normalizeText(searchTerm) + "|" + normalizedLimit,
+  );
+  var cached = cacheGet(key);
+  if (cached) return cached;
+  var searchData = apiGet(
+    "search?term=" +
+      encodeURIComponent(searchTerm) +
+      "&types=songs&limit=" +
+      normalizedLimit,
+  );
+  var songs =
+    searchData.results && searchData.results.songs
+      ? searchData.results.songs.data || []
+      : [];
+  return cacheSet(key, songs, SEARCH_CACHE_TTL_MS);
+}
+
+function scoreAppleSongMatch(
+  song,
+  targetName,
+  targetArtist,
+  targetAlbum,
+  targetDurationMs,
+  targetISRC,
+) {
+  var attr = (song && song.attributes) || {};
+  var wantedISRC = String(targetISRC || "")
+    .trim()
+    .toUpperCase();
+  var actualISRC = String(attr.isrc || "")
+    .trim()
+    .toUpperCase();
+  var exactISRC = false;
+  if (wantedISRC && actualISRC) {
+    if (wantedISRC !== actualISRC) return -1;
+    exactISRC = true;
+  }
+
+  var titleSimilarity = matching.compareStrings(
+    targetName || "",
+    attr.name || "",
+  );
+  var artistSimilarity = matching.compareStrings(
+    targetArtist || "",
+    attr.artistName || "",
+  );
+  if (!exactISRC && (titleSimilarity < 0.55 || artistSimilarity < 0.45))
+    return -1;
+
+  var score = titleSimilarity * 50 + artistSimilarity * 30;
+  if (targetAlbum && attr.albumName) {
+    var albumSimilarity = matching.compareStrings(targetAlbum, attr.albumName);
+    score += albumSimilarity * 10;
+    if (!exactISRC && albumSimilarity < 0.25) score -= 15;
+  }
+  if (
+    Number(targetDurationMs || 0) > 0 &&
+    Number(attr.durationInMillis || 0) > 0
+  ) {
+    var durationSimilarity = matching.compareDuration(
+      Number(targetDurationMs),
+      Number(attr.durationInMillis),
+    );
+    score += durationSimilarity * 10;
+    if (!exactISRC && durationSimilarity < 0.5) score -= 25;
+  }
+  if (exactISRC) score += 120;
+  return score;
+}
+
+function findBestMatch(
+  songs,
+  targetName,
+  targetArtist,
+  targetAlbum,
+  targetDurationMs,
+  targetISRC,
+) {
+  if (!songs || songs.length === 0) return null;
+  var best = null;
+  var bestScore = -1;
+  for (var i = 0; i < songs.length; i++) {
+    var score = scoreAppleSongMatch(
+      songs[i],
+      targetName,
+      targetArtist,
+      targetAlbum,
+      targetDurationMs,
+      targetISRC,
+    );
+    if (score > bestScore) {
+      bestScore = score;
+      best = songs[i];
+    }
+  }
+  if (!best || bestScore < MIN_TRACK_MATCH_SCORE) {
+    log.debug(
+      "Apple Music match rejected; best score:",
+      bestScore.toFixed ? bestScore.toFixed(1) : bestScore,
+    );
+    return null;
+  }
+  return best;
+}
+
 function enrichTrack(track) {
   track = track || {};
   log.info("enrichTrack called for:", track.name, "by", track.artists);
 
-  var amTrackID = String(track.id || "").trim();
-  if (amTrackID && /^\d+$/.test(amTrackID)) {
+  var directID = directAppleTrackID(track);
+  if (directID) {
     try {
-      var direct = fetchTrack(amTrackID);
+      var direct = fetchTrack(directID);
       if (direct && direct.track)
         return overlayTrackMetadata(track, direct.track);
     } catch (e) {
@@ -1361,14 +1773,19 @@ function enrichTrack(track) {
   var searchTerm = ((track.name || "") + " " + (track.artists || "")).trim();
   if (!searchTerm) return track;
   try {
-    var searchData = apiGet(
-      "search?term=" + encodeURIComponent(searchTerm) + "&types=songs&limit=5",
+    var searchSongs = searchAppleSongs(searchTerm, 8);
+    var durationMs = Number(track.duration_ms || 0);
+    if (durationMs <= 0 && Number(track.duration || 0) > 0) {
+      durationMs = Number(track.duration) * 1000;
+    }
+    var bestMatch = findBestMatch(
+      searchSongs,
+      track.name,
+      track.artists,
+      track.album_name || track.albumName || "",
+      durationMs,
+      track.isrc || "",
     );
-    var searchSongs =
-      searchData.results && searchData.results.songs
-        ? searchData.results.songs.data
-        : [];
-    var bestMatch = findBestMatch(searchSongs, track.name, track.artists);
     if (bestMatch && bestMatch.id) {
       var resolved = fetchTrack(bestMatch.id);
       if (resolved && resolved.track)
@@ -1378,38 +1795,6 @@ function enrichTrack(track) {
     log.debug("Apple Music search enrichment failed:", e.message);
   }
   return track;
-}
-
-function findBestMatch(songs, targetName, targetArtist) {
-  if (!songs || songs.length === 0) return null;
-
-  var normTarget = normalizeText(targetName);
-  var normArtist = normalizeText(targetArtist);
-
-  for (var i = 0; i < songs.length; i++) {
-    var attr = songs[i].attributes || {};
-    var normName = normalizeText(attr.name || "");
-    var normSongArtist = normalizeText(attr.artistName || "");
-
-    if (normName === normTarget && normSongArtist === normArtist) {
-      return songs[i];
-    }
-  }
-
-  for (var j = 0; j < songs.length; j++) {
-    var attr2 = songs[j].attributes || {};
-    var n = normalizeText(attr2.name || "");
-    var a = normalizeText(attr2.artistName || "");
-
-    if (
-      (n.indexOf(normTarget) !== -1 || normTarget.indexOf(n) !== -1) &&
-      (a.indexOf(normArtist) !== -1 || normArtist.indexOf(a) !== -1)
-    ) {
-      return songs[j];
-    }
-  }
-
-  return songs[0];
 }
 
 function normalizeText(text) {
@@ -1624,564 +2009,6 @@ function getPlaylist(playlistId) {
 
 function searchTracks(searchQuery, limit) {
   return customSearch(searchQuery, { limit: limit || 20 });
-}
-
-function normalizeRequestedCodec(quality) {
-  var normalized = String(quality || "")
-    .trim()
-    .toLowerCase();
-  switch (normalized) {
-    case "alac":
-    case "atmos":
-    case "ac3":
-    case "aac":
-    case "aac-legacy":
-      return normalized;
-    case "hi_res":
-    case "hi_res_lossless":
-    case "lossless":
-    case "default":
-    case "":
-      return "alac";
-    default:
-      return "alac";
-  }
-}
-
-function extractFilenameFromURL(url) {
-  url = String(url || "").trim();
-  if (!url) return "";
-
-  var fileMatch = url.match(/[?&]file=([^&]+)/i);
-  if (fileMatch && fileMatch[1]) {
-    try {
-      return decodeURIComponent(fileMatch[1]);
-    } catch (e) {
-      return fileMatch[1];
-    }
-  }
-
-  var sanitized = url.split("?")[0];
-  var slashIndex = sanitized.lastIndexOf("/");
-  if (slashIndex >= 0 && slashIndex < sanitized.length - 1) {
-    return sanitized.substring(slashIndex + 1);
-  }
-
-  return "";
-}
-
-function inferDownloadExtension(codec, payload, streamURL) {
-  var filename = "";
-  if (payload) {
-    filename = String(payload.filename || payload.file_name || "").trim();
-  }
-  if (!filename && streamURL) {
-    filename = extractFilenameFromURL(streamURL);
-  }
-
-  var dotIndex = filename.lastIndexOf(".");
-  if (dotIndex >= 0 && dotIndex < filename.length - 1) {
-    return filename.substring(dotIndex);
-  }
-
-  codec = String(codec || "")
-    .trim()
-    .toLowerCase();
-  if (codec === "ac3") {
-    return ".m4a";
-  }
-  return ".m4a";
-}
-
-function resolveDownloadTrackURL(trackID) {
-  trackID = String(trackID || "").trim();
-  if (!trackID) return "";
-
-  if (trackID.indexOf("music.apple.com/") !== -1) {
-    return trackID;
-  }
-
-  var cachedURL = getCachedTrackURL(trackID);
-  if (cachedURL) {
-    return cachedURL;
-  }
-
-  if (/^\d+$/.test(trackID)) {
-    try {
-      var data = apiGet("songs/" + trackID);
-      var songs = data.data || [];
-      if (songs.length > 0) {
-        var attr = songs[0].attributes || {};
-        var resolvedURL = String(attr.url || "").trim();
-        if (resolvedURL) {
-          rememberTrackURL(trackID, resolvedURL);
-          return resolvedURL;
-        }
-      }
-    } catch (e) {
-      log.debug("resolveDownloadTrackURL direct fetch failed:", e.message);
-    }
-  }
-
-  return "";
-}
-
-function scoreAppleSearchSong(song, trackName, artistName, isrc) {
-  var attr = song.attributes || {};
-  var score = 0;
-
-  if (
-    isrc &&
-    attr.isrc &&
-    String(isrc).toUpperCase() === String(attr.isrc).toUpperCase()
-  ) {
-    score += 100;
-  }
-
-  score += matching.compareStrings(trackName || "", attr.name || "") * 60;
-  score +=
-    matching.compareStrings(artistName || "", attr.artistName || "") * 40;
-  return score;
-}
-
-function resolveTrackURLByAppleSearch(trackName, artistName, isrc) {
-  var query = ((trackName || "") + " " + (artistName || "")).trim();
-  if (!query && isrc) {
-    query = String(isrc).trim();
-  }
-  if (!query) {
-    return "";
-  }
-
-  var searchData = apiGet(
-    "search?term=" + encodeURIComponent(query) + "&types=songs&limit=10",
-  );
-  var songs =
-    searchData.results && searchData.results.songs
-      ? searchData.results.songs.data
-      : [];
-
-  if (!songs || songs.length === 0) {
-    return "";
-  }
-
-  var bestScore = -1;
-  var bestURL = "";
-  var bestID = "";
-
-  for (var i = 0; i < songs.length; i++) {
-    var attr = songs[i].attributes || {};
-    var url = String(attr.url || "").trim();
-    if (!url) continue;
-
-    var score = scoreAppleSearchSong(songs[i], trackName, artistName, isrc);
-    if (score > bestScore) {
-      bestScore = score;
-      bestURL = url;
-      bestID = songs[i].id || "";
-    }
-  }
-
-  if (bestURL) {
-    rememberTrackURL(bestID, bestURL);
-  }
-
-  return bestURL;
-}
-
-function queueAppleProxyDownload(trackURL, codec) {
-  var response = http.post(
-    DOWNLOAD_PROXY_BASE + "/download",
-    JSON.stringify({
-      url: trackURL,
-      codec: codec,
-    }),
-    proxyHeaders(),
-  );
-
-  if (!response || response.error) {
-    throw new Error(
-      response && response.error ? response.error : "proxy request failed",
-    );
-  }
-  if (response.statusCode < 200 || response.statusCode >= 300) {
-    throw new Error(
-      proxyErrorMessage(
-        response,
-        "Apple downloader queue failed: HTTP " + response.statusCode,
-      ),
-    );
-  }
-
-  var payload = parseJSONSafe(response.body || "");
-  if (!payload || !payload.job_id) {
-    throw new Error("Apple downloader queue returned no job_id");
-  }
-
-  return payload;
-}
-
-function requestAppleProxyFallbackDownload(trackURL, codec) {
-  var response = http.post(
-    DOWNLOAD_PROXY_FALLBACK_BASE,
-    JSON.stringify({
-      url: trackURL,
-      codec: codec,
-    }),
-    proxyHeaders(),
-  );
-
-  if (!response || response.error) {
-    throw new Error(
-      response && response.error ? response.error : "fallback request failed",
-    );
-  }
-  if (response.statusCode < 200 || response.statusCode >= 300) {
-    throw new Error(
-      proxyErrorMessage(
-        response,
-        "Apple downloader fallback failed: HTTP " + response.statusCode,
-      ),
-    );
-  }
-
-  var payload = parseJSONSafe(response.body || "");
-  if (!payload) {
-    throw new Error("Apple downloader fallback returned invalid JSON");
-  }
-  if (payload.success !== true || !payload.stream_url) {
-    throw new Error(
-      String(
-        payload.error ||
-          payload.message ||
-          "Apple downloader fallback returned no stream URL",
-      ),
-    );
-  }
-
-  return payload;
-}
-
-function fetchAppleProxyStatus(jobID) {
-  var response = http.get(
-    DOWNLOAD_PROXY_BASE + "/status/" + encodeURIComponent(jobID),
-    proxyHeaders(),
-  );
-
-  if (!response || response.error) {
-    throw new Error(
-      response && response.error ? response.error : "status request failed",
-    );
-  }
-  if (response.statusCode < 200 || response.statusCode >= 300) {
-    throw new Error(
-      proxyErrorMessage(
-        response,
-        "Apple downloader status failed: HTTP " + response.statusCode,
-      ),
-    );
-  }
-
-  var payload = parseJSONSafe(response.body || "");
-  if (!payload) {
-    throw new Error("Apple downloader status returned invalid JSON");
-  }
-
-  return payload;
-}
-
-function cancelledDownloadResult() {
-  return {
-    success: false,
-    error_message: "Download cancelled",
-    error_type: "cancelled",
-  };
-}
-
-function failedDownloadResult(message, type) {
-  return {
-    success: false,
-    error_message: message || "Apple Music download failed",
-    error_type: type || "api_error",
-  };
-}
-
-function waitForAppleProxyJob(jobID, onProgress) {
-  var deadline = Date.now() + state.downloadMaxWaitMinutes * 60 * 1000;
-
-  while (Date.now() < deadline) {
-    if (utils.isDownloadCancelled()) {
-      return { cancelled: true };
-    }
-
-    var payload = fetchAppleProxyStatus(jobID);
-    var status = String(payload.status || "")
-      .trim()
-      .toLowerCase();
-
-    if (status === "completed") {
-      return {
-        success: true,
-        payload: payload,
-      };
-    }
-
-    if (status === "failed") {
-      return {
-        success: false,
-        error: String(payload.error || "Apple downloader job failed"),
-      };
-    }
-
-    if (typeof onProgress === "function") {
-      if (status === "queued" || status === "waiting" || status === "pending") {
-        onProgress(12);
-      } else if (status === "downloading") {
-        onProgress(20);
-      } else {
-        onProgress(15);
-      }
-    }
-
-    if (!utils.sleep(state.downloadPollIntervalMs)) {
-      return { cancelled: true };
-    }
-  }
-
-  return {
-    success: false,
-    error: "Timed out while waiting for Apple downloader job",
-  };
-}
-
-function downloadFromStreamURL(
-  streamURL,
-  outputPath,
-  codec,
-  payload,
-  onProgress,
-  headers,
-) {
-  var actualOutputPath = ensureOutputExtension(
-    outputPath,
-    inferDownloadExtension(codec, payload, streamURL),
-  );
-
-  var downloadResult = file.download(streamURL, actualOutputPath, {
-    headers: headers || {
-      "User-Agent": utils.randomUserAgent(),
-    },
-    onProgress: function (written, total) {
-      if (typeof onProgress === "function" && total > 0) {
-        var ratio = written / total;
-        if (ratio < 0) ratio = 0;
-        if (ratio > 1) ratio = 1;
-        onProgress(20 + Math.round(ratio * 80));
-      }
-    },
-  });
-
-  if (!downloadResult || !downloadResult.success) {
-    return failedDownloadResult(
-      downloadResult && downloadResult.error
-        ? downloadResult.error
-        : "Failed to download Apple Music file",
-      downloadResult && downloadResult.error === "download cancelled"
-        ? "cancelled"
-        : "download_error",
-    );
-  }
-
-  return {
-    success: true,
-    file_path: downloadResult.path || actualOutputPath,
-    bit_depth: 0,
-    sample_rate: 0,
-    title: payload && payload.title ? payload.title : "",
-    artist: payload && payload.artist ? payload.artist : "",
-  };
-}
-
-function attemptQueuedAppleDownload(trackURL, codec, outputPath, onProgress) {
-  try {
-    if (typeof onProgress === "function") {
-      onProgress(5);
-    }
-
-    var queuePayload = queueAppleProxyDownload(trackURL, codec);
-    if (typeof onProgress === "function") {
-      onProgress(10);
-    }
-
-    var waitResult = waitForAppleProxyJob(queuePayload.job_id, onProgress);
-    if (waitResult.cancelled) {
-      return cancelledDownloadResult();
-    }
-    if (!waitResult.success) {
-      return failedDownloadResult(
-        waitResult.error || "Apple downloader job failed",
-        "api_error",
-      );
-    }
-
-    var statusPayload = waitResult.payload || {};
-    var fileURL =
-      DOWNLOAD_PROXY_BASE + "/file/" + encodeURIComponent(queuePayload.job_id);
-    return downloadFromStreamURL(
-      fileURL,
-      outputPath,
-      codec,
-      statusPayload,
-      onProgress,
-      proxyHeaders(),
-    );
-  } catch (e) {
-    return failedDownloadResult(
-      e && e.message ? e.message : String(e),
-      "api_error",
-    );
-  }
-}
-
-function attemptDirectAppleDownload(trackURL, codec, outputPath, onProgress) {
-  try {
-    if (typeof onProgress === "function") {
-      onProgress(8);
-    }
-
-    var payload = requestAppleProxyFallbackDownload(trackURL, codec);
-    if (typeof onProgress === "function") {
-      onProgress(15);
-    }
-
-    return downloadFromStreamURL(
-      payload.stream_url,
-      outputPath,
-      codec,
-      payload,
-      onProgress,
-    );
-  } catch (e) {
-    return failedDownloadResult(
-      e && e.message ? e.message : String(e),
-      "api_error",
-    );
-  }
-}
-
-function shouldRetryWithAppleFallback(result) {
-  return !!(
-    result &&
-    result.success !== true &&
-    result.error_type !== "cancelled"
-  );
-}
-
-function mergeDownloadFailures(primaryResult, fallbackResult) {
-  var primaryMessage =
-    primaryResult && primaryResult.error_message
-      ? String(primaryResult.error_message)
-      : "Primary Apple downloader failed";
-  var fallbackMessage =
-    fallbackResult && fallbackResult.error_message
-      ? String(fallbackResult.error_message)
-      : "Fallback Apple downloader failed";
-
-  return {
-    success: false,
-    error_message:
-      "app2 failed: " + primaryMessage + "; app failed: " + fallbackMessage,
-    error_type:
-      fallbackResult && fallbackResult.error_type
-        ? fallbackResult.error_type
-        : primaryResult && primaryResult.error_type
-          ? primaryResult.error_type
-          : "api_error",
-  };
-}
-
-function checkAvailability(isrc, trackName, artistName) {
-  try {
-    var resolvedURL = resolveTrackURLByAppleSearch(trackName, artistName, isrc);
-    if (!resolvedURL) {
-      return {
-        available: false,
-        reason: "not_found_on_apple_music",
-      };
-    }
-
-    return {
-      available: true,
-      track_id: resolvedURL,
-    };
-  } catch (e) {
-    log.warn("checkAvailability failed:", e.message);
-    return {
-      available: false,
-      reason: e.message || "apple_music_search_failed",
-    };
-  }
-}
-
-function download(trackID, quality, outputPath, onProgress) {
-  try {
-    if (utils.isDownloadCancelled()) {
-      return cancelledDownloadResult();
-    }
-
-    var codec = normalizeRequestedCodec(quality);
-    var trackURL = resolveDownloadTrackURL(trackID);
-    if (!trackURL) {
-      return {
-        success: false,
-        error_message: "Could not resolve Apple Music track URL",
-        error_type: "not_found",
-      };
-    }
-
-    var primaryResult = attemptDirectAppleDownload(
-      trackURL,
-      codec,
-      outputPath,
-      onProgress,
-    );
-    if (
-      primaryResult.success === true ||
-      primaryResult.error_type === "cancelled"
-    ) {
-      return primaryResult;
-    }
-
-    log.warn(
-      "Primary /v1/dl/app2 download failed, trying /v1/dl/app fallback:",
-      primaryResult.error_message,
-    );
-
-    if (!shouldRetryWithAppleFallback(primaryResult)) {
-      return primaryResult;
-    }
-
-    var fallbackResult = attemptQueuedAppleDownload(
-      trackURL,
-      codec,
-      outputPath,
-      onProgress,
-    );
-    if (
-      fallbackResult.success === true ||
-      fallbackResult.error_type === "cancelled"
-    ) {
-      return fallbackResult;
-    }
-
-    return mergeDownloadFailures(primaryResult, fallbackResult);
-  } catch (e) {
-    return {
-      success: false,
-      error_message: e.message || String(e),
-      error_type: "runtime_error",
-    };
-  }
 }
 
 // ============================================
@@ -2854,50 +2681,56 @@ function fetchLyrics(trackName, artistName, albumName, durationSec) {
     return null;
   }
 
-  log.info("fetchLyrics: Searching for", trackName, "by", artistName);
+  var lyricsCacheKey = scopedCacheKey(
+    "lyrics",
+    normalizeText(trackName) +
+      "|" +
+      normalizeText(artistName) +
+      "|" +
+      normalizeText(albumName) +
+      "|" +
+      Math.round(Number(durationSec || 0)) +
+      "|" +
+      state.lyricsTranslation +
+      "|" +
+      state.lyricsPronunciation,
+  );
+  var cachedLyrics = cacheGet(lyricsCacheKey);
+  if (cachedLyrics === CACHE_MISS) return null;
+  if (cachedLyrics) return cachedLyrics;
 
-  // Search for the track on Apple Music
+  log.info("fetchLyrics: Searching for", trackName, "by", artistName);
   var trackId = findTrackId(trackName, artistName, albumName, durationSec);
   if (!trackId) {
     log.info("fetchLyrics: Could not find track on Apple Music.");
-    return null;
+    return rememberCacheMiss(lyricsCacheKey);
   }
 
   log.info("fetchLyrics: Found Apple Music track ID:", trackId);
-
-  // Fetch syllable-lyrics
   var lyricsData = apiGetWithUserToken("songs/" + trackId + "/syllable-lyrics");
   if (!lyricsData || !lyricsData.data || lyricsData.data.length === 0) {
     log.info("fetchLyrics: No syllable lyrics available for track", trackId);
-
-    // Fall back to regular lyrics endpoint
     lyricsData = apiGetWithUserToken("songs/" + trackId + "/lyrics");
     if (!lyricsData || !lyricsData.data || lyricsData.data.length === 0) {
       log.info("fetchLyrics: No lyrics available for track", trackId);
-      return null;
+      return rememberCacheMiss(lyricsCacheKey);
     }
   }
 
-  var ttml = null;
   var attrs = lyricsData.data[0].attributes;
-  if (attrs) {
-    ttml = attrs.ttml || null;
-  }
-
+  var ttml = attrs ? attrs.ttml || null : null;
   if (!ttml) {
     log.info("fetchLyrics: No TTML content in lyrics response.");
-    return null;
+    return rememberCacheMiss(lyricsCacheKey);
   }
 
   log.info(
     "fetchLyrics: Got TTML lyrics (" + ttml.length + " bytes), parsing...",
   );
-
-  // Parse the TTML
   var parsed = parseTTML(ttml);
   if (!parsed || parsed.lines.length === 0) {
     log.info("fetchLyrics: TTML parsing returned no lines.");
-    return null;
+    return rememberCacheMiss(lyricsCacheKey);
   }
 
   log.info(
@@ -2907,8 +2740,6 @@ function fetchLyrics(trackName, artistName, albumName, durationSec) {
       parsed.timingMode +
       ")",
   );
-
-  // Convert to ExtLyricsResult
   var result = ttmlToLyricsResult(parsed);
   if (result) {
     log.info(
@@ -2918,158 +2749,32 @@ function fetchLyrics(trackName, artistName, albumName, durationSec) {
         (state.lyricsTranslation ? " (with translation)" : "") +
         (state.lyricsPronunciation ? " (with pronunciation)" : ""),
     );
+    return cacheSet(lyricsCacheKey, result, LYRICS_CACHE_TTL_MS);
   }
-
-  return result;
+  return rememberCacheMiss(lyricsCacheKey);
 }
 
 /**
  * Search Apple Music and find the best matching track ID.
  */
 function findTrackId(trackName, artistName, albumName, durationSec) {
-  var searchTerm = (trackName || "") + " " + (artistName || "");
-  searchTerm = searchTerm.trim();
+  var searchTerm = ((trackName || "") + " " + (artistName || "")).trim();
   if (!searchTerm) return null;
 
   try {
-    var searchData = apiGet(
-      "search?term=" + encodeURIComponent(searchTerm) + "&types=songs&limit=10",
+    var songs = searchAppleSongs(searchTerm, 10);
+    var best = findBestMatch(
+      songs,
+      trackName,
+      artistName,
+      albumName,
+      Number(durationSec || 0) * 1000,
+      "",
     );
-    var songs =
-      searchData.results && searchData.results.songs
-        ? searchData.results.songs.data
-        : [];
-
-    if (songs.length === 0) return null;
-
-    // Score each result for best match
-    var bestScore = -1;
-    var bestId = null;
-
-    for (var i = 0; i < songs.length; i++) {
-      var attr = songs[i].attributes || {};
-      var score = 0;
-
-      // Title match
-      var titleSim = matching.compareStrings(trackName || "", attr.name || "");
-      score += titleSim * 50;
-
-      // Artist match
-      var artistSim = matching.compareStrings(
-        artistName || "",
-        attr.artistName || "",
-      );
-      score += artistSim * 30;
-
-      // Album match (if provided)
-      if (albumName) {
-        var albumSim = matching.compareStrings(albumName, attr.albumName || "");
-        score += albumSim * 10;
-      }
-
-      // Duration match
-      if (durationSec > 0 && attr.durationInMillis) {
-        var durationMatch = matching.compareDuration(
-          durationSec * 1000,
-          attr.durationInMillis,
-        );
-        score += durationMatch * 10;
-      }
-
-      if (score > bestScore) {
-        bestScore = score;
-        bestId = songs[i].id;
-      }
-    }
-
-    // Require a minimum match quality
-    if (bestScore < 40) {
-      log.debug(
-        "findTrackId: Best score too low (" +
-          bestScore.toFixed(1) +
-          "), rejecting match.",
-      );
-      return null;
-    }
-
-    return bestId;
+    return best && best.id ? best.id : null;
   } catch (e) {
     log.debug("findTrackId: Search failed:", e.message);
     return null;
-  }
-}
-
-// ============================================
-// HOME FEED (public RSS charts — no session/token required)
-// ============================================
-
-// getHomeFeed returns Apple Music's public Top Songs / Top Albums charts via
-// the RSS marketing tools API. It needs no developer token or media user
-// token, so the feed works for every user. The returned track/album ids are
-// real Apple Music catalog ids (same shape fetchTrack/fetchAlbum resolve), so
-// tapping an item resolves normally through the app's playback pipeline.
-function getHomeFeed() {
-  try {
-    var sections = [];
-    var cc = state.storefront || "us";
-    var rssBase =
-      "https://rss.applemarketingtools.com/api/v2/" +
-      cc +
-      "/music/most-played/25";
-
-    function biggerArtwork(url) {
-      if (!url) return "";
-      // artworkUrl100 -> 600x600, keeps the mzstatic thumb format
-      return url.replace(/100x100bb\.jpg/, "600x600bb.jpg");
-    }
-
-    function rssChart(kind, sectionTitle, type) {
-      try {
-        var res = http.get(rssBase + "/" + kind + ".json", {
-          Accept: "application/json",
-          "User-Agent": "Mozilla/5.0 (compatible; Bitly/1.0)",
-        });
-        if (!res || res.statusCode !== 200 || !res.body) return null;
-        var data =
-          typeof res.body === "string" ? JSON.parse(res.body) : res.body;
-        var results = (data && data.feed && data.feed.results) || [];
-        var items = [];
-        for (var i = 0; i < results.length && items.length < 15; i++) {
-          var r = results[i];
-          if (!r || !r.id) continue;
-          var item = {
-            id: String(r.id),
-            type: type,
-            name: r.name || r.collectionName || "",
-            artists: r.artistName || "",
-            cover_url: biggerArtwork(r.artworkUrl100 || r.artworkUrl60 || ""),
-            release_date: r.releaseDate || "",
-          };
-          // Extract the album id from the song URL
-          // (.../album/{slug}/{albumId}?i={trackId})
-          var url = r.url || "";
-          var m = url.match(/\/album\/[^/]+\/(\d+)(?:\?|$)/);
-          if (m) item.album_id = m[1];
-          items.push(item);
-        }
-        if (items.length === 0) return null;
-        return { title: sectionTitle, items: items };
-      } catch (e) {
-        log.warn("[AppleMusic] RSS " + kind + " failed:", String(e));
-        return null;
-      }
-    }
-
-    var songs = rssChart("songs", "Top Canciones (Apple Music)", "track");
-    if (songs) sections.push(songs);
-    var albums = rssChart("albums", "Top Álbumes (Apple Music)", "album");
-    if (albums) sections.push(albums);
-
-    log.info("[AppleMusic] getHomeFeed returning", sections.length, "sections");
-    return { success: true, sections: sections };
-  } catch (e) {
-    log.warn("[AppleMusic] getHomeFeed failed:", String(e));
-    return { success: false, error: String(e), sections: [] };
   }
 }
 
@@ -3082,7 +2787,6 @@ registerExtension({
   cleanup: cleanup,
   customSearch: customSearch,
   handleUrl: handleURL,
-  getHomeFeed: getHomeFeed,
   getTrack: getTrack,
   getAlbum: getAlbum,
   getArtist: getArtist,
@@ -3090,7 +2794,6 @@ registerExtension({
   searchTracks: searchTracks,
   enrichTrack: enrichTrack,
   fetchLyrics: fetchLyrics,
-  checkAvailability: checkAvailability,
 });
 
 log.info("Apple Music Extension loaded!");

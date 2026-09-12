@@ -72,6 +72,9 @@ class _SongTintedBackgroundState extends State<_SongTintedBackground> {
 
   @override
   Widget build(BuildContext context) {
+    // En modo Spotify con fondosModals activo, no mostramos cover borroso.
+    final estilo = EstiloHelper.fondosModals(context);
+
     return AnimatedContainer(
       duration: const Duration(milliseconds: 600),
       curve: Curves.easeOutCubic,
@@ -82,7 +85,7 @@ class _SongTintedBackgroundState extends State<_SongTintedBackground> {
       clipBehavior: Clip.antiAlias,
       child: Stack(
         children: [
-          if (_hasTrack && _cover != null && _cover!.isNotEmpty)
+          if (!estilo && _hasTrack && _cover != null && _cover!.isNotEmpty)
             Positioned.fill(
               child: ImageFiltered(
                 imageFilter: ImageFilter.blur(

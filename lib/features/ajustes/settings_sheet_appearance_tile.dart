@@ -25,41 +25,66 @@ class _ThemeTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: AnimatedContainer(
+      child: AnimatedScale(
+        scale: selected ? 1.0 : 0.95,
         duration: const Duration(milliseconds: 180),
-        padding: EdgeInsets.symmetric(vertical: r.spacingM),
-        decoration: BoxDecoration(
-          color:
-              selected
-                  ? glowColor.withValues(alpha: 0.16)
-                  : onBg.withValues(alpha: 0.04),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color:
+        curve: Curves.easeOutCubic,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          padding: EdgeInsets.symmetric(vertical: r.spacingM, horizontal: r.spacingS),
+          decoration: BoxDecoration(
+            gradient:
                 selected
-                    ? glowColor.withValues(alpha: 0.5)
-                    : onBg.withValues(alpha: 0.1),
-            width: 1.4,
+                    ? LinearGradient(
+                      colors: [
+                        glowColor.withValues(alpha: 0.18),
+                        glowColor.withValues(alpha: 0.08),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    )
+                    : null,
+            color: selected ? null : onBg.withValues(alpha: 0.03),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color:
+                  selected
+                      ? glowColor.withValues(alpha: 0.45)
+                      : onBg.withValues(alpha: 0.08),
+              width: selected ? 1.5 : 1.0,
+            ),
+            boxShadow:
+                selected
+                    ? [
+                      BoxShadow(
+                        color: glowColor.withValues(alpha: 0.15),
+                        blurRadius: 12,
+                        spreadRadius: 0,
+                      ),
+                    ]
+                    : null,
           ),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              color: selected ? glowColor : onBg.withValues(alpha: 0.5),
-              size: r.subtitleSize + 4,
-            ),
-            SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: r.footerSize,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                color: selected ? glowColor : onBg.withValues(alpha: 0.6),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                color: selected ? glowColor : onBg.withValues(alpha: 0.45),
+                size: r.subtitleSize + 6,
               ),
-            ),
-          ],
+              SizedBox(height: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: r.footerSize,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  color: selected ? glowColor : onBg.withValues(alpha: 0.55),
+                  letterSpacing: selected ? 0.3 : 0,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

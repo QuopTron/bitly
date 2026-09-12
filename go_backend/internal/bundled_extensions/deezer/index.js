@@ -1,6 +1,6 @@
 var CONFIG = {
-  resolverBaseURL: "https://api.zarz.moe",
-  resolverDownloadPath: "/dl/dzr",
+  // Sin ARL esta extensión es solo-metadata: el audio lo resuelve el backend
+  // desde una fuente abierta (YouTube/SoundCloud) por ISRC vía flac-rescue.
   deezerBaseURL: "https://www.deezer.com",
   apiBaseURL: "https://api.deezer.com",
   gatewayURL: "https://www.deezer.com/ajax/gw-light.php",
@@ -10,31 +10,58 @@ var CONFIG = {
   maxCollectionTracks: 200,
   maxArtistAlbums: 100,
   maxArtistTopTracks: 20,
+  coverMaxSize: 1400,
   metadataCacheTtlMs: 5 * 60 * 1000,
+  metadataCacheMaxEntries: 500,
   gatewayTokenTtlMs: 30 * 60 * 1000,
+
+  // ── Cuenta propia de Deezer (ARL) ─────────────────────────────────────────
+  // El ARL es la cookie de sesión de Deezer. Con una cuenta propia Deezer
+  // entrega el stream COMPLETO desde su CDN: MP3 128 con cuenta gratis y
+  // MP3 320 / FLAC con cuenta paga. No pide verificación.
+  // Sin ARL la fuente es solo-metadata (el audio sale de una fuente abierta).
+  arl: "",
+  mediaBaseURL: "https://media.deezer.com",
+  userDataTtlMs: 50 * 60 * 1000,
 };
 
-var metadataCache = {};
+var metadataCache = new Map();
 var gatewayToken = "";
 var gatewayTokenCreatedAt = 0;
+var arlSession = null;
+
+// ── Pool de credenciales (ARL) ──────────────────────────────────────────────
+// El backend de Go arma el pool: junta la credencial propia del usuario con
+// las que saca de las fuentes que él configure y VALIDA cada una antes de
+// mandarla acá. Esta extensión solo rota: si la credencial en uso deja de
+// servir (baneada/expirada), se pasa a la siguiente sola, sin que el usuario
+// tenga que pegar nada de nuevo.
+var arlPool = [];
+var arlPoolIndex = 0;
 
 function nowMs() {
   return Date.now();
 }
 
 function cacheGet(key) {
-  var entry = metadataCache[key];
+  var entry = metadataCache.get(key);
   if (!entry) return null;
   if (nowMs() - entry.createdAt > CONFIG.metadataCacheTtlMs) {
-    delete metadataCache[key];
+    metadataCache.delete(key);
     return null;
   }
+  metadataCache.delete(key);
+  metadataCache.set(key, entry);
   return entry.value;
 }
 
 function cacheSet(key, value) {
   if (value !== null && value !== undefined) {
-    metadataCache[key] = { value: value, createdAt: nowMs() };
+    if (metadataCache.has(key)) metadataCache.delete(key);
+    metadataCache.set(key, { value: value, createdAt: nowMs() });
+    while (metadataCache.size > CONFIG.metadataCacheMaxEntries) {
+      metadataCache.delete(metadataCache.keys().next().value);
+    }
   }
   return value;
 }
@@ -45,13 +72,41 @@ function initialize(settings) {
   if (configuredBase) {
     CONFIG.resolverBaseURL = configuredBase.replace(/\/+$/, "");
   }
+  // Credencial de cuenta propia: habilita la descarga directa (sin modal).
+  CONFIG.arl = String(
+    settings.arl || settings.deezerArl || settings.cookie || "",
+  ).trim();
+  // Pool completo (propia + las que el backend validó desde las fuentes).
+  arlPool = poolDesdeAjustes(settings);
+  arlPoolIndex = 0;
+  arlSession = null;
   return true;
 }
 
+// poolDesdeAjustes arma la lista de credenciales a rotar. La propia del
+// usuario SIEMPRE va primera: su cuenta manda sobre cualquier fuente.
+function poolDesdeAjustes(settings) {
+  settings = settings || {};
+  var lista = [];
+  var propio = String(
+    settings.arl || settings.deezerArl || settings.cookie || "",
+  ).trim();
+  if (propio) lista.push(propio);
+  var partes = String(settings.arlPool || "").split(/[\s,]+/);
+  for (var i = 0; i < partes.length; i++) {
+    var p = String(partes[i] || "").trim();
+    if (p && lista.indexOf(p) < 0) lista.push(p);
+  }
+  return lista;
+}
+
 function cleanup() {
-  metadataCache = {};
+  metadataCache = new Map();
   gatewayToken = "";
   gatewayTokenCreatedAt = 0;
+  arlSession = null;
+  arlPool = [];
+  arlPoolIndex = 0;
   return true;
 }
 
@@ -82,15 +137,6 @@ function appUserAgent() {
 }
 
 function userAgentForURL(url) {
-  var text = String(url || "")
-    .trim()
-    .toLowerCase();
-  if (
-    text.indexOf("https://api.zarz.moe") === 0 ||
-    text.indexOf("http://api.zarz.moe") === 0
-  ) {
-    return appUserAgent();
-  }
   return utils.randomUserAgent();
 }
 
@@ -131,20 +177,6 @@ function postJSON(url, body, headers) {
   return JSON.parse(response.body);
 }
 
-// Gateway park: signed-session traffic flows through the shared zarz.moe
-// gateway. When that origin is down, Cloudflare answers 522/524/502/504 —
-// retrying every attempt per track is pointless. After the first gateway
-// error, park signed calls for 2 minutes (fail fast with a clear reason); a
-// healthy response clears the park immediately.
-var _deezerGatewayDownUntil = 0;
-
-function isGatewayError(message) {
-  var text = String(message || "");
-  return /HTTP 52[24]|HTTP 50[24]|bootstrap returned|origin connection|gateway/i.test(
-    text,
-  );
-}
-
 function signedJSON(method, path, body, headers) {
   if (
     typeof session === "undefined" ||
@@ -153,26 +185,15 @@ function signedJSON(method, path, body, headers) {
   ) {
     throw new Error("signed session runtime is not available");
   }
-  if (Date.now() < _deezerGatewayDownUntil) {
-    throw new Error("signed-session gateway down (522); retrying later");
-  }
   var response = session.signedFetch(method, path, body || null, headers || {});
   if (!response || response.error || response.needsVerification) {
     var error =
       response && response.error ? response.error : "signed request failed";
-    if (isGatewayError(error)) {
-      _deezerGatewayDownUntil = Date.now() + 2 * 60 * 1000;
-    }
     throw new Error(error);
   }
   if (response.statusCode !== 200) {
-    var statusError = "HTTP " + response.statusCode + " for " + path;
-    if (isGatewayError(statusError)) {
-      _deezerGatewayDownUntil = Date.now() + 2 * 60 * 1000;
-    }
-    throw new Error(statusError);
+    throw new Error("HTTP " + response.statusCode + " for " + path);
   }
-  _deezerGatewayDownUntil = 0;
   return JSON.parse(response.body || "{}");
 }
 
@@ -431,44 +452,47 @@ function composerNames(trackData, gatewayData) {
   return uniqueValues(names).join("; ");
 }
 
-function contributorComment(gatewayData) {
-  var contributors = gatewayData && gatewayData.SNG_CONTRIBUTORS;
-  if (!contributors || typeof contributors !== "object") return "";
-  var ignored = {
-    main_artist: true,
-    featured_artist: true,
-    featuring: true,
-    artist: true,
-    performer: true,
-    composer: true,
-    author: true,
-    songwriter: true,
-    writer: true,
-    lyricist: true,
-    lyrics: true,
-  };
-  var parts = [];
-  for (var role in contributors) {
-    if (
-      !Object.prototype.hasOwnProperty.call(contributors, role) ||
-      ignored[role]
-    )
-      continue;
-    var names = Array.isArray(contributors[role])
-      ? uniqueValues(contributors[role])
-      : [];
-    if (!names.length) continue;
-    var label = role.replace(/_/g, " ").replace(/\b\w/g, function (letter) {
-      return letter.toUpperCase();
-    });
-    parts.push(label + ": " + names.join(", "));
-  }
-  return parts.join("; ");
+// Deezer's CDN accepts larger numbers in the path, but those URLs can return
+// a smaller 1200px fallback. The 1400px variant is the highest reliable
+// request size and the CDN will still cap it to the source artwork when needed.
+var deezerCoverSizePattern =
+  /\/(\d+)x(\d+)-(\d+)-(\d+)-(\d+)-(\d+)\.jpg(?=([?#]|$))/;
+
+function highestQualityDeezerCoverURL(value) {
+  var url = String(value || "").trim();
+  if (!url || url.indexOf(".dzcdn.net/") === -1) return url;
+
+  return url.replace(
+    deezerCoverSizePattern,
+    function (match, width, height, quality, padding, output, format) {
+      if (
+        Number(width) >= CONFIG.coverMaxSize &&
+        Number(height) >= CONFIG.coverMaxSize
+      ) {
+        return match;
+      }
+      return (
+        "/" +
+        CONFIG.coverMaxSize +
+        "x" +
+        CONFIG.coverMaxSize +
+        "-" +
+        quality +
+        "-" +
+        padding +
+        "-" +
+        output +
+        "-" +
+        format +
+        ".jpg"
+      );
+    },
+  );
 }
 
 function coverFromAlbum(album) {
   if (!album) return "";
-  return String(
+  return highestQualityDeezerCoverURL(
     album.cover_xl ||
       album.cover_big ||
       album.cover_medium ||
@@ -483,7 +507,7 @@ function coverFromAlbum(album) {
 
 function coverFromArtist(artist) {
   if (!artist) return "";
-  return String(
+  return highestQualityDeezerCoverURL(
     artist.picture_xl ||
       artist.picture_big ||
       artist.picture_medium ||
@@ -841,7 +865,7 @@ function formatTrack(trackData, context) {
     ),
     genre: String(context.genre || ""),
     composer: composerNames(trackData, gatewayTrack),
-    comment: contributorComment(gatewayTrack),
+    comment: albumURL,
     explicit: isExplicit,
     audio_quality: "16bit/44.1kHz",
   };
@@ -928,7 +952,7 @@ function formatArtist(artistData) {
 function formatPlaylist(playlistData) {
   if (!playlistData || !playlistData.id) return null;
 
-  var coverURL = String(
+  var coverURL = highestQualityDeezerCoverURL(
     playlistData.picture_xl ||
       playlistData.picture_big ||
       playlistData.picture_medium ||
@@ -1553,156 +1577,392 @@ function checkAvailability(isrc, trackName, artistName, options) {
   return {
     available: true,
     track_id: trackID,
+    prepared_context: {
+      track: (options && options.track) || null,
+    },
   };
 }
 
-function resolveDownloadDescriptor(trackID) {
-  var trackURL = CONFIG.deezerBaseURL + "/track/" + encodeURIComponent(trackID);
-  var ticketID = signedTicket("dzr", "track", trackURL);
-  return signedJSON(
-    "POST",
-    CONFIG.resolverDownloadPath,
+// ── Ruta directa con ARL (cuenta propia de Deezer) ──────────────────────────
+// Deezer solo entrega el audio COMPLETO a una sesión autenticada. Con el ARL
+// del usuario esta extensión resuelve el stream desde el CDN de Deezer y lo
+// descifra con Blowfish (esquema BF_CBC_STRIPE propio de Deezer), sin verificación.
+//
+// Flujo (idéntico al de deemix/orpheusdl):
+//   1. deezer.getUserData (cookie arl) -> checkForm, license_token, país y los
+//      tiers disponibles: web_hq -> MP3_320, web_lossless -> FLAC.
+//   2. song.getData -> TRACK_TOKEN, FILESIZE_MP3_128/320 y FILESIZE_FLAC.
+//   3. media.deezer.com/v1/get_url -> URL firmada del CDN.
+//   4. Descarga + descifrado Blowfish (cada 3er bloque de 2048 bytes).
+
+function arlHeaders(headers) {
+  var merged = mergeHeaders({}, headers);
+  if (CONFIG.arl) {
+    merged.Cookie = "arl=" + CONFIG.arl;
+  }
+  return merged;
+}
+
+function arlGatewayCall(method, body) {
+  var apiToken =
+    method === "deezer.getUserData" || !arlSession
+      ? ""
+      : String(arlSession.apiToken || "");
+  var payload = postJSON(
+    CONFIG.gatewayURL +
+      "?method=" +
+      encodeURIComponent(method) +
+      "&input=3&api_version=1.0&api_token=" +
+      encodeURIComponent(apiToken),
+    body || {},
+    arlHeaders({
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      "User-Agent": appUserAgent(),
+    }),
+  );
+  if (gatewayHasError(payload)) {
+    throw new Error(
+      "Deezer ARL gateway error: " + JSON.stringify(payload.error || {}),
+    );
+  }
+  return payload.results || null;
+}
+
+// sesionVivaDeUserData dice si el gateway devolvió una sesión REAL.
+// OJO: Deezer contesta USER_ID 0 cuando la credencial está muerta, y en
+// JavaScript el string "0" es *truthy*, así que un simple `if (USER_ID)`
+// daría por buena una sesión baneada. Hay que comparar contra "0".
+function sesionVivaDeUserData(userData) {
+  var user = userData && userData.USER;
+  if (!user) return false;
+  if (user.USER_ID === undefined || user.USER_ID === null) return false;
+  var id = String(user.USER_ID).trim();
+  return id !== "" && id !== "0";
+}
+
+// ensureArlSession devuelve una sesión viva, rotando por el pool si hace
+// falta: prueba cada credencial hasta encontrar una que Deezer acepte.
+function ensureArlSession() {
+  if (arlPool.length === 0) return null;
+  if (arlSession && nowMs() - arlSession.createdAt < CONFIG.userDataTtlMs) {
+    return arlSession;
+  }
+  var userData = null;
+  for (var intento = 0; intento < arlPool.length; intento++) {
+    var candidata = arlPool[arlPoolIndex % arlPool.length];
+    try {
+      CONFIG.arl = candidata;
+      arlSession = null;
+      userData = arlGatewayCall("deezer.getUserData", {});
+      if (sesionVivaDeUserData(userData)) break;
+      throw new Error("el gateway no devolvió una sesión válida (USER_ID 0)");
+    } catch (error) {
+      log.warn(
+        "[DeezerExt] Credencial del pool rechazada, rotando:",
+        String(error),
+      );
+      arlPoolIndex = (arlPoolIndex + 1) % arlPool.length;
+      userData = null;
+    }
+  }
+  if (!sesionVivaDeUserData(userData)) {
+    arlSession = null;
+    throw new Error(
+      "Ninguna credencial del pool funciona (revisá tus ARLs o la fuente del pool)",
+    );
+  }
+  var user = userData.USER;
+  var options = user.OPTIONS || {};
+  var formats = ["MP3_128"];
+  if (options.web_hq) formats.push("MP3_320");
+  if (options.web_lossless) formats.push("FLAC");
+  arlSession = {
+    createdAt: nowMs(),
+    apiToken: String(userData.checkForm || ""),
+    licenseToken: String(options.license_token || ""),
+    userId: String(user.USER_ID || ""),
+    country: String(userData.COUNTRY || ""),
+    formats: formats,
+  };
+  log.info("[DeezerExt] Sesión ARL activa. Formatos:", formats.join(", "));
+  return arlSession;
+}
+
+function fetchArlTrackData(trackID) {
+  var key = "arl-track:" + trackID;
+  var cached = cacheGet(key);
+  if (cached) return cached;
+  var data = arlGatewayCall("song.getData", { sng_id: String(trackID) }) || {};
+  if (!data.TRACK_TOKEN) {
+    throw new Error("song.getData no devolvió TRACK_TOKEN");
+  }
+  return cacheSet(key, data);
+}
+
+function arlFormatsForQuality(quality) {
+  var requested = String(quality || "")
+    .trim()
+    .toLowerCase();
+  var lossless =
+    requested === "" ||
+    requested === "flac" ||
+    requested === "lossless" ||
+    requested === "hi-res";
+  return lossless ? ["FLAC", "MP3_320", "MP3_128"] : ["MP3_320", "MP3_128"];
+}
+
+function arlTrackSupportsFormat(trackData, format) {
+  var size = Number((trackData && trackData["FILESIZE_" + format]) || 0);
+  return isFinite(size) && size > 0;
+}
+
+function resolveArlDownloadURL(trackID, format) {
+  var session = ensureArlSession();
+  var trackData = fetchArlTrackData(trackID);
+  var payload = postJSON(
+    CONFIG.mediaBaseURL + "/v1/get_url",
     {
-      id: String(trackID || ""),
-      type: "track",
-      platform: "deezer",
-      url: trackURL,
+      license_token: session.licenseToken,
+      media: [
+        {
+          type: "FULL",
+          formats: [{ cipher: "BF_CBC_STRIPE", format: format }],
+        },
+      ],
+      track_tokens: [String(trackData.TRACK_TOKEN || "")],
     },
-    {
-      "X-Zarz-Ticket": ticketID,
-    },
+    arlHeaders({
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      "User-Agent": appUserAgent(),
+    }),
+  );
+  var entry = payload && payload.data && payload.data[0];
+  var media = entry && entry.media && entry.media[0];
+  var source = media && media.sources && media.sources[0];
+  if (!source || !source.url) {
+    var detail =
+      entry && entry.errors ? JSON.stringify(entry.errors) : "sin fuente";
+    throw new Error("get_url no devolvió URL (" + format + "): " + detail);
+  }
+  return { url: String(source.url), trackData: trackData };
+}
+
+function arlOutputExtension(format) {
+  return String(format || "").toUpperCase() === "FLAC" ? "flac" : "mp3";
+}
+
+// Mapea el resultado de una descarga correcta al contrato de metadatos que
+// espera el backend. Lo comparten la ruta directa (ARL) y el respaldo firmado.
+function buildDownloadSuccess(
+  completeMetadata,
+  trackID,
+  filePath,
+  lossless,
+  fallback,
+) {
+  var meta = completeMetadata || null;
+  fallback = fallback || {};
+  return {
+    success: true,
+    file_path: filePath,
+    title: meta && meta.name ? meta.name : fallback.title || "",
+    name: meta && meta.name ? meta.name : fallback.title || "",
+    artist: meta && meta.artists ? meta.artists : fallback.artist || "",
+    artists: meta && meta.artists ? meta.artists : fallback.artist || "",
+    album: meta ? meta.album_name : "",
+    album_name: meta ? meta.album_name : "",
+    album_artist: meta ? meta.album_artist : "",
+    artist_id: meta ? meta.artist_id : "",
+    artist_url: meta ? meta.artist_url : "",
+    album_id: meta ? meta.album_id : "",
+    album_url: meta ? meta.album_url : "",
+    external_urls: meta ? meta.external_urls : directURL("track", trackID),
+    external_links: meta
+      ? meta.external_links
+      : { deezer: directURL("track", trackID) },
+    track_number: meta ? meta.track_number : 0,
+    total_tracks: meta ? meta.total_tracks : 0,
+    disc_number: meta ? meta.disc_number : 0,
+    total_discs: meta ? meta.total_discs : 0,
+    release_date: meta ? meta.release_date : "",
+    album_type: meta ? meta.album_type : "album",
+    cover_url: meta ? meta.cover_url : "",
+    preview_url: meta ? meta.preview_url : "",
+    isrc: meta ? meta.isrc : "",
+    upc: meta ? meta.upc : "",
+    genre: meta ? meta.genre : "",
+    composer: meta ? meta.composer : "",
+    label: meta ? meta.label : "",
+    copyright: meta ? meta.copyright : "",
+    comment: meta ? meta.comment : "",
+    explicit: meta ? meta.explicit : false,
+    bit_depth: lossless ? 16 : 0,
+    sample_rate: 44100,
+  };
+}
+
+function downloadArlStream(
+  trackID,
+  url,
+  format,
+  outputPath,
+  onProgress,
+  completeMetadata,
+) {
+  var lossless = String(format).toUpperCase() === "FLAC";
+  var normalizedOutputPath = ensureOutputExtension(
+    outputPath,
+    arlOutputExtension(format),
+  );
+  var encryptedPath = buildEncryptedTempPath(normalizedOutputPath);
+
+  if (typeof onProgress === "function") onProgress(5);
+
+  var downloadResult = file.download(url, encryptedPath, {
+    headers: { "User-Agent": appUserAgent() },
+  });
+  if (!downloadResult || !downloadResult.success) {
+    try {
+      file.delete(encryptedPath);
+    } catch (_) {}
+    return null;
+  }
+
+  var actualOutputPath;
+  try {
+    actualOutputPath = decryptDownloadedFile(
+      downloadResult.path || encryptedPath,
+      normalizedOutputPath,
+      trackID,
+      onProgress,
+    );
+    file.delete(downloadResult.path || encryptedPath);
+  } catch (decryptError) {
+    try {
+      file.delete(downloadResult.path || encryptedPath);
+    } catch (_) {}
+    try {
+      file.delete(normalizedOutputPath);
+    } catch (_) {}
+    log.error("[DeezerExt] ARL descifrado falló:", decryptError.message);
+    return null;
+  }
+
+  if (typeof onProgress === "function") onProgress(100);
+  return buildDownloadSuccess(
+    completeMetadata,
+    trackID,
+    actualOutputPath,
+    lossless,
+    {},
   );
 }
 
-function resolveDescriptorDownloadURL(descriptor) {
-  if (!descriptor) return "";
+function downloadViaArl(
+  trackID,
+  quality,
+  outputPath,
+  onProgress,
+  completeMetadata,
+) {
+  // El pool es la fuente de verdad: puede traer credenciales propias o de
+  // una fuente configurada, ya validadas por el backend.
+  if (arlPool.length === 0) return null;
 
-  var isDirectDownloadable = parseBoolean(descriptor.direct_downloadable, null);
-  if (isDirectDownloadable === true && descriptor.direct_download_url) {
-    return String(descriptor.direct_download_url);
+  var session;
+  try {
+    session = ensureArlSession();
+  } catch (sessionError) {
+    log.debug("[DeezerExt] ARL sin sesión:", sessionError.message);
+    return null;
+  }
+  if (!session || !session.licenseToken) return null;
+
+  var trackData;
+  try {
+    trackData = fetchArlTrackData(trackID);
+  } catch (trackError) {
+    log.debug("[DeezerExt] ARL song.getData falló:", trackError.message);
+    return null;
   }
 
-  if (descriptor.download_url) {
-    return String(descriptor.download_url);
-  }
+  var candidates = arlFormatsForQuality(quality);
+  var lastError = "";
+  for (var i = 0; i < candidates.length; i++) {
+    var format = candidates[i];
+    if (
+      session.formats.indexOf(format) < 0 ||
+      !arlTrackSupportsFormat(trackData, format)
+    )
+      continue;
 
-  if (descriptor.direct_download_url) {
-    return String(descriptor.direct_download_url);
-  }
+    var resolved;
+    try {
+      resolved = resolveArlDownloadURL(trackID, format);
+    } catch (resolveError) {
+      lastError = String(
+        (resolveError && resolveError.message) || resolveError,
+      );
+      log.debug("[DeezerExt] ARL get_url", format, "falló:", lastError);
+      continue;
+    }
 
-  return "";
-}
-
-function descriptorRequiresClientDecryption(descriptor) {
-  if (!descriptor) return false;
-
-  var explicit = parseBoolean(descriptor.requires_client_decryption, null);
-  if (explicit !== null) {
-    return explicit;
-  }
-
-  var directDownloadable = parseBoolean(descriptor.direct_downloadable, null);
-  if (directDownloadable !== null) {
-    return !directDownloadable;
-  }
-
-  return parseBoolean(descriptor.deezer_encrypted, false);
-}
-
-function writeChunk(outputPath, dataB64, firstChunk) {
-  var writeResult = file.writeBytes(outputPath, dataB64, {
-    encoding: "base64",
-    truncate: firstChunk,
-    append: !firstChunk,
-  });
-  if (!writeResult || !writeResult.success) {
-    throw new Error(
-      writeResult && writeResult.error
-        ? writeResult.error
-        : "failed to write chunk",
+    var result = downloadArlStream(
+      trackID,
+      resolved.url,
+      format,
+      outputPath,
+      onProgress,
+      completeMetadata,
     );
+    if (result) return result;
+    lastError = "descarga " + format + " fallida";
   }
-  return writeResult.path || outputPath;
+
+  log.debug("[DeezerExt] ARL sin formato utilizable:", lastError);
+  return null;
 }
 
 function decryptDownloadedFile(encryptedPath, outputPath, trackID, onProgress) {
   var keyHex = generateBlowfishKeyHex(trackID);
-  var sizeResult = file.getSize(encryptedPath);
-  if (!sizeResult || !sizeResult.success) {
-    throw new Error(
-      sizeResult && sizeResult.error
-        ? sizeResult.error
-        : "failed to stat encrypted file",
-    );
-  }
-
-  var totalSize = Number(sizeResult.size || 0);
-  var processed = 0;
-  var chunkIndex = 0;
-  var resolvedOutputPath = outputPath;
-
-  while (processed < totalSize) {
-    var readResult = file.readBytes(encryptedPath, {
-      offset: processed,
-      length: CONFIG.chunkSize,
-      encoding: "base64",
-    });
-    if (!readResult || !readResult.success) {
-      throw new Error(
-        readResult && readResult.error
-          ? readResult.error
-          : "failed to read encrypted chunk",
-      );
-    }
-
-    var bytesRead = Number(readResult.bytes_read || 0);
-    if (bytesRead <= 0) break;
-
-    var chunkB64 = readResult.data || "";
-    // zarz serves the stream with every THIRD 2048-byte chunk (0, 3, 6, ...)
-    // Blowfish-CBC encrypted and the rest already in plaintext. Decrypting
-    // exactly those chunks (verified by full ffmpeg decode of the result)
-    // reproduces the original audio; decrypting any other chunk corrupts it.
-    if (bytesRead === CONFIG.chunkSize && chunkIndex % 3 === 0) {
-      var decryptResult = utils.decryptBlockCipher(chunkB64, {
-        algorithm: "blowfish",
-        mode: "cbc",
-        key: keyHex,
-        keyEncoding: "hex",
-        iv: CONFIG.blowfishIVHex,
-        ivEncoding: "hex",
-        inputEncoding: "base64",
-        outputEncoding: "base64",
-        padding: "none",
-      });
-      if (!decryptResult || !decryptResult.success) {
-        throw new Error(
-          decryptResult && decryptResult.error
-            ? decryptResult.error
-            : "failed to decrypt chunk",
-        );
-      }
-      chunkB64 = decryptResult.data || "";
-    }
-
-    resolvedOutputPath = writeChunk(outputPath, chunkB64, processed === 0);
-
-    processed += bytesRead;
-    chunkIndex++;
-
-    if (typeof onProgress === "function" && totalSize > 0) {
+  var transformResult = file.transformPatternedBlocks(
+    encryptedPath,
+    outputPath,
+    {
+      operation: "decrypt",
+      algorithm: "blowfish",
+      mode: "cbc",
+      key: keyHex,
+      keyEncoding: "hex",
+      iv: CONFIG.blowfishIVHex,
+      ivEncoding: "hex",
+      padding: "none",
+      segmentSize: CONFIG.chunkSize,
+      transformEvery: 3,
+      transformOffset: 0,
+      bufferSize: 1048576,
+      transformPartial: false,
+    },
+    function (processed, totalSize) {
+      if (typeof onProgress !== "function" || totalSize <= 0) return;
       var percent = 35 + Math.floor((processed / totalSize) * 65);
       if (percent > 100) percent = 100;
       onProgress(percent);
-    }
-
-    if (readResult.eof) break;
+    },
+  );
+  if (!transformResult || !transformResult.success) {
+    throw new Error(
+      transformResult && transformResult.error
+        ? transformResult.error
+        : "failed to transform encrypted file",
+    );
   }
-
-  return resolvedOutputPath;
+  return transformResult.path || outputPath;
 }
 
-function download(trackID, quality, outputPath, onProgress) {
+function download(trackID, quality, outputPath, onProgress, options) {
   var resolvedTrackID = parseTrackID(trackID);
   if (!resolvedTrackID) {
     return {
@@ -1712,151 +1972,34 @@ function download(trackID, quality, outputPath, onProgress) {
     };
   }
 
-  var completeMetadata = null;
-  try {
-    completeMetadata = fetchTrack(resolvedTrackID).track;
-  } catch (e) {
-    log.debug("[DeezerExt] Track metadata fetch failed:", e.message);
-  }
-
-  var descriptor;
-  try {
-    descriptor = resolveDownloadDescriptor(resolvedTrackID);
-  } catch (e2) {
-    var resolveError = e2 && e2.message ? e2.message : String(e2);
-    return {
-      success: false,
-      error_message: "Failed to resolve Deezer download: " + resolveError,
-      error_type:
-        resolveError.indexOf("VERIFY_REQUIRED") >= 0
-          ? "verification_required"
-          : "api_error",
-    };
-  }
-
-  var downloadURL = resolveDescriptorDownloadURL(descriptor);
-  if (!descriptor || descriptor.success !== true || !downloadURL) {
-    return {
-      success: false,
-      error_message:
-        descriptor && descriptor.message
-          ? descriptor.message
-          : "Resolver did not return a download URL",
-      error_type: "api_error",
-    };
-  }
-
-  var requiresClientDecryption = descriptorRequiresClientDecryption(descriptor);
-  var normalizedOutputPath = ensureOutputExtension(
-    outputPath,
-    (descriptor.deezer_format || "flac").toLowerCase(),
-  );
-  var encryptedPath = requiresClientDecryption
-    ? buildEncryptedTempPath(normalizedOutputPath)
-    : normalizedOutputPath;
-
-  if (typeof onProgress === "function") {
-    onProgress(5);
-  }
-
-  var downloadResult = file.download(downloadURL, encryptedPath, {
-    headers: {
-      "User-Agent": userAgentForURL(downloadURL),
-    },
-  });
-  if (!downloadResult || !downloadResult.success) {
-    return {
-      success: false,
-      error_message:
-        "Failed to download Deezer stream: " +
-        (downloadResult && downloadResult.error
-          ? downloadResult.error
-          : "unknown error"),
-      error_type: "download_error",
-    };
-  }
-
-  var actualOutputPath = downloadResult.path || normalizedOutputPath;
-
-  try {
-    if (requiresClientDecryption) {
-      var encryptedLocalPath = downloadResult.path || encryptedPath;
-      actualOutputPath = decryptDownloadedFile(
-        encryptedLocalPath,
-        normalizedOutputPath,
-        resolvedTrackID,
-        onProgress,
-      );
-      file.delete(encryptedLocalPath);
+  var prepared = (options && options.preparedContext) || {};
+  var completeMetadata = prepared.track || prepared.host_track || null;
+  if (!completeMetadata) {
+    try {
+      completeMetadata = fetchTrack(resolvedTrackID).track;
+    } catch (e) {
+      log.debug("[DeezerExt] Track metadata fetch failed:", e.message);
     }
-  } catch (e3) {
-    try {
-      file.delete(downloadResult.path || encryptedPath);
-    } catch (_) {}
-    try {
-      file.delete(actualOutputPath);
-    } catch (_) {}
-    return {
-      success: false,
-      error_message: "Failed to decrypt Deezer stream: " + e3.message,
-      error_type: "decrypt_error",
-    };
   }
 
-  if (typeof onProgress === "function") {
-    onProgress(100);
-  }
+  // 1) Ruta directa con la cuenta propia (ARL): stream completo desde el CDN
+  //    de Deezer, sin gateway y sin verificación de humano.
+  var arlResult = downloadViaArl(
+    resolvedTrackID,
+    quality,
+    outputPath,
+    onProgress,
+    completeMetadata,
+  );
+  if (arlResult) return arlResult;
 
+  // 2) Sin ARL esta extensión es solo-metadata: fallo limpio y el backend
+  //    resuelve el audio desde una fuente abierta vía ISRC (flac-rescue).
   return {
-    success: true,
-    file_path: actualOutputPath,
-    title:
-      completeMetadata && completeMetadata.name
-        ? completeMetadata.name
-        : descriptor.title || "",
-    name:
-      completeMetadata && completeMetadata.name
-        ? completeMetadata.name
-        : descriptor.title || "",
-    artist:
-      completeMetadata && completeMetadata.artists
-        ? completeMetadata.artists
-        : descriptor.artist || "",
-    artists:
-      completeMetadata && completeMetadata.artists
-        ? completeMetadata.artists
-        : descriptor.artist || "",
-    album: completeMetadata ? completeMetadata.album_name : "",
-    album_name: completeMetadata ? completeMetadata.album_name : "",
-    album_artist: completeMetadata ? completeMetadata.album_artist : "",
-    artist_id: completeMetadata ? completeMetadata.artist_id : "",
-    artist_url: completeMetadata ? completeMetadata.artist_url : "",
-    album_id: completeMetadata ? completeMetadata.album_id : "",
-    album_url: completeMetadata ? completeMetadata.album_url : "",
-    external_urls: completeMetadata
-      ? completeMetadata.external_urls
-      : directURL("track", resolvedTrackID),
-    external_links: completeMetadata
-      ? completeMetadata.external_links
-      : { deezer: directURL("track", resolvedTrackID) },
-    track_number: completeMetadata ? completeMetadata.track_number : 0,
-    total_tracks: completeMetadata ? completeMetadata.total_tracks : 0,
-    disc_number: completeMetadata ? completeMetadata.disc_number : 0,
-    total_discs: completeMetadata ? completeMetadata.total_discs : 0,
-    release_date: completeMetadata ? completeMetadata.release_date : "",
-    album_type: completeMetadata ? completeMetadata.album_type : "album",
-    cover_url: completeMetadata ? completeMetadata.cover_url : "",
-    preview_url: completeMetadata ? completeMetadata.preview_url : "",
-    isrc: completeMetadata ? completeMetadata.isrc : "",
-    upc: completeMetadata ? completeMetadata.upc : "",
-    genre: completeMetadata ? completeMetadata.genre : "",
-    composer: completeMetadata ? completeMetadata.composer : "",
-    label: completeMetadata ? completeMetadata.label : "",
-    copyright: completeMetadata ? completeMetadata.copyright : "",
-    comment: completeMetadata ? completeMetadata.comment : "",
-    explicit: completeMetadata ? completeMetadata.explicit : false,
-    bit_depth: 16,
-    sample_rate: 44100,
+    success: false,
+    error_message:
+      "Deezer sin sesión propia: el audio se resuelve desde una fuente abierta",
+    error_type: "no_session",
   };
 }
 
@@ -1878,52 +2021,6 @@ function completeGrant() {
   return session.completeGrant();
 }
 
-function getHomeFeed() {
-  try {
-    var sections = [];
-
-    // Deezer public API (no auth needed for charts)
-    try {
-      var chartRes = http.get("https://api.deezer.com/chart/0?limit=20", {
-        Accept: "application/json",
-        "User-Agent": "Bitly/1.0",
-      });
-      if (chartRes && chartRes.body) {
-        var chart =
-          typeof chartRes.body === "string"
-            ? JSON.parse(chartRes.body)
-            : chartRes.body;
-        if (chart && chart.tracks && chart.tracks.data) {
-          var items = chart.tracks.data.map(function (t) {
-            return {
-              id: String(t.id),
-              type: "track",
-              name: t.title || "",
-              artists: t.artist ? t.artist.name : "",
-              duration_ms: (t.duration || 0) * 1000,
-              album_id: t.album ? String(t.album.id) : "",
-              album_name: t.album ? t.album.title : "",
-              cover_url:
-                t.album && t.album.cover_medium ? t.album.cover_medium : "",
-            };
-          });
-          if (items.length > 0) {
-            sections.push({ title: "Deezer Top Charts", items: items });
-          }
-        }
-      }
-    } catch (e) {
-      log.warn("[DeezerExt] getHomeFeed chart failed:", String(e));
-    }
-
-    log.info("[DeezerExt] getHomeFeed returning", sections.length, "sections");
-    return { success: true, sections: sections };
-  } catch (e) {
-    log.warn("[DeezerExt] getHomeFeed failed:", String(e));
-    return { success: false, error: String(e), sections: [] };
-  }
-}
-
 registerExtension({
   initialize: initialize,
   cleanup: cleanup,
@@ -1938,49 +2035,8 @@ registerExtension({
   searchTracks: searchTracks,
   checkAvailability: checkAvailability,
   download: download,
-  getHomeFeed: getHomeFeed,
-  // Real streaming URL (mirrors the standalone getDownloadUrl): resolves the
-  // Zarz download descriptor and returns the audio URL ONLY when it needs no
-  // client-side decryption (lossy tiers such as MP3/OGG come back directly
-  // downloadable, so the player streams them in ~1-2s after a verified
-  // session). Lossless/encrypted descriptors return null so the caller falls
-  // back to the download() pipeline, which applies the per-chunk Blowfish
-  // decryption. Transport errors (e.g. HTTP 429) are re-thrown so the Go
-  // circuit breaker engages and stops hammering a rate-limited gateway.
-  getDownloadUrl: function (trackID) {
-    try {
-      var resolvedTrackID = parseTrackID(trackID);
-      if (!resolvedTrackID) return null;
-      var descriptor = resolveDownloadDescriptor(resolvedTrackID);
-      if (!descriptor || descriptor.success !== true) return null;
-      var downloadURL = resolveDescriptorDownloadURL(descriptor);
-      if (!downloadURL) return null;
-      // Encrypted (client-decryption) streams cannot be played directly by
-      // the media player. Surface a DISTINCTIVE error instead of returning
-      // null: Go maps null to a generic "stream not available" that matches no
-      // cooldown marker, so deezer was re-probed in EVERY rescue phase (7
-      // qualities x 4 phases = 28+ network calls) before falling to the
-      // download pipeline. With this marker Go recognizes "track exists here
-      // but only via download()" (Blowfish decryption) and skips deezer fast
-      // in the streaming chain while still using it for the download.
-      if (descriptorRequiresClientDecryption(descriptor)) {
-        log.info(
-          "[DeezerExt] getDownloadUrl: stream requires client decryption, skipping",
-        );
-        throw new Error(
-          "CLIENT_DECRYPTION_REQUIRED: stream requires client decryption",
-        );
-      }
-      log.info(
-        "[DeezerExt] getDownloadUrl resolved stream for",
-        resolvedTrackID,
-      );
-      return downloadURL;
-    } catch (e) {
-      var _errMsg = e && e.message ? e.message : String(e);
-      log.warn("[DeezerExt] getDownloadUrl failed:", _errMsg);
-      throw new Error(_errMsg);
-    }
+  getDownloadUrl: function () {
+    return null;
   },
 });
 

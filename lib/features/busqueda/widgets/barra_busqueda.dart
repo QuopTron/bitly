@@ -20,6 +20,10 @@ import '../../../shared/widgets/contenedor_vidrio.dart';
 class BarraBusqueda extends StatefulWidget {
   final TextEditingController controlador;
   final ValueChanged<String> onTextoCambiado;
+
+  /// Envío explícito (Enter / acción de teclado). Sirve para resolver un
+  /// enlace pegado en vez de buscarlo por nombre.
+  final ValueChanged<String>? onEnviado;
   final VoidCallback onLimpiar;
 
   /// Hint por fuente (p.ej. "Buscar en Deezer..." del manifest). Cuando es
@@ -34,6 +38,7 @@ class BarraBusqueda extends StatefulWidget {
     super.key,
     required this.controlador,
     required this.onTextoCambiado,
+    this.onEnviado,
     required this.onLimpiar,
     this.hintTexto,
     this.triggerFuente,
@@ -58,6 +63,8 @@ class _BarraBusquedaState extends State<BarraBusqueda> {
       child: TextField(
         controller: widget.controlador,
         onChanged: widget.onTextoCambiado,
+        onSubmitted: widget.onEnviado,
+        textInputAction: TextInputAction.search,
         style: TextStyle(fontSize: r.subtitleSize + 3, color: onBg),
         decoration: InputDecoration(
           hintText: widget.hintTexto ??

@@ -24,12 +24,29 @@ class _SettingsSheetState extends State<SettingsSheet>
         if (mounted) setState(() {});
       });
     _loadPremium();
+    // Si el tutorial abrió la hoja, la hoja lo sigue: cada paso pide una
+    // pestaña y acá se cambia sola, para que el usuario vea dónde está
+    // cada cosa en vez de tener que buscarla.
+    widget.tutorial?.addListener(_seguirTutorial);
+    _seguirTutorial();
   }
 
   @override
   void dispose() {
+    widget.tutorial?.removeListener(_seguirTutorial);
     _tabController.dispose();
     super.dispose();
+  }
+
+  /// Se para en la pestaña que pide el paso actual del tutorial.
+  void _seguirTutorial() {
+    final pedida = widget.tutorial?.pestanaAjustesActual;
+    if (!mounted || pedida == null || pedida == _selectedTab) return;
+    if (pedida < 0 || pedida >= _bubbleTabs.length) return;
+    setState(() {
+      _selectedTab = pedida;
+      _tabController.animateTo(pedida);
+    });
   }
 
   @override
@@ -39,7 +56,8 @@ class _SettingsSheetState extends State<SettingsSheet>
     // toggling dark/light inside the modal updates the sheet instantly.
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final onBg = ColoresApp.enSuperficie(isDark);
-    final glowColor = isDark ? ColoresApp.verdeBrillante : ColoresApp.verdeMedio;
+    final glowColor =
+        isDark ? ColoresApp.verdeBrillante : ColoresApp.verdeMedio;
     final bg = ColoresApp.superficie(isDark);
 
     return BlocBuilder<CubitCola, EstadoCola>(
@@ -65,6 +83,10 @@ class _SettingsSheetState extends State<SettingsSheet>
             hasTrack: hasTrack,
             onThemeChanged: widget.onThemeChanged,
             onLanguageChanged: widget.onLanguageChanged,
+            onStyleChanged: (estilo) {
+              EstiloHelper.cambiar(context, estilo);
+              if (mounted) setState(() {});
+            },
             onPremiumChanged: _loadPremium,
             onTabTap: (i) {
               setState(() {

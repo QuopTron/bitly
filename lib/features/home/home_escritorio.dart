@@ -21,7 +21,11 @@ import '../../core/cache/estado_cola.dart';
 import '../../estado/cubit_cola.dart';
 import '../../shared/tema/colores_app.dart';
 import '../../shared/widgets/fondo_ambiente.dart';
+import '../tutorial_interactivo/tutorial_controller.dart';
+import 'ensamblador_home.dart';
 import 'widgets/barra_navegacion_lateral.dart';
+
+part 'home_escritorio_tutorial.dart';
 
 /// Shell de escritorio de la Home: sidebar + panel de contenido.
 class HomeEscritorio extends StatefulWidget {
@@ -45,6 +49,12 @@ class HomeEscritorio extends StatefulWidget {
 class _HomeEscritorioState extends State<HomeEscritorio>
     with SingleTickerProviderStateMixin {
   int _tab = 1; // Inicio por defecto.
+
+  /// Última pestaña que pidió el tutorial (para no repetir el cambio).
+  int? _pestanaTutorialAplicada;
+
+  /// Pestaña donde estaba el usuario antes del tutorial, para devolverlo.
+  int? _pestanaAntesDelTutorial;
 
   // Transición de sección: fade + micro-slide. Sin keys: el IndexedStack
   // conserva el State de cada sección (scroll, búsqueda, etc.).
@@ -86,46 +96,51 @@ class _HomeEscritorioState extends State<HomeEscritorio>
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    // El tutorial puede pedir una sección concreta: se atiende antes de
+    // pintar el overlay, para que el paso explique algo ya visible.
+    final tutorial = TutorialProvider.of(context);
+    sincronizarPestanaTutorial(tutorial);
 
     return Scaffold(
       backgroundColor: isDark ? ColoresApp.fondoOscuro : ColoresApp.fondoClaro,
-      // Fondo ambiente: cover de la canción actual desenfocado detrás del
-      // panel central (la sidebar es opaca y queda al frente).
       body: FondoAmbienteConCola(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+        child: Stack(
           children: [
-            // Barra lateral de navegación fija.
-            BarraNavegacionLateral(
-              isDark: isDark,
-              currentIndex: _tab,
-              onTap: _cambiarTab,
-            ),
-            // Panel central: sección activa + miniplayer al pie.
-            Expanded(
-              child: Column(
-                children: [
-                  Expanded(
-                    // Fade + slide al cambiar de sección (state conservado).
-                    child: FadeTransition(
-                      opacity: _opacidad,
-                      child: SlideTransition(
-                        position: _desplazamiento,
-                        child: IndexedStack(
-                          index: _tab,
-                          children: [
-                            widget.buscador,
-                            widget.feed,
-                            widget.miEspacio,
-                          ],
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                BarraNavegacionLateral(
+                  isDark: isDark,
+                  currentIndex: _tab,
+                  onTap: _cambiarTab,
+                ),
+                Expanded(
+                  child: Column(
+                    children: [
+                      Expanded(
+                        child: FadeTransition(
+                          opacity: _opacidad,
+                          child: SlideTransition(
+                            position: _desplazamiento,
+                            child: IndexedStack(
+                              index: _tab,
+                              children: [
+                                widget.buscador,
+                                widget.feed,
+                                widget.miEspacio,
+                              ],
+                            ),
+                          ),
                         ),
                       ),
-                    ),
+                      _MiniplayerEscritorio(miniPlayer: widget.miniPlayer),
+                    ],
                   ),
-                  _MiniplayerEscritorio(miniPlayer: widget.miniPlayer),
-                ],
-              ),
+                ),
+              ],
             ),
+            // (El tutorial interactivo lo monta TutorialHost en el Overlay
+            // raíz, así queda por encima de los modales.)
           ],
         ),
       ),
@@ -146,9 +161,10 @@ class _MiniplayerEscritorio extends StatelessWidget {
   Widget build(BuildContext context) {
     final esOscuro = Theme.of(context).brightness == Brightness.dark;
     return BlocBuilder<CubitCola, EstadoCola>(
-      buildWhen: (prev, curr) =>
-          prev.tieneActual != curr.tieneActual ||
-          prev.actual?.id != curr.actual?.id,
+      buildWhen:
+          (prev, curr) =>
+              prev.tieneActual != curr.tieneActual ||
+              prev.actual?.id != curr.actual?.id,
       builder: (context, cola) {
         if (!cola.tieneActual) return const SizedBox.shrink();
         return Padding(

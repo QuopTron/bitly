@@ -6,20 +6,22 @@ import "time"
 // config. Only those sources can be mid-bootstrap when the first feed fires,
 // so only they are worth waiting on before retrying a zero-section result.
 func tieneSesionFirmada(name string) bool {
-	if extRegistry == nil || extRegistry.Runtime() == nil {
+	er := getExtRegistry()
+	if er == nil || er.Runtime() == nil {
 		return false
 	}
-	sb := extRegistry.Runtime().Sandbox(name)
+	sb := er.Runtime().Sandbox(name)
 	return sb != nil && sb.SignedSession != nil
 }
 
 // signedSessionSourceReady reports whether an extension's signed session is
 // usable.
 func signedSessionSourceReady(name string) bool {
-	if extRegistry == nil || extRegistry.Runtime() == nil {
+	er := getExtRegistry()
+	if er == nil || er.Runtime() == nil {
 		return false
 	}
-	sb := extRegistry.Runtime().Sandbox(name)
+	sb := er.Runtime().Sandbox(name)
 	if sb == nil || sb.SignedSession == nil {
 		return false
 	}

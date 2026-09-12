@@ -10,11 +10,39 @@ const CONFIG = {
   allowlistHosts: [],
   yt1dResultsURL: "https://yt1d.io/results/",
   yt1dAjaxURL: "https://yt1d.io/wp-admin/admin-ajax.php",
-  cobaltAudioURL: "https://api.zarz.moe/v1/dl/cobalt",
+  // Rescates de audio: TODOS directos, sin gateway. El paso de Cobalt queda
+  // desactivado por defecto (lista vacía) porque su instancia pública ya no
+  // funciona para YouTube; el usuario puede pegar su propia instancia en el
+  // ajuste "cobaltApiUrl". Al saltarlo, la cadena cae a yt1d y a las
+  // instancias públicas de Piped — y si todas fallan, el backend de Go
+  // resuelve con yt-dlp (el rescatador más fiable). Ninguna llamada sale
+  // hacia api.zarz.moe, así que esta extensión nunca dispara el Turnstile.
+  cobaltAudioURLs: [],
+  cobaltApiUrl: "",
   youtubeWatchURL: "https://www.youtube.com/watch?v=",
-  poTokenMode: "off",
+  // PO Token: "auto" usa el proveedor configurado o, si no hay ninguno, prueba
+  // el proveedor LOCAL por defecto (bgutil en 4416). Así, con solo levantar el
+  // contenedor en la misma máquina, YouTube deja de pedir "inicia sesión para
+  // confirmar que no eres un bot" en IPs marcadas — sin cuenta y sin pegar
+  // tokens a mano. Si no hay proveedor, el sondeo falla rápido y se enfría.
+  poTokenMode: "auto",
   poTokenProviderURL: "",
+  poTokenLocalProviderURLs: [
+    // Loopback de la MISMA máquina: sirve para la app de escritorio (el server
+    // de bgutil escucha en 127.0.0.1 por defecto).
+    "http://127.0.0.1:4416",
+    "http://localhost:4416",
+    // 10.0.2.2 es el alias del loopback del PC visto DESDE el emulador de
+    // Android: adentro del emulador 127.0.0.1 es el propio emulador, así que el
+    // server que corre en la PC no se alcanza por loopback. El NAT del emulador
+    // reenvía 10.0.2.2 al 127.0.0.1 del host, de modo que el server sigue sin
+    // quedar expuesto a la red (no hay que abrir puertos ni bindear 0.0.0.0).
+    // En un teléfono real esta IP no existe: falla rápido y entra en cooldown.
+    "http://10.0.2.2:4416",
+  ],
   manualGvsPoToken: "",
+  // Bandera de sesión: el aviso "PO Token obtenido" se emite una sola vez.
+  poTokenAnunciado: false,
   logLevel: "warn",
   poTokenFallbackTtlMs: 6 * 60 * 60 * 1000,
   // Optional Google OAuth ("Iniciar sesión con YouTube"): an account access
@@ -53,6 +81,50 @@ function pipedInstanceMarkFail(base) {
 
 function pipedInstanceMarkOk(base) {
   delete pipedInstanceFailures[base];
+}
+
+// ── Proveedor de PO Token (bgutil) ─────────────────────────────────────────
+// Mismo criterio que con Piped: un proveedor que no contesta no debe costar
+// una conexión fallida en CADA canción. Se recuerda el que funciona y se
+// enfría el que falla.
+var poTokenProviderCooldownMs = 10 * 60 * 1000;
+var poTokenProviderFailures = {}; // endpoint -> timestamp hasta el que se salta
+var poTokenProviderWorking = ""; // endpoint que ya devolvió un token
+
+function poTokenProviderCooling(endpoint) {
+  var until = poTokenProviderFailures[endpoint];
+  return !!until && Date.now() < until;
+}
+
+function poTokenProviderMarkFail(endpoint) {
+  poTokenProviderFailures[endpoint] = Date.now() + poTokenProviderCooldownMs;
+  if (poTokenProviderWorking === endpoint) poTokenProviderWorking = "";
+}
+
+function poTokenProviderMarkOk(endpoint) {
+  delete poTokenProviderFailures[endpoint];
+  poTokenProviderWorking = endpoint;
+}
+
+// Endpoints a probar, en orden: el que ya funcionó, el configurado por el
+// usuario, o los locales por defecto. Un vacío significa "no hay proveedor".
+function poTokenProviderCandidates() {
+  var out = [];
+  var seen = {};
+  function push(raw) {
+    var endpoint = normalizePoTokenProviderURL(raw);
+    if (!endpoint || seen[endpoint] || poTokenProviderCooling(endpoint)) return;
+    seen[endpoint] = true;
+    out.push(endpoint);
+  }
+  push(poTokenProviderWorking);
+  if (CONFIG.poTokenProviderURL) {
+    push(CONFIG.poTokenProviderURL);
+    return out;
+  }
+  var locales = CONFIG.poTokenLocalProviderURLs || [];
+  for (var i = 0; i < locales.length; i++) push(locales[i]);
+  return out;
 }
 
 const USER_AGENTS = [
@@ -408,9 +480,17 @@ function getYt1dConfig() {
 
 // InnerTube client configs for fallback chain.
 // ORDER MATTERS: try clients least likely to be blocked first.
-// tv_embedded / tv → no PO token required, rarely blocked.
-// android_vr → no PO token but increasingly blocked (403).
-// mweb / android / ios → require PO token for full audio formats.
+//
+// Qué cliente necesita PO Token (tabla oficial de yt-dlp, actualizada 2026):
+//   tv_embedded / web_embedded / tv / android_vr → NO requieren PO Token.
+//   tv_simply / mweb / web_safari / android / ios → requieren PO Token (GVS
+//   o player) para los formatos de audio.
+//
+// web_embedded se agregó porque tv_embedded dejó de servir en varias IPs
+// ("YouTube is no longer supported in this application or device"). Es el
+// otro cliente que YouTube documenta como libre de PO Token, y sirve los
+// videos incrustables — que son casi todos los de música. Sin sesión iniciada
+// es, junto a android_vr, la vía anónima real.
 var INNERTUBE_CLIENTS = [
   {
     name: "tv_embedded",
@@ -433,6 +513,28 @@ var INNERTUBE_CLIENTS = [
     },
     ua: "Mozilla/5.0 (ChromiumStylePlatform) Cobalt/Version",
     key: CONFIG.innerTubeApiKey,
+  },
+  {
+    name: "web_embedded",
+    clientHeaderName: "56",
+    requiresGvsPoToken: false,
+    body: {
+      context: {
+        client: {
+          clientName: "WEB_EMBEDDED_PLAYER",
+          clientVersion: "1.20250310.01.00",
+          hl: "en",
+          gl: "US",
+          timeZone: "UTC",
+          utcOffsetMinutes: 0,
+        },
+        thirdParty: {
+          embedUrl: "https://www.youtube.com/",
+        },
+      },
+    },
+    ua: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
+    key: "AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8",
   },
   {
     name: "tv",
@@ -748,8 +850,14 @@ function requestExternalGvsPoToken(
   visitorData,
   bypassCache,
 ) {
-  var endpoint = normalizePoTokenProviderURL(CONFIG.poTokenProviderURL);
-  if (!endpoint) return "";
+  // Los candidatos se resuelven ANTES de mirar la config: si el usuario no
+  // pegó ningún proveedor, poTokenProviderCandidates() devuelve los locales
+  // (bgutil en 4416). Así basta con levantar el contenedor en la misma máquina
+  // y YouTube deja de pedir "inicia sesión para confirmar que no eres un bot",
+  // sin cuenta y sin pegar tokens a mano.
+  var endpoints = poTokenProviderCandidates();
+  if (!endpoints.length) return "";
+
   var innertubeContext = JSON.parse(
     JSON.stringify(clientConfig.body.context || {}),
   );
@@ -759,65 +867,92 @@ function requestExternalGvsPoToken(
 
   var contentBinding =
     String(videoID || "").trim() || String(visitorData || "").trim();
-  var payloads = [
-    {
-      content_binding: contentBinding,
-      innertube_context: innertubeContext,
-      bypass_cache: !!bypassCache,
-    },
-    {
-      visitor_data: visitorData || contentBinding,
-      bypass_cache: !!bypassCache,
-    },
-  ];
+
+  // Contrato REAL del proveedor recomendado (bgutil, POST /get_pot):
+  //   body   -> { content_binding }  (el videoId para un token GVS)
+  //   retorno-> { poToken, contentBinding, expiresAt }   [camelCase]
+  // OJO: desde bgutil 2.x el server RECHAZA `visitor_data` (y `data_sync_id`)
+  // con 400 "is deprecated, use content_binding instead". Por eso el body con
+  // content_binding va PRIMERO: mandar visitor_data primero costaba un 400 y
+  // un round-trip extra en cada acuñado de token. `visitor_data` queda como
+  // SEGUNDO intento para proveedores viejos (≤1.x, que sí lo esperaban).
+  var payloads = [];
+  payloads.push({
+    content_binding: contentBinding,
+    innertube_context: innertubeContext,
+    bypass_cache: !!bypassCache,
+  });
+  payloads.push(visitorData ? { visitor_data: visitorData } : {});
 
   var lastStatus = "";
-  for (var pi = 0; pi < payloads.length; pi++) {
-    if (pi > 0 && !visitorData) continue;
-    var body = payloads[pi];
-    var res = fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        "User-Agent": getAppUserAgent(),
-      },
-      body: JSON.stringify(body),
-    });
-    if (!res || !res.ok) {
-      lastStatus = res ? String(res.status) : "no response";
-      if (res && res.status !== 400 && res.status !== 422) break;
-      continue;
-    }
+  for (var ei = 0; ei < endpoints.length; ei++) {
+    var endpoint = endpoints[ei];
+    for (var pi = 0; pi < payloads.length; pi++) {
+      var res;
+      try {
+        res = fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+            "User-Agent": getAppUserAgent(),
+          },
+          body: JSON.stringify(payloads[pi]),
+        });
+      } catch (connError) {
+        // Proveedor no corriendo (conexión rechazada): no es un error de
+        // contrato, así que no se prueban los demás payloads.
+        lastStatus =
+          String(connError && connError.message) || "connection failed";
+        poTokenProviderMarkFail(endpoint);
+        break;
+      }
+      if (!res || !res.ok) {
+        lastStatus = res ? String(res.status) : "no response";
+        // 400/422 suele ser "payload equivocado": se prueba el siguiente
+        // formato en el MISMO endpoint. Otro estado (5xx/404) es del endpoint.
+        if (res && (res.status === 400 || res.status === 422)) continue;
+        poTokenProviderMarkFail(endpoint);
+        break;
+      }
 
-    var payload = null;
-    try {
-      payload = res.json();
-    } catch (e) {
-      payload = null;
+      var payload = null;
+      try {
+        payload = res.json();
+      } catch (e) {
+        payload = null;
+      }
+      var tokenPayload = extractPoTokenPayload(payload);
+      if (!tokenPayload || !tokenPayload.token) {
+        L("warn", "[POT] provider returned no token");
+        continue;
+      }
+      if (
+        tokenPayload.contentBinding &&
+        contentBinding &&
+        tokenPayload.contentBinding !== contentBinding
+      ) {
+        L(
+          "debug",
+          "[POT] provider returned binding:",
+          tokenPayload.contentBinding,
+        );
+      }
+      poTokenProviderMarkOk(endpoint);
+      return {
+        token: tokenPayload.token,
+        expiresAt: tokenPayload.expiresAt || 0,
+      };
     }
-    var tokenPayload = extractPoTokenPayload(payload);
-    if (!tokenPayload || !tokenPayload.token) {
-      L("warn", "[POT] provider returned no token");
-      return "";
-    }
-    if (
-      tokenPayload.contentBinding &&
-      contentBinding &&
-      tokenPayload.contentBinding !== contentBinding
-    ) {
-      L(
-        "debug",
-        "[POT] provider returned binding:",
-        tokenPayload.contentBinding,
-      );
-    }
-    return {
-      token: tokenPayload.token,
-      expiresAt: tokenPayload.expiresAt || 0,
-    };
   }
-  L("warn", "[POT] provider failed:", lastStatus || "request failed");
+  // Con solo los proveedores locales por defecto (el usuario no configuró
+  // ninguno) un fallo es lo ESPERADO cuando el contenedor no está levantado:
+  // no ensuciamos el log con un warn cada vez que expira el cooldown.
+  if (CONFIG.poTokenProviderURL) {
+    L("warn", "[POT] provider failed:", lastStatus || "request failed");
+  } else {
+    L("debug", "[POT] no local provider:", lastStatus || "request failed");
+  }
   return "";
 }
 
@@ -846,6 +981,23 @@ function getGvsPoToken(videoID, clientConfig, visitorData, bypassCache) {
     );
     if (externalToken && externalToken.token) {
       poTokenCacheSet(cacheKey, externalToken.token, externalToken.expiresAt);
+      // Aviso UNA vez por sesión y a nivel warn: el nivel por defecto es warn,
+      // así que info/debug NO se ven en el log del dispositivo. Sin esta línea
+      // no hay forma de distinguir "el proveedor entró en juego" de "YouTube
+      // resolvió con un cliente que no pide token" (tv_embedded/web_embedded,
+      // que van primero en la cadena) — dos situaciones que se ven idénticas
+      // en el log y llevan a diagnosticar al revés.
+      if (!CONFIG.poTokenAnunciado) {
+        CONFIG.poTokenAnunciado = true;
+        L(
+          "warn",
+          "[POT] PO Token obtenido del proveedor para " +
+            clientConfig.name +
+            " (video " +
+            videoID +
+            ")",
+        );
+      }
       return externalToken.token;
     }
   }
@@ -1492,6 +1644,93 @@ function findInnerTubeClientByName(name) {
   return null;
 }
 
+// ── Orden de clientes según haya o no proveedor de PO Token ────────────────
+// INNERTUBE_CLIENTS está en orden "seguro primero": tv_embedded, web_embedded,
+// tv y android_vr NO piden PO token, así que andan en cualquier IP. El problema
+// es que son los que PEOR audio dan: cuando resuelven suelen devolver itag=18
+// (video+audio multiplexado, AAC ~128 kbps), porque los formatos audio-only
+// (251 opus ~160 kbps, 140 m4a ~128 kbps) les quedan fuera.
+//
+// Los clientes que sí traen audio-only son mweb/android/ios, y son justamente
+// los que EXIGEN PO token: sin token, scoreYouTubeFormat descarta sus formatos
+// (devuelve -1) y solo sobrevive itag=18. Por eso, oyendo "YouTube suena mal",
+// la causa no es el formato elegido sino el CLIENTE elegido.
+//
+// Entonces: si hay un proveedor que puede acuñar tokens, esos clientes van
+// PRIMERO (y el token se acuña solo, por video). Si no lo hay, el orden queda
+// como estaba: no se paga una llamada condenada por canción.
+// proveedorPoTokenDisponible() es auto-corregible — un proveedor caído queda en
+// cooldown (10 min) y poTokenProviderCandidates() devuelve vacío, así que el
+// orden vuelve solo al de siempre.
+//
+// Preferencia DENTRO de los que piden token: android e ios son clientes móviles
+// con audio-only completo; mweb es el último recurso (comparte límites con la
+// web). El orden explícito evita que un reordenamiento accidental de
+// INNERTUBE_CLIENTS cambie la calidad sin que nadie lo note.
+var INNERTUBE_TOKEN_CLIENT_PREFERENCE = ["android", "ios", "mweb"];
+var _ordenConTokenAvisado = false;
+var _ordenDiagnostico = false;
+
+function proveedorPoTokenDisponible() {
+  var mode = String(CONFIG.poTokenMode || "off").toLowerCase();
+  if (mode !== "auto" && mode !== "external") return false;
+  return poTokenProviderCandidates().length > 0;
+}
+
+// Orden efectivo de clientes para resolver audio.
+function clientesInnerTubeEnOrden() {
+  // Diagnóstico de UNA línea por sesión, a nivel warn (el nivel por defecto del
+  // dispositivo es warn, así que info/debug no se ven). Sin esto no hay forma de
+  // saber desde el log del teléfono por qué se eligió un cliente u otro: el
+  // síntoma (itag=18) es idéntico si el proveedor no está, si el modo es off o
+  // si el proveedor está pero falla — tres causas con tres arreglos distintos.
+  if (!_ordenDiagnostico) {
+    _ordenDiagnostico = true;
+    var disponibles = poTokenProviderCandidates().length;
+    L(
+      "warn",
+      "[POT] orden de clientes: modo=" +
+        String(CONFIG.poTokenMode || "off") +
+        ", proveedores=" +
+        disponibles +
+        (disponibles
+          ? " -> se priorizan android/ios/mweb (audio solo-audio)"
+          : " -> sin proveedor: orden clásico (itag=18 y baja calidad)"),
+    );
+  }
+  if (!proveedorPoTokenDisponible()) return INNERTUBE_CLIENTS;
+
+  var conToken = [];
+  var sinToken = [];
+  for (var i = 0; i < INNERTUBE_CLIENTS.length; i++) {
+    if (INNERTUBE_CLIENTS[i].requiresGvsPoToken)
+      conToken.push(INNERTUBE_CLIENTS[i]);
+    else sinToken.push(INNERTUBE_CLIENTS[i]);
+  }
+  conToken.sort(function (a, b) {
+    var ia = INNERTUBE_TOKEN_CLIENT_PREFERENCE.indexOf(a.name);
+    var ib = INNERTUBE_TOKEN_CLIENT_PREFERENCE.indexOf(b.name);
+    if (ia < 0) ia = INNERTUBE_TOKEN_CLIENT_PREFERENCE.length;
+    if (ib < 0) ib = INNERTUBE_TOKEN_CLIENT_PREFERENCE.length;
+    return ia - ib;
+  });
+
+  if (!_ordenConTokenAvisado) {
+    _ordenConTokenAvisado = true;
+    L(
+      "info",
+      "[InnerTube] proveedor de PO Token disponible: se priorizan " +
+        conToken
+          .map(function (c) {
+            return c.name;
+          })
+          .join(", ") +
+        " para conseguir audio solo-audio (mejor bitrate que itag=18)",
+    );
+  }
+  return conToken.concat(sinToken);
+}
+
 function refreshInnerTubeAudioCandidate(videoID, oldCandidate, pageInfo) {
   var client = findInnerTubeClientByName(
     oldCandidate && oldCandidate.clientName,
@@ -1530,28 +1769,72 @@ function buildStreamResult(r, url, itag, extension) {
   };
 }
 
-// Short-lived cache of the last successfully-probed streaming URL per video.
-// Replaying the same track (feed → now playing → search → same track again)
-// skips the whole InnerTube client chain + probes. googlevideo URLs stay valid
-// for a while, and the streaming caller falls back to the download pipeline if
-// one ever 403s, so a short TTL is safe.
+// Short-lived cache of the last successfully-probed streaming URL per video
+// AND per route. Replaying the same track (feed → now playing → search → same
+// track again) skips the whole InnerTube client chain + probes. googlevideo
+// URLs stay valid for a while, and the streaming caller falls back to the
+// download pipeline if one ever 403s, so a short TTL is safe.
+//
+// La clave lleva la RUTA (audio | video) porque las dos piden formatos
+// distintos y NO son intercambiables: la de audio quiere el solo-audio (251
+// opus ~160k, 140 m4a ~128k) y el visualizador el itag=18 (video+audio, el
+// único que tiene cuadros). Con la clave compartida, resolver el visualizador
+// dejaba cacheado un itag=18 que la ruta de audio reutilizaba por 4 minutos:
+// se oía el audio del video multiplexado (~128k) aunque hubiera PO token y
+// formatos mejores. Ese era el "YouTube suena mal" que no dependía de lo que
+// el usuario tocara.
 const _streamUrlCache = new Map();
 const STREAM_URL_CACHE_TTL_MS = 4 * 60 * 1000;
-function streamUrlCacheKey(videoID) {
-  return "yt:stream:" + String(videoID || "");
+// Una entrada DEGRADADA (el resolvedor de audio terminó en itag=18, que es lo
+// único que YouTube sirve sin PO token desde una IP marcada) no se reutiliza
+// si HAY proveedor de PO Token: con proveedor el formato bueno está a una
+// cadena de distancia, así que se resuelve de nuevo. `intentoEn` evita pagar
+// esa cadena más de una vez por minuto cuando el proveedor existe pero YouTube
+// igual responde solo itag=18 (IP castigada de verdad).
+const DEGRADADO_REINTENTO_MS = 60 * 1000;
+function streamUrlCacheKey(videoID, esVideo) {
+  return "yt:stream:" + (esVideo ? "video:" : "audio:") + String(videoID || "");
 }
-function streamUrlCacheGet(videoID) {
-  var e = _streamUrlCache.get(streamUrlCacheKey(videoID));
+// esFormatoSoloAudio: forma parte de la respuesta del resolvedor de audio (no
+// de la de video). itag=18 se marca como NO solo-audio por su número y no por
+// su mimeType, porque el fallback de misma respuesta reusa el mimeType del
+// formato original (audio/webm) aunque la URL sea la del 18.
+function esFormatoSoloAudio(res) {
+  if (!res) return false;
+  if (Number(res.itag || 0) === 18) return false;
+  var mime = String(res.mimeType || "").toLowerCase();
+  return mime.indexOf("audio/") === 0;
+}
+function streamUrlCacheGet(videoID, esVideo) {
+  var clave = streamUrlCacheKey(videoID, esVideo);
+  var e = _streamUrlCache.get(clave);
   if (!e) return null;
   if (now() - e.t > STREAM_URL_CACHE_TTL_MS) {
-    _streamUrlCache.delete(streamUrlCacheKey(videoID));
+    _streamUrlCache.delete(clave);
+    return null;
+  }
+  // Ruta de audio con entrada degradada: si hay proveedor de PO Token se
+  // descarta para intentar el solo-audio (a lo sumo una vez por minuto).
+  if (
+    !esVideo &&
+    !esFormatoSoloAudio(e.v) &&
+    proveedorPoTokenDisponible() &&
+    now() - (e.intentoEn || 0) > DEGRADADO_REINTENTO_MS
+  ) {
+    e.intentoEn = now();
     return null;
   }
   return e.v;
 }
-function streamUrlCacheSet(videoID, result) {
+function streamUrlCacheSet(videoID, result, esVideo) {
   if (!result || !result.url) return;
-  _streamUrlCache.set(streamUrlCacheKey(videoID), { v: result, t: now() });
+  var clave = streamUrlCacheKey(videoID, esVideo);
+  var previo = _streamUrlCache.get(clave);
+  _streamUrlCache.set(clave, {
+    v: result,
+    t: now(),
+    intentoEn: (previo && previo.intentoEn) || 0,
+  });
 }
 
 function requestInnerTubeAudioDownload(videoID, forceVideo) {
@@ -1560,12 +1843,14 @@ function requestInnerTubeAudioDownload(videoID, forceVideo) {
   // instead of the audio-only preference — used by the visualizer, which
   // renders frames in a separate muted video player. itag=18 is never
   // PO-token-gated and serves reliably even from flagged IPs.
+  // Las dos rutas NO comparten caché (ver _streamUrlCache): piden formatos
+  // distintos y reutilizar la URL de una en la otra degrada la calidad.
   // No probe -- probing can invalidate single-use googlevideo URLs.
 
   // Replays within a couple of minutes are served from the cached URL (the
   // client chain is the slow part, especially anonymous).
   if (!forceVideo) {
-    var cachedStream = streamUrlCacheGet(videoID);
+    var cachedStream = streamUrlCacheGet(videoID, false);
     if (cachedStream && cachedStream.url) {
       L(
         "info",
@@ -1632,8 +1917,9 @@ function requestInnerTubeAudioDownload(videoID, forceVideo) {
       }
     }
 
-    for (var ci = 0; ci < INNERTUBE_CLIENTS.length; ci++) {
-      var client = INNERTUBE_CLIENTS[ci];
+    var ordenClientes = clientesInnerTubeEnOrden();
+    for (var ci = 0; ci < ordenClientes.length; ci++) {
+      var client = ordenClientes[ci];
       if (innerTubeClientBlocked(client.name)) {
         L("info", "[InnerTube] Skipping blocked client " + client.name);
         continue;
@@ -1728,7 +2014,7 @@ function requestInnerTubeAudioDownload(videoID, forceVideo) {
 
   try {
     var resolved = resolveOnce();
-    streamUrlCacheSet(videoID, resolved);
+    streamUrlCacheSet(videoID, resolved, !!forceVideo);
     return resolved;
   } catch (err) {
     var resolveError = String(err);
@@ -1748,7 +2034,7 @@ function requestInnerTubeAudioDownload(videoID, forceVideo) {
         pageInfoFetched = true;
         _clientHealth.clear();
         var retried = resolveOnce();
-        streamUrlCacheSet(videoID, retried);
+        streamUrlCacheSet(videoID, retried, !!forceVideo);
         return retried;
       } catch (retryErr) {
         throw retryErr;
@@ -1831,8 +2117,9 @@ function isBlockedVideoError(err) {
 function getInnerTubeAudioCandidates(videoID, pageInfo) {
   var candidates = [];
   pageInfo = pageInfo || getYouTubePageInfo(videoID);
-  for (var ci = 0; ci < INNERTUBE_CLIENTS.length; ci++) {
-    var client = INNERTUBE_CLIENTS[ci];
+  var ordenCandidatos = clientesInnerTubeEnOrden();
+  for (var ci = 0; ci < ordenCandidatos.length; ci++) {
+    var client = ordenCandidatos[ci];
     if (innerTubeClientBlocked(client.name)) {
       L("info", "[InnerTube] Skipping blocked client " + client.name);
       continue;
@@ -2149,8 +2436,29 @@ function cobaltErrorMessage(payload) {
   return "download URL missing";
 }
 
-function requestCobaltAudioDownload(youtubeURL) {
-  var res = fetch(CONFIG.cobaltAudioURL, {
+// Lista efectiva de instancias de Cobalt: el ajuste del usuario (si lo puso)
+// más las de CONFIG, sin duplicados y sin entradas vacías. Un listado vacío
+// significa "saltar Cobalt", que es el comportamiento por defecto.
+function cobaltInstanceList() {
+  var out = [];
+  var seen = {};
+  var raw = [];
+  if (CONFIG.cobaltApiUrl) raw.push(CONFIG.cobaltApiUrl);
+  if (CONFIG.cobaltAudioURLs && CONFIG.cobaltAudioURLs.length) {
+    raw = raw.concat(CONFIG.cobaltAudioURLs);
+  }
+  for (var i = 0; i < raw.length; i++) {
+    var url = String(raw[i] || "").trim();
+    if (!url || seen[url]) continue;
+    seen[url] = true;
+    out.push(url);
+  }
+  return out;
+}
+
+// Pide el audio a UNA instancia de Cobalt. Lanza si responde con error.
+function requestCobaltFromInstance(instanceURL, youtubeURL) {
+  var res = fetch(instanceURL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -2195,6 +2503,25 @@ function requestCobaltAudioDownload(youtubeURL) {
     url: downloadURL,
     extension: outputExtensionFromCobalt(payload, downloadURL),
   };
+}
+
+// Prueba cada instancia en orden y devuelve el primer rescate exitoso. Si no
+// hay instancias configuradas, lanza para que la cadena siga con yt1d/Piped.
+function requestCobaltAudioDownload(youtubeURL) {
+  var instances = cobaltInstanceList();
+  if (!instances.length) {
+    throw new Error("Cobalt desactivado (sin instancias configuradas)");
+  }
+  var lastError = null;
+  for (var i = 0; i < instances.length; i++) {
+    try {
+      return requestCobaltFromInstance(instances[i], youtubeURL);
+    } catch (e) {
+      lastError = e;
+      L("warn", "[YTMusic] Cobalt instance failed:", instances[i], String(e));
+    }
+  }
+  throw lastError || new Error("Cobalt audio failed on every instance");
 }
 
 function makeSquareThumb(url) {
@@ -6203,9 +6530,122 @@ function getHomeFeed() {
   }
 }
 
+// ---- Resolución EXACTA por ISRC -------------------------------------------
+// Cuando el feed trae ISRC, se busca la MISMA grabación en YouTube Music:
+//   1) el ISRC se traduce a metadata canónica (título/artista/álbum/duración)
+//      con la API pública de Deezer (sin credenciales);
+//   2) esa metadata se busca en YouTube Music (solo canciones);
+//   3) cada candidato se puntúa por duración + título + artista y se descartan
+//      versiones no originales (remix/live/cover/sped up/...).
+// Así un track de qobuz/tidal/deezer/amazon se recupera con su audio de
+// YouTube por ISRC (exacto) en vez de por un nombre parecido que puede traer
+// el remix o un cover.
+var YT_NO_ORIGINAL_RE =
+  /\b(remix|live|cover|acoustic|karaoke|instrumental|sped\s*up|slowed|nightcore|reverb|8d|loop|extended|radio\s*edit|club\s*mix|dub\s*mix|tribute|orchestral|piano\s*version)\b/i;
+var YT_ISRC_RE = /^[A-Za-z]{2}[A-Za-z0-9]{3}[0-9]{7}$/;
+
+// isrcCanonicalMeta traduce un ISRC a título/artista/álbum/duración exactos
+// usando la API pública de Deezer (no requiere cuenta ni clave).
+function isrcCanonicalMeta(isrc) {
+  var code = String(isrc || "")
+    .trim()
+    .toUpperCase();
+  if (!YT_ISRC_RE.test(code)) return null;
+  var data = fetchJSONSync(
+    "https://api.deezer.com/track/isrc:" + encodeURIComponent(code),
+  );
+  if (!data || data.error || !data.id) return null;
+  return {
+    isrc: code,
+    title: String(data.title || "").trim(),
+    artist: String((data.artist && data.artist.name) || "").trim(),
+    album: String((data.album && data.album.title) || "").trim(),
+    durationMs: Number(data.duration || 0) * 1000,
+    coverUrl: String(
+      (data.album && (data.album.cover_xl || data.album.cover_big)) || "",
+    ).trim(),
+  };
+}
+
+// scoreYouTubeCandidate puntúa qué tan probable es que [item] sea la misma
+// grabación que [tgt]. Negativo = descartado (versión no original).
+function scoreYouTubeCandidate(item, tgt) {
+  var rawTitle = String((item && (item.title || item.name)) || "");
+  if (YT_NO_ORIGINAL_RE.test(rawTitle)) return -1;
+
+  var title = metadataMatchValue(rawTitle);
+  var artist = metadataMatchValue(item && (item.artist || item.artists));
+  var wantTitle = metadataMatchValue(tgt.title);
+  var wantArtist = metadataMatchValue(tgt.artist);
+
+  var score = 0;
+  if (wantTitle && title === wantTitle) score += 50;
+  else if (wantTitle && title && title.indexOf(wantTitle) >= 0) score += 30;
+  else if (wantTitle && title && wantTitle.indexOf(title) >= 0) score += 18;
+  else score -= 25;
+
+  if (wantArtist && artist === wantArtist) score += 30;
+  else if (wantArtist && artist && artist.indexOf(wantArtist) >= 0) score += 18;
+  else if (wantArtist && artist) score -= 10;
+
+  var wantMs = Number(tgt.durationMs || 0);
+  var itemMs = Number(item && item.duration ? item.duration * 1000 : 0);
+  if (wantMs > 0 && itemMs > 0) {
+    var delta = Math.abs(itemMs - wantMs);
+    if (delta <= 2000) score += 40;
+    else if (delta <= 5000) score += 25;
+    else if (delta <= 10000) score += 8;
+    else score -= 30;
+  }
+  return score;
+}
+
+// bestYouTubeTrackForISRC devuelve el videoId de la grabación que coincide con
+// el ISRC, o null si ningún candidato alcanza el umbral (preferimos "no
+// disponible" antes que bajar una canción equivocada).
+function bestYouTubeTrackForISRC(isrc, trackName, artistName, durationMs) {
+  var canonical = isrcCanonicalMeta(isrc);
+  var tgt = {
+    title: (canonical && canonical.title) || String(trackName || "").trim(),
+    artist: (canonical && canonical.artist) || String(artistName || "").trim(),
+    durationMs:
+      (canonical && canonical.durationMs) || Number(durationMs || 0) || 0,
+  };
+  if (!tgt.title) return null;
+
+  var query = (tgt.artist ? tgt.artist + " " : "") + tgt.title;
+  var results = performSearchSync(query, YT_SEARCH_PARAMS.tracks);
+  if (!results || !results.length) return null;
+
+  var best = null;
+  var bestScore = 0;
+  for (var i = 0; i < results.length; i++) {
+    var item = results[i];
+    if (!item || !item.id) continue;
+    if (item.item_type && item.item_type !== "track") continue;
+    var s = scoreYouTubeCandidate(item, tgt);
+    if (s > bestScore) {
+      bestScore = s;
+      best = item;
+    }
+  }
+  if (!best || bestScore < 60) return null;
+  return {
+    id: best.id,
+    score: bestScore,
+    canonical: canonical,
+    title: tgt.title,
+    artist: tgt.artist,
+  };
+}
+
 registerExtension({
   initialize: function (settings) {
     settings = settings || {};
+    var cobaltApiUrl = String(
+      readSetting(settings, "cobaltApiUrl", CONFIG.cobaltApiUrl) || "",
+    ).trim();
+    CONFIG.cobaltApiUrl = cobaltApiUrl;
     var poTokenMode = String(
       readSetting(settings, "poTokenMode", CONFIG.poTokenMode) || "",
     )
@@ -6428,13 +6868,47 @@ registerExtension({
 
   checkAvailability: function (isrc, trackName, artistName, options) {
     L("info", "[YTMusic] checkAvailability:", isrc, trackName, artistName);
+    options = options || {};
 
-    var spotifyId = options && options.spotify_id ? options.spotify_id : null;
+    var spotifyId = options.spotify_id ? options.spotify_id : null;
     if (spotifyId && /^[A-Za-z0-9_-]{11}$/.test(spotifyId)) {
       L("info", "[YTMusic] spotify_id looks like a video ID:", spotifyId);
       return { available: true, track_id: spotifyId };
     }
 
+    // 1) Camino EXACTO: ISRC -> metadata canónica -> YouTube Music verificado
+    //    por duración + título + artista. Es lo que permite recuperar el audio
+    //    de qobuz/tidal/deezer/amazon sin pasar por ningún gateway.
+    if (isrc) {
+      try {
+        var match = bestYouTubeTrackForISRC(
+          isrc,
+          trackName,
+          artistName,
+          options.duration_ms,
+        );
+        if (match && match.id) {
+          L(
+            "info",
+            "[YTMusic] ISRC match:",
+            isrc,
+            "->",
+            match.id,
+            "score=" + match.score,
+            match.artist,
+            "-",
+            match.title,
+          );
+          return { available: true, track_id: match.id, isrc_matched: true };
+        }
+        L("info", "[YTMusic] ISRC without confident match:", isrc);
+      } catch (e) {
+        L("debug", "[YTMusic] ISRC lookup failed:", String(e));
+      }
+    }
+
+    // 2) Respaldo: búsqueda por nombre (comportamiento previo). Se salta
+    //    cualquier versión no original para no bajar un remix o un cover.
     var query = (artistName ? artistName + " " : "") + (trackName || "");
     if (!query.trim()) {
       return { available: false, reason: "no_search_query" };
@@ -6447,25 +6921,27 @@ registerExtension({
         return { available: false, reason: "not_found" };
       }
 
+      var firstUsable = null;
       for (var i = 0; i < results.length; i++) {
         var item = results[i];
-        if (
-          item &&
-          item.id &&
-          (item.item_type === "track" || item.type === "track")
-        ) {
-          L("info", "[YTMusic] Found track:", item.id, item.name || item.title);
-          return { available: true, track_id: item.id };
-        }
+        if (!item || !item.id) continue;
+        if (item.item_type && item.item_type !== "track") continue;
+        var rawTitle = String(item.title || item.name || "");
+        if (YT_NO_ORIGINAL_RE.test(rawTitle)) continue;
+        if (!firstUsable) firstUsable = item;
       }
 
-      // Fallback: use first result regardless of type
-      if (results[0] && results[0].id) {
-        L("info", "[YTMusic] Using first result as fallback:", results[0].id);
-        return { available: true, track_id: results[0].id };
+      if (firstUsable) {
+        L(
+          "info",
+          "[YTMusic] Found track:",
+          firstUsable.id,
+          firstUsable.name || firstUsable.title,
+        );
+        return { available: true, track_id: firstUsable.id };
       }
 
-      return { available: false, reason: "no_video_id_in_results" };
+      return { available: false, reason: "no_original_track_in_results" };
     } catch (e) {
       L("error", "[YTMusic] checkAvailability error:", String(e));
       return { available: false, reason: "search_error: " + String(e) };
@@ -6814,8 +7290,13 @@ registerExtension({
   // URL is resolved at play time (never reused stale), carries the solved
   // n-parameter + PO token, and any failure returns null so the caller falls
   // back to the download pipeline exactly as before.
-  // [forceVideo] selects a video+audio format (itag=18) instead of the
-  // audio-only preference — used for the visualizer layer (muted frames).
+  // Dos rutas con el MISMO método y contratos distintos:
+  //   - audio (forceVideo falsy, lo llama Go con GetStreamURL): formato
+  //     solo-audio, el de mejor bitrate posible. Es lo que SUENA.
+  //   - video (forceVideo=true, lo llama Go con GetVisualizerURL para el
+  //     visualizador y la descarga de video): itag=18, el único con cuadros.
+  // Go las mantiene separadas (download/GetStreamURL vs GetVisualizerURL) y
+  // acá tampoco comparten caché; ver _streamUrlCache.
   getDownloadUrl: function (trackID, quality, forceVideo) {
     var videoID = String(trackID || "").trim();
     if (!videoID) return null;

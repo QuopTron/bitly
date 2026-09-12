@@ -43,5 +43,7 @@ func registerGlobal(sandbox *Sandbox) {
 	_ = vm.Set("Intl", intlObj)
 
 	registrarGlobalGobackend(vm)
-	registrarGlobalUtils(vm)
+	// Se le pasa el sandbox (no solo el VM) para que utils pueda consultar el
+	// inicio de la llamada en curso (getResolutionRemainingMs).
+	registrarGlobalUtils(sandbox)
 }

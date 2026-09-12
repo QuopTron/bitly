@@ -38,6 +38,9 @@ type Result struct {
 	FilePath  string `json:"filePath,omitempty"`
 	Encrypted bool   `json:"encrypted,omitempty"`
 	Error     string `json:"error,omitempty"`
+	// Local marca que la canción ya estaba en la biblioteca propia del usuario
+	// (importada), así que NO se descargó: FilePath apunta a su archivo.
+	Local bool `json:"local,omitempty"`
 	// ClientDecrypt is set when the provider handed back an encrypted/DRM file
 	// with a decryption key but no CLI ffmpeg is available on this platform
 	// (e.g. Android). The file is kept on disk so the client can decrypt it

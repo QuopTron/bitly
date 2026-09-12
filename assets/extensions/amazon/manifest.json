@@ -1,27 +1,11 @@
 {
   "name": "amazon",
   "displayName": "Amazon Music",
-  "version": "2.3.3",
-  "description": "Amazon Music metadata & download provider for SpotiFLAC Mobile. Browse tracks, albums, artists, playlists from Amazon Music links and search. Downloads lossless and Dolby Atmos audio.",
-  "type": ["metadata_provider", "download_provider"],
-  "minAppVersion": "4.7.0",
-  "requiredRuntimeFeatures": ["signedSession@1", "sessionGrant@1"],
-  "signedSession": {
-    "namespace": "zarz-v2",
-    "baseUrl": "https://api.zarz.moe/v2",
-    "appVersion": "amzn@2.2.0",
-    "platform": "extension",
-    "callbackUrl": "spotiflac://session-grant",
-    "schemeLabel": "ZARZ-HMAC-V1",
-    "headerPrefix": "X-Zarz-",
-    "timeWindowSeconds": 300,
-    "endpoints": {
-      "bootstrap": "/bootstrap",
-      "challenge": "/challenge",
-      "exchange": "/session/exchange",
-      "refresh": "/session/refresh"
-    }
-  },
+  "version": "2.4.2",
+  "description": "Amazon Music metadata provider: browse tracks, albums, artists and playlists from Amazon Music links and search, all from Amazon's own web API. Amazon does not hand over audio without a Prime/Unlimited account, so audio is resolved from an open source instead — sin verificación ni modal.",
+  "type": ["metadata_provider"],
+  "minAppVersion": "4.9.1",
+  "requiredRuntimeFeatures": ["preparedContext@1"],
   "permissions": {
     "network": [
       "na.mesk.skill.music.a2z.com",
@@ -39,7 +23,6 @@
       "music.amazon.com.mx",
       "music.amazon.com.au",
       "m.media-amazon.com",
-      "api.zarz.moe",
       "song.link",
       "api.song.link",
       "odesli.io",
@@ -55,22 +38,26 @@
     {
       "id": "best",
       "label": "FLAC Best Available",
-      "description": "Best available quality (up to 24-bit/192kHz)"
+      "description": "Best available quality (up to 24-bit/192kHz)",
+      "kind": "lossless"
     },
     {
       "id": "opus",
       "label": "Opus 320kbps",
-      "description": "High quality Opus audio at 320kbps"
+      "description": "High quality Opus audio at 320kbps",
+      "kind": "lossy"
     },
     {
       "id": "eac3",
       "label": "Dolby Digital Plus",
-      "description": "Dolby Digital Plus surround sound (E-AC-3)"
+      "description": "Dolby Digital Plus surround sound (E-AC-3)",
+      "kind": "spatial"
     },
     {
       "id": "ac4",
       "label": "Dolby Atmos (AC-4)",
-      "description": "Dolby Atmos immersive audio (AC-4, MP4 passthrough)"
+      "description": "Dolby Atmos immersive audio (AC-4, MP4 passthrough)",
+      "kind": "spatial"
     }
   ],
   "searchBehavior": {
@@ -117,21 +104,12 @@
   "capabilities": {
     "homeFeed": true,
     "downloadFallbackTier": "hi_res",
+    "networkTimeoutSeconds": 15,
     "requiresNativeContainerConversion": true,
     "shareUrlTemplates": {
       "album": "https://music.amazon.com/albums/{id}",
       "artist": "https://music.amazon.com/artists/{id}"
     }
   },
-  "serviceHealth": [
-    {
-      "id": "zarz-api",
-      "label": "Zarz API",
-      "url": "https://api.zarz.moe/v2/health",
-      "method": "GET",
-      "timeoutMs": 4000,
-      "cacheTtlSeconds": 60,
-      "required": true
-    }
-  ]
+  "serviceHealth": []
 }

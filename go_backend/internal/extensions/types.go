@@ -2,6 +2,7 @@ package extensions
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/dop251/goja"
 )
@@ -48,4 +49,10 @@ type Sandbox struct {
 	SignedSession *SignedSessionConfig
 	Session       *SignedSessionState
 	httpClient    *http.Client
+	// callStartedAt marca el inicio de la llamada JS en curso (ver CallMethod).
+	// Las extensiones lo usan vía utils.getResolutionRemainingMs() para no
+	// encadenar reintentos cuando ya no queda presupuesto y el RPC del cliente
+	// está por cortar. Se escribe bajo el lock del sandbox; lo lee la propia
+	// llamada JS (misma goroutine), así que no requiere sincronización aparte.
+	callStartedAt time.Time
 }

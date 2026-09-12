@@ -1,7 +1,11 @@
 package com.example.bitly
 
 import android.app.Activity
+import android.app.UiModeManager
+import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -18,6 +22,14 @@ class MainActivity : AudioServiceActivity() {
     private val CHANNEL = "com.bitly/backend"
     private val SESSION_CHANNEL = "com.bitly/session_grant"
     private val OAUTH_CHANNEL = "com.bitly/oauth_callback"
+    // Enlaces de música: texto compartido desde Spotify/YouTube (ACTION_SEND)
+    // y deep links bitly://open?url=... con el enlace completo de la fuente.
+    private val SHARE_CHANNEL = "com.bitly/share_intent"
+    private val DEEPLINK_CHANNEL = "com.bitly/deep_link"
+    // Plataforma: si corremos en TV lo decide el SISTEMA (uiMode + leanback),
+    // no el ancho en píxeles — una TV de 720p reporta poco ancho y un proxy
+    // por tamaño la confundiría con un celular.
+    private val PLATAFORMA_CHANNEL = "com.bitly/plataforma"
     // Go calls run on a pool (NOT a single thread): if one Go call gets stuck
     // in a JS call that never returns, the rest of the app must keep working.
     // Each call also has a hard timeout (see dispatchGoCall) so the Dart side
@@ -62,30 +74,74 @@ class MainActivity : AudioServiceActivity() {
     // future Spotify PKCE flow) before Flutter was ready (cold start).
     private var pendingOAuth: OAuthResult? = null
 
+    // Texto/enlace que llegó por share intent o deep link antes de que Flutter
+    // estuviera listo (arranque en frío con "Compartir a Bitly").
+    private var pendingSharedText: String? = null
+    private var pendingDeepLink: String? = null
+    // true después de configureFlutterEngine: distingue el evento en frío (lo
+    // entrega Dart pidiendo el pendiente) del que llega con la app abierta.
+    private var flutterReady = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         handleDeepLinkIntent(intent)
+        handleShareIntent(intent)
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         handleDeepLinkIntent(intent)
+        handleShareIntent(intent)
     }
 
     /**
-     * Dispatches spotiflac:// deep links to the matching handler by host.
+     * Captures "Compartir → Bitly" (ACTION_SEND de texto) y entrega el texto a
+     * Flutter por el canal de share intent. De ahí sale el enlace de música
+     * que el backend Go resuelve (Spotify, YouTube, Deezer...).
+     */
+    private fun handleShareIntent(intent: Intent?) {
+        if (intent == null) return
+        if (intent.action != Intent.ACTION_SEND) return
+        val texto = intent.getStringExtra(Intent.EXTRA_TEXT) ?: return
+        if (texto.isEmpty()) return
+        intent.removeExtra(Intent.EXTRA_TEXT)
+        pendingSharedText = texto
+        // Con la app ya abierta se entrega en el momento; en frío queda
+        // pendiente y Dart lo pide con getInitialSharedText (así no se entrega
+        // dos veces).
+        if (flutterReady) forwardSharedText(texto)
+    }
+
+    /**
+     * Enlaces de música abiertos por deep link (bitly://open?url=https://...).
+     * Se entregan a Flutter para resolverlos y reproducirlos.
+     */
+    private fun handleOpenDeepLink(intent: Intent, uri: android.net.Uri) {
+        val enlace = uri.getQueryParameter("url") ?: ""
+        if (enlace.isEmpty()) return
+        intent.data = null
+        pendingDeepLink = enlace
+        if (flutterReady) forwardDeepLink(enlace)
+    }
+
+    /**
+     * Dispatches deep links to the matching handler by scheme/host.
      *
-     * - `session-grant` → signed-session (Cloudflare) verification grant
-     * - `callback`     → extension OAuth (PKCE) callback, e.g. Spotify
+     * - `spotiflac://session-grant` → signed-session (Cloudflare) grant
+     * - `spotiflac://callback`     → extension OAuth (PKCE) callback
+     * - `bitly://open?url=...`     → enlace de música compartido
      */
     private fun handleDeepLinkIntent(intent: Intent?) {
         if (intent == null) return
         val uri = intent.data ?: return
-        if (!uri.scheme.equals("spotiflac", ignoreCase = true)) return
-        when (uri.host?.lowercase()) {
-            "session-grant" -> handleSessionGrant(intent, uri)
-            "callback" -> handleOAuthCallback(intent, uri)
+        when {
+            uri.scheme.equals("spotiflac", ignoreCase = true) -> when (uri.host?.lowercase()) {
+                "session-grant" -> handleSessionGrant(intent, uri)
+                "callback" -> handleOAuthCallback(intent, uri)
+            }
+            uri.scheme.equals("bitly", ignoreCase = true) &&
+                uri.host.equals("open", ignoreCase = true) -> handleOpenDeepLink(intent, uri)
         }
     }
 
@@ -139,6 +195,32 @@ class MainActivity : AudioServiceActivity() {
         }
     }
 
+    private fun forwardSharedText(texto: String) {
+        try {
+            val engine = flutterEngine
+            if (engine != null) {
+                MethodChannel(engine.dartExecutor.binaryMessenger, SHARE_CHANNEL)
+                    .invokeMethod("onSharedText", texto, null)
+                android.util.Log.i("NativeBridge", "Shared text forwarded to Flutter")
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("NativeBridge", "forwardSharedText error: ${e.message}")
+        }
+    }
+
+    private fun forwardDeepLink(enlace: String) {
+        try {
+            val engine = flutterEngine
+            if (engine != null) {
+                MethodChannel(engine.dartExecutor.binaryMessenger, DEEPLINK_CHANNEL)
+                    .invokeMethod("onDeepLink", enlace, null)
+                android.util.Log.i("NativeBridge", "Deep link forwarded to Flutter")
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("NativeBridge", "forwardDeepLink error: ${e.message}")
+        }
+    }
+
     private fun forwardOAuthCallback(result: OAuthResult) {
         try {
             val engine = flutterEngine
@@ -169,6 +251,47 @@ class MainActivity : AudioServiceActivity() {
         pendingOAuth?.let {
             handler.postDelayed({ forwardOAuthCallback(it); pendingOAuth = null }, 500)
         }
+
+        // Share intent: Flutter pregunta al arrancar si había un texto pendiente
+        // (app abierta en frío con "Compartir a Bitly"). Se entrega una sola vez.
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, SHARE_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "getInitialSharedText" -> {
+                        val texto = pendingSharedText ?: ""
+                        pendingSharedText = null
+                        result.success(texto)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+
+        // Deep link: mismo contrato para el enlace inicial (bitly://open?url=...).
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, DEEPLINK_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "getInitialDeepLink" -> {
+                        val enlace = pendingDeepLink ?: ""
+                        pendingDeepLink = null
+                        result.success(enlace)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+
+        // A partir de acá, los intents que lleguen se entregan al vuelo.
+        // Plataforma: responde si el sistema es un televisor. Dart lo consulta
+        // una sola vez al arrancar (lib/shared/utilidades/deteccion_tv.dart) para
+        // elegir el layout de escritorio en TV.
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, PLATAFORMA_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "esTv" -> result.success(esTelevisor())
+                    else -> result.notImplemented()
+                }
+            }
+
+        flutterReady = true
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
@@ -397,6 +520,27 @@ class MainActivity : AudioServiceActivity() {
     }
 
     // ── SAF Tree Picker ───────────────────────────────────────────────────
+
+    // ── Plataforma ────────────────────────────────────────────────────────
+
+    /**
+     * True en Android TV / Google TV / Fire TV.
+     *
+     * Se combinan uiMode (UI_MODE_TYPE_TELEVISION) con la feature de leanback:
+     * los sticks de Amazon y algunos boxes reportan solo una de las dos.
+     */
+    private fun esTelevisor(): Boolean {
+        return try {
+            val uiMode = getSystemService(Context.UI_MODE_SERVICE) as UiModeManager
+            val porUiMode =
+                uiMode.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION
+            val porLeanback =
+                packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
+            porUiMode || porLeanback
+        } catch (e: Exception) {
+            false
+        }
+    }
 
     private fun pickSafTreeNative(result: MethodChannel.Result) {
         safResult = result

@@ -26,6 +26,14 @@ part of 'servicio_verificacion.dart';  /// Muestra el challenge de Cloudflare. M
     Duration? timeout,
     bool intentarAuto = true,
   }) async {
+    // Kill-switch absoluto: sin fuentes con sesión firmada, NINGÚN flujo puede
+    // abrir el WebView de Cloudflare. Esto cubre cualquier caller nuevo que
+    // pueda olvidar el check de fuentesSesionFirmada.
+    debugPrint('[Verificacion] mostrarVerificacion called: extId=$extId fuentes=${ServicioVerificacion.fuentesSesionFirmada}');
+    if (ServicioVerificacion.fuentesSesionFirmada.isEmpty) {
+      debugPrint('[Verificacion] Kill-switch: fuentesSesionFirmada empty → returning null');
+      return null;
+    }
     // Solo honrar un skip mientras un run de provisionSignedSessions está
     // activo; los llamadores directos (slide de setup) siempre tienen su modal.
     if (_deshabilitado && _runActivo) return null;

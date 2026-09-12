@@ -112,6 +112,8 @@ func dispatchGomobile(metodo string, params map[string]interface{}) (interface{}
 		return backend.SearchStream(paramObj(params)), ""
 	case "getSearchStreamResults":
 		return backend.GetSearchStreamResults(), ""
+	case "resolveUrl":
+		return backend.ResolveUrl(paramObj(params)), ""
 	case "fetchAlbumDetail":
 		return backend.FetchAlbumDetail(paramObj(params)), ""
 	case "fetchPlaylistDetail":
@@ -291,6 +293,12 @@ func dispatchGomobile(metodo string, params map[string]interface{}) (interface{}
 		return backend.GetProviderHealthStatus(), ""
 	case "scanLibrary":
 		return backend.ScanLibrary(paramStr(params, "directory")), ""
+	case "importarBibliotecaLocal":
+		return backend.ImportarBibliotecaLocal(paramStr(params, "directory")), ""
+	case "faltantesLocales":
+		return backend.FaltantesLocales(paramStr(params, "isrcs")), ""
+	case "rutaLocalIsrc":
+		return backend.RutaLocalISRC(paramStr(params, "isrc")), ""
 	case "getLibraryStats":
 		return backend.GetLibraryStats(), ""
 	case "setupScrobbling":

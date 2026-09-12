@@ -93,6 +93,59 @@ class ColoresApp {
           ? Colors.black.withValues(alpha: 0.7)
           : Colors.black.withValues(alpha: 0.5);
 
+  // ── Getters dinámicos (estilo Spotify) ──
+
+  /// Fondo dinámico: si hay acento, usa un velo del color dominante;
+  /// si no, retorna el fondo estático del tema.
+  static Color fondoDinamico(bool oscuro, Color? acento) {
+    if (acento == null) return fondo(oscuro);
+    return Color.lerp(fondo(oscuro), acento, oscuro ? 0.18 : 0.12)!;
+  }
+
+  /// Superficie dinámica: aplica un tinte sutil del color dominante.
+  static Color superficieDinamica(bool oscuro, Color? acento) {
+    if (acento == null) return superficie(oscuro);
+    return Color.lerp(superficie(oscuro), acento, oscuro ? 0.12 : 0.08)!;
+  }
+
+  /// Velo dinámico: mezcla el velo del tema con el color dominante.
+  static Color veloDinamico(bool oscuro, Color? acento, {double alpha = 1.0}) {
+    final base = velo(oscuro);
+    if (acento == null) return base.withValues(alpha: alpha);
+    final mix = Color.lerp(base, acento, 0.35)!;
+    return mix.withValues(alpha: alpha);
+  }
+
+  /// Borde dinámico: si hay acento, usa un tinte del color dominante.
+  static Color bordeDinamico(bool oscuro, Color? acento) {
+    if (acento == null) return borde(oscuro);
+    return acento.withValues(alpha: oscuro ? 0.25 : 0.18);
+  }
+
+  /// Sombra dinámica: si hay acento, tiñe la sombra con el color dominante.
+  static Color sombraDinamica(bool oscuro, Color? acento) {
+    if (acento == null) return sombra(oscuro);
+    return Color.lerp(sombra(oscuro), acento, 0.3)!;
+  }
+
+  /// Gradiente de fondo para cards: usa el color dominante como base.
+  static LinearGradient gradienteDinamico(
+    bool oscuro,
+    Color? acento, {
+    double alphaBase = 1.0,
+    double alphaTop = 0.2,
+  }) {
+    final colorBase = acento ?? (oscuro ? superficieOscura : superficieClara);
+    return LinearGradient(
+      begin: Alignment.bottomCenter,
+      end: Alignment.topCenter,
+      colors: [
+        colorBase.withValues(alpha: alphaBase),
+        colorBase.withValues(alpha: alphaTop),
+      ],
+    );
+  }
+
   // ── Estados ──
   static const error = Color(0xFFE53935);
   static const exito = Color(0xFF4CAF50);

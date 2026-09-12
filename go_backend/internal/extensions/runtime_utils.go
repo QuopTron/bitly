@@ -9,10 +9,21 @@ import (
 	"github.com/dop251/goja"
 )
 
+// resolutionBudgetMs es la ventana que una extensión asume para resolver un
+// stream antes de rendirse. Las extensiones de Amazon y Tidal consultan
+// utils.getResolutionRemainingMs() antes de encadenar otro reintento con
+// espera: si ya no alcanza para el sleep, abortan con RESOLUTION_TIMEOUT en
+// vez de que el RPC del cliente las corte a mitad de camino. Se alinea con
+// maxFallbackDuration del orquestador (internal/download), que ya acota el
+// respaldo multi-proveedor a 50s.
+const resolutionBudgetMs = 50_000
+
 // registrarGlobalUtils construye (o reutiliza) el objeto `utils` con las
 // utilidades compatibles SpotiFLAC-Mobile: user-agents aleatorios, versión de
-// la app, cancelación de descargas, sleep y HMAC-SHA1 (para TOTP).
-func registrarGlobalUtils(vm *goja.Runtime) {
+// la app, cancelación de descargas, presupuesto de resolución, sleep y
+// HMAC-SHA1 (para TOTP).
+func registrarGlobalUtils(s *Sandbox) {
+	vm := s.VM
 	// utils global - provides SpotiFLAC-Mobile compatible utility functions
 	// Reuse the existing utils object if present (registerCryptoUtils added
 	// sha256/md5/base64/etc. earlier) instead of clobbering it with a fresh one,
@@ -54,6 +65,29 @@ func registrarGlobalUtils(vm *goja.Runtime) {
 	// extensions (Apple Music, Tidal) call it at the top of download() and would
 	// throw a ReferenceError if it were absent, failing the whole download.
 	_ = utilsObj.Set("isDownloadCancelled", func() bool { return false })
+
+	// isRequestCancelled() es el equivalente para peticiones de metadata. Las
+	// extensiones modernas (Apple Music) lo consultan junto al de descargas
+	// antes de cada reintento; se expone con el mismo criterio (sin seguimiento
+	// por-petición todavía, así que siempre false) para que la detección de
+	// cancelación de arriba no quede a medias.
+	_ = utilsObj.Set("isRequestCancelled", func() bool { return false })
+
+	// getResolutionRemainingMs() devuelve cuántos milisegundos le quedan a la
+	// llamada en curso dentro del presupuesto de resolución. Amazon y Tidal lo
+	// usan para no dormir un backoff que ya no cabe (RESOLUTION_TIMEOUT) y
+	// fallar rápido y con causa en vez de que el cliente corte el RPC.
+	_ = utilsObj.Set("getResolutionRemainingMs", func() int64 {
+		if s == nil || s.callStartedAt.IsZero() {
+			return resolutionBudgetMs
+		}
+		elapsed := time.Since(s.callStartedAt).Milliseconds()
+		remaining := int64(resolutionBudgetMs) - elapsed
+		if remaining < 0 {
+			return 0
+		}
+		return remaining
+	})
 
 	// sleep(ms) blocks for the requested time, polling a (currently never-set)
 	// cancel flag so future cancellation support is a drop-in. Returns false if

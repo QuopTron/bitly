@@ -5,6 +5,7 @@ import (
 	"os"
 	"runtime"
 	"runtime/debug"
+	"sync"
 )
 
 // limiteMemoriaMBDefault es el tope blando de RAM para el proceso Go.
@@ -18,7 +19,21 @@ const limiteMemoriaMBDefault = 1024
 
 // memoriaMBLimit guarda el límite configurado por FijarLimiteMemoriaMB.
 // 0 (o negativo) significa "usar el default".
-var memoriaMBLimit int
+//
+// Lo escribe Flutter (SetMemoryLimitMB) en caliente y lo lee
+// AjustarRuntimeMemoria; sin candado esas dos goroutines serían un data race
+// sobre el mismo int.
+var (
+	memoriaMu      sync.RWMutex
+	memoriaMBLimit int
+)
+
+// getLimiteMemoriaMB lee el límite configurado (0 o negativo = default).
+func getLimiteMemoriaMB() int {
+	memoriaMu.RLock()
+	defer memoriaMu.RUnlock()
+	return memoriaMBLimit
+}
 
 // AjustarRuntimeMemoria aplica la política de recursos del runtime:
 //
@@ -31,7 +46,7 @@ var memoriaMBLimit int
 // inyectarlos desde build.gradle) para no pisar una configuración explícita.
 func AjustarRuntimeMemoria() {
 	if os.Getenv("GOMEMLIMIT") == "" {
-		limite := memoriaMBLimit
+		limite := getLimiteMemoriaMB()
 		if limite <= 0 {
 			limite = limiteMemoriaMBDefault
 		}
@@ -49,6 +64,8 @@ func AjustarRuntimeMemoria() {
 // La usa el puente gobackend (SetMemoryLimitMB) para que Flutter adapte el
 // límite a la RAM real del dispositivo.
 func FijarLimiteMemoriaMB(n int) {
+	memoriaMu.Lock()
 	memoriaMBLimit = n
+	memoriaMu.Unlock()
 	log.Printf("[core] límite de memoria fijado a %d MiB", n)
 }

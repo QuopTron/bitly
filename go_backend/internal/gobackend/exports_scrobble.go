@@ -20,7 +20,7 @@ func SetupScrobbling(configJSON string) bool {
 	if err := json.Unmarshal([]byte(configJSON), &cfg); err != nil {
 		return false
 	}
-	scrobbleClient = scrobble.NewClient(cfg.LastFMKey, cfg.LastFMSecret, cfg.LBToken)
+	setScrobbleClient(scrobble.NewClient(cfg.LastFMKey, cfg.LastFMSecret, cfg.LBToken))
 	return true
 }
 
@@ -28,7 +28,8 @@ func SetupScrobbling(configJSON string) bool {
 // scrobbling configurados (Last.fm updateNowPlaying + ListenBrainz
 // playing_now). Payload: {"trackJSON": "...", "lastfmSessionKey": "..."}.
 func UpdateNowPlaying(payload string) string {
-	if scrobbleClient == nil {
+	cli := getScrobbleClient()
+	if cli == nil {
 		return `{"error":"scrobbling no configurado"}`
 	}
 	var params struct {
@@ -43,10 +44,10 @@ func UpdateNowPlaying(payload string) string {
 		return jsonError(err)
 	}
 	var errors []string
-	if err := scrobbleClient.UpdateNowPlayingLastFM(track, params.LastfmSessionKey); err != nil {
+	if err := cli.UpdateNowPlayingLastFM(track, params.LastfmSessionKey); err != nil {
 		errors = append(errors, "lastfm:"+err.Error())
 	}
-	if err := scrobbleClient.UpdateNowPlayingListenBrainz(track); err != nil {
+	if err := cli.UpdateNowPlayingListenBrainz(track); err != nil {
 		errors = append(errors, "lb:"+err.Error())
 	}
 	if len(errors) > 0 {
@@ -59,7 +60,8 @@ func UpdateNowPlaying(payload string) string {
 
 // ScrobbleTrack submits a playback scrobble to all configured services.
 func ScrobbleTrack(payload string) string {
-	if scrobbleClient == nil {
+	cli := getScrobbleClient()
+	if cli == nil {
 		return `{"error":"scrobbling no configurado"}`
 	}
 	var params struct {
@@ -77,10 +79,10 @@ func ScrobbleTrack(payload string) string {
 		track.Timestamp = time.Now().Unix()
 	}
 	var errors []string
-	if err := scrobbleClient.ScrobbleLastFM(track, params.LastfmSessionKey); err != nil {
+	if err := cli.ScrobbleLastFM(track, params.LastfmSessionKey); err != nil {
 		errors = append(errors, "lastfm:"+err.Error())
 	}
-	if err := scrobbleClient.ScrobbleListenBrainz(track); err != nil {
+	if err := cli.ScrobbleListenBrainz(track); err != nil {
 		errors = append(errors, "lb:"+err.Error())
 	}
 	if len(errors) > 0 {

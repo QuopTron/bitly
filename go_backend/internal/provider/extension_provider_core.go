@@ -17,6 +17,11 @@ type ExtensionProvider struct {
 	// that expose no download()/getDownloadUrl(), so the fallback can skip them
 	// quickly instead of attempting a doomed download for every track.
 	downloadCapable bool
+	// urlPatterns mirrors the manifest's urlHandler.patterns — los hosts/rutas
+	// de enlace que esta extensión sabe resolver con handleUrl(url). Sirve para
+	// enrutar un enlace compartido/pegado a la extensión correcta en vez de
+	// preguntarle a las nueve.
+	urlPatterns []string
 }
 
 // NewExtensionProvider creates a new provider backed by a JS extension.
@@ -32,6 +37,13 @@ func NewExtensionProvider(extID, name string, rt *extensions.Runtime) *Extension
 // SetHomeFeedEnabled marks whether the extension declares the homeFeed
 // capability in its manifest (equivalent to SpotiFLAC's `hasHomeFeed`).
 func (p *ExtensionProvider) SetHomeFeedEnabled(v bool) { p.hasHomeFeed = v }
+
+// SetURLPatterns guards the manifest's urlHandler values.
+func (p *ExtensionProvider) SetURLPatterns(ps []string) { p.urlPatterns = ps }
+
+// URLPatterns returns the host/subpath patterns this extension claims to
+// resolve, or nil when it declares no urlHandler.
+func (p *ExtensionProvider) URLPatterns() []string { return p.urlPatterns }
 
 // SetQualityOptions stores the extension's declared quality option IDs.
 func (p *ExtensionProvider) SetQualityOptions(qs []string) { p.qOpts = qs }

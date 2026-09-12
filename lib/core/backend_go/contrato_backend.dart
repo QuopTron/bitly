@@ -8,6 +8,7 @@
 
 import '../modelos/config_busqueda_fuente.dart';
 import '../modelos/item_feed.dart';
+import '../modelos/resultado_enlace.dart';
 import '../modelos/seccion_feed.dart';
 import 'estado_sesion_firmada.dart';
 import 'resultados_busqueda_stream.dart';
@@ -33,6 +34,10 @@ abstract class BackendService {
 
   /// Burbujas de categoría del manifest de cada fuente (searchBehavior).
   Future<List<ConfigBusquedaFuente>> getSearchConfig();
+
+  /// Resuelve un enlace de música (Spotify, YouTube, Deezer...) al ítem
+  /// reproducible. null si ninguna fuente pudo resolverlo.
+  Future<ResultadoEnlace?> resolveUrl(String url);
 
   // ── Acciones (likes, descargas) ───────────────────────
   Future<void> likeItem(String itemId, bool liked);
@@ -92,6 +97,18 @@ abstract class BackendService {
 
   /// Keepalive en segundo plano: refresca en silencio sesiones por expirar.
   Future<Map<String, dynamic>> keepAliveSignedSessions();
+
+  // ── Biblioteca local (música propia) ──────────────────
+  /// Escanea una carpeta de música propia, la indexa por ISRC y devuelve un
+  /// resumen: `{archivos, conIsrc, indexados}`.
+  Future<Map<String, dynamic>> importarBibliotecaLocal({required String directorio});
+
+  /// De una lista de ISRCs, devuelve solo los que NO están en la biblioteca
+  /// local. La descarga lo usa para no volver a bajar lo que ya se tiene.
+  Future<List<String>> faltantesLocales({required List<String> isrcs});
+
+  /// Ruta del archivo local para un ISRC (null si no está).
+  Future<String?> rutaLocalIsrc({required String isrc});
 
   // ── Acciones de extensión (botones de Ajustes) ────────
   Future<Map<String, dynamic>> invokeExtensionAction(String provider, String action, {List<dynamic> args = const []});

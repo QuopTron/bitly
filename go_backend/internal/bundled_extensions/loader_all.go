@@ -54,6 +54,13 @@ func LoadAllToRegistry(reg *extensions.Registry) []RegisteredExtension {
 				ThumbnailRatio string `json:"thumbnailRatio"`
 				Filters        []SearchFilter
 			} `json:"searchBehavior"`
+			// urlHandler decide qué extensión recibe cada enlace compartido
+			// (Spotify/YouTube/Deezer...): la app elige por patrón de host y le
+			// pide a esa extensión su handleUrl(url).
+			URLHandler struct {
+				Enabled  bool     `json:"enabled"`
+				Patterns []string `json:"patterns"`
+			} `json:"urlHandler"`
 		}
 		if err := json.Unmarshal(ext.ManifestData, &manifest); err != nil {
 			manifest.Name = dir
@@ -135,6 +142,10 @@ func LoadAllToRegistry(reg *extensions.Registry) []RegisteredExtension {
 				Placeholder:    manifest.SearchBehavior.Placeholder,
 				ThumbnailRatio: manifest.SearchBehavior.ThumbnailRatio,
 				Filters:        manifest.SearchBehavior.Filters,
+			},
+			URLHandler: URLHandler{
+				Enabled:  manifest.URLHandler.Enabled,
+				Patterns: manifest.URLHandler.Patterns,
 			},
 		})
 	}

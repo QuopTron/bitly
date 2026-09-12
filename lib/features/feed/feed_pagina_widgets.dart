@@ -44,27 +44,34 @@ Widget _construirCuerpo(_PaginaFeedState st, EstadoFeed state,
           dl.huellasDescargadas,
         ),
         builder: (context, snap) {
-          return ContenidoFeed(
-            onBg: onBg,
-            colorBrillo: colorBrillo,
-            secciones: secciones,
-            tieneContenido: tieneContenido,
-            cargando: state.cargando,
-            nombreFuenteActual: _nombreFuenteActual(st),
-            idsAmados: estadoLike.huellasAmadas,
-            estadosDescarga: snap.estados,
-            huellasDescargadas: snap.huellas,
-            onAlternarLike: (id, [item]) => _alternarLike(st, id, item),
-            onIniciarDescarga: (item) => _iniciarDescarga(st, item),
-            onBorrarTrack: (item) => _borrarTrack(st, item),
-            onDescargaLote: (item) => _iniciarDescargaLote(st, item),
-            onBorradoLote: (item) => _borradoLote(st, item),
-            onExportarPlaylist: (item) => _exportarPlaylist(st, item),
-            onMostrarInfo: _mostrarInfo,
-            onMostrarMas: _mostrarMas,
-            onNavegarItem: st.widget.onNavegarItem ?? (_) {},
-            onRefrescar: () =>
-                st.context.read<BlocFeed>().add(const CargarFeed()),
+          // El feed es el primer objetivo del tutorial: el KeyedSubtree le da
+          // el GlobalKey con el que el overlay calcula el agujero. Va acá (una
+          // sola instancia) y no en la tarjeta: las listas montan muchas
+          // tarjetas y repetir un GlobalKey tira el árbol abajo.
+          return KeyedSubtree(
+            key: keyTutorialFeed,
+            child: ContenidoFeed(
+              onBg: onBg,
+              colorBrillo: colorBrillo,
+              secciones: secciones,
+              tieneContenido: tieneContenido,
+              cargando: state.cargando,
+              nombreFuenteActual: _nombreFuenteActual(st),
+              idsAmados: estadoLike.huellasAmadas,
+              estadosDescarga: snap.estados,
+              huellasDescargadas: snap.huellas,
+              onAlternarLike: (id, [item]) => _alternarLike(st, id, item),
+              onIniciarDescarga: (item) => _iniciarDescarga(st, item),
+              onBorrarTrack: (item) => _borrarTrack(st, item),
+              onDescargaLote: (item) => _iniciarDescargaLote(st, item),
+              onBorradoLote: (item) => _borradoLote(st, item),
+              onExportarPlaylist: (item) => _exportarPlaylist(st, item),
+              onMostrarInfo: _mostrarInfo,
+              onMostrarMas: _mostrarMas,
+              onNavegarItem: st.widget.onNavegarItem ?? (_) {},
+              onRefrescar: () =>
+                  st.context.read<BlocFeed>().add(const CargarFeed()),
+            ),
           );
         },
       );

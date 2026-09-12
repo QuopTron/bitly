@@ -12,6 +12,27 @@ import (
 // DOWNLOAD
 // =========================================================================
 
+// resultadoLocalSiExiste devuelve un resultado exitoso si la canción ya está en
+// la biblioteca propia del usuario (importada desde sus archivos: compras de
+// Amazon, iTunes Match, FLAC propios). Así la descarga no la vuelve a bajar ni
+// gasta red, y la app usa el archivo que ya tiene en disco.
+func resultadoLocalSiExiste(req download.Request) (*download.Result, bool) {
+	if indiceLocal == nil || req.ISRC == "" {
+		return nil, false
+	}
+	ruta := indiceLocal.RutaLocal(req.ISRC)
+	if ruta == "" {
+		return nil, false
+	}
+	return &download.Result{
+		ItemID:   req.ItemID,
+		Success:  true,
+		Provider: "local",
+		FilePath: ruta,
+		Local:    true,
+	}, true
+}
+
 func DownloadTrack(requestJSON string) string {
 	if premiumChecker != nil {
 		if err := premiumChecker.CheckDownloadAllowed(); err != nil {
@@ -21,6 +42,11 @@ func DownloadTrack(requestJSON string) string {
 	var req download.Request
 	if err := json.Unmarshal([]byte(requestJSON), &req); err != nil {
 		return jsonError(err)
+	}
+	// Dedupe por ISRC: si ya lo tiene importado, no se descarga de nuevo.
+	if local, yaEsta := resultadoLocalSiExiste(req); yaEsta {
+		data, _ := json.Marshal(local)
+		return string(data)
 	}
 	result := downloadOrch.Download(req)
 	data, _ := json.Marshal(result)
@@ -60,8 +86,26 @@ func DownloadBatch(tracksJSON string) string {
 	if err := json.Unmarshal([]byte(tracksJSON), &reqs); err != nil {
 		return jsonError(err)
 	}
-	results := downloadOrch.DownloadBatch(reqs)
-	data, _ := json.Marshal(results)
+	// Dedupe por ISRC manteniendo el orden original: las que ya están en la
+	// biblioteca local se resuelven sin red y el resto va al orquestador.
+	resultados := make([]*download.Result, len(reqs))
+	pendientes := make([]download.Request, 0, len(reqs))
+	indices := make([]int, 0, len(reqs))
+	for i, req := range reqs {
+		if local, yaEsta := resultadoLocalSiExiste(req); yaEsta {
+			resultados[i] = local
+			continue
+		}
+		pendientes = append(pendientes, req)
+		indices = append(indices, i)
+	}
+	if len(pendientes) > 0 {
+		parciales := downloadOrch.DownloadBatch(pendientes)
+		for j, r := range parciales {
+			resultados[indices[j]] = r
+		}
+	}
+	data, _ := json.Marshal(resultados)
 	return string(data)
 }
 

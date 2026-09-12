@@ -25,7 +25,9 @@ import '../core/cache/reproduccion_cache.dart';
 import '../core/cache/reproduccion_stats.dart';
 import '../core/cache/reproduccion_detalle_local.dart';
 import '../core/cache/reproduccion_sync.dart';
+import '../core/modelos/estilo_visual.dart';
 import '../core/modelos/perfil_rendimiento.dart';
+import '../core/modelos/preferencias_estilo.dart';
 import '../core/servicios/servicio_dominio_playlist.dart';
 import '../features/setup/bloc/setup_bloc.dart';
 import '../features/splash/bloc/splash_bloc.dart';
@@ -44,6 +46,12 @@ Future<void> configurarDependencias() async {
   );
   sl.registerLazySingleton<ValueNotifier<ThemeMode>>(
     () => ValueNotifier(ThemeMode.dark),
+  );
+  sl.registerLazySingleton<ValueNotifier<EstiloVisual>>(
+    () => ValueNotifier(EstiloVisual.clasico),
+  );
+  sl.registerLazySingleton<ValueNotifier<PreferenciasEstilo>>(
+    () => ValueNotifier(const PreferenciasEstilo()),
   );
   sl.registerLazySingleton<ValueNotifier<PerfilRendimiento>>(
     () => ValueNotifier(PerfilRendimiento.medio),

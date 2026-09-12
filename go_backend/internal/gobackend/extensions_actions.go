@@ -5,6 +5,7 @@ import (
 
 	"github.com/zarz/bitly/go_backend/internal/extensions"
 	"github.com/zarz/bitly/go_backend/internal/provider"
+	"github.com/zarz/bitly/go_backend/internal/provider/flacrescue"
 )
 
 func ReinitializeExtension(payload string) string {
@@ -14,18 +15,32 @@ func ReinitializeExtension(payload string) string {
 	if err := json.Unmarshal([]byte(payload), &params); err != nil || params.ExtensionID == "" {
 		return jsonErrorString("payload inválido")
 	}
-	if extRegistry == nil {
+	er := getExtRegistry()
+	if er == nil {
 		return jsonErrorString("no inicializado")
 	}
-	settings := extSettings[params.ExtensionID]
+	settings := getAjustesExtension(params.ExtensionID)
 	if settings == nil {
 		settings = map[string]string{}
 	}
-	sb := extRegistry.Runtime().Sandbox(params.ExtensionID)
+	// flac-rescue es un provider NATIVO de Go, no una extensión JS: no tiene
+	// sandbox. Re-aplicamos sus ajustes directo al cliente nativo para que el
+	// botón "Guardar" de Ajustes → Credenciales surta efecto en caliente.
+	if params.ExtensionID == "flac-rescue" {
+		if reg != nil {
+			if p := reg.Get("flac-rescue"); p != nil {
+				if fc, ok := p.(*flacrescue.Client); ok {
+					fc.SetSettings(settings)
+				}
+			}
+		}
+		return `{"ok":true}`
+	}
+	sb := er.Runtime().Sandbox(params.ExtensionID)
 	if sb == nil {
 		return jsonErrorString("extensión no cargada: " + params.ExtensionID)
 	}
-	if _, err := extRegistry.Runtime().CallMethod(params.ExtensionID, "initialize", settings); err != nil {
+	if _, err := er.Runtime().CallMethod(params.ExtensionID, "initialize", settings); err != nil {
 		return jsonError(err)
 	}
 	return `{"ok":true}`
@@ -78,14 +93,16 @@ func LoadExtensionsFromDir(payload string) string {
 	// Reuse the existing registry (embedded extensions already loaded by
 	// InitGlobalState with signed-session config attached). Only create one
 	// Solo crear uno si aun no hay nada cargado (p. ej. desktop sin respaldo embebido).
-	if extRegistry == nil || extRegistry.Runtime().Count() == 0 {
-		reg, err := extensions.NewRegistry(params.DirPath)
+	er := getExtRegistry()
+	if er == nil || er.Runtime().Count() == 0 {
+		nuevo, err := extensions.NewRegistry(params.DirPath)
 		if err != nil {
 			return jsonError(err)
 		}
-		extRegistry = reg
+		setExtRegistry(nuevo)
+		er = nuevo
 	}
-	loaded := extensions.LoadDirExtensionsInto(extRegistry, params.DirPath, params.DirPath)
+	loaded := extensions.LoadDirExtensionsInto(er, params.DirPath, params.DirPath)
 	// Re-apply stored settings now that freshly loaded sandboxes exist.
 	replicarAjustesExtensiones()
 	out, _ := json.Marshal(map[string]interface{}{"ok": true, "loaded": loaded})

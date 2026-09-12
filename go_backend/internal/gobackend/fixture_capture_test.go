@@ -80,11 +80,17 @@ func TestCaptureDRMFixture(t *testing.T) {
 	start := time.Now()
 	res := downloadOrch.Download(req)
 	elapsed := time.Since(start).Round(time.Second)
+	// El chequeo de nil va ANTES de leer campos: si Download devolviera nil,
+	// el Logf de abajo paniquearía (staticcheck SA5011) en vez de fallar el
+	// test con un mensaje claro.
+	if res == nil {
+		t.Fatal("download returned nil result")
+	}
 	t.Logf("download (%s): success=%v provider=%s encrypted=%v clientDecrypt=%v path=%q keySet=%v error=%q (%s)",
 		elapsed, res.Success, res.Provider, res.Encrypted, res.ClientDecrypt, res.FilePath,
 		res.DecryptionKey != "", res.Error, res.ErrorType)
 
-	if res == nil || res.FilePath == "" {
+	if res.FilePath == "" {
 		t.Fatalf("no file produced: %+v", res)
 	}
 	if !res.Encrypted && res.DecryptionKey == "" {

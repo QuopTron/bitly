@@ -2,8 +2,6 @@ package gobackend
 
 import (
 	"encoding/json"
-
-	"github.com/zarz/bitly/go_backend/internal/streaming"
 )
 
 // =========================================================================
@@ -32,10 +30,7 @@ func GetStreamURL(payload string) string {
 
 // StartStreamingServer starts an HTTP proxy for audio streaming (desktop).
 func StartStreamingServer(port int) string {
-	if streamer == nil {
-		streamer = streaming.NewStreamer()
-	}
-	addr, err := streamer.StartServer(port)
+	addr, err := getStreamer().StartServer(port)
 	if err != nil {
 		return jsonError(err)
 	}
@@ -44,10 +39,13 @@ func StartStreamingServer(port int) string {
 
 // StopStreamingServer stops the streaming HTTP server.
 func StopStreamingServer() string {
-	if streamer == nil {
+	streamerMu.Lock()
+	srv := streamer
+	streamerMu.Unlock()
+	if srv == nil {
 		return `{"ok":true}`
 	}
-	if err := streamer.StopServer(); err != nil {
+	if err := srv.StopServer(); err != nil {
 		return jsonError(err)
 	}
 	return `{"ok":true}`

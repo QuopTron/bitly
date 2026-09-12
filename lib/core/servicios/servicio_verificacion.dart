@@ -64,12 +64,17 @@ class ServicioVerificacion
       'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 '
       '(KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36';
 
-  /// Proveedores con sesión firmada que pueden tener challenge (Cloudflare o
-  /// auth). Provisionarlos al arranque evita fallos VERIFY_REQUIRED durante
-  /// streaming/búsqueda/descargas.
-  static const fuentesSesionFirmada = <String>[
-    'qobuz-web', 'amazon', 'deezer', 'pandora', 'tidal-web',
-  ];
+  /// Proveedores que necesitan sesión firmada del gateway zarz (challenge de
+  /// Cloudflare) para operar. Hoy está VACÍA a propósito: Deezer (ARL propia),
+  /// Tidal (token propio) y Qobuz (cuenta propia) bajan el audio directo desde
+  /// su CDN y Amazon quedó solo-metadata, así que ya ninguna fuente depende del
+  /// gateway firmado. Con la lista vacía no se provisiona ninguna sesión al
+  /// arranque y ningún flujo (play/búsqueda/descarga) exige verificación, por
+  /// lo que el modal de Cloudflare no vuelve a aparecer.
+  ///
+  /// Si alguna fuente necesitara de nuevo el gateway, se agrega su id acá y su
+  /// manifest debe volver a declarar `signedSession`.
+  static const fuentesSesionFirmada = <String>[];
 
   void init(GlobalKey<NavigatorState> navigatorKey) {
     _navigatorKey = navigatorKey;
@@ -96,6 +101,10 @@ class ServicioVerificacion
   /// abre modal: los flujos de acción explícita preguntan bajo demanda.
   Future<void> provisionarSesionesFirmadas() async {
     if (!estaListo) return;
+    // Sin fuentes con sesión firmada no hay nada que provisionar: se corta
+    // antes del RPC para no hacer el bootstrap contra el gateway (era justo lo
+    // que disparaba el challenge de Cloudflare al arrancar).
+    if (fuentesSesionFirmada.isEmpty) return;
     final backend = di.sl<BackendService>();
     _runActivo = true;
     _deshabilitado = false;

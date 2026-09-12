@@ -8,6 +8,7 @@ import (
 	"github.com/zarz/bitly/go_backend/internal/provider"
 	"github.com/zarz/bitly/go_backend/internal/provider/apple"
 	"github.com/zarz/bitly/go_backend/internal/provider/deezer"
+	"github.com/zarz/bitly/go_backend/internal/provider/flacrescue"
 	"github.com/zarz/bitly/go_backend/internal/provider/musicbrainz"
 	"github.com/zarz/bitly/go_backend/internal/provider/qobuz"
 	"github.com/zarz/bitly/go_backend/internal/provider/soundcloud"
@@ -23,7 +24,7 @@ import (
 // any native superseded by a bundled extension is skipped (the source picker
 // would otherwise show duplicates, e.g. qobuz AND qobuz-web).
 func inicializarProviders(reg *provider.Registry) []bundled_extensions.RegisteredExtension {
-	extRegistry = extensions.NewRegistryBestEffort(dirExtensiones())
+	setExtRegistry(extensions.NewRegistryBestEffort(dirExtensiones()))
 	// Actualización SILENCIOSA de extensiones: el registro empaquetado es la
 	// fuente de verdad. Si una extensión instalada en disco quedó vieja (p.ej.
 	// de una versión anterior de la app que no reescribió el archivo), se
@@ -33,17 +34,21 @@ func inicializarProviders(reg *provider.Registry) []bundled_extensions.Registere
 		log.Printf("[extensions] %d extensiones actualizadas en disco: %v",
 			len(actualizadas), actualizadas)
 	}
-	bundledExts = bundled_extensions.LoadAllToRegistry(extRegistry)
+	erInicial := getExtRegistry()
+	bundledExts = bundled_extensions.LoadAllToRegistry(erInicial)
 	// Names of built-in providers superseded by a bundled extension. We must
 	// not register those natives, otherwise the source picker shows duplicates
 	// (e.g. qobuz AND qobuz-web, spotify AND spotify-web).
 	replacedByExt := map[string]bool{}
 	for _, ext := range bundledExts {
 		if ext.Enabled {
-			ep := provider.NewExtensionProvider(ext.ID, ext.ID, extRegistry.Runtime())
+			ep := provider.NewExtensionProvider(ext.ID, ext.ID, erInicial.Runtime())
 			ep.SetHomeFeedEnabled(ext.HasHomeFeed)
 			ep.SetQualityOptions(ext.QualityOptions)
 			ep.SetDownloadCapable(ext.IsDownloadProvider)
+			// Los patrones de urlHandler dicen qué enlaces (Spotify, YouTube,
+			// Deezer...) sabe resolver esta extensión con su handleUrl.
+			ep.SetURLPatterns(ext.URLHandler.Patterns)
 			reg.Register(ep)
 			for _, rp := range ext.Replaces {
 				// Keep the native 'spotify' provider registered alongside the
@@ -69,6 +74,7 @@ func inicializarProviders(reg *provider.Registry) []bundled_extensions.Registere
 		musicbrainz.NewClient(nil, ""),
 		apple.NewClient(nil, "", "us"),
 		soundcloud.NewClient(nil, ""),
+		flacrescue.NewClient(),
 	}
 	for _, np := range nativeRegister {
 		if replacedByExt[np.Name()] {

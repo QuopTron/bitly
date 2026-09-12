@@ -3,6 +3,8 @@
 // capas de fondo de la cabecera (base sólida, carátula difuminada
 // con blur según el perfil de rendimiento y gradiente con el color
 // dominante) más el botón de retroceso circular flotante.
+// En modo Spotify, oculta el cover borroso y usa gradiente del
+// color dominante.
 // Se conecta con: cabecera_detalle.dart (misma library).
 // Parte del flujo: Detalle (fondo + navegación).
 // ─────────────────────────────────────────────────────────────
@@ -10,6 +12,7 @@
 part of 'cabecera_detalle.dart';
 
 /// Capas 1-3 del Stack: base, carátula difuminada y gradiente.
+/// En modo Spotify, oculta el cover borroso.
 List<Widget> _capasFondo(
   _CabeceraDetalleState st,
   double t,
@@ -19,12 +22,18 @@ List<Widget> _capasFondo(
 ) {
   final tienePortada =
       st.widget.coverUrl != null && st.widget.coverUrl!.isNotEmpty;
+
+  // Check Spotify mode for detail header
+  final estilo = sl<ValueNotifier<EstiloVisual>>().value;
+  final prefs = sl<ValueNotifier<PreferenciasEstilo>>().value;
+  final spotify = estilo == EstiloVisual.spotify && prefs.fondoPrincipal;
+
   return [
     // Capa 1: base.
     Positioned.fill(child: Container(color: colorFondo)),
 
-    // Capa 2: carátula difuminada (repaint aislado).
-    if (tienePortada)
+    // Capa 2: carátula difuminada (solo en Clásico o cuando Spotify no aplica).
+    if (!spotify && tienePortada)
       Positioned.fill(
         child: RepaintBoundary(
           child: Opacity(
@@ -41,6 +50,7 @@ List<Widget> _capasFondo(
       ),
 
     // Capa 3: gradiente con el color dominante.
+    // En Spotify, el gradiente es más fuerte y cubre todo.
     Positioned.fill(
       child: RepaintBoundary(
         child: DecoratedBox(
@@ -49,8 +59,8 @@ List<Widget> _capasFondo(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               colors: [
-                acento.withValues(alpha: 0.85 * t),
-                acento.withValues(alpha: 0.6 * t),
+                acento.withValues(alpha: (spotify ? 0.95 : 0.85) * t),
+                acento.withValues(alpha: (spotify ? 0.80 : 0.6) * t),
                 colorFondo.withValues(alpha: 0.95),
                 colorFondo,
               ],

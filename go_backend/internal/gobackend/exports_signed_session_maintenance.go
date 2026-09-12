@@ -128,8 +128,9 @@ func signedSessionMaintenanceTargets(payload string) []string {
 		}
 		return ids
 	}
-	if extRegistry == nil || extRegistry.Runtime() == nil {
+	er := getExtRegistry()
+	if er == nil || er.Runtime() == nil {
 		return nil
 	}
-	return extRegistry.Runtime().SignedSessionSandboxIDs()
+	return er.Runtime().SignedSessionSandboxIDs()
 }

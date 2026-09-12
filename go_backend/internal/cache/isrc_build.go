@@ -112,6 +112,9 @@ func (idx *ISRCIndex) BuildIndex(rootDir string) error {
 	// Collect results
 	newCount := 0
 	for r := range results {
+		// Guardamos la ruta real del archivo para que el dedupe pueda devolver
+		// qué reproducir sin adivinar el nombre.
+		r.ref.FilePath = r.path
 		idx.mutex.Lock()
 		idx.indiceISRC[r.isrc] = r.ref
 		info, err := os.Stat(r.path)

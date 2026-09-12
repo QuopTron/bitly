@@ -1,11 +1,20 @@
 // Amazon Music Metadata & Download Provider for SpotiFLAC
-// v2.3.0 - Complete Amazon Web metadata and original-resolution artwork.
+// v2.3.8 - Preserves recording ISRCs for cross-catalog matching.
 // Uses reverse-engineered Amazon Music web API (skill.music.a2z.com).
 
 var CONFIG = {
-  maxRetries: 2,
-  baseBackoffMs: 500,
+  // Respaldo firmado (gateway). Es lo ÚNICO que pide verificación de humano y
+  // Amazon no entrega audio sin una cuenta Prime/Unlimited (su API web solo da
+  // catálogo). Apagado por defecto: la extensión queda como fuente de metadata
+  // y el audio lo resuelve el backend desde una fuente abierta por ISRC, sin
+  // modal. Poné respaldoFirmado: true para volver a usar el gateway.
+  respaldoFirmado: false,
+  maxAttempts: 5,
+  baseBackoffMs: 250,
+  maxBackoffMs: 4000,
   cacheTtlMs: 180000,
+  cacheMaxEntries: 500,
+  resourceCacheMaxEntries: 500,
   maxResults: 15,
   songlinkBaseURL: "https://api.song.link/v1-alpha.1/links",
   skillBaseURL: "https://na.mesk.skill.music.a2z.com/api",
@@ -45,77 +54,145 @@ function L(level) {
 }
 
 function sleep(ms) {
-  var end = Date.now() + ms;
-  while (Date.now() < end) {}
+  if (utils && typeof utils.sleep === "function") {
+    return utils.sleep(Math.max(0, Math.round(Number(ms || 0))));
+  }
+  // Older runtimes do not expose a cancellation-aware sleep. Skipping the
+  // delay is safer than blocking the complete JavaScript runtime in a spin.
+  return true;
 }
 
 // ==================== Cache ====================
 
-var _cache = {};
-var _cacheTimes = {};
+var _cache = new Map();
 
 function cacheGet(k) {
-  if (!_cacheTimes[k]) return null;
-  if (Date.now() - _cacheTimes[k] > CONFIG.cacheTtlMs) {
-    delete _cache[k];
-    delete _cacheTimes[k];
+  var entry = _cache.get(k);
+  if (!entry) return null;
+  if (Date.now() - entry.createdAt > CONFIG.cacheTtlMs) {
+    _cache.delete(k);
     return null;
   }
-  return _cache[k];
+  _cache.delete(k);
+  _cache.set(k, entry);
+  return entry.value;
 }
 
 function cacheSet(k, v) {
-  _cache[k] = v;
-  _cacheTimes[k] = Date.now();
+  if (_cache.has(k)) _cache.delete(k);
+  _cache.set(k, { value: v, createdAt: Date.now() });
+  while (_cache.size > CONFIG.cacheMaxEntries) {
+    _cache.delete(_cache.keys().next().value);
+  }
+  return v;
 }
 
 // ==================== Retry Helper ====================
 
-function fetchWithRetry(requestFn) {
-  var lastErr = null;
+function isAmazonUnavailable(error) {
+  if (error && error.retryable === true) return false;
+  var code = String((error && error.code) || "").toUpperCase();
+  if (code)
+    return /^(TRACK_NOT_FOUND|TRACK_UNAVAILABLE|TRACK_NOT_AVAILABLE|QUALITY_UNAVAILABLE|QUALITY_NOT_AVAILABLE|CODEC_UNAVAILABLE)$/.test(
+      code,
+    );
+  var message = String((error && error.message) || error || "")
+    .replace(/^Error: /, "")
+    .trim();
+  return /^(?:requested )?(?:track|quality|codec)(?: is)? (?:not available|unavailable|not found)(?:[.!]|$)/i.test(
+    message,
+  );
+}
+
+function amazonCancelledError() {
+  var error = new Error("download cancelled");
+  error.code = "CANCELLED";
+  return error;
+}
+
+function requireAmazonResolutionBudget(delayMs, retryAfterMs) {
+  if (
+    utils &&
+    typeof utils.getResolutionRemainingMs === "function" &&
+    Number(utils.getResolutionRemainingMs()) <= Number(delayMs || 0)
+  ) {
+    var error = new Error("stream resolution timeout");
+    error.code = "RESOLUTION_TIMEOUT";
+    error.retryAfterMs = Number(retryAfterMs || 0);
+    throw error;
+  }
+}
+
+function fetchWithRetry(requestFn, preserveErrors) {
+  var lastError = null;
   var delay = CONFIG.baseBackoffMs;
-  for (var attempt = 0; attempt <= CONFIG.maxRetries; attempt++) {
+  var retryAfterMs = 0;
+  for (var attempt = 0; attempt < CONFIG.maxAttempts; attempt++) {
+    if (
+      utils &&
+      typeof utils.isDownloadCancelled === "function" &&
+      utils.isDownloadCancelled()
+    ) {
+      if (preserveErrors) throw amazonCancelledError();
+      return null;
+    }
+    if (preserveErrors) requireAmazonResolutionBudget(0, retryAfterMs);
     if (attempt > 0) {
+      var jitteredDelay =
+        Math.max(delay, retryAfterMs) +
+        Math.floor(Math.random() * Math.max(25, Math.floor(delay / 4)));
       L(
         "info",
         "[Amazon] Retry " +
-          attempt +
+          (attempt + 1) +
           "/" +
-          CONFIG.maxRetries +
+          CONFIG.maxAttempts +
           " after " +
-          delay +
+          jitteredDelay +
           "ms",
       );
-      sleep(delay);
-      delay *= 2;
+      if (preserveErrors)
+        requireAmazonResolutionBudget(jitteredDelay, retryAfterMs);
+      if (!sleep(jitteredDelay)) {
+        if (preserveErrors) throw amazonCancelledError();
+        return null;
+      }
+      delay = Math.min(delay * 2, CONFIG.maxBackoffMs);
     }
     try {
       var result = requestFn();
       if (result) return result;
-      lastErr = "returned null";
+      lastError = new Error("request returned no result");
+      retryAfterMs = 0;
     } catch (e) {
-      lastErr = String(e);
-      var lower = lastErr.toLowerCase();
-      var is429 = lower.indexOf("429") >= 0;
-      var retryable =
-        lower.indexOf("timeout") >= 0 ||
-        lower.indexOf("reset") >= 0 ||
-        lower.indexOf("refused") >= 0 ||
-        lower.indexOf("eof") >= 0 ||
-        lower.indexOf("status 5") >= 0 ||
-        is429;
-      if (!retryable) {
-        L("warn", "[Amazon] Non-retryable error:", lastErr);
+      lastError = e;
+      var lower = String((e && e.message) || e).toLowerCase();
+      var mode = String((e && e.retryMode) || "");
+      var hasContract = !!(
+        e &&
+        (e.code || mode || typeof e.retryable === "boolean")
+      );
+      // The host owns same_operation retries. Never mint a new operation for
+      // that mode, an unknown mode, or an explicitly terminal contract.
+      var retryable = hasContract
+        ? e.retryable === true &&
+          (mode === "new_ticket" || mode === "poll_existing")
+        : /timeout|reset|refused|eof|(?:status|http) 5\d\d|429/.test(lower);
+      if ((e && e.needsVerification) || isAmazonUnavailable(e) || !retryable) {
+        L("warn", "[Amazon] Non-retryable error:", lower);
+        if (preserveErrors) throw e;
         return null;
       }
-      if (is429) {
-        L("info", "[Amazon] 429 in fetchWithRetry, refreshing session");
-        refreshSession();
-      }
+      retryAfterMs = Math.max(0, Number((e && e.retryAfterMs) || 0));
     }
-    L("warn", "[Amazon] Attempt " + (attempt + 1) + " failed:", lastErr);
+    L(
+      "warn",
+      "[Amazon] Attempt " + (attempt + 1) + " failed:",
+      String(lastError),
+    );
   }
-  L("error", "[Amazon] All attempts failed:", lastErr);
+  L("error", "[Amazon] All attempts failed:", String(lastError));
+  if (preserveErrors && lastError) throw lastError;
   return null;
 }
 
@@ -123,6 +200,8 @@ function fetchWithRetry(requestFn) {
 
 var ASIN_REGEX = /^B[0-9A-Z]{9}$/;
 var ASIN_FIND_REGEX = /B[0-9A-Z]{9}/;
+var AMAZON_MUSIC_HOST_REGEX =
+  /^music\.amazon\.(?:com(?:\.(?:br|mx|au))?|co(?:\.(?:uk|jp))?|de|fr|it|es|in|ca)$/;
 
 function normalizeASIN(candidate) {
   if (!candidate || typeof candidate !== "string") return null;
@@ -176,6 +255,60 @@ function extractASIN(rawURL) {
   return m ? m[0] : null;
 }
 
+// External link resolvers sometimes return an artist or album page whose ID
+// happens to look like a track ASIN. Only accept an explicit track path or an
+// album deeplink carrying trackAsin; the broad extractASIN helper remains for
+// legacy user-entered Amazon URLs elsewhere in the extension.
+function extractResolvedTrackASIN(rawURL) {
+  if (!rawURL || typeof rawURL !== "string") return null;
+  try {
+    var parsed = new URL(rawURL.trim());
+    if (
+      !/^https?:$/.test(parsed.protocol) ||
+      !AMAZON_MUSIC_HOST_REGEX.test(parsed.hostname.toLowerCase())
+    )
+      return null;
+
+    var trackParam =
+      parsed.searchParams.get("trackAsin") ||
+      parsed.searchParams.get("trackasin") ||
+      parsed.searchParams.get("trackASIN");
+    var paramASIN = normalizeASIN(trackParam || "");
+    if (paramASIN) return paramASIN;
+
+    var segments = parsed.pathname.replace(/^\/|\/$/g, "").split("/");
+    if (segments.length >= 2) {
+      var kind = String(segments[0] || "").toLowerCase();
+      if (kind === "track" || kind === "tracks") {
+        return normalizeASIN(segments[1]);
+      }
+    }
+  } catch (e) {}
+  return null;
+}
+
+function resolvedAmazonMetadataASIN(metadata) {
+  if (!metadata || metadata.provider_id !== "amazon") return null;
+  var asin = normalizeASIN(metadata.id);
+  return asin &&
+    extractResolvedTrackASIN(
+      metadata.external_urls || metadata.external_url,
+    ) === asin
+    ? asin
+    : null;
+}
+
+function acceptResolvedAmazonTrackURL(candidate, source) {
+  if (!candidate) return null;
+  if (extractResolvedTrackASIN(candidate)) return candidate;
+  L(
+    "warn",
+    "[Amazon] Ignoring non-track Amazon URL from " + source + ":",
+    candidate,
+  );
+  return null;
+}
+
 // ==================== URL Parsing ====================
 
 function parseAmazonMusicURL(rawURL) {
@@ -184,7 +317,11 @@ function parseAmazonMusicURL(rawURL) {
   try {
     var parsed = new URL(url);
     var host = parsed.hostname.toLowerCase();
-    if (host.indexOf("music.amazon") === -1) return null;
+    if (
+      !/^https?:$/.test(parsed.protocol) ||
+      !AMAZON_MUSIC_HOST_REGEX.test(host)
+    )
+      return null;
     var context = createAmazonContext(url);
 
     var path = parsed.pathname.replace(/^\/|\/$/g, "");
@@ -254,8 +391,32 @@ var _currentContext = {
   timeZone: "UTC",
 };
 
-var _resourceContexts = {};
-var _resourceHints = {};
+var _resourceContexts = new Map();
+var _resourceHints = new Map();
+
+function boundedMapGet(map, key) {
+  if (!map.has(key)) return null;
+  var entry = map.get(key);
+  if (!entry || Date.now() >= entry.expiresAt) {
+    map.delete(key);
+    return null;
+  }
+  map.delete(key);
+  map.set(key, entry);
+  return entry.value;
+}
+
+function boundedMapSet(map, key, value) {
+  if (map.has(key)) map.delete(key);
+  map.set(key, {
+    value: value,
+    expiresAt: Date.now() + CONFIG.cacheTtlMs,
+  });
+  while (map.size > CONFIG.resourceCacheMaxEntries) {
+    map.delete(map.keys().next().value);
+  }
+  return value;
+}
 
 function guessTimeZone() {
   try {
@@ -306,6 +467,13 @@ function createAmazonContext(rawURL) {
     } catch (e3) {}
   }
 
+  // Resolve shared regional links in the same catalog used for downloads.
+  // Keep their resource IDs until Amazon returns the corresponding IDs.
+  if (AMAZON_MUSIC_HOST_REGEX.test(host)) {
+    host = "music.amazon.com";
+    base = "https://" + host;
+  }
+
   return {
     musicBaseURL: base,
     host: host,
@@ -320,18 +488,18 @@ function contextKey(type, id) {
 
 function rememberResourceContext(type, id, context) {
   if (!type || !id || !context) return;
-  _resourceContexts[contextKey(type, id)] = {
+  boundedMapSet(_resourceContexts, contextKey(type, id), {
     musicBaseURL: context.musicBaseURL,
     host: context.host,
     timeZone: context.timeZone,
     currency: context.currency,
-  };
+  });
 }
 
 function rememberResourceHint(type, id, hint) {
   if (!type || !id || !hint) return;
   var key = contextKey(type, id);
-  if (!_resourceHints[key]) _resourceHints[key] = {};
+  var rememberedHint = boundedMapGet(_resourceHints, key) || {};
   var keys = Object.keys(hint);
   for (var i = 0; i < keys.length; i++) {
     if (
@@ -339,20 +507,21 @@ function rememberResourceHint(type, id, hint) {
       hint[keys[i]] !== null &&
       hint[keys[i]] !== ""
     ) {
-      _resourceHints[key][keys[i]] = hint[keys[i]];
+      rememberedHint[keys[i]] = hint[keys[i]];
     }
   }
+  boundedMapSet(_resourceHints, key, rememberedHint);
 }
 
 function getResourceContext(type, id, fallback) {
-  var remembered = _resourceContexts[contextKey(type, id)];
+  var remembered = boundedMapGet(_resourceContexts, contextKey(type, id));
   if (remembered) return remembered;
   if (fallback) return fallback;
   return _currentContext || createAmazonContext(CONFIG.musicBaseURL);
 }
 
 function getResourceHint(type, id, key) {
-  var hint = _resourceHints[contextKey(type, id)];
+  var hint = boundedMapGet(_resourceHints, contextKey(type, id));
   return hint ? hint[key] : "";
 }
 
@@ -1369,6 +1538,10 @@ function parseAlbumFromResponse(data, responseStr, albumId) {
       result.album_url = String(
         schema.url || schema["@id"] || result.album_url,
       );
+      var resolvedAlbumId = normalizeASIN(
+        schemaObjectId(result.album_url, "albums"),
+      );
+      if (resolvedAlbumId) result.id = resolvedAlbumId;
       if (schema.byArtist) {
         result.artist = schema.byArtist.name || "";
         result.artist_url = String(
@@ -1519,6 +1692,8 @@ function parseAlbumFromResponse(data, responseStr, albumId) {
       var schemaTrack = schemaTrackForID(albumSchema, result.tracks[t].id);
       if (schemaTrack) {
         if (schemaTrack.name) result.tracks[t].title = schemaTrack.name;
+        if (schemaTrack.isrcCode)
+          result.tracks[t].isrc = String(schemaTrack.isrcCode).trim();
         if (schemaTrack.position)
           result.tracks[t].track_number = Number(schemaTrack.position);
         if (schemaTrack.duration) {
@@ -1543,7 +1718,7 @@ function parseAlbumFromResponse(data, responseStr, albumId) {
         result.tracks[t].artist = result.artist;
       }
       result.tracks[t].album = result.title;
-      result.tracks[t].album_id = albumId;
+      result.tracks[t].album_id = result.id;
       result.tracks[t].album_artist = result.artist;
       result.tracks[t].artist_id = result.artist_id;
       result.tracks[t].artist_url =
@@ -1754,6 +1929,28 @@ function parseTrackFromResponse(data, responseStr, trackId) {
     result.album_url = amazonAlbumURL(result.album_id);
   if (!result.artist_url && result.artist_id)
     result.artist_url = amazonArtistURL(result.artist_id);
+
+  var resolvedTrackId = extractResolvedTrackASIN(result.external_url);
+  if (resolvedTrackId) result.id = resolvedTrackId;
+  if (
+    schema &&
+    extractResolvedTrackASIN(schema.url || schema["@id"]) === result.id
+  ) {
+    result.isrc = String(schema.isrcCode || "").trim();
+  }
+  L(
+    "info",
+    "[Amazon] Parsed track identity: " +
+      JSON.stringify({
+        requested: trackId,
+        returned: result.id,
+        urlASIN: resolvedTrackId || "none",
+        catalog: (_currentContext && _currentContext.host) || "unknown",
+        sessionTerritory: _session.musicTerritory || "unknown",
+        isrc: result.isrc,
+        durationMs: result.duration_ms,
+      }),
+  );
 
   return result;
 }
@@ -2578,6 +2775,16 @@ function handleTrackUrl(parsed) {
     trackInfo.album_id = albumId;
   }
   rememberResourceContext("track", trackId, context);
+  if (trackInfo.id !== trackId) {
+    rememberResourceContext("track", trackInfo.id, context);
+    L(
+      "info",
+      "[Amazon] Resolved regional track ASIN:",
+      trackId,
+      "->",
+      trackInfo.id,
+    );
+  }
   if (trackInfo.album_id)
     rememberResourceContext("album", trackInfo.album_id, context);
   L("info", "[Amazon] handleTrackUrl parsed:", trackInfo.title);
@@ -2594,6 +2801,25 @@ function getTrack(trackId) {
   };
   var handled = handleTrackUrl(parsed);
   return handled && handled.track ? handled.track : null;
+}
+
+function getCanonicalCatalogTrack(trackId) {
+  // One direct lookup keeps 404 recovery out of metadata search/retry loops.
+  var result = callDisplayCatalogTrack(
+    trackId,
+    createAmazonContext(CONFIG.musicBaseURL),
+    true,
+  );
+  if (!result) {
+    L(
+      "warn",
+      "[Amazon] Catalog lookup returned no metadata for ASIN:",
+      trackId,
+    );
+    return null;
+  }
+  var track = parseTrackFromResponse(result.data, result.rawText, trackId);
+  return formatAmazonTrackMetadata(track, null, 0);
 }
 
 function handleAlbumUrl(albumId) {
@@ -3444,6 +3670,63 @@ function customSearchSync(query, options) {
   return results;
 }
 
+function normalizeAvailabilityMatchText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/^\s+|\s+$/g, "")
+    .replace(/\s+/g, " ");
+}
+
+function availabilityArtistMatches(candidate, expected) {
+  var candidateKey = normalizeAvailabilityMatchText(candidate);
+  var expectedKey = normalizeAvailabilityMatchText(expected);
+  if (!expectedKey) return true;
+  if (!candidateKey) return false;
+  return (
+    candidateKey === expectedKey ||
+    candidateKey.indexOf(expectedKey) >= 0 ||
+    expectedKey.indexOf(candidateKey) >= 0
+  );
+}
+
+function resolveAmazonTrackBySearch(trackName, artistName, durationMs) {
+  var titleKey = normalizeAvailabilityMatchText(trackName);
+  if (!titleKey) return null;
+
+  var results = customSearchSync(trackName, { filter: "songs" });
+  var expectedDuration = Number(durationMs || 0);
+  for (var i = 0; i < results.length; i++) {
+    var candidate = results[i] || {};
+    if (candidate.item_type !== "track") continue;
+    if (normalizeAvailabilityMatchText(candidate.name) !== titleKey) continue;
+    if (!availabilityArtistMatches(candidate.artists, artistName)) continue;
+
+    var candidateDuration = Number(candidate.duration_ms || 0);
+    if (
+      expectedDuration > 0 &&
+      candidateDuration > 0 &&
+      Math.abs(expectedDuration - candidateDuration) > 15000
+    ) {
+      continue;
+    }
+
+    var asin = normalizeASIN(String(candidate.id || ""));
+    if (asin) {
+      L("info", "[Amazon] Found exact Amazon track via search:", asin);
+      return asin;
+    }
+  }
+  L(
+    "info",
+    "[Amazon] Amazon search had no exact track match for:",
+    trackName,
+    artistName,
+  );
+  return null;
+}
+
 // ==================== enrichTrack ====================
 
 function enrichTrack(trackInfo) {
@@ -3516,51 +3799,6 @@ function enrichTrack(trackInfo) {
   L("info", "[Amazon] Enriched track from Amazon Web:", enriched.name);
   cacheSet(cacheKey, enriched);
   return enriched;
-}
-
-// ==================== Zarz Moe Resolve ====================
-
-function callZarzMoeResolve(spotifyID) {
-  var data;
-  try {
-    data = signedJSON("POST", "/resolve", {
-      url: "https://open.spotify.com/track/" + spotifyID,
-    });
-  } catch (e) {
-    L(
-      "warn",
-      "[Amazon] zarz.moe resolve failed:",
-      String(e && e.message ? e.message : e),
-    );
-    return null;
-  }
-
-  if (!data || !data.success || !data.songUrls) {
-    L(
-      "warn",
-      "[Amazon] zarz.moe resolve returned success=false or no songUrls",
-    );
-    return null;
-  }
-  var amazonURL = null;
-  if (data.songUrls.AmazonMusic) {
-    var rawValue = data.songUrls.AmazonMusic;
-    if (typeof rawValue === "string" && rawValue) {
-      amazonURL = rawValue;
-    } else if (Array.isArray(rawValue) && rawValue.length > 0) {
-      amazonURL = rawValue[0];
-    }
-  }
-  if (!amazonURL) {
-    L(
-      "info",
-      "[Amazon] zarz.moe resolve: no AmazonMusic link for Spotify ID:",
-      spotifyID,
-    );
-    return null;
-  }
-  L("info", "[Amazon] zarz.moe resolve: found Amazon URL:", amazonURL);
-  return amazonURL;
 }
 
 // ==================== SongLink Resolution ====================
@@ -3682,31 +3920,10 @@ function resolveAmazonURLFromSpotifyPage(spotifyID) {
   return linksByPlatform.amazonMusic.url;
 }
 
-// Only track/album URLs are usable as a downloadable item. Artist and
-// storefront pages share the same B[0-9A-Z]{9} ASIN shape, so without this
-// check an artist ASIN slips through as "track available" and the download
-// then fails (or hits the wrong entity).
-function isTrackOrAlbumURL(url) {
-  if (typeof url !== "string") return false;
-  var u = url.toLowerCase();
-  if (u.indexOf("/artists/") !== -1) return false;
-  if (u.indexOf("/artist/") !== -1) return false;
-  if (u.indexOf("/storefront") !== -1) return false;
-  if (u.indexOf("/label/") !== -1) return false;
-  // Valid deep links point at a track, album, or dp page (or carry the
-  // trackAsin/albumAsin query param used on album pages).
-  if (u.indexOf("/tracks/") !== -1) return true;
-  if (u.indexOf("/albums/") !== -1) return true;
-  if (u.indexOf("/dp/") !== -1) return true;
-  if (u.indexOf("trackasin=") !== -1) return true;
-  if (u.indexOf("albumasin=") !== -1) return true;
-  return false;
-}
-
 function extractAmazonURLFromSongLink(data) {
   if (data && data.linksByPlatform && data.linksByPlatform.amazonMusic) {
     var u = data.linksByPlatform.amazonMusic.url;
-    if (u && isTrackOrAlbumURL(u)) return u;
+    if (u) return u;
   }
   return null;
 }
@@ -3773,11 +3990,7 @@ function extractAmazonFromJsonLD(obj) {
   if (obj.sameAs && Array.isArray(obj.sameAs)) {
     for (var j = 0; j < obj.sameAs.length; j++) {
       var link = obj.sameAs[j];
-      if (
-        typeof link === "string" &&
-        link.indexOf("music.amazon.") !== -1 &&
-        isTrackOrAlbumURL(link)
-      ) {
+      if (typeof link === "string" && link.indexOf("music.amazon.") !== -1) {
         return link;
       }
     }
@@ -3802,8 +4015,7 @@ function resolveAmazonURL(isrc, spotifyID, deezerID) {
     (_session && _session.musicTerritory) || CONFIG.musicTerritory || "US",
   ).toUpperCase();
   // Deezer first: the app resolves a Deezer ID from the ISRC reliably and
-  // SongLink maps it to Amazon without depending on the zarz.moe resolve
-  // endpoint, which can be slow or down and otherwise burns the whole timeout.
+  // SongLink maps it to Amazon.
   if (deezerID) {
     L("info", "[Amazon] Resolving via Deezer ID:", deezerID);
     var deezerURL = "https://www.deezer.com/track/" + deezerID;
@@ -3816,8 +4028,14 @@ function resolveAmazonURL(isrc, spotifyID, deezerID) {
     );
     var url = extractAmazonURLFromSongLink(data);
     if (url) {
-      L("info", "[Amazon] Found Amazon URL via Deezer:", url);
-      return url;
+      var acceptedDeezerURL = acceptResolvedAmazonTrackURL(
+        url,
+        "Deezer SongLink",
+      );
+      if (acceptedDeezerURL) {
+        L("info", "[Amazon] Found Amazon URL via Deezer:", acceptedDeezerURL);
+        return acceptedDeezerURL;
+      }
     }
   }
   // Spotify next, but only for genuine Spotify IDs. Metadata sourced from Apple
@@ -3825,16 +4043,14 @@ function resolveAmazonURL(isrc, spotifyID, deezerID) {
   // produces an invalid Spotify URL and poisons every Spotify-based lookup.
   if (isLikelySpotifyId(spotifyID)) {
     L("info", "[Amazon] Resolving via Spotify ID:", spotifyID);
-    var url = callZarzMoeResolve(spotifyID);
-    if (url) return url;
-    L(
-      "info",
-      "[Amazon] zarz.moe failed for Spotify ID, falling back to SongLink page",
+    // SongLink page scrape (fast, no API key needed)
+    var url = resolveAmazonURLFromSpotifyPage(spotifyID);
+    var acceptedURL = acceptResolvedAmazonTrackURL(
+      url,
+      "Spotify SongLink page",
     );
-    url = resolveAmazonURLFromSpotifyPage(spotifyID);
-    if (url) {
-      return url;
-    }
+    if (acceptedURL) return acceptedURL;
+    // SongLink API
     var spotifyURL = "https://open.spotify.com/track/" + spotifyID;
     var data = callSongLink(
       CONFIG.songlinkBaseURL +
@@ -3845,8 +4061,11 @@ function resolveAmazonURL(isrc, spotifyID, deezerID) {
     );
     url = extractAmazonURLFromSongLink(data);
     if (url) {
-      L("info", "[Amazon] Found Amazon URL via Spotify:", url);
-      return url;
+      acceptedURL = acceptResolvedAmazonTrackURL(url, "Spotify SongLink API");
+      if (acceptedURL) {
+        L("info", "[Amazon] Found Amazon URL via Spotify:", acceptedURL);
+        return acceptedURL;
+      }
     }
   } else if (spotifyID) {
     L("info", "[Amazon] Ignoring non-Spotify ID in spotify field:", spotifyID);
@@ -3862,8 +4081,14 @@ function resolveAmazonURL(isrc, spotifyID, deezerID) {
     );
     var url = extractAmazonURLFromSongLink(data);
     if (url) {
-      L("info", "[Amazon] Found Amazon URL via ISRC:", url);
-      return url;
+      var acceptedISRCURL = acceptResolvedAmazonTrackURL(
+        url,
+        "ISRC SongLink API",
+      );
+      if (acceptedISRCURL) {
+        L("info", "[Amazon] Found Amazon URL via ISRC:", acceptedISRCURL);
+        return acceptedISRCURL;
+      }
     }
     L(
       "info",
@@ -3871,7 +4096,8 @@ function resolveAmazonURL(isrc, spotifyID, deezerID) {
       isrc,
     );
     url = callSongstatsForAmazon(isrc);
-    if (url) return url;
+    var acceptedSongstatsURL = acceptResolvedAmazonTrackURL(url, "Songstats");
+    if (acceptedSongstatsURL) return acceptedSongstatsURL;
   }
   L("info", "[Amazon] No Amazon URL found");
   return null;
@@ -3904,20 +4130,6 @@ function normalizeAudioCodec(codec) {
 // Performs an HMAC-signed request via the host runtime. The session secret
 // lives in Go and is scoped by namespace, base URL, app version, and platform,
 // so each provider must complete its own verification challenge.
-// Gateway park: signed-session traffic flows through the shared zarz.moe
-// gateway. When that origin is down, Cloudflare answers 522/524/502/504 —
-// retrying every attempt per track is pointless. After the first gateway
-// error, park signed calls for 2 minutes (fail fast with a clear reason); a
-// healthy response clears the park immediately.
-var _amazonGatewayDownUntil = 0;
-
-function isGatewayError(message) {
-  var text = String(message || "");
-  return /HTTP 52[24]|HTTP 50[24]|bootstrap returned|origin connection|gateway/i.test(
-    text,
-  );
-}
-
 function signedJSON(method, path, body, headers) {
   if (
     typeof session === "undefined" ||
@@ -3926,9 +4138,6 @@ function signedJSON(method, path, body, headers) {
   ) {
     throw new Error("signed session runtime is not available");
   }
-  if (Date.now() < _amazonGatewayDownUntil) {
-    throw new Error("signed-session gateway down (522); retrying later");
-  }
   var response = session.signedFetch(method, path, body || null, headers || {});
   if (response && response.needsVerification) {
     var verr = new Error("VERIFY_REQUIRED");
@@ -3936,23 +4145,40 @@ function signedJSON(method, path, body, headers) {
     verr.authUrl = response.auth_url || response.open_auth_url || "";
     throw verr;
   }
-  if (!response || response.error) {
-    var error =
-      response && response.error ? response.error : "signed request failed";
-    if (isGatewayError(error)) {
-      _amazonGatewayDownUntil = Date.now() + 2 * 60 * 1000;
-    }
-    throw new Error(error);
+  if (!response || response.error || response.statusCode !== 200) {
+    var error = new Error(
+      response && response.error
+        ? response.error
+        : response
+          ? "HTTP " + response.statusCode + " for " + path
+          : "signed request failed",
+    );
+    error.code = String((response && response.code) || "");
+    error.retryMode = String((response && response.retryMode) || "");
+    if (response && typeof response.retryable === "boolean")
+      error.retryable = response.retryable;
+    error.statusCode = Number((response && response.statusCode) || 0);
+    error.retryAfterMs = amazonRetryAfterMilliseconds(response);
+    throw error;
   }
-  if (response.statusCode !== 200) {
-    var statusError = "HTTP " + response.statusCode + " for " + path;
-    if (isGatewayError(statusError)) {
-      _amazonGatewayDownUntil = Date.now() + 2 * 60 * 1000;
-    }
-    throw new Error(statusError);
-  }
-  _amazonGatewayDownUntil = 0;
   return JSON.parse(response.body || "null");
+}
+
+function amazonRetryAfterMilliseconds(response) {
+  var headers = (response && response.headers) || {};
+  var raw = "";
+  for (var key in headers) {
+    if (String(key).toLowerCase() === "retry-after")
+      raw = String(headers[key] || "").trim();
+  }
+  if (/^\d+(?:\.\d+)?$/.test(raw))
+    return Math.max(0, Math.round(Number(raw) * 1000));
+  var timestamp = raw ? Date.parse(raw) : NaN;
+  if (!isNaN(timestamp)) return Math.max(0, timestamp - Date.now());
+  return Math.max(
+    0,
+    Math.round(Number((response && response.retryAfterSeconds) || 0) * 1000),
+  );
 }
 
 // Mints a one-use download ticket. resource_hash must match what the server
@@ -3974,7 +4200,8 @@ function signedTicket(provider, type, id) {
   return ticketID;
 }
 
-function callZarzMedia(asin, codec) {
+function callZarzMedia(asin, codec, operation) {
+  operation = operation || {};
   if (!codec) codec = "flac";
   L(
     "info",
@@ -3986,28 +4213,26 @@ function callZarzMedia(asin, codec) {
 
   var data;
   try {
-    var ticketID = signedTicket("amazeamazeamaze", "track", asin);
+    if (!operation.ticketID)
+      operation.ticketID = signedTicket("amazeamazeamaze", "track", asin);
     data = signedJSON(
       "POST",
       "/dl/amazeamazeamaze",
       { asin: asin, codec: codec },
       {
-        "X-Zarz-Ticket": ticketID,
+        "X-Zarz-Ticket": operation.ticketID,
       },
     );
+    operation.ticketID = "";
   } catch (e) {
+    if (!e || e.retryMode !== "poll_existing") operation.ticketID = "";
     if (e && e.needsVerification) {
       // Surface verification upward so download() can tag the result and the
       // app shows the in-app verification sheet.
       return { needsVerification: true, authUrl: e.authUrl || "" };
     }
-    // Other failures (5xx/429/transient) -> null lets fetchWithRetry retry.
-    L(
-      "warn",
-      "[Amazon] v2 download API failed:",
-      String(e && e.message ? e.message : e),
-    );
-    return null;
+    // Keep the host contract intact for retry and fallback decisions.
+    throw e;
   }
 
   // Response is an array, take first element
@@ -4427,7 +4652,7 @@ function completeGrant() {
 
 registerExtension({
   initialize: function () {
-    L("info", "[Amazon] Extension v2.3.0 init");
+    L("info", "[Amazon] Extension v2.3.8 init");
     initSession();
     return true;
   },
@@ -4488,24 +4713,54 @@ registerExtension({
     // Cek apakah spotifyID sebenarnya sudah ASIN (dari handleUrl/getAlbum)
     if (spotifyID && ASIN_REGEX.test(spotifyID)) {
       L("info", "[Amazon] spotifyID is already an ASIN:", spotifyID);
-      return { available: true, track_id: spotifyID };
+      return {
+        available: true,
+        track_id: spotifyID,
+        prepared_context: { web_metadata: (options && options.track) || null },
+      };
     }
 
     // Fallback: resolve ASIN via SongLink (untuk track dari sumber lain)
     var amazonURL = resolveAmazonURL(isrc, spotifyID, deezerID);
-    if (!amazonURL) {
+    var asin = extractResolvedTrackASIN(amazonURL);
+    if (!asin) {
+      asin = resolveAmazonTrackBySearch(
+        trackName,
+        artistName,
+        options && options.duration_ms,
+      );
+    }
+    if (!asin) {
       return { available: false, reason: "not_found_on_amazon" };
     }
-    var asin = extractASIN(amazonURL);
-    if (!asin) {
-      return { available: false, reason: "could_not_extract_asin" };
-    }
     L("info", "[Amazon] Track available, ASIN:", asin);
-    return { available: true, track_id: asin };
+    return {
+      available: true,
+      track_id: asin,
+      prepared_context: { web_metadata: (options && options.track) || null },
+    };
   },
 
-  download: function (trackID, quality, outputPath, onProgress) {
-    L("info", "[Amazon] download called:", trackID, quality);
+  download: function (trackID, quality, outputPath, onProgress, options) {
+    L(
+      "info",
+      "[Amazon] download called:",
+      trackID,
+      quality,
+      "extension: 2.3.8",
+    );
+
+    // Sin respaldo firmado esta extensión es solo-metadata: fallo limpio (sin
+    // pedir verificación) para que el backend resuelva el audio desde una
+    // fuente abierta. Evita el modal y no gasta el presupuesto de respaldo.
+    if (CONFIG.respaldoFirmado !== true) {
+      return {
+        success: false,
+        error_message:
+          "Amazon sin cuenta propia: el audio se resuelve desde una fuente abierta",
+        error_type: "no_session",
+      };
+    }
 
     // trackID bisa berupa:
     // - ASIN langsung (dari handleUrl/getAlbum flow, atau checkAvailability)
@@ -4525,39 +4780,147 @@ registerExtension({
       };
     }
 
-    var webMetadata = null;
-    try {
-      webMetadata = getTrack(asin);
-    } catch (metadataError) {
-      L(
-        "warn",
-        "[Amazon] Web metadata unavailable during download:",
-        String(metadataError),
-      );
+    var prepared = (options && options.preparedContext) || {};
+    var webMetadata = prepared.web_metadata || prepared.host_track || null;
+    if (!webMetadata) {
+      try {
+        webMetadata = getTrack(asin);
+      } catch (metadataError) {
+        L(
+          "warn",
+          "[Amazon] Web metadata unavailable during download:",
+          String(metadataError),
+        );
+      }
     }
+
+    var metadataASIN = resolvedAmazonMetadataASIN(webMetadata);
+    if (metadataASIN) asin = metadataASIN;
 
     var codec = qualityToCodec(quality);
     L("info", "[Amazon] Downloading ASIN:", asin, "codec:", codec);
 
-    // Call Zarz.moe media API — with fallback to FLAC if requested codec unavailable
-    var apiResult = fetchWithRetry(function () {
-      return callZarzMedia(asin, codec);
-    });
+    var apiResult;
+    var operation = {};
+    var catalogChecked = false;
+    var requestMedia = function () {
+      try {
+        return callZarzMedia(asin, codec, operation);
+      } catch (error) {
+        var code = String((error && error.code) || "").toUpperCase();
+        if (
+          catalogChecked ||
+          Number((error && error.statusCode) || 0) !== 404 ||
+          error.needsVerification ||
+          error.retryable === true ||
+          (code &&
+            !/^(TRACK_NOT_FOUND|TRACK_UNAVAILABLE|TRACK_NOT_AVAILABLE)$/.test(
+              code,
+            ))
+        )
+          throw error;
 
-    // If non-FLAC codec failed, fallback to FLAC
-    if (!apiResult && codec !== "flac") {
-      L(
-        "info",
-        "[Amazon] Codec",
-        codec,
-        "unavailable for ASIN:",
-        asin,
-        "— falling back to FLAC",
-      );
-      codec = "flac";
-      apiResult = fetchWithRetry(function () {
-        return callZarzMedia(asin, "flac");
-      });
+        // Queue retries can carry metadata created before regional IDs were
+        // resolved. Refresh only after a catalog 404 and only retry a new ID.
+        catalogChecked = true;
+        if (
+          utils &&
+          typeof utils.isDownloadCancelled === "function" &&
+          utils.isDownloadCancelled()
+        )
+          throw amazonCancelledError();
+        requireAmazonResolutionBudget(0, 0);
+        var resolvedMetadata = null;
+        try {
+          resolvedMetadata = getCanonicalCatalogTrack(asin);
+        } catch (metadataError) {
+          L(
+            "warn",
+            "[Amazon] Catalog lookup after 404 failed:",
+            String(metadataError),
+          );
+        }
+        var resolvedASIN = resolvedAmazonMetadataASIN(resolvedMetadata);
+        if (!resolvedASIN || resolvedASIN === asin) {
+          L(
+            "warn",
+            "[Amazon] Catalog recovery stopped: " +
+              JSON.stringify({
+                requested: asin,
+                returned: (resolvedMetadata && resolvedMetadata.id) || "none",
+                validated: resolvedASIN || "none",
+                reason:
+                  resolvedASIN === asin
+                    ? "unchanged_asin"
+                    : "no_valid_track_identity",
+              }),
+          );
+          throw error;
+        }
+
+        L(
+          "info",
+          "[Amazon] Retrying resolved catalog ASIN after 404:",
+          asin,
+          "->",
+          resolvedASIN,
+        );
+        asin = resolvedASIN;
+        webMetadata = resolvedMetadata;
+        operation = {};
+        if (
+          utils &&
+          typeof utils.isDownloadCancelled === "function" &&
+          utils.isDownloadCancelled()
+        )
+          throw amazonCancelledError();
+        requireAmazonResolutionBudget(0, 0);
+        return callZarzMedia(asin, codec, operation);
+      }
+    };
+    try {
+      try {
+        apiResult = fetchWithRetry(requestMedia, true);
+      } catch (codecError) {
+        if (codec === "flac" || !isAmazonUnavailable(codecError))
+          throw codecError;
+        L(
+          "info",
+          "[Amazon] Codec",
+          codec,
+          "unavailable for ASIN:",
+          asin,
+          "— falling back to FLAC",
+        );
+        codec = "flac";
+        operation = {};
+        apiResult = fetchWithRetry(requestMedia, true);
+      }
+    } catch (apiError) {
+      var message = String((apiError && apiError.message) || apiError);
+      var errorCode = String((apiError && apiError.code) || "").toUpperCase();
+      var errorType = isAmazonUnavailable(apiError) ? "not_found" : "api_error";
+      if (errorCode === "RESOLUTION_TIMEOUT") errorType = "timeout";
+      else if (errorCode === "CANCELLED" || /download cancelled/i.test(message))
+        errorType = "cancelled";
+      else if (apiError && apiError.needsVerification)
+        errorType = "verification_required";
+      else if (
+        Number((apiError && apiError.statusCode) || 0) === 429 ||
+        /RATE_LIMIT/.test(errorCode)
+      )
+        errorType = "rate_limited";
+      else if (errorCode === "PROVIDER_AUTH_FAILED")
+        errorType = "authentication_error";
+      return {
+        success: false,
+        error_message: message,
+        error_type: errorType,
+        retry_after_seconds: Math.ceil(
+          Number((apiError && apiError.retryAfterMs) || 0) / 1000,
+        ),
+        auth_url: (apiError && apiError.authUrl) || "",
+      };
     }
 
     if (apiResult && apiResult.needsVerification) {
@@ -4709,10 +5072,9 @@ registerExtension({
 
   cleanup: function () {
     L("info", "[Amazon] Extension cleanup");
-    _cache = {};
-    _cacheTimes = {};
-    _resourceContexts = {};
-    _resourceHints = {};
+    _cache = new Map();
+    _resourceContexts = new Map();
+    _resourceHints = new Map();
     _currentContext = createAmazonContext(CONFIG.musicBaseURL);
     _session.initialized = false;
     return true;

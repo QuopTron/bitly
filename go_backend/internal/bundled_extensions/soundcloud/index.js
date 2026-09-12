@@ -219,6 +219,25 @@ function ensureClientId() {
   }
 }
 
+// esFalloDeAutenticacion distingue un problema de AUTORIZACIÓN (401, o un
+// client_id que no se puede renovar) de un "esta búsqueda no encontró nada".
+//
+// Por qué existe: customSearch se traga los errores y devuelve una lista
+// vacía, así que Go nunca veía el 401 y no podía enfriar la fuente — cada
+// canción del lote volvía a caminar SoundCloud con la misma caminata de
+// peticiones condenadas. Un 401 no es "sin resultados": es la fuente entera
+// sin poder servir, y tiene que llegar arriba para que el cooldown de Go la
+// salte por un rato.
+function esFalloDeAutenticacion(msg) {
+  if (!msg) return false;
+  var m = String(msg).toLowerCase();
+  return (
+    m.indexOf("http 401") !== -1 ||
+    m.indexOf("unauthorized") !== -1 ||
+    m.indexOf("client_id") !== -1
+  );
+}
+
 // ============================================
 // API HELPERS
 // ============================================
@@ -246,10 +265,24 @@ function scGet(path, extraParams) {
   if (response.statusCode === 401) {
     // client_id may be invalid, try refreshing
     log.info("[SC] Got 401, refreshing client_id...");
+    // OJO: el id anterior se guarda antes de anularlo. Antes se anulaba y se
+    // llamaba a ensureClientId(), que puede volver sin hacer nada (backoff de
+    // 30s o un refresh ya en vuelo) — la URL quedaba con "client_id=null" y la
+    // petición se gastaba igual para recibir otro 401. Peor: si el re-escaneo
+    // devolvía el MISMO id (SoundCloud sirve el mismo a todas sus variantes de
+    // frontend), el reintento era un 401 garantizado. Ahora se reintenta SOLO
+    // si hay un id nuevo; si no, se falla rápido y el cooldown de Go se encarga
+    // de no volver a molestar a la fuente por cada canción del lote.
+    var idAnterior = state.clientId;
     state.clientId = null;
     state.clientIdExpiry = 0;
     ensureClientId();
-    // Retry once
+    if (!state.clientId || state.clientId === idAnterior) {
+      throw new Error(
+        "SoundCloud API failed after retry: HTTP 401 (client_id no renovable)",
+      );
+    }
+    // Retry once with the fresh id.
     sep = path.indexOf("?") === -1 ? "?" : "&";
     url = SC_API + "/" + path + sep + "client_id=" + state.clientId;
     if (extraParams) url += "&" + extraParams;
@@ -595,7 +628,15 @@ function customSearch(query, options) {
         }
       }
     } catch (e) {
+      // Un fallo de autorización se propaga: la fuente no puede servir y Go
+      // tiene que enterarse para enfriarla (si no, se repite la caminata
+      // completa por cada canción del lote). Los demás errores se siguen
+      // tragando: son "esta búsqueda no encontró nada", que es normal.
+      if (esFalloDeAutenticacion(e && e.message)) {
+        throw e;
+      }
       log.debug("[SC] Search for " + searchType + " failed:", e.message);
+      continue;
     }
   }
 

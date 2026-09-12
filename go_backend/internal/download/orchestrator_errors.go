@@ -13,7 +13,7 @@ func clasificarErrorVerificacion(errMsg string) string {
 	e := strings.ToLower(errMsg)
 	for _, marker := range []string{
 		"verification_required", "verify_required", "verification required",
-		"needs verification", "needs_verification", "challenge", "cloudflare",
+		"needs verification", "needs_verification",
 		"captcha", "signed session", "session not verified", "session expired",
 		"session is not authenticated", "precondition required",
 		"http 428", "http status 428",

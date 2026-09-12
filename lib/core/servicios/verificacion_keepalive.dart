@@ -54,6 +54,9 @@ mixin VerificacionKeepalive on VerificacionEstado {
   }
 
   void _iniciarTimerKeepalive() {
+    // Sin fuentes con sesión firmada no hay sesión que refrescar: no se arranca
+    // el timer (evita un RPC no-op cada 25 s contra el backend).
+    if (ServicioVerificacion.fuentesSesionFirmada.isEmpty) return;
     _timerKeepalive ??= Timer.periodic(_intervaloKeepalive, (_) {
       unawaited(_keepaliveTick());
     });
@@ -69,6 +72,9 @@ mixin VerificacionKeepalive on VerificacionEstado {
   /// omite mientras un dialog de captcha está abierto para que el flujo modal
   /// sea dueño del registro de sesión durante un intercambio.
   Future<void> _keepaliveTick() async {
+    // Nada que refrescar mientras la lista de fuentes con sesión firmada esté
+    // vacía (ver ServicioVerificacion.fuentesSesionFirmada).
+    if (ServicioVerificacion.fuentesSesionFirmada.isEmpty) return;
     if (!_appEnUso || _keepaliveCorriendo || _dialogoAbierto || _pendiente != null) {
       return;
     }

@@ -54,9 +54,9 @@ func TestStreamFailCacheDiskPersistence(t *testing.T) {
 	// there, then verify a failure survives a simulated "restart" (memory map
 	// wiped, same dir on disk).
 	dir := t.TempDir()
-	old := downloadDir
-	downloadDir = dir
-	defer func() { downloadDir = old }()
+	old := getDownloadDir()
+	setDownloadDir(dir)
+	defer func() { setDownloadDir(old) }()
 
 	streamFailMu.Lock()
 	streamFailCache = map[string]streamFailEntry{}

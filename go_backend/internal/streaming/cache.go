@@ -5,19 +5,26 @@ package streaming
 import (
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/zarz/bitly/go_backend/internal/cache"
 )
 
-var chunkSize = 256 * 1024 // 256KB chunks (configurable via SetChunkSize)
+// chunkSize es el tamaño de trozo del caché de streaming. Se guarda en un
+// atomic.Int64 y NO en un int suelto porque los ajustes lo ESCRIBEN
+// (SetChunkSize) mientras los handlers de chunk lo LEEN: un int compartido
+// entre goroutines sin sincronizar es una carrera de datos real.
+var chunkSize atomic.Int64
+
+func init() { chunkSize.Store(256 * 1024) } // 256KB por defecto
 
 // SetChunkSize overrides the streaming chunk size (bytes). Clamped to a sane range.
 func SetChunkSize(bytes int) {
 	if bytes < 32*1024 {
 		bytes = 32 * 1024
 	}
-	chunkSize = bytes
+	chunkSize.Store(int64(bytes))
 }
 
 // Chunk holds a streamed audio segment.

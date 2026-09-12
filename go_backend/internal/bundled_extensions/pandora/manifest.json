@@ -8,7 +8,6 @@
   "minAppVersion": "4.2.3",
   "permissions": {
     "network": [
-      "api.zarz.moe",
       "api.song.link",
       "song.link",
       "pandora.app.link",
@@ -46,25 +45,14 @@
     "downloadFallbackTier": "low_res",
     "preserveNativeOutputExtensions": [".m4a"]
   },
-  "serviceHealth": [
-    {
-      "id": "zarz-api",
-      "label": "Zarz API",
-      "url": "https://api.zarz.moe/v1/health",
-      "method": "GET",
-      "serviceKey": "pandora",
-      "timeoutMs": 4000,
-      "cacheTtlSeconds": 60,
-      "required": true
-    }
-  ],
+  "serviceHealth": [],
   "settings": [
     {
       "key": "apiBaseUrl",
       "label": "Resolver API URL",
       "type": "string",
-      "default": "https://api.zarz.moe",
-      "description": "Base URL for the Pandora download API."
+      "default": "",
+      "description": "Base URL for the Pandora download API. Leave empty for metadata-only mode (audio via flac-rescue)."
     },
     {
       "key": "songLinkBaseUrl",

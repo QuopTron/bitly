@@ -22,6 +22,7 @@ Widget _seccionGrilla(
   String? titulo,
 }) {
   final esOscuro = Theme.of(context).brightness == Brightness.dark;
+  final estilo = EstiloHelper.esSpotify(context);
   return LayoutBuilder(
     builder: (_, constraints) {
       final disponible = constraints.maxWidth - 2 * r.spacingS;
@@ -29,7 +30,7 @@ Widget _seccionGrilla(
       // móvil 3/2 — el box de PC se estira más que antes (1120px).
       final columnas =
           disponible > 1000 ? 6 : disponible > 700 ? 4 : disponible > 340 ? 3 : 2;
-      final gap = r.spacingXS;
+      final gap = estilo ? r.spacingXS * 0.5 : r.spacingXS;
       return Column(
         children: [
           if (titulo != null)
@@ -59,7 +60,7 @@ Widget _seccionGrilla(
           GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            padding: EdgeInsets.symmetric(horizontal: r.spacingS * 0.5),
+            padding: EdgeInsets.symmetric(horizontal: estilo ? 2 : r.spacingS * 0.5),
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: columnas,
               mainAxisSpacing: gap,

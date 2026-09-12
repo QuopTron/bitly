@@ -18,8 +18,10 @@ import 'package:media_kit_video/media_kit_video.dart';
 
 import '../../app/inyeccion.dart';
 import '../../core/cache/estado_cola.dart';
+import '../../core/modelos/estilo_visual.dart';
 import '../../core/modelos/item_feed.dart';
 import '../../core/modelos/perfil_rendimiento.dart';
+import '../../core/modelos/preferencias_estilo.dart';
 import '../../estado/cubit_cola.dart';
 import '../../estado/cubit_like.dart';
 import '../../shared/tema/colores_app.dart';

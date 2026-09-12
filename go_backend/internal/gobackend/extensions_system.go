@@ -25,8 +25,10 @@ func InitExtensionSystem(payload string) string {
 	// el embedded extensions WITH signed-sesión configuración attached. If we
 	// replaced it here, the Cloudflare verification flow would find no
 	// sandbox/session and no auth URL would ever be returned.
-	if extRegistry == nil || extRegistry.Runtime().Count() == 0 {
-		extRegistry = extensions.NewRegistryBestEffort(params.ExtensionsDir)
+	er := getExtRegistry()
+	if er == nil || er.Runtime().Count() == 0 {
+		er = extensions.NewRegistryBestEffort(params.ExtensionsDir)
+		setExtRegistry(er)
 	}
 	// Actualización silenciosa contra el registry empaquetado: refresca las
 	// extensiones viejas que viven en el directorio que usa la app (en
@@ -37,19 +39,20 @@ func InitExtensionSystem(payload string) string {
 			len(actualizadas), params.ExtensionsDir, actualizadas)
 	}
 	// Load any on-disk extensions (subdir layout) into the existing registry.
-	_ = extensions.LoadDirExtensionsInto(extRegistry, params.ExtensionsDir, params.DataDir)
+	_ = extensions.LoadDirExtensionsInto(er, params.ExtensionsDir, params.DataDir)
 	// Re-apply stored settings (OAuth tokens, credentials) to extensions whose
 	// sandbox just finished loading — a startup push may have raced it.
 	replicarAjustesExtensiones()
-	data, _ := json.Marshal(extRegistry.List())
+	data, _ := json.Marshal(er.List())
 	return string(data)
 }
 
 func GetInstalledExtensions() string {
-	if extRegistry == nil {
+	er := getExtRegistry()
+	if er == nil {
 		return `[]`
 	}
-	data, _ := json.Marshal(extRegistry.List())
+	data, _ := json.Marshal(er.List())
 	return string(data)
 }
 

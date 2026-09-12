@@ -3,12 +3,14 @@ import 'strings/strings_red.dart';
 import 'strings/strings_splash.dart';
 import 'strings/strings_setup.dart';
 import 'strings/strings_tutorial.dart';
+import 'strings/strings_tutorial_interactivo.dart';
 
 class AppLocalizations {
   final Locale locale;
   late final StringsSplash splash;
   late final StringsSetup setup;
   late final StringsTutorial tutorial;
+  late final StringsTutorialInteractivo tutorialInteractivo;
   late final StringsRed red;
 
   AppLocalizations(this.locale) {
@@ -16,6 +18,8 @@ class AppLocalizations {
     splash = isEn ? StringsSplash.en : StringsSplash.es;
     setup = isEn ? StringsSetup.en : StringsSetup.es;
     tutorial = isEn ? StringsTutorial.en : StringsTutorial.es;
+    tutorialInteractivo =
+        isEn ? StringsTutorialInteractivo.en : StringsTutorialInteractivo.es;
     red = isEn ? StringsRed.en : StringsRed.es;
   }
 

@@ -19,13 +19,16 @@ import '../../app/inyeccion.dart';
 import '../../core/backend_go/contrato_backend.dart';
 import '../../core/cache/cache_ajustes.dart';
 import '../../core/modelos/ajustes_descarga.dart';
+import '../../core/modelos/estilo_visual.dart';
 import '../../core/modelos/item_feed.dart';
+import '../../core/modelos/preferencias_estilo.dart';
 import '../../estado/cubit_cola.dart';
 import '../../estado/cubit_descargas.dart';
 import '../../l10n/app_localizations.dart';
 import '../tema/colores_app.dart';
 import '../utilidades/estrategia_descarga.dart';
 import '../utilidades/formato_tamano.dart';
+import '../utilidades/paleta_portada.dart';
 import '../utilidades/responsive.dart';
 import 'contenedor_vidrio.dart';
 

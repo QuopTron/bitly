@@ -13,7 +13,7 @@ import (
 // Lives inside the user's download dir so it follows the chosen storage
 // location, mirroring the normal download folder logic.
 func streamCacheDirPath() string {
-	base := downloadDir
+	base := getDownloadDir()
 	if base == "" {
 		base = download.GlobalOutputDir()
 	}
@@ -27,7 +27,7 @@ func streamCacheDirPath() string {
 // plan limit when unset) and to a sane file count, deleting the oldest files
 // first so repeated fallback downloads don't fill the disk.
 func evictarCacheStream(dir string) {
-	limitMB := streamCacheMaxMB
+	limitMB := getStreamCacheMaxMB()
 	if limitMB <= 0 {
 		limitMB = streamCacheLevelLimitMB()
 	}

@@ -117,49 +117,58 @@ if [[ "$SUBIR_RELEASE" == "true" ]]; then
     exit 1
   fi
 
+  # Las notas van sin interpolar ($ y backticks romperían el heredoc) y la
+  # versión se sustituye después con __VERSION__.
   NOTAS_ES=$(cat <<'EOF'
-## 🎵 Bitly v0.9.10 — Android + PC
+## 🎵 Bitly v__VERSION__ — Android + PC + TV
 
 ### ✨ Novedades
-- **Verificación Cloudflare corregida en PC**: el modal del captcha ahora se cierra solo al verificar (el grant vuelve por el parser tolerante, igual que en Android).
-- **Detector de versiones multiplataforma**: ahora funciona en Android y Windows y elige el archivo correcto según la arquitectura (arm64 / armv7 / x86_64 en Android, x64/arm64 en Windows).
-- **Actualización silenciosa de extensiones**: al arrancar, las extensiones del registro empaquetado se actualizan solas si la versión instalada quedó vieja.
-- **Detección de fuentes verificadas en búsquedas**: las búsquedas detectan las keys de las fuentes verificadas en ambas plataformas.
+- **Bitly en tu Smart TV**: el mismo APK ahora se instala en Android TV, Google TV y Fire TV, aparece en el menú de la TV y usa el diseño de escritorio adaptado a la pantalla grande.
+- **Tutorial interactivo de primera vez**: la app te guía paso a paso (con foco sobre cada elemento) por el feed, las fuentes, la búsqueda, la reproducción, el miniplayer, los ajustes y Premium. Podés saltar un paso o el tutorial completo.
+- **Indicador de red**: ves el estado de tu conexión y su calidad sin salir de la app.
+- **Búsquedas y metadatos más rápidos**: caché y precarga de metadatos de todas las fuentes.
+- **Sesiones firmadas con rotación**: menos caídas al verificar las fuentes.
 
 ### 🐛 Correcciones
-- Muteo intermitente al cambiar de canción (repetir / repetir una vez / shuffle).
-- Backend Go cerrado correctamente al cerrar la app en PC (en celular sigue en segundo plano).
-- Diseños de PC: grids más amplios en Feed, Búsqueda y Mi Espacio.
-- Icono correcto de la app en Windows.
+- **Audio de YouTube**: cuando hay proveedor de PO Token se priorizan los formatos solo-audio de mayor calidad en vez del itag=18.
+- **Enlaces de Spotify y YouTube**: pegar un enlace ahora lo resuelve y lo reproduce bien.
+- **Descargas paralelas y rescate de FLAC**: descargas más rápidas y con más opciones de calidad.
+- **Reproductor**: el miniplayer, la notificación y el reproductor grande muestran siempre la misma canción que suena.
 
 ### ⬇️ Descargas
-- Android: `app-arm64-v8a-release.apk` / `app-armeabi-v7a-release.apk` / `app-x86_64-release.apk`
-- Windows: `Bitly-Setup-0.9.10.exe`
+- Android: app-arm64-v8a-release.apk / app-armeabi-v7a-release.apk / app-x86_64-release.apk
+- Windows: Bitly-Setup-__VERSION__.exe
+- TV (Android TV / Google TV / Fire TV): instalá app-arm64-v8a-release.apk con la app Downloader.
 EOF
 )
   NOTAS_EN=$(cat <<'EOF'
 
 ---
 
-## 🎵 Bitly v0.9.10 — Android + PC
+## 🎵 Bitly v__VERSION__ — Android + PC + TV
 
 ### ✨ Highlights
-- **Cloudflare verification fixed on PC**: the captcha modal now closes by itself after verifying (the grant returns through the tolerant parser, same as Android).
-- **Cross-platform version detector**: now works on Android and Windows and picks the right file for your architecture (arm64/armv7/x86_64 on Android, x64/arm64 on Windows).
-- **Silent extension updates**: on startup, bundled extensions update themselves if the installed copy is outdated.
-- **Verified-source detection in search**: searches detect the keys of verified sources on both platforms.
+- **Bitly on your Smart TV**: the same APK now installs on Android TV, Google TV and Fire TV, shows up in the TV launcher and uses the desktop layout adapted to the big screen.
+- **First-time interactive tutorial**: the app walks you through (with a spotlight on each element) the feed, sources, search, playback, miniplayer, settings and Premium. You can skip a step or the whole tutorial.
+- **Network indicator**: see your connection status and quality without leaving the app.
+- **Faster search and metadata**: caching and precaching for every source's metadata.
+- **Signed sessions with rotation**: fewer failures when verifying sources.
 
 ### 🐛 Fixes
-- Intermittent muting when switching tracks (repeat / repeat one / shuffle).
-- Go backend now closes when closing the app on PC (keeps running in background on mobile).
-- Wider PC grids on Feed, Search and My Space.
-- Correct app icon on Windows.
+- **YouTube audio**: when a PO Token provider is available, higher-quality audio-only formats are preferred over itag=18.
+- **Spotify and YouTube links**: pasting a link now resolves and plays correctly.
+- **Parallel downloads and FLAC rescue**: faster downloads with more quality options.
+- **Player**: miniplayer, notification and the full player always show the same track that is playing.
 
 ### ⬇️ Downloads
-- Android: `app-arm64-v8a-release.apk` / `app-armeabi-v7a-release.apk` / `app-x86_64-release.apk`
-- Windows: `Bitly-Setup-0.9.10.exe`
+- Android: app-arm64-v8a-release.apk / app-armeabi-v7a-release.apk / app-x86_64-release.apk
+- Windows: Bitly-Setup-__VERSION__.exe
+- TV (Android TV / Google TV / Fire TV): install app-arm64-v8a-release.apk with the Downloader app.
 EOF
 )
+  # La versión real entra acá (los heredocs de arriba no interpolan nada).
+  NOTAS_ES="${NOTAS_ES//__VERSION__/$NEW_VERSION}"
+  NOTAS_EN="${NOTAS_EN//__VERSION__/$NEW_VERSION}"
 
   echo "==> Creando GitHub Release v${NEW_VERSION}..."
   gh release create "v${NEW_VERSION}" \

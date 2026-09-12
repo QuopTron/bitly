@@ -1,8 +1,13 @@
 // ─────────────────────────────────────────────────────────────
 // registro_proveedores.dart — Registro estático de TODOS los
 // proveedores que aceptan credenciales, con sus campos y acciones.
-// Separado de config_proveedor.dart para mantener cada archivo
-// dentro del límite de líneas.
+//
+// Está partido en tres archivos para mantener cada uno dentro del
+// límite de líneas; acá queda el índice:
+//   - registro_proveedores_sesiones.dart → TIDAL y Qobuz (con pool)
+//   - registro_proveedores_rescate.dart  → proveedores nativos (rescate)
+//   - este archivo                       → el resto
+//
 // Se conecta con: config_proveedor.dart (lista `todos`).
 // Parte del flujo: Ajustes → Credenciales → Proveedores.
 // ─────────────────────────────────────────────────────────────
@@ -10,27 +15,15 @@
 import 'package:flutter/material.dart';
 
 import 'config_proveedor.dart';
+import 'registro_proveedores_rescate.dart';
+import 'registro_proveedores_sesiones.dart';
 
 /// Lista completa de proveedores con campos de credencial y acciones.
 const List<ConfigProveedor> proveedoresTodos = [
-  ConfigProveedor(
-    id: 'tidal-web',
-    nombreMostrado: 'TIDAL',
-    icon: Icons.water_drop,
-    campos: [
-      CampoProveedor(
-        key: 'tidalAccessToken',
-        label: 'Access Token',
-        hint: 'Pega el access token de Tidal...',
-      ),
-      CampoProveedor(
-        key: 'tidalCookie',
-        label: 'Session Cookie',
-        hint: 'Pega la cookie de sesión completa de Tidal...',
-        multiline: true,
-      ),
-    ],
-  ),
+  // Proveedores nativos (no extensiones JS), p. ej. el rescate de audio.
+  ...proveedoresRescate,
+  // Proveedores con pool de credenciales (TIDAL, Qobuz).
+  ...proveedoresSesiones,
   ConfigProveedor(
     id: 'apple-music',
     nombreMostrado: 'Apple',
@@ -91,27 +84,31 @@ const List<ConfigProveedor> proveedoresTodos = [
     ],
   ),
   ConfigProveedor(
-    id: 'qobuz-web',
-    nombreMostrado: 'Qobuz',
-    icon: Icons.album,
-    campos: [
-      CampoProveedor(
-        key: 'email',
-        label: 'Correo electrónico',
-        hint: 'tu@email.com',
-      ),
-      CampoProveedor(
-        key: 'password',
-        label: 'Contraseña',
-        hint: 'Contraseña de tu cuenta Qobuz',
-      ),
-    ],
-  ),
-  ConfigProveedor(
     id: 'deezer',
     nombreMostrado: 'Deezer',
     icon: Icons.headphones,
-    campos: [],
+    campos: [
+      CampoProveedor(
+        key: 'arl',
+        label: 'ARL (una por línea, opcional)',
+        hint: 'Con tu ARL las descargas salen DIRECTO del CDN de Deezer y ya no se '
+            'pide verificación de humano. Cuenta gratis: MP3 128 completo. '
+            'Cuenta paga: MP3 320 y FLAC. Se obtiene en la web de Deezer: '
+            'DevTools > Application > Cookies > arl.\n'
+            'Podés pegar VARIAS (una por línea): si una se banea, se rota sola a '
+            'la siguiente sin que vuelvas a pegar nada.',
+        multiline: true,
+      ),
+      CampoProveedor(
+        key: 'arlPoolUrls',
+        label: 'Fuentes del pool (una URL por línea, opcional)',
+        hint: 'URLs públicas que publiquen ARLs, para refrescar el pool sin '
+            'actualizar la app. La app las descarga, se queda solo con las que '
+            'siguen sirviendo y descarta las muertas. Tu ARL de arriba siempre '
+            'tiene prioridad sobre estas.',
+        multiline: true,
+      ),
+    ],
   ),
   ConfigProveedor(
     id: 'amazon',

@@ -22,6 +22,27 @@ func calidadEfectiva(q string) string {
 	}
 }
 
+// quiereSinPerdida reporta si el usuario pidió audio sin pérdida.
+func quiereSinPerdida(q string) bool {
+	switch strings.ToUpper(strings.TrimSpace(q)) {
+	case "FLAC", "LOSSLESS", "HI_RES", "HI_RES_LOSSLESS":
+		return true
+	}
+	return false
+}
+
+// esOpcionSinPerdida reporta si una opción declarada por la extensión entrega
+// audio sin pérdida. Se compara por nombre (las extensiones usan ids tipo
+// HI_RES_LOSSLESS / LOSSLESS / FLAC), no por posición.
+//
+// DOLBY_ATMOS queda FUERA a propósito: es un encode con pérdida (E-AC3) y en
+// Tidal está declarado PRIMERO, así que tomarlo como "el mejor" hacía que
+// pedir FLAC bajara Atmos.
+func esOpcionSinPerdida(o string) bool {
+	n := strings.ToUpper(strings.TrimSpace(o))
+	return strings.Contains(n, "LOSSLESS") || strings.Contains(n, "FLAC") || n == "HI_RES"
+}
+
 // qualityForProvider picks a quality token the given provider actually
 // recognizes. Extensions declare qualityOptions in their manifest; when the
 // requested quality isn't one of them (a source provider's token that doesn't
@@ -36,6 +57,19 @@ func calidadParaProvider(p provider.Provider, requested string) string {
 				for _, o := range opts {
 					if strings.EqualFold(strings.TrimSpace(o), req) {
 						return o // canonical id the extension recognizes
+					}
+				}
+				// El pedido no coincide por nombre. Antes se caía directo a
+				// opts[0] ("el mejor" de la extensión), y en Tidal opts[0] es
+				// DOLBY_ATMOS: pedir FLAC bajaba un Atmos (E-AC3, con pérdida).
+				// Si el usuario pidió sin pérdida, se elige la MEJOR opción sin
+				// pérdida que ofrezca la fuente, respetando su orden.
+				if quiereSinPerdida(req) {
+					for _, o := range opts {
+						if esOpcionSinPerdida(o) {
+							log.Printf("[orchestrator] quality fallback: requested=%q sin pérdida, usando %q de %v para provider=%s", req, o, opts, ep.Name())
+							return o
+						}
 					}
 				}
 				// Requested quality not available: fall back to the extension's

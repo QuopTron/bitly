@@ -23,8 +23,12 @@ Widget _cuerpoTarjetaTrack(
   Color colorIconoFallback,
   double tamanoIcono,
   double ts,
-  bool efectosPesados,
-) {
+  bool efectosPesados, {
+  Color? colorDominante,
+}) {
+  // Color dominante: viene del padre que ya verificó el estilo y preferencias.
+  final acento = colorDominante;
+
   return RepaintBoundary(
     child: Container(
       width: r.width * 0.82,
@@ -37,27 +41,35 @@ Widget _cuerpoTarjetaTrack(
         border: Border.all(
           color: t.estadoDescarga == EstadoDescarga.completado
               ? fg.withValues(alpha: 0.2)
-              : fg.withValues(alpha: 0.1),
+              : acento != null
+                  ? ColoresApp.bordeDinamico(esOscuro, acento)
+                  : fg.withValues(alpha: 0.1),
           width: t.estadoDescarga == EstadoDescarga.completado ? 1.0 : 0.7,
         ),
         boxShadow: [
           if (efectosPesados)
             BoxShadow(
-              color: ColoresApp.sombra(esOscuro).withValues(
-                  alpha: t.estadoDescarga == EstadoDescarga.completado
-                      ? 0.35
-                      : 0.3),
+              color: (acento != null
+                      ? ColoresApp.sombraDinamica(esOscuro, acento)
+                      : ColoresApp.sombra(esOscuro))
+                  .withValues(
+                      alpha: t.estadoDescarga == EstadoDescarga.completado
+                          ? 0.35
+                          : 0.3),
               blurRadius: 14,
               spreadRadius: 0,
               offset: const Offset(0, 5),
             ),
         ],
+        color: acento != null
+            ? ColoresApp.superficieDinamica(esOscuro, acento)
+            : null,
       ),
       clipBehavior: Clip.hardEdge,
       child: Stack(
         children: [
-          // Portada de fondo: decode a baja resolución — detrás del velo.
-          if (t.coverUrl != null && t.coverUrl!.isNotEmpty)
+          // En modo Clásico: portada de fondo. En Spotify: color dominante.
+          if (acento == null && t.coverUrl != null && t.coverUrl!.isNotEmpty)
             Positioned.fill(
               child: imagenDesdeUrl(
                 t.coverUrl,
@@ -66,9 +78,31 @@ Widget _cuerpoTarjetaTrack(
                 alto: 128,
               ),
             ),
+          if (acento != null)
+            Positioned.fill(
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 350),
+                curve: Curves.easeOutCubic,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Color.lerp(
+                          ColoresApp.superficie(esOscuro), acento, 0.45)!,
+                      Color.lerp(
+                          ColoresApp.superficie(esOscuro), acento, 0.20)!,
+                    ],
+                  ),
+                ),
+              ),
+            ),
           Positioned.fill(
             child: Container(
-              color: ColoresApp.sombra(esOscuro).withValues(alpha: 0.4),
+              // En Spotify el fondo ya es el color dominante, velo más sutil.
+              color: acento != null
+                  ? ColoresApp.veloDinamico(esOscuro, acento, alpha: 0.15)
+                  : ColoresApp.sombra(esOscuro).withValues(alpha: 0.4),
             ),
           ),
           if (t.readyKey != null && t.readyKey!.isNotEmpty)
@@ -82,7 +116,9 @@ Widget _cuerpoTarjetaTrack(
                   colors: [
                     fg.withValues(alpha: esOscuro ? 0.05 : 0.0),
                     Colors.transparent,
-                    ColoresApp.sombra(esOscuro)
+                    (acento != null
+                            ? ColoresApp.sombraDinamica(esOscuro, acento)
+                            : ColoresApp.sombra(esOscuro))
                         .withValues(alpha: efectosPesados ? 0.45 : 0.3),
                   ],
                   stops: const [0.0, 0.35, 1.0],

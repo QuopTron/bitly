@@ -4,7 +4,7 @@ part of 'settings_sheet_new.dart';
 /// Cuatro burbujas con etiqueta pequeña; la activa brilla. Tocar la activa
 /// de nuevo vuelve al perfil/estadísticas.
 class _BubbleTabsRow extends StatelessWidget {
-  final int currentIndex;
+  final int? currentIndex;
   final Color glowColor;
   final Color onBg;
   final Responsive r;
@@ -52,6 +52,7 @@ class _SettingsTabs extends StatelessWidget {
   final String downloadedCount;
   final ValueChanged<bool> onThemeChanged;
   final VoidCallback onLanguageChanged;
+  final ValueChanged<EstiloVisual> onStyleChanged;
   final Future<void> Function() onPremiumChanged;
 
   const _SettingsTabs({
@@ -64,6 +65,7 @@ class _SettingsTabs extends StatelessWidget {
     required this.downloadedCount,
     required this.onThemeChanged,
     required this.onLanguageChanged,
+    required this.onStyleChanged,
     required this.onPremiumChanged,
   });
 
@@ -86,6 +88,7 @@ class _SettingsTabs extends StatelessWidget {
           glowColor: glowColor,
           onThemeChanged: onThemeChanged,
           onLanguageChanged: onLanguageChanged,
+          onStyleChanged: onStyleChanged,
         ),
         _DownloadsTab(glowColor: glowColor),
         _PerformanceTab(glowColor: glowColor),

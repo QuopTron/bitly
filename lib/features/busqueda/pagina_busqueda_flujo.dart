@@ -49,6 +49,48 @@ void _ejecutarBusqueda(_PaginaBusquedaState st) {
   _despacharBusqueda(st, q);
 }
 
+/// Envío explícito (Enter / acción del teclado): un enlace de música se
+/// resuelve y se reproduce; cualquier otro texto se busca normalmente.
+Future<void> _enviarBusqueda(_PaginaBusquedaState st, String texto) async {
+  final q = texto.trim();
+  if (q.isEmpty) return;
+  st._debounce?.cancel();
+  if (ServicioEnlaces.enlaceEnTexto(q) != null) {
+    await _resolverEnlace(st, q);
+    return;
+  }
+  _despacharBusqueda(st, q);
+}
+
+/// Resuelve un enlace pegado/compartido: Go elige la extensión según su
+/// manifest y devuelve el ítem, que se encola y suena de inmediato.
+///
+/// Nunca busca la URL como texto: buscar "https://open.spotify.com/track/..."
+/// devolvía resultados que no tenían nada que ver con la canción del enlace.
+/// Si la fuente no puede resolverlo, se avisa al usuario.
+Future<void> _resolverEnlace(_PaginaBusquedaState st, String texto) async {
+  final enlace = ServicioEnlaces.enlaceEnTexto(texto);
+  if (enlace == null) return;
+  if (st.mounted) st._aplicar(() => st._buscando = true);
+  final resuelto = await ServicioEnlaces.instance.resolver(enlace);
+  if (!st.mounted) return;
+  st._aplicar(() => st._buscando = false);
+  if (resuelto == null) {
+    st.context.read<BlocBusqueda>().add(const LimpiarBusqueda());
+    _mostrarAviso(st, AppLocalizations.of(st.context).setup.linkResolveFailed);
+    return;
+  }
+  sl<CubitCola>().reproducirConContexto(resuelto.paraReproducir, resuelto.item);
+  _limpiarBusqueda(st);
+}
+
+/// Aviso breve sin bloquear la vista (el enlace no se pudo resolver).
+void _mostrarAviso(_PaginaBusquedaState st, String mensaje) {
+  ScaffoldMessenger.maybeOf(st.context)?.showSnackBar(
+    SnackBar(content: Text(mensaje), duration: const Duration(seconds: 5)),
+  );
+}
+
 /// Cambia la fuente, valida la categoría y re-busca.
 void _onFuenteCambiada(_PaginaBusquedaState st, String fuente) {
   st._aplicar(() {
@@ -70,16 +112,29 @@ void _onTipoCambiado(_PaginaBusquedaState st, String? tipo) {
   _ejecutarBusqueda(st);
 }
 
-/// Debounce de 150ms sobre el texto; vacío limpia la búsqueda.
+/// Debounce sobre el texto; vacío limpia la búsqueda.
+///
+/// Un enlace de música NO se busca como texto: se resuelve (Go elige la
+/// extensión) y se reproduce. Antes, pegar un enlace disparaba una búsqueda de
+/// la URL completa y aparecían resultados basura que no eran esa canción.
 void _onTextoCambiado(_PaginaBusquedaState st, String valor) {
   st._debounce?.cancel();
-  if (valor.trim().isEmpty) {
+  final q = valor.trim();
+  if (q.isEmpty) {
     st._aplicar(() => st._buscando = false);
     st.context.read<BlocBusqueda>().add(const LimpiarBusqueda());
     return;
   }
   st._aplicar(() => st._buscando = true);
-  final q = valor.trim();
+  if (ServicioEnlaces.enlaceEnTexto(q) != null) {
+    // Espera un poco más que una búsqueda: al pegar, el texto se completa de
+    // golpe, pero al escribir el enlace a mano evita resolver cada tecla.
+    st._debounce = Timer(const Duration(milliseconds: 400), () {
+      if (!st.mounted) return;
+      _resolverEnlace(st, q);
+    });
+    return;
+  }
   st._debounce = Timer(const Duration(milliseconds: 150), () {
     if (!st.mounted) return;
     _despacharBusqueda(st, q);

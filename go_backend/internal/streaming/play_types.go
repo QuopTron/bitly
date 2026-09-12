@@ -26,6 +26,7 @@ type StreamPackage struct {
 var streamingProviders = []string{
 	"youtube", "deezer", "qobuz", "tidal", "qobuz-web", "tidal-web", "amazon",
 	"ytmusic-spotiflac", "apple-music", "spotify-web", "soundcloud",
+	"flac-rescue",
 }
 
 // isPlayableStreamProvider returns true if the provider can stream audio.
@@ -58,7 +59,7 @@ func esURLReproducible(u string) bool {
 // to the download pipeline, which performs any required decryption.
 var fullStreamProviders = []string{
 	"youtube", "ytmusic-spotiflac", "soundcloud", "deezer",
-	"qobuz-web", "tidal-web",
+	"qobuz-web", "tidal-web", "flac-rescue",
 }
 
 // IsFullStreamProvider reports whether [name] can serve a full-length stream

@@ -34,6 +34,8 @@ func dispatchCore(method string, params map[string]interface{}) (interface{}, st
 		return backend.SearchStream(rpcBody(params)), "", true
 	case "getSearchStreamResults":
 		return backend.GetSearchStreamResults(), "", true
+	case "resolveUrl":
+		return backend.ResolveUrl(rpcBody(params)), "", true
 
 	// ── Detail views ────────────────────────────────────────
 	case "fetchAlbumDetail":

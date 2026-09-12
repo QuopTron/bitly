@@ -1,21 +1,22 @@
 {
   "name": "apple-music",
   "displayName": "Apple Music",
-  "version": "1.4.2",
-  "description": "Apple Music metadata and lyrics provider for SpotiFLAC Mobile with complete release, disc, audio, and credits metadata.",
+  "version": "1.4.4",
+  "description": "Apple Music metadata and lyrics provider for SpotiFLAC Mobile with guarded track matching, bounded caching, resilient requests, and complete release metadata.",
   "homepage": "https://github.com/zarzet/SpotiFLAC-Mobile",
   "type": ["metadata_provider", "lyrics_provider"],
   "minAppVersion": "4.2.3",
   "skipMetadataEnrichment": false,
   "capabilities": {
-    "homeFeed": true,
+    "homeFeed": false,
     "browseCategories": false,
     "shareUrlTemplates": {
       "track": "https://music.apple.com/us/song/{id}",
       "album": "https://music.apple.com/us/album/{id}",
       "artist": "https://music.apple.com/us/artist/{id}",
       "playlist": "https://music.apple.com/us/playlist/{id}"
-    }
+    },
+    "networkTimeoutSeconds": 15
   },
   "permissions": {
     "network": ["music.apple.com", "amp-api.music.apple.com", "*.mzstatic.com"],

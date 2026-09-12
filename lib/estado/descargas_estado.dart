@@ -59,6 +59,13 @@ mixin DescargasEstado on DescargasCola {
       _log.w('[_manejarVerificacionRequerida] ServicioVerificacion no inicializado');
       return;
     }
+    // Sin fuentes con sesión firmada no hay nada que verificar: el
+    // "verification_required" del backend es un falso positivo (p.ej. error de
+    // red clasificado erróneamente). Cortamos para no abrir el WebView.
+    if (ServicioVerificacion.fuentesSesionFirmada.isEmpty) {
+      _log.i('[_manejarVerificacionRequerida] sin fuentes con sesión firmada, skip');
+      return;
+    }
     try {
       for (final extId in _nombresMostrarProveedor.keys) {
         try {

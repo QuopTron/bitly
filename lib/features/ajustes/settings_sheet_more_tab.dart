@@ -36,8 +36,9 @@ class _MoreTabState extends State<_MoreTab> {
           } else {
             final h = diff.inHours;
             final m = (diff.inMinutes % 60);
-            if (mounted)
+            if (mounted) {
               setState(() => _trialRemaining = '${h}h ${m}m restantes');
+            }
           }
         }
       }
@@ -65,8 +66,8 @@ class _MoreTabState extends State<_MoreTab> {
           // Google connection
           _GoogleConnectionCard(glowColor: widget.glowColor),
           SizedBox(height: r.spacingM),
-          // Sesiones firmadas por fuente (renovar/verificar de a una)
-          _SesionesCard(glowColor: widget.glowColor),
+          // Música propia del usuario (importación local + dedupe por ISRC)
+          _BibliotecaLocalCard(glowColor: widget.glowColor),
           SizedBox(height: r.spacingM),
           // Report a bug / suggestion
           _ReportCardWidget(glowColor: widget.glowColor),

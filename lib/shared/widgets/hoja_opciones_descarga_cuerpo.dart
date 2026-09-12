@@ -13,67 +13,132 @@ part of 'hoja_opciones_descarga.dart';
 
 /// Cuerpo completo de la hoja con fondo vidrio si hay track activo.
 Widget _cuerpoHoja(_HojaOpcionesDescargaState st) {
-  final r = Responsive(st.context);
-  final loc = AppLocalizations.of(st.context);
-  final onBg = st.widget.esOscuro ? Colors.white : Colors.black;
-  final brillo =
-      st.widget.esOscuro ? ColoresApp.verdeBrillante : ColoresApp.verdeMedio;
-  final hayTrack = sl<CubitCola>().state.tieneActual;
-  final baseBg = st.widget.esOscuro
-      ? const Color(0xFF1A1A1A)
-      : const Color(0xFFF5F5F5);
-  final fondoHoja = hayTrack ? baseBg.withValues(alpha: 0.70) : baseBg;
+  return _DescargaEstilo(st: st);
+}
 
-  Widget hoja = Container(
-    margin: EdgeInsets.only(top: r.spacingXL * 2),
-    decoration: BoxDecoration(
-      color: fondoHoja,
-      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-    ),
-    child: ClipRRect(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(height: r.spacingM),
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: onBg.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(2),
+/// Widget wrapper that reacts to visual style for blur/dominant color.
+class _DescargaEstilo extends StatefulWidget {
+  final _HojaOpcionesDescargaState st;
+  const _DescargaEstilo({required this.st});
+
+  @override
+  State<_DescargaEstilo> createState() => _DescargaEstiloState();
+}
+
+class _DescargaEstiloState extends State<_DescargaEstilo> {
+  Color? _acento;
+
+  @override
+  void initState() {
+    super.initState();
+    _extraerColor();
+  }
+
+  Future<void> _extraerColor() async {
+    final url = widget.st.widget.item.coverUrl;
+    if (url == null || url.isEmpty) return;
+    try {
+      final paleta = await paletaParaPortada(url);
+      if (mounted) setState(() => _acento = paleta?.dominante);
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final st = widget.st;
+    final r = Responsive(st.context);
+    final loc = AppLocalizations.of(st.context);
+    final onBg = st.widget.esOscuro ? Colors.white : Colors.black;
+    final brillo =
+        st.widget.esOscuro ? ColoresApp.verdeBrillante : ColoresApp.verdeMedio;
+    final hayTrack = sl<CubitCola>().state.tieneActual;
+    final baseBg = st.widget.esOscuro
+        ? const Color(0xFF1A1A1A)
+        : const Color(0xFFF5F5F5);
+    final fondoHoja = hayTrack ? baseBg.withValues(alpha: 0.70) : baseBg;
+
+    Widget hoja = Container(
+      margin: EdgeInsets.only(top: r.spacingXL * 2),
+      decoration: BoxDecoration(
+        color: fondoHoja,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(height: r.spacingM),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: onBg.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-            ),
-            SizedBox(height: r.spacingL),
-            _cabeceraItem(st, r, onBg, brillo),
-            SizedBox(height: r.spacingM),
-            _cabeceraSeccion(r, 'LOSSLESS', onBg),
-            ..._HojaOpcionesDescargaState._clavesLossless
-                .map((q) => _construirOpcion(st, r, q, brillo, onBg)),
-            _cabeceraSeccion(r, 'LOSSY', onBg),
-            ..._HojaOpcionesDescargaState._clavesLossy
-                .map((q) => _construirOpcion(st, r, q, brillo, onBg)),
-            SizedBox(height: r.spacingM),
-            if (st.widget.ajustes.videoHabilitado ||
-                st.widget.ajustes.letrasHabilitadas)
-              _bannerInfo(st, r, loc, onBg, brillo),
-            SizedBox(height: r.spacingM),
-            _botonDescargar(st, r, loc, onBg, brillo),
-            SizedBox(height: r.spacingXL),
-          ],
+              SizedBox(height: r.spacingL),
+              _cabeceraItem(st, r, onBg, brillo),
+              SizedBox(height: r.spacingM),
+              _cabeceraSeccion(r, 'LOSSLESS', onBg),
+              ..._HojaOpcionesDescargaState._clavesLossless
+                  .map((q) => _construirOpcion(st, r, q, brillo, onBg)),
+              _cabeceraSeccion(r, 'LOSSY', onBg),
+              ..._HojaOpcionesDescargaState._clavesLossy
+                  .map((q) => _construirOpcion(st, r, q, brillo, onBg)),
+              SizedBox(height: r.spacingM),
+              if (st.widget.ajustes.videoHabilitado ||
+                  st.widget.ajustes.letrasHabilitadas)
+                _bannerInfo(st, r, loc, onBg, brillo),
+              SizedBox(height: r.spacingM),
+              _botonDescargar(st, r, loc, onBg, brillo),
+              SizedBox(height: r.spacingXL),
+            ],
+          ),
         ),
       ),
-    ),
-  );
-  if (hayTrack) {
-    hoja = ClipRRect(
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-        child: hoja,
-      ),
+    );
+
+    return ValueListenableBuilder<EstiloVisual>(
+      valueListenable: sl<ValueNotifier<EstiloVisual>>(),
+      builder: (context, estilo, _) {
+        return ValueListenableBuilder<PreferenciasEstilo>(
+          valueListenable: sl<ValueNotifier<PreferenciasEstilo>>(),
+          builder: (context, prefs, _) {
+            final spotify =
+                estilo == EstiloVisual.spotify && prefs.fondosModals;
+            if (spotify && hayTrack && _acento != null) {
+              final colorFinal = Color.lerp(
+                baseBg,
+                _acento!,
+                st.widget.esOscuro ? 0.45 : 0.30,
+              )!;
+              return ClipRRect(
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(24)),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 400),
+                  curve: Curves.easeOutCubic,
+                  color: colorFinal,
+                  child: hoja,
+                ),
+              );
+            }
+            if (hayTrack) {
+              return ClipRRect(
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(24)),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+                  child: hoja,
+                ),
+              );
+            }
+            return hoja;
+          },
+        );
+      },
     );
   }
-  return hoja;
 }

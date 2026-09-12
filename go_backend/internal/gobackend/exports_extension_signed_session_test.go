@@ -7,17 +7,38 @@ import (
 	"testing"
 )
 
-// TestSignedSessionSurvivesAndroidInitFlow simulates the Android startup order:
-// InitGlobalState (embedded extensions with signed session) → InitExtensionSystem
-// → LoadExtensionsFromDir. Before the fix, the latter two replaced extRegistry
-// with an empty one, so signedSessionSandbox returned nil and no Cloudflare
-// auth URL was ever produced.
-func TestSignedSessionSurvivesAndroidInitFlow(t *testing.T) {
-	// Reset globals.
+// TestNingunaExtensionEmbutidaDeclaraSesionFirmada es el guard que impide que
+// vuelva el modal de Cloudflare al arrancar.
+//
+// El arranque de la app pedía provisionar la sesión firmada del gateway zarz
+// para cada sandbox que declare `signedSession` en su manifest. Ese bootstrap
+// contra api.zarz.moe devolvía VERIFY_REQUIRED y el challenge terminaba en el
+// modal de Turnstile. Tras migrar Deezer (ARL), Tidal (token propio) y Qobuz
+// (cuenta propia) al CDN directo y dejar Amazon como solo-metadata, ninguna
+// fuente necesita el gateway: la lista de objetivos debe quedar VACÍA.
+//
+// Si alguien vuelve a declarar `signedSession` en una extensión embebida, este
+// test falla y avisa que el modal regresaría.
+func TestNingunaExtensionEmbutidaDeclaraSesionFirmada(t *testing.T) {
 	extRegistry = nil
-	extSettings = nil
+	reiniciarAjustesExtensiones()
+	InitGlobalState()
 
-	// 1. InitGlobalState — embedded extensions with signed session.
+	ids := signedSessionMaintenanceTargets("")
+	if len(ids) != 0 {
+		t.Fatalf("el arranque provisionaría sesiones del gateway para: %v", ids)
+	}
+}
+
+// TestSinSesionFirmadaEnArranqueAndroid simula el orden de arranque de Android
+// (InitGlobalState → InitExtensionSystem → LoadExtensionsFromDir) y verifica
+// que en ningún paso aparece una sesión firmada, ni con un directorio en disco
+// viejo: sin sesión no hay bootstrap, y sin bootstrap no hay modal.
+func TestSinSesionFirmadaEnArranqueAndroid(t *testing.T) {
+	extRegistry = nil
+	reiniciarAjustesExtensiones()
+
+	// 1. InitGlobalState: las extensiones embebidas son la fuente de verdad.
 	state := InitGlobalState()
 	if strings.Contains(state, `"error"`) {
 		t.Fatalf("InitGlobalState failed: %s", state)
@@ -25,74 +46,56 @@ func TestSignedSessionSurvivesAndroidInitFlow(t *testing.T) {
 	if !strings.Contains(state, "qobuz-web") {
 		t.Fatalf("qobuz-web not registered: %s", state)
 	}
-	if sb := signedSessionSandbox("qobuz-web"); sb == nil {
+	sb := signedSessionSandbox("qobuz-web")
+	if sb == nil {
 		t.Fatal("qobuz-web sandbox missing after InitGlobalState")
-	} else if sb.SignedSession == nil {
-		t.Fatal("qobuz-web SignedSession not attached after InitGlobalState")
+	}
+	if sb.SignedSession != nil {
+		t.Fatal("qobuz-web todavía trae signedSession embebido (volvería el modal de Cloudflare)")
 	}
 
-	// 2. Simulate Flutter calling initExtensionSystem with a (possibly stale)
-	//    on-disk extensions dir that does NOT contain signedSession in manifest.
+	// 2. Un directorio en disco viejo (manifest sin signedSession) no debe
+	//    reintroducir la sesión ni clobbear el registro embebido.
 	staleDir := t.TempDir()
-	extID := "qobuz-web"
-	extSub := filepath.Join(staleDir, extID)
+	extSub := filepath.Join(staleDir, "qobuz-web")
 	if err := os.MkdirAll(extSub, 0755); err != nil {
 		t.Fatal(err)
 	}
-	// Old manifest without signedSession + old index.js.
 	os.WriteFile(filepath.Join(extSub, "manifest.json"), []byte(`{"name":"qobuz-web"}`), 0644)
 	os.WriteFile(filepath.Join(extSub, "index.js"), []byte(`function searchTracks(q,l){return[];}`), 0644)
-
-	// JSON-escape the path (Windows backslashes would break the payload).
 	escaped := strings.ReplaceAll(staleDir, `\`, `\\`)
 
 	r1 := InitExtensionSystem(`{"extensions_dir":"` + escaped + `","data_dir":"` + escaped + `"}`)
 	if strings.Contains(r1, `"error"`) {
 		t.Fatalf("InitExtensionSystem failed: %s", r1)
 	}
-
-	// The embedded sandbox (with SignedSession) must be preserved.
 	if sb := signedSessionSandbox("qobuz-web"); sb == nil {
 		t.Fatal("qobuz-web sandbox missing after InitExtensionSystem")
-	} else if sb.SignedSession == nil {
-		t.Fatal("SignedSession was lost after InitExtensionSystem (extRegistry clobbered)")
+	} else if sb.SignedSession != nil {
+		t.Fatal("signedSession reintroducida tras InitExtensionSystem")
 	}
 
-	// 3. Simulate loadExtensionsFromDir.
+	// 3. loadExtensionsFromDir: mismo criterio.
 	r2 := LoadExtensionsFromDir(`{"dir_path":"` + escaped + `"}`)
 	if strings.Contains(r2, `"error"`) {
 		t.Fatalf("LoadExtensionsFromDir failed: %s", r2)
 	}
 	if sb := signedSessionSandbox("qobuz-web"); sb == nil {
 		t.Fatal("qobuz-web sandbox missing after LoadExtensionsFromDir")
-	} else if sb.SignedSession == nil {
-		t.Fatal("SignedSession was lost after LoadExtensionsFromDir (extRegistry clobbered)")
+	} else if sb.SignedSession != nil {
+		t.Fatal("signedSession reintroducida tras LoadExtensionsFromDir")
 	}
 
-	// 4. The pending verification URL must be producible (no error JSON).
-	// OJO: el bootstrap contacta api.zarz.moe (red REAL). En CI sin red o con
-	// timeouts, el error es de RED, no de la lógica — tolerarlo para no
-	// romper el pipeline por flakiness de red (el resto del test ya verificó
-	// la lógica de sandbox/sesión).
+	// 4. Y el bridge no produce ningún challenge real (ni toca la red): sin
+	//    session configurada, la respuesta es un error limpio sin auth_url.
 	res := GetPendingVerificationUrl(`{"extension_id":"qobuz-web"}`)
-	if strings.Contains(res, `"error"`) {
-		esErrorDeRed := strings.Contains(res, "Timeout exceeded") ||
-			strings.Contains(res, "connection refused") ||
-			strings.Contains(res, "no such host") ||
-			strings.Contains(res, "Client.Timeout")
-		if esErrorDeRed {
-			t.Logf("[skip-red] GetPendingVerificationUrl: %s", res)
-			return
-		}
-		t.Fatalf("GetPendingVerificationUrl returned error: %s", res)
-	}
-	if !strings.Contains(res, `"auth_url"`) {
-		t.Fatalf("GetPendingVerificationUrl unexpected shape: %s", res)
+	if strings.Contains(res, `"auth_url":"http`) || strings.Contains(res, `"needsVerification":true`) {
+		t.Fatalf("GetPendingVerificationUrl produjo un challenge real: %s", res)
 	}
 }
 
 // TestLoadDirExtensionsIntoSkipsExisting verifies the loader never replaces a
-// sandbox that already exists (embedded copy has signed-session config).
+// sandbox that already exists (the embedded copy stays the source of truth).
 func TestLoadDirExtensionsIntoSkipsExisting(t *testing.T) {
 	staleDir := t.TempDir()
 	extSub := filepath.Join(staleDir, "deezer")
@@ -101,14 +104,14 @@ func TestLoadDirExtensionsIntoSkipsExisting(t *testing.T) {
 	os.WriteFile(filepath.Join(extSub, "index.js"), []byte(`function searchTracks(q,l){return[];}`), 0644)
 
 	extRegistry = nil
-	extSettings = nil
+	reiniciarAjustesExtensiones()
 	InitGlobalState()
 
-	if sb := signedSessionSandbox("deezer"); sb == nil || sb.SignedSession == nil {
-		t.Fatal("deezer SignedSession missing after InitGlobalState")
+	if sb := signedSessionSandbox("deezer"); sb == nil {
+		t.Fatal("deezer sandbox missing after InitGlobalState")
 	}
 	_ = LoadExtensionsFromDir(`{"dir_path":"` + strings.ReplaceAll(staleDir, `\`, `\\`) + `"}`)
-	if sb := signedSessionSandbox("deezer"); sb == nil || sb.SignedSession == nil {
-		t.Fatal("deezer SignedSession lost after LoadExtensionsFromDir with stale dir")
+	if sb := signedSessionSandbox("deezer"); sb == nil {
+		t.Fatal("deezer sandbox lost after LoadExtensionsFromDir with stale dir")
 	}
 }

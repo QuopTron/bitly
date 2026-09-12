@@ -15,7 +15,7 @@ import (
 // whose audio is the actual song, and leave soundcloud's loose name-search —
 // which can pull a same-title remix — for last.
 var preferredStreamOrder = []string{
-	"amazon", "deezer", "qobuz-web", "tidal-web",
+	"amazon", "deezer", "qobuz-web", "tidal-web", "flac-rescue",
 	"youtube", "ytmusic-spotiflac", "pandora",
 	"soundcloud", "apple-music", "spotify-web",
 }

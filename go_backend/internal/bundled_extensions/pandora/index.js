@@ -1,5 +1,5 @@
 var CONFIG = {
-  apiBaseURL: "https://api.zarz.moe",
+  apiBaseURL: "",
   downloadPath: "/v1/dl/pan",
   songLinkBaseURL: "https://api.song.link/v1-alpha.1/links",
   deezerBaseURL: "https://api.deezer.com",
@@ -69,15 +69,6 @@ function appUserAgent() {
 }
 
 function userAgentForURL(url) {
-  var text = String(url || "")
-    .trim()
-    .toLowerCase();
-  if (
-    text.indexOf("https://api.zarz.moe") === 0 ||
-    text.indexOf("http://api.zarz.moe") === 0
-  ) {
-    return appUserAgent();
-  }
   return utils.randomUserAgent();
 }
 
@@ -962,6 +953,17 @@ function checkAvailability(isrc, trackName, artistName, options) {
 
 function download(trackID, quality, outputPath, onProgress) {
   try {
+    // Pandora audio goes through flac-rescue (ISRC-based). This extension is
+    // metadata-only: without a resolver API endpoint, return a clean error.
+    if (!CONFIG.apiBaseURL) {
+      return {
+        success: false,
+        error_message:
+          "Pandora metadata-only: el audio se resuelve desde una fuente abierta",
+        error_type: "no_session",
+      };
+    }
+
     var downloadURL = normalizeSecureURL(normalizePandoraTrackURL(trackID));
     var resolvedTrack = null;
     var trackMetadata = null;

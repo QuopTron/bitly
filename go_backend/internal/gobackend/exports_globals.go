@@ -20,6 +20,15 @@ import (
 // GLOBALES DEL PUENTE
 // =========================================================================
 
+// tipoStreamer es el contrato mínimo del servidor de streaming local (lo
+// implementa streaming.Streamer). Está nombrado para que un accesor con
+// candado pueda devolverlo de forma segura.
+type tipoStreamer interface {
+	StartServer(int) (string, error)
+	StopServer() error
+	StreamChunk(string, int64, int64) ([]byte, error)
+}
+
 // Instancias globales inicializadas en InitGlobalState. Se guardan a nivel de
 // paquete porque cada función exportada del puente (una llamada directa desde
 // Flutter) las necesita sin pasar por una estructura compartida.
@@ -54,6 +63,11 @@ var (
 	// lib es la biblioteca local (tracks descargados, likes, playlists).
 	lib *library.Library
 
+	// indiceLocal es el mapa ISRC → archivo de la música propia del usuario.
+	// Lo llena la importación local y lo consulta la descarga para no volver a
+	// bajar lo que ya está en disco.
+	indiceLocal *library.IndiceLocal
+
 	// binMgr gestiona binarios descargados (yt-dlp, ffmpeg).
 	binMgr *bin.Manager
 
@@ -61,11 +75,10 @@ var (
 	ytdlpPath string
 
 	// streamer arranca el servidor HTTP de streaming local para Flutter.
-	streamer interface {
-		StartServer(int) (string, error)
-		StopServer() error
-		StreamChunk(string, int64, int64) ([]byte, error)
-	}
+	// Se crea de forma perezosa vía getStreamer(): si dos pedidos de chunk
+	// llegan a la vez, ambos comparten UNA instancia (antes cada uno creaba
+	// la suya y el último pisaba al primero, perdiendo puerto y caché).
+	streamer tipoStreamer
 
 	// playbackTracker registra la reproducción actual (scrobble/premium).
 	playbackTracker *playback.Tracker

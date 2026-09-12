@@ -18,7 +18,7 @@ import (
 // / sandbox lock is holding the executor, so a stuck call is diagnosable from
 // the device instead of being a silent black box.
 func DumpGoroutines(path string) string {
-	dir := downloadDir
+	dir := getDownloadDir()
 	if dir == "" {
 		dir = download.GlobalOutputDir()
 	}

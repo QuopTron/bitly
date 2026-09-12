@@ -1,8 +1,18 @@
 var CONFIG = {
+  // Respaldo firmado (gateway). Es lo ÚNICO que pide verificación de humano.
+  // Apagado por defecto: si hay credencial propia se baja DIRECTO de TIDAL y,
+  // si no, el backend resuelve el audio desde una fuente abierta por ISRC — así
+  // nunca aparece el modal. Poné respaldoFirmado: true para habilitar el gateway.
+  respaldoFirmado: false,
   apiBaseURL: "https://tidal.com/v1",
   resourceBaseURL: "https://resources.tidal.com",
   downloadAPIURL: "/dl/tid",
   publicToken: "49YxDN9a2aFV6RTG",
+  // Sesión propia del usuario (Ajustes → Credenciales → TIDAL). Con esto el
+  // audio se pide DIRECTO a TIDAL (playbackinfopostpaywall) y no hace falta
+  // el gateway firmado — por lo tanto no aparece verificación ni modal.
+  accessToken: "",
+  cookie: "",
   countryCode: "US",
   locale: "en_US",
   deviceType: "BROWSER",
@@ -11,7 +21,64 @@ var CONFIG = {
   maxAlbumItems: 1000,
   maxPlaylistTracks: 500,
   pageSize: 50,
+  metadataCacheTtlMs: 5 * 60 * 1000,
+  searchCacheTtlMs: 60 * 1000,
+  metadataCacheMaxEntries: 500,
+  maxDownloadAttempts: 5,
+  retryBaseDelayMs: 250,
+  retryMaxDelayMs: 4000,
 };
+
+var METADATA_CACHE = new Map();
+
+// Se activa cuando TIDAL rechaza la sesión del usuario (HTTP 401/403): evita
+// repetir el mismo 401 en cada intento y calidad, y deja pasar el respaldo.
+var DIRECT_SESSION_DISABLED = false;
+
+// ── Pool de tokens (access token) ───────────────────────────────────────────
+// El backend de Go arma el pool: junta el token propio del usuario con los que
+// saca de las fuentes que él configure, y VALIDA cada uno contra la API de
+// Tidal antes de mandarlo. Acá solo rotamos: si Tidal rechaza el token en uso
+// (expirado/revocado), se pasa al siguiente solo.
+var tidalTokenPool = [];
+var tidalPoolIndex = 0;
+
+// tidalRotarToken avanza al siguiente token del pool. Devuelve false cuando
+// no queda ninguno distinto que probar.
+function tidalRotarToken() {
+  if (tidalTokenPool.length <= 1) return false;
+  tidalPoolIndex = (tidalPoolIndex + 1) % tidalTokenPool.length;
+  CONFIG.accessToken = tidalTokenPool[tidalPoolIndex];
+  log.warn("[TidalWeb] Token rechazado: rotando al siguiente del pool");
+  return true;
+}
+
+function metadataCacheGet(key) {
+  var normalizedKey = String(key || "");
+  var entry = METADATA_CACHE.get(normalizedKey);
+  if (!entry) return null;
+  if (Date.now() >= entry.expiresAt) {
+    METADATA_CACHE.delete(normalizedKey);
+    return null;
+  }
+  METADATA_CACHE.delete(normalizedKey);
+  METADATA_CACHE.set(normalizedKey, entry);
+  return entry.value;
+}
+
+function metadataCacheSet(key, value, ttlMs) {
+  var normalizedKey = String(key || "");
+  if (!normalizedKey || value === null || value === undefined) return value;
+  if (METADATA_CACHE.has(normalizedKey)) METADATA_CACHE.delete(normalizedKey);
+  METADATA_CACHE.set(normalizedKey, {
+    value: value,
+    expiresAt: Date.now() + Number(ttlMs || CONFIG.metadataCacheTtlMs),
+  });
+  while (METADATA_CACHE.size > CONFIG.metadataCacheMaxEntries) {
+    METADATA_CACHE.delete(METADATA_CACHE.keys().next().value);
+  }
+  return value;
+}
 
 function initialize(settings) {
   settings = settings || {};
@@ -21,9 +88,6 @@ function initialize(settings) {
   }
 
   var downloadAPIURL = normalizeMirrorBaseURL(settings.downloadApiUrl);
-  if (downloadAPIURL.indexOf("https://api.zarz.moe/") === 0) {
-    downloadAPIURL = CONFIG.downloadAPIURL;
-  }
   if (downloadAPIURL) {
     CONFIG.downloadAPIURL = downloadAPIURL;
   }
@@ -47,39 +111,54 @@ function initialize(settings) {
     CONFIG.deviceType = deviceType;
   }
 
+  // Credenciales propias del usuario. Al existir, la descarga toma la ruta
+  // directa de TIDAL (sin gateway firmado ni verificación).
+  var accessToken = String(
+    settings.tidalAccessToken || settings.accessToken || "",
+  ).trim();
+  if (accessToken && accessToken !== CONFIG.accessToken) {
+    CONFIG.accessToken = accessToken;
+    DIRECT_SESSION_DISABLED = false;
+  }
+
+  var cookie = String(settings.tidalCookie || settings.cookie || "").trim();
+  if (cookie) {
+    CONFIG.cookie = cookie;
+  }
+
+  // Pool completo (propio + los que el backend validó desde las fuentes).
+  tidalTokenPool = poolDeTokensTidal(settings);
+  tidalPoolIndex = 0;
+  if (tidalTokenPool.length > 0) {
+    CONFIG.accessToken = tidalTokenPool[0];
+    DIRECT_SESSION_DISABLED = false;
+  }
+
   return true;
+}
+
+// poolDeTokensTidal arma la lista de tokens a rotar. El del usuario
+// SIEMPRE va primero: su cuenta manda sobre cualquier fuente externa.
+function poolDeTokensTidal(settings) {
+  settings = settings || {};
+  var lista = [];
+  var propio = String(
+    settings.tidalAccessToken || settings.accessToken || "",
+  ).trim();
+  if (propio) lista.push(propio);
+  var partes = String(settings.tidalTokenPool || "").split(/[\s,]+/);
+  for (var i = 0; i < partes.length; i++) {
+    var p = String(partes[i] || "").trim();
+    if (p && lista.indexOf(p) < 0) lista.push(p);
+  }
+  return lista;
 }
 
 function cleanup() {
+  METADATA_CACHE.clear();
+  tidalTokenPool = [];
+  tidalPoolIndex = 0;
   return true;
-}
-
-// signedSessionSourceReady returns true when the session is fully usable
-// (authenticated, not just present). Used by getHomeFeed to skip feeds when
-// the session exists but was never verified (TIDAL pages return 403).
-function signedSessionSourceReady() {
-  if (typeof session === "undefined" || !session) {
-    log.warn("[TidalWeb] sourceReady: no session");
-    return false;
-  }
-  if (typeof session.status !== "function") {
-    log.warn("[TidalWeb] sourceReady: session.status not a function");
-    return false;
-  }
-  try {
-    var status = session.status();
-    log.warn("[TidalWeb] sourceReady: status=" + JSON.stringify(status));
-    if (status && typeof status.authenticated === "boolean") {
-      return status.authenticated;
-    }
-    log.warn(
-      "[TidalWeb] sourceReady: authenticated not a bool or null, returning false",
-    );
-    return false;
-  } catch (e) {
-    log.warn("[TidalWeb] sourceReady: error=" + String(e));
-    return false;
-  }
 }
 
 function parseMirrorBaseURLs(value) {
@@ -327,21 +406,6 @@ function postJSON(url, body, headers) {
   return JSON.parse(response.body);
 }
 
-// Gateway park: most signed-session traffic (bootstrap + tickets + manifests)
-// flows through the shared zarz.moe gateway. When that origin is down,
-// Cloudflare answers 522/524/502/504 — retrying 5 attempts x 8 quality tiers
-// per track is pointless and burns ~40 sequential calls every song. After the
-// first gateway error, park signed calls for 2 minutes (fail fast with a clear
-// reason); a healthy response clears the park immediately.
-var _tidalGatewayDownUntil = 0;
-
-function isGatewayError(message) {
-  var text = String(message || "");
-  return /HTTP 52[24]|HTTP 50[24]|bootstrap returned|origin connection|gateway/i.test(
-    text,
-  );
-}
-
 function signedJSON(method, path, body, headers) {
   if (
     typeof session === "undefined" ||
@@ -350,27 +414,80 @@ function signedJSON(method, path, body, headers) {
   ) {
     throw new Error("signed session runtime is not available");
   }
-  if (Date.now() < _tidalGatewayDownUntil) {
-    throw new Error("signed-session gateway down (522); retrying later");
-  }
   var response = session.signedFetch(method, path, body || null, headers || {});
   if (!response || response.error || response.needsVerification) {
     var error =
       response && response.error ? response.error : "signed request failed";
-    if (isGatewayError(error)) {
-      _tidalGatewayDownUntil = Date.now() + 2 * 60 * 1000;
-    }
-    throw new Error(error);
+    var signedError = new Error(error);
+    signedError.retryAfterMs = retryAfterMilliseconds(response);
+    signedError.retryMode =
+      response && response.retryMode ? String(response.retryMode) : "";
+    signedError.retryable = !!(response && response.retryable);
+    signedError.code = response && response.code ? String(response.code) : "";
+    signedError.needsVerification = !!(response && response.needsVerification);
+    throw signedError;
   }
   if (response.statusCode !== 200) {
-    var statusError = "HTTP " + response.statusCode + " for " + path;
-    if (isGatewayError(statusError)) {
-      _tidalGatewayDownUntil = Date.now() + 2 * 60 * 1000;
-    }
-    throw new Error(statusError);
+    var statusError = new Error("HTTP " + response.statusCode + " for " + path);
+    statusError.retryAfterMs = retryAfterMilliseconds(response);
+    statusError.retryMode = response.retryMode
+      ? String(response.retryMode)
+      : "";
+    statusError.retryable = !!response.retryable;
+    statusError.code = response.code ? String(response.code) : "";
+    throw statusError;
   }
-  _tidalGatewayDownUntil = 0;
   return JSON.parse(response.body || "{}");
+}
+
+function responseHeader(headers, name) {
+  var wanted = String(name || "").toLowerCase();
+  headers = headers || {};
+  for (var key in headers) {
+    if (headers.hasOwnProperty(key) && String(key).toLowerCase() === wanted) {
+      return String(headers[key] || "");
+    }
+  }
+  return "";
+}
+
+function retryAfterMilliseconds(response) {
+  var raw = responseHeader(response && response.headers, "Retry-After").trim();
+  if (!raw) {
+    var seconds = Number((response && response.retryAfterSeconds) || 0);
+    return seconds > 0 ? Math.round(seconds * 1000) : 0;
+  }
+  if (/^\d+(?:\.\d+)?$/.test(raw))
+    return Math.max(0, Math.round(Number(raw) * 1000));
+  var timestamp = Date.parse(raw);
+  return isNaN(timestamp) ? 0 : Math.max(0, timestamp - Date.now());
+}
+
+function requireResolutionBudget(delayMs, retryAfterMs) {
+  if (
+    utils &&
+    typeof utils.getResolutionRemainingMs === "function" &&
+    Number(utils.getResolutionRemainingMs()) <= Number(delayMs || 0)
+  ) {
+    var error = new Error("stream resolution timeout");
+    error.code = "RESOLUTION_TIMEOUT";
+    error.retryAfterMs = Number(retryAfterMs || 0);
+    throw error;
+  }
+}
+
+function waitBeforeRetry(attempt, retryAfterMs) {
+  var exponential = Math.min(
+    CONFIG.retryBaseDelayMs * Math.pow(2, Math.max(0, attempt)),
+    CONFIG.retryMaxDelayMs,
+  );
+  var delay = Math.max(exponential, Number(retryAfterMs || 0));
+  delay += Math.floor(
+    Math.random() * Math.max(25, Math.floor(exponential / 4)),
+  );
+  requireResolutionBudget(delay, retryAfterMs);
+  if (utils && typeof utils.sleep === "function") return utils.sleep(delay);
+  return true;
 }
 
 function signedTicket(provider, type, id) {
@@ -392,6 +509,7 @@ function signedTicket(provider, type, id) {
 function isVerificationRequiredError(error) {
   var message = String((error && error.message) || error || "");
   return (
+    !!(error && error.needsVerification) ||
     message.indexOf("VERIFY_REQUIRED") >= 0 ||
     message.indexOf("verification_required") >= 0
   );
@@ -617,17 +735,18 @@ function cleanTitle(value) {
 }
 
 function splitArtists(value) {
-  var normalized = normalizeSearchText(value)
+  var normalized = String(value || "")
+    .toLowerCase()
     .replace(/\bfeat\b/g, "|")
     .replace(/\bfeaturing\b/g, "|")
     .replace(/\bft\b/g, "|")
     .replace(/\band\b/g, "|")
-    .replace(/,/g, "|")
+    .replace(/[,&;]/g, "|")
     .replace(/\bx\b/g, "|");
   var parts = normalized.split("|");
   var results = [];
   for (var i = 0; i < parts.length; i++) {
-    var part = String(parts[i] || "").trim();
+    var part = normalizeSearchText(parts[i]);
     if (part) results.push(part);
   }
   return results;
@@ -732,6 +851,30 @@ function artistNamesMatch(expected, found) {
   return false;
 }
 
+function stripTrackTitleAnnotations(value) {
+  return String(value || "").replace(
+    /[(\[]\s*(?:(?:feat\.?|ft\.?|featuring)\s+[^)\]]+|from\s+["“][^)\]]+["”]\s*)[)\]]/gi,
+    " ",
+  );
+}
+
+function normalizeTrackIdentityTitle(value) {
+  return normalizeLooseTitle(stripTrackTitleAnnotations(value));
+}
+
+function trackTitlesMatch(expected, found) {
+  expected = stripTrackTitleAnnotations(expected);
+  found = stripTrackTitleAnnotations(found);
+  var a = normalizeLooseTitle(expected);
+  var b = normalizeLooseTitle(found);
+  if (a && a === b) return true;
+  // Version words identify recordings; punctuation around them does not.
+  var version =
+    /\b(?:mix|remix|live|acoustic|demo|instrumental|karaoke|edit|extended|slowed|sped)\b/;
+  if (version.test(a) || version.test(b)) return false;
+  return titlesMatch(expected, found);
+}
+
 function trackDurationMs(track) {
   var durationMs = Number((track && track.duration_ms) || 0);
   if (durationMs > 0) return durationMs;
@@ -766,7 +909,7 @@ function tidalTrackMatchesRequest(
     !!expectedISRC && !!foundISRC && expectedISRC === foundISRC;
 
   if (!exactISRCMatch) {
-    if (trackName && !titlesMatch(trackName, track.name || "")) {
+    if (trackName && !trackTitlesMatch(trackName, track.name || "")) {
       return false;
     }
     if (artistName && !artistNamesMatch(artistName, track.artists || "")) {
@@ -775,7 +918,17 @@ function tidalTrackMatchesRequest(
   }
 
   if (!durationMatches(expectedDurationMs, trackDurationMs(track))) {
-    return false;
+    // Catalog durations can disagree for the same identified recording.
+    // Actual audio is checked against this provider's duration after transfer.
+    return (
+      exactISRCMatch &&
+      !!trackName &&
+      !!artistName &&
+      normalizeTrackIdentityTitle(trackName) ===
+        normalizeTrackIdentityTitle(track.name) &&
+      artistNamesMatch(artistName, track.artists) &&
+      !(trackDurationMs(track) <= 35000 && expectedDurationMs > 45000)
+    );
   }
 
   return true;
@@ -912,7 +1065,56 @@ function replaceAmpEntities(value) {
   return String(value || "").replace(/&amp;/g, "&");
 }
 
-function parseManifestText(manifestText) {
+// El MPD de TIDAL puede traer varias calidades en el mismo documento (AAC 128
+// junto a FLAC 16 y 24). Quedarse con la primera plantilla bajaba AAC aunque el
+// usuario pidiera FLAC, así que se puntúa cada representación y se elige la
+// que corresponde a la calidad pedida.
+function manifestRepresentationScore(codecs, bandwidth, quality) {
+  var wanted = normalizeDownloadQuality(quality);
+  var codec = String(codecs || "").toLowerCase();
+  var score = Number(bandwidth || 0) / 10000000;
+  if (wanted === "DOLBY_ATMOS") {
+    return /ec-3|eac3|ac-4|ac4/.test(codec) ? 100 + score : score;
+  }
+  if (wanted === "HI_RES_LOSSLESS" || wanted === "LOSSLESS") {
+    // FLAC primero; entre FLAC gana el de más bitrate (24/96 > 16/44.1).
+    return /flac/.test(codec) ? 100 + score : score;
+  }
+  // Tiers con pérdida: no tiene sentido bajar el FLAC gigante si pidieron HIGH.
+  if (/flac/.test(codec)) return score;
+  if (/mp4a|aac/.test(codec)) return 50 + score;
+  return score;
+}
+
+function pickManifestRepresentation(manifestText, quality) {
+  var blocks = manifestText.match(
+    /<Representation\b[^>]*>[\s\S]*?<\/Representation>/gi,
+  );
+  if (!blocks || !blocks.length) return null;
+  var best = null;
+  for (var i = 0; i < blocks.length; i++) {
+    var block = blocks[i];
+    if (block.indexOf("initialization=") < 0 || block.indexOf("media=") < 0)
+      continue;
+    var codecs = (block.match(/codecs=\"([^\"]+)\"/i) || [])[1] || "";
+    var bandwidth = Number((block.match(/bandwidth=\"(\d+)\"/i) || [])[1] || 0);
+    var score = manifestRepresentationScore(codecs, bandwidth, quality);
+    if (!best || score > best.score) {
+      best = {
+        score: score,
+        block: block,
+        codecs: codecs,
+        bandwidth: bandwidth,
+        bitDepth: Number(
+          (block.match(/audioBitDepth=\"(\d+)\"/i) || [])[1] || 0,
+        ),
+      };
+    }
+  }
+  return best;
+}
+
+function parseManifestText(manifestText, quality) {
   manifestText = String(manifestText || "");
   if (/^\s*\{/.test(manifestText)) {
     var btsManifest = JSON.parse(manifestText);
@@ -926,20 +1128,38 @@ function parseManifestText(manifestText) {
     };
   }
 
-  var initMatch = manifestText.match(/initialization=\"([^\"]+)\"/i);
-  var mediaMatch = manifestText.match(/media=\"([^\"]+)\"/i);
+  // Todo el parseo (plantilla, startNumber y línea de tiempo) se hace sobre la
+  // representación elegida, no sobre el documento completo, para no mezclar
+  // segmentos de calidades distintas.
+  var chosen = pickManifestRepresentation(manifestText, quality);
+  var manifestSource = chosen ? chosen.block : manifestText;
+
+  var initMatch =
+    manifestSource.match(/initialization=\"([^\"]+)\"/i) ||
+    manifestText.match(/initialization=\"([^\"]+)\"/i);
+  var mediaMatch =
+    manifestSource.match(/media=\"([^\"]+)\"/i) ||
+    manifestText.match(/media=\"([^\"]+)\"/i);
   if (!initMatch || !mediaMatch) {
     throw new Error(
       "Mirror MPD manifest did not contain initialization/media templates",
     );
   }
 
-  var sampleRateMatch = manifestText.match(/audioSamplingRate=\"(\d+)\"/i);
+  var sampleRateMatch =
+    manifestSource.match(/audioSamplingRate=\"(\d+)\"/i) ||
+    manifestText.match(/audioSamplingRate=\"(\d+)\"/i);
+  // startNumber es opcional en el MPD; TIDAL lo emite cuando la numeración de
+  // segmentos no arranca en 1. Sin leerlo, las URLs apuntarían a números
+  // inexistentes y la descarga fallaría con 404.
+  var startNumberMatch = manifestSource.match(/startNumber=\"(\d+)\"/i);
+  var startNumber = startNumberMatch ? parseInt(startNumberMatch[1], 10) : 1;
+  if (!isFinite(startNumber) || startNumber < 1) startNumber = 1;
 
   var segmentCount = 0;
   var segmentRegex = /<S\s+[^>]*d=\"(\d+)\"(?:\s+r=\"(-?\d+)\")?[^>]*\/?>/gi;
   var match;
-  while ((match = segmentRegex.exec(manifestText)) !== null) {
+  while ((match = segmentRegex.exec(manifestSource)) !== null) {
     var repeatCount = parseInt(match[2] || "0", 10);
     if (!isFinite(repeatCount) || repeatCount < 0) repeatCount = 0;
     segmentCount += repeatCount + 1;
@@ -950,8 +1170,26 @@ function parseManifestText(manifestText) {
 
   var mediaTemplate = replaceAmpEntities(mediaMatch[1]);
   var mediaURLs = [];
-  for (var i = 1; i <= segmentCount; i++) {
-    mediaURLs.push(mediaTemplate.replace(/\$Number\$/g, String(i)));
+  if (mediaTemplate.indexOf("$Number$") >= 0) {
+    for (var i = 0; i < segmentCount; i++) {
+      mediaURLs.push(
+        mediaTemplate.replace(/\$Number\$/g, String(startNumber + i)),
+      );
+    }
+  } else if (mediaTemplate.indexOf("$Time$") >= 0) {
+    // Plantillas por tiempo: se usan los t= listados en la línea de tiempo.
+    var timeRegex = /<S[^>]*\bt="(\d+)"/gi;
+    var timeMatch;
+    while ((timeMatch = timeRegex.exec(manifestSource)) !== null) {
+      mediaURLs.push(mediaTemplate.replace(/\$Time\$/g, String(timeMatch[1])));
+    }
+  } else {
+    throw new Error(
+      "Mirror MPD manifest did not contain a segment placeholder",
+    );
+  }
+  if (!mediaURLs.length) {
+    throw new Error("Mirror MPD manifest did not list any media segments");
   }
 
   return {
@@ -959,12 +1197,14 @@ function parseManifestText(manifestText) {
     initURL: replaceAmpEntities(initMatch[1]),
     mediaURLs: mediaURLs,
     manifestMimeType: "application/dash+xml",
+    codecs: chosen ? chosen.codecs : "",
+    bitDepth: chosen ? chosen.bitDepth : 0,
     sampleRate: Number((sampleRateMatch && sampleRateMatch[1]) || 0),
   };
 }
 
-function parseManifestPayload(manifestB64) {
-  return parseManifestText(decodeManifestText(manifestB64));
+function parseManifestPayload(manifestB64, quality) {
+  return parseManifestText(decodeManifestText(manifestB64), quality);
 }
 
 function isDolbyAtmosInfo(downloadInfo) {
@@ -1043,20 +1283,24 @@ function buildFallbackQualities(quality) {
   return [normalized || "LOSSLESS"];
 }
 
-function postDownloadAPI(body) {
+function postDownloadAPI(body, ticketID) {
   var trackID = String((body && body.id) || "").trim();
-  var ticketID = signedTicket("tid", "track", trackID);
+  ticketID =
+    String(ticketID || "").trim() || signedTicket("tid", "track", trackID);
   return signedJSON("POST", CONFIG.downloadAPIURL, body, {
     "X-Zarz-Ticket": ticketID,
   });
 }
 
-function fetchAtmosManifestPayload(trackID) {
-  var payload = postDownloadAPI({
-    id: String(trackID || ""),
-    endpoint: "manifests",
-    formats: ["EAC3_JOC"],
-  });
+function fetchAtmosManifestPayload(trackID, ticketID) {
+  var payload = postDownloadAPI(
+    {
+      id: String(trackID || ""),
+      endpoint: "manifests",
+      formats: ["EAC3_JOC"],
+    },
+    ticketID,
+  );
   var attributes =
     payload && payload.data && payload.data.data && payload.data.data.attributes
       ? payload.data.data.attributes
@@ -1087,12 +1331,15 @@ function fetchAtmosManifestPayload(trackID) {
   };
 }
 
-function fetchAPIDownloadInfo(trackID, quality) {
+function fetchAPIDownloadInfo(trackID, quality, ticketID) {
   var normalizedQuality = normalizeDownloadQuality(quality);
   if (normalizedQuality === "DOLBY_ATMOS") {
-    var manifestPayload = fetchAtmosManifestPayload(trackID);
+    var manifestPayload = fetchAtmosManifestPayload(trackID, ticketID);
     var manifestText = fetchText(manifestPayload.uri, null);
-    var parsedAtmosManifest = parseManifestText(manifestText);
+    var parsedAtmosManifest = parseManifestText(
+      manifestText,
+      normalizedQuality,
+    );
     parsedAtmosManifest.audioMode = "DOLBY_ATMOS";
     parsedAtmosManifest.audioQuality = "DOLBY_ATMOS";
     if (
@@ -1105,10 +1352,13 @@ function fetchAPIDownloadInfo(trackID, quality) {
     return parsedAtmosManifest;
   }
 
-  var payload = postDownloadAPI({
-    id: String(trackID || ""),
-    quality: normalizedQuality,
-  });
+  var payload = postDownloadAPI(
+    {
+      id: String(trackID || ""),
+      quality: normalizedQuality,
+    },
+    ticketID,
+  );
   var data = payload && payload.data ? payload.data : null;
   if (!data) {
     throw new Error("Download API returned no data");
@@ -1120,7 +1370,7 @@ function fetchAPIDownloadInfo(trackID, quality) {
     throw new Error("Download API payload missing manifest");
   }
 
-  var parsedManifest = parseManifestPayload(data.manifest);
+  var parsedManifest = parseManifestPayload(data.manifest, normalizedQuality);
   parsedManifest.audioMode = String(data.audioMode || "");
   parsedManifest.audioQuality = String(data.audioQuality || "");
   parsedManifest.bitDepth = Number(data.bitDepth || 0);
@@ -1131,6 +1381,136 @@ function fetchAPIDownloadInfo(trackID, quality) {
     parsedManifest.manifestMimeType || String(data.manifestMimeType || "");
   parsedManifest.apiURL = CONFIG.downloadAPIURL;
   return parsedManifest;
+}
+
+// ── Descarga directa con la sesión del usuario (sin gateway) ──────────────
+// TIDAL entrega el manifest FLAC/Hi-Res a una sesión autenticada desde su
+// propia API (playbackinfopostpaywall). Con el access token que el usuario
+// pega en Ajustes → Credenciales → TIDAL, el audio sale DIRECTO de TIDAL: no
+// se firma nada con el gateway, así que no hay bootstrap ni verificación, y
+// por lo tanto no aparece el modal.
+// Se conecta con: initialize (lee tidalAccessToken) y fetchDownloadInfo (esta
+// ruta se prueba ANTES del gateway; el gateway queda solo como respaldo).
+function tidalDirectQuality(quality) {
+  var normalized = normalizeDownloadQuality(quality);
+  if (normalized === "HI_RES_LOSSLESS") return "HI_RES_LOSSLESS";
+  if (normalized === "LOSSLESS") return "LOSSLESS";
+  if (normalized === "HIGH") return "HIGH";
+  if (normalized === "LOW") return "LOW";
+  // Atmos no se pide por esta vía: el respaldo firmado lo resuelve mejor.
+  return "LOSSLESS";
+}
+
+function hasDirectTidalSession() {
+  if (DIRECT_SESSION_DISABLED) return false;
+  if (tidalTokenPool.length > 0) return true;
+  return (
+    !!String(CONFIG.accessToken || "").trim() ||
+    !!String(CONFIG.cookie || "").trim()
+  );
+}
+
+function directTidalHeaders() {
+  var headers = requestHeaders();
+  var accessToken = String(CONFIG.accessToken || "").trim();
+  if (accessToken) {
+    headers["Authorization"] = "Bearer " + accessToken;
+  }
+  var cookie = String(CONFIG.cookie || "").trim();
+  if (cookie) {
+    headers["Cookie"] = cookie;
+  }
+  return headers;
+}
+
+function fetchDirectDownloadInfo(trackID, quality) {
+  var url =
+    CONFIG.apiBaseURL +
+    "/tracks/" +
+    encodeURIComponent(String(trackID || "")) +
+    "/playbackinfopostpaywall?audioquality=" +
+    encodeURIComponent(tidalDirectQuality(quality)) +
+    "&assetpresentation=FULL&playbackmode=STREAM" +
+    "&countryCode=" +
+    encodeURIComponent(CONFIG.countryCode);
+
+  // Se reintenta con cada token del pool hasta que Tidal acepte uno. Si no
+  // queda ninguno vivo, recién ahí se apaga la ruta directa.
+  var intentos = tidalTokenPool.length > 1 ? tidalTokenPool.length : 1;
+  var response = null;
+  var payload = null;
+  for (var intento = 0; intento < intentos; intento++) {
+    response = http.get(url, directTidalHeaders());
+    if (!response || response.error) {
+      throw new Error(
+        response && response.error ? response.error : "request failed",
+      );
+    }
+    if (response.statusCode === 401 || response.statusCode === 403) {
+      // Token inválido o expirado: si hay otro en el pool se rota y se
+      // reintenta; si no, se desactiva la ruta directa y sigue el respaldo.
+      if (tidalRotarToken()) continue;
+      DIRECT_SESSION_DISABLED = true;
+      var authError = new Error(
+        "TIDAL direct: sesión no autorizada (HTTP " + response.statusCode + ")",
+      );
+      authError.code = "UNAUTHORIZED";
+      throw authError;
+    }
+    if (response.statusCode !== 200) {
+      throw new Error(
+        "HTTP " + response.statusCode + " for TIDAL direct playback",
+      );
+    }
+
+    payload = JSON.parse(response.body || "{}");
+    // TIDAL también responde 200 con el error embebido cuando falta auth.
+    if (
+      payload &&
+      (Number(payload.status) === 401 || Number(payload.status) === 403)
+    ) {
+      if (tidalRotarToken()) {
+        payload = null;
+        continue;
+      }
+      DIRECT_SESSION_DISABLED = true;
+      var embeddedAuthError = new Error(
+        "TIDAL direct: " +
+          String(payload.userMessage || "sesión no autorizada"),
+      );
+      embeddedAuthError.code = "UNAUTHORIZED";
+      throw embeddedAuthError;
+    }
+    break;
+  }
+  if (String(payload.assetPresentation || "").toUpperCase() === "PREVIEW") {
+    // Sin suscripción activa TIDAL solo entrega 30s: mejor abortar esta ruta
+    // que guardar un archivo cortado.
+    var previewError = new Error("TIDAL direct returned PREVIEW asset");
+    previewError.code = "QUALITY_UNAVAILABLE";
+    throw previewError;
+  }
+  if (!payload.manifest) {
+    throw new Error("TIDAL direct payload missing manifest");
+  }
+
+  var parsed = parseManifestPayload(payload.manifest, quality);
+  parsed.audioMode = String(payload.audioMode || "");
+  parsed.audioQuality = String(
+    payload.audioQuality || tidalDirectQuality(quality),
+  );
+  parsed.bitDepth = Number(payload.bitDepth || 0);
+  parsed.sampleRate = Number(payload.sampleRate || parsed.sampleRate || 0);
+  parsed.manifestMimeType = String(
+    payload.manifestMimeType || parsed.manifestMimeType || "",
+  );
+  parsed.apiURL = "tidal-direct";
+  parsed.candidateKey = sourceCandidateKey(
+    "direct",
+    CONFIG.apiBaseURL,
+    quality,
+  );
+  return parsed;
 }
 
 function mirrorRequestURL(baseURL, trackID, quality) {
@@ -1216,7 +1596,7 @@ function fetchMirrorDownloadInfo(trackID, quality, rejectedCandidates) {
         continue;
       }
 
-      var parsedManifest = parseManifestPayload(data.manifest);
+      var parsedManifest = parseManifestPayload(data.manifest, quality);
       parsedManifest.mirrorBaseURL = baseURL;
       parsedManifest.candidateKey = candidateKey;
       parsedManifest.bitDepth = Number(data.bitDepth || 0);
@@ -1236,43 +1616,126 @@ function fetchMirrorDownloadInfo(trackID, quality, rejectedCandidates) {
   );
 }
 
-function isDeterministicDownloadError(message) {
-  var text = String(message || "");
-  if (!text) return false;
-  // These outcomes are properties of the track/catalog, not transient network
-  // failures, so retrying the same request returns the same result. We fall
-  // straight through to the next quality tier instead of burning retries.
-  return /EAC3_JOC|did not report|PREVIEW asset|Invalid TIDAL|assetPresentation|missing manifest|returned no data/i.test(
-    text,
+function isDeterministicDownloadError(error) {
+  if (error && error.retryable === true) return false;
+  var code = String((error && error.code) || "").toUpperCase();
+  // Only catalog/quality absence confirms that a lower tier is worth trying.
+  // Other terminal codes (auth, invalid tickets, etc.) must not downgrade audio.
+  if (code)
+    return /^(TRACK_NOT_FOUND|TRACK_UNAVAILABLE|TRACK_NOT_AVAILABLE|QUALITY_UNAVAILABLE|QUALITY_NOT_AVAILABLE|CODEC_UNAVAILABLE)$/.test(
+      code,
+    );
+  var message = String((error && error.message) || error || "").trim();
+  return (
+    /^(?:requested )?(?:track|quality|codec)(?: is)? (?:not available|unavailable|not found)(?:[.!]|$)/i.test(
+      message,
+    ) ||
+    message === "TIDAL API did not report EAC3_JOC for this track" ||
+    /^(?:Download API|mirror) returned PREVIEW asset$/.test(message)
   );
 }
 
 function fetchDownloadInfo(trackID, quality, rejectedCandidates) {
   var fallbacks = buildFallbackQualities(quality);
   var allErrors = [];
-  var maxRetries = 5;
+  var maxRetries = CONFIG.maxDownloadAttempts;
   var hasMirrors = !!(CONFIG.mirrorBaseURLs && CONFIG.mirrorBaseURLs.length);
   var candidate;
   var i;
   rejectedCandidates = rejectedCandidates || {};
 
+  // 1) DIRECTO con la sesión del usuario: recorre TODAS las calidades antes de
+  // tocar el gateway, para que un Hi-Res no disponible caiga a FLAC directo en
+  // vez de al respaldo firmado (que es el que pide verificación).
+  if (hasDirectTidalSession()) {
+    var directDisabled = false;
+    for (var d = 0; d < fallbacks.length && !directDisabled; d++) {
+      if (fallbacks[d] === "DOLBY_ATMOS") continue;
+      var directKey = sourceCandidateKey(
+        "direct",
+        CONFIG.apiBaseURL,
+        fallbacks[d],
+      );
+      if (rejectedCandidates[directKey]) continue;
+      try {
+        var directInfo = fetchDirectDownloadInfo(trackID, fallbacks[d]);
+        if (satisfiesQuality(directInfo, fallbacks[d])) {
+          directInfo.resolvedQuality = fallbacks[d];
+          directInfo.requestedQuality = normalizeDownloadQuality(quality);
+          return directInfo;
+        }
+        allErrors.push(
+          fallbacks[d] + " TIDAL direct: returned lower tier than requested",
+        );
+      } catch (directError) {
+        if (
+          isVerificationRequiredError(directError) ||
+          (directError && directError.code === "RESOLUTION_TIMEOUT") ||
+          /download cancelled/i.test(
+            String((directError && directError.message) || directError),
+          )
+        ) {
+          throw directError;
+        }
+        if (directError && directError.code === "UNAUTHORIZED")
+          directDisabled = true;
+        var directMessage =
+          directError && directError.message
+            ? directError.message
+            : String(directError);
+        allErrors.push(fallbacks[d] + " TIDAL direct: " + directMessage);
+        log.warn(
+          "[TidalWeb] Descarga directa no disponible, se usa el respaldo: " +
+            directMessage,
+        );
+      }
+    }
+  }
+
+  if (CONFIG.respaldoFirmado !== true) {
+    // Sin respaldo firmado no hay segunda vía: se informa limpio (sin pedir
+    // verificación) y el backend usa una fuente abierta para el audio.
+    throw new Error(
+      "TIDAL: sin sesión propia y respaldo firmado deshabilitado | " +
+        allErrors.join("; "),
+    );
+  }
+
+  // 2) Respaldo firmado (gateway): igual que antes.
   for (i = 0; i < fallbacks.length; i++) {
     candidate = fallbacks[i];
     var qualityErrors = [];
     var confirmedUnavailable = false;
+    var apiCandidateKey = sourceCandidateKey(
+      "api",
+      CONFIG.downloadAPIURL,
+      candidate,
+    );
+    var apiExhausted = !!rejectedCandidates[apiCandidateKey];
+    var apiTicketID = "";
 
     for (var attempt = 0; attempt < maxRetries; attempt++) {
+      if (
+        utils &&
+        typeof utils.isDownloadCancelled === "function" &&
+        utils.isDownloadCancelled()
+      ) {
+        throw new Error("download cancelled");
+      }
+      requireResolutionBudget(0, 0);
       // deterministic = the source gave a consistent answer (wrong tier, no
       // Atmos, preview-only, ...). Retrying it just wastes round-trips.
       var deterministic = false;
-      var apiCandidateKey = sourceCandidateKey(
-        "api",
-        CONFIG.downloadAPIURL,
-        candidate,
-      );
-      if (!rejectedCandidates[apiCandidateKey]) {
+      var retryAfterMs = 0;
+      if (!apiExhausted) {
         try {
-          var apiDownloadInfo = fetchAPIDownloadInfo(trackID, candidate);
+          if (!apiTicketID) apiTicketID = signedTicket("tid", "track", trackID);
+          var apiDownloadInfo = fetchAPIDownloadInfo(
+            trackID,
+            candidate,
+            apiTicketID,
+          );
+          apiTicketID = "";
           if (satisfiesQuality(apiDownloadInfo, candidate)) {
             apiDownloadInfo.resolvedQuality = candidate;
             apiDownloadInfo.requestedQuality =
@@ -1288,15 +1751,41 @@ function fetchDownloadInfo(trackID, quality, rejectedCandidates) {
           );
           deterministic = true;
           confirmedUnavailable = true;
+          apiExhausted = true;
         } catch (apiError) {
-          if (isVerificationRequiredError(apiError)) throw apiError;
+          if (
+            isVerificationRequiredError(apiError) ||
+            (apiError && apiError.code === "RESOLUTION_TIMEOUT") ||
+            /download cancelled/i.test(
+              String((apiError && apiError.message) || apiError),
+            )
+          ) {
+            throw apiError;
+          }
           var apiMessage =
             apiError && apiError.message ? apiError.message : String(apiError);
           qualityErrors.push(
             candidate + " API attempt " + (attempt + 1) + ": " + apiMessage,
           );
-          deterministic = isDeterministicDownloadError(apiMessage);
-          if (deterministic) confirmedUnavailable = true;
+          var retryMode = String((apiError && apiError.retryMode) || "");
+          var contractStopsRetry =
+            retryMode === "same_operation" ||
+            retryMode === "none" ||
+            (retryMode &&
+              retryMode !== "new_ticket" &&
+              retryMode !== "poll_existing") ||
+            (!!(apiError && apiError.code) && !apiError.retryable);
+          deterministic =
+            isDeterministicDownloadError(apiError) || contractStopsRetry;
+          retryAfterMs = Math.max(
+            retryAfterMs,
+            Number((apiError && apiError.retryAfterMs) || 0),
+          );
+          if (isDeterministicDownloadError(apiError))
+            confirmedUnavailable = true;
+          if (deterministic) apiExhausted = true;
+          // poll_existing must retain the ticket that owns the operation.
+          if (retryMode !== "poll_existing") apiTicketID = "";
         }
       }
 
@@ -1336,8 +1825,11 @@ function fetchDownloadInfo(trackID, quality, rejectedCandidates) {
 
       // A deterministic API result will not change on retry, and with no mirror
       // source to differ either, move on to the next quality tier immediately.
-      if (deterministic && (candidate === "DOLBY_ATMOS" || !hasMirrors)) {
+      if (apiExhausted && (candidate === "DOLBY_ATMOS" || !hasMirrors)) {
         break;
+      }
+      if (attempt + 1 < maxRetries && !waitBeforeRetry(attempt, retryAfterMs)) {
+        throw new Error("download cancelled");
       }
     }
 
@@ -1367,44 +1859,12 @@ function fetchDownloadInfo(trackID, quality, rejectedCandidates) {
   );
 }
 
-function buildSegmentTempPath(outputPath, suffix) {
-  var ext = fileExtension(outputPath);
-  var base = ext
-    ? outputPath.substring(0, outputPath.length - ext.length)
-    : outputPath;
-  return base + "." + suffix + ".part";
-}
-
 function deleteQuietly(path) {
   try {
     if (path && file.exists(path)) {
       file.delete(path);
     }
   } catch (e) {}
-}
-
-function appendTempDownloadToFile(tempPath, destinationPath, truncate) {
-  var readResult = file.readBytes(tempPath, { encoding: "base64" });
-  if (!readResult || readResult.success !== true) {
-    throw new Error(
-      readResult && readResult.error
-        ? readResult.error
-        : "failed to read downloaded segment",
-    );
-  }
-
-  var writeResult = file.writeBytes(destinationPath, readResult.data, {
-    encoding: "base64",
-    truncate: !!truncate,
-    append: !truncate,
-  });
-  if (!writeResult || writeResult.success !== true) {
-    throw new Error(
-      writeResult && writeResult.error
-        ? writeResult.error
-        : "failed to append downloaded segment",
-    );
-  }
 }
 
 function downloadDirectFile(
@@ -1419,6 +1879,8 @@ function downloadDirectFile(
     headers: {
       "User-Agent": requestUserAgent(),
     },
+    resume: true,
+    persistentCheckpoint: true,
     trackItemBytes: trackItemBytes !== false,
     onProgress: function (written, total) {
       if (!total || total <= 0) return;
@@ -1496,52 +1958,24 @@ function rememberRejectedDownloadCandidate(rejectedCandidates, downloadInfo) {
 
 function downloadManifestSegments(downloadInfo, outputPath, onProgress) {
   var urls = [downloadInfo.initURL].concat(downloadInfo.mediaURLs || []);
-  for (var i = 0; i < urls.length; i++) {
-    if (
-      utils &&
-      typeof utils.isDownloadCancelled === "function" &&
-      utils.isDownloadCancelled()
-    ) {
-      return {
-        success: false,
-        error: "download cancelled",
-      };
-    }
-
-    var tempPath = buildSegmentTempPath(
-      outputPath,
-      i === 0 ? "init" : "seg" + i,
-    );
-    try {
-      deleteQuietly(tempPath);
-      var segmentResult = downloadDirectFile(
-        urls[i],
-        tempPath,
-        onProgress,
-        10 + Math.round((i / urls.length) * 80),
-        Math.max(1, Math.round(80 / urls.length)),
-        false,
-      );
-      if (!segmentResult || !segmentResult.success) {
-        return {
-          success: false,
-          error:
-            segmentResult && segmentResult.error
-              ? segmentResult.error
-              : "failed to download manifest segment",
-        };
+  return file.downloadSegments(urls, outputPath, {
+    headers: {
+      "User-Agent": requestUserAgent(),
+    },
+    maxParallel: 4,
+    persistentCheckpoint: true,
+    onProgress: function (written, total, completedSegments, totalSegments) {
+      var ratio = 0;
+      if (total && total > 0) {
+        ratio = written / total;
+      } else if (totalSegments && totalSegments > 0) {
+        ratio = completedSegments / totalSegments;
       }
-
-      appendTempDownloadToFile(tempPath, outputPath, i === 0);
-    } finally {
-      deleteQuietly(tempPath);
-    }
-  }
-
-  return {
-    success: true,
-    path: outputPath,
-  };
+      if (ratio < 0) ratio = 0;
+      if (ratio > 1) ratio = 1;
+      progressPercent(onProgress, 10 + Math.round(ratio * 80));
+    },
+  });
 }
 
 function tryFetchLyricsLRC(track) {
@@ -1575,8 +2009,14 @@ function selectBestSearchTrack(
     .trim()
     .toUpperCase();
   if (normalizedISRC) {
+    var identifiedTrack = null;
     for (var i = 0; i < tracks.length; i++) {
       if (
+        tracks[i] &&
+        tracks[i].id &&
+        String(tracks[i].isrc || "")
+          .trim()
+          .toUpperCase() === normalizedISRC &&
         tidalTrackMatchesRequest(
           tracks[i],
           normalizedISRC,
@@ -1585,9 +2025,12 @@ function selectBestSearchTrack(
           expectedDurationMs,
         )
       ) {
-        return tracks[i];
+        if (durationMatches(expectedDurationMs, trackDurationMs(tracks[i])))
+          return tracks[i];
+        if (!identifiedTrack) identifiedTrack = tracks[i];
       }
     }
+    if (identifiedTrack) return identifiedTrack;
   }
 
   if (!String(trackName || "").trim()) {
@@ -2094,36 +2537,63 @@ function artistAlbumTypeFromModuleTitle(title) {
 function fetchTrack(trackID) {
   var id = parseTrackID(trackID);
   if (!id) throw new Error("Invalid TIDAL track ID: " + trackID);
-  return getJSON(buildMetadataURL("tracks/" + encodeURIComponent(id), null));
+  var key = "track:" + id;
+  var cached = metadataCacheGet(key);
+  if (cached) return cached;
+  return metadataCacheSet(
+    key,
+    getJSON(buildMetadataURL("tracks/" + encodeURIComponent(id), null)),
+  );
 }
 
 function fetchAlbumDetails(albumID) {
   var id = parseAlbumID(albumID);
   if (!id) throw new Error("Invalid TIDAL album ID: " + albumID);
-  return getJSON(buildMetadataURL("albums/" + encodeURIComponent(id), null));
+  var key = "album:" + id;
+  var cached = metadataCacheGet(key);
+  if (cached) return cached;
+  return metadataCacheSet(
+    key,
+    getJSON(buildMetadataURL("albums/" + encodeURIComponent(id), null)),
+  );
 }
 
 function fetchAlbumCredits(albumID) {
   var id = parseAlbumID(albumID);
   if (!id) return [];
+  var key = "album-credits:" + id;
+  var cached = metadataCacheGet(key);
+  if (cached) return cached;
   var credits = getJSON(
     buildMetadataURL("albums/" + encodeURIComponent(id) + "/credits", null),
   );
-  return Array.isArray(credits) ? credits : credits.items || [];
+  return metadataCacheSet(
+    key,
+    Array.isArray(credits) ? credits : credits.items || [],
+  );
 }
 
 function fetchTrackCredits(trackID) {
   var id = parseTrackID(trackID);
   if (!id) return [];
+  var key = "track-credits:" + id;
+  var cached = metadataCacheGet(key);
+  if (cached) return cached;
   var credits = getJSON(
     buildMetadataURL("tracks/" + encodeURIComponent(id) + "/credits", null),
   );
-  return Array.isArray(credits) ? credits : credits.items || [];
+  return metadataCacheSet(
+    key,
+    Array.isArray(credits) ? credits : credits.items || [],
+  );
 }
 
 function fetchAllAlbumItemsWithCredits(albumID) {
   var id = parseAlbumID(albumID);
   if (!id) return [];
+  var key = "album-items-credits:" + id;
+  var cached = metadataCacheGet(key);
+  if (cached) return cached;
   var items = [];
   var offset = 0;
   while (offset < CONFIG.maxAlbumItems) {
@@ -2144,7 +2614,7 @@ function fetchAllAlbumItemsWithCredits(albumID) {
       break;
     }
   }
-  return items;
+  return metadataCacheSet(key, items);
 }
 
 function tryMetadataFetch(label, fetcher, fallback) {
@@ -2171,14 +2641,17 @@ function hydrateRawTrack(track) {
       null,
     );
     if (details) album = mergeAlbumData(details, baseAlbum);
-    var albumCredits = tryMetadataFetch(
-      "album credits",
-      function () {
-        return fetchAlbumCredits(albumID);
-      },
-      [],
-    );
-    label = creditContributorNames(albumCredits, "Record Label");
+    label = firstNonEmpty(album.label, track.label);
+    if (!label) {
+      var albumCredits = tryMetadataFetch(
+        "album credits",
+        function () {
+          return fetchAlbumCredits(albumID);
+        },
+        [],
+      );
+      label = creditContributorNames(albumCredits, "Record Label");
+    }
   }
   var trackCredits = tryMetadataFetch(
     "track credits",
@@ -2199,7 +2672,13 @@ function hydrateRawTrack(track) {
 function fetchAlbumPage(albumID) {
   var id = parseAlbumID(albumID);
   if (!id) throw new Error("Invalid TIDAL album ID: " + albumID);
-  return getJSON(buildMetadataURL("pages/album", { albumId: id }));
+  var key = "album-page:" + id;
+  var cached = metadataCacheGet(key);
+  if (cached) return cached;
+  return metadataCacheSet(
+    key,
+    getJSON(buildMetadataURL("pages/album", { albumId: id })),
+  );
 }
 
 function fetchArtistPage(artistID) {
@@ -2235,12 +2714,28 @@ function fetchPlaylistItemsPage(playlistID, offset, limit) {
 }
 
 function searchEndpoint(kind, query, limit) {
-  return getJSON(
-    buildMetadataURL("search/" + kind, {
-      query: query,
-      limit: limit,
-      offset: 0,
-    }),
+  var key =
+    "search:" +
+    String(kind || "").toLowerCase() +
+    ":" +
+    String(query || "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, " ") +
+    ":" +
+    Number(limit || 0);
+  var cached = metadataCacheGet(key);
+  if (cached) return cached;
+  return metadataCacheSet(
+    key,
+    getJSON(
+      buildMetadataURL("search/" + kind, {
+        query: query,
+        limit: limit,
+        offset: 0,
+      }),
+    ),
+    CONFIG.searchCacheTtlMs,
   );
 }
 
@@ -2279,17 +2774,20 @@ function getAlbum(albumID) {
     var albumData = mergeAlbumData(richAlbum, headerModule.album);
     var pageCredits =
       (headerModule.credits && headerModule.credits.items) || [];
-    var albumCredits = tryMetadataFetch(
-      "album credits",
-      function () {
-        return fetchAlbumCredits(albumID);
-      },
-      [],
+    var label = firstNonEmpty(
+      albumData.label,
+      creditContributorNames(pageCredits, "Record Label"),
     );
-    var label = creditContributorNames(
-      albumCredits.concat(pageCredits),
-      "Record Label",
-    );
+    if (!label) {
+      var albumCredits = tryMetadataFetch(
+        "album credits",
+        function () {
+          return fetchAlbumCredits(albumID);
+        },
+        [],
+      );
+      label = creditContributorNames(albumCredits, "Record Label");
+    }
     var album = formatAlbumInfo(albumData, label);
     var tracks = [];
     var items = tryMetadataFetch(
@@ -2620,6 +3118,7 @@ function applyTrackMetadataToDownloadResult(result, track) {
   track = track || {};
   result.title = track.name || "";
   result.artist = track.artists || "";
+  result.duration_ms = Number(track.duration_ms || 0);
   result.album = track.album_name || "";
   result.album_artist = track.album_artist || "";
   result.track_number = Number(track.track_number || 0);
@@ -2645,7 +3144,8 @@ function checkAvailability(isrc, trackName, artistName, options) {
     var directTrackId = String(options.tidal_id || "").trim();
     if (directTrackId) {
       try {
-        var directTrack = formatTrack(fetchTrack(stripPrefix(directTrackId)));
+        var directRawTrack = fetchTrack(stripPrefix(directTrackId));
+        var directTrack = hydrateRawTrack(directRawTrack);
         if (
           tidalTrackMatchesRequest(
             directTrack,
@@ -2658,6 +3158,11 @@ function checkAvailability(isrc, trackName, artistName, options) {
           return {
             available: true,
             track_id: stripPrefix(directTrackId),
+            prepared_context: {
+              track_id: stripPrefix(directTrackId),
+              raw_track: directRawTrack,
+              formatted_track: directTrack,
+            },
           };
         }
       } catch (directError) {}
@@ -2674,14 +3179,41 @@ function checkAvailability(isrc, trackName, artistName, options) {
       };
     }
 
-    var tracks = searchOne(query, "track", 8);
-    var best = selectBestSearchTrack(
-      tracks,
-      isrc,
-      trackName,
-      artistName,
-      expectedDurationMs,
-    );
+    var queries = [query];
+    var titleQuery = String(trackName || "").trim();
+    var normalizedTitleQuery = normalizeTrackIdentityTitle(titleQuery);
+    [titleQuery, normalizedTitleQuery].forEach(function (candidateQuery) {
+      if (candidateQuery && queries.indexOf(candidateQuery) < 0) {
+        queries.push(candidateQuery);
+      }
+    });
+
+    var best = null;
+    for (var queryIndex = 0; queryIndex < queries.length; queryIndex++) {
+      if (
+        utils &&
+        typeof utils.isDownloadCancelled === "function" &&
+        utils.isDownloadCancelled()
+      ) {
+        throw new Error("download cancelled");
+      }
+      var tracks = searchOne(queries[queryIndex], "track", 8);
+      // Simplify only the search query. Keep the original recording identity
+      // for validation so another mix or artist cannot qualify by accident.
+      best = selectBestSearchTrack(
+        tracks,
+        isrc,
+        trackName,
+        artistName,
+        expectedDurationMs,
+      );
+      if (best && best.id) break;
+      if (queryIndex + 1 < queries.length) {
+        log.info(
+          "[TidalWeb] No verified match; retrying with a simpler track query",
+        );
+      }
+    }
     if (!best || !best.id) {
       return {
         available: false,
@@ -2689,9 +3221,31 @@ function checkAvailability(isrc, trackName, artistName, options) {
       };
     }
 
+    var bestTrackId = stripPrefix(best.id);
+    var preparedRawTrack = fetchTrack(bestTrackId);
+    var preparedFormattedTrack = hydrateRawTrack(preparedRawTrack);
+    if (
+      !tidalTrackMatchesRequest(
+        preparedFormattedTrack,
+        isrc,
+        trackName,
+        artistName,
+        expectedDurationMs,
+      )
+    ) {
+      return {
+        available: false,
+        reason: "Prepared TIDAL track no longer matched the request",
+      };
+    }
     return {
       available: true,
-      track_id: stripPrefix(best.id),
+      track_id: bestTrackId,
+      prepared_context: {
+        track_id: bestTrackId,
+        raw_track: preparedRawTrack,
+        formatted_track: preparedFormattedTrack,
+      },
     };
   } catch (e) {
     return {
@@ -2701,10 +3255,20 @@ function checkAvailability(isrc, trackName, artistName, options) {
   }
 }
 
-function download(trackID, quality, outputPath, onProgress) {
+function download(trackID, quality, outputPath, onProgress, options) {
   try {
-    var rawTrack = fetchTrack(trackID);
-    var formattedTrack = hydrateRawTrack(rawTrack);
+    options = options || {};
+    var prepared = options.preparedContext || {};
+    var canReusePrepared =
+      String(prepared.track_id || "") === String(stripPrefix(trackID));
+    var rawTrack =
+      canReusePrepared && prepared.raw_track
+        ? prepared.raw_track
+        : fetchTrack(trackID);
+    var formattedTrack =
+      canReusePrepared && prepared.formatted_track
+        ? prepared.formatted_track
+        : hydrateRawTrack(rawTrack);
     if (!formattedTrack) {
       return {
         success: false,
@@ -2778,13 +3342,24 @@ function download(trackID, quality, outputPath, onProgress) {
           downloadResult && downloadResult.error
             ? downloadResult.error
             : "TIDAL download failed";
+        var transferErrorType =
+          downloadResult && downloadResult.error_type
+            ? String(downloadResult.error_type)
+            : "download_error";
+        if (transferErrorType === "expired_stream" && attempt === 0) {
+          log.warn("[TidalWeb] Stream URL expired, resolving a fresh URL once");
+          continue;
+        }
         return {
           success: false,
           error_message: errorMessage,
           error_type:
             errorMessage === "download cancelled"
               ? "cancelled"
-              : "download_error",
+              : transferErrorType,
+          retry_after_seconds: Number(
+            (downloadResult && downloadResult.retry_after_seconds) || 0,
+          ),
         };
       }
 
@@ -2850,10 +3425,14 @@ function download(trackID, quality, outputPath, onProgress) {
     return {
       success: false,
       error_message: errorMessage,
-      error_type:
-        errorMessage.indexOf("VERIFY_REQUIRED") >= 0
-          ? "verification_required"
-          : "runtime_error",
+      error_type: isVerificationRequiredError(e)
+        ? "verification_required"
+        : e && e.code === "RESOLUTION_TIMEOUT"
+          ? "timeout"
+          : /download cancelled/i.test(errorMessage)
+            ? "cancelled"
+            : "runtime_error",
+      retry_after_seconds: Math.ceil(Number((e && e.retryAfterMs) || 0) / 1000),
     };
   }
 }
@@ -2916,52 +3495,6 @@ function handleUrl(url) {
   }
 }
 
-// Streaming URL: expose TIDAL's direct single-file URL (kind "direct") when
-// the session/entitlement allows, so playback can begin in ~1-2s instead of
-// waiting for a full download. DASH/MPD segment manifests and anything else
-// return null so the caller falls back to download(), which assembles segments
-// and validates full-length vs previews before accepting a file.
-function getDownloadUrl(trackID, quality) {
-  var resolvedTrackID = String(trackID || "").trim();
-  if (!resolvedTrackID) return null;
-  var requested = String(quality || "").trim();
-  try {
-    var info = fetchDownloadInfo(resolvedTrackID, requested, {});
-    if (!info || info.kind !== "direct" || !info.directURL) return null;
-    var url = String(info.directURL).trim();
-    if (url.indexOf("http://") !== 0 && url.indexOf("https://") !== 0) {
-      return null;
-    }
-    log.info(
-      "[TidalWeb] streaming URL OK:",
-      info.audioQuality || "",
-      "kind=direct",
-    );
-    return url;
-  } catch (e) {
-    var msg = e && e.message ? e.message : String(e);
-    log.debug("[TidalWeb] getDownloadUrl failed:", msg);
-    // A gateway-down error must NOT be swallowed into null: Go's circuit
-    // breaker only cools "tidal-web" when it sees the marker in the error
-    // (522/gateway), and without it every track re-walks the whole 40-call
-    // quality matrix. Re-throw so the cooldown trips and later tracks skip
-    // this source entirely while the gateway is down.
-    if (isGatewayError(msg)) {
-      throw new Error(msg);
-    }
-    // Same for VERIFY_REQUIRED: without the marker reaching Go, the cooldown
-    // (which now matches "verify_required") never trips and the fallback
-    // attempts this source dozens of times per track — burning the whole
-    // streaming budget on a session that cannot serve until the user
-    // completes the challenge. Re-throw so Go cools tidal-web for the short
-    // verification window (cleared as soon as the grant completes).
-    if (isVerificationRequiredError(e)) {
-      throw new Error(msg);
-    }
-    return null;
-  }
-}
-
 function completeGrant() {
   if (
     typeof session === "undefined" ||
@@ -2973,114 +3506,6 @@ function completeGrant() {
   return session.completeGrant();
 }
 
-function getHomeFeed() {
-  try {
-    var sections = [];
-
-    // Try signed session first (requires verified session)
-    if (
-      typeof session !== "undefined" &&
-      session &&
-      typeof session.signedFetch === "function"
-    ) {
-      try {
-        // Try /pages/home first, fall back to /pages/charts -- but only if
-        // the session is actually authenticated. TIDAL pages endpoints return
-        // 403 when the session exists but was never verified (no human
-        // challenge completed). When that happens we stop the whole feed for
-        // this source instead of hammering zarz redirects.
-        var paths = [
-          "/pages/home?countryCode=US",
-          "/pages/charts?countryCode=US",
-        ];
-        for (var pi = 0; pi < paths.length && sections.length === 0; pi++) {
-          var homeRes = session.signedFetch("GET", paths[pi], null, {});
-          log.warn(
-            "[TidalWeb] home fetch attempted: " +
-              paths[pi] +
-              " -> HTTP " +
-              (homeRes ? homeRes.statusCode : "no response") +
-              " error=" +
-              (homeRes && homeRes.error ? homeRes.error : "") +
-              " needsVerification=" +
-              (homeRes && homeRes.needsVerification ? "yes" : "no"),
-          );
-          if (homeRes && homeRes.statusCode === 200 && homeRes.body) {
-            var home = JSON.parse(homeRes.body);
-            var rows = home && home.rows ? home.rows : [];
-            // Also handle the case where rows is under 'sections'
-            if (rows.length === 0 && home && home.sections)
-              rows = home.sections;
-            for (var i = 0; i < rows.length && sections.length < 5; i++) {
-              var row = rows[i];
-              if (!row || !row.items) continue;
-              var sectionTitle = "Tidal";
-              if (row.title) sectionTitle = row.title;
-              else if (row.name) sectionTitle = row.name;
-              var items = [];
-              var rowItems = row.items || [];
-              for (var j = 0; j < rowItems.length && items.length < 15; j++) {
-                var item = rowItems[j];
-                if (!item) continue;
-                var type = "track";
-                var id = "";
-                if (item.type === "album") type = "album";
-                else if (item.type === "playlist") type = "playlist";
-                else if (item.type === "artist") type = "artist";
-                if (item.id) id = String(item.id);
-                if (item.resource && item.resource.id)
-                  id = String(item.resource.id);
-                if (!id) continue;
-                var name =
-                  item.title || (item.resource && item.resource.title) || "";
-                var artists = "";
-                if (item.artist && item.artist.name) artists = item.artist.name;
-                else if (item.artists && item.artists.length > 0)
-                  artists = item.artists
-                    .map(function (a) {
-                      return a.name;
-                    })
-                    .join(", ");
-                var cover = "";
-                if (item.image && item.image.url) cover = item.image.url;
-                else if (
-                  item.resource &&
-                  item.resource.image &&
-                  item.resource.image.url
-                )
-                  cover = item.resource.image.url;
-                items.push({
-                  id: id,
-                  type: type,
-                  name: name,
-                  artists: artists,
-                  cover_url: cover,
-                });
-              }
-              if (items.length > 0) {
-                sections.push({ title: sectionTitle, items: items });
-              }
-            }
-          }
-        }
-        if (sections.length === 0) {
-          log.warn("[TidalWeb] home feed returned 0 from all endpoints");
-        }
-      } catch (e) {
-        log.warn("[TidalWeb] getHomeFeed signed request failed:", String(e));
-      }
-    } else {
-      log.warn("[TidalWeb] no session object for home feed");
-    }
-
-    log.info("[TidalWeb] getHomeFeed returning", sections.length, "sections");
-    return { success: true, sections: sections };
-  } catch (e) {
-    log.warn("[TidalWeb] getHomeFeed failed:", String(e));
-    return { success: false, error: String(e), sections: [] };
-  }
-}
-
 registerExtension({
   initialize: initialize,
   cleanup: cleanup,
@@ -3088,7 +3513,6 @@ registerExtension({
   customSearch: customSearch,
   checkAvailability: checkAvailability,
   download: download,
-  getDownloadUrl: getDownloadUrl,
   handleUrl: handleUrl,
   getTrack: getTrack,
   getAlbum: getAlbum,
@@ -3096,7 +3520,6 @@ registerExtension({
   getPlaylist: getPlaylist,
   enrichTrack: enrichTrack,
   searchTracks: searchTracks,
-  getHomeFeed: getHomeFeed,
 });
 
 log.info("[TidalWeb] TIDAL web metadata extension loaded");

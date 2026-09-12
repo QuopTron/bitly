@@ -37,6 +37,11 @@ func (r *Runtime) CallMethod(extID, method string, args ...interface{}) (ret int
 	}
 	defer sandbox.unlock()
 
+	// Marca el inicio de ESTA llamada: utils.getResolutionRemainingMs() mide el
+	// presupuesto de resolución contra este instante. Se escribe con el lock
+	// tomado y lo lee la propia llamada JS, así que no necesita más sincronía.
+	sandbox.callStartedAt = time.Now()
+
 	fn := sandbox.VM.Get(method)
 	if fn == nil || goja.IsUndefined(fn) {
 		return nil, fmt.Errorf("ext %s: method %s not found", extID, method)

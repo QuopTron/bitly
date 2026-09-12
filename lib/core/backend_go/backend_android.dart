@@ -19,8 +19,10 @@ import '../../app/inyeccion.dart' as di;
 import 'contrato_backend.dart';
 import 'mixins/acciones_mixin.dart';
 import 'mixins/ajustes_mixin.dart';
+import 'mixins/biblioteca_local_mixin.dart';
 import 'mixins/detalle_mixin.dart';
 import 'mixins/editor_etiquetas_mixin.dart';
+import 'mixins/enlaces_mixin.dart';
 import 'mixins/feed_busqueda_mixin.dart';
 import 'mixins/infra_mixin.dart';
 import 'mixins/premium_mixin.dart';
@@ -36,8 +38,10 @@ class BackendAndroid extends BackendService
         AccionesMixin,
         DetalleMixin,
         InfraMixin,
+        BibliotecaLocalMixin,
         PremiumMixin,
         EditorEtiquetasMixin,
+        EnlacesMixin,
         SesionesFirmadasMixin,
         SesionesAccionesMixin,
         SesionesKeepaliveMixin,

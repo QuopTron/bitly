@@ -28,6 +28,7 @@ import '../../../shared/utilidades/responsive.dart';
 import '../../../shared/widgets/esqueleto_carga.dart';
 import '../../../shared/widgets/tarjeta_grilla.dart';
 import '../../../shared/widgets/tarjeta_track.dart';
+import '../../../shared/utilidades/estilo_helper.dart';
 
 part 'contenido_feed_estado.dart';
 part 'contenido_feed_grillas.dart';

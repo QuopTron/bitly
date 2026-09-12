@@ -21,7 +21,7 @@ func SetStreamCacheMaxMb(payload string) string {
 	if params.MB > limit {
 		params.MB = limit
 	}
-	streamCacheMaxMB = params.MB
+	setStreamCacheMaxMB(params.MB)
 	out, _ := json.Marshal(map[string]interface{}{
 		"mb":             params.MB,
 		"level_limit_mb": limit,
@@ -127,9 +127,9 @@ func DeleteCover(payload string) string {
 
 // ResetDatabase resets in-memory state (Flutter persists Drift locally).
 func ResetDatabase() string {
-	userMode = ""
-	downloadDir = ""
-	streamCacheMaxMB = 0
+	setUserMode("")
+	setDownloadDir("")
+	setStreamCacheMaxMB(0)
 	return `{"ok":true}`
 }
 

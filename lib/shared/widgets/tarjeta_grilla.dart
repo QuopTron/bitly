@@ -16,10 +16,13 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 
 import '../../app/inyeccion.dart';
+import '../../core/modelos/estilo_visual.dart';
 import '../../core/modelos/perfil_rendimiento.dart';
+import '../../core/modelos/preferencias_estilo.dart';
 import '../../l10n/app_localizations.dart';
 import '../tema/colores_app.dart';
 import '../utilidades/haptico.dart';
+import '../utilidades/paleta_portada.dart';
 import '../utilidades/responsive.dart';
 import 'imagen_portada.dart';
 import 'indicador_descarga.dart';
@@ -64,6 +67,10 @@ class TarjetaGrilla extends StatelessWidget {
   final bool mostrarAccionDescarga;
   final int contadorReproducciones;
 
+  /// Color dominante extraído del cover. Se usa en modo Spotify para
+  /// teñir el fondo, bordes y sombras de la tarjeta con el color del album.
+  final Color? colorDominante;
+
   const TarjetaGrilla({
     super.key,
     required this.tipo,
@@ -89,6 +96,7 @@ class TarjetaGrilla extends StatelessWidget {
     this.mostrarTerceraAccion = true,
     this.mostrarAccionDescarga = true,
     this.contadorReproducciones = 0,
+    this.colorDominante,
   });
 
   IconData get _icono {
@@ -120,29 +128,110 @@ class TarjetaGrilla extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final r = Responsive(context);
-    final theme = Theme.of(context);
-    final esOscuro = theme.brightness == Brightness.dark;
-    final fondoFallback = ColoresApp.superficie(esOscuro);
-    final fg = ColoresApp.enSuperficie(esOscuro);
-    final ts = escalaTexto;
-    final efectosPesados =
-        sl<ValueNotifier<PerfilRendimiento>>().value.efectosPesados;
+    return ValueListenableBuilder<EstiloVisual>(
+      valueListenable: sl<ValueNotifier<EstiloVisual>>(),
+      builder: (context, estilo, _) {
+        return ValueListenableBuilder<PreferenciasEstilo>(
+          valueListenable: sl<ValueNotifier<PreferenciasEstilo>>(),
+          builder: (context, prefs, _) {
+            final r = Responsive(context);
+            final theme = Theme.of(context);
+            final esOscuro = theme.brightness == Brightness.dark;
+            final fondoFallback = ColoresApp.superficie(esOscuro);
+            final fg = ColoresApp.enSuperficie(esOscuro);
+            final ts = escalaTexto;
+            final efectosPesados =
+                sl<ValueNotifier<PerfilRendimiento>>().value.efectosPesados;
 
-    return RepaintBoundary(
-      child: LayoutBuilder(
-        builder: (context, constraints) => _cuerpoTarjeta(
-          this,
-          context,
-          constraints,
-          r,
-          esOscuro,
-          fondoFallback,
-          fg,
-          ts,
-          efectosPesados,
-        ),
-      ),
+            final spotify =
+                estilo == EstiloVisual.spotify && prefs.cardsGrilla;
+
+            return RepaintBoundary(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  if (spotify && colorDominante == null && coverUrl != null) {
+                    return _TarjetaGrillaColorWrapper(
+                      coverUrl: coverUrl!,
+                      builder: (colorDominante) => _cuerpoTarjeta(
+                        this,
+                        context,
+                        constraints,
+                        r,
+                        esOscuro,
+                        fondoFallback,
+                        fg,
+                        ts,
+                        efectosPesados,
+                        colorDominante: colorDominante,
+                      ),
+                    );
+                  }
+                  return _cuerpoTarjeta(
+                    this,
+                    context,
+                    constraints,
+                    r,
+                    esOscuro,
+                    fondoFallback,
+                    fg,
+                    ts,
+                    efectosPesados,
+                    colorDominante: spotify ? colorDominante : null,
+                  );
+                },
+              ),
+            );
+          },
+        );
+      },
     );
   }
+}
+
+/// Wrapper que extrae el color dominante del cover de forma asíncrona.
+/// Solo se usa en modo Spotify cuando no se proporciona colorDominante.
+class _TarjetaGrillaColorWrapper extends StatefulWidget {
+  final String coverUrl;
+  final Widget Function(Color? colorDominante) builder;
+
+  const _TarjetaGrillaColorWrapper({
+    required this.coverUrl,
+    required this.builder,
+  });
+
+  @override
+  State<_TarjetaGrillaColorWrapper> createState() =>
+      _TarjetaGrillaColorWrapperState();
+}
+
+class _TarjetaGrillaColorWrapperState extends State<_TarjetaGrillaColorWrapper> {
+  Color? _color;
+
+  @override
+  void initState() {
+    super.initState();
+    _extraerColor();
+  }
+
+  @override
+  void didUpdateWidget(covariant _TarjetaGrillaColorWrapper oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.coverUrl != widget.coverUrl) {
+      _extraerColor();
+    }
+  }
+
+  Future<void> _extraerColor() async {
+    try {
+      final paleta = await paletaParaPortada(widget.coverUrl);
+      if (mounted) {
+        setState(() {
+          _color = paleta?.dominante;
+        });
+      }
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.builder(_color);
 }

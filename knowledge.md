@@ -81,4 +81,5 @@ go test ./...
 - **Extension Bootstrap:** The Go backend auto-downloads and enables "essential" extensions on first run. Do not duplicate this logic in Flutter.
 - **Local Library Auto-Scan:** Triggered on app resume based on settings (`on_open`, `daily`, `weekly`). Uses `SharedPreferences` to throttle scans.
 - **yt-dlp:** Required on both desktop and Android for YouTube fallback downloads. On Android it must be available in the app documents directory or via Termux.
+- **YouTube PO Token (optional):** Marked IPs (emulator, datacenter, VPN) get YouTube's bot check on every InnerTube client, and without a token the only usable format is `itag=18` (360p muxed) — the real cause behind "YouTube sounds bad". Fix: run the local bgutil provider (`scripts/pot_local.sh`, Node only, no Docker) and on the emulator map it with `adb reverse tcp:4416 tcp:4416`. Full guide: `go_backend/POT_TOKEN_YOUTUBE.md`.
 - **FFmpeg:** The `ffmpeg_kit_flutter_new_full` package is large; builds may take a while.

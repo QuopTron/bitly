@@ -47,6 +47,10 @@ func registerFileOps(s *Sandbox) {
 	registerFileReadOps(s, fileObj)
 	registerFileWriteOps(s, fileObj)
 	registerFileDownload(s, fileObj)
+	// Descarga paralela de segmentos (Tidal DASH) y transform por bloques
+	// (descifrado de Deezer): ambos mueven trabajo pesado al lado Go.
+	registerFileSegments(s, fileObj)
+	registerFileTransformOps(s, fileObj)
 
 	vm.Set("file", fileObj)
 }

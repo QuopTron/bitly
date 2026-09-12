@@ -37,7 +37,24 @@ func (p *ExtensionProvider) callOp(op, method string, args ...interface{}) (inte
 	} else if cooldown.IsCooledOp(p.name, op) {
 		return nil, nil
 	}
-	res, err := p.runtime.CallMethod(p.extID, method, args...)
+
+	// Caché de metadata: TODAS las fuentes pasan por acá, así que cachear en
+	// este único punto hace instantáneo repetir una búsqueda o reabrir un
+	// detalle sin tocar la red. Solo aplica a métodos de lectura (ver
+	// metadata_cache.go); descargas y streams siempre se piden frescos.
+	kind, cacheable := bucketCacheMetadata(method)
+	var cacheKey string
+	if cacheable {
+		cacheKey = claveCacheMetadata(p.extID, method, args)
+		if cached, ok := leerCacheMetadata(kind, cacheKey); ok {
+			return cached, nil
+		}
+	}
+
+	// llamarConVuelo colapsa los pedidos idénticos SIMULTÁNEOS en una sola
+	// llamada (la caché de arriba solo cubre lo repetido en el tiempo). Ver
+	// metadata_cache_vuelo.go.
+	res, err := p.llamarConVuelo(cacheable, cacheKey, method, args)
 	if err != nil {
 		if op == "" {
 			cooldown.MarkError(p.name, err.Error())
@@ -45,6 +62,9 @@ func (p *ExtensionProvider) callOp(op, method string, args ...interface{}) (inte
 			cooldown.MarkOpError(p.name, op, err.Error())
 		}
 		return res, err
+	}
+	if cacheable {
+		guardarCacheMetadata(kind, cacheKey, res)
 	}
 	return res, nil
 }

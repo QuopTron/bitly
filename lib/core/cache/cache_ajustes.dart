@@ -15,6 +15,7 @@ import '../backend_go/ayudantes_backend.dart';
 import '../modelos/ajustes_descarga.dart';
 import '../modelos/datos_setup.dart';
 import '../modelos/perfil_rendimiento.dart';
+import '../modelos/preferencias_estilo.dart';
 
 /// Caché local de ajustes — wrappers sobre [SettingsDao].
 class CacheAjustes {
@@ -68,6 +69,25 @@ class CacheAjustes {
 
   Future<String?> getAjuste(String key) => _dao.get(key);
   Future<void> guardarAjuste(String key, String value) => _dao.set(key, value);
+
+  // ── Estilo visual ──
+  static const _claveEstiloVisual = 'visual_style';
+
+  Future<String?> getEstiloVisual() => _dao.get(_claveEstiloVisual);
+
+  Future<void> guardarEstiloVisual(String estilo) =>
+      _dao.set(_claveEstiloVisual, estilo);
+
+  // ── Preferencias de estilo por componente ──
+  static const _clavePreferenciasEstilo = 'style_preferences';
+
+  Future<PreferenciasEstilo> getPreferenciasEstilo() async {
+    final raw = await _dao.get(_clavePreferenciasEstilo);
+    return PreferenciasEstilo.desdeJsonString(raw);
+  }
+
+  Future<void> guardarPreferenciasEstilo(PreferenciasEstilo prefs) =>
+      _dao.set(_clavePreferenciasEstilo, prefs.toJsonString());
 
   static const _clavePerf = 'perf_profile';
 

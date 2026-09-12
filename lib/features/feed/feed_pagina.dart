@@ -23,6 +23,7 @@ import '../../shared/constantes/constantes_fuente.dart';
 import '../../shared/tema/colores_app.dart';
 import '../../shared/utilidades/acciones_item.dart';
 import '../../shared/utilidades/deteccion_plataforma.dart';
+import '../tutorial_interactivo/tutorial_pasos.dart';
 import 'bloc/feed_bloc.dart';
 import 'bloc/feed_estado.dart';
 import 'bloc/feed_evento.dart';

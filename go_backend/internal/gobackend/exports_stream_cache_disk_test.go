@@ -7,9 +7,9 @@ import (
 
 func TestStreamFailCacheVerificationNotPersisted(t *testing.T) {
 	dir := t.TempDir()
-	old := downloadDir
-	downloadDir = dir
-	defer func() { downloadDir = old }()
+	old := getDownloadDir()
+	setDownloadDir(dir)
+	defer func() { setDownloadDir(old) }()
 
 	streamFailMu.Lock()
 	streamFailCache = map[string]streamFailEntry{}

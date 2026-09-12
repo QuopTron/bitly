@@ -83,6 +83,13 @@ class _PanelVerificacionWebState extends State<PanelVerificacionWeb> {
     if (plataforma is AndroidWebViewController) {
       unawaited(plataforma.setUserAgent(ServicioVerificacion.chromeUA));
     }
+    if (widget.urlAuth.contains('zarz.moe')) {
+      debugPrint('[Verificacion] PanelVerificacionWeb: refusing zarz URL → empty');
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) widget.alObtenerGrant('');
+      });
+      return;
+    }
     _controlador.loadRequest(Uri.parse(widget.urlAuth));
   }
 

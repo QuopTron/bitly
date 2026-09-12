@@ -23,6 +23,18 @@ Future<void> _iniciarVerificacionSt(_SlideVerificacionState st) async {
   if (st._verificacionIniciada) return;
   st._aplicar(() => st._verificacionIniciada = true);
 
+  // Sin fuentes con sesión firmada no hay nada que verificar: marcamos todas
+  // como verificadas y cortamos antes de golpear el backend (era justo lo que
+  // disparaba el challenge de Cloudflare al arrancar).
+  if (ServicioVerificacion.fuentesSesionFirmada.isEmpty) {
+    for (final (extId, _) in _SlideVerificacionState._proveedores) {
+      if (st.mounted) {
+        st._aplicar(() => st._estados[extId] = _EstadoProveedor.verificado);
+      }
+    }
+    return;
+  }
+
   final backend = di.sl<BackendService>();
 
   for (final (extId, nombre) in _SlideVerificacionState._proveedores) {

@@ -18,6 +18,7 @@ class _SettingsSheetBody extends StatefulWidget {
   final bool hasTrack;
   final ValueChanged<bool> onThemeChanged;
   final VoidCallback onLanguageChanged;
+  final ValueChanged<EstiloVisual> onStyleChanged;
   final Future<void> Function() onPremiumChanged;
   final void Function(int index) onTabTap;
 
@@ -36,6 +37,7 @@ class _SettingsSheetBody extends StatefulWidget {
     required this.hasTrack,
     required this.onThemeChanged,
     required this.onLanguageChanged,
+    required this.onStyleChanged,
     required this.onPremiumChanged,
     required this.onTabTap,
   });
@@ -99,27 +101,38 @@ class _SettingsSheetBodyState extends State<_SettingsSheetBody> {
             // Bubble tabs — Apariencia first. Four small circular bubbles
             // with a tiny label under each; the active one glows. No scroll,
             // no boxes.
-            _BubbleTabsRow(
-              currentIndex: widget.tabController.index,
-              glowColor: glowColor,
-              onBg: onBg,
-              r: r,
-              onTap: widget.onTabTap,
+            // Objetivo del tutorial para el paso que explica las pestañas.
+            KeyedSubtree(
+              key: keyTutorialAjustesTabs,
+              child: _BubbleTabsRow(
+                currentIndex: widget.selectedTab,
+                glowColor: glowColor,
+                onBg: onBg,
+                r: r,
+                onTap: widget.onTabTap,
+              ),
             ),
             SizedBox(height: r.spacingS),
-            // Content: profile/stats when no tab selected, tab content otherwise.
+            // Content: profile/stats when no tab selected, tab content
+            // otherwise. La key es el objetivo de los pasos que explican
+            // Descargas, Rendimiento y Más (el contenido cambia con la
+            // pestaña que el tutorial va pidiendo).
             Expanded(
-              child: _SettingsTabs(
-                controller: widget.tabController,
-                selectedTab: widget.selectedTab,
-                isDark: isDark,
-                glowColor: glowColor,
-                premium: widget.premium,
-                likedCount: widget.likedCount,
-                downloadedCount: widget.downloadedCount,
-                onThemeChanged: widget.onThemeChanged,
-                onLanguageChanged: widget.onLanguageChanged,
-                onPremiumChanged: widget.onPremiumChanged,
+              child: KeyedSubtree(
+                key: keyTutorialAjustesContenido,
+                child: _SettingsTabs(
+                  controller: widget.tabController,
+                  selectedTab: widget.selectedTab,
+                  isDark: isDark,
+                  glowColor: glowColor,
+                  premium: widget.premium,
+                  likedCount: widget.likedCount,
+                  downloadedCount: widget.downloadedCount,
+                  onThemeChanged: widget.onThemeChanged,
+                  onLanguageChanged: widget.onLanguageChanged,
+                  onStyleChanged: widget.onStyleChanged,
+                  onPremiumChanged: widget.onPremiumChanged,
+                ),
               ),
             ),
           ],
@@ -132,8 +145,10 @@ class _SettingsSheetBodyState extends State<_SettingsSheetBody> {
         borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
         child: BackdropFilter(
           filter: ImageFilter.blur(
-            sigmaX: sl<ValueNotifier<PerfilRendimiento>>().value.sigmaDesenfoque,
-            sigmaY: sl<ValueNotifier<PerfilRendimiento>>().value.sigmaDesenfoque,
+            sigmaX:
+                sl<ValueNotifier<PerfilRendimiento>>().value.sigmaDesenfoque,
+            sigmaY:
+                sl<ValueNotifier<PerfilRendimiento>>().value.sigmaDesenfoque,
           ),
           child: sheet,
         ),

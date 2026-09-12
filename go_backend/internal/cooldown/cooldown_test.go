@@ -114,9 +114,26 @@ func TestRateLimitedOrBlocked_Markers(t *testing.T) {
 		"verification required on tidal-web",
 		"precondition required",
 		"HTTP 428",
+		// SoundCloud devuelve esto en cada llamada cuando no puede resolver su
+		// client_id: sin enfriarlo, cada track del lote re-caminaba la fuente
+		// con ~8 peticiones condenadas.
+		"SoundCloud API failed after retry: HTTP 401",
+		"ext call failed: UNAUTHORIZED (pool agotado)",
+		"Could not find SoundCloud client_id in page or JS bundles",
 	} {
 		if !limitadoObloqueado(msg) {
 			t.Errorf("expected %q to be treated as rate-limited/blocked", msg)
+		}
+	}
+
+	// Un mensaje genérico que solo contiene el número de casualidad no debe
+	// disparar el breaker: los marcadores de 401 son específicos.
+	for _, msg := range []string{
+		"duración estimada 401 segundos",
+		"no results found",
+	} {
+		if limitadoObloqueado(msg) {
+			t.Errorf("expected %q NOT to cool the provider down", msg)
 		}
 	}
 	if limitadoObloqueado("") {

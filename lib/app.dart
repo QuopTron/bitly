@@ -9,6 +9,8 @@
 // Parte del flujo: arranque (main → BitlyApp → router → splash).
 // ─────────────────────────────────────────────────────────────
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -16,13 +18,19 @@ import 'package:go_router/go_router.dart';
 
 import 'app/inyeccion.dart' as di;
 import 'core/cache/cache_ajustes.dart';
+import 'core/modelos/estilo_visual.dart';
+import 'core/modelos/preferencias_estilo.dart';
+import 'core/modelos/resultado_enlace.dart';
 import 'core/plataforma/servicio_deep_link.dart';
 import 'core/servicios/servicio_callback_oauth.dart';
+import 'core/servicios/servicio_enlaces.dart';
 import 'core/servicios/servicio_verificacion.dart';
+import 'estado/cubit_cola.dart';
 import 'features/setup/bloc/setup_bloc.dart';
 import 'features/splash/bloc/splash_bloc.dart';
 import 'l10n/app_localizations.dart';
 import 'router/app_router.dart';
+import 'router/route_names.dart';
 import 'shared/tema/envoltorio_color_dinamico.dart';
 import 'shared/widgets/overlay_compartido.dart';
 
@@ -38,20 +46,30 @@ class _BitlyAppState extends State<BitlyApp> {
   late final ValueNotifier<Locale> _locale = di.sl<ValueNotifier<Locale>>();
   late final ValueNotifier<ThemeMode> _themeMode =
       di.sl<ValueNotifier<ThemeMode>>();
+  late final ValueNotifier<EstiloVisual> _estiloVisual =
+      di.sl<ValueNotifier<EstiloVisual>>();
+  late final ValueNotifier<PreferenciasEstilo> _preferenciasEstilo =
+      di.sl<ValueNotifier<PreferenciasEstilo>>();
   final _navigatorKey = GlobalKey<NavigatorState>();
   late final GoRouter _router =
       AppRouter(navigatorKey: _navigatorKey).router;
 
   DatosDeepLink? _linkCompartido;
+  StreamSubscription<ResultadoEnlace>? _subEnlaces;
 
   @override
   void initState() {
     super.initState();
     _locale.addListener(_onAjusteCambiado);
     _themeMode.addListener(_onAjusteCambiado);
+    _estiloVisual.addListener(_onAjusteCambiado);
+    _preferenciasEstilo.addListener(_onAjusteCambiado);
     _cargarAjustesGuardados();
     ServicioVerificacion().init(_navigatorKey);
     ServicioCallbackOAuth().init();
+    // Enlaces de música (compartidos a la app o resueltos por la UI): en
+    // cuanto Go devuelve el ítem, se encola y se reproduce.
+    _subEnlaces = ServicioEnlaces.instance.resultados.listen(_reproducirEnlace);
     // Deep link inicial (app abierta vía link de WhatsApp, etc.).
     final inicial = ServicioDeepLink.instance.consumirPendiente();
     if (inicial != null) {
@@ -78,6 +96,14 @@ class _BitlyAppState extends State<BitlyApp> {
       if (localeGuardado != null && mounted) {
         _locale.value = Locale(localeGuardado);
       }
+      final estiloGuardado = await cache.getEstiloVisual();
+      if (estiloGuardado != null && mounted) {
+        _estiloVisual.value = EstiloVisualExt.desdeClave(estiloGuardado);
+      }
+      final prefsGuardadas = await cache.getPreferenciasEstilo();
+      if (mounted) {
+        _preferenciasEstilo.value = prefsGuardadas;
+      }
     } catch (_) {}
   }
 
@@ -89,15 +115,45 @@ class _BitlyAppState extends State<BitlyApp> {
     setState(() => _linkCompartido = null);
   }
 
-  void _reproducirCompartido() {
+  /// Reproduce un enlace ya resuelto: encola sus tracks y, si el usuario no
+  /// está en una pantalla de arranque, lo lleva al home para que vea el
+  /// miniplayer con lo que suena.
+  void _reproducirEnlace(ResultadoEnlace resuelto) {
+    if (!mounted) return;
     setState(() => _linkCompartido = null);
-    // Navega a la home; el ítem queda buscable desde ahí.
+    di.sl<CubitCola>().reproducirConContexto(
+      resuelto.paraReproducir,
+      resuelto.item,
+    );
+    final ruta = _router.routerDelegate.currentConfiguration.uri.path;
+    if (ruta != RouteNames.setup.path && ruta != RouteNames.splash.path) {
+      _router.go(RouteNames.home.path);
+    }
+  }
+
+  /// Botón "Reproducir" del overlay de enlaces: resuelve el enlace contra Go
+  /// y, si no se puede, deja al usuario en la búsqueda para encontrarlo.
+  Future<void> _reproducirCompartido() async {
+    final link = _linkCompartido;
+    setState(() => _linkCompartido = null);
+    if (link == null) return;
+    if (link.url.isNotEmpty) {
+      final resuelto = await ServicioEnlaces.instance.resolver(link.url);
+      if (resuelto != null) {
+        _reproducirEnlace(resuelto);
+        return;
+      }
+    }
+    _router.go(RouteNames.home.path);
   }
 
   @override
   void dispose() {
+    _subEnlaces?.cancel();
     _locale.removeListener(_onAjusteCambiado);
     _themeMode.removeListener(_onAjusteCambiado);
+    _estiloVisual.removeListener(_onAjusteCambiado);
+    _preferenciasEstilo.removeListener(_onAjusteCambiado);
     super.dispose();
   }
 

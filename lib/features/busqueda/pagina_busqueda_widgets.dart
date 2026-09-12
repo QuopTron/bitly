@@ -20,17 +20,24 @@ Widget _construirBarra(_PaginaBusquedaState st, EstadoBusqueda state) {
   final colorBrillo =
       esOscuro ? ColoresApp.verdeBrillante : ColoresApp.verdeMedio;
 
-  return BarraBusqueda(
-    controlador: st._controlador,
-    onTextoCambiado: (v) => _onTextoCambiado(st, v),
-    onLimpiar: () => _limpiarBusqueda(st),
-    hintTexto: _hintBusqueda(st, state),
-    triggerFuente: AcordeonFuente(
-      fuentes: _fuentesBusqueda(state),
-      fuenteSeleccionada: st._fuente,
-      onBg: onBg,
-      colorBrillo: colorBrillo,
-      onCambiada: (f) => _onFuenteCambiada(st, f),
+  return KeyedSubtree(
+    key: keyTutorialBusqueda,
+    child: BarraBusqueda(
+      controlador: st._controlador,
+      onTextoCambiado: (v) => _onTextoCambiado(st, v),
+      onEnviado: (v) => _enviarBusqueda(st, v),
+      onLimpiar: () => _limpiarBusqueda(st),
+      hintTexto: _hintBusqueda(st, state),
+      triggerFuente: KeyedSubtree(
+        key: keyTutorialFuente,
+        child: AcordeonFuente(
+          fuentes: _fuentesBusqueda(state),
+          fuenteSeleccionada: st._fuente,
+          onBg: onBg,
+          colorBrillo: colorBrillo,
+          onCambiada: (f) => _onFuenteCambiada(st, f),
+        ),
+      ),
     ),
   );
 }

@@ -128,6 +128,12 @@ func dispatchExtra(method string, params map[string]interface{}) (interface{}, s
 	// ── Library ─────────────────────────────────────────────
 	case "scanLibrary":
 		return backend.ScanLibrary(rpcGet(params, "directory")), "", true
+	case "importarBibliotecaLocal":
+		return backend.ImportarBibliotecaLocal(rpcGet(params, "directory")), "", true
+	case "faltantesLocales":
+		return backend.FaltantesLocales(rpcGet(params, "isrcs")), "", true
+	case "rutaLocalIsrc":
+		return backend.RutaLocalISRC(rpcGet(params, "isrc")), "", true
 	case "getLibraryStats":
 		return backend.GetLibraryStats(), "", true
 

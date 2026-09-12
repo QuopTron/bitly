@@ -73,6 +73,22 @@ func limitadoObloqueado(errMsg string) bool {
 		"blocked",
 		"bot detection",
 		"captcha",
+		// 401 Unauthorized tampoco estaba contemplado, y es el que más costaba:
+		// SoundCloud responde 401 en TODAS sus llamadas cuando no logra resolver
+		// su client_id (su scrape cambia con cada variante de frontend que sirve).
+		// Sin este marcador cada canción del lote volvía a caminar la fuente con
+		// ~8 peticiones condenadas — segundos perdidos por track en cada
+		// fallback, justo cuando el usuario espera que suene la siguiente.
+		// Se usan formas específicas ("http 401") a propósito: un "401" suelto
+		// podría aparecer dentro de otro mensaje sin ser un problema de auth.
+		"http 401",
+		"status 401",
+		"unauthorized",
+		// El scrape del client_id falló por completo (la página y sus bundles no
+		// traen el patrón): la fuente no puede servir hasta que SoundCloud
+		// publique otra variante, y cada reintento cuesta ~1-2s de escaneo.
+		"client_id",
+		"client id",
 		// Errores de gateway/origen: varias fuentes resuelven vía un gateway
 		// compartido (api.zarz.moe). Cuando ese origen cae, Cloudflare responde
 		// 522/524/502/503/504 — reintentar en el siguiente track es inútil.

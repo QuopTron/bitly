@@ -26,19 +26,15 @@ func SetSessionConfig(payload string) string {
 	if err := json.Unmarshal([]byte(params.ConfigJSON), &cfg); err != nil {
 		return jsonError(err)
 	}
-	if sessionConfigs == nil {
-		sessionConfigs = make(map[string]*extensions.SignedSessionConfig)
-	}
-	sessionConfigs[params.ExtensionID] = &cfg
+	setSessionConfigGuardado(params.ExtensionID, &cfg)
 	return `{"ok":true}`
 }
 
 // getSessionConfig returns the stored config for an extension, or nil.
+// Pasa por el candado porque Flutter puede estar reemplazando el mapa desde
+// Ajustes justo mientras un auth/exchange lo lee (mapa concurrente = crash).
 func getSessionConfig(extensionID string) *extensions.SignedSessionConfig {
-	if sessionConfigs == nil {
-		return nil
-	}
-	return sessionConfigs[extensionID]
+	return getSessionConfigGuardado(extensionID)
 }
 
 // GetSessionAuthURL returns a URL for Cloudflare challenge in a WebView.

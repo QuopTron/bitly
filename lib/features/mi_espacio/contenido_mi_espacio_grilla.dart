@@ -20,6 +20,7 @@ Widget _vistaGrilla(
   String tipo,
   Color onBg,
 ) {
+  final estilo = EstiloHelper.esSpotify(parentCtx);
   return LayoutBuilder(
     builder: (context, constraints) {
       final disponible = constraints.maxWidth - 2 * r.spacingS * 0.5;
@@ -27,12 +28,12 @@ Widget _vistaGrilla(
       // móvil 3/2 — el box de PC se estira más que antes (1120px).
       final columnas =
           disponible > 1000 ? 6 : disponible > 700 ? 4 : disponible > 340 ? 3 : 2;
-      final gap = r.spacingXS;
+      final gap = estilo ? r.spacingXS * 0.5 : r.spacingXS;
       return SingleChildScrollView(
         padding: EdgeInsets.fromLTRB(
-          r.spacingS * 0.5,
+          estilo ? 2 : r.spacingS * 0.5,
           r.spacingS,
-          r.spacingS * 0.5,
+          estilo ? 2 : r.spacingS * 0.5,
           r.spacingS + r.val(120, 100, 150),
         ),
         child: Column(

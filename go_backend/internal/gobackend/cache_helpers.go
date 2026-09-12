@@ -96,13 +96,17 @@ func limiteEviccionPortadas(dir string, limitMB int) {
 }
 
 func userLevelLabel() string {
-	if userMode == "free" {
+	// Se lee UNA vez: el modo puede cambiar en caliente desde Flutter y leer
+	// el global tres veces daría un nivel incoherente (p. ej. "free" en el
+	// primer if y no-vacío en el tercero).
+	modo := getUserMode()
+	switch modo {
+	case "free":
 		return "free"
-	}
-	if userMode == "lifetime" {
+	case "lifetime":
 		return "lifetime"
 	}
-	if userMode != "" {
+	if modo != "" {
 		return "premium"
 	}
 	if premiumChecker != nil && premiumChecker.IsPremium() {

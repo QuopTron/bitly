@@ -5,13 +5,15 @@
 // y el miniplayer como slots (seccion animada en home_movil_seccion.dart).
 
 import 'package:flutter/material.dart';
-
 import '../../shared/tema/colores_app.dart';
 import '../../shared/widgets/fondo_ambiente.dart';
+import '../tutorial_interactivo/tutorial_controller.dart';
+import 'ensamblador_home.dart';
 import 'widgets/barra_navegacion_flotante.dart';
 
 part 'home_movil_overlay.dart';
 part 'home_movil_seccion.dart';
+part 'home_movil_tutorial.dart';
 
 /// Shell móvil de la Home. [buscador]/[feed]/[miEspacio] son las 3
 /// secciones del PageView; [miniPlayer] se posiciona sobre la navbar.
@@ -43,6 +45,13 @@ class _HomeMovilState extends State<HomeMovil> {
   late final PageController _pageCtrl;
   late int _tab;
 
+  /// Última pestaña que pidió el tutorial (para no re-animar en cada build).
+  int? _pestanaTutorialAplicada;
+
+  /// Pestaña donde estaba el usuario antes de que el tutorial lo moviera,
+  /// para devolverlo ahí cuando el tutorial termine.
+  int? _pestanaAntesDelTutorial;
+
   @override
   void initState() {
     super.initState();
@@ -67,6 +76,10 @@ class _HomeMovilState extends State<HomeMovil> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    // El tutorial puede pedir una pestaña concreta para explicar lo que
+    // vive en ella: se atiende antes de pintar el overlay.
+    final tutorial = TutorialProvider.of(context);
+    sincronizarPestanaTutorial(tutorial);
 
     return Scaffold(
       backgroundColor: isDark ? ColoresApp.fondoOscuro : ColoresApp.fondoClaro,
@@ -121,6 +134,9 @@ class _HomeMovilState extends State<HomeMovil> {
               // Overlay de preparación de fuentes.
               if (widget.preparando)
                 _OverlayPreparacion(onSaltarEspera: widget.onSaltarEspera),
+              // (El tutorial interactivo ya no va acá: lo monta TutorialHost
+              // en el Overlay raíz, así queda también por encima de los
+              // modales, como la hoja de ajustes.)
             ],
           ),
         ),

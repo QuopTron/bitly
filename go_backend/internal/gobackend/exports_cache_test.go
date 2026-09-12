@@ -77,14 +77,15 @@ func TestEvictCoversUnderCap(t *testing.T) {
 // TestGetStreamCacheStatsShape verifies the stats payload matches the fields
 // the Flutter settings UI reads.
 func TestGetStreamCacheStatsShape(t *testing.T) {
-	prevDir, prevMode := downloadDir, userMode
-	defer func() { downloadDir, userMode = prevDir, prevMode }()
-	downloadDir = t.TempDir()
-	userMode = "premium"
+	prevDir, prevMode := getDownloadDir(), getUserMode()
+	defer func() { setDownloadDir(prevDir); setUserMode(prevMode) }()
+	dir := t.TempDir()
+	setDownloadDir(dir)
+	setUserMode("premium")
 
 	// Drop a fake stream cache file and a cover.
-	sc := filepath.Join(downloadDir, ".stream_cache")
-	co := filepath.Join(downloadDir, ".covers")
+	sc := filepath.Join(dir, ".stream_cache")
+	co := filepath.Join(dir, ".covers")
 	for _, d := range []string{sc, co} {
 		if err := os.MkdirAll(d, 0755); err != nil {
 			t.Fatalf("mkdir %s: %v", d, err)

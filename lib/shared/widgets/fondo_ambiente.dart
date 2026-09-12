@@ -20,10 +20,13 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../app/inyeccion.dart';
 import '../../core/cache/estado_cola.dart';
+import '../../core/modelos/estilo_visual.dart';
 import '../../core/modelos/perfil_rendimiento.dart';
+import '../../core/modelos/preferencias_estilo.dart';
 import '../../estado/cubit_cola.dart';
 import '../../estado/cubit_like.dart';
 import '../tema/colores_app.dart';
+import '../utilidades/paleta_portada.dart';
 import 'imagen_portada.dart';
 
 /// Fondo con el cover de la canción actual envuelve [child].
@@ -66,6 +69,7 @@ class FondoAmbienteConCola extends StatelessWidget {
 }
 
 /// Capa de fondo: cover desenfocado + velo + gradiente inferior.
+/// En modo Spotify, reemplaza el cover por el color dominante del album.
 class FondoAmbiente extends StatelessWidget {
   final String? coverUrl;
   final bool isDark;
@@ -80,51 +84,136 @@ class FondoAmbiente extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final url = coverUrl;
-    final sigma = sl<ValueNotifier<PerfilRendimiento>>().value.sigmaDesenfoque;
-    return RepaintBoundary(
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          if (url != null && url.isNotEmpty)
-            ClipRect(
-              child: ImageFiltered(
-                imageFilter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
-                child: Transform.scale(
-                  scale: 1.25,
-                  child: imagenDesdeUrl(
-                    url,
-                    ajuste: BoxFit.cover,
-                    // Decode acotado: el blur disimula el detalle y un origen
-                    // pequeño mantiene el gaussian full-screen barato en móvil.
-                    ancho: 512,
-                    alto: double.infinity,
+    return ValueListenableBuilder<EstiloVisual>(
+      valueListenable: sl<ValueNotifier<EstiloVisual>>(),
+      builder: (context, estilo, _) {
+        return ValueListenableBuilder<PreferenciasEstilo>(
+          valueListenable: sl<ValueNotifier<PreferenciasEstilo>>(),
+          builder: (context, prefs, _) {
+            final url = coverUrl;
+            final sigma =
+                sl<ValueNotifier<PerfilRendimiento>>().value.sigmaDesenfoque;
+            final spotify =
+                estilo == EstiloVisual.spotify && prefs.fondoPrincipal;
+
+            return RepaintBoundary(
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  // Capa 1: cover borroso (solo en modo Clásico).
+                  if (!spotify && url != null && url.isNotEmpty)
+                    ClipRect(
+                      child: ImageFiltered(
+                        imageFilter:
+                            ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
+                        child: Transform.scale(
+                          scale: 1.25,
+                          child: imagenDesdeUrl(
+                            url,
+                            ajuste: BoxFit.cover,
+                            ancho: 512,
+                            alto: double.infinity,
+                          ),
+                        ),
+                      ),
+                    )
+                  else
+                    ColoredBox(color: bgColor),
+                  // Capa 2: velo — en Spotify usa color dominante.
+                  if (spotify && url != null && url.isNotEmpty)
+                    _VeloDinamico(
+                      coverUrl: url,
+                      isDark: isDark,
+                      defaultBg: bgColor,
+                    )
+                  else
+                    ColoredBox(
+                      color: bgColor.withValues(alpha: isDark ? 0.66 : 0.42),
+                    ),
+                  // Capa 3: gradiente inferior para legibilidad.
+                  Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          bgColor.withValues(alpha: isDark ? 0.35 : 0.25),
+                        ],
+                        stops: const [0.6, 1.0],
+                      ),
+                    ),
                   ),
-                ),
-              ),
-            )
-          else
-            ColoredBox(color: bgColor),
-          // Velo del tema: mantiene la página realmente oscura/clara.
-          ColoredBox(
-            color: bgColor.withValues(alpha: isDark ? 0.66 : 0.42),
-          ),
-          // Oscurecido extra abajo para que los controles sigan legibles.
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.transparent,
-                  bgColor.withValues(alpha: isDark ? 0.35 : 0.25),
                 ],
-                stops: const [0.6, 1.0],
               ),
-            ),
-          ),
-        ],
-      ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+/// Velo dinámico que extrae el color dominante del cover y lo muestra
+/// como fondo sólido en modo Spotify. Transición animada al cambiar.
+class _VeloDinamico extends StatefulWidget {
+  final String coverUrl;
+  final bool isDark;
+  final Color defaultBg;
+
+  const _VeloDinamico({
+    required this.coverUrl,
+    required this.isDark,
+    required this.defaultBg,
+  });
+
+  @override
+  State<_VeloDinamico> createState() => _VeloDinamicoState();
+}
+
+class _VeloDinamicoState extends State<_VeloDinamico> {
+  Color? _acento;
+
+  @override
+  void initState() {
+    super.initState();
+    _extraerColor();
+  }
+
+  @override
+  void didUpdateWidget(covariant _VeloDinamico oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.coverUrl != widget.coverUrl) {
+      _extraerColor();
+    }
+  }
+
+  Future<void> _extraerColor() async {
+    try {
+      final paleta = await paletaParaPortada(widget.coverUrl);
+      if (mounted) {
+        setState(() {
+          _acento = paleta?.dominante;
+        });
+      }
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorBase = _acento ?? widget.defaultBg;
+    // Mezcla el color dominante con el fondo del tema para que no
+    // sobresature pero sea claramente visible.
+    final colorFinal = Color.lerp(
+      widget.defaultBg,
+      colorBase,
+      widget.isDark ? 0.45 : 0.30,
+    )!;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeOutCubic,
+      color: colorFinal,
     );
   }
 }

@@ -29,6 +29,7 @@ import '../../../shared/utilidades/responsive.dart';
 import '../../../shared/widgets/esqueleto_busqueda.dart';
 import '../../../shared/widgets/tarjeta_grilla.dart';
 import '../../../shared/widgets/tarjeta_track.dart';
+import '../../../shared/utilidades/estilo_helper.dart';
 
 part 'resultados_busqueda_estados.dart';
 part 'resultados_busqueda_grilla.dart';

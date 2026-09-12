@@ -33,6 +33,18 @@ type RegisteredExtension struct {
 	// thumbnail ratio — the source of truth for the search UI, same as
 	// SpotiFLAC reads it from the manifest.
 	Search Search `json:"searchBehavior,omitempty"`
+	// URLHandler mirrors the manifest's urlHandler block: qué enlaces
+	// (Spotify, YouTube, Deezer...) sabe resolver esta extensión vía su
+	// función handleUrl(url). Es la fuente de verdad para elegir QUÉ extensión
+	// recibe un enlace compartido o pegado, sin preguntarle a las nueve.
+	URLHandler URLHandler `json:"urlHandler,omitempty"`
+}
+
+// URLHandler es el bloque urlHandler del manifest: enabled + los patrones de
+// host/ruta que la extensión reconoce (p. ej. "open.spotify.com", "youtu.be").
+type URLHandler struct {
+	Enabled  bool     `json:"enabled,omitempty"`
+	Patterns []string `json:"patterns,omitempty"`
 }
 
 // QualityTier is one quality entry from the manifest qualityOptions array,

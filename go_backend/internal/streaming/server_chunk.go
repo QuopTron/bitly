@@ -15,7 +15,10 @@ import (
 // connection and truncates the song at the last good chunk boundary (e.g.
 // exactly 512KB in) — mpv then "completes" early and the app thinks the
 // stream died.
-func (s *Streamer) fetchChunk(audioURL string, from int64) (*http.Response, error) {
+func (s *Streamer) fetchChunk(audioURL string, from, tamano int64) (*http.Response, error) {
+	if tamano <= 0 {
+		tamano = streamChunkSize
+	}
 	var lastErr error
 	for attempt := 0; attempt < 3; attempt++ {
 		if attempt > 0 {
@@ -25,7 +28,7 @@ func (s *Streamer) fetchChunk(audioURL string, from int64) (*http.Response, erro
 		if err != nil {
 			return nil, err
 		}
-		req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", from, from+streamChunkSize-1))
+		req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", from, from+tamano-1))
 		req.Header.Set("User-Agent", youtubeMediaUA)
 		resp, err := s.client.Do(req)
 		if err != nil {
@@ -71,7 +74,7 @@ func (s *Streamer) StreamChunk(audioURL string, offset, length int64) ([]byte, e
 	}
 
 	if offset >= 0 {
-		idx := int(offset / int64(chunkSize))
+		idx := int(offset / chunkSize.Load())
 		s.cache.Add(audioURL, Chunk{Data: data, Index: idx, Size: len(data), IsLast: len(data) < int(length)})
 	}
 

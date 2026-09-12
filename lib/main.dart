@@ -24,11 +24,18 @@ import 'core/plataforma/puente_notificacion_media.dart';
 import 'core/plataforma/servicio_deep_link.dart';
 import 'core/plataforma/servicio_foco_audio.dart';
 import 'core/plataforma/servicio_share_intent.dart';
+import 'core/servicios/servicio_enlaces.dart';
 import 'estado/cubit_reproductor.dart';
+import 'shared/utilidades/deteccion_tv.dart';
 
 /// Punto de entrada de la app.
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // ¿Corremos en TV? Se pregunta UNA vez, antes de runApp, para que el primer
+  // frame ya nazca con el layout de escritorio (el que queremos en TV) y no
+  // haya un salto de móvil a PC apenas termina la consulta al sistema.
+  await detectarTelevisor();
 
   // Limpia archivos temporales stale de media_kit (NativeReferenceHolder)
   // de sesiones previas. Estos archivos guardan una dirección de memoria
@@ -72,6 +79,10 @@ Future<void> main() async {
   final prefs = await SharedPreferences.getInstance();
   final perfil = await cargarPerfilRuntime(prefs);
   configurarCacheImagenes(perfil);
+
+  // Enlaces: se suscribe ANTES de inicializar el share intent para no perder
+  // el enlace con el que se abrió la app (llega durante el initialize).
+  ServicioEnlaces.instance.initialize();
 
   // Listener de share intents (Android/iOS).
   await ServicioShareIntent.instance.initialize();

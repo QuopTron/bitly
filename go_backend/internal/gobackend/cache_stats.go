@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+
+	"github.com/zarz/bitly/go_backend/internal/provider"
 )
 
 // =========================================================================
@@ -21,8 +23,8 @@ var coversDir = ".covers"
 
 // coversDirPath returns the covers directory, creating it if needed.
 func rutaDirPortadas() string {
-	if downloadDir != "" {
-		return filepath.Join(downloadDir, ".covers")
+	if dir := getDownloadDir(); dir != "" {
+		return filepath.Join(dir, ".covers")
 	}
 	return coversDir
 }
@@ -45,7 +47,7 @@ func CoversDir() string {
 // level_limit_mb, user_level, estimated_hours}.
 func GetStreamCacheStats() string {
 	levelLimit := streamCacheLevelLimitMB()
-	maxMB := streamCacheMaxMB
+	maxMB := getStreamCacheMaxMB()
 	if maxMB <= 0 {
 		maxMB = levelLimit
 	}
@@ -72,10 +74,15 @@ func GetStreamCacheStats() string {
 
 // ClearStreamCache removes cached stream files AND covers (the two caches the
 // app writes next to downloads). Files in use keep working (fd stays open).
+//
+// También vacía la caché de metadata en memoria (búsqueda/detalle/feed): no
+// ocupa disco, pero si el usuario limpia la caché y sigue viendo resultados
+// viejos, la acción parece no haber hecho nada.
 func ClearStreamCache() string {
 	removed := 0
 	removed += limpiarArchivosDir(streamCacheDirPath())
 	removed += limpiarArchivosDir(rutaDirPortadas())
+	provider.LimpiarCacheMetadata()
 	out, _ := json.Marshal(map[string]interface{}{"removed": removed, "ok": true})
 	return string(out)
 }

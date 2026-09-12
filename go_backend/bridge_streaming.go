@@ -72,6 +72,21 @@ func ScanLibrary(directory string) string {
 	return gobackend.ScanLibrary(directory)
 }
 
+// ImportarBibliotecaLocal re-exportado desde internal/gobackend.
+func ImportarBibliotecaLocal(directory string) string {
+	return gobackend.ImportarBibliotecaLocal(directory)
+}
+
+// FaltantesLocales re-exportado desde internal/gobackend.
+func FaltantesLocales(isrcsJSON string) string {
+	return gobackend.FaltantesLocales(isrcsJSON)
+}
+
+// RutaLocalISRC re-exportado desde internal/gobackend.
+func RutaLocalISRC(isrc string) string {
+	return gobackend.RutaLocalISRC(isrc)
+}
+
 // SetGeniusToken re-exportado desde internal/gobackend.
 func SetGeniusToken(token string) string {
 	return gobackend.SetGeniusToken(token)

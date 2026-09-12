@@ -97,6 +97,12 @@ func ResolveISRC(isrc string) string {
 	return gobackend.ResolveISRC(isrc)
 }
 
+// ResolveUrl re-exportado desde internal/gobackend: resuelve un enlace de
+// música (Spotify/YouTube/Deezer...) al ítem reproducible.
+func ResolveUrl(payload string) string {
+	return gobackend.ResolveUrl(payload)
+}
+
 // Search re-exportado desde internal/gobackend.
 func Search(payload string) string {
 	return gobackend.Search(payload)

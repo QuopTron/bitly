@@ -89,14 +89,31 @@ func constructorURLSandbox(vm *goja.Runtime) func(goja.ConstructorCall) *goja.Ob
 		_ = obj.Set("hash", u.hash)
 		_ = obj.Set("origin", u.origin)
 
+		// searchParams: se expone get/has/getAll/toString. `has` faltaba, y las
+		// extensiones (YouTube Music) lo usan antes de leer cualquier enlace:
+		// sin él, new URL(url) tiraba TypeError y TODO enlace de YouTube caía
+		// como "no video ID found".
 		spObj := vm.NewObject()
 		_ = spObj.Set("get", func(call goja.FunctionCall) goja.Value {
 			key := call.Argument(0).String()
 			if val, ok := u.params[key]; ok {
 				return vm.ToValue(val)
 			}
-			return goja.Undefined()
+			return goja.Null()
 		})
+		_ = spObj.Set("has", func(call goja.FunctionCall) goja.Value {
+			key := call.Argument(0).String()
+			_, ok := u.params[key]
+			return vm.ToValue(ok)
+		})
+		_ = spObj.Set("getAll", func(call goja.FunctionCall) goja.Value {
+			key := call.Argument(0).String()
+			if val, ok := u.params[key]; ok {
+				return vm.ToValue([]interface{}{val})
+			}
+			return vm.ToValue([]interface{}{})
+		})
+		_ = spObj.Set("toString", func() string { return u.search })
 		_ = obj.Set("searchParams", spObj)
 		_ = obj.Set("toString", func() string { return u.href })
 

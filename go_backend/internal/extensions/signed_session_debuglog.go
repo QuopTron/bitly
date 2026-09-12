@@ -4,13 +4,23 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 )
 
-var debugLogPath string
-var debugLogInited bool
+// debugLogMu protege debugLogPath/debugLogInited. Varias extensiones (y sus
+// goroutines de bootstrap) inicializan y escriben este log a la vez; sin
+// candado la ruta se escribía mientras otra goroutine la leía (data race
+// sobre un string = puntero + longitud, puede leer una ruta corrupta).
+var (
+	debugLogMu     sync.RWMutex
+	debugLogPath   string
+	debugLogInited bool
+)
 
 func initDebugLogOnce(dataDir string) {
+	debugLogMu.Lock()
+	defer debugLogMu.Unlock()
 	if debugLogInited {
 		return
 	}
@@ -32,10 +42,13 @@ func initDebugLogOnce(dataDir string) {
 }
 
 func debugLog(msg string) {
-	if debugLogPath == "" {
+	debugLogMu.RLock()
+	ruta := debugLogPath
+	debugLogMu.RUnlock()
+	if ruta == "" {
 		return
 	}
-	f, err := os.OpenFile(debugLogPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	f, err := os.OpenFile(ruta, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {
 		return
 	}

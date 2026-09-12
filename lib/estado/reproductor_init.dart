@@ -18,7 +18,15 @@ mixin ReproductorInit on ReproductorListenerCola {
   /// Cache persistente de URLs de stream: sobrevive reinicios. Clave
   /// `trackId|calidad` → (url, expiry). Entradas >4h o con URL expirada se
   /// descartan (los proveedores expiran tokens).
-  static const _claveCachePersistente = 'stream_url_cache_v3';
+  ///
+  /// v4: la versión se sube cuando cambia la ESTRATEGIA de resolución, no el
+  /// formato. Acá cambió el orden de clientes de YouTube (se priorizan los que
+  /// dan audio solo-audio cuando hay proveedor de PO Token), así que las URLs
+  /// de `v3` pueden ser el video+audio de baja calidad que ya no se elige.
+  /// Como la clave es la misma `trackId|calidad`, sin el bump una entrada
+  /// cacheada seguiría sirviendo la calidad vieja hasta 4 h después de
+  /// actualizar — y el arreglo parecería no haber hecho nada.
+  static const _claveCachePersistente = 'stream_url_cache_v4';
   static const _edadMaxCache = Duration(hours: 4);
   static const _maxEntradasCache = 50;
 

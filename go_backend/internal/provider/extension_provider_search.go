@@ -8,7 +8,9 @@ func (p *ExtensionProvider) SearchTracks(query string, limit int) ([]TrackResult
 	result, err := p.callOp("search", "searchTracks", query, limit)
 	if err == nil {
 		if result != nil {
-			return convertirATrackResults(result, p.name)
+			tracks, cErr := convertirATrackResults(result, p.name)
+			p.precargarResultados("getTrack", idsDeTracks(tracks))
+			return tracks, cErr
 		}
 		return nil, nil
 	}
@@ -23,7 +25,38 @@ func (p *ExtensionProvider) SearchTracks(query string, limit int) ([]TrackResult
 	if err != nil || result == nil {
 		return nil, err
 	}
-	return convertirATrackResults(result, p.name)
+	tracks, cErr := convertirATrackResults(result, p.name)
+	p.precargarResultados("getTrack", idsDeTracks(tracks))
+	return tracks, cErr
+}
+
+// idsDeTracks extrae los ids no vacíos de un resultado de búsqueda para poder
+// precargarlos.
+func idsDeTracks(tracks []TrackResult) []string {
+	ids := make([]string, 0, len(tracks))
+	for _, t := range tracks {
+		if id := strings.TrimSpace(t.ID); id != "" {
+			ids = append(ids, id)
+		}
+	}
+	return ids
+}
+
+// idsDeAlbums extrae los ids no vacíos de un resultado de búsqueda de álbumes.
+func idsDeAlbums(albums []AlbumResult) []string {
+	ids := make([]string, 0, len(albums))
+	for _, a := range albums {
+		if id := strings.TrimSpace(a.ID); id != "" {
+			ids = append(ids, id)
+		}
+	}
+	return ids
+}
+
+// precargarResultados adelanta el detalle de los primeros resultados para que
+// abrirlos sea instantáneo. Es best-effort y no bloquea la búsqueda.
+func (p *ExtensionProvider) precargarResultados(method string, ids []string) {
+	p.precargarDetalleEnSegundoPlano(method, ids, maxPrecargaPorBusqueda)
 }
 
 // SearchAlbums calls the extension's customSearch with filter "album".
@@ -33,7 +66,9 @@ func (p *ExtensionProvider) SearchAlbums(query string, limit int) ([]AlbumResult
 	if err != nil || result == nil {
 		return p.buscarTracksComoAlbums(query, limit)
 	}
-	return convertirAAlbumResults(result, p.name)
+	albums, cErr := convertirAAlbumResults(result, p.name)
+	p.precargarResultados("getAlbum", idsDeAlbums(albums))
+	return albums, cErr
 }
 
 // SearchPlaylists calls the extension's customSearch with filter "playlist".

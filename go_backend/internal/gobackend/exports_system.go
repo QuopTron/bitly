@@ -18,8 +18,8 @@ func GetPlatform() string          { return core.Platform() }
 func IsMobile() bool               { return core.IsMobile() }
 func InitBackend() error           { return core.InitBackend() }
 func CloseBackend()                { core.CloseBackend() }
-func SetFlutterCallback(id string) { flutterCallbackID = id }
-func GetCallbackID() string        { return flutterCallbackID }
+func SetFlutterCallback(id string) { setCallbackID(id) }
+func GetCallbackID() string        { return getCallbackID() }
 
 // SetAppDataDir points the backend at the host app's writable data dir
 // (Android: Context.getFilesDir()). On Android os.UserConfigDir() is not

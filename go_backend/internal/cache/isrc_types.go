@@ -6,12 +6,18 @@ import (
 )
 
 // TrackRef stores minimal track info keyed by ISRC for dedup.
+//
+// FilePath es la ruta real del archivo en disco. Se agregó porque el índice
+// solo guardaba ids de proveedor y, para la música local, la ruta es el dato
+// que permite reproducir y evitar volver a descargar (antes se adivinaba con
+// findFileByTrackID/scanForISRC, que solo funcionaban si el nombre coincidía).
 type TrackRef struct {
 	TrackID    string `json:"trackId"`
 	Title      string `json:"title"`
 	ArtistName string `json:"artistName"`
 	AlbumName  string `json:"albumName"`
 	Provider   string `json:"provider"`
+	FilePath   string `json:"filePath,omitempty"`
 }
 
 // statsArchivo guarda metadata de archivo para la reconstrucción incremental.

@@ -1,7 +1,7 @@
 {
   "name": "ytmusic-spotiflac",
   "displayName": "YouTube Music",
-  "version": "2.4.1",
+  "version": "2.5.3",
   "description": "YouTube Music metadata and download provider with native album, artist, explicit, release, and song-credit metadata plus validated catalog enrichment.",
   "type": ["metadata_provider", "download_provider"],
   "icon": "icon.jpg",
@@ -14,7 +14,6 @@
       "i.ytimg.com",
       "*.googlevideo.com",
       "*.pictube.app",
-      "api.zarz.moe",
       "127.0.0.1",
       "localhost",
       "api.deezer.com",
@@ -86,9 +85,9 @@
       "key": "poTokenMode",
       "label": "PO Token Mode",
       "type": "select",
-      "default": "off",
+      "default": "auto",
       "options": ["off", "auto", "external", "manual"],
-      "description": "Optional GVS PO Token support. Keep off unless direct YouTube downloads start returning 403."
+      "description": "Auto: si hay un proveedor de PO Token (el configurado abajo o uno local en el puerto 4416) se usa para evitar el 'confirmá que no sos un bot' de YouTube y, además, para servir AUDIO SOLO-AUDIO de mejor bitrate (opus/m4a) en vez del video+audio de baja calidad (itag 18) que YouTube entrega sin token. Si no hay proveedor, todo sigue igual que antes. Cambiá a off solo si querés desactivarlo por completo."
     },
     {
       "key": "poTokenProviderUrl",
@@ -104,6 +103,13 @@
       "default": "",
       "secret": true,
       "description": "Optional raw token or CLIENT.gvs+TOKEN. Manual tokens may expire or be video-bound."
+    },
+    {
+      "key": "cobaltApiUrl",
+      "label": "Instancia de Cobalt (opcional)",
+      "type": "string",
+      "default": "",
+      "description": "URL de una instancia propia de Cobalt para el rescate de audio. Déjalo vacío para no usarlo; la app intentará igualmente la descarga directa de YouTube."
     },
     {
       "key": "logLevel",

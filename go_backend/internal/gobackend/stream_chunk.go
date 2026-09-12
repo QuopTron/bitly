@@ -4,15 +4,14 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"strconv"
-
-	"github.com/zarz/bitly/go_backend/internal/streaming"
 )
 
 // StreamAudioChunk fetches a byte range of audio directly (mobile/AAR).
 func StreamAudioChunk(payload string) string {
-	if streamer == nil {
-		streamer = streaming.NewStreamer()
-	}
+	// Instancia única compartida (ver getStreamer): la copia local evita
+	// volver a leer el global y mantiene la referencia estable durante todo
+	// el pedido.
+	srv := getStreamer()
 	var params struct {
 		AudioURL  string `json:"audioURL"`
 		OffsetStr string `json:"offset"`
@@ -26,7 +25,7 @@ func StreamAudioChunk(payload string) string {
 	if length <= 0 {
 		length = 256 * 1024 // default 256KB chunk
 	}
-	data, err := streamer.StreamChunk(params.AudioURL, offset, length)
+	data, err := srv.StreamChunk(params.AudioURL, offset, length)
 	if err != nil {
 		return jsonError(err)
 	}

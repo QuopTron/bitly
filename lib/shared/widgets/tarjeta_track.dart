@@ -14,11 +14,14 @@
 import 'package:flutter/material.dart';
 
 import '../../app/inyeccion.dart';
+import '../../core/modelos/estilo_visual.dart';
 import '../../core/modelos/perfil_rendimiento.dart';
+import '../../core/modelos/preferencias_estilo.dart';
 import '../../estado/cubit_reproductor.dart';
 import '../../l10n/app_localizations.dart';
 import '../tema/colores_app.dart';
 import '../utilidades/haptico.dart';
+import '../utilidades/paleta_portada.dart';
 import '../utilidades/responsive.dart';
 import 'imagen_portada.dart';
 import 'indicador_descarga.dart';
@@ -54,6 +57,10 @@ class TarjetaTrack extends StatelessWidget {
   /// una insignia pequeña en la portada: arranca sin espera.
   final String? readyKey;
 
+  /// Color dominante extraído del cover. Se usa en modo Spotify para
+  /// teñir el fondo y velo de la tarjeta con el color del track.
+  final Color? colorDominante;
+
   const TarjetaTrack({
     super.key,
     required this.titulo,
@@ -75,39 +82,106 @@ class TarjetaTrack extends StatelessWidget {
     this.accionesHabilitadas = true,
     this.escalaTexto = 1.0,
     this.readyKey,
+    this.colorDominante,
   });
 
   @override
   Widget build(BuildContext context) {
-    final r = Responsive(context);
-    final loc = AppLocalizations.of(context);
-    final esOscuro = Theme.of(context).brightness == Brightness.dark;
-    // El título, subtítulo y los iconos van sobre la portada + velo oscuro,
-    // que es oscuro en AMBOS temas — así que el blanco siempre es legible.
-    final fg = Colors.white;
-    final colorApagado = Colors.white.withValues(alpha: 0.7);
-    final fondoFallback = ColoresApp.superficie(esOscuro);
-    // El icono placeholder vive DENTRO del box de portada, que conserva la
-    // superficie del tema detrás → su color sigue siendo theme-aware.
-    final colorIconoFallback = ColoresApp.enSuperficieApagado(esOscuro);
-    final tamanoIcono = r.footerSize * 1.6 * escalaTexto;
-    final ts = escalaTexto;
-    final efectosPesados =
-        sl<ValueNotifier<PerfilRendimiento>>().value.efectosPesados;
+    return ValueListenableBuilder<EstiloVisual>(
+      valueListenable: sl<ValueNotifier<EstiloVisual>>(),
+      builder: (context, estilo, _) {
+        return ValueListenableBuilder<PreferenciasEstilo>(
+          valueListenable: sl<ValueNotifier<PreferenciasEstilo>>(),
+          builder: (context, prefs, _) {
+            final r = Responsive(context);
+            final loc = AppLocalizations.of(context);
+            final esOscuro = Theme.of(context).brightness == Brightness.dark;
+            final fg = Colors.white;
+            final colorApagado = Colors.white.withValues(alpha: 0.7);
+            final fondoFallback = ColoresApp.superficie(esOscuro);
+            final colorIconoFallback = ColoresApp.enSuperficieApagado(esOscuro);
+            final tamanoIcono = r.footerSize * 1.6 * escalaTexto;
+            final ts = escalaTexto;
+            final efectosPesados =
+                sl<ValueNotifier<PerfilRendimiento>>().value.efectosPesados;
 
-    return _cuerpoTarjetaTrack(
-      this,
-      context,
-      r,
-      loc,
-      esOscuro,
-      fg,
-      colorApagado,
-      fondoFallback,
-      colorIconoFallback,
-      tamanoIcono,
-      ts,
-      efectosPesados,
+            final spotify =
+                estilo == EstiloVisual.spotify && prefs.cardsCancion;
+
+            Widget contenido(Color? colorDominante) => _cuerpoTarjetaTrack(
+                  this,
+                  context,
+                  r,
+                  loc,
+                  esOscuro,
+                  fg,
+                  colorApagado,
+                  fondoFallback,
+                  colorIconoFallback,
+                  tamanoIcono,
+                  ts,
+                  efectosPesados,
+                  colorDominante: colorDominante,
+                );
+
+            if (spotify && colorDominante == null && coverUrl != null) {
+              return _TarjetaTrackColorWrapper(
+                coverUrl: coverUrl!,
+                builder: contenido,
+              );
+            }
+            return contenido(spotify ? colorDominante : null);
+          },
+        );
+      },
     );
   }
+}
+
+/// Wrapper que extrae el color dominante del cover de forma asíncrona.
+/// Solo se usa en modo Spotify cuando no se proporciona colorDominante.
+class _TarjetaTrackColorWrapper extends StatefulWidget {
+  final String coverUrl;
+  final Widget Function(Color? colorDominante) builder;
+
+  const _TarjetaTrackColorWrapper({
+    required this.coverUrl,
+    required this.builder,
+  });
+
+  @override
+  State<_TarjetaTrackColorWrapper> createState() =>
+      _TarjetaTrackColorWrapperState();
+}
+
+class _TarjetaTrackColorWrapperState extends State<_TarjetaTrackColorWrapper> {
+  Color? _color;
+
+  @override
+  void initState() {
+    super.initState();
+    _extraerColor();
+  }
+
+  @override
+  void didUpdateWidget(covariant _TarjetaTrackColorWrapper oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.coverUrl != widget.coverUrl) {
+      _extraerColor();
+    }
+  }
+
+  Future<void> _extraerColor() async {
+    try {
+      final paleta = await paletaParaPortada(widget.coverUrl);
+      if (mounted) {
+        setState(() {
+          _color = paleta?.dominante;
+        });
+      }
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.builder(_color);
 }

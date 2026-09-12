@@ -38,43 +38,27 @@ func resolveSignedSessionExtID(extensionID string) string {
 // GetSignedSessionAuthURL triggers bootstrap for a bundled extension and
 // returns the Cloudflare challenge URL (or empty if a session was
 // provisioned silently).
+//
+// DISABLED: No extension currently uses signed sessions (Deezer, TIDAL and
+// Qobuz download directly; Amazon is metadata-only). Returning empty makes
+// it impossible for any Flutter code path to open a Turnstile WebView.
 func GetSignedSessionAuthURL(extensionID string) string {
-	extensionID = resolveSignedSessionExtID(extensionID)
-	sb := signedSessionSandbox(extensionID)
-	if sb == nil {
-		return jsonErrorString("extensión no cargada: " + extensionID)
-	}
-	authURL, err := sb.SignedSessionAuthURL()
-	if err != nil {
-		return jsonError(err)
-	}
-	data, _ := json.Marshal(map[string]any{"auth_url": authURL, "needsVerification": authURL != ""})
-	return string(data)
+	return `{"auth_url":"","needsVerification":false}`
 }
 
 // GetPendingVerificationUrl returns the pending Cloudflare challenge URL for an
 // extension (empty string if no verification is needed).
 // Flutter contract: {extension_id} → {auth_url, needsVerification}.
+// DISABLED — see GetSignedSessionAuthURL.
 func GetPendingVerificationUrl(payload string) string {
-	var params struct {
-		ExtensionID string `json:"extension_id"`
-	}
-	if err := json.Unmarshal([]byte(payload), &params); err != nil {
-		return `{"auth_url":"","needsVerification":false}`
-	}
-	return GetSignedSessionAuthURL(params.ExtensionID)
+	return `{"auth_url":"","needsVerification":false}`
 }
 
 // TriggerExtensionVerification proactively triggers bootstrap + challenge for an
 // extension. Same contract as GetPendingVerificationUrl.
+// DISABLED — see GetSignedSessionAuthURL.
 func TriggerExtensionVerification(payload string) string {
-	var params struct {
-		ExtensionID string `json:"extension_id"`
-	}
-	if err := json.Unmarshal([]byte(payload), &params); err != nil {
-		return `{"auth_url":"","needsVerification":false}`
-	}
-	return GetSignedSessionAuthURL(params.ExtensionID)
+	return `{"auth_url":"","needsVerification":false}`
 }
 
 // CompleteSignedSessionGrant exchanges a grant code captured from the
@@ -139,8 +123,9 @@ func ClearSignedSession(extensionID string) string {
 
 // signedSessionSandbox resolves the extension's sandbox by ID.
 func signedSessionSandbox(extensionID string) *extensions.Sandbox {
-	if extRegistry == nil {
+	er := getExtRegistry()
+	if er == nil {
 		return nil
 	}
-	return extRegistry.Runtime().Sandbox(extensionID)
+	return er.Runtime().Sandbox(extensionID)
 }

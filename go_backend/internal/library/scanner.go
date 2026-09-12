@@ -64,6 +64,7 @@ func (l *Library) Scan(directory string) ([]Entry, error) {
 			if err == nil {
 				entry.Metadata = meta
 			}
+			completarISRC(&entry)
 			mu.Lock()
 			entries = append(entries, entry)
 			mu.Unlock()

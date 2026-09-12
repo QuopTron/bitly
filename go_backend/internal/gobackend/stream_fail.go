@@ -47,7 +47,7 @@ const streamFailPersistName = "stream_failures.json"
 // live download dir (the same base streamCacheDirPath uses). Caller must hold
 // streamFailMu.
 func streamFailPersistPathLocked() string {
-	base := downloadDir
+	base := getDownloadDir()
 	if base == "" {
 		base = download.GlobalOutputDir()
 	}

@@ -22,11 +22,12 @@ class _DownloadQualityCardState extends State<_DownloadQualityCard> {
 
   Future<void> _load() async {
     final s = await sl<CacheAjustes>().getAjustesDescarga();
-    if (mounted)
+    if (mounted) {
       setState(() {
         _settings = s;
         _loaded = true;
       });
+    }
   }
 
   Future<void> _update(AjustesDescarga s) async {

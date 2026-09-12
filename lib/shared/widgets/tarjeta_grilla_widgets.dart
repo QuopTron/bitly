@@ -24,8 +24,9 @@ Widget _cuerpoTarjeta(
   Color fondoFallback,
   Color fg,
   double ts,
-  bool efectosPesados,
-) {
+  bool efectosPesados, {
+  Color? colorDominante,
+}) {
   final w = constraints.maxWidth;
   final h = constraints.maxHeight;
   final pad = r.spacingS;
@@ -34,6 +35,9 @@ Widget _cuerpoTarjeta(
   final ladoPortada =
       math.min(anchoEnvoltura, math.max(40.0, h - altoInfo - pad)).toDouble();
   final hayEspacioPortada = ladoPortada >= 40;
+
+  // Color dominante: viene del padre que ya verificó el estilo y preferencias.
+  final acento = colorDominante;
 
   return GestureDetector(
     onTap: t.onTap,
@@ -47,7 +51,9 @@ Widget _cuerpoTarjeta(
         border: Border.all(
           color: t.estadoDescarga == EstadoDescarga.completado
               ? fg.withValues(alpha: 0.2)
-              : ColoresApp.bordeSutil(esOscuro),
+              : acento != null
+                  ? ColoresApp.bordeDinamico(esOscuro, acento)
+                  : ColoresApp.bordeSutil(esOscuro),
           width: t.estadoDescarga == EstadoDescarga.completado ? 1.0 : 0.6,
         ),
         boxShadow: t.estadoDescarga == EstadoDescarga.completado
@@ -59,18 +65,23 @@ Widget _cuerpoTarjeta(
                 ),
               ]
             : null,
-        color: fondoFallback,
+        color: acento != null
+            ? ColoresApp.superficieDinamica(esOscuro, acento)
+            : fondoFallback,
       ),
       child: Stack(
         fit: StackFit.expand,
         children: [
           // Portada borrosa de fondo + scrim + gradiente ascendente.
           Positioned.fill(
-            child: _fondoTarjeta(t, context, efectosPesados, esOscuro),
+            child: _fondoTarjeta(t, context, efectosPesados, esOscuro, acento),
           ),
           Positioned.fill(
             child: Container(
-              color: ColoresApp.velo(esOscuro).withValues(alpha: 0.45),
+              // En Spotify el fondo ya es el color dominante, el velo es más sutil.
+              color: acento != null
+                  ? ColoresApp.veloDinamico(esOscuro, acento, alpha: 0.20)
+                  : ColoresApp.velo(esOscuro).withValues(alpha: 0.45),
             ),
           ),
           Positioned.fill(
@@ -80,9 +91,15 @@ Widget _cuerpoTarjeta(
                   begin: Alignment.bottomCenter,
                   end: Alignment.topCenter,
                   colors: [
-                    ColoresApp.velo(esOscuro).withValues(alpha: 1.0),
-                    ColoresApp.velo(esOscuro).withValues(alpha: 0.65),
-                    ColoresApp.velo(esOscuro).withValues(alpha: 0.2),
+                    acento != null
+                        ? ColoresApp.veloDinamico(esOscuro, acento, alpha: 1.0)
+                        : ColoresApp.velo(esOscuro).withValues(alpha: 1.0),
+                    acento != null
+                        ? ColoresApp.veloDinamico(esOscuro, acento, alpha: 0.65)
+                        : ColoresApp.velo(esOscuro).withValues(alpha: 0.65),
+                    acento != null
+                        ? ColoresApp.veloDinamico(esOscuro, acento, alpha: 0.2)
+                        : ColoresApp.velo(esOscuro).withValues(alpha: 0.2),
                     Colors.transparent,
                   ],
                   stops: const [0.0, 0.35, 0.7, 1.0],

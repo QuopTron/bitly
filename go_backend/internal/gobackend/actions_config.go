@@ -55,7 +55,7 @@ func SetDownloadDirectory(payload string) string {
 	if err := json.Unmarshal([]byte(payload), &params); err != nil {
 		return jsonErrorString("payload inválido")
 	}
-	downloadDir = params.Path
+	setDownloadDir(params.Path)
 	download.SetGlobalOutputDir(params.Path)
 	// Persist Cloudflare signed sessions (deezer/amazon/qobuz/tidal-web) under
 	// el writable aplicación dir so un verificado sesión survives restarts (embedded
@@ -76,10 +76,10 @@ func SetBackendConfig(payload string) string {
 		return jsonErrorString("payload inválido")
 	}
 	if params.Mode != "" {
-		userMode = params.Mode
+		setUserMode(params.Mode)
 	}
 	if params.StreamCacheMax > 0 {
-		streamCacheMaxMB = params.StreamCacheMax
+		setStreamCacheMaxMB(params.StreamCacheMax)
 	}
 	if params.DownloadConcurrency > 0 && downloadOrch != nil {
 		downloadOrch.SetConcurrency(params.DownloadConcurrency)

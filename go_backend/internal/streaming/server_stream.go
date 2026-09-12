@@ -49,8 +49,15 @@ func (s *Streamer) StreamURL(w http.ResponseWriter, r *http.Request, audioURL st
 	// mpv reads as EOF-with-no-data and stalls on forever. It also makes the
 	// old "headers written from URL params, then upstream died" double-write
 	// impossible on the very first fetch.
+	// Tamaño de trozo según la fuente: YouTube pide trozos chicos (bot-gate),
+	// los CDN de audio aguantan trozos grandes y hacen menos viajes.
+	tamano := s.trozoFijo
+	if tamano <= 0 {
+		tamano = tamanoDeTrozo(audioURL)
+	}
+
 	pos := start
-	resp, err := s.fetchChunk(audioURL, pos)
+	resp, err := s.fetchChunk(audioURL, pos, tamano)
 	if err != nil {
 		return err
 	}
@@ -95,9 +102,78 @@ func (s *Streamer) StreamURL(w http.ResponseWriter, r *http.Request, audioURL st
 	}
 
 	flusher, _ := w.(http.Flusher)
+	return s.encadenarConLecturaAdelantada(w, flusher, audioURL, pos, resp, tamano, clen)
+}
+
+// trozo trae el resultado (o el error) de una petición de rango adelantada.
+type trozo struct {
+	resp *http.Response
+	err  error
+}
+
+// encadenarConLecturaAdelantada entrega el audio al reproductor pidiendo el
+// trozo SIGUIENTE mientras todavía se está escribiendo el actual.
+//
+// Por qué existe: antes el ciclo era "pedir trozo → escribirlo → pedir el
+// siguiente". Durante cada ida y vuelta al CDN el reproductor se quedaba sin
+// datos, y eso es exactamente lo que se siente como un micro-corte cada pocos
+// segundos. Adelantar una petición elimina ese hueco.
+func (s *Streamer) encadenarConLecturaAdelantada(
+	dst io.Writer, flusher http.Flusher, audioURL string, pos int64,
+	actual *http.Response, tamano, total int64,
+) error {
+	prox := make(chan trozo, 1)
+	prefetcheando := false
+
+	// Al salir por cualquier camino (error incluido) no se puede dejar una
+	// petición adelantada en vuelo: su cuerpo quedaría sin cerrar y con él la
+	// conexión. Se drena y se cierra antes de devolver.
+	defer func() {
+		if prefetcheando {
+			t := <-prox
+			if t.resp != nil {
+				t.resp.Body.Close()
+			}
+		}
+	}()
+
+	// esperar toma el trozo adelantado y lo deja como el actual.
+	esperar := func() error {
+		t := <-prox
+		prefetcheando = false
+		if t.err != nil {
+			return t.err
+		}
+		actual = t.resp
+		return nil
+	}
+	// descartar suelta un trozo adelantado que ya no encaja (el actual vino
+	// corto), para no dejar la conexión colgada.
+	descartar := func() {
+		if !prefetcheando {
+			return
+		}
+		t := <-prox
+		if t.resp != nil {
+			t.resp.Body.Close()
+		}
+		prefetcheando = false
+	}
+
 	for {
-		n, err := io.Copy(w, resp.Body)
-		resp.Body.Close()
+		// Si ya sabemos que queda archivo, el siguiente trozo empieza a bajar
+		// AHORA, en paralelo con la escritura de este.
+		if !prefetcheando && total > 0 && pos+tamano < total {
+			prefetcheando = true
+			desde := pos + tamano
+			go func() {
+				r, err := s.fetchChunk(audioURL, desde, tamano)
+				prox <- trozo{resp: r, err: err}
+			}()
+		}
+
+		n, err := io.Copy(dst, actual.Body)
+		actual.Body.Close()
 		if flusher != nil {
 			flusher.Flush()
 		}
@@ -105,17 +181,42 @@ func (s *Streamer) StreamURL(w http.ResponseWriter, r *http.Request, audioURL st
 			return err
 		}
 		pos += n
-		// EOF (n < chunk) or a server that ignored Range and sent the whole
-		// body (n > chunk): either way everything downstream was delivered.
-		if n != streamChunkSize {
-			break
+
+		// Camino rápido: el trozo vino completo y el siguiente ya está listo.
+		if prefetcheando && n == tamano {
+			if err := esperar(); err != nil {
+				return err
+			}
+			if total > 0 && pos >= total {
+				return nil
+			}
+			continue
 		}
-		resp, err = s.fetchChunk(audioURL, pos)
-		if err != nil {
-			return err
+
+		// Trozo incompleto: lo adelantado ya no encaja (arrancaba más adelante
+		// que donde realmente quedamos) y se descarta.
+		descartar()
+
+		if n == 0 {
+			return nil
 		}
+		// Con total conocido, si ya entregamos todo el archivo, listo. Sin
+		// total, un trozo más corto de lo pedido es el final.
+		if total > 0 {
+			if pos >= total {
+				return nil
+			}
+		} else if n != tamano {
+			return nil
+		}
+
+		// Se continúa secuencialmente DESDE pos: nunca se deja un hueco.
+		resp, ferr := s.fetchChunk(audioURL, pos, tamano)
+		if ferr != nil {
+			return ferr
+		}
+		actual = resp
 	}
-	return nil
 }
 
 // StreamChunk fetches a byte range of audio for mobile/AAR use.
