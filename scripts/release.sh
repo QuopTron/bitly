@@ -70,9 +70,31 @@ fi
 sed -i "s/^version: .*/version: ${NEW_VERSION}+${CODE}/" pubspec.yaml
 echo "Bump aplicado: version: ${NEW_VERSION}+${CODE}"
 
+# `flutter pub get` reescribe el registrant de plugins incluyendo las
+# dependencias de DESARROLLO (integration_test) cuando el pubspec cambia. Si
+# eso pasara DENTRO de `flutter build apk`, el release heredaría un registrant
+# sucio y Gradle fallaría ("package dev.flutter.plugins.integration_test does
+# not exist"). Se corre acá, antes de borrar el registrant, para que el build
+# lo regenere limpio (release descarta las dev dependencies).
+flutter pub get >/dev/null
+echo "Dependencias sincronizadas."
+
 # ── 2) Compilar binarios ────────────────────────────────────────────
 mkdir -p dist
-echo "==> Compilando APKs (split-per-abi)..."
+
+# El registrant de plugins es un archivo GENERADO que queda sucio si antes se
+# corrió `flutter test` o un build de debug: incluye plugins de test
+# (integration_test) y el release no compila ("package dev.flutter.plugins.
+# integration_test does not exist"). Borrarlo hace que Flutter lo regenere
+# limpio para release.
+rm -f android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java
+
+# El APK x86_64 (emulador / Chromebook) NO entra por defecto: build.gradle.kts
+# lo excluye salvo INCLUDE_X86_64=true. Como acá SIEMPRE se publican los 3
+# APKs, se activa explícitamente.
+export INCLUDE_X86_64="${INCLUDE_X86_64:-true}"
+
+echo "==> Compilando APKs (split-per-abi, INCLUDE_X86_64=$INCLUDE_X86_64)..."
 flutter build apk --release --split-per-abi
 # Nombres consistentes (los que ya genera Flutter — no se renombran):
 APKS=(
