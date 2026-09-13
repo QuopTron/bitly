@@ -208,11 +208,12 @@ class _BitlyAppState extends State<BitlyApp> {
               if (esSmartTV(context)) {
                 contenido = PunteroTv(child: contenido);
               }
-              // Escala de texto acotada: con el tamaño de fuente al máximo en
-              // Android las cajas se desbordaban y el tutorial no se podía
-              // avanzar. El texto sigue agrandándose, pero dentro de lo que el
-              // diseño soporta.
-              return acotarEscalaTexto(context: context, child: contenido);
+              // Protección de layout para TODAS las pantallas (setup, home,
+              // reproductor, ajustes, modales): acota la escala de texto del
+              // sistema y, si el usuario subió el "tamaño de pantalla" y el
+              // ancho lógico quedó muy chico, escala la UI para que entre sin
+              // desbordar.
+              return protegerLayout(context: context, child: contenido);
             },
           ),
         );

@@ -14,6 +14,7 @@ import 'package:flutter/material.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/tema/colores_app.dart';
 import '../../../shared/utilidades/plataforma/responsive.dart';
+import '../../../shared/widgets/base/contenido_con_alto_minimo.dart';
 import '../../../shared/widgets/vidrio/contenedor_vidrio.dart';
 import '../bloc/setup_estado.dart';
 import '../widgets/comunes/construir_paso.dart';
@@ -70,13 +71,19 @@ class SetupEscritorio extends StatelessWidget {
                       FadeTransition(opacity: animation, child: child),
                   child: SizedBox(
                     key: ValueKey(state.paso),
-                    child: construirPasoSetup(
-                      state,
-                      loc,
-                      r,
-                      esOscuro,
-                      controladorUsuario,
-                      mostrarInfo,
+                    // Garantiza el alto del slide (Spacer/Expanded lo exigen) y
+                    // lo desplaza si la ventana quedó más baja que el mínimo,
+                    // en vez de recortar el botón de continuar.
+                    child: ContenidoConAltoMinimo(
+                      altoMinimo: altoMinimoSlideSetup,
+                      child: construirPasoSetup(
+                        state,
+                        loc,
+                        r,
+                        esOscuro,
+                        controladorUsuario,
+                        mostrarInfo,
+                      ),
                     ),
                   ),
                 ),

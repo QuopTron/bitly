@@ -12,6 +12,7 @@ import 'package:flutter/material.dart';
 
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/utilidades/plataforma/responsive.dart';
+import '../../../shared/widgets/base/contenido_con_alto_minimo.dart';
 import '../bloc/setup_estado.dart';
 import '../widgets/comunes/construir_paso.dart';
 
@@ -52,13 +53,21 @@ class SetupMovil extends StatelessWidget {
               child: SizedBox(
                 key: ValueKey(state.paso),
                 width: anchoMax,
-                child: construirPasoSetup(
-                  state,
-                  loc,
-                  r,
-                  esOscuro,
-                  controladorUsuario,
-                  mostrarInfo,
+                // Los slides usan Spacer/Expanded, que exigen alto acotado. Con
+                // una pantalla baja (o el "tamaño de fuente"/"tamaño de
+                // pantalla" del sistema subidos) el contenido no entraba, el
+                // slide desbordaba y el botón de continuar quedaba fuera de
+                // alcance. Acá se garantiza el alto y se desplaza si hace falta.
+                child: ContenidoConAltoMinimo(
+                  altoMinimo: altoMinimoSlideSetup,
+                  child: construirPasoSetup(
+                    state,
+                    loc,
+                    r,
+                    esOscuro,
+                    controladorUsuario,
+                    mostrarInfo,
+                  ),
                 ),
               ),
             ),
