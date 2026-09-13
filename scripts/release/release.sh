@@ -22,7 +22,7 @@
 
 set -euo pipefail
 
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 
 HACER_WINDOWS="false"
 SUBIR_RELEASE="false"

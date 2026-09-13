@@ -36,7 +36,7 @@
 
 set -uo pipefail
 
-RAIZ="$(cd "$(dirname "$0")/.." && pwd)"
+RAIZ="$(cd "$(dirname "$0")/../.." && pwd)"
 
 # El proveedor NO es parte del proyecto y no debe vivir adentro del repo, así que
 # el default se busca AL LADO del repo: `.../bgutil-ytdlp-pot-provider` junto a

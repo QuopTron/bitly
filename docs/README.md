@@ -25,10 +25,10 @@ y Linux; además hay una **PWA** que usa el mismo backend en modo `--web`.
 | `lib/` | App Flutter |
 | `go_backend/` | Backend Go (fuente) |
 | `assets/` | Recursos empaquetados: `images/`, `fonts/`, `extensions/` |
-| `test/` | Tests unitarios/widget (147) |
+| `test/` | Tests: `unit/` y `widgets/` (147) |
 | `integration_test/` | Tests E2E de dispositivo |
 | `docs/` | Documentación (este archivo y notas) |
-| `scripts/` | Herramientas de build/release/pruebas |
+| `scripts/` | Herramientas: `build/`, `release/`, `pruebas/`, `dev/` |
 | `android/` `ios/` `macos/` `windows/` `linux/` `web/` | Proyectos de plataforma |
 | `pubspec.yaml` | Dependencias y assets Flutter |
 | `build.yaml` | Config de generación de código (`drift_dev`) |
@@ -164,7 +164,8 @@ Si algo se rompió, los tests lo detectan. Un refactor sin estos dos en verde
 | Windows | `flutter build windows` |
 | Web (PWA) | `flutter build web --release` |
 | Backend Go | `go_backend/build_all.sh` |
-| Release completo | `scripts/release.sh` |
+| Verificadores de extensiones | `scripts/pruebas/pruebas_extensiones.sh` |
+| Release completo | `scripts/release/release.sh` |
 
 El CI (`.github/workflows/`) compila Windows, Android, macOS, iOS y Web en
 cada tag. Los binarios van a la **GitHub Release** (nunca al repo).
@@ -175,7 +176,11 @@ cada tag. Los binarios van a la **GitHub Release** (nunca al repo).
 
 - **Premium**: el secreto de los códigos está hardcodeado (`checker.go`) y el
   script Python usa otro distinto. Pendiente de migrar a firma asimétrica
-  (Ed25519) — ver `scripts/generate_keys.py`.
+  (Ed25519) — ver `scripts/release/generate_keys.py`.
+- **Puente Go (`go_backend/bridge_*.go`)**: vive en la raíz de `go_backend/`
+  a propósito. `gomobile bind .` deriva el paquete Java del **path** del
+  paquete, y `MainActivity.kt` hace `import gobackend.Gobackend`; moverlo
+  rompería los bindings nativos de Android/iOS. No reorganizar.
 - **`build.yaml`**: apuntaba a `lib/backend/database/` (ruta inexistente);
   corregido a `lib/core/base_datos/`.
 - **Stores de sesión** (`*_store.json`): contienen tokens reales; están

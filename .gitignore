@@ -71,11 +71,12 @@ assets/extensions_bundle.zip
 
 # Scripts locales de build (no versionar): se listan por tipo para no
 # dejar TODO scripts/ invisible, que hacía que un .sh nuevo no se viera.
-scripts/__pycache__/
-scripts/*.py
-scripts/*.bat
-scripts/*.ps1
-# Claves del sistema de códigos: nunca al repo (ver scripts/generate_keys.py)
+# Con **/ las reglas también aplican dentro de las subcarpetas (build/, dev/...).
+scripts/**/__pycache__/
+scripts/**/*.py
+scripts/**/*.bat
+scripts/**/*.ps1
+# Claves del sistema de códigos: nunca al repo (ver scripts/release/generate_keys.py)
 /scripts/keys/
 
 # old doc files

@@ -40,8 +40,8 @@
 
 set -uo pipefail
 
-RAIZ="$(cd "$(dirname "$0")/.." && pwd)"
-HARNESS="$RAIZ/scripts/pruebas_extensiones"
+RAIZ="$(cd "$(dirname "$0")/../.." && pwd)"
+HARNESS="$RAIZ/scripts/pruebas/extensiones"
 ASSETS="$RAIZ/assets/extensions"
 BUNDLED="$RAIZ/go_backend/internal/bundled_extensions"
 

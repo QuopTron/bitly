@@ -258,7 +258,7 @@ jobs:
         run: |
           ISCC="/c/Program Files (x86)/Inno Setup 6/ISCC.exe"
           mkdir -p dist
-          "$ISCC" "/DMyAppVersion=${{ steps.version.outputs.version }}" scripts/instalador_windows.iss
+          "$ISCC" "/DMyAppVersion=${{ steps.version.outputs.version }}" scripts/build/instalador_windows.iss
           ls -lh dist/
 
       - name: Publish GitHub Release (Windows)

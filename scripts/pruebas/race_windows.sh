@@ -38,7 +38,7 @@
 
 set -euo pipefail
 
-RAIZ="$(cd "$(dirname "$0")/.." && pwd)"
+RAIZ="$(cd "$(dirname "$0")/../.." && pwd)"
 
 # ── Localizar zig ────────────────────────────────────────────────────────
 # Orden: variable ZIG → PATH → el que dejó `pip install --user ziglang`

@@ -88,7 +88,7 @@ jobs:
       #
       # Los runners ubuntu tienen cgo y gcc, así que -race funciona sin nada
       # extra. En Windows hace falta un compilador C: ver
-      # scripts/race_windows.sh (mismos paquetes, zig como CC).
+      # scripts/pruebas/race_windows.sh (mismos paquetes, zig como CC).
       # Costo medido: ~26s en la suite completa.
       - name: Go test -race (todo el backend)
         run: cd go_backend && go test -race ./... -count=1 -timeout=480s
@@ -97,7 +97,7 @@ jobs:
       # Las extensiones corren en un sandbox goja DENTRO del backend, así que
       # `go test` no las cubre y sus bugs son silenciosos: la app no crashea,
       # simplemente "esa fuente no encuentra audio" o "tarda muchísimo", y desde
-      # afuera parece un problema de red. scripts/pruebas_extensiones.sh carga
+      # afuera parece un problema de red. scripts/pruebas/pruebas_extensiones.sh carga
       # cada extensión real con `http`/`log`/`utils`/`registerExtension` falsos y
       # verifica los contratos que YA se rompieron una vez:
       #   - SoundCloud: un 401 no debe terminar en `client_id=null` ni en una
@@ -123,7 +123,7 @@ jobs:
       - name: Verificadores de extensiones
         run: |
           set -o pipefail
-          if ! bash scripts/pruebas_extensiones.sh 2>&1 | tee /tmp/ext.log; then
+          if ! bash scripts/pruebas/pruebas_extensiones.sh 2>&1 | tee /tmp/ext.log; then
             echo "::error::=== verificadores de extensiones FAILED ==="
             grep -E "FALLA|FALLARON|difiere" /tmp/ext.log | head -10 | while IFS= read -r line; do echo "::error::$line"; done
             exit 1
