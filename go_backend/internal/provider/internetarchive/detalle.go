@@ -224,10 +224,7 @@ func (c *Client) GetTrackByISRC(isrc string) (*provider.TrackResult, error) {
 
 // GetAlbum devuelve el detalle de un item (álbum/set) por su identificador.
 func (c *Client) GetAlbum(id string) (*provider.AlbumResult, error) {
-	identifier := strings.TrimSpace(id)
-	if strings.HasPrefix(identifier, prefijoID) {
-		identifier = strings.TrimPrefix(identifier, prefijoID)
-	}
+	identifier := strings.TrimPrefix(strings.TrimSpace(id), prefijoID)
 	item, err := c.obtenerItem(identifier)
 	if err != nil {
 		return nil, err
