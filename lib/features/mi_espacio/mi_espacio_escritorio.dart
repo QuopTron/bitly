@@ -9,7 +9,7 @@
 
 import 'package:flutter/material.dart';
 
-import '../../shared/widgets/contenedor_vidrio.dart';
+import '../../shared/widgets/vidrio/contenedor_vidrio.dart';
 
 /// Layout escritorio de Mi Espacio (panel centrado 680px).
 class MiEspacioEscritorio extends StatelessWidget {

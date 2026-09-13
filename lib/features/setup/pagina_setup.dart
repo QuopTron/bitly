@@ -16,7 +16,7 @@ import '../../l10n/app_localizations.dart';
 import '../../shared/tema/colores_app.dart';
 import '../../shared/utilidades/deteccion_plataforma.dart';
 import '../../shared/utilidades/responsive.dart';
-import '../../shared/widgets/fondo_particulas.dart';
+import '../../shared/widgets/fondos/fondo_particulas.dart';
 import 'bloc/setup_bloc.dart';
 import 'bloc/setup_estado.dart';
 import 'bloc/setup_evento.dart';

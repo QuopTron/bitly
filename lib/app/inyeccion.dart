@@ -33,11 +33,11 @@ import '../core/modelos/preferencias_estilo.dart';
 import '../core/servicios/servicio_dominio_playlist.dart';
 import '../features/setup/bloc/setup_bloc.dart';
 import '../features/splash/bloc/splash_bloc.dart';
-import '../estado/cubit_cola.dart';
-import '../estado/cubit_descargas.dart';
-import '../estado/cubit_like.dart';
-import '../estado/cubit_playlists.dart';
-import '../estado/cubit_reproductor.dart';
+import '../estado/cola/cubit_cola.dart';
+import '../estado/descargas/cubit_descargas.dart';
+import '../estado/like/cubit_like.dart';
+import '../estado/playlists/cubit_playlists.dart';
+import '../estado/reproductor/cubit_reproductor.dart';
 
 final sl = GetIt.instance;
 

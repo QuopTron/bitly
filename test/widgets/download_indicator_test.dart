@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
-import 'package:bitly/shared/widgets/indicador_descarga.dart';
+import 'package:bitly/shared/widgets/indicadores/indicador_descarga.dart';
 
 void main() {
   group('EstadoDescarga', () {

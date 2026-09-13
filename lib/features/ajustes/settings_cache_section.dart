@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../shared/utilidades/responsive.dart';
 import '../../core/backend_go/contrato_backend.dart';
 import '../../app/inyeccion.dart';
-import '../../shared/widgets/contenedor_vidrio.dart';
+import '../../shared/widgets/vidrio/contenedor_vidrio.dart';
 
 class SettingsCacheSection extends StatefulWidget {
   final Color onBg;

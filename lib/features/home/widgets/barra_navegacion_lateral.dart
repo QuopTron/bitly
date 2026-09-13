@@ -13,7 +13,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../shared/tema/colores_app.dart';
-import '../../../shared/widgets/contenedor_vidrio.dart';
+import '../../../shared/widgets/vidrio/contenedor_vidrio.dart';
 
 /// Ancho fijo de la barra lateral de escritorio.
 const double anchoBarraLateral = 240;

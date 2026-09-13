@@ -10,7 +10,7 @@
 import 'package:flutter/material.dart';
 
 import '../../shared/utilidades/responsive.dart';
-import '../../shared/widgets/esqueleto_carga.dart';
+import '../../shared/widgets/esqueletos/esqueleto_carga.dart';
 
 /// Esqueleto de detalle: círculo de portada + fila de texto.
 class EsqueletoDetalle extends StatelessWidget {

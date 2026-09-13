@@ -16,7 +16,7 @@ import '../../../l10n/app_localizations.dart';
 import '../../../shared/constantes/constantes_fuente.dart';
 import '../../../shared/tema/colores_app.dart';
 import '../../../shared/utilidades/responsive.dart';
-import '../../../shared/widgets/contenedor_vidrio.dart';
+import '../../../shared/widgets/vidrio/contenedor_vidrio.dart';
 
 /// Chips de categoría de búsqueda (burbujas) de la fuente activa.
 class ChipsTipoBusqueda extends StatelessWidget {

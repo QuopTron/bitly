@@ -22,11 +22,11 @@ import '../../core/modelos/detalle_album.dart';
 import '../../core/modelos/detalle_playlist.dart';
 import '../../core/modelos/detalle_track.dart';
 import '../../core/modelos/item_feed.dart';
-import '../../estado/cubit_descargas.dart';
-import '../../estado/cubit_like.dart';
-import '../widgets/hoja_opciones_descarga.dart';
-import '../widgets/modal_agregar_a.dart';
-import '../widgets/modal_info_cancion.dart';
+import '../../estado/descargas/cubit_descargas.dart';
+import '../../estado/like/cubit_like.dart';
+import '../widgets/modales/hoja_opciones_descarga.dart';
+import '../widgets/modales/modal_agregar_a.dart';
+import '../widgets/modales/modal_info_cancion.dart';
 import 'exportacion_playlist_ui.dart';
 
 part 'acciones_item_detalle.dart';

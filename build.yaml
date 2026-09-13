@@ -4,4 +4,4 @@ targets:
       drift_dev:
         generate_for:
           include:
-            - lib/backend/database/**
+            - lib/core/base_datos/**

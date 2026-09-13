@@ -10,7 +10,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import '../modelos/ajustes_descarga.dart';
-import '../../estado/cubit_descargas.dart';
+import '../../estado/descargas/cubit_descargas.dart';
 
 /// Construye el mapa de metadatos común para un despacho de descarga.
 /// Devuelve un Map con las keys que esperan el backend Go y el sistema de

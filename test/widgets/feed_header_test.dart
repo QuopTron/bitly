@@ -4,7 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:bitly/features/feed/widgets/cabecera_feed.dart';
 import 'package:bitly/features/feed/bloc/feed_bloc.dart';
-import 'package:bitly/shared/widgets/acordeon_fuente.dart';
+import 'package:bitly/shared/widgets/selector_fuente/acordeon_fuente.dart';
 import 'package:bitly/features/feed/bloc/feed_estado.dart';
 import 'package:bitly/core/backend_go/contrato_backend.dart';
 import 'package:bitly/l10n/app_localizations.dart';

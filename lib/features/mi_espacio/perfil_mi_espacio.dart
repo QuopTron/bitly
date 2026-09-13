@@ -13,7 +13,7 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../shared/utilidades/responsive.dart';
-import '../../shared/widgets/indicador_red.dart';
+import '../../shared/widgets/indicadores/indicador_red.dart';
 import '../ajustes/settings_sheet_new.dart';
 import '../home/ensamblador_home.dart';
 import '../tutorial_interactivo/tutorial_controller.dart';

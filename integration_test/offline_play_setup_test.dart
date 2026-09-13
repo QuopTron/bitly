@@ -22,8 +22,8 @@ import 'package:path_provider/path_provider.dart';
 
 import 'package:bitly/core/cache/cache_descargas.dart';
 import 'package:bitly/core/backend_go/backend_android.dart';
-import 'package:bitly/estado/cubit_reproductor.dart';
-import 'package:bitly/estado/cubit_cola.dart';
+import 'package:bitly/estado/reproductor/cubit_reproductor.dart';
+import 'package:bitly/estado/cola/cubit_cola.dart';
 import 'package:bitly/core/modelos/item_feed.dart';
 import 'package:bitly/app/inyeccion.dart' as inj;
 

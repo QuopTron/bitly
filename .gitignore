@@ -34,8 +34,6 @@ bitly.db
 bitly.db-shm
 bitly.db-wal
 bitly_server.exe
-go_backend_bitly/bin/
-go_backend_bitly/server.exe
 linux/runner/bitly-backend
 
 # Python
@@ -71,8 +69,14 @@ error_log.txt
 flutter_*.png
 assets/extensions_bundle.zip
 
-# Python scripts (build tools)
-scripts/
+# Scripts locales de build (no versionar): se listan por tipo para no
+# dejar TODO scripts/ invisible, que hacía que un .sh nuevo no se viera.
+scripts/__pycache__/
+scripts/*.py
+scripts/*.bat
+scripts/*.ps1
+# Claves del sistema de códigos: nunca al repo (ver scripts/generate_keys.py)
+/scripts/keys/
 
 # old doc files
 *.md
@@ -93,6 +97,12 @@ null
 # Secrets (archivo real con token — NUNCA subir; el template es
 # secretos.example.dart y el CI lo genera)
 lib/config/secrets.dart
+
+# Stores de sesión de las extensiones: el backend los escribe en runtime
+# (extID + "_store.json", ver go_backend/internal/extensions/storage.go) y
+# contienen tokens reales. Los scripts de release ya los borran del paquete;
+# acá evitamos que un store de desarrollo vuelva a entrar al repo.
+*_store.json
 lib/config/secretos.dart
 
 # Keystore de release + credenciales de firma — NUNCA versionar.

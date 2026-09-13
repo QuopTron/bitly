@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
-import 'package:bitly/shared/widgets/contenedor_vidrio.dart';
+import 'package:bitly/shared/widgets/vidrio/contenedor_vidrio.dart';
 
 void main() {
   group('ContenedorVidrio', () {

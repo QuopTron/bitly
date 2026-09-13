@@ -25,14 +25,14 @@ import 'core/plataforma/servicio_deep_link.dart';
 import 'core/servicios/servicio_callback_oauth.dart';
 import 'core/servicios/servicio_enlaces.dart';
 import 'core/servicios/servicio_verificacion.dart';
-import 'estado/cubit_cola.dart';
+import './estado/cola/cubit_cola.dart';
 import 'features/setup/bloc/setup_bloc.dart';
 import 'features/splash/bloc/splash_bloc.dart';
 import 'l10n/app_localizations.dart';
 import 'router/app_router.dart';
 import 'router/route_names.dart';
 import 'shared/tema/envoltorio_color_dinamico.dart';
-import 'shared/widgets/overlay_compartido.dart';
+import './shared/widgets/base/overlay_compartido.dart';
 
 /// App raíz: tema dinámico + blocs globales + router + deep links.
 class BitlyApp extends StatefulWidget {

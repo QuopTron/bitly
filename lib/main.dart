@@ -26,7 +26,7 @@ import 'core/plataforma/servicio_deep_link.dart';
 import 'core/plataforma/servicio_foco_audio.dart';
 import 'core/plataforma/servicio_share_intent.dart';
 import 'core/servicios/servicio_enlaces.dart';
-import 'estado/cubit_reproductor.dart';
+import './estado/reproductor/cubit_reproductor.dart';
 import 'shared/utilidades/deteccion_tv.dart';
 
 /// Punto de entrada de la app.

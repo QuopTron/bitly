@@ -9,7 +9,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import '../../app/inyeccion.dart';
-import '../../estado/cubit_descargas.dart';
+import '../../estado/descargas/cubit_descargas.dart';
 import '../backend_go/contrato_backend.dart';
 import '../cache/cache_descargas.dart';
 

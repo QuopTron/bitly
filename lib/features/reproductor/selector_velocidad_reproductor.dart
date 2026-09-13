@@ -11,7 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../core/cache/estado_reproductor.dart';
-import '../../estado/cubit_reproductor.dart';
+import '../../estado/reproductor/cubit_reproductor.dart';
 import '../../shared/utilidades/responsive.dart';
 
 /// Chips de velocidad 0.5×–2.0× con el valor actual.

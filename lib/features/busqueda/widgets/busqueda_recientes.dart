@@ -12,7 +12,7 @@ import 'package:flutter/material.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/tema/colores_app.dart';
 import '../../../shared/utilidades/responsive.dart';
-import '../../../shared/widgets/contenedor_vidrio.dart';
+import '../../../shared/widgets/vidrio/contenedor_vidrio.dart';
 
 /// Lista de búsquedas recientes del usuario.
 class ListaBusquedasRecientes extends StatelessWidget {

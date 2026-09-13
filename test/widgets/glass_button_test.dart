@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
-import 'package:bitly/shared/widgets/boton_vidrio.dart';
+import 'package:bitly/shared/widgets/vidrio/boton_vidrio.dart';
 
 void main() {
   group('BotonVidrio', () {

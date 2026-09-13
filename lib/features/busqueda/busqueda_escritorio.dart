@@ -12,8 +12,8 @@ import 'package:flutter/material.dart';
 
 import '../../shared/tema/colores_app.dart';
 import '../../shared/utilidades/responsive.dart';
-import '../../shared/widgets/contenedor_vidrio.dart';
-import '../../shared/widgets/indicador_red.dart';
+import '../../shared/widgets/vidrio/contenedor_vidrio.dart';
+import '../../shared/widgets/indicadores/indicador_red.dart';
 
 /// Layout de escritorio de la búsqueda (panel centrado).
 class BusquedaEscritorio extends StatelessWidget {

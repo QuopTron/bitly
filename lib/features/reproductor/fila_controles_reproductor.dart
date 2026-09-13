@@ -17,9 +17,9 @@ import '../../core/cache/estado_cola.dart';
 import '../../core/cache/estado_like.dart';
 import '../../core/cache/estado_reproductor.dart';
 import '../../core/modelos/item_feed.dart';
-import '../../estado/cubit_cola.dart';
-import '../../estado/cubit_like.dart';
-import '../../estado/cubit_reproductor.dart';
+import '../../estado/cola/cubit_cola.dart';
+import '../../estado/like/cubit_like.dart';
+import '../../estado/reproductor/cubit_reproductor.dart';
 import '../../shared/utilidades/haptico.dart';
 import '../../shared/utilidades/responsive.dart';
 

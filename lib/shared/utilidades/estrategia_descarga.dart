@@ -10,7 +10,7 @@
 // Parte del flujo: búsqueda, feed, detalle (botón de descargar).
 // ─────────────────────────────────────────────────────────────
 
-import '../../estado/cubit_descargas.dart';
+import '../../estado/descargas/cubit_descargas.dart';
 import '../../core/modelos/ajustes_descarga.dart';
 
 /// Normaliza un id de track/álbum/playlist quitando cualquier prefijo

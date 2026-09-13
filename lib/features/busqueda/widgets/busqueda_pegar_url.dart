@@ -11,7 +11,7 @@ import 'package:flutter/material.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/tema/colores_app.dart';
 import '../../../shared/utilidades/responsive.dart';
-import '../../../shared/widgets/contenedor_vidrio.dart';
+import '../../../shared/widgets/vidrio/contenedor_vidrio.dart';
 
 /// Vista inicial de la búsqueda: invita a pegar un link o buscar.
 class VistaPegarUrl extends StatelessWidget {

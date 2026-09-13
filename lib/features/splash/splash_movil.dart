@@ -13,7 +13,7 @@ import 'package:flutter/material.dart';
 import '../../l10n/app_localizations.dart';
 import '../../shared/tema/colores_app.dart';
 import '../../shared/utilidades/responsive.dart';
-import '../../shared/widgets/fondo_particulas.dart';
+import '../../shared/widgets/fondos/fondo_particulas.dart';
 import 'bloc/splash_estado.dart';
 import 'widgets/logo_pulsante.dart';
 import 'widgets/panel_error.dart';

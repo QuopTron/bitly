@@ -10,7 +10,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../shared/utilidades/responsive.dart';
-import '../../../shared/widgets/contenedor_vidrio.dart';
+import '../../../shared/widgets/vidrio/contenedor_vidrio.dart';
 
 /// Vista previa de la carpeta de descargas seleccionada.
 class VistaPreviaCarpeta extends StatelessWidget {

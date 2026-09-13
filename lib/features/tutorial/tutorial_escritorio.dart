@@ -11,7 +11,7 @@
 import 'package:flutter/material.dart';
 
 import '../../shared/tema/colores_app.dart';
-import '../../shared/widgets/contenedor_vidrio.dart';
+import '../../shared/widgets/vidrio/contenedor_vidrio.dart';
 
 /// Layout escritorio del tutorial: panel centrado con ancho máximo.
 class TutorialEscritorio extends StatelessWidget {

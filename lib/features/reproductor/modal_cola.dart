@@ -22,13 +22,13 @@ import '../../core/modelos/estilo_visual.dart';
 import '../../core/modelos/item_feed.dart';
 import '../../core/modelos/perfil_rendimiento.dart';
 import '../../core/modelos/preferencias_estilo.dart';
-import '../../estado/cubit_cola.dart';
-import '../../estado/cubit_like.dart';
+import '../../estado/cola/cubit_cola.dart';
+import '../../estado/like/cubit_like.dart';
 import '../../shared/tema/colores_app.dart';
 import '../../shared/utilidades/haptico.dart';
 import '../../shared/utilidades/paleta_portada.dart';
 import '../../shared/utilidades/responsive.dart';
-import '../../shared/widgets/imagen_portada.dart';
+import '../../shared/widgets/tarjetas/imagen_portada.dart';
 import 'textura_video_fondo.dart';
 
 part 'modal_cola_hoja.dart';

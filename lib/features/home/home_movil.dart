@@ -6,7 +6,7 @@
 
 import 'package:flutter/material.dart';
 import '../../shared/tema/colores_app.dart';
-import '../../shared/widgets/fondo_ambiente.dart';
+import '../../shared/widgets/fondos/fondo_ambiente.dart';
 import '../tutorial_interactivo/tutorial_controller.dart';
 import 'ensamblador_home.dart';
 import 'widgets/barra_navegacion_flotante.dart';

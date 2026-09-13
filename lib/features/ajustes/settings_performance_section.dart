@@ -5,7 +5,7 @@ import '../../core/modelos/perfil_rendimiento.dart';
 import '../../core/cache/cache_ajustes.dart';
 import '../../core/backend_go/contrato_backend.dart';
 import '../../app/inyeccion.dart';
-import '../../shared/widgets/contenedor_vidrio.dart';
+import '../../shared/widgets/vidrio/contenedor_vidrio.dart';
 
 /// Selector de perfil de rendimiento (Bajo / Medio / Alto).
 /// Al cambiar, persiste el perfil, ajusta la calidad de audio por defecto
