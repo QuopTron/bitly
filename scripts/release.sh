@@ -1,4 +1,4 @@
-[bookmarks] Loaded 0 bookmarks
+#!/usr/bin/env bash
 #
 # release.sh — Lanza la versión nueva (Android + PC) y publica la GitHub
 # Release con los NOMBRES CONSISTENTES que leen la app y el sitio web:
@@ -14,13 +14,9 @@
 #      instalador de Windows (scripts/build_windows_release.sh).
 #   3. Commitea el bump, crea el tag vX.Y.Z y hace push.
 #   4. Crea la GitHub Release con notas en español (primario) e inglés
-[kit] VS installation instance not found for kit "Visual Studio Community 2026 Preview - amd64_x86" - (c9f181c5). It is recommended that you re-scan the kits and also remove any user-local entries that are no longer present on the system.
-[kit] VS installation instance not found for kit "Visual Studio Community 2026 Preview - amd64_x86" - (c9f181c5). It is recommended that you re-scan the kits and also remove any user-local entries that are no longer present on the system.
 # Uso:
 #   bash scripts/release.sh              # sube +0.0.1 (patch)
 #   bash scripts/release.sh 0.9.10       # fija una versión exacta
-[proc] The command: make --version failed with error: Error: spawn make ENOENTs
-[main] Unable to determine what CMake generator to use. Please install or configure a preferred generator, or update settings.json, your Kit configuration or PATH variable. Error: Not usable generator found.
 #
 # Parte del flujo: release (Android + Windows).
 
