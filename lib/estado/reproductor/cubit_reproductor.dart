@@ -32,7 +32,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../app/inyeccion.dart' as di;
 import '../../core/audio/reproductor_audio.dart';
 import '../../core/audio/reproductor_audio_nativo.dart'
-    if (dart.library.js_interop) '../core/audio/reproductor_audio_web.dart';
+    if (dart.library.js_interop) '../../core/audio/reproductor_audio_web.dart';
 import '../../core/backend_go/nucleo/contrato_backend.dart';
 import '../../core/cache/almacenes/cache_ajustes.dart';
 import '../../core/cache/almacenes/cache_descargas.dart';
