@@ -26,11 +26,13 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:http/http.dart' as http;
-import 'package:media_kit/media_kit.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../app/inyeccion.dart' as di;
+import '../core/audio/reproductor_audio.dart';
+import '../core/audio/reproductor_audio_nativo.dart'
+    if (dart.library.js_interop) '../core/audio/reproductor_audio_web.dart';
 import '../core/backend_go/contrato_backend.dart';
 import '../core/cache/cache_ajustes.dart';
 import '../core/cache/cache_descargas.dart';
@@ -105,16 +107,18 @@ class CubitReproductor extends Cubit<EstadoAudioReproductor>
     implements ControladorReproductor {
   /// Stream de si está reproduciendo (para el foco de audio).
   @override
-  Stream<bool> get streamReproduciendo => stream.map((s) => s.estaReproduciendo);
+  Stream<bool> get streamReproduciendo =>
+      stream.map((s) => s.estaReproduciendo);
 
   /// Si está reproduciendo ahora mismo (foco de audio).
   @override
   bool get estaReproduciendoAhora => state.estaReproduciendo;
+
   /// El constructor del cubit se reescribe acá (los mixins no pueden tener
   /// constructores): arranca el player mpv, la ruta de descargas + ajustes,
   /// el listener de cola, el perfil de rendimiento y el caché persistente.
   CubitReproductor(CubitCola cubitCola)
-      : super(const EstadoAudioReproductor()) {
+    : super(const EstadoAudioReproductor()) {
     _queueCubit = cubitCola;
     _initPlayer();
     unawaited(_initRutaDescargas());

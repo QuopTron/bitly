@@ -19,16 +19,14 @@ mixin ReproductorPlayerSetup on ReproductorLocales {
     // AUDIO-ONLY: `vid=no` ANTES de abrir cualquier media para que mpv nunca
     // seleccione una pista de video (un stream fallback video+audio mp4
     // stallea decodificando H.264 sin superficie de video).
-    try {
-      (_player.platform as dynamic).setProperty('vid', 'no');
-    } catch (_) {}
+    // (En web `propiedad` es un no-op: el navegador no tiene propiedades de
+    // motor que ajustar, y el try/catch interno ya absorbe cualquier fallo.)
+    unawaited(_player.propiedad('vid', 'no'));
     // media_kit >= 1.2 habilita `cache-on-disk` por defecto; en Android el
     // temp del SO no es escribible y mpv loguea "Failed to create file cache"
     // (la posición avanza sin audio). El caché en memoria alcanza para
     // streaming; el pipeline de descarga maneja el caché en disco.
-    try {
-      (_player.platform as dynamic).setProperty('cache-on-disk', 'no');
-    } catch (_) {}
+    unawaited(_player.propiedad('cache-on-disk', 'no'));
     // SOLO Android: media_kit usa `ao=opensles` por defecto (roto en varios
     // emuladores/ROMs) y `ao=audiotrack` es la salida moderna que funciona.
     // En escritorio (Windows/Linux/macOS) ese AO NO existe: forzarlo hace que
@@ -37,31 +35,17 @@ mixin ReproductorPlayerSetup on ReproductorLocales {
     // como stream muerto y cada canción "cambia rápido" sin sonido. Dejar el
     // AO por defecto de la plataforma (wasapi/pipewire/coreaudio).
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
-      try {
-        (_player.platform as dynamic).setProperty('ao', 'audiotrack');
-      } catch (_) {}
+      unawaited(_player.propiedad('ao', 'audiotrack'));
       // El AO audiotrack negocia salida FLOAT por defecto; varios bridges de
       // audio de emuladores (LDPlayer...) solo manejan PCM16 y renderizan
       // silencio con float. Forzar PCM16 a 48kHz (AudioTrack estándar).
-      try {
-        (_player.platform as dynamic).setProperty('audio-format', 's16');
-      } catch (_) {}
-      try {
-        (_player.platform as dynamic).setProperty('audio-samplerate', '48000');
-      } catch (_) {}
+      unawaited(_player.propiedad('audio-format', 's16'));
+      unawaited(_player.propiedad('audio-samplerate', '48000'));
     }
     // TEMP-DIAG: dump de logs mpv a logcat mientras se diagnostican URLs de
     // YouTube muertas.
-    _player.stream.log.listen((l) {
-      final lvl = l.level.toString();
-      if (lvl.contains('error') || lvl.contains('warn') ||
-          l.prefix == 'ffmpeg' || l.prefix == 'stream' ||
-          l.prefix == 'ao' || l.prefix == 'cplayer' ||
-          l.prefix == 'ad' || l.prefix == 'af') {
-        debugPrint('[MPV-DIAG] $lvl ${l.prefix}: ${l.text}');
-      }
-    });
-    _subPosicion = _player.stream.position.listen((pos) {
+    _player.flujoLog.listen((l) => debugPrint('[MPV-DIAG] $l'));
+    _subPosicion = _player.flujoPosicion.listen((pos) {
       if (!isClosed) emit(state.copiarCon(posicion: pos));
       // Guard de media nuevo: el primer evento de posición tras un open()
       // debe venir del media ACTUAL arrancando (~0s). Un evento residual del
@@ -102,17 +86,21 @@ mixin ReproductorPlayerSetup on ReproductorLocales {
         }
       }
     });
-    _subDuracion = _player.stream.duration.listen((dur) {
+    _subDuracion = _player.flujoDuracion.listen((dur) {
       if (!isClosed) emit(state.copiarCon(duracion: dur));
     });
-    _subCompletado = _player.stream.completed.listen((_) {
+    _subCompletado = _player.flujoCompletado.listen((_) {
       if (!isClosed) _onTrackCompletado();
     });
-    _subPlaying = _player.stream.playing.listen((playing) {
+    _subPlaying = _player.flujoReproduciendo.listen((playing) {
       if (!isClosed) {
         if (playing) {
           _switchPendiente = false;
-          emit(state.copiarCon(estadoReproduccion: EstadoReproduccion.reproduciendo));
+          emit(
+            state.copiarCon(
+              estadoReproduccion: EstadoReproduccion.reproduciendo,
+            ),
+          );
         } else if (!_switchPendiente) {
           emit(state.copiarCon(estadoReproduccion: EstadoReproduccion.pausado));
         }
@@ -120,7 +108,7 @@ mixin ReproductorPlayerSetup on ReproductorLocales {
         // detenido NO degrada el estado visible de buffering.
       }
     });
-    _subError = _player.stream.error.listen((error) {
+    _subError = _player.flujoError.listen((error) {
       // Mientras se recupera de un fallo de decode O se cambia de track,
       // ignorar errores residuales del media que se está deteniendo; si no,
       // un switch local↔stream rápido cuenta 3 errores y mata el track nuevo.
@@ -148,9 +136,11 @@ mixin ReproductorPlayerSetup on ReproductorLocales {
           if (reintentos > 2) {
             _recuperando = true;
             // Serializado: stop encolado para no pisar un open en vuelo.
-            unawaited(_enColaPlayer(() => _player.stop()));
+            unawaited(_enColaPlayer(() => _player.detener()));
             if (!isClosed) {
-              emit(state.copiarCon(estadoReproduccion: EstadoReproduccion.error));
+              emit(
+                state.copiarCon(estadoReproduccion: EstadoReproduccion.error),
+              );
             }
             return;
           }
@@ -160,11 +150,11 @@ mixin ReproductorPlayerSetup on ReproductorLocales {
           _cacheUrlStream.remove(_claveCacheStream(fallidoNorm));
           unawaited(_borrarUriMuerta(uriMuerta));
           // Serializado: el stop (y el re-open que le sigue) espera su turno.
-          unawaited(_enColaPlayer(() => _player.stop()));
+          unawaited(_enColaPlayer(() => _player.detener()));
           unawaited(_openTrack(fallido));
           return;
         }
-        unawaited(_enColaPlayer(() => _player.stop()));
+        unawaited(_enColaPlayer(() => _player.detener()));
         if (!isClosed) {
           emit(state.copiarCon(estadoReproduccion: EstadoReproduccion.error));
         }

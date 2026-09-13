@@ -61,11 +61,11 @@ const _fuentesStreamCompleto = {
 
 /// Mixin base del reproductor: player, subs y estado del usuario.
 mixin ReproductorBase on Cubit<EstadoAudioReproductor> {
-  // TEMP-DIAG: nivel debug para que el listener vea los errores de open de
-  // mpv (403 etc.) mientras se diagnostican URLs muertas de YouTube.
-  final Player _player = Player(
-    configuration: PlayerConfiguration(logLevel: MPVLogLevel.debug),
-  );
+  // Motor de audio de la plataforma: media_kit (mpv) en nativo y el
+  // elemento <audio> del navegador en web. Cuál se usa lo decide el import
+  // condicional de cubit_reproductor.dart, así que este mixin no conoce
+  // media_kit ni puede arrastrarlo a la compilación web.
+  final ReproductorAudio _player = crearReproductorAudio();
 
   /// Cola de reproducción — se asigna en el constructor de CubitReproductor
   /// (los mixins no tienen constructores, así que el campo es late final).
@@ -149,7 +149,9 @@ mixin ReproductorBase on Cubit<EstadoAudioReproductor> {
 
   /// Se dispara con la URL del video de fondo cuando está listo (el player
   /// grande lo usa para auto-arrancar el "canvas" sin esperar un emit).
-  final ValueNotifier<String?> videoPrecargadoListo = ValueNotifier<String?>(null);
+  final ValueNotifier<String?> videoPrecargadoListo = ValueNotifier<String?>(
+    null,
+  );
   bool precargandoLetras = false;
   bool precargandoVideo = false;
   bool _listo = false;

@@ -11,15 +11,15 @@ part of 'cubit_reproductor.dart';
 
 /// Controles del reproductor. Mixin aplicado en CubitReproductor.
 mixin ReproductorControles on ReproductorPreloadMedia {
-  void reproducir() => _player.play();
+  void reproducir() => _player.reproducir();
 
-  void pausar() => _player.pause();
+  void pausar() => _player.pausar();
 
   void alternarReproduccion() {
     if (state.estaReproduciendo) {
-      _player.pause();
+      _player.pausar();
     } else {
-      _player.play();
+      _player.reproducir();
     }
   }
 
@@ -28,17 +28,16 @@ mixin ReproductorControles on ReproductorPreloadMedia {
     // canción) y el usuario busca hacia atrás, la canción sonaría muda el
     // resto del tema — restaurar el volumen del usuario YA.
     _cancelarCrossfadeOut();
-    await _player.seek(posicion);
+    await _player.buscar(posicion);
   }
 
   Future<void> buscarAProgreso(double fraccion) async {
     final dur = state.duracion;
     if (dur.inMilliseconds > 0) {
       _cancelarCrossfadeOut();
-      await _player.seek(
+      await _player.buscar(
         Duration(
-          milliseconds:
-              (dur.inMilliseconds * fraccion.clamp(0.0, 1.0)).round(),
+          milliseconds: (dur.inMilliseconds * fraccion.clamp(0.0, 1.0)).round(),
         ),
       );
     }
@@ -51,9 +50,7 @@ mixin ReproductorControles on ReproductorPreloadMedia {
   void _cancelarCrossfadeOut() {
     if (!_crossfadingOut) return;
     _crossfadingOut = false;
-    try {
-      _player.setVolume((_volumenUsuario.clamp(0.0, 1.0)) * 100);
-    } catch (_) {}
+    _player.ponerVolumen(_volumenUsuario.clamp(0.0, 1.0));
     if (!isClosed) emit(state.copiarCon(volumen: _volumenUsuario));
   }
 
@@ -62,16 +59,15 @@ mixin ReproductorControles on ReproductorPreloadMedia {
   void anterior() => _queueCubit.anterior();
 
   void setVolumen(double vol) {
-    // El estado guarda 0.0–1.0 pero media_kit pasa el valor directo a la
-    // propiedad `volume` de mpv, que es 0–100 (default 100). Sin el ×100 la
-    // app reproducía a ~1% — técnicamente "reproduciendo" pero inaudible.
+    // El estado y la interfaz de audio usan 0.0–1.0; la conversión a la
+    // escala de cada motor (mpv: 0–100) la hace la implementación.
     final v = vol.clamp(0.0, 1.0);
     _volumenUsuario = v;
-    _player.setVolume(v * 100);
+    _player.ponerVolumen(v);
     emit(state.copiarCon(volumen: v));
   }
 
-  /// Fade-in suave tras cada [_player.open]: sube de silencio al volumen del
+  /// Fade-in suave tras cada apertura: sube de silencio al volumen del
   /// usuario en ~110ms. Pequeño a propósito — crossfades largos sobre el
   /// switch local↔stream arriesgan gaps audibles y latencia extra de arranque.
   Future<void> _fadeInAudio() async {
@@ -80,18 +76,11 @@ mixin ReproductorControles on ReproductorPreloadMedia {
     final objetivo = _volumenUsuario.clamp(0.0, 1.0);
     if (objetivo <= 0.001) return;
     const pasos = 8;
-    // Convertir el objetivo 0–1 a la escala 0–100 de mpv, si no el fade
-    // termina en volume=1 (1%) y el playback es inaudible.
-    final objetivo100 = objetivo * 100;
-    try {
-      for (var i = 1; i <= pasos; i++) {
-        await _player.setVolume(objetivo100 * i / pasos);
-        await Future<void>.delayed(const Duration(milliseconds: 14));
-      }
-      await _player.setVolume(objetivo100);
-    } catch (_) {
-      // Nunca dejar que un fade cosmético falle la reproducción.
+    for (var i = 1; i <= pasos; i++) {
+      _player.ponerVolumen(objetivo * i / pasos);
+      await Future<void>.delayed(const Duration(milliseconds: 14));
     }
+    _player.ponerVolumen(objetivo);
     if (!isClosed) emit(state.copiarCon(volumen: objetivo));
   }
 
@@ -102,25 +91,20 @@ mixin ReproductorControles on ReproductorPreloadMedia {
     final gen = _generacionOpen; // capturar la generación actual
     const pasos = 20;
     final pasoMs = duracion.inMilliseconds ~/ pasos;
-    final desde100 = _volumenUsuario * 100;
-    final hasta100 = hasta * 100;
+    final desde = _volumenUsuario.clamp(0.0, 1.0);
+    final destino = hasta.clamp(0.0, 1.0);
     for (var i = 1; i <= pasos; i++) {
       // Abortar si un track nuevo abrió mientras corría este crossfade — el
       // fade viejo no debe pelear con _fadeInAudio del track nuevo.
       if (isClosed || _generacionOpen != gen) return;
-      final v = desde100 + (hasta100 - desde100) * (i / pasos);
-      _player.setVolume(v.clamp(0, 100));
+      _player.ponerVolumen(desde + (destino - desde) * (i / pasos));
       await Future.delayed(Duration(milliseconds: pasoMs));
     }
   }
 
   void setVelocidad(double velocidad) {
     final r = velocidad.clamp(0.5, 2.0);
-    if (r == 1.0) {
-      _player.setRate(1.0);
-    } else {
-      _player.setRate(r);
-    }
+    _player.ponerVelocidad(r);
     emit(state.copiarCon(velocidad: r));
   }
 }

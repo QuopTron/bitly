@@ -44,12 +44,10 @@ mixin ReproductorListenerCola on ReproductorPlayerSetup {
       } else if (!estadoCola.tieneActual) {
         // Serializado: el stop no debe pisar un open en vuelo (crash de
         // media_kit "Callback invoked after it has been deleted").
-        unawaited(_enColaPlayer(() => _player.stop()));
-        // Restaurar el volumen real de mpv también — el fade-out antes del
+        unawaited(_enColaPlayer(() => _player.detener()));
+        // Restaurar el volumen real del motor también — el fade-out antes del
         // final del último track pudo dejarlo en 0.
-        try {
-          _player.setVolume((_volumenUsuario.clamp(0.0, 1.0)) * 100);
-        } catch (_) {}
+        _player.ponerVolumen(_volumenUsuario.clamp(0.0, 1.0));
         emit(EstadoAudioReproductor(volumen: _volumenUsuario));
       }
     });

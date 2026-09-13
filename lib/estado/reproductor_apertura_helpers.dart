@@ -17,10 +17,11 @@ mixin ReproductorAperturaHelpers on ReproductorReporte {
   /// ReproductorApertura (arriba en la cadena); declaración para el watchdog.
   Future<void> _openTrack(ItemFeed track);
 
-  /// Abre [uriPlay] en el player: headers http directos (media_kit los aplica
-  /// desde un hook cuyo lookup falla con URLs googlevideo largas firmadas y
-  /// mpv recibe 403 — setear la propiedad en la instancia misma), open, play,
-  /// re-aplicar velocidad y fade-in suave.
+  /// Abre [uriPlay] en el player: headers http directos (en mpv se aplican
+  /// como propiedad en la instancia misma, porque el hook de media_kit falla
+  /// con URLs googlevideo largas firmadas y mpv recibe 403), open, play,
+  /// re-aplicar velocidad y fade-in suave. En web las cabeceras y las
+  /// propiedades son no-ops: el navegador no puede mandarlas.
   Future<void> _abrirEnPlayer(
     String uriPlay,
     ItemFeed track,
@@ -33,29 +34,22 @@ mixin ReproductorAperturaHelpers on ReproductorReporte {
       // destructivas se solapan — p.ej. watchdog anti-stall re-resolviendo).
       await _enColaPlayer(() async {
         final headersYt = _headersParaUrl(uriPlay);
-        try {
-          await (_player.platform as dynamic).setProperty(
-            'http-header-fields',
-            headersYt == null || headersYt.isEmpty
-                ? ''
-                : headersYt.entries
-                    .map((e) => '${e.key}: ${e.value}')
-                    .join(','),
-          );
-        } catch (_) {}
-        await _player.open(Media(uriPlay, httpHeaders: headersYt));
+        await _player.propiedad(
+          'http-header-fields',
+          headersYt == null || headersYt.isEmpty
+              ? ''
+              : headersYt.entries.map((e) => '${e.key}: ${e.value}').join(','),
+        );
+        await _player.abrir(uriPlay, headers: headersYt);
         // Audio-only: saltar cualquier pista de video para que streams que solo
         // exponen video+audio (YouTube itag=18 fallback) decodifiquen su audio
         // en vez de stallear en H.264 sin superficie de video.
-        try {
-          await (_player.platform as dynamic).setProperty('vid', 'no');
-        } catch (_) {}
-        await _player.play();
-        // media_kit resetea rate a 1.0 en cada open(): re-aplicar la del usuario.
+        await _player.propiedad('vid', 'no');
+        await _player.reproducir();
+        // El motor resetea la velocidad a 1.0 en cada open(): re-aplicar la
+        // del usuario.
         if (state.velocidad != 1.0) {
-          try {
-            await _player.setRate(state.velocidad);
-          } catch (_) {}
+          await _player.ponerVelocidad(state.velocidad);
         }
       });
       // Fade-in suave en cada track nuevo (transición sin click/pop).
@@ -85,12 +79,12 @@ mixin ReproductorAperturaHelpers on ReproductorReporte {
       if (gen != _generacionOpen || gen != _generacionAbiertaEn) return;
       // Solo cuando la posición verdaderamente nunca empezó a moverse. Un
       // buffer de red lento que eventualmente entrega no debe cortarse.
-      if (_player.state.position >= const Duration(seconds: 1)) return;
+      if (_player.posicion >= const Duration(seconds: 1)) return;
       await Future<void>.delayed(const Duration(seconds: 6));
       if (isClosed) return;
       if (gen != _generacionOpen || gen != _generacionAbiertaEn) return;
-      if (_player.state.position >= const Duration(seconds: 1)) return;
-      if (_player.state.playing == false) return;
+      if (_player.posicion >= const Duration(seconds: 1)) return;
+      if (_player.reproduciendo == false) return;
       final reintentos = _reintentosStall[watchKey] ?? 0;
       if (reintentos >= 1) return; // un intento fresco alcanza
       _reintentosStall[watchKey] = reintentos + 1;
@@ -120,26 +114,30 @@ mixin ReproductorAperturaHelpers on ReproductorReporte {
         rawLower.contains('verify required');
     String? msg;
     if (necesitaVerificacion) {
-      final servicio = _ultimoServicioStream.isNotEmpty
-          ? _ultimoServicioStream
-          : (track.source ?? '');
+      final servicio =
+          _ultimoServicioStream.isNotEmpty
+              ? _ultimoServicioStream
+              : (track.source ?? '');
       final nombre = ServicioVerificacion().nombreFuente(servicio);
-      msg = nombre.isNotEmpty
-          ? 'Sesión de $nombre no verificada — completa la verificación '
-              'para reproducir esta canción.'
-          : 'Sesión no verificada — completa la verificación para '
-              'reproducir esta canción.';
+      msg =
+          nombre.isNotEmpty
+              ? 'Sesión de $nombre no verificada — completa la verificación '
+                  'para reproducir esta canción.'
+              : 'Sesión no verificada — completa la verificación para '
+                  'reproducir esta canción.';
       // Refrescar ya la sesión del proveedor que la necesita (p.ej. amazon
       // alcanzado durante fallback).
       unawaited(_verificarServicioParaPlayback(servicio, nombre));
     } else if (raw.contains('429') ||
         rawLower.contains('rate limit') ||
         rawLower.contains('too many')) {
-      msg = 'Proveedor temporalmente saturado (429) — inténtalo de nuevo '
+      msg =
+          'Proveedor temporalmente saturado (429) — inténtalo de nuevo '
           'en unos segundos.';
     } else if (_ultimoTipoErrorStream.toLowerCase() == 'offline' ||
         rawLower.contains('sin conexión')) {
-      msg = 'Sin conexión a internet — descarga esta canción para '
+      msg =
+          'Sin conexión a internet — descarga esta canción para '
           'reproducirla sin red.';
     } else if (raw.isNotEmpty) {
       msg = 'No se pudo obtener un stream original para esta canción.';

@@ -69,7 +69,7 @@ mixin ReproductorApertura on ReproductorAperturaHelpers {
       }
       // Serializado: el pause no debe pisar un open en vuelo (crash de
       // media_kit "Callback invoked after it has been deleted").
-      unawaited(_enColaPlayer(() => _player.pause()));
+      unawaited(_enColaPlayer(() => _player.pausar()));
       // Sin internet y sin archivo local: fallar rápido con mensaje claro en
       // vez de esperar el timeout del backend (los RPCs pueden tardar 60s).
       if (!await ServicioConectividad.estaEnLinea()) {

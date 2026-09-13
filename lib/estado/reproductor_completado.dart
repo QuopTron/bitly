@@ -29,7 +29,8 @@ mixin ReproductorCompletado on ReproductorLimpieza {
     final durMs = state.duracion.inMilliseconds;
     final posMs = state.posicion.inMilliseconds;
     final completado = _queueCubit.state.actual;
-    final desdeHttp = _ultimaUriAbierta?.startsWith('http://') == true ||
+    final desdeHttp =
+        _ultimaUriAbierta?.startsWith('http://') == true ||
         _ultimaUriAbierta?.startsWith('https://') == true;
 
     // ── Guard de EOF de stream muerto/truncado ─────────────────────────────
@@ -44,8 +45,10 @@ mixin ReproductorCompletado on ReproductorLimpieza {
     if (eofStreamMuerto) {
       final normId = normalizarId(completado.id);
       if (_muertosStreamRecuperados.add(normId)) {
-        debugPrint('[Player] EOF de stream muerto (pos=$posMs, dur=$durMs) '
-            'para $normId — re-resolviendo vía respaldo de descarga.');
+        debugPrint(
+          '[Player] EOF de stream muerto (pos=$posMs, dur=$durMs) '
+          'para $normId — re-resolviendo vía respaldo de descarga.',
+        );
         _cacheUrlStream.remove(_claveCacheStream(normId));
         _futuresStream.remove(_claveCacheStream(normId));
         _urlRotaPorTrack[normId] = _ultimaUriAbierta ?? '';
@@ -70,8 +73,10 @@ mixin ReproductorCompletado on ReproductorLimpieza {
         reproducidoMs <= esperadoMs * 0.55) {
       final normId = normalizarId(completado.id);
       if (_tracksRecuperadosPreview.add(normId)) {
-        debugPrint('[Player] Stream corto para $normId: sonó $reproducidoMs '
-            'ms de $esperadoMs ms esperados — re-resolviendo vía respaldo.');
+        debugPrint(
+          '[Player] Stream corto para $normId: sonó $reproducidoMs '
+          'ms de $esperadoMs ms esperados — re-resolviendo vía respaldo.',
+        );
         _cacheUrlStream.remove(_claveCacheStream(normId));
         _futuresStream.remove(_claveCacheStream(normId));
         _urlRotaPorTrack[normId] = _ultimaUriAbierta!;
@@ -95,11 +100,13 @@ mixin ReproductorCompletado on ReproductorLimpieza {
     }
 
     if (completado != null) {
-      unawaited(_reportScrobble(
-        completado,
-        timestamp: DateTime.now().millisecondsSinceEpoch ~/ 1000,
-        durationSec: state.duracion.inMilliseconds ~/ 1000,
-      ));
+      unawaited(
+        _reportScrobble(
+          completado,
+          timestamp: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+          durationSec: state.duracion.inMilliseconds ~/ 1000,
+        ),
+      );
     }
 
     // Limpiar caché de stream + archivo temp del track completado.
@@ -135,16 +142,14 @@ mixin ReproductorCompletado on ReproductorLimpieza {
       // reabra en vez de saltar el mismo track.
       _forzarReopen = true;
       huboSiguiente = _queueCubit.siguiente();
-    }    // El crossfade-in lo hace _fadeInAudio() en _openTrack (mpv quedó en 0).
+    } // El crossfade-in lo hace _fadeInAudio() en _openTrack (mpv quedó en 0).
     // Si la cola terminó y hay internet: autoplay; si no, restaurar volumen.
     if (!huboSiguiente && _queueCubit.state.tracks.isNotEmpty) {
       await _intentarAutoplay();
     }
     if (!huboSiguiente && _queueCubit.state.actual == completado) {
       final objetivo = _volumenUsuario.clamp(0.0, 1.0);
-      try {
-        await _player.setVolume(objetivo * 100);
-      } catch (_) {}
+      _player.ponerVolumen(objetivo);
     }
   }
 }

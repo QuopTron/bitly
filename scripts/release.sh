@@ -141,13 +141,16 @@ if [[ "$SUBIR_RELEASE" == "true" ]]; then
 ## 🎵 Bitly v__VERSION__ — Android + PC + TV + macOS + iOS
 
 ### ✨ Novedades
-- **Búsquedas de Internet Archive de 5 a 8 veces más rápidas**: la lectura de la metadata de cada item ahora es secuencial. archive.org degrada las peticiones en ráfaga (medido: 8 items tardaban 2,5 s de uno en uno contra 7,9 s con 4 en paralelo), así que la búsqueda completa bajó de 8-14 s a 1,6-4,2 s. Además se corta apenas hay suficientes pistas y se acota cuántos items se leen.
-- **Internet Archive ahora encuentra la canción, no una colección ajena**: se busca primero la frase en el título del item y solo si no hay nada se cae al texto libre (que busca también en la descripción, y por eso devolvía resultados de otros discos). "Miles Davis Kind of Blue" pasó de devolver desconocidos a devolver el disco correcto.
-- **El audio de Internet Archive arranca ~3 veces más rápido**: las URLs salen apuntando al **nodo directo** del item (los campos `d1`/`d2` y `dir` de su propia metadata) en vez de pasar por el salto de `/download/`. Medido sobre el mismo archivo: 2,08 s → **0,76 s** en el primer arranque y 1,33 s → **0,46 s** en los siguientes. También acelera cada avance dentro del tema y las descargas.
-- **Sin cuentas, sin sesión y sin gateway**: Internet Archive sigue dando FLAC real de catálogo abierto, y toda la mejora es interna (no pide nada al usuario).
+- **La versión web ya reproduce música (player nuevo en el navegador)**: la lógica de reproducción —cola, crossfade, precarga, anti-cortes, velocidad y volumen— ahora habla contra una interfaz de audio, y cada plataforma la implementa: media_kit/mpv en Android/Mac/PC/TV y el reproductor HTML del navegador en la web.
+- **El motor se elige al compilar, no en tiempo de ejecución**: cuando se compila para Android/PC, el código de la web ni se mira (y al revés). Nada cambia en las plataformas que ya usabas: mismo motor, misma configuración, mismo sonido.
+- **La web ahora explica qué necesita en vez de mostrar un error técnico**: si abrís la versión web sin el servidor de Bitly encendido, aparece una pantalla que cuenta por qué la web lo necesita (los navegadores no pueden pedir la música por su cuenta) y te manda a la app de Android/Windows/macOS/iOS, que no necesita nada extra. Antes decía "Backend no responde" con un botón que nunca iba a funcionar.
+- **Un bug clásico de volumen, cerrado en un solo lugar**: mpv mide el volumen de 0 a 100 y el navegador de 0 a 1. La conversión ahora vive en el motor de cada plataforma, así no puede volver el fallo de "reproduce a 1% e inaudible".
 
-### 🔍 Verificado contra el servicio real
-Estos números salen de pruebas contra archive.org, no de estimaciones: búsqueda repetida 0 ms (caché), resolución de stream repetida 0-1 ms, audio con rangos por byte correctos (`HTTP 206`) y ~7,5-9 MB/s de transferencia — de sobra para un FLAC.
+### ✅ Verificado en un navegador real
+El player web se probó de punta a punta en Chrome contra un audio remoto: duración detectada (6:12), la posición avanza, salto dentro del tema (60 s), volumen, velocidad 1.5x, pausa/reanudar, detener y liberación del motor. Todo en verde. La app además compila para web y arranca sin excepciones.
+
+### ⚠️ Sobre la versión web
+La web funciona con el servidor de Bitly (`bitly-backend --web`) encendido en tu computadora o en un servidor propio: no es una app que se instala sola y no se descarga desde acá. Se abre desde el navegador de esa misma máquina, o desde otro dispositivo de la misma red.
 
 ### ⬇️ Descargas
 - Android: app-arm64-v8a-release.apk / app-armeabi-v7a-release.apk / app-x86_64-release.apk
@@ -163,13 +166,16 @@ EOF
 ## 🎵 Bitly v__VERSION__ — Android + PC + TV + macOS + iOS
 
 ### ✨ Highlights
-- **Internet Archive searches are 5-8x faster**: item metadata is now read sequentially. archive.org throttles burst requests (measured: 8 items took 2.5 s one by one versus 7.9 s with 4 in parallel), so a full search dropped from 8-14 s to 1.6-4.2 s. It also stops as soon as it has enough tracks and caps how many items it reads.
-- **Internet Archive now finds the song, not an unrelated collection**: it searches the item title first as a phrase and only falls back to free text (which also matches descriptions, and that's why it returned other records). "Miles Davis Kind of Blue" went from returning strangers to returning the right album.
-- **Internet Archive audio starts ~3x faster**: URLs now point at the item's **direct node** (the `d1`/`d2` and `dir` fields from its own metadata) instead of going through the `/download/` redirect. Measured on the same file: 2.08 s → **0.76 s** on first start and 1.33 s → **0.46 s** afterwards. It also speeds up every seek and every download.
-- **No account, no session, no gateway**: Internet Archive still serves real FLAC from an open catalog, and the whole improvement is internal (it asks the user for nothing).
+- **The web version now plays music (new browser player)**: the playback logic —queue, crossfade, preloading, stall watchdogs, speed and volume— now talks to an audio interface, and each platform implements it: media_kit/mpv on Android/Mac/PC/TV and the browser's HTML player on the web.
+- **The engine is chosen at build time, not at runtime**: when you build for Android/PC, the web code is not even looked at (and vice versa). Nothing changes on the platforms you already use: same engine, same configuration, same sound.
+- **The web now explains what it needs instead of showing a technical error**: if you open the web version without the Bitly server running, you get a screen that explains why the web needs it (browsers cannot fetch the music on their own) and points you to the Android/Windows/macOS/iOS app, which needs nothing extra. It used to say "Backend not responding" with a button that was never going to work.
+- **A classic volume bug, closed in one place**: mpv measures volume 0-100 and the browser 0-1. The conversion now lives in each platform's engine, so the "plays at 1% and inaudible" failure cannot come back.
 
-### 🔍 Verified against the live service
-These numbers come from tests against archive.org, not estimates: repeat search 0 ms (cache), repeat stream resolution 0-1 ms, audio with correct byte ranges (`HTTP 206`) and ~7.5-9 MB/s throughput — plenty for FLAC.
+### ✅ Verified in a real browser
+The web player was tested end to end in Chrome against a remote audio file: duration detected (6:12), position advancing, seek within the track (60 s), volume, 1.5x speed, pause/resume, stop and engine disposal. All green. The app also builds for web and boots with no exceptions.
+
+### ⚠️ About the web version
+The web version runs with the Bitly server (`bitly-backend --web`) turned on, on your computer or on a server of your own: it is not an app that installs itself, and it is not downloaded from here. You open it from a browser on that same machine, or from another device on the same network.
 
 ### ⬇️ Downloads
 - Android: app-arm64-v8a-release.apk / app-armeabi-v7a-release.apk / app-x86_64-release.apk

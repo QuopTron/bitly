@@ -65,6 +65,10 @@ dependencies:
   # APK — without it the FFI loader can't find SQLite on Android and the app
   # dies at startup (backend never initializes).
   drift: ^2.34.2
+  # Elementos del navegador (HTMLAudioElement) para el player de la PWA.
+  # Ya venía como dependencia transitiva de drift; se declara explícita
+  # porque el código la importa.
+  web: ^1.1.1
   sqlite3_flutter_libs: ^0.5.42
 
   # Crypto (HMAC for premium codes)
