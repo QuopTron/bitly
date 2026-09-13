@@ -617,10 +617,79 @@ func TestLaConsultaExcluyeRadioYPodcast(t *testing.T) {
 		t.Fatal("no se consultó al índice")
 	}
 	q := consultas[0]
-	for _, esperado := range []string{"-collection:podcasts", "-collection:radioprograms", "-collection:fmradioarchive"} {
+	for _, esperado := range []string{
+		"-collection:podcasts",
+		"-collection:radioprograms",
+		"-collection:fmradioarchive",
+		// Los de solo-streaming no se pueden descargar (401).
+		"-access-restricted-item:true",
+		"-collection:stream_only",
+	} {
 		if !strings.Contains(q, esperado) {
 			t.Errorf("la consulta no excluye la colección %q:\n%s", esperado, q)
 		}
+	}
+}
+
+// TestItemRestringidoSeRechaza cubre el fallo medido contra la API real: los
+// items de solo-streaming listan sus archivos pero /download/ responde 401.
+// Hay que detectarlos por la marca o por la colección, y no entregar su URL.
+func TestItemRestringidoSeRechaza(t *testing.T) {
+	casos := []struct {
+		nombre      string
+		marca       string
+		coleccion   string
+		restringido bool
+	}{
+		{"marca true", "true", "etree,GratefulDead", true},
+		{"coleccion stream_only", "", "etree,stream_only", true},
+		{"normal", "", "etree,netlabels", false},
+		{"sin marcas", "", "", false},
+	}
+	for _, caso := range casos {
+		t.Run(caso.nombre, func(t *testing.T) {
+			var it Item
+			it.Metadata.AccessRestricted = textoFlexible(caso.marca)
+			it.Metadata.Collection = listaTexto(strings.Split(caso.coleccion, ","))
+			if got := it.restringido(); got != caso.restringido {
+				t.Errorf("restringido() = %v, esperaba %v", got, caso.restringido)
+			}
+		})
+	}
+}
+
+// TestItemRestringidoNoSeSirve comprueba el efecto completo: un item con la
+// marca de restricción no debe aparecer en la búsqueda ni resolver su audio.
+func TestItemRestringidoNoSeSirve(t *testing.T) {
+	restringido := itemConFlac("solo-streaming", "Concierto", "Banda")
+	restringido.Metadata.AccessRestricted = textoFlexible("true")
+	libre := itemConFlac("descargable", "Concierto", "Banda")
+
+	srv, _ := servidorFalso(t,
+		[]docItem{
+			{Identifier: "solo-streaming", Title: "Concierto", Creator: "Banda"},
+			{Identifier: "descargable", Title: "Concierto", Creator: "Banda"},
+		},
+		map[string]Item{"solo-streaming": restringido, "descargable": libre})
+
+	c := NewClient(nil)
+	c.SetBaseURL(srv.URL)
+
+	pistas, err := c.SearchTracks("concierto", 10)
+	if err != nil {
+		t.Fatalf("SearchTracks: %v", err)
+	}
+	if len(pistas) != 2 {
+		t.Fatalf("esperaba solo las pistas del item descargable, obtuve %d: %+v", len(pistas), pistas)
+	}
+	for _, p := range pistas {
+		if p.AlbumID != "descargable" {
+			t.Errorf("se sirvió una pista de %q", p.AlbumID)
+		}
+	}
+
+	if _, err := c.GetStreamURL("solo-streaming/"+restringido.Files[0].Name, "flac"); err == nil {
+		t.Error("el item restringido no debía resolver audio")
 	}
 }
 

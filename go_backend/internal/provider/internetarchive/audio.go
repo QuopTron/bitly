@@ -257,6 +257,11 @@ func (c *Client) GetStreamURL(id, quality string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if item.restringido() {
+		// Mejor un error claro acá que una URL que responde 401 a mitad de la
+		// reproducción: así el rescate puede probar con otra fuente.
+		return "", fmt.Errorf("%s: %s es de solo-streaming (no se puede descargar)", name, identifier)
+	}
 	elegido := coincidirArchivo(item, archivo)
 	if elegido == nil {
 		return "", fmt.Errorf("%s: %q ya no existe en %s", name, archivo, identifier)

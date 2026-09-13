@@ -56,6 +56,39 @@ func extraerTexto(datos []byte) string {
 	return strings.Trim(texto, `"`)
 }
 
+// listaTexto acepta un campo que puede venir como string o como lista de
+// strings (collection, subject) y conserva TODOS los valores. Es lo que permite
+// detectar la colección "stream_only", que no es la primera de la lista.
+type listaTexto []string
+
+// UnmarshalJSON implementa json.Unmarshaler para los dos formatos.
+func (l *listaTexto) UnmarshalJSON(datos []byte) error {
+	texto := strings.TrimSpace(string(datos))
+	if texto == "" || texto == "null" {
+		return nil
+	}
+	if strings.HasPrefix(texto, "[") {
+		var lista []textoFlexible
+		if err := json.Unmarshal(datos, &lista); err != nil {
+			return err
+		}
+		for _, v := range lista {
+			if s := strings.TrimSpace(string(v)); s != "" {
+				*l = append(*l, s)
+			}
+		}
+		return nil
+	}
+	var uno textoFlexible
+	if err := json.Unmarshal(datos, &uno); err != nil {
+		return err
+	}
+	if s := strings.TrimSpace(string(uno)); s != "" {
+		*l = append(*l, s)
+	}
+	return nil
+}
+
 // Archivo es un archivo dentro de un item de archive.org.
 type Archivo struct {
 	Name     string        `json:"name"`
@@ -82,6 +115,11 @@ type Item struct {
 		Year       textoFlexible `json:"year"`
 		Album      string        `json:"album"`
 		Mediatype  string        `json:"mediatype"`
+		// Los items de SOLO-STREAMING listan sus archivos pero /download/
+		// responde 401: entregar esa URL rompe la reproducción a mitad de
+		// camino. Hay que detectarlos antes de ofrecerlos.
+		AccessRestricted textoFlexible `json:"access-restricted-item"`
+		Collection       listaTexto    `json:"collection"`
 	} `json:"metadata"`
 	Files []Archivo `json:"files"`
 
@@ -93,6 +131,29 @@ type Item struct {
 	D1  string `json:"d1"`
 	D2  string `json:"d2"`
 	Dir string `json:"dir"`
+}
+
+// restringido reporta si el item es de solo-streaming.
+//
+// Medido contra la API real (2026-09): en etree hay 7.677 items con
+// collection:stream_only y 5.969 con access-restricted-item:true, y en los
+// archivos de uno restringido /download/ responde HTTP 401 (mientras un item
+// normal devuelve 206 con firma "fLaC"). Y no son items raros: 2 de los 3
+// items de etree con más descargas lo eran, o sea que sin este chequeo los
+// primeros resultados del rescate serían justo los que no suenan.
+func (it *Item) restringido() bool {
+	if it == nil {
+		return false
+	}
+	if strings.EqualFold(strings.TrimSpace(string(it.Metadata.AccessRestricted)), "true") {
+		return true
+	}
+	for _, coleccion := range it.Metadata.Collection {
+		if strings.EqualFold(strings.TrimSpace(coleccion), "stream_only") {
+			return true
+		}
+	}
+	return false
 }
 
 // identificador devuelve el id del item tal como lo publica la API.

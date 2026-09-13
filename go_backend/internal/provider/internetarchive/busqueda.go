@@ -222,6 +222,10 @@ func (c *Client) buscar(query string, mediatype string, filas int) ([]itemResume
 	for _, coleccion := range coleccionesNoMusica {
 		consulta += " AND -collection:" + coleccion
 	}
+	// Fuera los items de solo-streaming: listan sus archivos pero /download/
+	// responde 401, así que son resultados que no se pueden reproducir.
+	// (access-restricted-item es un campo indexado: se filtra en la consulta.)
+	consulta += " AND -access-restricted-item:true AND -collection:stream_only"
 
 	valores := url.Values{}
 	valores.Set("q", consulta)
@@ -287,6 +291,11 @@ func (c *Client) hidratarTracks(items []itemResumen, limit int) []provider.Track
 		item, err := c.obtenerItem(resumen.identificador)
 		if err != nil {
 			continue // un item roto no debe tumbar la búsqueda entera
+		}
+		if item.restringido() {
+			// Un item de solo-streaming pasó el filtro de la consulta (índice
+			// desactualizado): mejor no ofrecerlo que dar una pista que no suena.
+			continue
 		}
 		identifier := item.identificador(resumen.identificador)
 		for _, p := range pistasDelItem(item, identifier, c) {
