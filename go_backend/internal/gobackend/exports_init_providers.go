@@ -9,6 +9,7 @@ import (
 	"github.com/zarz/bitly/go_backend/internal/provider/apple"
 	"github.com/zarz/bitly/go_backend/internal/provider/deezer"
 	"github.com/zarz/bitly/go_backend/internal/provider/flacrescue"
+	"github.com/zarz/bitly/go_backend/internal/provider/internetarchive"
 	"github.com/zarz/bitly/go_backend/internal/provider/musicbrainz"
 	"github.com/zarz/bitly/go_backend/internal/provider/qobuz"
 	"github.com/zarz/bitly/go_backend/internal/provider/soundcloud"
@@ -75,6 +76,10 @@ func inicializarProviders(reg *provider.Registry) []bundled_extensions.Registere
 		apple.NewClient(nil, "", "us"),
 		soundcloud.NewClient(nil, ""),
 		flacrescue.NewClient(),
+		// Internet Archive: catálogo abierto con FLAC real, sin API key ni
+		// cuenta. Es la única fuente lossless que no depende de sesión ni de
+		// un gateway firmado.
+		internetarchive.NewClient(nil),
 	}
 	for _, np := range nativeRegister {
 		if replacedByExt[np.Name()] {

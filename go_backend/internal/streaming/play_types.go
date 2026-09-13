@@ -26,7 +26,46 @@ type StreamPackage struct {
 var streamingProviders = []string{
 	"youtube", "deezer", "qobuz", "tidal", "qobuz-web", "tidal-web", "amazon",
 	"ytmusic-spotiflac", "apple-music", "spotify-web", "soundcloud",
-	"flac-rescue",
+	"flac-rescue", "internetarchive",
+}
+
+// proveedoresExactos sirven la GRABACIÓN EXACTA: su catálogo define el ISRC
+// (Deezer/Qobuz/Tidal/Amazon/Apple lo reciben del sello) o su índice ES el ISRC
+// (flac-rescue). En el rescate van PRIMERO: si alguno puede servir la canción,
+// nunca se baja a un re-subido.
+// El orden interno importa: primero los catálogos (responden en ~1s y resuelven
+// por ISRC sin cuenta) y al final flac-rescue, que depende de espejos externos y
+// puede tardar segundos en fallar. Así una fuente exacta rápida gana antes de
+// que el rescate consuma el presupuesto.
+var proveedoresExactos = []string{
+	"deezer", "deezer-web", "qobuz", "qobuz-web", "tidal", "tidal-web",
+	"amazon", "amazon-web", "apple-music", "flac-rescue",
+}
+
+// proveedoresReSubidos solo pueden identificar la canción por NOMBRE: no
+// publican ISRC (lo infieren por parecido contra Deezer), así que son el ÚLTIMO
+// recurso del rescate. Antes iban al principio de la carrera y, al responder más
+// rápido, ganaban casi siempre — que es exactamente el "cae en un remix de
+// YouTube/SoundCloud" que reportaba el usuario.
+// internetarchive entra por el mismo motivo aunque NO sea un re-subido: su
+// catálogo es propio (archive.org) y sus archivos son el audio real, pero su
+// búsqueda identifica por nombre y no publica ISRC, así que no puede confirmar
+// una grabación exacta. Tratarlo como re-subido le da la gracia corta que evita
+// que un concierto con el mismo título le gane la reproducción a la grabación
+// original de Deezer/Qobuz/Tidal.
+var proveedoresReSubidos = []string{
+	"ytmusic-spotiflac", "youtube", "soundcloud", "internetarchive",
+}
+
+// esProveedorReSubido reporta si [name] identifica canciones por nombre (sin
+// ISRC propio) y por lo tanto debe intentarse después de las fuentes exactas.
+func esProveedorReSubido(name string) bool {
+	for _, n := range proveedoresReSubidos {
+		if n == name {
+			return true
+		}
+	}
+	return false
 }
 
 // isPlayableStreamProvider returns true if the provider can stream audio.

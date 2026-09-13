@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+[bookmarks] Loaded 0 bookmarks
 #
 # release.sh — Lanza la versión nueva (Android + PC) y publica la GitHub
 # Release con los NOMBRES CONSISTENTES que leen la app y el sitio web:
@@ -14,13 +14,13 @@
 #      instalador de Windows (scripts/build_windows_release.sh).
 #   3. Commitea el bump, crea el tag vX.Y.Z y hace push.
 #   4. Crea la GitHub Release con notas en español (primario) e inglés
-#      (secundario) y sube los binarios como "Attach binaries".
-#
+[kit] VS installation instance not found for kit "Visual Studio Community 2026 Preview - amd64_x86" - (c9f181c5). It is recommended that you re-scan the kits and also remove any user-local entries that are no longer present on the system.
+[kit] VS installation instance not found for kit "Visual Studio Community 2026 Preview - amd64_x86" - (c9f181c5). It is recommended that you re-scan the kits and also remove any user-local entries that are no longer present on the system.
 # Uso:
 #   bash scripts/release.sh              # sube +0.0.1 (patch)
 #   bash scripts/release.sh 0.9.10       # fija una versión exacta
-#   bash scripts/release.sh --windows    # además compila el instalador Windows
-#   bash scripts/release.sh --upload     # compila TODO y sube el release
+[proc] The command: make --version failed with error: Error: spawn make ENOENTs
+[main] Unable to determine what CMake generator to use. Please install or configure a preferred generator, or update settings.json, your Kit configuration or PATH variable. Error: Not usable generator found.
 #
 # Parte del flujo: release (Android + Windows).
 
@@ -145,17 +145,18 @@ if [[ "$SUBIR_RELEASE" == "true" ]]; then
 ## 🎵 Bitly v__VERSION__ — Android + PC + TV + macOS + iOS
 
 ### ✨ Novedades
-- **Streaming sin sesión mejorado**: se modernizaron los clientes InnerTube de YouTube (nuevo cliente `visionos`, UA de Cobalt real, `tv_downgraded`, `embedUrl` anti-detección). YouTube reproduce audio solo-audio de mejor calidad sin iniciar sesión y sin proveedor externo.
-- **ISRC derivado automáticamente**: cuando la fuente (YouTube/SoundCloud) no expone ISRC, la app busca la misma canción en Deezer/Qobuz/Tidal/Apple, verifica que sea el original por título+artista+duración y usa su ISRC. Esto habilita el rescate FLAC sin login.
-- **Matching reforzado por duración**: dos subidas con el mismo título y artista (common en YouTube/SoundCloud) ahora se desempatan por duración, así sirve la versión correcta.
-- **Bitly en tu Smart TV**: el mismo APK se instala en Android TV, Google TV y Fire TV, usa el diseño de escritorio y aparece en el menú de la TV.
-- **Tutorial interactivo**: la app guía paso a paso por feed, fuentes, búsqueda, reproducción, miniplayer, ajustes y Premium (con spotlight, flechas, skip por paso o todo).
+- **Se acabó el "cae en un remix"**: el backend estaba excluyendo a Deezer, Amazon y Apple Music del streaming y la descarga (sus manifest solo declaraban metadata), así que casi todo terminaba en un re-subido de YouTube/SoundCloud. Ahora entran como fuentes de audio y **las fuentes exactas van primero**: si Deezer/Qobuz/Tidal/Amazon pueden servir la canción, nunca se baja a un re-subido.
+- **ISRC con autoridad**: solo los catálogos (y el rescate indexado por ISRC) confirman la identidad de una grabación. YouTube/SoundCloud ya no "heredan" el ISRC de una canción por parecido de nombre (era justo cómo un remix pasaba por el original).
+- **Nueva fuente: Internet Archive** — FLAC real y catálogo abierto **sin cuenta, sin sesión y sin gateway**. Se suma a la búsqueda, el feed, la reproducción y la descarga.
+- **Sin dependencia de gateways externos**: el audio ya no pasa por api.zarz.moe; las fuentes exactas resuelven por ISRC contra catálogos públicos.
+- **Deezer y Amazon descargables**: sus manifest ahora declaran `download_provider`, con lo que el rescate de FLAC por ISRC sí los prueba.
 
 ### 🐛 Correcciones
+- **Deezer resuelve por ISRC**: su extensión exporta `resolveTrackIDFromISRC` (la función ya existía pero no estaba expuesta), así una petición con ISRC deja de caer a una búsqueda por nombre.
+- **Búsqueda por ISRC estricta**: ya no devuelve el primer resultado a ciegas; exige que el candidato declare el ISRC.
 - **YouTube**: duración de los tracks ahora en milisegundos (antes mostraba 0:00 y la verificación fallaba).
 - **SABR de YouTube**: clientes que devuelven respuestas sin URLs usables ahora se saltan automáticamente (ya no pagan un POST extra por canción).
 - **Enlaces de Spotify/YouTube**: pegar un enlace resuelve y reproduce correctamente.
-- **Descargas paralelas**: rescate de FLAC más rápido y con más opciones de calidad.
 - **Reproductor**: miniplayer, notificación y reproductor grande muestran siempre la misma canción.
 
 ### ⬇️ Descargas
@@ -172,17 +173,18 @@ EOF
 ## 🎵 Bitly v__VERSION__ — Android + PC + TV + macOS + iOS
 
 ### ✨ Highlights
-- **YouTube streaming without login**: modernized InnerTube clients (new `visionos` anchor, real Cobalt UA, `tv_downgraded`, anti-detection `embedUrl`). YouTube plays higher-quality audio-only without login.
-- **Auto-derived ISRC**: when the source (YouTube/SoundCloud) has no ISRC, the app finds the same track in Deezer/Qobuz/Tidal/Apple, verifies it's the original by title+artist+duration, and uses its ISRC. This enables FLAC rescue without login.
-- **Duration-aware matching**: duplicate uploads with the same title+artist are now desempated by duration, serving the correct version.
-- **Bitly on Smart TV**: the same APK installs on Android TV, Google TV and Fire TV, uses the desktop layout and appears in the TV launcher.
-- **Interactive tutorial**: first-time guided tour through feed, sources, search, playback, miniplayer, settings and Premium.
+- **No more "it falls back to a remix"**: the backend was excluding Deezer, Amazon and Apple Music from streaming and download (their manifests declared metadata only), so almost everything ended up on a YouTube/SoundCloud re-upload. They now serve audio, and **exact sources go first**: if Deezer/Qobuz/Tidal/Amazon can serve the track, it never falls back to a re-upload.
+- **Authoritative ISRC**: only catalogs (and the ISRC-indexed rescue) confirm a recording's identity. YouTube/SoundCloud no longer "inherit" an ISRC by name similarity (which was exactly how a remix passed as the original).
+- **New source: Internet Archive** — real FLAC and an open catalog with **no account, no session and no gateway**. It joins search, feed, playback and download.
+- **No external gateway dependency**: audio no longer goes through api.zarz.moe; exact sources resolve by ISRC against public catalogs.
+- **Deezer and Amazon are downloadable**: their manifests now declare `download_provider`, so ISRC-based FLAC rescue actually tries them.
 
 ### 🐛 Fixes
+- **Deezer resolves by ISRC**: its extension now exports `resolveTrackIDFromISRC` (the function existed but wasn't exposed), so an ISRC request no longer falls back to a name search.
+- **Strict ISRC lookup**: it no longer returns the first result blindly; the candidate must declare the ISRC.
 - **YouTube duration**: track durations now in milliseconds (was showing 0:00 and verification was failing).
 - **YouTube SABR**: clients returning empty format lists are now skipped automatically.
 - **Spotify/YouTube links**: pasting a link resolves and plays correctly.
-- **Parallel downloads**: faster FLAC rescue with more quality options.
 - **Player**: miniplayer, notification and full player always show the same playing track.
 
 ### ⬇️ Downloads

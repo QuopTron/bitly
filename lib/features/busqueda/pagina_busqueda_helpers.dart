@@ -43,7 +43,7 @@ Map<String, String> _fuentesBusqueda(EstadoBusqueda state) {
   }
   for (final s in const [
     'deezer', 'spotify-web', 'apple-music', 'soundcloud', 'amazon',
-    'qobuz-web', 'tidal-web', 'ytmusic-spotiflac',
+    'qobuz-web', 'tidal-web', 'ytmusic-spotiflac', 'internetarchive',
   ]) {
     ordenadas[s] = nombreFuente(s);
   }

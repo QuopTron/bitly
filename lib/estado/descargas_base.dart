@@ -136,6 +136,7 @@ mixin DescargasBase on Cubit<EstadoCubitDescargas> {
     'apple-music': 'Apple Music',
     'soundcloud': 'SoundCloud',
     'pandora': 'Pandora',
+    'internetarchive': 'Internet Archive',
   };
 
   /// Timestamp ISO 8601 de la última carga de lotes. Se pasa como 'since' a

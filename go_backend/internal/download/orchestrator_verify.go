@@ -46,6 +46,18 @@ func confirmarMatchDescarga(p provider.Provider, trackID, isrc, queryTitle, quer
 	if !duracionCoincide(queryDurationMS, t.Duration) {
 		return false
 	}
+	// Identidad EXACTA por ISRC, solo en proveedores que pueden dar fe de él (los
+	// catálogos, cuyo ISRC viene del sello, y el rescate indexado por ISRC, cuyo
+	// título ES el ISRC). Los re-subidos (YouTube / SoundCloud) infieren el ISRC
+	// por nombre: ahí se sigue exigiendo título + artista (un remix con el mismo
+	// título recibía el ISRC del original y se descargaba como si fuera la
+	// canción pedida).
+	if isrc != "" && provider.EsProveedorAutoritativoISRC(p.Name()) {
+		mismoISRC := t.ISRC != "" && strings.EqualFold(strings.ToUpper(isrc), strings.ToUpper(t.ISRC))
+		if mismoISRC || provider.EsCandidatoPorISRC(isrc, t) {
+			return true
+		}
+	}
 	if queryTitle == "" {
 		return true
 	}

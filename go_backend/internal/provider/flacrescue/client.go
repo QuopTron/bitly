@@ -50,11 +50,19 @@ const userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
 
 // presupuestoTotal limita lo que un ISRC puede tardar entre todos los
 // espejos y formatos: el rescate no puede bloquear la reproducción.
+//
+// Se bajó de 12s a 5s al pasar a la PRIMERA fase del rescate (antes iba último y
+// su lentitud casi nunca importaba): con un espejo caído, el presupuesto largo
+// retenía un slot de la carrera exacta y retrasaba la reproducción de todas las
+// demás fuentes.
 const (
-	presupuestoTotal = 12 * time.Second
-	timeoutPorPedido = 5 * time.Second
+	presupuestoTotal = 5 * time.Second
+	timeoutPorPedido = 3 * time.Second
 	cacheTTL         = 10 * time.Minute
-	maxCache         = 256
+	// ttlFallo recuerda un fallo (espejo caído / sin cuentas) para no volver a
+	// pagar el timeout completo en cada reproducción mientras siga caído.
+	ttlFallo = 60 * time.Second
+	maxCache = 256
 )
 
 // Client implementa provider.Provider. La metadata NO es suya: solo
@@ -69,23 +77,67 @@ type Client struct {
 
 	cacheMu sync.Mutex
 	cache   map[string]cacheEntry
+
+	// sinCuentas recuerda los espejos que avisaron que su pool de credenciales
+	// quedó sin cuentas vivas. Sin esto, cada canción volvía a pedirles y pagaba
+	// su timeout completo antes de pasar al siguiente.
+	sinCuentasMu sync.Mutex
+	sinCuentas   map[string]time.Time
 }
 
 type cacheEntry struct {
-	url     string
-	mirror  string
+	url    string
+	mirror string
+	// falla trae el motivo del último fallo cuando no hubo audio (url vacío).
+	// Evita repetir la cascada completa (espejos × formatos, con sus timeouts)
+	// en cada reproducción mientras el espejo siga respondiendo mal.
+	falla   string
 	expires time.Time
 }
 
 // NewClient crea el provider con la configuración por defecto.
 func NewClient() *Client {
 	return &Client{
-		mirrors: append([]string(nil), defaultMirrors...),
-		origin:  defaultOrigin,
-		formato: "FLAC",
-		http:    &http.Client{Timeout: timeoutPorPedido},
-		cache:   map[string]cacheEntry{},
+		mirrors:    append([]string(nil), defaultMirrors...),
+		origin:     defaultOrigin,
+		formato:    "FLAC",
+		http:       &http.Client{Timeout: timeoutPorPedido},
+		cache:      map[string]cacheEntry{},
+		sinCuentas: map[string]time.Time{},
 	}
+}
+
+// ttlEspejoSinCuentas es cuánto se recuerda que un espejo se quedó sin cuentas.
+// Cinco minutos: si el maintainer recarga su pool, la app lo retoma solo.
+const ttlEspejoSinCuentas = 5 * time.Minute
+
+// marcarEspejoSinCuentas anota que [base] respondió que no tiene credenciales
+// vivas, para saltarlo sin pagar su timeout en las próximas reproducciones.
+func (c *Client) marcarEspejoSinCuentas(base string) {
+	if base == "" {
+		return
+	}
+	c.sinCuentasMu.Lock()
+	defer c.sinCuentasMu.Unlock()
+	if len(c.sinCuentas) > 64 {
+		c.sinCuentas = map[string]time.Time{}
+	}
+	c.sinCuentas[base] = time.Now()
+}
+
+// espejoSinCuentas reporta si [base] se marcó como sin cuentas hace poco.
+func (c *Client) espejoSinCuentas(base string) bool {
+	c.sinCuentasMu.Lock()
+	defer c.sinCuentasMu.Unlock()
+	at, ok := c.sinCuentas[base]
+	if !ok {
+		return false
+	}
+	if time.Since(at) > ttlEspejoSinCuentas {
+		delete(c.sinCuentas, base)
+		return false
+	}
+	return true
 }
 
 // Name implementa provider.Provider.

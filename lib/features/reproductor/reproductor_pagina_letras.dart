@@ -84,6 +84,8 @@ String? _etiquetaFuente(String? fuente) {
       return 'Amazon Music';
     case 'pandora':
       return 'Pandora';
+    case 'internetarchive':
+      return 'Internet Archive';
     case 'musicbrainz':
       return 'MusicBrainz';
     case 'youtube':

@@ -2,6 +2,7 @@ package provider
 
 import (
 	"fmt"
+	"strings"
 )
 
 func (p *ExtensionProvider) buscarTracksComoAlbums(query string, limit int) ([]AlbumResult, error) {
@@ -12,7 +13,20 @@ func (p *ExtensionProvider) buscarTracksComoAlbums(query string, limit int) ([]A
 	return convertirAAlbumResults(result, p.name)
 }
 
+// buscarPorISRC es el respaldo de GetTrackByISRC para extensiones que no
+// exportan resolveTrackIDFromISRC: busca `isrc:"X"` y devuelve SOLO un
+// candidato que DECLARE ese ISRC.
+//
+// Antes devolvía tracks[0] a ciegas. En extensiones cuya búsqueda no entiende la
+// sintaxis `isrc:` (SoundCloud la ignora y busca por nombre, YouTube Music
+// responde su propio ranking) eso devolvía una subida cualquiera como si fuera
+// la resolución exacta por ISRC: el primer resultado con el título parecido
+// terminaba sirviendo la canción.
 func (p *ExtensionProvider) buscarPorISRC(isrc string) (*TrackResult, error) {
+	pedido := strings.ToUpper(strings.TrimSpace(isrc))
+	if pedido == "" {
+		return nil, nil
+	}
 	result, err := p.call("searchTracks", `isrc:"`+isrc+`"`, 5)
 	if err != nil || result == nil {
 		return nil, nil
@@ -21,7 +35,20 @@ func (p *ExtensionProvider) buscarPorISRC(isrc string) (*TrackResult, error) {
 	if err != nil || len(tracks) == 0 {
 		return nil, nil
 	}
-	return &tracks[0], nil
+	for i := range tracks {
+		if strings.EqualFold(strings.ToUpper(tracks[i].ISRC), pedido) {
+			return &tracks[i], nil
+		}
+	}
+	// Los resultados de búsqueda no siempre incluyen el ISRC: se confirma
+	// contra el registro del track (GetTrack) antes de darlo por bueno. Sin esta
+	// confirmación la búsqueda por name-fallback se disfrazaba de match exacto.
+	for i := range tracks {
+		if t, err := p.GetTrack(tracks[i].ID); err == nil && t != nil && strings.EqualFold(strings.ToUpper(t.ISRC), pedido) {
+			return t, nil
+		}
+	}
+	return nil, nil
 }
 
 // IsNumericID reports whether [id] is a plain numeric id (deezer/tidal track

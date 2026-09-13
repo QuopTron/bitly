@@ -17,7 +17,7 @@ import (
 var preferredStreamOrder = []string{
 	"amazon", "deezer", "qobuz-web", "tidal-web", "flac-rescue",
 	"youtube", "ytmusic-spotiflac", "pandora",
-	"soundcloud", "apple-music", "spotify-web",
+	"soundcloud", "internetarchive", "apple-music", "spotify-web",
 }
 
 // buildFallbackOrder derives the fallback order from the providers actually

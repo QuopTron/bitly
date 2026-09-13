@@ -7,11 +7,22 @@ import (
 	"github.com/zarz/bitly/go_backend/internal/provider"
 )
 
-// lastResortProviders son fuentes lossy de búsqueda por nombre cuyos resultados
-// de "mismo título" a veces son un remix/cover/subida equivocada. En la carrera
-// paralela nunca ganan sobre una fuente exacta que aún descarga; solo ganan
-// cuando ninguna fuente exacta puede terminar.
-var lastResortProviders = []string{"soundcloud", "youtube"}
+// lastResortProviders son fuentes que solo identifican la canción por NOMBRE
+// (no publican ISRC) y cuyos resultados de "mismo título" a veces son un
+// remix/cover/subida equivocada. En la carrera paralela nunca ganan sobre una
+// fuente exacta que aún descarga; solo ganan cuando ninguna fuente exacta puede
+// terminar.
+//
+// ytmusic-spotiflac entra en esta lista por el mismo motivo que soundcloud: su
+// audio ES una subida de YouTube. Al descargar más rápido que deezer FLAC, se
+// llevaba la descarga y el archivo salía del re-subido en vez de la grabación
+// exacta — el mismo problema que ya se evitaba para soundcloud/youtube.
+//
+// internetarchive entra por la misma razón (identifica por nombre, sin ISRC):
+// su catálogo sí tiene FLAC real, pero para una canción del mainstream su
+// búsqueda puede encontrar un concierto con el mismo título. Solo debe ganar la
+// descarga cuando ninguna fuente exacta puede terminarla.
+var lastResortProviders = []string{"soundcloud", "youtube", "ytmusic-spotiflac", "internetarchive"}
 
 // esProviderUltimoRecurso indica si el proveedor es de último recurso.
 func esProviderUltimoRecurso(name string) bool {

@@ -23,12 +23,13 @@ const iconosFuente = <String, IconData>{
   'qobuz-web': Icons.album,
   'tidal-web': Icons.waves,
   'ytmusic-spotiflac': Icons.play_circle_fill,
+  'internetarchive': Icons.library_books,
 };
 
 /// Lista de todas las fuentes disponibles.
 const todasLasFuentes = [
   'deezer', 'spotify-web', 'spotify', 'apple-music', 'soundcloud',
-  'amazon', 'qobuz-web', 'tidal-web', 'ytmusic-spotiflac',
+  'amazon', 'qobuz-web', 'tidal-web', 'ytmusic-spotiflac', 'internetarchive',
 ];
 
 /// Etiqueta legible por id de proveedor.
@@ -44,6 +45,7 @@ const etiquetasFuente = {
   'qobuz-web': 'Qobuz',
   'tidal-web': 'TIDAL',
   'ytmusic-spotiflac': 'YouTube',
+  'internetarchive': 'Internet Archive',
 };
 
 /// Convierte un id (p.ej. "spotify-web") a texto capitalizado legible.

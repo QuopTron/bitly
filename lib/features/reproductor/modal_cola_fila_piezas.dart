@@ -140,6 +140,7 @@ String _fuenteCorta(String fuente) {
     'apple-music': 'AM',
     'amazon': 'AZ',
     'soundcloud': 'SC',
+    'internetarchive': 'IA',
   };
   return siglas[fuente] ??
       (fuente.length > 4

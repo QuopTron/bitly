@@ -28,6 +28,14 @@ type rescueOut struct {
 // que el llamador pueda mostrar el modal de verificacion en ~1-2s en vez de
 // recorrer cada proveedor.
 func carreraRescue(reg *provider.Registry, names []string, budget time.Duration, workers int, attempt func(name string, p provider.Provider) (string, bool)) (string, string, bool) {
+	return carreraRescueConFiltro(reg, names, budget, workers, attempt, nil)
+}
+
+// carreraRescueConFiltro es carreraRescue con un filtro de confianza: cuando
+// [esReSubido] marca un proveedor y aún quedan fuentes EXACTAS en vuelo, su
+// resultado espera [graceExactos] (o a que terminen las exactas) antes de
+// ganar. Con [esReSubido] nil el comportamiento es el de siempre.
+func carreraRescueConFiltro(reg *provider.Registry, names []string, budget time.Duration, workers int, attempt func(name string, p provider.Provider) (string, bool), esReSubido func(string) bool) (string, string, bool) {
 	if len(names) == 0 {
 		return "", "", false
 	}
@@ -37,6 +45,9 @@ func carreraRescue(reg *provider.Registry, names []string, budget time.Duration,
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, workers)
 	deadline := time.Now().Add(budget)
+	// Fuentes EXACTAS realmente lanzadas: mientras quede al menos una en vuelo,
+	// un resultado de re-subido espera (ver graceExactos).
+	exactosEnVuelo := 0
 
 	// Spawn workers, but NEVER let the semaphore block the caller: a worker
 	// leaked from a previous race (a JS call that never returns holds its
@@ -60,6 +71,9 @@ func carreraRescue(reg *provider.Registry, names []string, budget time.Duration,
 		}
 		select {
 		case sem <- struct{}{}:
+			if esReSubido == nil || !esReSubido(name) {
+				exactosEnVuelo++
+			}
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
@@ -80,8 +94,28 @@ func carreraRescue(reg *provider.Registry, names []string, budget time.Duration,
 	}
 	go func() { wg.Wait(); close(done) }()
 
-	return recogerResultados(results, verifyCh, done, &deadline)
+	return recogerResultados(results, verifyCh, done, &deadline, exactosEnVuelo, esReSubido)
 }
+
+// carreraPorConfianza es la carrera de rescate consciente de la CONFIANZA de
+// cada fuente: todas corren en paralelo (misma latencia que antes), pero un
+// resultado de un re-subido (YouTube / YouTube Music / SoundCloud) espera una
+// gracia corta a que llegue la grabación EXACTA antes de aceptarse.
+//
+// Por qué existe: antes ganaba el primero que respondía, que casi siempre era
+// YouTube/YouTube Music; una fuente con la grabación exacta (deezer/qobuz/tidal/
+// amazon o el rescate por ISRC) llegaba tarde y ya no contaba. Ahora la fuente
+// exacta gana si puede, y el re-subido solo sirve cuando ninguna exacta lo hizo
+// (una canción sonando es mejor que un fallo de reproducción).
+func carreraPorConfianza(reg *provider.Registry, names []string, budget time.Duration, workers int, attempt func(string, provider.Provider) (string, bool)) (string, string, bool) {
+	u, prov, v := carreraRescueConFiltro(reg, names, budget, workers, attempt, esProveedorReSubido)
+	return u, prov, v
+}
+
+// graceExactos es cuánto espera un resultado de re-subido a que llegue una
+// fuente exacta. Corto a propósito: si la fuente exacta necesita sesión o su
+// espejo está caído, la reproducción no se queda esperando.
+const graceExactos = 2500 * time.Millisecond
 
 // verifyGrace is how long a verification signal waits for a real stream to
 // land before committing to the "needs session" verdict. A provider that only

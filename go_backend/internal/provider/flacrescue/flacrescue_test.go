@@ -55,12 +55,21 @@ func TestSettingsParseanEspejosYOrigen(t *testing.T) {
 	}
 }
 
+// formatoPedido lee el formato que pide el cliente aceptando los dos
+// contratos vigentes: /track/?quality= (el nuevo) y /stream/?format= (el viejo).
+func formatoPedido(r *http.Request) string {
+	if v := r.URL.Query().Get("quality"); v != "" {
+		return v
+	}
+	return r.URL.Query().Get("format")
+}
+
 // TestCascadaDegradaAP300 verifica el "flac a mp3": si el espejo ya no
 // tiene FLAC, el rescate entrega MP3_320 en vez de fallar.
 func TestCascadaDegradaAP300(t *testing.T) {
 	var formatosPedidos []string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		formato := r.URL.Query().Get("format")
+		formato := formatoPedido(r)
 		formatosPedidos = append(formatosPedidos, formato)
 		if formato != "MP3_320" {
 			w.WriteHeader(http.StatusServiceUnavailable)
@@ -79,7 +88,7 @@ func TestCascadaDegradaAP300(t *testing.T) {
 	if err != nil {
 		t.Fatalf("el rescate debió degradar a MP3, error: %v", err)
 	}
-	if !strings.Contains(url, "format=MP3_320") {
+	if !strings.Contains(url, "MP3_320") {
 		t.Errorf("URL inesperada: %s", url)
 	}
 	if len(formatosPedidos) < 2 || formatosPedidos[0] != "FLAC" {

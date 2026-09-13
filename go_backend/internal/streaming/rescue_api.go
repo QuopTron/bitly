@@ -19,7 +19,7 @@ func rescuePorIdentificadores(reg *provider.Registry, quality, isrc, spotifyID, 
 		return "", "", false
 	}
 	names := ordenProvidersStreaming(reg)
-	url, prov, verified := carreraRescue(reg, names, 5*time.Second, 2, func(name string, p provider.Provider) (string, bool) {
+	url, prov, verified := carreraPorConfianza(reg, names, 5*time.Second, 2, func(name string, p provider.Provider) (string, bool) {
 		resolvedID := ""
 		if ep, ok := p.(*provider.ExtensionProvider); ok {
 			if id, found := ep.CheckAvailability(isrc, trackName, artistName, spotifyID, deezerID, tidalID, qobuzID, 0); found && id != "" {

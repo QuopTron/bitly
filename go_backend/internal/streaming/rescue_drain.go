@@ -15,16 +15,39 @@ const verifyGrace = 4 * time.Second
 // deadline passes, honoring provider order when several finish together. A
 // fresh timer per call is used (never a consumed one) so returning from the
 // spawn loop on deadline can't wedge on an already-fired channel.
-func recogerResultados(results <-chan rescueOut, verifyCh <-chan string, done <-chan struct{}, deadline *time.Time) (string, string, bool) {
+// [exactosEnVuelo] y [esReSubido] implementan la preferencia por la fuente
+// EXACTA: un resultado de un re-subido (YouTube/YouTube Music/SoundCloud) no
+// gana de inmediato si todavía quedan fuentes exactas intentándolo — espera
+// [graceExactos]. Se acepta igual si la fuente exacta llega a tiempo, si todas
+// terminaron, o si la gracia expira (una canción sonando es mejor que fallar).
+func recogerResultados(results <-chan rescueOut, verifyCh <-chan string, done <-chan struct{}, deadline *time.Time, exactosEnVuelo int, esReSubido func(string) bool) (string, string, bool) {
 	best := ""
 	bestName := ""
 	var verifyName string
 	var graceCh <-chan time.Time
 	var graceTimer *time.Timer
+	// Resultado de re-subido retenido a la espera de una fuente exacta.
+	var pendiente *rescueOut
 	for {
 		select {
 		case r := <-results:
 			if r.url == "" {
+				continue
+			}
+			// Una fuente que solo identifica por nombre no le gana a una exacta
+			// que todavía puede llegar: se retiene mientras queden exactas.
+			if esReSubido != nil && exactosEnVuelo > 0 && esReSubido(r.name) {
+				if pendiente == nil {
+					rr := r
+					pendiente = &rr
+					// Reemplaza cualquier timer previo (p. ej. el de la gracia de
+					// verificación) por el de la confianza.
+					if graceTimer != nil {
+						graceTimer.Stop()
+					}
+					graceTimer = time.NewTimer(graceExactos)
+					graceCh = graceTimer.C
+				}
 				continue
 			}
 			// First success wins — and return immediately instead of waiting
@@ -45,6 +68,14 @@ func recogerResultados(results <-chan rescueOut, verifyCh <-chan string, done <-
 			}
 			// Keep waiting through the grace for a real stream.
 		case <-graceCh:
+			// Gracia de confianza vencida: la fuente exacta no llegó a tiempo,
+			// se sirve el re-subido (antes que dejar la reproducción sin audio).
+			if pendiente != nil {
+				if graceTimer != nil {
+					graceTimer.Stop()
+				}
+				return pendiente.url, pendiente.name, false
+			}
 			// Un proveedor tiene la cancion exacta pero necesita su sesion
 			// verificada: no llego stream durante la gracia — se devuelve el
 			// veredicto para que el cliente abra el modal en vez de que el
@@ -54,6 +85,9 @@ func recogerResultados(results <-chan rescueOut, verifyCh <-chan string, done <-
 			if graceTimer != nil {
 				graceTimer.Stop()
 			}
+			if pendiente != nil {
+				return pendiente.url, pendiente.name, false
+			}
 			if verifyName != "" && best == "" {
 				return "", verifyName, true
 			}
@@ -61,6 +95,9 @@ func recogerResultados(results <-chan rescueOut, verifyCh <-chan string, done <-
 		case <-time.After(time.Until(*deadline)):
 			if graceTimer != nil {
 				graceTimer.Stop()
+			}
+			if pendiente != nil {
+				return pendiente.url, pendiente.name, false
 			}
 			if verifyName != "" && best == "" {
 				return "", verifyName, true

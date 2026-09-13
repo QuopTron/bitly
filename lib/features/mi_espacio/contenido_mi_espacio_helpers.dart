@@ -70,7 +70,7 @@ String? _resolverCaratula(BuildContext context, ContenidoMiEspacio c, Item item)
 const _fuentesConocidas = {
   'apple-music', 'spotify-web', 'spotify', 'deezer', 'deezer-web',
   'soundcloud', 'tidal-web', 'qobuz-web', 'pandora',
-  'ytmusic-spotiflac', 'amazon',
+  'ytmusic-spotiflac', 'amazon', 'internetarchive',
 };
 
 /// Estado de descarga de un ítem de grilla: por clave exacta

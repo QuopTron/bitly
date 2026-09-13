@@ -33,11 +33,12 @@ void main() {
       expect(iconosFuente.keys, containsAll([
         'deezer', 'apple-music', 'soundcloud', 'spotify-web',
         'pandora', 'amazon', 'qobuz-web', 'tidal-web', 'ytmusic-spotiflac',
+        'internetarchive',
       ]));
     });
 
-    test('has 11 entries (incl. todas/empty)', () {
-      expect(iconosFuente.length, 11);
+    test('has 12 entries (incl. todas/empty)', () {
+      expect(iconosFuente.length, 12);
     });
   });
 

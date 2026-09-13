@@ -7,7 +7,7 @@ import (
 )
 
 func verificarMatchStream(p provider.Provider, id, queryTitle, queryArtist, isrc string, authoritative bool) string {
-	if queryTitle == "" {
+	if queryTitle == "" && isrc == "" {
 		return id
 	}
 	t, err := p.GetTrack(id)
@@ -23,6 +23,21 @@ func verificarMatchStream(p provider.Provider, id, queryTitle, queryArtist, isrc
 	// carry an ISRC and they differ, it is definitely not the requested track.
 	if isrc != "" && t.ISRC != "" && !strings.EqualFold(strings.ToUpper(isrc), strings.ToUpper(t.ISRC)) {
 		return ""
+	}
+	// Identidad EXACTA por ISRC. Solo vale en proveedores que pueden dar fe de
+	// él: los catálogos (el ISRC viene del sello) y el rescate indexado por ISRC
+	// (flac-rescue, cuyo título ES el ISRC). En un re-subido (YouTube / YouTube
+	// Music / SoundCloud) el ISRC se INFIERE por parecido de nombre, así que un
+	// remix con el mismo título recibía el ISRC del original y se servía como si
+	// fuera la canción pedida — por eso ahí NO se acepta solo por el ISRC.
+	if isrc != "" && provider.EsProveedorAutoritativoISRC(p.Name()) {
+		mismoISRC := t.ISRC != "" && strings.EqualFold(strings.ToUpper(isrc), strings.ToUpper(t.ISRC))
+		if mismoISRC || provider.EsCandidatoPorISRC(isrc, t) {
+			return id
+		}
+	}
+	if queryTitle == "" {
+		return id
 	}
 	if _, ok := provider.OriginalStrength(queryTitle, queryArtist, *t); ok {
 		return id

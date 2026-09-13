@@ -2034,6 +2034,13 @@ registerExtension({
   enrichTrack: enrichTrack,
   searchTracks: searchTracks,
   checkAvailability: checkAvailability,
+  // resolveTrackIDFromISRC expone la resolución EXACTA por ISRC contra la API
+  // pública de Deezer (/track/isrc:), sin cuenta ni verificación. El backend la
+  // usa como primera opción de GetTrackByISRC: sin exportarla, toda petición con
+  // ISRC caía a una búsqueda por nombre (que en Deezer no entiende la sintaxis
+  // `isrc:"X"`) y el track terminaba servido desde un re-subido de
+  // YouTube/SoundCloud en vez de la grabación exacta.
+  resolveTrackIDFromISRC: resolveTrackIDFromISRC,
   download: download,
   getDownloadUrl: function () {
     return null;

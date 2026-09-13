@@ -1,10 +1,10 @@
 {
   "name": "deezer",
   "displayName": "Deezer",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "description": "Deezer metadata provider (complete release, disc, barcode, credits, explicit, genre, rights, link and high-resolution artwork) plus direct full-audio download with your own Deezer account (ARL cookie): MP3 128 on a free account and MP3 320 / FLAC on a paid one, straight from Deezer's CDN. Sin cuenta el audio sale de una fuente abierta, sin verificación ni modal.",
   "homepage": "https://github.com/zarzet/SpotiFLAC-Mobile",
-  "type": ["metadata_provider"],
+  "type": ["metadata_provider", "download_provider"],
   "minAppVersion": "4.9.1",
   "requiredRuntimeFeatures": ["patternedFileTransform@1", "preparedContext@1"],
   "permissions": {

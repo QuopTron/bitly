@@ -49,7 +49,7 @@ func rescueStream(reg *provider.Registry, track *provider.TrackResult, trackName
 	// track but needs its session verified is remembered so the caller can
 	// surface it IF nothing else streams.
 	if track != nil && track.ISRC != "" {
-		u, provName, v := carreraRescue(reg, names, 8*time.Second, 2, func(name string, p provider.Provider) (string, bool) {
+		u, provName, v := carreraPorConfianza(reg, names, 8*time.Second, 2, func(name string, p provider.Provider) (string, bool) {
 			trackByISRC, err := p.GetTrackByISRC(track.ISRC)
 			if err != nil || trackByISRC == nil || trackByISRC.ID == "" {
 				return "", false
@@ -77,13 +77,20 @@ func rescueStream(reg *provider.Registry, track *provider.TrackResult, trackName
 	// upload is never served). A strict match whose stream needs verification
 	// is remembered the same way — never fatal while another phase may stream.
 	if trackName != "" && artistName != "" {
-		u, provName, v := carreraRescue(reg, names, 10*time.Second, 2, func(name string, p provider.Provider) (string, bool) {
+		u, provName, v := carreraPorConfianza(reg, names, 10*time.Second, 2, func(name string, p provider.Provider) (string, bool) {
 			results, err := p.SearchTracks(trackName+" "+artistName, 8)
 			if err != nil || len(results) == 0 {
 				return "", false
 			}
+			cands := matchesRankeados(trackName, artistName, duracionQuery(track), results)
+			// Con ISRC conocido, la candidata que lo declara va primero: entre
+			// subidas con el mismo título, la que coincide con la identidad
+			// exacta es la grabación pedida.
+			if track != nil && track.ISRC != "" {
+				cands = provider.PreferirISRC(track.ISRC, cands)
+			}
 			var sawVerify bool
-			for _, cand := range matchesRankeados(trackName, artistName, duracionQuery(track), results) {
+			for _, cand := range cands {
 				candURL, cv := rescueProviderUnaVez(p, cand.ID, quality)
 				if cv {
 					sawVerify = true

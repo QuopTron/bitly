@@ -58,6 +58,12 @@ consume:
 				}
 				if lastResort == nil {
 					lastResort = res
+					// Si no queda NINGUNA fuente exacta en vuelo, no hay nada mejor
+					// que esperar: se acepta ya (antes se pagaba la gracia completa
+					// aunque el último recurso fuera la única candidata).
+					if exactInFlight == 0 {
+						return res
+					}
 					graceTimer = time.NewTimer(authorityGrace)
 					graceCh = graceTimer.C
 				}
