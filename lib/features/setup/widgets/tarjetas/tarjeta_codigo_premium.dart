@@ -11,13 +11,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../l10n/app_localizations.dart';
-import '../../../shared/utilidades/responsive.dart';
-import '../../../shared/widgets/vidrio/boton_vidrio.dart';
-import '../../../shared/widgets/vidrio/contenedor_vidrio.dart';
-import '../bloc/setup_bloc.dart';
-import '../bloc/setup_estado.dart';
-import '../bloc/setup_evento.dart';
+import '../../../../l10n/app_localizations.dart';
+import '../../../../shared/utilidades/responsive.dart';
+import '../../../../shared/widgets/vidrio/boton_vidrio.dart';
+import '../../../../shared/widgets/vidrio/contenedor_vidrio.dart';
+import '../../bloc/setup_bloc.dart';
+import '../../bloc/setup_estado.dart';
+import '../../bloc/setup_evento.dart';
 
 part 'tarjeta_codigo_premium_widgets.dart';
 

@@ -19,7 +19,7 @@ import '../../../shared/widgets/vidrio/boton_vidrio.dart';
 import '../bloc/setup_bloc.dart';
 import '../bloc/setup_estado.dart';
 import '../bloc/setup_evento.dart';
-import 'tarjeta_info_cuenta.dart';
+import './tarjetas/tarjeta_info_cuenta.dart';
 
 /// Prompt de reingreso con cuenta existente.
 class PromptReingreso extends StatelessWidget {

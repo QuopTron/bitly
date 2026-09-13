@@ -14,14 +14,14 @@ import '../../../l10n/app_localizations.dart';
 import '../../../shared/utilidades/responsive.dart';
 import '../bloc/setup_estado.dart';
 import 'prompt_reingreso.dart';
-import 'slide_idioma.dart';
-import 'slide_usuario.dart';
-import 'slide_google.dart';
-import 'slide_modo.dart';
-import 'slide_carpeta_almacenamiento.dart';
-import 'slide_notificaciones.dart';
-import 'slide_verificacion.dart';
-import 'slide_gracias.dart';
+import './slides/slide_idioma.dart';
+import './slides/slide_usuario.dart';
+import './slides/slide_google.dart';
+import './slides/slide_modo.dart';
+import './slides/slide_carpeta_almacenamiento.dart';
+import './slides/slide_notificaciones.dart';
+import './slides/slide_verificacion.dart';
+import './slides/slide_gracias.dart';
 
 /// Devuelve el slide del paso actual del setup.
 Widget construirPasoSetup(

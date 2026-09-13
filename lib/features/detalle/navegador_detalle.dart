@@ -17,9 +17,9 @@ import '../../estado/like/cubit_like.dart';
 import '../../estado/playlists/cubit_playlists.dart';
 import '../../estado/reproductor/cubit_reproductor.dart';
 import '../../shared/widgets/base/transiciones_pagina.dart';
-import 'album_detalle_pagina.dart';
-import 'artista_detalle_pagina.dart';
-import 'playlist_detalle_pagina.dart';
+import './album/album_detalle_pagina.dart';
+import './artista/artista_detalle_pagina.dart';
+import './playlist/playlist_detalle_pagina.dart';
 
 /// Envuelve las páginas de detalle con los cubits globales: el push va al
 /// Navigator raíz (fuera del árbol de la Home) y sin esto las páginas

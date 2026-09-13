@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
-import 'package:bitly/features/setup/widgets/tarjeta_opcion_carpeta.dart';
+import 'package:bitly/features/setup/widgets/tarjetas/tarjeta_opcion_carpeta.dart';
 
 void main() {
   group('TarjetaOpcionCarpeta', () {

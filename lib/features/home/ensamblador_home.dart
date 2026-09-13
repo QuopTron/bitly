@@ -29,7 +29,7 @@ import '../feed/bloc/feed_evento.dart';
 import '../feed/feed_pagina.dart';
 import '../detalle/navegador_detalle.dart';
 import '../mi_espacio/pagina/pagina_mi_espacio.dart';
-import '../reproductor/reproductor_pagina.dart';
+import '../reproductor/pagina/reproductor_pagina.dart';
 import '../../shared/widgets/reproductor/miniplayer.dart';
 import '../../shared/widgets/base/transiciones_pagina.dart';
 import '../../l10n/app_localizations.dart';

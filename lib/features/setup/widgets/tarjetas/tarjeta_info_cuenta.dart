@@ -9,10 +9,10 @@
 
 import 'package:flutter/material.dart';
 
-import '../../../l10n/app_localizations.dart';
-import '../../../shared/utilidades/responsive.dart';
-import '../../../shared/widgets/vidrio/contenedor_vidrio.dart';
-import '../bloc/setup_estado.dart';
+import '../../../../l10n/app_localizations.dart';
+import '../../../../shared/utilidades/responsive.dart';
+import '../../../../shared/widgets/vidrio/contenedor_vidrio.dart';
+import '../../bloc/setup_estado.dart';
 
 /// Resumen de la cuenta existente.
 class TarjetaInfoCuenta extends StatelessWidget {

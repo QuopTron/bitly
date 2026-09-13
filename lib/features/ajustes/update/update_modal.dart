@@ -16,8 +16,8 @@ import 'package:open_filex/open_filex.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 
-import '../../shared/tema/colores_app.dart';
-import '../../shared/utilidades/responsive.dart';
+import '../../../shared/tema/colores_app.dart';
+import '../../../shared/utilidades/responsive.dart';
 import 'update_info.dart';
 
 // Re-exportado para que los llamadores sigan importando el modelo y el

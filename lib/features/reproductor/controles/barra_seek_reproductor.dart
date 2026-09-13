@@ -10,9 +10,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../core/cache/estado/estado_reproductor.dart';
-import '../../shared/utilidades/responsive.dart';
-import '../../estado/reproductor/cubit_reproductor.dart';
+import '../../../core/cache/estado/estado_reproductor.dart';
+import '../../../shared/utilidades/responsive.dart';
+import '../../../estado/reproductor/cubit_reproductor.dart';
 
 /// Slider de progreso con tiempos transcurrido / restante. Se suscribe él
 /// mismo al cubit (buildWhen: solo posición/duración) para que la página del

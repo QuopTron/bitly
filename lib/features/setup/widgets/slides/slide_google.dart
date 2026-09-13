@@ -15,16 +15,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../l10n/app_localizations.dart';
-import '../../../shared/tema/colores_app.dart';
-import '../../../shared/utilidades/responsive.dart';
-import '../../../shared/widgets/vidrio/boton_vidrio.dart';
-import '../../../shared/widgets/vidrio/contenedor_vidrio.dart';
-import '../../../shared/widgets/base/logo_google.dart';
-import '../../../core/servicios/oauth/servicio_oauth_youtube.dart';
-import '../bloc/setup_bloc.dart';
-import '../bloc/setup_estado.dart';
-import '../bloc/setup_evento.dart';
+import '../../../../l10n/app_localizations.dart';
+import '../../../../shared/tema/colores_app.dart';
+import '../../../../shared/utilidades/responsive.dart';
+import '../../../../shared/widgets/vidrio/boton_vidrio.dart';
+import '../../../../shared/widgets/vidrio/contenedor_vidrio.dart';
+import '../../../../shared/widgets/base/logo_google.dart';
+import '../../../../core/servicios/oauth/servicio_oauth_youtube.dart';
+import '../../bloc/setup_bloc.dart';
+import '../../bloc/setup_estado.dart';
+import '../../bloc/setup_evento.dart';
 
 part 'slide_google_widgets.dart';
 part 'slide_google_tarjeta.dart';

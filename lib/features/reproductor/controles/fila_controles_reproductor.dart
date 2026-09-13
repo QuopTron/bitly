@@ -12,16 +12,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../app/inyeccion.dart';
-import '../../core/cache/estado/estado_cola.dart';
-import '../../core/cache/estado/estado_like.dart';
-import '../../core/cache/estado/estado_reproductor.dart';
-import '../../core/modelos/feed/item_feed.dart';
-import '../../estado/cola/cubit_cola.dart';
-import '../../estado/like/cubit_like.dart';
-import '../../estado/reproductor/cubit_reproductor.dart';
-import '../../shared/utilidades/haptico.dart';
-import '../../shared/utilidades/responsive.dart';
+import '../../../app/inyeccion.dart';
+import '../../../core/cache/estado/estado_cola.dart';
+import '../../../core/cache/estado/estado_like.dart';
+import '../../../core/cache/estado/estado_reproductor.dart';
+import '../../../core/modelos/feed/item_feed.dart';
+import '../../../estado/cola/cubit_cola.dart';
+import '../../../estado/like/cubit_like.dart';
+import '../../../estado/reproductor/cubit_reproductor.dart';
+import '../../../shared/utilidades/haptico.dart';
+import '../../../shared/utilidades/responsive.dart';
 
 part 'fila_controles_botones.dart';
 
