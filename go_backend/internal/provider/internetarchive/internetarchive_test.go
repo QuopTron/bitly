@@ -566,3 +566,100 @@ func TestHidratacionAcotadaALimiteDeItems(t *testing.T) {
 		t.Errorf("leyó %d items, esperaba exactamente %d", n, maxItemsHidratados)
 	}
 }
+
+// TestTituloSospechosoPorPalabraCompleta fija la regla que evita mandar al
+// final una canción legítima: la marca se busca como PALABRA, no como trozo de
+// otra palabra ("discover" no es un "cover").
+func TestTituloSospechosoPorPalabraCompleta(t *testing.T) {
+	casos := []struct {
+		titulo     string
+		sospechoso bool
+	}{
+		{"Smells Like Teen Spirit (Acoustic Guitar Karaoke Version)", true},
+		{"Bohemian Rhapsody in Bossa Nova Style [Reimagined By AI - Not Real]", true},
+		{"Full Instrumental Cover by Wergop99", true},
+		{"Made Famous By Queen", true},
+		{"Discover the Light", false},
+		{"Coverage", false},
+		{"Da Funk", false},
+		{"So What", false},
+	}
+	for _, caso := range casos {
+		if got := esTituloSospechoso(caso.titulo); got != caso.sospechoso {
+			t.Errorf("esTituloSospechoso(%q) = %v, esperaba %v",
+				caso.titulo, got, caso.sospechoso)
+		}
+	}
+}
+
+// TestLaConsultaExcluyeRadioYPodcast verifica que el filtro viaje en la
+// consulta al índice. Medido contra la API real: sin esto, buscar una canción
+// devolvía el programa de radio que se LLAMA como ella.
+func TestLaConsultaExcluyeRadioYPodcast(t *testing.T) {
+	var consultas []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/advancedsearch.php") {
+			consultas = append(consultas, r.URL.Query().Get("q"))
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"response":{"numFound":0,"docs":[]}}`))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer srv.Close()
+
+	c := NewClient(nil)
+	c.SetBaseURL(srv.URL)
+	if _, err := c.SearchTracks("smells like teen spirit nirvana", 10); err != nil {
+		t.Fatalf("SearchTracks: %v", err)
+	}
+	if len(consultas) == 0 {
+		t.Fatal("no se consultó al índice")
+	}
+	q := consultas[0]
+	for _, esperado := range []string{"-collection:podcasts", "-collection:radioprograms", "-collection:fmradioarchive"} {
+		if !strings.Contains(q, esperado) {
+			t.Errorf("la consulta no excluye la colección %q:\n%s", esperado, q)
+		}
+	}
+}
+
+// TestKaraokeVaAlFinal comprueba el orden: si el índice devuelve primero un
+// karaoke y después la grabación limpia, la limpia gana el primer puesto —el
+// karaoke queda disponible, pero no le roba el lugar a la canción.
+func TestKaraokeVaAlFinal(t *testing.T) {
+	karaoke := itemConFlac("karaoke-1", "Smells Like Teen Spirit Karaoke", "Karaoke Hits")
+	karaoke.Files = []Archivo{{
+		Name: "nsp.mp3", Format: "VBR MP3", Track: "1", Length: "301.0",
+		Title: "Smells Like Teen Spirit - Nirvana (Acoustic Guitar Karaoke Version).mp3",
+	}}
+	buena := itemConFlac("buena-1", "Nevermind", "Nirvana")
+	buena.Files = []Archivo{{
+		Name: "nsp.flac", Format: "Flac", Track: "1", Length: "301.0",
+		Title: "Smells Like Teen Spirit",
+	}}
+
+	srv, _ := servidorFalso(t,
+		[]docItem{
+			{Identifier: "karaoke-1", Title: "Smells Like Teen Spirit Karaoke", Creator: "Karaoke Hits"},
+			{Identifier: "buena-1", Title: "Nevermind", Creator: "Nirvana"},
+		},
+		map[string]Item{"karaoke-1": karaoke, "buena-1": buena})
+
+	c := NewClient(nil)
+	c.SetBaseURL(srv.URL)
+
+	pistas, err := c.SearchTracks("smells like teen spirit nirvana", 10)
+	if err != nil {
+		t.Fatalf("SearchTracks: %v", err)
+	}
+	if len(pistas) != 2 {
+		t.Fatalf("esperaba 2 pistas (no se descarta el karaoke), obtuve %d: %+v", len(pistas), pistas)
+	}
+	if pistas[0].Title != "Smells Like Teen Spirit" {
+		t.Errorf("la primera pista debía ser la limpia, fue %q", pistas[0].Title)
+	}
+	if !strings.Contains(pistas[1].Title, "Karaoke") {
+		t.Errorf("el karaoke debía quedar al final, fue %q", pistas[1].Title)
+	}
+}

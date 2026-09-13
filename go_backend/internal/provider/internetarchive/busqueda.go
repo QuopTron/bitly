@@ -34,6 +34,60 @@ import (
 // consulta que encuentre muchos items sueltos se estiraría sin control.
 const maxItemsHidratados = 6
 
+// coleccionesNoMusica son colecciones cuyo TÍTULO contiene canciones pero cuyo
+// contenido no es la canción: radios, podcasts y programas.
+//
+// Medido contra la API real (2026-09): sin esto, buscar "Nirvana Smells Like
+// Teen Spirit" devolvía un programa de radio y "Miles Davis Kind of Blue"
+// devolvía el podcast de Radio Open Source — el item se llama como la canción,
+// así que el índice lo encuentra y el rescate ofrece una charla en vez de
+// música. Se excluyen en la consulta (no en el cliente) para que el índice no
+// gasten las filas que necesitamos en items que ya sabemos que no sirven.
+var coleccionesNoMusica = []string{
+	"podcasts",
+	"podcasts_miscellaneous",
+	"radioopensource",
+	"radioprograms",
+	"radioshowarchive",
+	"radiostationarchives",
+	"fmradioarchive",
+	"radio",
+	"oldtimeradio",
+	"theoldtimeradio",
+	"audio_podcast",
+	"generative-art-archive",
+}
+
+// titulosSospechosos marcan las pistas que NO son la grabación original:
+// karaoke, covers, instrumentales, reimaginaciones con IA.
+//
+// Medido contra la API real (2026-09): de 16 pistas que devolvió
+// `title:"<canción>"`, 6 tenían una de estas marcas en el nombre y solo 1
+// coincidía en duración con la canción real de Deezer. Como esta fuente entra
+// al rescate cuando las comerciales fallan, un karaoke no es un resultado
+// válido: se manda al final de la lista (nunca se descarta, para no perder
+// disponibilidad, pero deja de ganarle a la grabación buena).
+var titulosSospechosos = []string{
+	"karaoke",
+	"tribute",
+	"instrumental",
+	"made famous by",
+	"in the style of",
+	"backing track",
+	"reimagined",
+	"not real",
+	"type beat",
+	"chiptune",
+	"8 bit",
+	"ringtone",
+	"reaction",
+	"how to play",
+	"sped up",
+	"slowed",
+	"nightcore",
+	"ai generated",
+}
+
 // itemResumen es un item del índice, sin sus archivos.
 type itemResumen struct {
 	identificador string
@@ -164,6 +218,10 @@ func (c *Client) buscar(query string, mediatype string, filas int) ([]itemResume
 	// Se encierra la consulta del usuario en paréntesis para que un "OR" escrito
 	// por él no se escape del filtro de mediatype.
 	consulta := "(" + query + ") AND mediatype:" + mediatype
+	// Fuera radios y podcasts: su título contiene la canción pero no lo es.
+	for _, coleccion := range coleccionesNoMusica {
+		consulta += " AND -collection:" + coleccion
+	}
 
 	valores := url.Values{}
 	valores.Set("q", consulta)
@@ -214,6 +272,9 @@ func (c *Client) hidratarTracks(items []itemResumen, limit int) []provider.Track
 		total   int
 		conFlac []provider.TrackResult
 		sinFlac []provider.TrackResult
+		// Las que parecen otra versión (karaoke, cover, IA) van al final: solo
+		// se usan si no hay ninguna grabación que parezca la original.
+		sospechosas []provider.TrackResult
 	)
 	leidos := 0
 
@@ -231,6 +292,10 @@ func (c *Client) hidratarTracks(items []itemResumen, limit int) []provider.Track
 		for _, p := range pistasDelItem(item, identifier, c) {
 			// El MISMO tema puede venir en FLAC y en MP3 dentro del item: se
 			// emite una sola vez y se reserva para el grupo "con FLAC".
+			if p.sospechosa {
+				sospechosas = append(sospechosas, p.resultado)
+				continue
+			}
 			total++
 			if p.esLossless {
 				conFlac = append(conFlac, p.resultado)
@@ -242,17 +307,20 @@ func (c *Client) hidratarTracks(items []itemResumen, limit int) []provider.Track
 
 	// Los items con FLAC van primero: la fuente existe para dar lossless, así
 	// que si hay un item que lo publica no debe quedar tapado por uno en MP3.
-	ordenadas := append(append([]provider.TrackResult{}, conFlac...), sinFlac...)
+	// Las sospechosas cierran la lista.
+	ordenadas := append(append(append([]provider.TrackResult{}, conFlac...), sinFlac...), sospechosas...)
 	if len(ordenadas) > limit {
 		ordenadas = ordenadas[:limit]
 	}
 	return ordenadas
 }
 
-// pistaElegida es una pista con su calidad, para ordenar por lossless.
+// pistaElegida es una pista con su calidad, para ordenar por lossless y para
+// separar las que parecen otra versión (karaoke, cover, IA).
 type pistaElegida struct {
 	resultado  provider.TrackResult
 	esLossless bool
+	sospechosa bool
 }
 
 // pistasDelItem convierte los archivos de un item en pistas, un solo resultado
@@ -292,12 +360,55 @@ func pistasDelItem(item *Item, identifier string, c *Client) []pistaElegida {
 		if elegido == nil {
 			continue
 		}
+		pista := c.pistaDesdeArchivo(identifier, item, *elegido)
 		salida = append(salida, pistaElegida{
-			resultado:  c.pistaDesdeArchivo(identifier, item, *elegido),
+			resultado:  pista,
 			esLossless: lossless,
+			sospechosa: esTituloSospechoso(pista.Title) ||
+				esTituloSospechoso(pista.Artist),
 		})
 	}
 	return salida
+}
+
+// esTituloSospechoso reporta si un título (o un artista) trae una marca de
+// versión que no es la original: karaoke, cover, instrumental, IA...
+//
+// La comparación es por PALABRA completa: "discover" no debe contar como
+// "cover", ni "backing" como "back". Para eso se normaliza la puntuación a
+// espacios y se busca el marcador rodeado de espacios.
+func esTituloSospechoso(texto string) bool {
+	normal := normalizarPalabras(texto)
+	if normal == "" {
+		return false
+	}
+	relleno := " " + normal + " "
+	for _, marca := range titulosSospechosos {
+		if strings.Contains(relleno, " "+marca+" ") {
+			return true
+		}
+	}
+	return false
+}
+
+// normalizarPalabras deja solo letras, números y espacios simples. Se usan los
+// caracteres no ASCII tal cual (acentos, ñ) para no inventar palabras.
+func normalizarPalabras(texto string) string {
+	var b strings.Builder
+	espacio := true
+	for _, r := range strings.ToLower(texto) {
+		esLetra := (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r > 127
+		if esLetra {
+			b.WriteRune(r)
+			espacio = false
+			continue
+		}
+		if !espacio {
+			b.WriteRune(' ')
+			espacio = true
+		}
+	}
+	return strings.TrimSpace(b.String())
 }
 
 // mejorDelGrupo elige el archivo del grupo y reporta si es lossless. Prefiere
