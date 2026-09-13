@@ -1,0 +1,6 @@
+# Artefactos compilados de terceros que sirve el navegador: tienen que
+# quedar exactamente como salen del release (drift / sqlite3). `-text`
+# desactiva cualquier normalización de fin de línea para que el archivo
+# descargado y el clonado sean iguales.
+web/drift_worker.js -text
+web/sqlite3.wasm -text
