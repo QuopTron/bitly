@@ -8,8 +8,8 @@
 // Parte del flujo: reproducción (notificación y controles del SO).
 // ─────────────────────────────────────────────────────────────
 
-import '../../core/cache/estado_cola.dart';
-import '../../core/cache/estado_reproductor.dart';
+import '../cache/estado/estado_cola.dart';
+import '../cache/estado/estado_reproductor.dart';
 
 /// Traduce el estado de reproducción del motor a string de audio_service.
 String procesandoDesde(EstadoAudioReproductor reproductor) {

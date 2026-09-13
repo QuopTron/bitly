@@ -16,9 +16,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:logger/logger.dart';
 
 import '../../../core/backend_go/contrato_backend.dart';
-import '../../../core/cache/cache_busqueda.dart';
-import '../../../core/modelos/item_feed.dart';
-import '../../../core/servicios/servicio_verificacion.dart';
+import '../../../core/cache/almacenes/cache_busqueda.dart';
+import '../../../core/modelos/feed/item_feed.dart';
+import '../../../core/servicios/verificacion/servicio_verificacion.dart';
 import '../../../shared/constantes/constantes_fuente.dart';
 import 'busqueda_estado.dart';
 import 'busqueda_evento.dart';

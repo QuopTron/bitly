@@ -12,9 +12,9 @@
 
 import 'package:flutter/material.dart';
 
-import '../../../core/cache/estado_descarga.dart';
+import '../../../core/cache/estado/estado_descarga.dart';
 
-export '../../../core/cache/estado_descarga.dart';
+export '../../../core/cache/estado/estado_descarga.dart';
 
 part 'indicador_descarga_dots.dart';
 

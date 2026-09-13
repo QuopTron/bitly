@@ -20,11 +20,11 @@ import 'package:integration_test/integration_test.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:path_provider/path_provider.dart';
 
-import 'package:bitly/core/cache/cache_descargas.dart';
+import 'package:bitly/core/cache/almacenes/cache_descargas.dart';
 import 'package:bitly/core/backend_go/backend_android.dart';
 import 'package:bitly/estado/reproductor/cubit_reproductor.dart';
 import 'package:bitly/estado/cola/cubit_cola.dart';
-import 'package:bitly/core/modelos/item_feed.dart';
+import 'package:bitly/core/modelos/feed/item_feed.dart';
 import 'package:bitly/app/inyeccion.dart' as inj;
 
 /// Genera un WAV PCM 16-bit mono 44.1kHz de [seconds] segundos (sine 440Hz)

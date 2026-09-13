@@ -13,8 +13,8 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
 import '../backend_go/contrato_backend.dart';
-import '../cache/cache_ajustes.dart';
-import '../modelos/config_proveedor.dart';
+import '../cache/almacenes/cache_ajustes.dart';
+import '../modelos/proveedores/config_proveedor.dart';
 
 /// Empuja credenciales guardadas a Go y reinicializa las extensiones.
 class ServicioCredencialesProveedor {

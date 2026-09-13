@@ -9,7 +9,7 @@
 
 import 'package:equatable/equatable.dart';
 
-import '../../../core/modelos/config_busqueda_fuente.dart';
+import '../../../core/modelos/proveedores/config_busqueda_fuente.dart';
 
 /// Evento base del bloc de búsqueda.
 abstract class EventoBusqueda extends Equatable {

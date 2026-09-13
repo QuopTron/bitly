@@ -10,7 +10,7 @@
 // Parte del flujo: enlaces compartidos/pegados → item reproducible.
 // ─────────────────────────────────────────────────────────────
 
-import 'item_feed.dart';
+import './feed/item_feed.dart';
 
 /// Resultado de resolver un enlace de música (Spotify, YouTube, Deezer...).
 class ResultadoEnlace {

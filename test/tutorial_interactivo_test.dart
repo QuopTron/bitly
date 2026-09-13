@@ -15,7 +15,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:bitly/features/tutorial_interactivo/modelo_tutorial.dart';
 import 'package:bitly/features/tutorial_interactivo/tutorial_controller.dart';
-import 'package:bitly/features/tutorial_interactivo/tutorial_overlay.dart';
+import 'package:bitly/features/tutorial_interactivo/overlay/tutorial_overlay.dart';
 import 'package:bitly/features/tutorial_interactivo/tutorial_pasos.dart';
 import 'package:bitly/l10n/app_localizations.dart';
 import 'package:bitly/l10n/strings/strings_tutorial_interactivo.dart';

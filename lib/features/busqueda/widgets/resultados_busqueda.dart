@@ -16,9 +16,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../app/inyeccion.dart';
-import '../../../core/cache/estado_descarga.dart';
-import '../../../core/modelos/item_feed.dart';
-import '../../../core/servicios/huella_item.dart';
+import '../../../core/cache/estado/estado_descarga.dart';
+import '../../../core/modelos/feed/item_feed.dart';
+import '../../../core/servicios/utilidades/huella_item.dart';
 import '../../../estado/cola/cubit_cola.dart';
 import '../../../estado/like/cubit_like.dart';
 import '../../../l10n/app_localizations.dart';

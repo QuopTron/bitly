@@ -11,7 +11,7 @@
 import 'package:flutter/material.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
-import '../../core/modelos/item_feed.dart';
+import '../../core/modelos/feed/item_feed.dart';
 import '../../shared/widgets/tarjetas/imagen_portada.dart';
 
 /// Portada o video visualizador del track con botones de alternancia.

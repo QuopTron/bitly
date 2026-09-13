@@ -10,11 +10,11 @@
 import 'dart:convert';
 
 import '../../../app/inyeccion.dart' as di;
-import '../../cache/cache_detalle.dart';
-import '../../cache/reproduccion_sync.dart';
-import '../../modelos/detalle_album.dart';
-import '../../modelos/detalle_artista.dart';
-import '../../modelos/detalle_playlist.dart';
+import '../../cache/almacenes/cache_detalle.dart';
+import '../../cache/reproduccion/reproduccion_sync.dart';
+import '../../modelos/detalle/detalle_album.dart';
+import '../../modelos/detalle/detalle_artista.dart';
+import '../../modelos/detalle/detalle_playlist.dart';
 import '../contrato_backend.dart';
 
 /// Vistas de detalle — fetch por extensión (RPC) con sync local a drift.

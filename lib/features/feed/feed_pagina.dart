@@ -13,10 +13,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../core/cache/estado_descarga.dart';
-import '../../core/cache/estado_like.dart';
-import '../../core/modelos/item_feed.dart';
-import '../../core/modelos/seccion_feed.dart';
+import '../../core/cache/estado/estado_descarga.dart';
+import '../../core/cache/estado/estado_like.dart';
+import '../../core/modelos/feed/item_feed.dart';
+import '../../core/modelos/feed/seccion_feed.dart';
 import '../../estado/descargas/cubit_descargas.dart';
 import '../../estado/like/cubit_like.dart';
 import '../../shared/constantes/constantes_fuente.dart';

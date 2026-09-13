@@ -6,7 +6,7 @@
 // paralelo y los resultados llegan de a poco).
 // ─────────────────────────────────────────────────────────────
 
-import '../modelos/item_feed.dart';
+import '../modelos/feed/item_feed.dart';
 
 /// Resultado acumulado de una búsqueda en streaming.
 class ResultadosBusquedaStream {

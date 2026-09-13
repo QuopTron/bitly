@@ -17,11 +17,11 @@ import 'package:flutter/material.dart';
 
 import '../../../app/inyeccion.dart';
 import '../../../core/backend_go/contrato_backend.dart';
-import '../../../core/cache/cache_ajustes.dart';
+import '../../../core/cache/almacenes/cache_ajustes.dart';
 import '../../../core/modelos/ajustes_descarga.dart';
-import '../../../core/modelos/estilo_visual.dart';
-import '../../../core/modelos/item_feed.dart';
-import '../../../core/modelos/preferencias_estilo.dart';
+import '../../../core/modelos/usuario/estilo_visual.dart';
+import '../../../core/modelos/feed/item_feed.dart';
+import '../../../core/modelos/usuario/preferencias_estilo.dart';
 import '../../../estado/cola/cubit_cola.dart';
 import '../../../estado/descargas/cubit_descargas.dart';
 import '../../../l10n/app_localizations.dart';

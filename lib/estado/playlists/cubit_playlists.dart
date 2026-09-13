@@ -11,11 +11,11 @@
 
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import '../../core/modelos/detalle_playlist.dart';
-import '../../core/modelos/dominio_playlist.dart';
-import '../../core/modelos/estadisticas_usuario.dart';
-import '../../core/servicios/exportacion_playlist.dart';
-import '../../core/servicios/servicio_dominio_playlist.dart';
+import '../../core/modelos/detalle/detalle_playlist.dart';
+import '../../core/modelos/playlist/dominio_playlist.dart';
+import '../../core/modelos/usuario/estadisticas_usuario.dart';
+import '../../core/servicios/playlist/exportacion_playlist.dart';
+import '../../core/servicios/playlist/servicio_dominio_playlist.dart';
 
 part 'playlists_estado.dart';
 

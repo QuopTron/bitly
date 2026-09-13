@@ -20,7 +20,7 @@
 import 'package:flutter/material.dart';
 
 import 'tutorial_controller.dart';
-import 'tutorial_overlay.dart';
+import './overlay/tutorial_overlay.dart';
 
 /// Mantiene la capa del tutorial en el Overlay raíz mientras esté visible.
 ///

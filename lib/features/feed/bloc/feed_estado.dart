@@ -9,7 +9,7 @@
 
 import 'package:equatable/equatable.dart';
 
-import '../../../core/modelos/seccion_feed.dart';
+import '../../../core/modelos/feed/seccion_feed.dart';
 
 /// Estado del bloc de feed de inicio.
 class EstadoFeed extends Equatable {

@@ -8,9 +8,9 @@
 
 import 'dart:convert';
 
-import '../../modelos/config_busqueda_fuente.dart';
-import '../../modelos/item_feed.dart';
-import '../../modelos/seccion_feed.dart';
+import '../../modelos/proveedores/config_busqueda_fuente.dart';
+import '../../modelos/feed/item_feed.dart';
+import '../../modelos/feed/seccion_feed.dart';
 import '../ayudantes_backend.dart';
 import '../contrato_backend.dart';
 import '../resultados_busqueda_stream.dart';

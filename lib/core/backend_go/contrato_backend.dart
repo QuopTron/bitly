@@ -6,10 +6,10 @@
 // Parte del flujo: TODO — es la única puerta de Flutter hacia Go.
 // ─────────────────────────────────────────────────────────────
 
-import '../modelos/config_busqueda_fuente.dart';
-import '../modelos/item_feed.dart';
+import '../modelos/proveedores/config_busqueda_fuente.dart';
+import '../modelos/feed/item_feed.dart';
 import '../modelos/resultado_enlace.dart';
-import '../modelos/seccion_feed.dart';
+import '../modelos/feed/seccion_feed.dart';
 import 'estado_sesion_firmada.dart';
 import 'resultados_busqueda_stream.dart';
 

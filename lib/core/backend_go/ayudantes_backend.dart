@@ -9,9 +9,9 @@
 import 'dart:convert';
 
 import '../modelos/datos_setup.dart';
-import '../modelos/estado_premium.dart';
-import '../modelos/item_feed.dart';
-import '../modelos/seccion_feed.dart';
+import '../modelos/usuario/estado_premium.dart';
+import '../modelos/feed/item_feed.dart';
+import '../modelos/feed/seccion_feed.dart';
 
 /// Helpers estáticos para armar/parsear payloads del backend.
 class AyudantesBackend {

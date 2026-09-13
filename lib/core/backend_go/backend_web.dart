@@ -29,7 +29,7 @@ import 'package:http/http.dart' as http;
 
 import '../../config/secretos.dart';
 import '../../app/inyeccion.dart' as di;
-import '../cache/cache_premium.dart';
+import '../cache/almacenes/cache_premium.dart';
 import 'contrato_backend.dart';
 import 'mixins/acciones_mixin.dart';
 import 'mixins/ajustes_mixin.dart';

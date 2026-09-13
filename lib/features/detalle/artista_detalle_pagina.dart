@@ -12,12 +12,12 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../app/inyeccion.dart';
 import '../../core/backend_go/contrato_backend.dart';
-import '../../core/cache/cache_detalle.dart';
-import '../../core/cache/cache_detalle_memoria.dart';
-import '../../core/cache/reproduccion_detalle_local.dart';
-import '../../core/cache/reproduccion_sync.dart';
-import '../../core/modelos/detalle_artista.dart';
-import '../../core/modelos/item_feed.dart';
+import '../../core/cache/almacenes/cache_detalle.dart';
+import '../../core/cache/almacenes/cache_detalle_memoria.dart';
+import '../../core/cache/reproduccion/reproduccion_detalle_local.dart';
+import '../../core/cache/reproduccion/reproduccion_sync.dart';
+import '../../core/modelos/detalle/detalle_artista.dart';
+import '../../core/modelos/feed/item_feed.dart';
 import '../../core/plataforma/servicio_conectividad.dart';
 import '../../estado/cola/cubit_cola.dart';
 import '../../estado/descargas/cubit_descargas.dart';

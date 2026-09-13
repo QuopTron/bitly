@@ -15,12 +15,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../app/inyeccion.dart';
-import '../../core/cache/estado_cola.dart';
-import '../../core/cache/estado_reproductor.dart';
-import '../../core/modelos/estilo_visual.dart';
-import '../../core/modelos/item_feed.dart';
-import '../../core/modelos/perfil_rendimiento.dart';
-import '../../core/modelos/preferencias_estilo.dart';
+import '../../core/cache/estado/estado_cola.dart';
+import '../../core/cache/estado/estado_reproductor.dart';
+import '../../core/modelos/usuario/estilo_visual.dart';
+import '../../core/modelos/feed/item_feed.dart';
+import '../../core/modelos/usuario/perfil_rendimiento.dart';
+import '../../core/modelos/usuario/preferencias_estilo.dart';
 import '../../estado/cola/cubit_cola.dart';
 import '../../estado/like/cubit_like.dart';
 import '../../estado/reproductor/cubit_reproductor.dart';

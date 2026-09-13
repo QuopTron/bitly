@@ -12,8 +12,8 @@
 import 'package:flutter/material.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path/path.dart' as p;
-import '../../core/modelos/detalle_track.dart';
-import '../../core/servicios/exportacion_playlist.dart';
+import '../../core/modelos/detalle/detalle_track.dart';
+import '../../core/servicios/playlist/exportacion_playlist.dart';
 
 /// Corre el flujo completo de exportación con feedback en SnackBar.
 /// Devuelve true si la exportación tuvo éxito.

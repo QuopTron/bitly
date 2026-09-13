@@ -17,7 +17,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../core/cache/estado_cola.dart';
+import '../../core/cache/estado/estado_cola.dart';
 import '../../estado/cola/cubit_cola.dart';
 import '../../shared/tema/colores_app.dart';
 import '../../shared/widgets/fondos/fondo_ambiente.dart';

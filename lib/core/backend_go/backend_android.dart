@@ -12,8 +12,8 @@ import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../config/secretos.dart';
-import '../cache/cache_premium.dart';
-import '../cache/cache_ajustes.dart';
+import '../cache/almacenes/cache_premium.dart';
+import '../cache/almacenes/cache_ajustes.dart';
 import '../servicios/servicio_credenciales_proveedor.dart';
 import '../../app/inyeccion.dart' as di;
 import 'contrato_backend.dart';

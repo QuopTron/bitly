@@ -11,8 +11,8 @@ import 'dart:isolate';
 import 'package:audio_service/audio_service.dart';
 
 import '../../app/inyeccion.dart' as di;
-import '../cache/estado_cola.dart';
-import '../cache/estado_reproductor.dart';
+import '../cache/estado/estado_cola.dart';
+import '../cache/estado/estado_reproductor.dart';
 import '../../estado/cola/cubit_cola.dart';
 import '../../estado/reproductor/cubit_reproductor.dart';
 import 'manejador_notificacion_media.dart';

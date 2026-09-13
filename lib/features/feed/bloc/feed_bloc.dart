@@ -12,9 +12,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../app/inyeccion.dart';
 import '../../../core/backend_go/contrato_backend.dart';
-import '../../../core/cache/cache_ajustes.dart';
-import '../../../core/cache/cache_feed.dart';
-import '../../../core/modelos/seccion_feed.dart';
+import '../../../core/cache/almacenes/cache_ajustes.dart';
+import '../../../core/cache/almacenes/cache_feed.dart';
+import '../../../core/modelos/feed/seccion_feed.dart';
 import 'feed_estado.dart';
 import 'feed_evento.dart';
 

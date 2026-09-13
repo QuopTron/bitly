@@ -15,10 +15,10 @@ import 'package:http/http.dart' as http;
 
 import '../../config/secretos.dart';
 import '../../app/inyeccion.dart';
-import '../cache/cache_premium.dart';
-import '../cache/cache_ajustes.dart';
+import '../cache/almacenes/cache_premium.dart';
+import '../cache/almacenes/cache_ajustes.dart';
 import '../servicios/servicio_credenciales_proveedor.dart';
-import '../servicios/servidor_callback_escritorio.dart';
+import '../servicios/oauth/servidor_callback_escritorio.dart';
 import 'contrato_backend.dart';
 import 'mixins/acciones_mixin.dart';
 import 'mixins/ajustes_mixin.dart';

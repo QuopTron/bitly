@@ -23,7 +23,7 @@ import '../../../shared/utilidades/responsive.dart';
 import '../../../shared/widgets/vidrio/boton_vidrio.dart';
 import '../../../shared/widgets/vidrio/contenedor_vidrio.dart';
 import '../../../core/backend_go/contrato_backend.dart';
-import '../../../core/cache/cache_ajustes.dart';
+import '../../../core/cache/almacenes/cache_ajustes.dart';
 import '../bloc/setup_bloc.dart';
 import '../bloc/setup_estado.dart';
 import '../bloc/setup_evento.dart';

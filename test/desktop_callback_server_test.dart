@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:bitly/core/servicios/servidor_callback_escritorio.dart';
+import 'package:bitly/core/servicios/oauth/servidor_callback_escritorio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

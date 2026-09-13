@@ -10,8 +10,8 @@
 
 import 'package:equatable/equatable.dart';
 
-import '../../../core/modelos/config_busqueda_fuente.dart';
-import '../../../core/modelos/item_feed.dart';
+import '../../../core/modelos/proveedores/config_busqueda_fuente.dart';
+import '../../../core/modelos/feed/item_feed.dart';
 
 /// Estado del bloc de búsqueda.
 class EstadoBusqueda extends Equatable {

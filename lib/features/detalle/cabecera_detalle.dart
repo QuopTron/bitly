@@ -17,9 +17,9 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import '../../app/inyeccion.dart';
-import '../../core/modelos/estilo_visual.dart';
-import '../../core/modelos/perfil_rendimiento.dart';
-import '../../core/modelos/preferencias_estilo.dart';
+import '../../core/modelos/usuario/estilo_visual.dart';
+import '../../core/modelos/usuario/perfil_rendimiento.dart';
+import '../../core/modelos/usuario/preferencias_estilo.dart';
 import '../../shared/utilidades/responsive.dart';
 
 part 'cabecera_detalle_color.dart';

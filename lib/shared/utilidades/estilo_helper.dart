@@ -4,9 +4,9 @@
 import 'package:flutter/material.dart';
 
 import '../../app/inyeccion.dart';
-import '../../core/cache/cache_ajustes.dart';
-import '../../core/modelos/estilo_visual.dart';
-import '../../core/modelos/preferencias_estilo.dart';
+import '../../core/cache/almacenes/cache_ajustes.dart';
+import '../../core/modelos/usuario/estilo_visual.dart';
+import '../../core/modelos/usuario/preferencias_estilo.dart';
 
 /// Helper para consultar el estilo visual actual.
 class EstiloHelper {

@@ -13,9 +13,9 @@ import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../app/inyeccion.dart';
-import '../../../core/modelos/estilo_visual.dart';
-import '../../../core/modelos/item_feed.dart';
-import '../../../core/modelos/preferencias_estilo.dart';
+import '../../../core/modelos/usuario/estilo_visual.dart';
+import '../../../core/modelos/feed/item_feed.dart';
+import '../../../core/modelos/usuario/preferencias_estilo.dart';
 import '../../../estado/cola/cubit_cola.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../utilidades/paleta_portada.dart';

@@ -21,7 +21,7 @@ import 'package:media_kit/media_kit.dart';
 
 import 'package:bitly/estado/reproductor/cubit_reproductor.dart';
 import 'package:bitly/estado/cola/cubit_cola.dart';
-import 'package:bitly/core/modelos/item_feed.dart';
+import 'package:bitly/core/modelos/feed/item_feed.dart';
 import 'package:bitly/app/inyeccion.dart' as inj;
 
 void main() {

@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:bitly/core/servicios/servicio_verificacion.dart';
+import 'package:bitly/core/servicios/verificacion/servicio_verificacion.dart';
 
 void main() {
   group('grantVerificacionDeUrl', () {

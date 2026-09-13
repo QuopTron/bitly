@@ -18,7 +18,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../shared/utilidades/deteccion_plataforma.dart';
 import '../../app/inyeccion.dart' as di;
-import '../../core/cache/cache_ajustes.dart';
+import '../../core/cache/almacenes/cache_ajustes.dart';
 import 'bloc/splash_bloc.dart';
 import 'bloc/splash_estado.dart';
 import 'bloc/splash_evento.dart';

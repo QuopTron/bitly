@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
-import 'package:bitly/features/mi_espacio/perfil_mi_espacio.dart';
+import 'package:bitly/features/mi_espacio/perfil/perfil_mi_espacio.dart';
 import 'package:bitly/l10n/app_localizations.dart';
 
 void main() {

@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:bitly/core/servicios/resultado_oauth.dart';
+import 'package:bitly/core/servicios/oauth/resultado_oauth.dart';
 
 void main() {
   group('resultadoOauthDesdeUrl', () {

@@ -17,11 +17,11 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../app/inyeccion.dart';
 import '../../core/backend_go/contrato_backend.dart';
-import '../../core/cache/cache_ajustes.dart';
-import '../../core/modelos/detalle_album.dart';
-import '../../core/modelos/detalle_playlist.dart';
-import '../../core/modelos/detalle_track.dart';
-import '../../core/modelos/item_feed.dart';
+import '../../core/cache/almacenes/cache_ajustes.dart';
+import '../../core/modelos/detalle/detalle_album.dart';
+import '../../core/modelos/detalle/detalle_playlist.dart';
+import '../../core/modelos/detalle/detalle_track.dart';
+import '../../core/modelos/feed/item_feed.dart';
 import '../../estado/descargas/cubit_descargas.dart';
 import '../../estado/like/cubit_like.dart';
 import '../widgets/modales/hoja_opciones_descarga.dart';

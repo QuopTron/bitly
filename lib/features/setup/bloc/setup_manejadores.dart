@@ -15,8 +15,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../app/inyeccion.dart' as inj;
 import '../../../core/backend_go/contrato_backend.dart';
-import '../../../core/cache/cache_ajustes.dart';
-import '../../../core/cache/cache_premium.dart';
+import '../../../core/cache/almacenes/cache_ajustes.dart';
+import '../../../core/cache/almacenes/cache_premium.dart';
 import '../../../shared/utilidades/nombres_aleatorios.dart';
 import 'setup_estado.dart';
 import 'setup_evento.dart';

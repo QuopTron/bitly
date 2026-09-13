@@ -16,9 +16,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../app/inyeccion.dart';
-import '../../core/cache/cache_ajustes.dart';
-import '../../core/modelos/config_busqueda_fuente.dart';
-import '../../core/modelos/item_feed.dart';
+import '../../core/cache/almacenes/cache_ajustes.dart';
+import '../../core/modelos/proveedores/config_busqueda_fuente.dart';
+import '../../core/modelos/feed/item_feed.dart';
 import '../../core/servicios/servicio_enlaces.dart';
 import '../../estado/cola/cubit_cola.dart';
 import '../../l10n/app_localizations.dart';

@@ -11,7 +11,7 @@
 
 import 'package:flutter/material.dart';
 
-import '../../../core/modelos/config_busqueda_fuente.dart';
+import '../../../core/modelos/proveedores/config_busqueda_fuente.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/constantes/constantes_fuente.dart';
 import '../../../shared/tema/colores_app.dart';
