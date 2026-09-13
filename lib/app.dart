@@ -34,6 +34,7 @@ import 'router/route_names.dart';
 import 'shared/tema/envoltorio_color_dinamico.dart';
 import './shared/utilidades/plataforma/deteccion_plataforma.dart';
 import './shared/utilidades/plataforma/escala_texto.dart';
+import './shared/utilidades/plataforma/vista_tv.dart';
 import './shared/widgets/base/overlay_compartido.dart';
 import './shared/widgets/tv/puntero_tv.dart';
 
@@ -202,18 +203,31 @@ class _BitlyAppState extends State<BitlyApp> {
                     ),
                 ],
               );
-              // En TV no hay dedo: el cursor que mueve el control remoto hace
-              // de puntero, para que el usuario pueda moverse por toda la app
-              // sin depender del foco del D-pad.
-              if (esSmartTV(context)) {
-                contenido = PunteroTv(child: contenido);
+              final enTv = esSmartTV(context);
+
+              // TV: la app se dibuja en un lienzo lógico FIJO y se escala para
+              // llenar la pantalla. Sin esto, cada televisor (según su DPI)
+              // reporta otro ancho, entran otras columnas y el mismo diseño
+              // termina con scroll de sobra. Con el lienzo fijo el layout es
+              // idéntico en cualquier TV.
+              if (enTv) {
+                contenido = vistaDisenoTv(context: context, child: contenido);
               }
               // Protección de layout para TODAS las pantallas (setup, home,
               // reproductor, ajustes, modales): acota la escala de texto del
               // sistema y, si el usuario subió el "tamaño de pantalla" y el
               // ancho lógico quedó muy chico, escala la UI para que entre sin
               // desbordar.
-              return protegerLayout(context: context, child: contenido);
+              contenido = protegerLayout(context: context, child: contenido);
+
+              // En TV no hay dedo: el cursor que mueve el control remoto hace
+              // de puntero. Va por ENCIMA del lienzo (fuera del escalado) para
+              // que se dibuje en píxeles reales y el clic caiga exactamente
+              // donde se ve el cursor.
+              if (enTv) {
+                contenido = PunteroTv(child: contenido);
+              }
+              return contenido;
             },
           ),
         );

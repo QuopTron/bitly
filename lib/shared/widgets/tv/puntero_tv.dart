@@ -5,20 +5,35 @@
 // solo manda flechas. Sin puntero, el usuario queda encerrado: no hay dónde
 // "hacer foco" ni forma de tocar un botón que está a mitad de pantalla.
 //
-// Qué hace: dibuja un cursor sobre la app y lo maneja con el control remoto.
+// Qué hace: dibuja un cursor y lo maneja con el control remoto.
 //   - Flechas del D-pad  → mueven el cursor (con aceleración al mantener).
-//   - OK / Enter / Space → clic EN LA POSICIÓN del cursor: se sintetizan los
-//                          eventos de un toque real, así funciona cualquier
-//                          widget táctil de la app sin tocar sus pantallas.
-//   - Canal +/- / PageUp/Down → envía un scroll de rueda en esa posición, para
-//                          recorrer listas y grillas sin arrastrar.
+//   - OK / Enter / Space → clic EN LA POSICIÓN del cursor.
+//   - Canal +/- / PageUp/Down → scroll de rueda en esa posición, para recorrer
+//                          listas y grillas sin arrastrar.
 //
-// Detalle importante: mientras un campo de texto tiene el foco (buscador,
-// ajustes) el puntero se aparta y devuelve las flechas al campo, para que
-// escribir en TV siga funcionando como siempre.
+// Cómo hace el clic (esto es lo que estaba mal antes): emula un MOUSE, no un
+// dedo.
+//   * Al moverse manda un PointerHoverEvent: el resaltado sigue al cursor, así
+//     el usuario ve exactamente qué va a activar. Con un toque sintético no hay
+//     hover, el resaltado se queda en el último widget con foco y por eso
+//     parecía que "el puntero y la selección estaban desfasados".
+//   * Al hacer clic manda PointerDown/Up con kind: mouse: activa el widget que
+//     está DEBAJO del cursor, y no el que quedó con foco (que era la causa de
+//     "hago clic en el miniplayer y presiona una card").
 //
-// Se conecta con: app.dart (lo monta solo cuando esSmartTV) y flutter/gestures
-// (handlePointerEvent).
+// Coordenadas: el cursor se dibuja en el espacio LOCAL del Stack, pero los
+// eventos van en coordenadas GLOBALES (las que espera handlePointerEvent). La
+// conversión se hace con el RenderBox, así el clic cae exactamente donde se ve
+// el cursor aunque la app esté dentro de un FittedBox (viewport de TV o
+// protección por densidad).
+//
+// Las flechas SIEMPRE son del puntero, incluso con un campo de texto enfocado:
+// en TV el cursor es la única forma de moverse por la app. Para escribir, el
+// usuario hace clic en el campo (el clic de mouse coloca el caret) y teclea;
+// las letras y los números no se interceptan.
+//
+// Se conecta con: app.dart (lo monta solo cuando esSmartTV, por ENCIMA del
+// viewport de diseño) y flutter/gestures (handlePointerEvent).
 // Parte del flujo: entrada de usuario en TV.
 // ─────────────────────────────────────────────────────────────
 
@@ -35,6 +50,9 @@ class PunteroTv extends StatefulWidget {
   /// Radio visual del cursor.
   static const double radio = 13;
 
+  /// Clave del cursor: permite ubicarlo (y probar que el clic cae justo ahí).
+  static const Key claveCursor = Key('bitly-puntero-tv-cursor');
+
   const PunteroTv({super.key, required this.child});
 
   @override
@@ -49,12 +67,16 @@ class _PunteroTvState extends State<PunteroTv> {
   static const double _pasoScroll = 120;
 
   /// Id propio del puntero sintético: reusar el mismo evita que el framework
-  /// crea que son dispositivos distintos.
+  /// crea que son dispositivos distintos (y que el hover se pierda).
   static const int _idPuntero = 777;
 
   Offset _pos = Offset.zero;
   bool _posicionado = false;
   bool _presionando = false;
+
+  /// El dispositivo de mouse tiene que estar "agregado" antes de cualquier
+  /// hover; si no, MouseTracker descarta el evento y no hay resaltado.
+  bool _mouseAgregado = false;
 
   DateTime? _ultimaTecla;
   int _repeticion = 0;
@@ -70,26 +92,53 @@ class _PunteroTvState extends State<PunteroTv> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (!_posicionado) {
-      final tam = MediaQuery.sizeOf(context);
-      _pos = Offset(tam.width / 2, tam.height / 2);
-      _posicionado = true;
-    }
+    if (_posicionado) return;
+    _pos = _centro();
+    _posicionado = true;
   }
 
   @override
   void dispose() {
     HardwareKeyboard.instance.removeHandler(_alTeclado);
+    if (_mouseAgregado) {
+      _enviar(
+        PointerRemovedEvent(
+          device: _idPuntero,
+          kind: PointerDeviceKind.mouse,
+        ),
+      );
+    }
     super.dispose();
   }
 
-  /// True si el usuario está escribiendo: ahí las flechas son del campo de
-  /// texto (mover el caret), no del puntero.
-  bool _escribiendo() {
-    final ctx = FocusManager.instance.primaryFocus?.context;
-    if (ctx == null) return false;
-    return ctx.widget is EditableText ||
-        ctx.findAncestorStateOfType<EditableTextState>() != null;
+  /// Caja del widget: da el tamaño real y la conversión local → global.
+  RenderBox? get _caja {
+    final ro = context.findRenderObject();
+    return ro is RenderBox && ro.hasSize ? ro : null;
+  }
+
+  Size get _tamano => _caja?.size ?? MediaQuery.sizeOf(context);
+
+  Offset _centro() {
+    final t = _tamano;
+    return Offset(t.width / 2, t.height / 2);
+  }
+
+  /// Pasa una posición en el espacio del cursor al espacio de la PANTALLA
+  /// (el que usa handlePointerEvent). Tiene en cuenta cualquier transformación
+  /// de los ancestros (FittedBox del viewport de TV, protección por densidad).
+  Offset _global(Offset local) {
+    final caja = _caja;
+    if (caja == null) return local;
+    return caja.localToGlobal(local);
+  }
+
+  void _enviar(PointerEvent evento) {
+    try {
+      WidgetsBinding.instance.handlePointerEvent(evento);
+    } catch (_) {
+      // El árbol puede estar desmontándose (salida de la app): nunca tirar.
+    }
   }
 
   /// Delta de movimiento (o null) para una tecla del D-pad.
@@ -122,42 +171,33 @@ class _PunteroTvState extends State<PunteroTv> {
         key == LogicalKeyboardKey.space;
   }
 
-  /// False para devolverle las flechas al campo de texto o a un combo.
-  bool _debeIgnorar() {
-    if (!mounted) return true;
-    return _escribiendo();
-  }
-
   bool _alTeclado(KeyEvent evento) {
-    if (_debeIgnorar()) return false;
+    if (!mounted) return false;
 
     final key = evento.logicalKey;
-    final esRepeticion = evento is KeyRepeatEvent;
-    final esBaja = evento is KeyDownEvent;
-    final esAlza = evento is KeyUpEvent;
 
+    // 1) Flechas: mueven el cursor. Siempre, aunque haya un campo enfocado.
     final delta = _deltaDe(key);
     if (delta != null) {
-      if (esAlza) {
+      if (evento is KeyUpEvent) {
         _repeticion = 0;
         _ultimaTecla = null;
-        return true;
-      }
-      if (esBaja || esRepeticion) {
+      } else {
         _mover(delta);
-        return true;
       }
-    }
-
-    if (_esClic(key)) {
-      // Solo en la bajada inicial: una repetición no debe disparar otro clic.
-      if (esBaja) _clicar();
       return true;
     }
 
+    // 2) OK / Enter: clic en la posición del cursor (solo en la bajada).
+    if (_esClic(key)) {
+      if (evento is KeyDownEvent) _clicar();
+      return true;
+    }
+
+    // 3) Canal / página: scroll en la posición del cursor.
     final scroll = _scrollDe(key);
     if (scroll != null) {
-      if (esBaja || esRepeticion) _desplazar(scroll);
+      if (evento is! KeyUpEvent) _desplazar(scroll);
       return true;
     }
 
@@ -165,7 +205,7 @@ class _PunteroTvState extends State<PunteroTv> {
   }
 
   /// Mueve el cursor, acelerando si el usuario mantiene la flecha apretada:
-  /// cruzar la pantalla pulsa a pulsa sería eterno.
+  /// cruzar la pantalla pulsada a pulsada sería eterno.
   void _mover(Offset delta) {
     final ahora = DateTime.now();
     final seguido =
@@ -175,39 +215,67 @@ class _PunteroTvState extends State<PunteroTv> {
     _ultimaTecla = ahora;
 
     final factor = 1 + _repeticion * 0.16;
-    final tam = MediaQuery.sizeOf(context);
+    final t = _tamano;
     final nueva = Offset(
-      (_pos.dx + delta.dx * factor).clamp(0.0, tam.width),
-      (_pos.dy + delta.dy * factor).clamp(0.0, tam.height),
+      (_pos.dx + delta.dx * factor).clamp(0.0, t.width),
+      (_pos.dy + delta.dy * factor).clamp(0.0, t.height),
     );
     setState(() => _pos = nueva);
+    _enviarHover();
   }
 
-  /// Simula un toque en la posición del cursor. Se manda un PointerDown y,
-  /// poco después, un PointerUp: es exactamente la secuencia que produce el
-  /// dedo, así que los botones, listas y tarjetas de la app responden sin que
-  /// ninguna pantalla tenga que saber que existe un control remoto.
+  /// Manda el hover del mouse para que el resaltado siga al cursor. El primer
+  /// evento es un PointerAddedEvent: sin él, MouseTracker ignora el hover.
+  void _enviarHover() {
+    final g = _global(_pos);
+    if (!_mouseAgregado) {
+      _mouseAgregado = true;
+      _enviar(
+        PointerAddedEvent(
+          device: _idPuntero,
+          kind: PointerDeviceKind.mouse,
+          position: g,
+        ),
+      );
+    }
+    _enviar(
+      PointerHoverEvent(
+        device: _idPuntero,
+        kind: PointerDeviceKind.mouse,
+        position: g,
+        buttons: 0,
+      ),
+    );
+  }
+
+  /// Clic de mouse en la posición del cursor: PointerDown y, poco después,
+  /// PointerUp. Es la misma secuencia que manda un mouse real, así que los
+  /// botones, listas y tarjetas responden sin que ninguna pantalla sepa que
+  /// existe un control remoto.
   void _clicar() {
     if (_presionando) return;
     _presionando = true;
     setState(() {});
 
-    final pos = _pos;
-    WidgetsBinding.instance.handlePointerEvent(
+    // El dispositivo tiene que estar agregado (hover) antes del clic.
+    _enviarHover();
+    final g = _global(_pos);
+
+    _enviar(
       PointerDownEvent(
-        position: pos,
-        pointer: _idPuntero,
-        device: 1,
-        kind: PointerDeviceKind.touch,
+        device: _idPuntero,
+        kind: PointerDeviceKind.mouse,
+        position: g,
+        buttons: kPrimaryButton,
       ),
     );
     Timer(const Duration(milliseconds: 70), () {
-      WidgetsBinding.instance.handlePointerEvent(
+      _enviar(
         PointerUpEvent(
-          position: pos,
-          pointer: _idPuntero,
-          device: 1,
-          kind: PointerDeviceKind.touch,
+          device: _idPuntero,
+          kind: PointerDeviceKind.mouse,
+          position: g,
+          buttons: 0,
         ),
       );
       if (mounted) setState(() => _presionando = false);
@@ -216,11 +284,13 @@ class _PunteroTvState extends State<PunteroTv> {
 
   /// Manda un scroll de rueda en la posición del cursor para recorrer listas.
   void _desplazar(double dy) {
-    WidgetsBinding.instance.handlePointerEvent(
+    _enviarHover();
+    _enviar(
       PointerScrollEvent(
-        position: _pos,
-        scrollDelta: Offset(0, dy),
+        device: _idPuntero,
         kind: PointerDeviceKind.mouse,
+        position: _global(_pos),
+        scrollDelta: Offset(0, dy),
       ),
     );
   }
@@ -230,12 +300,15 @@ class _PunteroTvState extends State<PunteroTv> {
     return Stack(
       children: [
         widget.child,
-        // El cursor nunca intercepta toques ni taps sintéticos: solo se dibuja.
+        // El cursor nunca intercepta eventos: solo se dibuja.
         Positioned(
           left: _pos.dx - PunteroTv.radio,
           top: _pos.dy - PunteroTv.radio,
           child: IgnorePointer(
-            child: _CursorTv(presionando: _presionando),
+            child: _CursorTv(
+              key: PunteroTv.claveCursor,
+              presionando: _presionando,
+            ),
           ),
         ),
       ],
@@ -248,7 +321,7 @@ class _PunteroTvState extends State<PunteroTv> {
 class _CursorTv extends StatelessWidget {
   final bool presionando;
 
-  const _CursorTv({required this.presionando});
+  const _CursorTv({super.key, required this.presionando});
 
   static const Color _verde = Color(0xFF1DB954);
 
@@ -264,7 +337,10 @@ class _CursorTv extends StatelessWidget {
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           color: Colors.white.withValues(alpha: presionando ? 0.9 : 0.72),
-          border: Border.all(color: Colors.black.withValues(alpha: 0.55), width: 2),
+          border: Border.all(
+            color: Colors.black.withValues(alpha: 0.55),
+            width: 2,
+          ),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.45),
