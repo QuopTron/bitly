@@ -172,6 +172,19 @@ cada tag. Los binarios van a la **GitHub Release** (nunca al repo).
 
 ---
 
+## Notas de investigación (`docs/`)
+
+| Archivo | Qué contiene |
+|---|---|
+| `knowledge.md` | Conocimiento acumulado del proyecto (decisiones y hallazgos) |
+| `extensiones_analisis.md` | Análisis de las extensiones de fuentes |
+| `extraccion_music_assistant.md` | Qué se puede extraer del ecosistema `music-assistant` |
+| `INSTALAR_EN_TV.md` | Instalación en TV por Downloader |
+| `PLAN_TUTORIAL_INTERACTIVO.md` | Plan del tutorial interactivo |
+| `01-` a `05-` y `PLAN_MIGRACION_COMPLETO.md` | Historial de la migración |
+
+---
+
 ## Notas de higiene (pendientes conocidos)
 
 - **Premium**: el secreto de los códigos está hardcodeado (`checker.go`) y el
