@@ -21,7 +21,7 @@ import '../../../estado/reproductor/cubit_reproductor.dart';
 import '../../tema/colores_app.dart';
 import '../../utilidades/interaccion/haptico.dart';
 import '../../utilidades/plataforma/responsive.dart';
-import '../tarjetas/imagen_portada.dart';
+import '../tarjetas/portada/imagen_portada.dart';
 
 part 'miniplayer_animacion.dart';
 part 'miniplayer_build.dart';

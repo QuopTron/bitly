@@ -19,17 +19,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:logger/logger.dart';
 
-import '../../../../app/inyeccion.dart' as di;
-import '../../../../l10n/app_localizations.dart';
-import '../../../../shared/tema/colores_app.dart';
-import '../../../../shared/utilidades/plataforma/responsive.dart';
-import '../../../../shared/widgets/vidrio/boton_vidrio.dart';
-import '../../../../shared/widgets/vidrio/contenedor_vidrio.dart';
-import '../../../../core/backend_go/nucleo/contrato_backend.dart';
-import '../../../../core/servicios/verificacion/servicio_verificacion.dart';
-import '../../bloc/setup_bloc.dart';
-import '../../bloc/setup_estado.dart';
-import '../../bloc/setup_evento.dart';
+import '../../../../../app/inyeccion.dart' as di;
+import '../../../../../l10n/app_localizations.dart';
+import '../../../../../shared/tema/colores_app.dart';
+import '../../../../../shared/utilidades/plataforma/responsive.dart';
+import '../../../../../shared/widgets/vidrio/boton_vidrio.dart';
+import '../../../../../shared/widgets/vidrio/contenedor_vidrio.dart';
+import '../../../../../core/backend_go/nucleo/contrato_backend.dart';
+import '../../../../../core/servicios/verificacion/servicio_verificacion.dart';
+import '../../../bloc/setup_bloc.dart';
+import '../../../bloc/setup_estado.dart';
+import '../../../bloc/setup_evento.dart';
 
 part 'slide_verificacion_widgets.dart';
 part 'slide_verificacion_logica.dart';

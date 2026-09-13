@@ -28,7 +28,7 @@ import '../../../shared/tema/colores_app.dart';
 import '../../../shared/utilidades/interaccion/haptico.dart';
 import '../../../shared/utilidades/portada/paleta_portada.dart';
 import '../../../shared/utilidades/plataforma/responsive.dart';
-import '../../../shared/widgets/tarjetas/imagen_portada.dart';
+import '../../../shared/widgets/tarjetas/portada/imagen_portada.dart';
 import '../video/textura_video_fondo.dart';
 
 part 'modal_cola_hoja.dart';

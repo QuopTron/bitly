@@ -34,7 +34,7 @@ import '../../../estado/reproductor/cubit_reproductor.dart';
 import '../../../shared/tema/colores_app.dart';
 import '../../../shared/utilidades/portada/paleta_portada.dart';
 import '../../../shared/utilidades/plataforma/responsive.dart';
-import '../../../shared/widgets/tarjetas/imagen_portada.dart';
+import '../../../shared/widgets/tarjetas/portada/imagen_portada.dart';
 import '../video/area_portada_video.dart';
 import '../controles/barra_seek_reproductor.dart';
 import '../controles/fila_controles_reproductor.dart';

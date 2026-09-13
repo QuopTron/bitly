@@ -15,17 +15,17 @@ import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../app/inyeccion.dart';
-import '../../../core/modelos/usuario/estilo_visual.dart';
-import '../../../core/modelos/feed/item_feed.dart';
-import '../../../core/modelos/usuario/preferencias_estilo.dart';
-import '../../../estado/cola/cubit_cola.dart';
-import '../../../estado/like/cubit_like.dart';
-import '../../../estado/playlists/cubit_playlists.dart';
-import '../../../l10n/app_localizations.dart';
-import '../../tema/colores_app.dart';
-import '../../utilidades/portada/paleta_portada.dart';
-import '../../utilidades/plataforma/responsive.dart';
+import '../../../../app/inyeccion.dart';
+import '../../../../core/modelos/usuario/estilo_visual.dart';
+import '../../../../core/modelos/feed/item_feed.dart';
+import '../../../../core/modelos/usuario/preferencias_estilo.dart';
+import '../../../../estado/cola/cubit_cola.dart';
+import '../../../../estado/like/cubit_like.dart';
+import '../../../../estado/playlists/cubit_playlists.dart';
+import '../../../../l10n/app_localizations.dart';
+import '../../../tema/colores_app.dart';
+import '../../../utilidades/portada/paleta_portada.dart';
+import '../../../utilidades/plataforma/responsive.dart';
 
 part 'modal_agregar_a_crear.dart';
 part 'modal_agregar_a_inline.dart';

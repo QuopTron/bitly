@@ -31,8 +31,8 @@ import '../../../shared/tema/colores_app.dart';
 import '../../../shared/utilidades/descarga/estrategia_descarga.dart';
 import '../../../shared/utilidades/plataforma/responsive.dart';
 import '../../../shared/widgets/vidrio/boton_accion_vidrio.dart';
-import '../../../shared/widgets/modales/hoja_opciones_descarga.dart';
-import '../../../shared/widgets/tarjetas/tarjeta_track.dart';
+import '../../../shared/widgets/modales/descarga/hoja_opciones_descarga.dart';
+import '../../../shared/widgets/tarjetas/track/tarjeta_track.dart';
 import '../comun/cabecera_detalle.dart';
 import '../comun/esqueleto_detalle.dart';
 

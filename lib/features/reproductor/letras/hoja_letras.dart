@@ -26,7 +26,7 @@ import '../../../estado/like/cubit_like.dart';
 import '../../../estado/reproductor/cubit_reproductor.dart';
 import '../../../shared/utilidades/portada/paleta_portada.dart';
 import '../../../shared/utilidades/plataforma/responsive.dart';
-import '../../../shared/widgets/tarjetas/imagen_portada.dart';
+import '../../../shared/widgets/tarjetas/portada/imagen_portada.dart';
 
 part 'hoja_letras_parse.dart';
 part 'hoja_letras_linea.dart';

@@ -17,7 +17,7 @@ import 'package:webview_flutter_android/webview_flutter_android.dart';
 import 'package:webview_win_floating/webview_win_floating.dart'
     show WindowsPlatformWebViewControllerCreationParams;
 
-import '../../../core/servicios/verificacion/servicio_verificacion.dart';
+import '../../../../core/servicios/verificacion/servicio_verificacion.dart';
 import 'vista_fallo_verificacion.dart';
 
 part 'panel_verificacion_branding.dart';

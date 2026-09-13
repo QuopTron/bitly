@@ -27,8 +27,8 @@ import '../../../../shared/tema/colores_app.dart';
 import '../../../../shared/utilidades/descarga/estrategia_descarga.dart';
 import '../../../../shared/utilidades/plataforma/responsive.dart';
 import '../../../../shared/widgets/esqueletos/esqueleto_busqueda.dart';
-import '../../../../shared/widgets/tarjetas/tarjeta_grilla.dart';
-import '../../../../shared/widgets/tarjetas/tarjeta_track.dart';
+import '../../../../shared/widgets/tarjetas/grilla/tarjeta_grilla.dart';
+import '../../../../shared/widgets/tarjetas/track/tarjeta_track.dart';
 import '../../../../shared/utilidades/formato/estilo_helper.dart';
 
 part 'resultados_busqueda_estados.dart';

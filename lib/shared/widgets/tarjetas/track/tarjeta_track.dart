@@ -13,18 +13,18 @@
 
 import 'package:flutter/material.dart';
 
-import '../../../app/inyeccion.dart';
-import '../../../core/modelos/usuario/estilo_visual.dart';
-import '../../../core/modelos/usuario/perfil_rendimiento.dart';
-import '../../../core/modelos/usuario/preferencias_estilo.dart';
-import '../../../estado/reproductor/cubit_reproductor.dart';
-import '../../../l10n/app_localizations.dart';
-import '../../tema/colores_app.dart';
-import '../../utilidades/interaccion/haptico.dart';
-import '../../utilidades/portada/paleta_portada.dart';
-import '../../utilidades/plataforma/responsive.dart';
-import 'imagen_portada.dart';
-import '../indicadores/indicador_descarga.dart';
+import '../../../../app/inyeccion.dart';
+import '../../../../core/modelos/usuario/estilo_visual.dart';
+import '../../../../core/modelos/usuario/perfil_rendimiento.dart';
+import '../../../../core/modelos/usuario/preferencias_estilo.dart';
+import '../../../../estado/reproductor/cubit_reproductor.dart';
+import '../../../../l10n/app_localizations.dart';
+import '../../../tema/colores_app.dart';
+import '../../../utilidades/interaccion/haptico.dart';
+import '../../../utilidades/portada/paleta_portada.dart';
+import '../../../utilidades/plataforma/responsive.dart';
+import '../portada/imagen_portada.dart';
+import '../../indicadores/indicador_descarga.dart';
 
 part 'tarjeta_track_descarga.dart';
 part 'tarjeta_track_cuerpo.dart';

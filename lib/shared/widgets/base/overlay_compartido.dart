@@ -12,7 +12,7 @@ import 'package:flutter/material.dart';
 import '../../../core/modelos/feed/item_feed.dart';
 import '../../tema/colores_app.dart';
 import '../../utilidades/plataforma/responsive.dart';
-import '../tarjetas/imagen_portada.dart';
+import '../tarjetas/portada/imagen_portada.dart';
 
 /// Overlay "compartido contigo" para aperturas por deep link.
 class OverlayCompartido extends StatefulWidget {

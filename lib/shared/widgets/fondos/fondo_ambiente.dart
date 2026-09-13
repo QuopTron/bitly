@@ -27,7 +27,7 @@ import '../../../estado/cola/cubit_cola.dart';
 import '../../../estado/like/cubit_like.dart';
 import '../../tema/colores_app.dart';
 import '../../utilidades/portada/paleta_portada.dart';
-import '../tarjetas/imagen_portada.dart';
+import '../tarjetas/portada/imagen_portada.dart';
 
 /// Fondo con el cover de la canción actual envuelve [child].
 /// Lee CubitCola (canción actual) y CubitLikes (mejor carátula local).

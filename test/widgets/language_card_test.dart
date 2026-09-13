@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
-import 'package:bitly/shared/widgets/tarjetas/tarjeta_idioma.dart';
+import 'package:bitly/shared/widgets/tarjetas/opcion/tarjeta_idioma.dart';
 
 void main() {
   group('TarjetaIdioma', () {

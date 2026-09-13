@@ -12,16 +12,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../../l10n/app_localizations.dart';
-import '../../../../shared/tema/colores_app.dart';
-import '../../../../shared/utilidades/plataforma/responsive.dart';
-import '../../../../shared/widgets/vidrio/boton_vidrio.dart';
-import '../../../../shared/widgets/vidrio/contenedor_vidrio.dart';
-import '../../../../shared/widgets/tarjetas/tarjeta_modo.dart';
-import '../../bloc/setup_bloc.dart';
-import '../../bloc/setup_estado.dart';
-import '../../bloc/setup_evento.dart';
-import '../tarjetas/tarjeta_codigo_premium.dart';
+import '../../../../../l10n/app_localizations.dart';
+import '../../../../../shared/tema/colores_app.dart';
+import '../../../../../shared/utilidades/plataforma/responsive.dart';
+import '../../../../../shared/widgets/vidrio/boton_vidrio.dart';
+import '../../../../../shared/widgets/vidrio/contenedor_vidrio.dart';
+import '../../../../../shared/widgets/tarjetas/opcion/tarjeta_modo.dart';
+import '../../../bloc/setup_bloc.dart';
+import '../../../bloc/setup_estado.dart';
+import '../../../bloc/setup_evento.dart';
+import '../../tarjetas/tarjeta_codigo_premium.dart';
 
 part 'slide_modo_widgets.dart';
 

@@ -9,7 +9,7 @@
 
 import 'package:flutter/material.dart';
 
-import '../../utilidades/plataforma/responsive.dart';
+import '../../../utilidades/plataforma/responsive.dart';
 
 /// Tarjeta de modo seleccionable (free/premium).
 class TarjetaModo extends StatelessWidget {

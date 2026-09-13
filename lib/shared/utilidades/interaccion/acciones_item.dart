@@ -24,9 +24,9 @@ import '../../../core/modelos/detalle/detalle_track.dart';
 import '../../../core/modelos/feed/item_feed.dart';
 import '../../../estado/descargas/cubit_descargas.dart';
 import '../../../estado/like/cubit_like.dart';
-import '../../widgets/modales/hoja_opciones_descarga.dart';
-import '../../widgets/modales/modal_agregar_a.dart';
-import '../../widgets/modales/modal_info_cancion.dart';
+import '../../widgets/modales/descarga/hoja_opciones_descarga.dart';
+import '../../widgets/modales/agregar_a/modal_agregar_a.dart';
+import '../../widgets/modales/info_cancion/modal_info_cancion.dart';
 import '../descarga/exportacion_playlist_ui.dart';
 
 part 'acciones_item_detalle.dart';

@@ -38,7 +38,7 @@ import '../../../shared/utilidades/portada/paleta_portada.dart';
 import '../../../shared/utilidades/formato/estilo_helper.dart';
 import '../../tutorial_interactivo/motor/tutorial_controller.dart';
 import '../../tutorial_interactivo/motor/tutorial_pasos.dart';
-import '../../../shared/widgets/tarjetas/imagen_portada.dart' show imagenDesdeUrl;
+import '../../../shared/widgets/tarjetas/portada/imagen_portada.dart' show imagenDesdeUrl;
 import '../../../core/modelos/usuario/estilo_visual.dart';
 import '../../../core/modelos/usuario/preferencias_estilo.dart';
 import '../../../core/modelos/usuario/perfil_rendimiento.dart';

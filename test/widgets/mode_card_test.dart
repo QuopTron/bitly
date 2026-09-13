@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
-import 'package:bitly/shared/widgets/tarjetas/tarjeta_modo.dart';
+import 'package:bitly/shared/widgets/tarjetas/opcion/tarjeta_modo.dart';
 
 void main() {
   group('TarjetaModo', () {

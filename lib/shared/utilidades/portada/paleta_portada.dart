@@ -17,7 +17,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
-import '../../widgets/tarjetas/imagen_portada.dart' show esUrlLocal;
+import '../../widgets/tarjetas/portada/imagen_portada.dart' show esUrlLocal;
 
 part 'paleta_portada_contraste.dart';
 part 'paleta_portada_calculo.dart';
