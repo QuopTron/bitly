@@ -95,13 +95,13 @@ git clone --single-branch --branch 2.0.0 --depth 1 \
   ~/bgutil-ytdlp-pot-provider
 
 # 2) Levantarlo (compila la primera vez: npm ci + tsc)
-scripts/pot_local.sh
+scripts/pruebas/pot_local.sh
 
 # 3) ¿Está respondiendo?
-scripts/pot_local.sh --estado
+scripts/pruebas/pot_local.sh --estado
 ```
 
-`scripts/pot_local.sh` busca el clon solo (al lado del repo, en `$HOME` o en
+`scripts/pruebas/pot_local.sh` busca el clon solo (al lado del repo, en `$HOME` o en
 `$POT_DIR`), compila si falta y no levanta un segundo server si ya hay uno en
 4416.
 
@@ -135,7 +135,7 @@ adb reverse --list        # verificar
 
 ```bash
 # 1) El server responde y acuña tokens reales
-scripts/pot_local.sh --estado
+scripts/pruebas/pot_local.sh --estado
 curl -s -X POST http://127.0.0.1:4416/get_pot -H "Content-Type: application/json" \
      -d '{"content_binding":"test123"}'
 
@@ -144,10 +144,10 @@ adb shell "curl -s -m 60 -X POST http://127.0.0.1:4416/get_pot \
   -H 'Content-Type: application/json' --data @-" <<< '{"content_binding":"test123"}'
 
 # 3) Los contratos de la extensión, offline y en CI
-scripts/pruebas_extensiones.sh          # incluye ytmusic_pot.js (orden de clientes + token)
+scripts/pruebas/pruebas_extensiones.sh          # incluye ytmusic_pot.js (orden de clientes + token)
 ```
 
-`scripts/pruebas_extensiones/ytmusic_pot.js` corre en CI y verifica: el contrato
+`scripts/pruebas/extensiones/ytmusic_pot.js` corre en CI y verifica: el contrato
 real de bgutil (incluido que rechace `visitor_data`), la prioridad de clientes
 con/sin proveedor, que la consecuencia sea la esperada (con token → `itag=251`;
 sin token → `itag=18`) y que **las rutas de audio y video no compartan URL**
@@ -193,7 +193,7 @@ el "YouTube suena mal" que no dependía de lo que el usuario tocara.
 Ahora la clave lleva la ruta (`audio:` / `video:`) y una entrada degradada se
 descarta si hay proveedor, a lo sumo una vez por minuto (para no pagar la cadena
 de clientes en cada canción). Cubierto por el verificador
-`scripts/pruebas_extensiones/ytmusic_pot.js` (sección 8).
+`scripts/pruebas/extensiones/ytmusic_pot.js` (sección 8).
 
 ---
 
@@ -201,9 +201,9 @@ de clientes en cada canción). Cubierto por el verificador
 
 | Archivo | Qué es |
 |---|---|
-| `scripts/pot_local.sh` | levanta el proveedor en esta máquina (y `--estado`) |
-| `scripts/pruebas_extensiones/ytmusic_pot.js` | verificador del token y del orden de clientes |
-| `scripts/pruebas_extensiones.sh` | corre todos los verificadores de extensiones |
+| `scripts/pruebas/pot_local.sh` | levanta el proveedor en esta máquina (y `--estado`) |
+| `scripts/pruebas/extensiones/ytmusic_pot.js` | verificador del token y del orden de clientes |
+| `scripts/pruebas/pruebas_extensiones.sh` | corre todos los verificadores de extensiones |
 | `assets/extensions/ytmusic-spotiflac/index.js` | `getGvsPoToken`, `requestExternalGvsPoToken`, `clientesInnerTubeEnOrden` |
 | `assets/extensions/ytmusic-spotiflac/manifest.json` | ajustes `poTokenMode`, `poTokenProviderUrl`, `manualGvsPoToken`, `cobaltApiUrl` |
 | `go_backend/internal/download/orchestrator_video.go` | ruta de **video** de Go: `ResolveVideoURL` → `GetVisualizerURL` (itag=18) |

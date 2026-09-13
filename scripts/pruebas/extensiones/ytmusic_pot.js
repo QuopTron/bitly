@@ -22,8 +22,8 @@
 //      conexión fallida cada una
 //
 // Uso (desde la raíz del repo):
-//   node scripts/pruebas_extensiones/ytmusic_pot.js
-//   node scripts/pruebas_extensiones/ytmusic_pot.js <ruta-al-index.js>   # p.ej. un mutante
+//   node scripts/pruebas/extensiones/ytmusic_pot.js
+//   node scripts/pruebas/extensiones/ytmusic_pot.js <ruta-al-index.js>   # p.ej. un mutante
 //
 // Se conecta con: assets/extensions/ytmusic-spotiflac/index.js (extensión) y
 // go_backend/internal/bundled_extensions/ytmusic-spotiflac/index.js (la copia
@@ -152,11 +152,17 @@ function serverBgutil2x() {
       return {
         ok: false,
         status: 400,
-        json: () => ({ error: "visitor_data is deprecated, use content_binding instead" }),
+        json: () => ({
+          error: "visitor_data is deprecated, use content_binding instead",
+        }),
       };
     }
     if (!body.content_binding) {
-      return { ok: false, status: 400, json: () => ({ error: "content_binding required" }) };
+      return {
+        ok: false,
+        status: 400,
+        json: () => ({ error: "content_binding required" }),
+      };
     }
     return respuestaBgutil("TOKEN_CONTENT_BINDING", body.content_binding);
   };
@@ -167,12 +173,19 @@ function serverBgutil1x() {
   return (url, opts) => {
     const body = JSON.parse(opts.body || "{}");
     if (!body.visitor_data) {
-      return { ok: false, status: 400, json: () => ({ error: "visitor_data required" }) };
+      return {
+        ok: false,
+        status: 400,
+        json: () => ({ error: "visitor_data required" }),
+      };
     }
     return {
       ok: true,
       status: 200,
-      json: () => ({ po_token: "TOKEN_LEGACY", visit_identifier: body.visitor_data }),
+      json: () => ({
+        po_token: "TOKEN_LEGACY",
+        visit_identifier: body.visitor_data,
+      }),
     };
   };
 }
@@ -196,10 +209,15 @@ console.log("\n== 1) normalizePoTokenProviderURL ==");
     t.normalizePoTokenProviderURL("http://x:4416/get_pot") ===
       "http://x:4416/get_pot",
   );
-  check("basura -> vacío", t.normalizePoTokenProviderURL("no es una url") === "");
+  check(
+    "basura -> vacío",
+    t.normalizePoTokenProviderURL("no es una url") === "",
+  );
 }
 
-console.log("\n== 2) sin proveedor configurado se prueba el local (bgutil 4416) ==");
+console.log(
+  "\n== 2) sin proveedor configurado se prueba el local (bgutil 4416) ==",
+);
 {
   const { t, llamadas } = cargar(serverBgutil2x());
   const cands = t.poTokenProviderCandidates();
@@ -215,7 +233,12 @@ console.log("\n== 2) sin proveedor configurado se prueba el local (bgutil 4416) 
     JSON.stringify(cands),
   );
 
-  const out = t.requestExternalGvsPoToken("VIDEO1", clienteGvs(), "visitor1", false);
+  const out = t.requestExternalGvsPoToken(
+    "VIDEO1",
+    clienteGvs(),
+    "visitor1",
+    false,
+  );
   check(
     "devuelve el token del proveedor local",
     !!(out && out.token === "TOKEN_CONTENT_BINDING"),
@@ -241,7 +264,12 @@ console.log("\n== 2) sin proveedor configurado se prueba el local (bgutil 4416) 
 console.log("\n== 2b) proveedor VIEJO (1.x) que solo acepta visitor_data ==");
 {
   const { t, llamadas } = cargar(serverBgutil1x());
-  const out = t.requestExternalGvsPoToken("VIDEO2", clienteGvs(), "visitor_legacy", false);
+  const out = t.requestExternalGvsPoToken(
+    "VIDEO2",
+    clienteGvs(),
+    "visitor_legacy",
+    false,
+  );
   check(
     "cae al 2do payload y igual consigue token",
     !!(out && out.token === "TOKEN_LEGACY"),
@@ -263,7 +291,9 @@ console.log("\n== 3) mode=off no consulta ningún proveedor ==");
   check("cero peticiones", llamadas.length === 0, "hubo " + llamadas.length);
 }
 
-console.log("\n== 4) proveedor caído: se enfría y no reintenta en cada canción ==");
+console.log(
+  "\n== 4) proveedor caído: se enfría y no reintenta en cada canción ==",
+);
 {
   const { t, llamadas } = cargar(() => {
     throw new Error("connect ECONNREFUSED 127.0.0.1:4416");
@@ -279,7 +309,9 @@ console.log("\n== 4) proveedor caído: se enfría y no reintenta en cada canció
   check("primer intento devuelve vacío", !uno, String(uno));
   check("segundo y tercer intento tampoco inventan token", !dos && !tres);
   check(
-    "la 1ra canción prueba a lo sumo los candidatos locales (" + candidatos + ")",
+    "la 1ra canción prueba a lo sumo los candidatos locales (" +
+      candidatos +
+      ")",
     tras1 <= candidatos,
     "hubo " + tras1,
   );
@@ -307,7 +339,12 @@ console.log("\n== 4b) proveedor SOLO alcanzable por el alias del emulador ==");
     return respuestaBgutil("TOKEN_EMULADOR", "vid-emu");
   });
   t.setTokenMode("auto");
-  const out = t.requestExternalGvsPoToken("VIDEO_EMU", clienteGvs(), "vd", false);
+  const out = t.requestExternalGvsPoToken(
+    "VIDEO_EMU",
+    clienteGvs(),
+    "vd",
+    false,
+  );
   check(
     "encuentra el proveedor por el alias del emulador",
     !!(out && out.token === "TOKEN_EMULADOR"),
@@ -325,14 +362,20 @@ console.log("\n== 5) mode=auto con proveedor sano ==");
   const { t, llamadas, avisos } = cargar(serverBgutil2x());
   t.setTokenMode("auto");
   const tok = t.getGvsPoToken("VIDEO9", clienteGvs(), "visitor9", false);
-  check("getGvsPoToken devuelve el token", tok === "TOKEN_CONTENT_BINDING", String(tok));
+  check(
+    "getGvsPoToken devuelve el token",
+    tok === "TOKEN_CONTENT_BINDING",
+    String(tok),
+  );
   const segunda = t.getGvsPoToken("VIDEO9", clienteGvs(), "visitor9", false);
   check(
     "el 2do uso sale del caché (sin nueva petición)",
     segunda === "TOKEN_CONTENT_BINDING" && llamadas.length === 1,
     "hubo " + llamadas.length,
   );
-  const anuncios = avisos.filter((a) => a.indexOf("[POT] PO Token obtenido") !== -1);
+  const anuncios = avisos.filter(
+    (a) => a.indexOf("[POT] PO Token obtenido") !== -1,
+  );
   check(
     "avisa en el log cuando el proveedor entra en juego (visible con logLevel=warn)",
     anuncios.length === 1,
@@ -341,12 +384,15 @@ console.log("\n== 5) mode=auto con proveedor sano ==");
   t.getGvsPoToken("VIDEO10", clienteGvs(), "visitor10", false);
   check(
     "el aviso no se repite por canción",
-    avisos.filter((a) => a.indexOf("[POT] PO Token obtenido") !== -1).length === 1,
+    avisos.filter((a) => a.indexOf("[POT] PO Token obtenido") !== -1).length ===
+      1,
     "avisos totales=" + avisos.length,
   );
 }
 
-console.log("\n== 6) orden de clientes: solo se priorizan los que dan audio-only si HAY proveedor ==");
+console.log(
+  "\n== 6) orden de clientes: solo se priorizan los que dan audio-only si HAY proveedor ==",
+);
 {
   // Proveedor caído. Antes de intentar nada no se puede saber que está caído,
   // así que el primer intento va optimista (prioriza los clientes con token) y
@@ -412,8 +458,10 @@ console.log("\n== 6) orden de clientes: solo se priorizan los que dan audio-only
   apagado.t.setTokenMode("off");
   check(
     "mode=off: no se prioriza nada aunque el proveedor esté vivo",
-    apagado.t.clientesInnerTubeEnOrden().map((c) => c.name).join(",") ===
-      apagado.t.nombresClientesOriginales.join(","),
+    apagado.t
+      .clientesInnerTubeEnOrden()
+      .map((c) => c.name)
+      .join(",") === apagado.t.nombresClientesOriginales.join(","),
   );
 }
 
@@ -465,7 +513,8 @@ console.log("\n== 6b) los trucos de clientes anónimos (lo que hace yt-dlp) ==")
   check(
     "existe tv_downgraded (variante TV con versión 5.x)",
     !!porNombre.tv_downgraded &&
-      porNombre.tv_downgraded.body.context.client.clientVersion === "5.20260707",
+      porNombre.tv_downgraded.body.context.client.clientVersion ===
+        "5.20260707",
     JSON.stringify(porNombre.tv_downgraded && porNombre.tv_downgraded.body),
   );
   check(
@@ -483,7 +532,9 @@ console.log("\n== 6b) los trucos de clientes anónimos (lo que hace yt-dlp) ==")
   );
   check(
     "siguen estando los clientes móviles que dan audio-only con token",
-    !!porNombre.android && !!porNombre.ios && !!porNombre.mweb &&
+    !!porNombre.android &&
+      !!porNombre.ios &&
+      !!porNombre.mweb &&
       porNombre.android.requiresGvsPoToken &&
       porNombre.ios.requiresGvsPoToken &&
       porNombre.mweb.requiresGvsPoToken,
@@ -518,24 +569,31 @@ console.log("\n== 7) la consecuencia en la calidad: audio-only vs itag=18 ==");
 
   check(
     "cliente CON token y token en mano: elige 251 (audio-only, mejor bitrate)",
-    Number((t.chooseYouTubeFormat(formatos, clienteToken, true) || {}).itag) === 251,
+    Number((t.chooseYouTubeFormat(formatos, clienteToken, true) || {}).itag) ===
+      251,
     String((t.chooseYouTubeFormat(formatos, clienteToken, true) || {}).itag),
   );
   // Este es el síntoma que se veía: sin token, al cliente que exige token se le
   // descartan los audio-only y solo le queda itag=18.
   check(
     "cliente CON token y SIN token: cae a itag=18 (el síntoma)",
-    Number((t.chooseYouTubeFormat(formatos, clienteToken, false) || {}).itag) === 18,
+    Number(
+      (t.chooseYouTubeFormat(formatos, clienteToken, false) || {}).itag,
+    ) === 18,
     String((t.chooseYouTubeFormat(formatos, clienteToken, false) || {}).itag),
   );
   check(
     "cliente que NO exige token: elige 251 igual (no lo bloquea el token)",
-    Number((t.chooseYouTubeFormat(formatos, clienteSeguro, false) || {}).itag) === 251,
+    Number(
+      (t.chooseYouTubeFormat(formatos, clienteSeguro, false) || {}).itag,
+    ) === 251,
     String((t.chooseYouTubeFormat(formatos, clienteSeguro, false) || {}).itag),
   );
 }
 
-console.log("\n== 8) rutas separadas: el audio nunca reusa la URL del video ==");
+console.log(
+  "\n== 8) rutas separadas: el audio nunca reusa la URL del video ==",
+);
 {
   // El resolvedor de audio y el del visualizador comparten método y comparten
   // map de caché. Con la clave atada sólo al video, resolver el visualizador
@@ -546,7 +604,11 @@ console.log("\n== 8) rutas separadas: el audio nunca reusa la URL del video ==")
     itag: 251,
     mimeType: 'audio/webm; codecs="opus"',
   };
-  const video18 = { url: "https://x/18", itag: 18, mimeType: 'video/mp4; codecs="avc1"' };
+  const video18 = {
+    url: "https://x/18",
+    itag: 18,
+    mimeType: 'video/mp4; codecs="avc1"',
+  };
   // El fallback de "misma respuesta" reusa el mimeType del formato original
   // aunque la URL sea la del 18 — se distingue por el itag, no por el mime.
   const video18ConMimeAudio = {
@@ -632,6 +694,9 @@ console.log("\n== 8) rutas separadas: el audio nunca reusa la URL del video ==")
 }
 
 console.log(
-  (fallos === 0 ? "\nTODO OK" : "\n" + fallos + " FALLA(S)") + "  (" + ruta + ")\n",
+  (fallos === 0 ? "\nTODO OK" : "\n" + fallos + " FALLA(S)") +
+    "  (" +
+    ruta +
+    ")\n",
 );
 process.exit(fallos === 0 ? 0 : 1);

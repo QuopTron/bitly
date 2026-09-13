@@ -32,10 +32,10 @@
 # resultado se lee junto al del harness y el diagnóstico es inmediato.)
 #
 # Se conecta con: assets/extensions/, go_backend/internal/bundled_extensions/,
-# y los verificadores en scripts/pruebas_extensiones/.
+# y los verificadores en scripts/pruebas/extensiones/.
 #
 # Uso (desde la raíz del repo, en Git Bash):
-#   scripts/pruebas_extensiones.sh
+#   scripts/pruebas/pruebas_extensiones.sh
 # ─────────────────────────────────────────────────────────────
 
 set -uo pipefail
@@ -151,9 +151,9 @@ echo "--- referencias de la guía del PO Token ---"
 CORRIDAS=$((CORRIDAS + 1))
 faltan=""
 for ruta in \
-  scripts/pot_local.sh \
-  scripts/pruebas_extensiones.sh \
-  scripts/pruebas_extensiones/ytmusic_pot.js \
+  scripts/pruebas/pot_local.sh \
+  scripts/pruebas/pruebas_extensiones.sh \
+  scripts/pruebas/extensiones/ytmusic_pot.js \
   assets/extensions/ytmusic-spotiflac/index.js \
   assets/extensions/ytmusic-spotiflac/manifest.json \
   go_backend/internal/download/orchestrator_video.go \

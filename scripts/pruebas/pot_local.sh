@@ -29,9 +29,9 @@
 #       b) el candidato http://10.0.2.2:4416 (alias del loopback del host).
 #
 # Uso (desde la raíz del repo, en Git Bash):
-#   scripts/pot_local.sh                 # clona (si hace falta), compila y levanta
-#   POT_DIR=/otra/ruta scripts/pot_local.sh
-#   scripts/pot_local.sh --estado        # ¿está respondiendo en 4416?
+#   scripts/pruebas/pot_local.sh                 # clona (si hace falta), compila y levanta
+#   POT_DIR=/otra/ruta scripts/pruebas/pot_local.sh
+#   scripts/pruebas/pot_local.sh --estado        # ¿está respondiendo en 4416?
 # ─────────────────────────────────────────────────────────────
 
 set -uo pipefail
@@ -42,7 +42,7 @@ RAIZ="$(cd "$(dirname "$0")/../.." && pwd)"
 # el default se busca AL LADO del repo: `.../bgutil-ytdlp-pot-provider` junto a
 # `.../proyectos/bitly/` (o sea en el abuelo del repo). Se prueban unos cuantos
 # candidatos razonables y gana el primero que exista; siempre se puede forzar
-# con POT_DIR=/ruta/x scripts/pot_local.sh
+# con POT_DIR=/ruta/x scripts/pruebas/pot_local.sh
 buscar_pot_dir() {
   local cand
   for cand in \
@@ -87,7 +87,7 @@ if [ ! -f "$POT_DIR/server/package.json" ]; then
   echo
   echo "Si ya está clonado pero sin compilar, este script lo compila solo"
   echo "(npm ci + tsc). Si está en otra ruta:"
-  echo "  POT_DIR=/ruta scripts/pot_local.sh"
+  echo "  POT_DIR=/ruta scripts/pruebas/pot_local.sh"
   exit 2
 fi
 
