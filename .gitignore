@@ -1,5 +1,8 @@
 # Flutter
-build/
+# Anclado con / : solo el build/ de Flutter en la raíz. Sin anclar, la regla
+# "build/" también tragaba scripts/build/ (scripts versionados que se
+# quedaron fuera de git al reorganizar).
+/build/
 .dart_tool/
 .packages
 .pub/
