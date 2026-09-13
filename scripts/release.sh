@@ -141,19 +141,13 @@ if [[ "$SUBIR_RELEASE" == "true" ]]; then
 ## 🎵 Bitly v__VERSION__ — Android + PC + TV + macOS + iOS
 
 ### ✨ Novedades
-- **Se acabó el "cae en un remix"**: el backend estaba excluyendo a Deezer, Amazon y Apple Music del streaming y la descarga (sus manifest solo declaraban metadata), así que casi todo terminaba en un re-subido de YouTube/SoundCloud. Ahora entran como fuentes de audio y **las fuentes exactas van primero**: si Deezer/Qobuz/Tidal/Amazon pueden servir la canción, nunca se baja a un re-subido.
-- **ISRC con autoridad**: solo los catálogos (y el rescate indexado por ISRC) confirman la identidad de una grabación. YouTube/SoundCloud ya no "heredan" el ISRC de una canción por parecido de nombre (era justo cómo un remix pasaba por el original).
-- **Nueva fuente: Internet Archive** — FLAC real y catálogo abierto **sin cuenta, sin sesión y sin gateway**. Se suma a la búsqueda, el feed, la reproducción y la descarga.
-- **Sin dependencia de gateways externos**: el audio ya no pasa por api.zarz.moe; las fuentes exactas resuelven por ISRC contra catálogos públicos.
-- **Deezer y Amazon descargables**: sus manifest ahora declaran `download_provider`, con lo que el rescate de FLAC por ISRC sí los prueba.
+- **Búsquedas de Internet Archive de 5 a 8 veces más rápidas**: la lectura de la metadata de cada item ahora es secuencial. archive.org degrada las peticiones en ráfaga (medido: 8 items tardaban 2,5 s de uno en uno contra 7,9 s con 4 en paralelo), así que la búsqueda completa bajó de 8-14 s a 1,6-4,2 s. Además se corta apenas hay suficientes pistas y se acota cuántos items se leen.
+- **Internet Archive ahora encuentra la canción, no una colección ajena**: se busca primero la frase en el título del item y solo si no hay nada se cae al texto libre (que busca también en la descripción, y por eso devolvía resultados de otros discos). "Miles Davis Kind of Blue" pasó de devolver desconocidos a devolver el disco correcto.
+- **El audio de Internet Archive arranca ~3 veces más rápido**: las URLs salen apuntando al **nodo directo** del item (los campos `d1`/`d2` y `dir` de su propia metadata) en vez de pasar por el salto de `/download/`. Medido sobre el mismo archivo: 2,08 s → **0,76 s** en el primer arranque y 1,33 s → **0,46 s** en los siguientes. También acelera cada avance dentro del tema y las descargas.
+- **Sin cuentas, sin sesión y sin gateway**: Internet Archive sigue dando FLAC real de catálogo abierto, y toda la mejora es interna (no pide nada al usuario).
 
-### 🐛 Correcciones
-- **Deezer resuelve por ISRC**: su extensión exporta `resolveTrackIDFromISRC` (la función ya existía pero no estaba expuesta), así una petición con ISRC deja de caer a una búsqueda por nombre.
-- **Búsqueda por ISRC estricta**: ya no devuelve el primer resultado a ciegas; exige que el candidato declare el ISRC.
-- **YouTube**: duración de los tracks ahora en milisegundos (antes mostraba 0:00 y la verificación fallaba).
-- **SABR de YouTube**: clientes que devuelven respuestas sin URLs usables ahora se saltan automáticamente (ya no pagan un POST extra por canción).
-- **Enlaces de Spotify/YouTube**: pegar un enlace resuelve y reproduce correctamente.
-- **Reproductor**: miniplayer, notificación y reproductor grande muestran siempre la misma canción.
+### 🔍 Verificado contra el servicio real
+Estos números salen de pruebas contra archive.org, no de estimaciones: búsqueda repetida 0 ms (caché), resolución de stream repetida 0-1 ms, audio con rangos por byte correctos (`HTTP 206`) y ~7,5-9 MB/s de transferencia — de sobra para un FLAC.
 
 ### ⬇️ Descargas
 - Android: app-arm64-v8a-release.apk / app-armeabi-v7a-release.apk / app-x86_64-release.apk
@@ -169,19 +163,13 @@ EOF
 ## 🎵 Bitly v__VERSION__ — Android + PC + TV + macOS + iOS
 
 ### ✨ Highlights
-- **No more "it falls back to a remix"**: the backend was excluding Deezer, Amazon and Apple Music from streaming and download (their manifests declared metadata only), so almost everything ended up on a YouTube/SoundCloud re-upload. They now serve audio, and **exact sources go first**: if Deezer/Qobuz/Tidal/Amazon can serve the track, it never falls back to a re-upload.
-- **Authoritative ISRC**: only catalogs (and the ISRC-indexed rescue) confirm a recording's identity. YouTube/SoundCloud no longer "inherit" an ISRC by name similarity (which was exactly how a remix passed as the original).
-- **New source: Internet Archive** — real FLAC and an open catalog with **no account, no session and no gateway**. It joins search, feed, playback and download.
-- **No external gateway dependency**: audio no longer goes through api.zarz.moe; exact sources resolve by ISRC against public catalogs.
-- **Deezer and Amazon are downloadable**: their manifests now declare `download_provider`, so ISRC-based FLAC rescue actually tries them.
+- **Internet Archive searches are 5-8x faster**: item metadata is now read sequentially. archive.org throttles burst requests (measured: 8 items took 2.5 s one by one versus 7.9 s with 4 in parallel), so a full search dropped from 8-14 s to 1.6-4.2 s. It also stops as soon as it has enough tracks and caps how many items it reads.
+- **Internet Archive now finds the song, not an unrelated collection**: it searches the item title first as a phrase and only falls back to free text (which also matches descriptions, and that's why it returned other records). "Miles Davis Kind of Blue" went from returning strangers to returning the right album.
+- **Internet Archive audio starts ~3x faster**: URLs now point at the item's **direct node** (the `d1`/`d2` and `dir` fields from its own metadata) instead of going through the `/download/` redirect. Measured on the same file: 2.08 s → **0.76 s** on first start and 1.33 s → **0.46 s** afterwards. It also speeds up every seek and every download.
+- **No account, no session, no gateway**: Internet Archive still serves real FLAC from an open catalog, and the whole improvement is internal (it asks the user for nothing).
 
-### 🐛 Fixes
-- **Deezer resolves by ISRC**: its extension now exports `resolveTrackIDFromISRC` (the function existed but wasn't exposed), so an ISRC request no longer falls back to a name search.
-- **Strict ISRC lookup**: it no longer returns the first result blindly; the candidate must declare the ISRC.
-- **YouTube duration**: track durations now in milliseconds (was showing 0:00 and verification was failing).
-- **YouTube SABR**: clients returning empty format lists are now skipped automatically.
-- **Spotify/YouTube links**: pasting a link resolves and plays correctly.
-- **Player**: miniplayer, notification and full player always show the same playing track.
+### 🔍 Verified against the live service
+These numbers come from tests against archive.org, not estimates: repeat search 0 ms (cache), repeat stream resolution 0-1 ms, audio with correct byte ranges (`HTTP 206`) and ~7.5-9 MB/s throughput — plenty for FLAC.
 
 ### ⬇️ Downloads
 - Android: app-arm64-v8a-release.apk / app-armeabi-v7a-release.apk / app-x86_64-release.apk

@@ -21,14 +21,18 @@ import (
 	"net/url"
 	"sort"
 	"strings"
-	"sync"
 
 	"github.com/zarz/bitly/go_backend/internal/provider"
 )
 
-// maxHidratacion es cuántos items se leen en paralelo al buscar. Más paralelo
-// acelera, pero archive.org limita por IP; cinco mantiene la búsqueda bajo ~2s.
-const maxHidratacion = 5
+// maxItemsHidratados acota cuántos items se leen por búsqueda. La lectura es
+// SECUENCIAL a propósito: archive.org degrada las peticiones concurrentes
+// (medido con 8 items: 2,5 s de uno en uno contra 7,9 s con 4 en paralelo; y la
+// búsqueda completa con 5 en paralelo tardaba 8-14 s contra 1,6-4,2 s en serie).
+// El tope de items también es un tope de latencia: cada uno cuesta una lectura
+// de metadata (0,3-6 s según cuántos archivos publique), así que sin él una
+// consulta que encuentre muchos items sueltos se estiraría sin control.
+const maxItemsHidratados = 6
 
 // itemResumen es un item del índice, sin sus archivos.
 type itemResumen struct {
@@ -104,8 +108,41 @@ func (c *Client) SearchPlaylists(query string, limit int) ([]provider.PlaylistRe
 }
 
 // buscarItems consulta el índice de audio, ordenado por popularidad y cacheado.
+//
+// Estrategia de consulta, medida contra el servicio: el texto libre de
+// advancedsearch busca en TODOS los campos (incluida la descripción), así que
+// "Miles Davis Kind of Blue" devolvía colecciones de 1925 y programas de radio
+// en vez del disco. Buscar la frase en el título devuelve la coincidencia
+// correcta en el puesto 1 ("Miles Davis' Kind of Blue"). Por eso primero se
+// prueba el título y, solo si no hay NADA, se cae al texto libre — que es el
+// único modo que funciona con consultas que mezclan título y artista
+// ("So What Miles Davis", como arma el rescate).
 func (c *Client) buscarItems(query string, filas int) ([]itemResumen, error) {
-	return c.buscar(query, "audio", filas)
+	items, err := c.buscarPorTitulo(query, filas)
+	if err == nil && len(items) > 0 {
+		return items, nil
+	}
+	libres, errLibre := c.buscar(query, "audio", filas)
+	if errLibre != nil {
+		// La reserva también falló: se propaga el error del intento principal
+		// si lo hubo, porque describe mejor el problema.
+		if err != nil {
+			return nil, err
+		}
+		return nil, errLibre
+	}
+	return libres, nil
+}
+
+// buscarPorTitulo busca la consulta como FRASE dentro del título del item.
+// Las comillas dobles del usuario se descartan: se encierran en comillas
+// propias, así que dejarlas rompería la sintaxis de la consulta.
+func (c *Client) buscarPorTitulo(query string, filas int) ([]itemResumen, error) {
+	frase := strings.TrimSpace(strings.ReplaceAll(query, `"`, ""))
+	if frase == "" {
+		return nil, fmt.Errorf("%s: búsqueda vacía", name)
+	}
+	return c.buscar(`title:"`+frase+`"`, "audio", filas)
 }
 
 // buscarColecciones consulta el índice de colecciones.
@@ -161,59 +198,47 @@ func (c *Client) buscar(query string, mediatype string, filas int) ([]itemResume
 	return items, nil
 }
 
-// hidratarTracks lee los items (en paralelo y acotado) y devuelve sus pistas,
+// hidratarTracks lee los items (uno por uno, acotado) y devuelve sus pistas,
 // sin repetir el mismo tema en sus dos formatos.
+//
+// Secuencial gana a paralelo con este servicio: archive.org limita por IP y
+// castiga las ráfagas (ver maxItemsHidratados). El corte temprano ayuda todavía
+// más: en cuanto hay [limit] pistas se deja de pedir metadata, así que un
+// buscador que necesita 25 temas suele leer 1-3 items en vez de los 5 de antes.
 func (c *Client) hidratarTracks(items []itemResumen, limit int) []provider.TrackResult {
 	if len(items) == 0 || limit <= 0 {
 		return nil
 	}
 
 	var (
-		mu      sync.Mutex
 		total   int
 		conFlac []provider.TrackResult
 		sinFlac []provider.TrackResult
 	)
-	permiso := make(chan struct{}, maxHidratacion)
-	var wg sync.WaitGroup
+	leidos := 0
 
 	for _, resumen := range items {
-		// Si ya hay suficientes pistas, no se pagan más peticiones.
-		mu.Lock()
-		suficiente := total >= limit
-		mu.Unlock()
-		if suficiente {
+		if total >= limit || leidos >= maxItemsHidratados {
 			break
 		}
+		leidos++
 
-		wg.Add(1)
-		permiso <- struct{}{}
-		go func(resumen itemResumen) {
-			defer wg.Done()
-			defer func() { <-permiso }()
-
-			item, err := c.obtenerItem(resumen.identificador)
-			if err != nil {
-				return // un item roto no debe tumbar la búsqueda entera
+		item, err := c.obtenerItem(resumen.identificador)
+		if err != nil {
+			continue // un item roto no debe tumbar la búsqueda entera
+		}
+		identifier := item.identificador(resumen.identificador)
+		for _, p := range pistasDelItem(item, identifier, c) {
+			// El MISMO tema puede venir en FLAC y en MP3 dentro del item: se
+			// emite una sola vez y se reserva para el grupo "con FLAC".
+			total++
+			if p.esLossless {
+				conFlac = append(conFlac, p.resultado)
+			} else {
+				sinFlac = append(sinFlac, p.resultado)
 			}
-			identifier := item.identificador(resumen.identificador)
-			encontradas := pistasDelItem(item, identifier, c)
-
-			mu.Lock()
-			defer mu.Unlock()
-			for _, p := range encontradas {
-				// El MISMO tema puede venir en FLAC y en MP3 dentro del item:
-				// se emite una sola vez y se reserva para el grupo "con FLAC".
-				total++
-				if p.esLossless {
-					conFlac = append(conFlac, p.resultado)
-				} else {
-					sinFlac = append(sinFlac, p.resultado)
-				}
-			}
-		}(resumen)
+		}
 	}
-	wg.Wait()
 
 	// Los items con FLAC van primero: la fuente existe para dar lossless, así
 	// que si hay un item que lo publica no debe quedar tapado por uno en MP3.

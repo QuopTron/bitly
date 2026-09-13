@@ -14,11 +14,13 @@ package internetarchive
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 // servidorFalso monta un archive.org mínimo: búsqueda + metadata.
@@ -327,10 +329,240 @@ func TestBuscarColeccionesUsaMediatypeCollection(t *testing.T) {
 	}
 }
 
+// TestStreamURLUsaElNodoDirecto fija el ahorro medido contra archive.org:
+// /download/<id>/<archivo> hace un 302 hacia el nodo real y ese salto cuesta
+// ~1 s de TTFB, así que la URL debe salir apuntando al nodo cuando la metadata
+// lo publica (d2/d1 + dir) y caer al canónico solo si no está.
+func TestStreamURLUsaElNodoDirecto(t *testing.T) {
+	conNodo := itemConFlac("show-1995", "Soiree Prophecy", "Daft Punk")
+	conNodo.D1 = "ia800504.us.archive.org"
+	conNodo.D2 = "dn720708.ca.archive.org"
+	conNodo.Dir = "/26/items/show-1995"
+
+	sinNodo := itemConFlac("sin-nodo", "Sin Nodo", "Banda")
+
+	srv, _ := servidorFalso(t, nil, map[string]Item{"show-1995": conNodo, "sin-nodo": sinNodo})
+	c := NewClient(nil)
+	c.SetBaseURL(srv.URL)
+
+	url, err := c.GetStreamURL("ia:show-1995/show-1995_01.flac", "FLAC")
+	if err != nil {
+		t.Fatalf("GetStreamURL: %v", err)
+	}
+	esperado := "https://dn720708.ca.archive.org/26/items/show-1995/show-1995_01.flac"
+	if url != esperado {
+		t.Errorf("url = %q, esperaba el nodo directo %q", url, esperado)
+	}
+
+	// El hermano MP3 del mismo item también sale por el nodo (mismo item, mismo
+	// nodo): es el caso de una reproducción con otra calidad.
+	urlMP3, err := c.GetStreamURL("ia:show-1995/show-1995_01.flac", "MP3_320")
+	if err != nil {
+		t.Fatalf("GetStreamURL MP3: %v", err)
+	}
+	if !strings.HasPrefix(urlMP3, "https://dn720708.ca.archive.org/26/items/show-1995/") {
+		t.Errorf("el MP3 debía salir por el nodo: %q", urlMP3)
+	}
+
+	// Sin nodo en la metadata: URL canónica, que funciona igual (con el salto).
+	urlSin, err := c.GetStreamURL("ia:sin-nodo/sin-nodo_01.flac", "FLAC")
+	if err != nil {
+		t.Fatalf("GetStreamURL sin nodo: %v", err)
+	}
+	if !strings.HasSuffix(urlSin, "/download/sin-nodo/sin-nodo_01.flac") {
+		t.Errorf("debía caer al canónico, url = %q", urlSin)
+	}
+}
+
+// TestBaseNodoDescartaLoInvalido: el host viene de un JSON ajeno, así que una
+// respuesta rara (vacía, con barra o espacio) no debe producir una URL rota.
+func TestBaseNodoDescartaLoInvalido(t *testing.T) {
+	casos := []struct {
+		nombre      string
+		d2, d1, dir string
+		espera      string
+	}{
+		{"prefiere d2", "dn72.ca.archive.org", "ia80.us.archive.org", "/0/items/x", "https://dn72.ca.archive.org/0/items/x"},
+		{"cae a d1", "", "ia80.us.archive.org", "/0/items/x", "https://ia80.us.archive.org/0/items/x"},
+		{"sin dir no hay nodo", "dn72.ca.archive.org", "", "", ""},
+		{"host con barra descartado", "dn72/x", "", "/0/items/x", ""},
+		{"dir sin barra inicial", "dn72.ca.archive.org", "", "0/items/x", "https://dn72.ca.archive.org/0/items/x"},
+		{"nodo nil", "", "", "", ""},
+	}
+	for _, caso := range casos {
+		it := &Item{D2: caso.d2, D1: caso.d1, Dir: caso.dir}
+		if got := it.baseNodo(); got != caso.espera {
+			t.Errorf("%s: baseNodo() = %q, esperaba %q", caso.nombre, got, caso.espera)
+		}
+	}
+	var nulo *Item
+	if got := nulo.baseNodo(); got != "" {
+		t.Errorf("item nil = %q", got)
+	}
+}
+
 // TestNombreDelProveedor: el id debe coincidir con el registrado en el backend
 // (si cambia, la fuente deja de aparecer en streaming y descarga).
 func TestNombreDelProveedor(t *testing.T) {
 	if got := NewClient(nil).Name(); got != "internetarchive" {
 		t.Errorf("Name() = %q", got)
+	}
+}
+
+// TestBusquedaPrefiereTituloYReservaAlTextoLibre fija la estrategia de consulta
+// medida contra el servicio: primero la frase en el título (el texto libre
+// devolvía colecciones ajenas) y, solo si el título no trae NADA, el texto
+// libre — que es el modo que sí sirve para consultas con artista incluido.
+func TestBusquedaPrefiereTituloYReservaAlTextoLibre(t *testing.T) {
+	var consultas []string
+	tituloVacio := false
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query().Get("q")
+		consultas = append(consultas, q)
+		resp := respuestaBusqueda{}
+		if strings.Contains(q, "title:") && !tituloVacio {
+			resp.Response.Docs = []docItem{{Identifier: "kind-of-blue", Title: "Kind of Blue"}}
+		} else if !strings.Contains(q, "title:") {
+			resp.Response.Docs = []docItem{{Identifier: "otro", Title: "Otra cosa"}}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer srv.Close()
+
+	c := NewClient(nil)
+	c.SetBaseURL(srv.URL)
+
+	// 1) Con resultados por título: una sola consulta, y es la del título.
+	if _, err := c.buscarItems("kind of blue", 5); err != nil {
+		t.Fatalf("buscarItems: %v", err)
+	}
+	if len(consultas) != 1 {
+		t.Fatalf("esperaba una sola consulta, hubo %d: %v", len(consultas), consultas)
+	}
+	if !strings.Contains(consultas[0], `title:"kind of blue"`) {
+		t.Errorf("la primera consulta debía ser la frase en el título: %q", consultas[0])
+	}
+
+	// 2) Sin resultados por título: entra el texto libre como reserva.
+	c2 := NewClient(nil)
+	c2.SetBaseURL(srv.URL)
+	consultas = nil
+	tituloVacio = true
+	if _, err := c2.buscarItems("so what miles davis", 5); err != nil {
+		t.Fatalf("buscarItems (reserva): %v", err)
+	}
+	if len(consultas) != 2 {
+		t.Fatalf("esperaba título + reserva, hubo %d: %v", len(consultas), consultas)
+	}
+	if strings.Contains(consultas[1], "title:") {
+		t.Errorf("la reserva no debe volver a filtrar por título: %q", consultas[1])
+	}
+	if !strings.Contains(consultas[1], "so what miles davis") {
+		t.Errorf("la reserva debía ser el texto libre: %q", consultas[1])
+	}
+}
+
+// TestHidratacionEsSecuencialYSeCorta fija las dos decisiones de rendimiento
+// verificadas contra archive.org: leer la metadata de los items UNO por uno
+// (las ráfagas concurrentes la degradaban) y dejar de leer en cuanto hay
+// suficientes pistas.
+func TestHidratacionEsSecuencialYSeCorta(t *testing.T) {
+	var (
+		enCurso    int32
+		maxEnCurso int32
+		leidos     int32
+	)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/advancedsearch.php") {
+			resp := respuestaBusqueda{}
+			resp.Response.Docs = []docItem{
+				{Identifier: "item-1"}, {Identifier: "item-2"},
+				{Identifier: "item-3"}, {Identifier: "item-4"},
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(resp)
+			return
+		}
+		id := strings.TrimPrefix(r.URL.Path, "/metadata/")
+		actual := atomic.AddInt32(&enCurso, 1)
+		for {
+			max := atomic.LoadInt32(&maxEnCurso)
+			if actual <= max || atomic.CompareAndSwapInt32(&maxEnCurso, max, actual) {
+				break
+			}
+		}
+		// Si la lectura fuera concurrente, el máximo subiría de 1.
+		time.Sleep(15 * time.Millisecond)
+		atomic.AddInt32(&leidos, 1)
+		atomic.AddInt32(&enCurso, -1)
+
+		var it Item
+		it.Metadata.Identifier = textoFlexible(id)
+		it.Metadata.Title = id
+		it.Files = []Archivo{{Name: id + "_01.flac", Format: "Flac", Title: "Tema", Track: "1", Length: "100"}}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(it)
+	}))
+	defer srv.Close()
+
+	c := NewClient(nil)
+	c.SetBaseURL(srv.URL)
+
+	// Cada item aporta 1 pista: con límite 2 solo deben leerse 2 items.
+	pistas, err := c.SearchTracks("x", 2)
+	if err != nil {
+		t.Fatalf("SearchTracks: %v", err)
+	}
+	if len(pistas) != 2 {
+		t.Fatalf("esperaba 2 pistas, obtuve %d", len(pistas))
+	}
+	if n := atomic.LoadInt32(&leidos); n != 2 {
+		t.Errorf("debía leer 2 items (se corta al tener las pistas), leyó %d", n)
+	}
+	if m := atomic.LoadInt32(&maxEnCurso); m != 1 {
+		t.Errorf("la lectura debía ser secuencial, hubo %d en paralelo", m)
+	}
+}
+
+// TestHidratacionAcotadaALimiteDeItems: aunque la consulta traiga muchos items,
+// no se leen más de los acotados (el tope también acota la latencia).
+func TestHidratacionAcotadaALimiteDeItems(t *testing.T) {
+	var leidos int32
+	docs := make([]docItem, 0, 20)
+	for i := 0; i < 20; i++ {
+		docs = append(docs, docItem{Identifier: fmt.Sprintf("item-%02d", i)})
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/advancedsearch.php") {
+			resp := respuestaBusqueda{}
+			resp.Response.Docs = docs
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(resp)
+			return
+		}
+		atomic.AddInt32(&leidos, 1)
+		// Item sin audio: obliga a seguir leyendo el siguiente.
+		var it Item
+		it.Metadata.Identifier = textoFlexible(strings.TrimPrefix(r.URL.Path, "/metadata/"))
+		it.Files = []Archivo{{Name: "cover.jpg", Format: "JPEG"}}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(it)
+	}))
+	defer srv.Close()
+
+	c := NewClient(nil)
+	c.SetBaseURL(srv.URL)
+	// Ningún item aporta pistas, así que se lee hasta el tope de items…
+	pistas, err := c.SearchTracks("x", 25)
+	if err != nil {
+		t.Fatalf("SearchTracks: %v", err)
+	}
+	if len(pistas) != 0 {
+		t.Errorf("esperaba 0 pistas, obtuve %d", len(pistas))
+	}
+	// …y no más: los 20 items de la consulta nunca se leen enteros.
+	if n := int(atomic.LoadInt32(&leidos)); n != maxItemsHidratados {
+		t.Errorf("leyó %d items, esperaba exactamente %d", n, maxItemsHidratados)
 	}
 }

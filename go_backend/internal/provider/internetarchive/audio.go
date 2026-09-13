@@ -245,6 +245,9 @@ func puntajeFormato(formato string, deseado TipoAudio) int {
 // armado de URL (el item y sus archivos ya se validaron al buscar), pero se
 // re-consulta el item para que el id siga siendo válido aunque el archivo haya
 // cambiado de nombre.
+//
+// La URL sale apuntando al nodo directo del item cuando la metadata lo publica:
+// eso se lleva el salto de /download/ y baja el arranque de ~1,7 s a ~0,7 s.
 func (c *Client) GetStreamURL(id, quality string) (string, error) {
 	identifier, archivo, err := partirID(id)
 	if err != nil {
@@ -262,7 +265,7 @@ func (c *Client) GetStreamURL(id, quality string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return c.urlDescarga(identifier, final.Name), nil
+	return c.urlAudio(item, identifier, final.Name), nil
 }
 
 // coincidirArchivo busca [nombre] dentro del item tolerando el escapado de URL

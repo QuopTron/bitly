@@ -71,7 +71,8 @@ type Archivo struct {
 }
 
 // Item es la respuesta de /metadata/<identifier>: la metadata del item más la
-// lista completa de archivos.
+// lista completa de archivos, y —clave para la latencia— el nodo de
+// almacenamiento donde vive el audio.
 type Item struct {
 	Metadata struct {
 		Identifier textoFlexible `json:"identifier"`
@@ -83,6 +84,15 @@ type Item struct {
 		Mediatype  string        `json:"mediatype"`
 	} `json:"metadata"`
 	Files []Archivo `json:"files"`
+
+	// Nodo directo de almacenamiento. /download/<id>/<archivo> responde un 302
+	// hacia el nodo real, y ese salto cuesta ~1 s (medido: 1,6-1,8 s de TTFB
+	// contra 0,6-0,7 s pegándole al nodo). La metadata del item YA trae el nodo
+	// (d1/d2) y la ruta interna (dir), así que se puede armar la URL directa sin
+	// ninguna petición extra y sin esperar la redirección.
+	D1  string `json:"d1"`
+	D2  string `json:"d2"`
+	Dir string `json:"dir"`
 }
 
 // identificador devuelve el id del item tal como lo publica la API.
@@ -175,6 +185,30 @@ func (c *Client) obtenerItem(identifier string) (*Item, error) {
 	}
 	c.items.Set(identifier, &item)
 	return &item, nil
+}
+
+// baseNodo devuelve "https://<nodo><dir>" (sin barra final) si la metadata
+// publica el nodo directo, o "" si no (items viejos o especiales). Se prefiere
+// d2 y se cae a d1: son las dos copias del item y ambas sirven el audio.
+func (it *Item) baseNodo() string {
+	if it == nil {
+		return ""
+	}
+	dir := strings.TrimSpace(it.Dir)
+	if dir == "" {
+		return ""
+	}
+	if !strings.HasPrefix(dir, "/") {
+		dir = "/" + dir
+	}
+	for _, nodo := range []string{it.D2, it.D1} {
+		host := strings.TrimSpace(nodo)
+		if host == "" || strings.ContainsAny(host, "/ ") {
+			continue
+		}
+		return "https://" + host + strings.TrimRight(dir, "/")
+	}
+	return ""
 }
 
 // pistaDesdeArchivo convierte un archivo del item en un TrackResult.

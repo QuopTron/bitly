@@ -143,14 +143,37 @@ func (c *Client) urlItem(identifier string) string {
 	return c.base + "/services/img/" + url.PathEscape(identifier)
 }
 
-// urlDescarga arma la URL de descarga de un archivo del item, escapando cada
-// segmento (los nombres pueden traer espacios, acentos, # y +).
+// urlDescarga arma la URL canónica de descarga de un archivo del item.
 func (c *Client) urlDescarga(identifier, archivo string) string {
+	return c.base + "/download/" + url.PathEscape(identifier) + "/" + escaparRuta(archivo)
+}
+
+// urlAudio arma la URL de audio de un archivo del item prefiriendo el NODO
+// DIRECTO que publica la metadata.
+//
+// Por qué: /download/<id>/<archivo> responde un 302 hacia el nodo real, y ese
+// salto cuesta ~1 s (medido con el mismo archivo: 1,62-1,78 s de TTFB por
+// /download/ contra 0,61-0,71 s pegándole al nodo). Como la metadata del item
+// ya trae el nodo y su ruta interna, el atajo no cuesta ni una petición extra:
+// se aprovecha la metadata que la búsqueda y el detalle ya pidieron.
+//
+// Si el item no publica nodo (items viejos o especiales) se devuelve la URL
+// canónica tal cual, que siempre funciona aunque tenga el salto.
+func (c *Client) urlAudio(item *Item, identifier, archivo string) string {
+	if base := item.baseNodo(); base != "" {
+		return base + "/" + escaparRuta(archivo)
+	}
+	return c.urlDescarga(identifier, archivo)
+}
+
+// escaparRuta escapa cada segmento de una ruta de archivo (los nombres pueden
+// traer espacios, acentos, # y +).
+func escaparRuta(archivo string) string {
 	segmentos := strings.Split(strings.TrimPrefix(archivo, "/"), "/")
 	for i, s := range segmentos {
 		segmentos[i] = url.PathEscape(s)
 	}
-	return c.base + "/download/" + url.PathEscape(identifier) + "/" + strings.Join(segmentos, "/")
+	return strings.Join(segmentos, "/")
 }
 
 // limiteValido acota el límite pedido a un rango razonable.
