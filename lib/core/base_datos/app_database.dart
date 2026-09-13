@@ -2,11 +2,13 @@
 // app_database.dart — Base de datos local (drift/SQLite). Define todas las tablas y DAOs, la migracion de esquema (v4) y la creacion de bitly_cache.db. Se conecta con: tablas/ y daos/. Parte del flujo: arranque (AppDatabase.create).
 // ---------------------------------------------------------------------------
 
-import 'dart:io' as io;
 import 'package:drift/drift.dart';
-import 'package:drift/native.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
+
+// La CONEXIÓN se elige según la plataforma porque el navegador no tiene
+// dart:ffi (y drift/native.dart lo usa): en web se abre con drift sobre
+// wasm y en el resto como archivo SQLite nativo. Ver conexion_nativa.dart
+// y conexion_web.dart.
+import 'conexion_nativa.dart' if (dart.library.js_interop) 'conexion_web.dart' as conexion;
 
 import 'tables/settings_table.dart';
 import 'tables/content_tables.dart';
@@ -119,11 +121,7 @@ class AppDatabase extends _$AppDatabase {
     }
   }
 
-  static Future<AppDatabase> create() async {
-    final dir = await getApplicationDocumentsDirectory();
-    await dir.create(recursive: true);
-    final dbFile = io.File(p.join(dir.path, 'bitly_cache.db'));
-    return AppDatabase(NativeDatabase.createInBackground(dbFile));
-  }
+  static Future<AppDatabase> create() async =>
+      AppDatabase(await conexion.abrirConexion());
 }
 

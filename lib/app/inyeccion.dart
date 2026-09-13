@@ -3,12 +3,14 @@
 
 import 'dart:io' show Platform;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 
 import '../core/backend_go/backend_android.dart';
 import '../core/backend_go/backend_escritorio.dart';
 import '../core/backend_go/backend_ios.dart';
+import '../core/backend_go/backend_web.dart';
 import '../core/backend_go/contrato_backend.dart';
 import '../core/base_datos/app_database.dart';
 import '../core/cache/cache_ajustes.dart';
@@ -79,13 +81,18 @@ Future<void> configurarDependencias() async {
   sl.registerLazySingleton<ReproduccionSync>(() => ReproduccionSync(db));
 
   // ── 4. Backend (plataforma) ───────────────────────────────
-  final sep = Platform.pathSeparator;
+  // En web NUNCA se toca `Platform` (dart:io no está en el navegador):
+  // el backend web habla por HTTP con el servidor Go, que el usuario
+  // arranca con `bitly-backend --web`.
   BackendService backend;
-  if (Platform.isAndroid) {
+  if (kIsWeb) {
+    backend = BackendWeb();
+  } else if (Platform.isAndroid) {
     backend = BackendAndroid();
   } else if (Platform.isIOS) {
     backend = BackendIOS();
   } else {
+    final sep = Platform.pathSeparator;
     String? rutaExe;
     if (Platform.isWindows) {
       rutaExe = '${Platform.resolvedExecutable}$sep..${sep}bitly-backend.exe';

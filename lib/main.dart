@@ -12,6 +12,7 @@
 
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:path_provider/path_provider.dart';
@@ -44,7 +45,10 @@ Future<void> main() async {
   // En Android, NativeReferenceHolder usa Context.getFilesDir() =
   // <pkg>/files; getApplicationSupportDirectory() devuelve <pkg>/app_flutter,
   // así que derivamos el dir nativo del padre.
+  // En web no hay directorios ni media_kit: se salta entero (path_provider
+  // no soporta navegador y lanzaría en cada arranque).
   try {
+    if (kIsWeb) throw StateError('sin archivos locales en web');
     final soporte = await getApplicationSupportDirectory();
     const prefijo = 'com.alexmercerind.media_kit.NativeReferenceHolder.';
     final dirsALimpiar = <Directory>[soporte];
@@ -67,7 +71,8 @@ Future<void> main() async {
   } catch (_) {}
 
   // media_kit DEBE inicializarse antes de crear cualquier Player.
-  MediaKit.ensureInitialized();
+  // En web no existe (su backend es libmpv nativo): el arranque sigue sin él.
+  if (!kIsWeb) MediaKit.ensureInitialized();
   await configurarDependencias();
 
   // Carga el perfil de rendimiento guardado al notificador global. El push
@@ -84,21 +89,26 @@ Future<void> main() async {
   // el enlace con el que se abrió la app (llega durante el initialize).
   ServicioEnlaces.instance.initialize();
 
-  // Listener de share intents (Android/iOS).
-  await ServicioShareIntent.instance.initialize();
-
-  // Deep links (abrir la app desde un link externo).
-  await ServicioDeepLink.instance.initialize();
-
   // Conecta el foco de audio al cubit del reproductor antes de iniciar.
   ServicioFocoAudio.instance.controlador = sl<CubitReproductor>();
 
-  // Notificación multimedia + controles de lock screen + servicio en
-  // primer plano (Android). Va después de GetIt para enlazar los cubits.
-  await PuenteNotificacionMedia.instancia.init();
+  // Servicios de PLATAFORMA (plugins nativos: share intent, deep links,
+  // notificación multimedia, foco de audio). En web no existen —sus canales
+  // no están registrados y cada llamada lanzaría— así que se saltan.
+  if (!kIsWeb) {
+    // Listener de share intents (Android/iOS).
+    await ServicioShareIntent.instance.initialize();
 
-  // Pausa automática cuando otra app toma el audio. Después de GetIt.
-  await ServicioFocoAudio.instance.init();
+    // Deep links (abrir la app desde un link externo).
+    await ServicioDeepLink.instance.initialize();
+
+    // Notificación multimedia + controles de lock screen + servicio en
+    // primer plano (Android). Va después de GetIt para enlazar los cubits.
+    await PuenteNotificacionMedia.instancia.init();
+
+    // Pausa automática cuando otra app toma el audio. Después de GetIt.
+    await ServicioFocoAudio.instance.init();
+  }
 
   runApp(const BitlyApp());
 }
