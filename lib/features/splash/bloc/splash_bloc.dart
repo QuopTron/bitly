@@ -10,7 +10,7 @@
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../core/backend_go/contrato_backend.dart';
+import '../../../core/backend_go/nucleo/contrato_backend.dart';
 import 'splash_estado.dart';
 import 'splash_evento.dart';
 

@@ -25,9 +25,9 @@ import '../../../core/modelos/usuario/preferencias_estilo.dart';
 import '../../../estado/cola/cubit_cola.dart';
 import '../../../estado/like/cubit_like.dart';
 import '../../../shared/tema/colores_app.dart';
-import '../../../shared/utilidades/haptico.dart';
-import '../../../shared/utilidades/paleta_portada.dart';
-import '../../../shared/utilidades/responsive.dart';
+import '../../../shared/utilidades/interaccion/haptico.dart';
+import '../../../shared/utilidades/portada/paleta_portada.dart';
+import '../../../shared/utilidades/plataforma/responsive.dart';
 import '../../../shared/widgets/tarjetas/imagen_portada.dart';
 import '../video/textura_video_fondo.dart';
 

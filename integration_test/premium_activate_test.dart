@@ -20,7 +20,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
 import 'package:bitly/core/cache/almacenes/cache_premium.dart';
-import 'package:bitly/core/backend_go/backend_android.dart';
+import 'package:bitly/core/backend_go/plataformas/backend_android.dart';
 import 'package:bitly/app/inyeccion.dart' as inj;
 
 /// Replica exacta del generador de códigos del lado emisor (PremiumService

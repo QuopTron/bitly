@@ -12,7 +12,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../l10n/app_localizations.dart';
-import '../../../shared/utilidades/responsive.dart';
+import '../../../shared/utilidades/plataforma/responsive.dart';
 import '../../../shared/widgets/selector_fuente/acordeon_fuente.dart';
 import '../../../shared/widgets/indicadores/indicador_red.dart';
 import '../bloc/feed_bloc.dart';

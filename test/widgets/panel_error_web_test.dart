@@ -15,12 +15,12 @@
 // Se conecta con: features/splash/widgets/panel_error.dart + l10n.
 // ─────────────────────────────────────────────────────────────
 
-import 'package:bitly/core/backend_go/contrato_backend.dart';
+import 'package:bitly/core/backend_go/nucleo/contrato_backend.dart';
 import 'package:bitly/features/splash/bloc/splash_bloc.dart';
 import 'package:bitly/features/splash/bloc/splash_estado.dart';
 import 'package:bitly/features/splash/widgets/panel_error.dart';
 import 'package:bitly/l10n/app_localizations.dart';
-import 'package:bitly/shared/utilidades/responsive.dart';
+import 'package:bitly/shared/utilidades/plataforma/responsive.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';

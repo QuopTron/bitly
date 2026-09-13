@@ -11,7 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/cache/estado/estado_reproductor.dart';
-import '../../../shared/utilidades/responsive.dart';
+import '../../../shared/utilidades/plataforma/responsive.dart';
 import '../../../estado/reproductor/cubit_reproductor.dart';
 
 /// Slider de progreso con tiempos transcurrido / restante. Se suscribe él

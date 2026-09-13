@@ -21,7 +21,7 @@ import 'package:media_kit/media_kit.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'package:bitly/core/cache/almacenes/cache_descargas.dart';
-import 'package:bitly/core/backend_go/backend_android.dart';
+import 'package:bitly/core/backend_go/plataformas/backend_android.dart';
 import 'package:bitly/estado/reproductor/cubit_reproductor.dart';
 import 'package:bitly/estado/cola/cubit_cola.dart';
 import 'package:bitly/core/modelos/feed/item_feed.dart';

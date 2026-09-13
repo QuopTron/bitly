@@ -12,12 +12,12 @@
 import 'package:flutter/material.dart';
 
 import '../../../l10n/app_localizations.dart';
-import '../../../shared/utilidades/responsive.dart';
+import '../../../shared/utilidades/plataforma/responsive.dart';
 import '../../../shared/widgets/indicadores/indicador_red.dart';
 import '../../ajustes/sheet/settings_sheet_new.dart';
-import '../../home/ensamblador_home.dart';
-import '../../tutorial_interactivo/tutorial_controller.dart';
-import '../../tutorial_interactivo/tutorial_pasos.dart';
+import '../../home/shell/ensamblador_home.dart';
+import '../../tutorial_interactivo/motor/tutorial_controller.dart';
+import '../../tutorial_interactivo/motor/tutorial_pasos.dart';
 
 part 'perfil_mi_espacio_avatar.dart';
 part 'perfil_mi_espacio_piezas.dart';

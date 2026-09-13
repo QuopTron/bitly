@@ -25,7 +25,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/tema/colores_app.dart';
-import '../../../shared/utilidades/responsive.dart';
+import '../../../shared/utilidades/plataforma/responsive.dart';
 import '../bloc/splash_bloc.dart';
 import '../bloc/splash_estado.dart';
 import '../bloc/splash_evento.dart';

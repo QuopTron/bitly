@@ -12,7 +12,7 @@ import 'dart:convert';
 
 import 'package:logger/logger.dart';
 
-import '../contrato_backend.dart';
+import '../nucleo/contrato_backend.dart';
 
 final _logKeepalive = Logger();
 

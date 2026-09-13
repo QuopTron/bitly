@@ -8,7 +8,7 @@
 
 import 'dart:convert';
 
-import '../contrato_backend.dart';
+import '../nucleo/contrato_backend.dart';
 
 /// Métodos de caché de streaming (viven en Go: servidor HTTP de streaming).
 mixin AjustesMixin on BackendService {

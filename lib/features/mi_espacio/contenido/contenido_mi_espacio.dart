@@ -23,14 +23,14 @@ import '../../../estado/cola/cubit_cola.dart';
 import '../../../estado/descargas/cubit_descargas.dart';
 import '../../../estado/like/cubit_like.dart';
 import '../../../l10n/app_localizations.dart';
-import '../../../shared/utilidades/estrategia_descarga.dart';
-import '../../../shared/utilidades/responsive.dart';
+import '../../../shared/utilidades/descarga/estrategia_descarga.dart';
+import '../../../shared/utilidades/plataforma/responsive.dart';
 import '../../../shared/widgets/modales/hoja_opciones_descarga.dart';
 import '../../../shared/widgets/modales/modal_agregar_a.dart';
 import '../../../shared/widgets/modales/modal_info_cancion.dart';
 import '../../../shared/widgets/tarjetas/tarjeta_grilla.dart';
 import '../../../shared/widgets/tarjetas/tarjeta_track.dart';
-import '../../../shared/utilidades/estilo_helper.dart';
+import '../../../shared/utilidades/formato/estilo_helper.dart';
 import '../modelos_item.dart';
 
 part 'contenido_mi_espacio_canciones.dart';

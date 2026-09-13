@@ -20,14 +20,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app.dart';
 import 'app/inyeccion.dart';
-import 'core/plataforma/perfil_runtime.dart';
-import 'core/plataforma/puente_notificacion_media.dart';
-import 'core/plataforma/servicio_deep_link.dart';
-import 'core/plataforma/servicio_foco_audio.dart';
-import 'core/plataforma/servicio_share_intent.dart';
-import 'core/servicios/servicio_enlaces.dart';
+import './core/plataforma/sistema/perfil_runtime.dart';
+import './core/plataforma/notificacion/puente_notificacion_media.dart';
+import './core/plataforma/sistema/servicio_deep_link.dart';
+import './core/plataforma/sistema/servicio_foco_audio.dart';
+import './core/plataforma/sistema/servicio_share_intent.dart';
+import './core/servicios/proveedores/servicio_enlaces.dart';
 import './estado/reproductor/cubit_reproductor.dart';
-import 'shared/utilidades/deteccion_tv.dart';
+import './shared/utilidades/plataforma/deteccion_tv.dart';
 
 /// Punto de entrada de la app.
 Future<void> main() async {

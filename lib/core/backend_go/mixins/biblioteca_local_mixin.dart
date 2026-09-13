@@ -10,7 +10,7 @@
 
 import 'dart:convert';
 
-import '../contrato_backend.dart';
+import '../nucleo/contrato_backend.dart';
 
 /// RPCs de la biblioteca local: importación y dedupe por ISRC.
 mixin BibliotecaLocalMixin on BackendService {

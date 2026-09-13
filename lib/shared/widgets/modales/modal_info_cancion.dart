@@ -18,8 +18,8 @@ import '../../../core/modelos/feed/item_feed.dart';
 import '../../../core/modelos/usuario/preferencias_estilo.dart';
 import '../../../estado/cola/cubit_cola.dart';
 import '../../../l10n/app_localizations.dart';
-import '../../utilidades/paleta_portada.dart';
-import '../../utilidades/responsive.dart';
+import '../../utilidades/portada/paleta_portada.dart';
+import '../../utilidades/plataforma/responsive.dart';
 import '../tarjetas/imagen_portada.dart';
 
 part 'modal_info_cancion_widgets.dart';

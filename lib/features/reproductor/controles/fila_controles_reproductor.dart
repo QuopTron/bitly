@@ -20,8 +20,8 @@ import '../../../core/modelos/feed/item_feed.dart';
 import '../../../estado/cola/cubit_cola.dart';
 import '../../../estado/like/cubit_like.dart';
 import '../../../estado/reproductor/cubit_reproductor.dart';
-import '../../../shared/utilidades/haptico.dart';
-import '../../../shared/utilidades/responsive.dart';
+import '../../../shared/utilidades/interaccion/haptico.dart';
+import '../../../shared/utilidades/plataforma/responsive.dart';
 
 part 'fila_controles_botones.dart';
 

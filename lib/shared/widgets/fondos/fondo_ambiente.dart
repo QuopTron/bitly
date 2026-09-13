@@ -26,7 +26,7 @@ import '../../../core/modelos/usuario/preferencias_estilo.dart';
 import '../../../estado/cola/cubit_cola.dart';
 import '../../../estado/like/cubit_like.dart';
 import '../../tema/colores_app.dart';
-import '../../utilidades/paleta_portada.dart';
+import '../../utilidades/portada/paleta_portada.dart';
 import '../tarjetas/imagen_portada.dart';
 
 /// Fondo con el cover de la canción actual envuelve [child].

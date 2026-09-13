@@ -6,7 +6,7 @@
 // Parte del flujo: carátulas locales y reset de fábrica.
 // ─────────────────────────────────────────────────────────────
 
-import '../contrato_backend.dart';
+import '../nucleo/contrato_backend.dart';
 
 /// RPCs de caché de carátulas y reset de datos.
 mixin InfraMixin on BackendService {

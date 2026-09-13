@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
 import 'package:bitly/features/splash/widgets/logo_pulsante.dart';
-import 'package:bitly/shared/utilidades/responsive.dart';
+import 'package:bitly/shared/utilidades/plataforma/responsive.dart';
 
 void main() {
   group('LogoPulsante', () {

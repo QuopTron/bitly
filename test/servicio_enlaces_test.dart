@@ -7,7 +7,7 @@
 //
 // Se conecta con: core/servicios/servicio_enlaces.dart.
 // Parte del flujo: enlaces pegados/compartidos.
-import 'package:bitly/core/servicios/servicio_enlaces.dart';
+import 'package:bitly/core/servicios/proveedores/servicio_enlaces.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

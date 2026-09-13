@@ -17,7 +17,7 @@
 
 import 'package:flutter/material.dart';
 
-import '../../utilidades/deteccion_plataforma.dart';
+import '../../utilidades/plataforma/deteccion_plataforma.dart';
 import 'panel_verificacion_web.dart';
 
 /// Popup in-app con el challenge Cloudflare (WebView embebido).

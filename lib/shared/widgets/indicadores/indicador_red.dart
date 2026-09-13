@@ -13,10 +13,10 @@
 
 import 'package:flutter/material.dart';
 
-import '../../../core/plataforma/servicio_calidad_red.dart';
+import '../../../core/plataforma/red/servicio_calidad_red.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../tema/colores_app.dart';
-import '../../utilidades/responsive.dart';
+import '../../utilidades/plataforma/responsive.dart';
 import '../vidrio/contenedor_vidrio.dart';
 
 part 'indicador_red_hoja.dart';

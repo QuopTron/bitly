@@ -10,7 +10,7 @@
 import 'dart:convert';
 
 import '../../../app/inyeccion.dart' as di;
-import '../../backend_go/contrato_backend.dart';
+import '../../backend_go/nucleo/contrato_backend.dart';
 import '../../cache/almacenes/cache_colecciones.dart';
 import '../../cache/almacenes/cache_detalle.dart';
 import '../../cache/almacenes/cache_favoritos.dart';

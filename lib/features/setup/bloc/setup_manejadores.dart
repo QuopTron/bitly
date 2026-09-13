@@ -14,10 +14,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../app/inyeccion.dart' as inj;
-import '../../../core/backend_go/contrato_backend.dart';
+import '../../../core/backend_go/nucleo/contrato_backend.dart';
 import '../../../core/cache/almacenes/cache_ajustes.dart';
 import '../../../core/cache/almacenes/cache_premium.dart';
-import '../../../shared/utilidades/nombres_aleatorios.dart';
+import '../../../shared/utilidades/formato/nombres_aleatorios.dart';
 import 'setup_estado.dart';
 import 'setup_evento.dart';
 

@@ -20,7 +20,7 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:logger/logger.dart';
 import '../../app/inyeccion.dart' as di;
-import '../../core/backend_go/contrato_backend.dart';
+import '../../core/backend_go/nucleo/contrato_backend.dart';
 import '../../core/cache/almacenes/cache_ajustes.dart';
 import '../../core/cache/almacenes/cache_biblioteca.dart';
 import '../../core/cache/almacenes/cache_descargas.dart';

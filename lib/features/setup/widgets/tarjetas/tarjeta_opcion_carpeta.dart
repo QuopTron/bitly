@@ -10,7 +10,7 @@
 
 import 'package:flutter/material.dart';
 
-import '../../../../shared/utilidades/responsive.dart';
+import '../../../../shared/utilidades/plataforma/responsive.dart';
 
 /// Tarjeta de opción de carpeta seleccionable.
 class TarjetaOpcionCarpeta extends StatelessWidget {

@@ -16,7 +16,7 @@ import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 
 import '../../../app/inyeccion.dart';
-import '../../../core/backend_go/contrato_backend.dart';
+import '../../../core/backend_go/nucleo/contrato_backend.dart';
 import '../../../core/cache/almacenes/cache_ajustes.dart';
 import '../../../core/modelos/ajustes_descarga.dart';
 import '../../../core/modelos/usuario/estilo_visual.dart';
@@ -26,10 +26,10 @@ import '../../../estado/cola/cubit_cola.dart';
 import '../../../estado/descargas/cubit_descargas.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../tema/colores_app.dart';
-import '../../utilidades/estrategia_descarga.dart';
-import '../../utilidades/formato_tamano.dart';
-import '../../utilidades/paleta_portada.dart';
-import '../../utilidades/responsive.dart';
+import '../../utilidades/descarga/estrategia_descarga.dart';
+import '../../utilidades/formato/formato_tamano.dart';
+import '../../utilidades/portada/paleta_portada.dart';
+import '../../utilidades/plataforma/responsive.dart';
 import '../vidrio/contenedor_vidrio.dart';
 
 part 'hoja_opciones_descarga_cuerpo.dart';

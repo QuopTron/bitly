@@ -12,10 +12,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../features/home/ensamblador_home.dart';
+import '../features/home/shell/ensamblador_home.dart';
 import '../features/setup/pagina_setup.dart';
 import '../features/splash/pagina_splash.dart';
-import '../features/tutorial/tutorial_pagina.dart';
+import '../features/tutorial/pagina/tutorial_pagina.dart';
 import 'route_names.dart';
 
 /// Construye el GoRouter con las rutas raíz de la app.

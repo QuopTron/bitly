@@ -20,9 +20,9 @@ import '../../../core/modelos/usuario/preferencias_estilo.dart';
 import '../../../estado/reproductor/cubit_reproductor.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../tema/colores_app.dart';
-import '../../utilidades/haptico.dart';
-import '../../utilidades/paleta_portada.dart';
-import '../../utilidades/responsive.dart';
+import '../../utilidades/interaccion/haptico.dart';
+import '../../utilidades/portada/paleta_portada.dart';
+import '../../utilidades/plataforma/responsive.dart';
 import 'imagen_portada.dart';
 import '../indicadores/indicador_descarga.dart';
 

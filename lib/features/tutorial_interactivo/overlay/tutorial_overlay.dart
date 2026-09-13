@@ -19,8 +19,8 @@ import 'package:flutter/material.dart';
 
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/tema/colores_app.dart';
-import '../modelo_tutorial.dart';
-import '../tutorial_controller.dart';
+import '../motor/modelo_tutorial.dart';
+import '../motor/tutorial_controller.dart';
 
 part 'tutorial_overlay_estado.dart';
 part 'tutorial_overlay_capas.dart';

@@ -14,14 +14,14 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../shared/tema/colores_app.dart';
-import '../../shared/utilidades/deteccion_plataforma.dart';
-import '../../shared/utilidades/responsive.dart';
+import '../../shared/utilidades/plataforma/deteccion_plataforma.dart';
+import '../../shared/utilidades/plataforma/responsive.dart';
 import '../../shared/widgets/fondos/fondo_particulas.dart';
 import 'bloc/setup_bloc.dart';
 import 'bloc/setup_estado.dart';
 import 'bloc/setup_evento.dart';
-import 'setup_escritorio.dart';
-import 'setup_movil.dart';
+import './vistas/setup_escritorio.dart';
+import './vistas/setup_movil.dart';
 
 /// Página del setup: elige el layout según la plataforma.
 class PaginaSetup extends StatefulWidget {

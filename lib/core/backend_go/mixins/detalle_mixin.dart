@@ -15,7 +15,7 @@ import '../../cache/reproduccion/reproduccion_sync.dart';
 import '../../modelos/detalle/detalle_album.dart';
 import '../../modelos/detalle/detalle_artista.dart';
 import '../../modelos/detalle/detalle_playlist.dart';
-import '../contrato_backend.dart';
+import '../nucleo/contrato_backend.dart';
 
 /// Vistas de detalle — fetch por extensión (RPC) con sync local a drift.
 mixin DetalleMixin on BackendService {

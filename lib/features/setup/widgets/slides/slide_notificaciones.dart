@@ -14,7 +14,7 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../../../../l10n/app_localizations.dart';
 import '../../../../shared/tema/colores_app.dart';
-import '../../../../shared/utilidades/responsive.dart';
+import '../../../../shared/utilidades/plataforma/responsive.dart';
 import '../../../../shared/widgets/vidrio/boton_vidrio.dart';
 import '../../../../shared/widgets/vidrio/contenedor_vidrio.dart';
 import '../../bloc/setup_bloc.dart';

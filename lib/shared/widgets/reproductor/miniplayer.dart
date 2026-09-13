@@ -19,8 +19,8 @@ import '../../../estado/cola/cubit_cola.dart';
 import '../../../estado/like/cubit_like.dart';
 import '../../../estado/reproductor/cubit_reproductor.dart';
 import '../../tema/colores_app.dart';
-import '../../utilidades/haptico.dart';
-import '../../utilidades/responsive.dart';
+import '../../utilidades/interaccion/haptico.dart';
+import '../../utilidades/plataforma/responsive.dart';
 import '../tarjetas/imagen_portada.dart';
 
 part 'miniplayer_animacion.dart';

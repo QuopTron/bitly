@@ -21,10 +21,10 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../app/inyeccion.dart' as di;
 import '../../../config/secretos.dart';
-import '../../backend_go/contrato_backend.dart';
+import '../../backend_go/nucleo/contrato_backend.dart';
 import '../../cache/almacenes/cache_ajustes.dart';
 import 'oauth_youtube_webview.dart';
-import '../servicio_credenciales_proveedor.dart';
+import '../proveedores/servicio_credenciales_proveedor.dart';
 
 /// OAuth de YouTube dentro de la app (WebView embebida, sin Chrome).
 class OAuthYouTubeApp {

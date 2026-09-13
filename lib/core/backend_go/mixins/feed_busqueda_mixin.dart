@@ -11,9 +11,9 @@ import 'dart:convert';
 import '../../modelos/proveedores/config_busqueda_fuente.dart';
 import '../../modelos/feed/item_feed.dart';
 import '../../modelos/feed/seccion_feed.dart';
-import '../ayudantes_backend.dart';
-import '../contrato_backend.dart';
-import '../resultados_busqueda_stream.dart';
+import '../nucleo/ayudantes_backend.dart';
+import '../nucleo/contrato_backend.dart';
+import '../nucleo/resultados_busqueda_stream.dart';
 
 /// Feed del home + búsqueda (RPCs de Go).
 mixin FeedBusquedaMixin on BackendService {

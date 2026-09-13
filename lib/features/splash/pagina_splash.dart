@@ -16,14 +16,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../shared/utilidades/deteccion_plataforma.dart';
+import '../../shared/utilidades/plataforma/deteccion_plataforma.dart';
 import '../../app/inyeccion.dart' as di;
 import '../../core/cache/almacenes/cache_ajustes.dart';
 import 'bloc/splash_bloc.dart';
 import 'bloc/splash_estado.dart';
 import 'bloc/splash_evento.dart';
-import 'splash_escritorio.dart';
-import 'splash_movil.dart';
+import './vistas/splash_escritorio.dart';
+import './vistas/splash_movil.dart';
 
 /// Página de splash: elige layout móvil/escritorio y orquesta el arranque.
 class PaginaSplash extends StatefulWidget {

@@ -15,7 +15,7 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:logger/logger.dart';
 
-import '../../../core/backend_go/contrato_backend.dart';
+import '../../../core/backend_go/nucleo/contrato_backend.dart';
 import '../../../core/cache/almacenes/cache_busqueda.dart';
 import '../../../core/modelos/feed/item_feed.dart';
 import '../../../core/servicios/verificacion/servicio_verificacion.dart';

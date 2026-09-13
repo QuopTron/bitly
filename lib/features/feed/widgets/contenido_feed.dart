@@ -23,12 +23,12 @@ import '../../../estado/like/cubit_like.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../l10n/feed_titles.dart';
 import '../../../shared/tema/colores_app.dart';
-import '../../../shared/utilidades/estrategia_descarga.dart';
-import '../../../shared/utilidades/responsive.dart';
+import '../../../shared/utilidades/descarga/estrategia_descarga.dart';
+import '../../../shared/utilidades/plataforma/responsive.dart';
 import '../../../shared/widgets/esqueletos/esqueleto_carga.dart';
 import '../../../shared/widgets/tarjetas/tarjeta_grilla.dart';
 import '../../../shared/widgets/tarjetas/tarjeta_track.dart';
-import '../../../shared/utilidades/estilo_helper.dart';
+import '../../../shared/utilidades/formato/estilo_helper.dart';
 
 part 'contenido_feed_estado.dart';
 part 'contenido_feed_grillas.dart';

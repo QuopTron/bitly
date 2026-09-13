@@ -10,7 +10,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../shared/tema/colores_app.dart';
-import '../../../shared/utilidades/responsive.dart';
+import '../../../shared/utilidades/plataforma/responsive.dart';
 
 /// Logo con pulso y glow para la página de splash.
 class LogoPulsante extends StatelessWidget {

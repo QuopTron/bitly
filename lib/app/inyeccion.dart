@@ -7,11 +7,11 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 
-import '../core/backend_go/backend_android.dart';
-import '../core/backend_go/backend_escritorio.dart';
-import '../core/backend_go/backend_ios.dart';
-import '../core/backend_go/backend_web.dart';
-import '../core/backend_go/contrato_backend.dart';
+import '../core/backend_go/plataformas/backend_android.dart';
+import '../core/backend_go/plataformas/backend_escritorio.dart';
+import '../core/backend_go/plataformas/backend_ios.dart';
+import '../core/backend_go/plataformas/backend_web.dart';
+import '../core/backend_go/nucleo/contrato_backend.dart';
 import '../core/base_datos/app_database.dart';
 import '../core/cache/almacenes/cache_ajustes.dart';
 import '../core/cache/almacenes/cache_premium.dart';

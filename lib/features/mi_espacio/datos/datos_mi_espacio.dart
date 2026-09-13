@@ -18,7 +18,7 @@ import '../../../core/cache/estado/estado_like.dart';
 import '../../../estado/descargas/cubit_descargas.dart';
 import '../../../estado/like/cubit_like.dart';
 import '../../../l10n/app_localizations.dart';
-import '../../../shared/utilidades/estrategia_descarga.dart';
+import '../../../shared/utilidades/descarga/estrategia_descarga.dart';
 import '../modelos_item.dart';
 
 part 'datos_mi_espacio_items.dart';

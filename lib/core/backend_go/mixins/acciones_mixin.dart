@@ -7,7 +7,7 @@
 // Parte del flujo: likes, descargas, ajustes.
 // ─────────────────────────────────────────────────────────────
 
-import '../contrato_backend.dart';
+import '../nucleo/contrato_backend.dart';
 
 /// Acciones core: like, descarga, progreso, tamaño estimado y config van a Go.
 mixin AccionesMixin on BackendService {

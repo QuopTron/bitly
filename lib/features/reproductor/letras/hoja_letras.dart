@@ -24,8 +24,8 @@ import '../../../core/modelos/usuario/preferencias_estilo.dart';
 import '../../../estado/cola/cubit_cola.dart';
 import '../../../estado/like/cubit_like.dart';
 import '../../../estado/reproductor/cubit_reproductor.dart';
-import '../../../shared/utilidades/paleta_portada.dart';
-import '../../../shared/utilidades/responsive.dart';
+import '../../../shared/utilidades/portada/paleta_portada.dart';
+import '../../../shared/utilidades/plataforma/responsive.dart';
 import '../../../shared/widgets/tarjetas/imagen_portada.dart';
 
 part 'hoja_letras_parse.dart';

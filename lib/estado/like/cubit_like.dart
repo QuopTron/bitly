@@ -18,7 +18,7 @@ import 'package:flutter/foundation.dart' show protected;
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../app/inyeccion.dart' as di;
-import '../../core/backend_go/contrato_backend.dart';
+import '../../core/backend_go/nucleo/contrato_backend.dart';
 import '../../core/base_datos/app_database.dart';
 import '../../core/base_datos/daos/content_dao.dart';
 import '../../core/base_datos/daos/download_dao.dart';

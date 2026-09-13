@@ -11,7 +11,7 @@ import 'dart:convert';
 
 import '../../base_datos/app_database.dart';
 import '../../base_datos/daos/settings_dao.dart';
-import '../../backend_go/ayudantes_backend.dart';
+import '../../backend_go/nucleo/ayudantes_backend.dart';
 import '../../modelos/ajustes_descarga.dart';
 import '../../modelos/datos_setup.dart';
 import '../../modelos/usuario/perfil_rendimiento.dart';

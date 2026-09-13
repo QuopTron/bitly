@@ -24,8 +24,8 @@ import '../../../estado/like/cubit_like.dart';
 import '../../../estado/playlists/cubit_playlists.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../tema/colores_app.dart';
-import '../../utilidades/paleta_portada.dart';
-import '../../utilidades/responsive.dart';
+import '../../utilidades/portada/paleta_portada.dart';
+import '../../utilidades/plataforma/responsive.dart';
 
 part 'modal_agregar_a_crear.dart';
 part 'modal_agregar_a_inline.dart';

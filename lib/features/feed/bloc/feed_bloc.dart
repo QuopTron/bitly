@@ -11,7 +11,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../app/inyeccion.dart';
-import '../../../core/backend_go/contrato_backend.dart';
+import '../../../core/backend_go/nucleo/contrato_backend.dart';
 import '../../../core/cache/almacenes/cache_ajustes.dart';
 import '../../../core/cache/almacenes/cache_feed.dart';
 import '../../../core/modelos/feed/seccion_feed.dart';

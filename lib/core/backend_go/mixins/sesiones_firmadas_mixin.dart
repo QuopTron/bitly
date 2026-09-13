@@ -13,8 +13,8 @@ import 'dart:convert';
 
 import 'package:logger/logger.dart';
 
-import '../contrato_backend.dart';
-import '../estado_sesion_firmada.dart';
+import '../nucleo/contrato_backend.dart';
+import '../nucleo/estado_sesion_firmada.dart';
 
 final _logSesiones = Logger();
 

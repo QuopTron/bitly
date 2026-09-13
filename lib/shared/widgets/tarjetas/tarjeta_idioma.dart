@@ -8,7 +8,7 @@
 
 import 'package:flutter/material.dart';
 
-import '../../utilidades/responsive.dart';
+import '../../utilidades/plataforma/responsive.dart';
 
 /// Tarjeta de idioma seleccionable.
 class TarjetaIdioma extends StatelessWidget {

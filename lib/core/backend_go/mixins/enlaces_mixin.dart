@@ -12,7 +12,7 @@
 import 'dart:convert';
 
 import '../../modelos/resultado_enlace.dart';
-import '../contrato_backend.dart';
+import '../nucleo/contrato_backend.dart';
 
 /// Resolución de enlaces de música contra el backend Go.
 mixin EnlacesMixin on BackendService {

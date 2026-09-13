@@ -12,7 +12,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../shared/tema/colores_app.dart';
-import '../../../shared/utilidades/responsive.dart';
+import '../../../shared/utilidades/plataforma/responsive.dart';
 import '../../../shared/widgets/vidrio/contenedor_vidrio.dart';
 
 /// Navbar inferior flotante con vidrio (layout móvil).

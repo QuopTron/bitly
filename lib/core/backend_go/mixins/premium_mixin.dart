@@ -10,7 +10,7 @@
 
 import 'dart:convert';
 
-import '../contrato_backend.dart';
+import '../nucleo/contrato_backend.dart';
 
 /// Validación premium (vive en el backend Go internal/premium).
 mixin PremiumMixin on BackendService {
