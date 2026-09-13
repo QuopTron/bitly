@@ -1,0 +1,10 @@
+# Archivos que NO deben pasar por prettier.
+#
+# Artefactos compilados de terceros que se sirven tal cual desde web/.
+# Estos dos los publica drift/sqlite3 en sus releases y tienen que quedar
+# BYTE A BYTE como salen del release: el navegador carga el worker y el
+# módulo wasm directamente, y además las versiones están atadas a las de
+# pubspec.lock (drift y sqlite3). Prettier los reformatea (el worker pasaba
+# de 354 KB a 658 KB al desminificarlo) y deja de ser el artefacto oficial.
+web/drift_worker.js
+web/sqlite3.wasm
