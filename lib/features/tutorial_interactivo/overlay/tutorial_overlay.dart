@@ -19,6 +19,7 @@ import 'package:flutter/material.dart';
 
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/tema/colores_app.dart';
+import '../../../shared/utilidades/plataforma/escala_texto.dart';
 import '../motor/modelo_tutorial.dart';
 import '../motor/tutorial_controller.dart';
 

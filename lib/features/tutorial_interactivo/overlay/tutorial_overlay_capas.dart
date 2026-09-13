@@ -39,44 +39,50 @@ class _CapasTutorial extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final paso = controller.pasoActual!;
-    return FadeTransition(
-      opacity: fade,
-      child: Stack(
-        children: [
-          // Capa 1: fondo oscurecido + agujero sobre el objetivo (si está).
-          Positioned.fill(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () {}, // bloquea la interacción con lo de atrás
-              child: AnimatedBuilder(
-                animation: pulso,
-                builder:
-                    (context, _) => CustomPaint(
-                      painter: _PintorSpotlight(
-                        objetivo: objetivo,
-                        pulso: pulso.value,
+    // El tutorial se acota su propia escala de texto: es la vista donde una
+    // fuente gigante hacía inalcanzable el botón de avanzar, así que no
+    // depende de que el resto de la app lo haya acotado.
+    return acotarEscalaTexto(
+      context: context,
+      child: FadeTransition(
+        opacity: fade,
+        child: Stack(
+          children: [
+            // Capa 1: fondo oscurecido + agujero sobre el objetivo (si está).
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () {}, // bloquea la interacción con lo de atrás
+                child: AnimatedBuilder(
+                  animation: pulso,
+                  builder:
+                      (context, _) => CustomPaint(
+                        painter: _PintorSpotlight(
+                          objetivo: objetivo,
+                          pulso: pulso.value,
+                        ),
                       ),
-                    ),
+                ),
               ),
             ),
-          ),
 
-          // Capa 2: la tarjeta que explica el paso.
-          _TooltipTutorial(
-            paso: paso,
-            objetivo: objetivo,
-            pantalla: MediaQuery.sizeOf(context),
-            controller: controller,
-            esOscuro: esOscuro,
-          ),
+            // Capa 2: la tarjeta que explica el paso.
+            _TooltipTutorial(
+              paso: paso,
+              objetivo: objetivo,
+              pantalla: MediaQuery.sizeOf(context),
+              controller: controller,
+              esOscuro: esOscuro,
+            ),
 
-          // Capa 3: salir del tutorial entero, siempre a mano.
-          Positioned(
-            top: MediaQuery.paddingOf(context).top + 8,
-            right: 12,
-            child: _BotonSaltarTodo(controller: controller),
-          ),
-        ],
+            // Capa 3: salir del tutorial entero, siempre a mano.
+            Positioned(
+              top: MediaQuery.paddingOf(context).top + 8,
+              right: 12,
+              child: _BotonSaltarTodo(controller: controller),
+            ),
+          ],
+        ),
       ),
     );
   }

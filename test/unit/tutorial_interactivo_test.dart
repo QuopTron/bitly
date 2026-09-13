@@ -534,6 +534,92 @@ void main() {
     });
   });
 
+  group('con el tamaño de fuente del sistema aumentado', () {
+    // Bug real: en celulares donde el usuario sube el "tamaño de fuente" (o el
+    // tamaño de pantalla) el sistema manda una escala > 1, las cajas crecían y
+    // el botón de "Siguiente" quedaba fuera de la tarjeta: el tutorial no se
+    // podía avanzar. La app acota la escala y las acciones ya no se desplazan.
+    //
+    // Las descripciones son largas A PROPÓSITO: con textos cortos el contenido
+    // siempre entra y el bug no se reproduce.
+    List<TutorialPaso> pasosLargos() => crearPasosTutorial([
+          for (var i = 1; i <= 13; i++)
+            TextoTutorial(
+              'Titulo $i',
+              'Descripción larga del paso $i para reproducir el caso real: acá '
+                  'va el texto que ve el usuario cuando la app le explica cada '
+                  'función, con varias líneas para que la tarjeta se llene de '
+                  'contenido y el alto disponible quede corto.',
+            ),
+        ]);
+
+    testWidgets('el botón de avanzar se ve y el tutorial avanza igual',
+        (tester) async {
+      // 2.0 es el tope que permite Android en Accesibilidad > Tamaño de fuente.
+      tester.platformDispatcher.textScaleFactorTestValue = 2.0;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+
+      SharedPreferences.setMockInitialValues({});
+      final ctrl = TutorialController();
+
+      await tester.pumpWidget(_app(TutorialOverlay(controller: ctrl)));
+      await ctrl.inicializar(pasosLargos());
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // Nada se desborda (un overflow sería una excepción en el test).
+      expect(tester.takeException(), isNull,
+          reason: 'con la fuente grande la tarjeta no debe desbordar');
+
+      // El botón está entero dentro de la pantalla…
+      final pantalla = tester.view.physicalSize / tester.view.devicePixelRatio;
+      final boton = tester.getRect(find.text('Siguiente'));
+      expect(boton.top >= 0, isTrue,
+          reason: 'el botón de avanzar se salió por arriba');
+      expect(boton.bottom <= pantalla.height, isTrue,
+          reason: 'el botón de avanzar quedó fuera de pantalla');
+
+      // …y tocándolo el tutorial avanza de verdad, que es lo que se rompía.
+      // (Si las acciones volvieran a quedar dentro del scroll, el toque caería
+      // fuera del área visible y este expect fallaría.)
+      await tester.tap(find.text('Siguiente'));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('Titulo 2'), findsOneWidget,
+          reason: 'el tutorial debe avanzar con la fuente grande');
+    });
+
+    testWidgets('también avanza con un objetivo montado (agujero real)',
+        (tester) async {
+      tester.platformDispatcher.textScaleFactorTestValue = 2.0;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+
+      SharedPreferences.setMockInitialValues({});
+      final ctrl = TutorialController();
+
+      await tester.pumpWidget(_app(
+        Stack(
+          children: [
+            Align(
+              alignment: Alignment.topCenter,
+              child: KeyedSubtree(
+                key: keyTutorialFeed,
+                child: const SizedBox(width: 200, height: 60),
+              ),
+            ),
+            TutorialOverlay(controller: ctrl),
+          ],
+        ),
+      ));
+      await tester.pump();
+      await ctrl.inicializar(pasosLargos());
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.text('Siguiente'));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('Titulo 2'), findsOneWidget);
+    });
+  });
+
   group('en PC', () {
     testWidgets('la tarjeta se ve entera en 1280x800 y sin desbordar',
         (tester) async {

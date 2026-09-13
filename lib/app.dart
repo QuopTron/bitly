@@ -32,7 +32,10 @@ import 'l10n/app_localizations.dart';
 import 'router/app_router.dart';
 import 'router/route_names.dart';
 import 'shared/tema/envoltorio_color_dinamico.dart';
+import './shared/utilidades/plataforma/deteccion_plataforma.dart';
+import './shared/utilidades/plataforma/escala_texto.dart';
 import './shared/widgets/base/overlay_compartido.dart';
+import './shared/widgets/tv/puntero_tv.dart';
 
 /// App raíz: tema dinámico + blocs globales + router + deep links.
 class BitlyApp extends StatefulWidget {
@@ -182,22 +185,35 @@ class _BitlyAppState extends State<BitlyApp> {
               GlobalCupertinoLocalizations.delegate,
             ],
             routerConfig: _router,
-            builder: (context, hijo) => Stack(
-              textDirection: TextDirection.ltr,
-              children: [
-                if (hijo != null) hijo,
-                if (_linkCompartido != null)
-                  Positioned.fill(
-                    child: OverlayCompartido(
-                      type: _linkCompartido!.type,
-                      id: _linkCompartido!.id,
-                      query: _linkCompartido!.query,
-                      onDismiss: _descartarCompartido,
-                      onPlay: _reproducirCompartido,
+            builder: (context, hijo) {
+              Widget contenido = Stack(
+                textDirection: TextDirection.ltr,
+                children: [
+                  if (hijo != null) hijo,
+                  if (_linkCompartido != null)
+                    Positioned.fill(
+                      child: OverlayCompartido(
+                        type: _linkCompartido!.type,
+                        id: _linkCompartido!.id,
+                        query: _linkCompartido!.query,
+                        onDismiss: _descartarCompartido,
+                        onPlay: _reproducirCompartido,
+                      ),
                     ),
-                  ),
-              ],
-            ),
+                ],
+              );
+              // En TV no hay dedo: el cursor que mueve el control remoto hace
+              // de puntero, para que el usuario pueda moverse por toda la app
+              // sin depender del foco del D-pad.
+              if (esSmartTV(context)) {
+                contenido = PunteroTv(child: contenido);
+              }
+              // Escala de texto acotada: con el tamaño de fuente al máximo en
+              // Android las cajas se desbordaban y el tutorial no se podía
+              // avanzar. El texto sigue agrandándose, pero dentro de lo que el
+              // diseño soporta.
+              return acotarEscalaTexto(context: context, child: contenido);
+            },
           ),
         );
       },
