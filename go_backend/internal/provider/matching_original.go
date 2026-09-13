@@ -19,6 +19,51 @@ func artistaEnTitulo(queryArtist, title string) bool {
 	return false
 }
 
+// canalesResubida son palabras que delatan un canal de re-subida (YouTube
+// "topic"/"VEVO", agregadores de lyrics, recopilatorios) en vez de un artista
+// real. Cuando el campo Artist las contiene, el título suele seguir siendo la
+// canción pedida y el artista real va dentro del propio título.
+var canalesResubida = []string{
+	"vevo", "topic", "lyrics", "lyric", "hits", "records", "entertainment",
+	"music", "songs", "uploads", "uploader", "channel", "official",
+}
+
+// EsCanalDeResubida reporta si [artist] parece un canal de re-subida y no un
+// artista. Se usa para ORDENAR, nunca para rechazar: un candidato que viene de
+// un canal de re-subida es más probable que un homónimo de otro artista real.
+func EsCanalDeResubida(artist string) bool {
+	low := strings.ToLower(strings.TrimSpace(artist))
+	if low == "" {
+		return false
+	}
+	for _, marca := range canalesResubida {
+		if strings.Contains(low, marca) {
+			return true
+		}
+	}
+	return false
+}
+
+// evidenciaArtista reporta si el campo Artist del candidato se puede relacionar
+// con la consulta pedida, aunque sea de forma débil: coincidencia de tokens, el
+// artista real dentro del título (re-subidos de SoundCloud/YouTube: "Shakira -
+// DAI DAI" subido por "minecraftdiablo") o un canal de re-subida reconocible.
+//
+// Por qué importa: en el último recurso por nombre, varias canciones distintas
+// comparten el MISMO título. Sin evidencia de artista, un homónimo de otro
+// artista real (o un cover sin marcador: "karaoke" no siempre viene en el
+// título) se veía igual de bueno que el re-subido de la canción pedida, y el
+// ranking podía servir la versión equivocada.
+func evidenciaArtista(queryArtist string, t TrackResult) bool {
+	if strings.TrimSpace(queryArtist) == "" {
+		return false
+	}
+	if FieldScore(queryArtist, t.Artist) >= 1 {
+		return true
+	}
+	return artistaEnTitulo(queryArtist, t.Title) || EsCanalDeResubida(t.Artist)
+}
+
 // OriginalStrength reports whether the candidate is the ORIGINAL track for the
 // query and how strongly (combined title+artist score). Strong title (>=2) is
 // required; the artist may be strong (>=2), OR appear inside the title (common
@@ -49,6 +94,10 @@ func OriginalStrength(queryTitle, queryArtist string, t TrackResult) (float64, b
 // re-uploads: "Manuel Turizo – La Bachata" uploaded by "Anna pham"). Variants
 // relative to the query (remix/live/cover when the query lacks them) and tracks
 // with a weak title are still excluded, so a different song is never served.
+//
+// Dentro del último recurso, los candidatos con ALGUNA evidencia de artista
+// (evidenciaArtista) van primero. Nunca se descarta a nadie: el orden cambia,
+// la disponibilidad no.
 func RankOriginalCandidates(queryTitle, queryArtist string, results []TrackResult) []TrackResult {
 	var out []TrackResult
 	seen := map[int]bool{}
@@ -61,26 +110,26 @@ func RankOriginalCandidates(queryTitle, queryArtist string, results []TrackResul
 			_ = s
 		}
 	}
-	// Pass 2: best-effort — strong title, non-variant relative to the query,
-	// any artist (uploader channels). Only used when no strict original exists.
+	// Pass 2: best-effort — strong title, non-variant relative to the query.
+	// Se usa solo cuando no existe ningún original estricto (el caso típico: el
+	// artista real va dentro del título y el campo Artist es el canal).
+	//
+	// El puntaje es el MISMO que usa el desempate por duración
+	// (puntajeEfectivo), que ya incluye un bonus por evidencia de artista: un
+	// homónimo de otro artista real, o un cover sin marcador, queda detrás de un
+	// candidato relacionable con la consulta — pero NUNCA se descarta.
 	if len(out) == 0 {
-		var eff []struct {
+		type cand struct {
 			idx   int
 			score float64
 		}
+		eff := make([]cand, 0, len(results))
 		for i := range results {
 			tt := FieldScore(queryTitle, results[i].Title)
 			if tt < 2 || IsNonOriginalVariant(results[i].Title, queryTitle) {
 				continue
 			}
-			aa := FieldScore(queryArtist, results[i].Artist)
-			if artistaEnTitulo(queryArtist, results[i].Title) {
-				aa = 2 // real artist appears inside the title (re-upload)
-			}
-			eff = append(eff, struct {
-				idx   int
-				score float64
-			}{i, tt + aa})
+			eff = append(eff, cand{i, puntajeEfectivo(queryTitle, queryArtist, results[i])})
 		}
 		// Best first, stable.
 		for x := 1; x < len(eff); x++ {

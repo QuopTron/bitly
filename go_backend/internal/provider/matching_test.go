@@ -136,6 +136,67 @@ func TestBestOriginal_AcceptsFeat(t *testing.T) {
 	}
 }
 
+// El bug real que reporta el usuario: "cae en un remix la mayoría de las
+// canciones". El último recurso por nombre aceptaba CUALQUIER artista con tal de
+// que el título fuera fuerte, así que un homónimo de otro artista real (o un
+// cover sin marcador) competía de igual a igual con el re-subido de la canción
+// pedida. Estos casos fijan el orden: el candidato relacionable primero.
+func TestRankOriginalCandidates_HomonimoSinEvidenciaVaUltimo(t *testing.T) {
+	results := []TrackResult{
+		{ID: "homonimo", Title: "La Bachata", Artist: "Grupo Frontera"},
+		{ID: "resubido", Title: "La Bachata", Artist: "Latin Hits"},
+	}
+	ranked := RankOriginalCandidates("La Bachata", "Manuel Turizo", results)
+	if len(ranked) != 2 {
+		t.Fatalf("no se descarta a nadie: got %d candidatos, want 2", len(ranked))
+	}
+	if ranked[0].ID != "resubido" {
+		t.Fatalf("el homónimo de otro artista quedó primero: %+v", ranked)
+	}
+}
+
+// El desempate por duración NO puede cruzar el orden por evidencia de artista:
+// si el homónimo dura exactamente lo mismo que la canción pedida, no debe saltar
+// por delante de un canal de re-subida. (Regresión del bonus en puntajeEfectivo.)
+func TestRankOriginalCandidatesDuracion_NoCruzaEvidenciaDeArtista(t *testing.T) {
+	results := []TrackResult{
+		{ID: "homonimo", Title: "La Bachata", Artist: "Grupo Frontera", Duration: 200 * 1000},
+		{ID: "resubido", Title: "La Bachata", Artist: "Latin Hits", Duration: 400 * 1000},
+	}
+	ranked := RankOriginalCandidatesDuracion("La Bachata", "Manuel Turizo", 200*1000, results)
+	if len(ranked) == 0 || ranked[0].ID != "resubido" {
+		t.Fatalf("la duración promovió el homónimo: %+v", ranked)
+	}
+}
+
+// Sin artista en la consulta no hay evidencia posible: el orden debe quedar
+// como estaba (solo por título), sin regresión para las búsquedas por título.
+func TestRankOriginalCandidates_SinArtistaMantieneOrden(t *testing.T) {
+	results := []TrackResult{
+		{ID: "exacto", Title: "La Bachata", Artist: "Alguien"},
+		{ID: "parcial", Title: "Bachata", Artist: "Otro"},
+	}
+	ranked := RankOriginalCandidates("La Bachata", "", results)
+	if len(ranked) != 2 || ranked[0].ID != "exacto" {
+		t.Fatalf("búsqueda por título cambió de orden: %+v", ranked)
+	}
+}
+
+func TestEsCanalDeResubida(t *testing.T) {
+	canales := []string{"Latin Hits", "Manuel Turizo - Topic", "LyricsVideos", "VEVO", "Top Music"}
+	for _, c := range canales {
+		if !EsCanalDeResubida(c) {
+			t.Errorf("EsCanalDeResubida(%q) = false, want true", c)
+		}
+	}
+	reales := []string{"Manuel Turizo", "", "Karol G", "Bad Bunny"}
+	for _, a := range reales {
+		if EsCanalDeResubida(a) {
+			t.Errorf("EsCanalDeResubida(%q) = true, want false", a)
+		}
+	}
+}
+
 // The log on the device showed real tracks being rejected even though the
 // candidate was the original song. These cases lock the fixes:
 //  1. Official titles that contain "remix" ("MORNING DEW (DONK) REMIX") were

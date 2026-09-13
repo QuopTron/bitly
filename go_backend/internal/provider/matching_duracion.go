@@ -42,17 +42,31 @@ func distanciaDuracionMS(queryMS, got int) int {
 	return diff
 }
 
+// bonusEvidenciaArtista separa dos candidatos con el MISMO título cuando solo
+// uno se puede relacionar con el artista pedido (re-subido verificable o canal
+// de re-subida) y el otro es un homónimo o un cover sin marcador. Es una
+// fracción a propósito: nunca alcanza para empujar a un candidato por encima de
+// otro con mejor título, solo rompe empates hacia el lado correcto.
+const bonusEvidenciaArtista = 0.5
+
 // puntajeEfectivo replica el puntaje que usa el ranking (matching_original.go):
 // título + artista, con el artista contando como fuerte cuando aparece dentro
 // del título (re-subidos de SoundCloud/YouTube: "Shakira - DAI DAI" subido por
-// "minecraftdiablo"). Se usa solo para decidir QUÉ candidatos están empatados.
+// "minecraftdiablo") y un bonus cuando hay alguna evidencia de artista
+// (evidenciaArtista). Se usa para decidir QUÉ candidatos están empatados, así
+// que DEBE coincidir con el puntaje del pase 2 o el desempate por duración
+// cruzaría los dos grupos y devolvería el homónimo primero.
 func puntajeEfectivo(queryTitle, queryArtist string, t TrackResult) float64 {
 	tt := FieldScore(queryTitle, t.Title)
 	aa := FieldScore(queryArtist, t.Artist)
 	if tt >= 2 && aa < 2 && artistaEnTitulo(queryArtist, t.Title) {
 		aa = 2
 	}
-	return tt + aa
+	s := tt + aa
+	if tt >= 2 && evidenciaArtista(queryArtist, t) {
+		s += bonusEvidenciaArtista
+	}
+	return s
 }
 
 // RankOriginalCandidatesDuracion es RankOriginalCandidates más un desempate por
