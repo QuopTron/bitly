@@ -12,7 +12,7 @@
 #   5. Deja el instalador en dist/Bitly_vX.Y.Z_Windows-Instalador.exe.
 #
 # Uso:
-#   bash scripts/build_windows_release.sh
+#   bash scripts/build/build_windows_release.sh
 #
 # Parte del flujo: release de escritorio (Windows).
 

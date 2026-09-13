@@ -5,15 +5,21 @@
 ; %LOCALAPPDATA%\Programs\Bitly y crea accesos directos.
 ;
 ; Uso:
-;   ISCC.exe scripts/instalador_windows.iss
+;   ISCC.exe scripts/build/instalador_windows.iss
 ;   (o: "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" ...)
+;
+; OJO con las rutas relativas: este script vive en scripts/build/, así que para
+; llegar a la raíz del repo hacen falta DOS niveles (..\..\). Con un solo ..\
+; Inno resuelve dentro de scripts/ y el compilado falla con "El sistema no puede
+; encontrar la ruta especificada" (lo que pasaba al mover el instalador desde
+; scripts/ a scripts/build/).
 ;
 ; Parte del flujo: release de escritorio (Windows).
 ; ─────────────────────────────────────────────────────────────
 
 #define MyAppName "Bitly"
 ; La versión se puede sobrescribir desde la línea de comandos con
-;   ISCC.exe /DMyAppVersion=0.9.10 scripts/instalador_windows.iss
+;   ISCC.exe /DMyAppVersion=0.9.10 scripts/build/instalador_windows.iss
 ; así el CI la toma del pubspec y el asset queda como
 ; Bitly-Setup-<versión>.exe (nombre que leen la app y el sitio web).
 #ifndef MyAppVersion
@@ -33,9 +39,9 @@ DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 ; Instala por usuario (sin UAC) — más simple y no requiere admin.
 PrivilegesRequired=lowest
-OutputDir=..\dist
+OutputDir=..\..\dist
 OutputBaseFilename=Bitly-Setup-{#MyAppVersion}
-SetupIconFile=..\windows\runner\resources\app_icon.ico
+SetupIconFile=..\..\windows\runner\resources\app_icon.ico
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
@@ -60,10 +66,10 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [Files]
 ; Todos los archivos del build de release de Flutter Windows. El script de
-; build (scripts/build_windows_release.sh) borra signed_sessions del Release
+; build (scripts/build/build_windows_release.sh) borra signed_sessions del Release
 ; ANTES de compilar, para que el instalador SIEMPRE salga limpio y cada
 ; instalación fuerce verificar las extensiones.
-Source: "..\build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\..\build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

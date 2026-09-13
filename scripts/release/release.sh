@@ -11,12 +11,12 @@
 # Flujo:
 #   1. Lee la versión actual de pubspec.yaml (X.Y.Z+CODE) y la sube.
 #   2. Compila los APKs con --split-per-abi (un APK por arquitectura) y el
-#      instalador de Windows (scripts/build_windows_release.sh).
+#      instalador de Windows (scripts/build/build_windows_release.sh).
 #   3. Commitea el bump, crea el tag vX.Y.Z y hace push.
 #   4. Crea la GitHub Release con notas en español (primario) e inglés
 # Uso:
-#   bash scripts/release.sh              # sube +0.0.1 (patch)
-#   bash scripts/release.sh 0.9.10       # fija una versión exacta
+#   bash scripts/release/release.sh              # sube +0.0.1 (patch)
+#   bash scripts/release/release.sh 0.9.10       # fija una versión exacta
 #
 # Parte del flujo: release (Android + Windows).
 
@@ -108,7 +108,7 @@ done
 
 if [[ "$HACER_WINDOWS" == "true" ]]; then
   echo "==> Compilando instalador Windows..."
-  bash scripts/build_windows_release.sh
+  bash scripts/build/build_windows_release.sh
 fi
 
 echo "==> Artefactos en dist/:"
