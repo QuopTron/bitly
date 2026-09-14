@@ -145,25 +145,39 @@ jobs:
           find "$FW_DIR" -name "*.framework" -type d \
             -exec codesign --force --sign - {} \;
 
-          # 2b) Firmar los binarios SUELTOS que NO viven dentro de un framework.
+          # 2b) Firmar el código SUELTO: dylibs, .so y ejecutables que NO viven
+          #     dentro de un .framework.
+          #
           #     Qué bug arregla: libtorrent_flutter (el motor de torrents) instala
           #     Contents/Frameworks/liblibtorrent_flutter.dylib — un dylib suelto,
-          #     sin .framework alrededor. Firmar solo los .framework lo dejaba sin
-          #     firma, y el codesign final del .app moría con:
-          #       "code object is not signed at all
-          #        In subcomponent: .../Contents/Frameworks/liblibtorrent_flutter.dylib"
-          #     Con eso el DMG NUNCA se generaba (el job fallaba antes del hdiutil).
-          #     Se firma cualquier Mach-O suelto, no solo .dylib/.so: un ejecutable
-          #     sin extensión (o un bundle nuevo de otro plugin) tendría el mismo
-          #     problema mañana.
-          #     Se EXCLUYEN los que están dentro de un .framework: esos ya quedaron
-          #     firmados arriba y re-firmarlos rompería el sello del framework.
-          find "$APP/Contents" -type f -not -path "*.framework/*" -print0 \
-            | while IFS= read -r -d '' f; do
-                if file -b "$f" | grep -q "Mach-O"; then
-                  codesign --force --sign - "$f"
-                fi
-              done
+          #     sin .framework alrededor. Antes solo se firmaban los .framework,
+          #     así que ese dylib quedaba sin firma y el codesign final del .app
+          #     moría con "code object is not signed at all / In subcomponent:
+          #     ...liblibtorrent_flutter.dylib". El job terminaba ANTES del
+          #     hdiutil, así que el DMG no se generaba nunca y el release salía
+          #     sin asset de macOS.
+          #
+          #     Se recorre por glob y NO con `find | while`: el `while` de una
+          #     tubería corre en un subshell, y con `bash -e` (el default de
+          #     Actions) un solo fallo corta el bucle a la mitad. Los archivos
+          #     que venían después quedaban sin firmar y el error aparecía recién
+          #     al firmar la app, sin decir cuál faltaba.
+          #
+          #     Cada archivo se VERIFICA después de firmarlo: si alguno no queda
+          #     firmado, el job falla acá nombrando el archivo en vez de fallar
+          #     más adelante con un error opaco.
+          #
+          #     Contents/MacOS/bitly (el ejecutable principal) se EXCLUYE: lo
+          #     firma el bundle en el paso 3. Los demás binarios de MacOS/ (el
+          #     backend Go) sí se firman.
+          for suelto in "$FW_DIR"/* "$APP/Contents/MacOS/"*; do
+            if [ ! -f "$suelto" ]; then continue; fi
+            if [ "$suelto" = "$APP/Contents/MacOS/bitly" ]; then continue; fi
+            if ! file -b "$suelto" | grep -q "Mach-O"; then continue; fi
+            echo "  firmando $(basename "$suelto")"
+            codesign --force --sign - "$suelto"
+            codesign --verify "$suelto"
+          done
 
           # 3) Firmar la app SIN --deep (los frameworks ya están firmados)
           codesign --force --sign - \
