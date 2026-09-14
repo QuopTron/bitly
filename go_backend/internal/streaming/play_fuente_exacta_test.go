@@ -41,21 +41,57 @@ func (s *verifStubProvider) GetStreamURL(id, quality string) (string, error) {
 	return s.resolve()
 }
 
-// El orden de rescate pone las fuentes EXACTAS antes que los re-subidos
-// (YouTube / YouTube Music / SoundCloud), que solo identifican por nombre.
-func TestOrdenStreamingExactosAntesQueReSubidos(t *testing.T) {
+// Política de fuentes de audio: los catálogos BUSCAN, no streamean. Solo
+// YouTube (sí o sí) y —si se pidió sin pérdida— Internet Archive / Soulseek /
+// flac-rescue pueden aportar audio. Antes la carrera metía a
+// spotify-web/qobuz-web/tidal-web/amazon/apple-music, que sin sesión firmada no
+// pueden resolver una URL: ocupaban un turno del pool para devolver nada y
+// retrasaban el turno del re-subido que sí tenía el audio.
+func TestFuentesDeAudioExcluyenCatalogosDeBusqueda(t *testing.T) {
+	// Ninguna fuente de solo-búsqueda puede ser fuente de audio.
+	soloBusqueda := []string{
+		"spotify-web", "spotify", "deezer", "deezer-web", "qobuz", "qobuz-web",
+		"tidal", "tidal-web", "amazon", "amazon-web", "apple-music", "apple",
+		"pandora", "musicbrainz", "redacted",
+	}
+	for _, n := range soloBusqueda {
+		if contieneNombre(proveedoresAudio, n) {
+			t.Errorf("%q solo sirve para buscar: no puede ser fuente de audio", n)
+		}
+		if esProviderStreaming(n) {
+			t.Errorf("esProviderStreaming(%q) = true; el catálogo no streamea", n)
+		}
+	}
+
+	// YouTube es la fuente de audio obligatoria, y va primero.
+	if !contieneNombre(proveedoresAudio, "ytmusic-spotiflac") ||
+		!contieneNombre(proveedoresAudio, "youtube") {
+		t.Fatal("ytmusic-spotiflac y youtube deben ser fuentes de audio")
+	}
+	if proveedoresAudio[0] != "ytmusic-spotiflac" {
+		t.Fatalf("ytmusic-spotiflac debe reclamar el primer turno; es %q", proveedoresAudio[0])
+	}
+	// Y el FLAC real cuando se pidió sin pérdida.
+	for _, n := range []string{"internetarchive", "soulseek", "flac-rescue"} {
+		if !contieneNombre(proveedoresAudio, n) {
+			t.Errorf("%q debe ser fuente de audio (FLAC sin sesión)", n)
+		}
+	}
+
 	// Ningún re-subido puede estar entre las fuentes exactas.
 	for _, n := range proveedoresExactos {
 		if esProveedorReSubido(n) {
 			t.Fatalf("%q es un re-subido y no puede estar en proveedoresExactos", n)
 		}
-	}
-	// Los catálogos que definen el ISRC y el rescate por ISRC deben estar ahí.
-	for _, n := range []string{"deezer", "qobuz-web", "tidal-web", "amazon", "flac-rescue"} {
-		if !contieneNombre(proveedoresExactos, n) {
-			t.Fatalf("proveedoresExactos no incluye %q", n)
+		if contieneNombre(soloBusqueda, n) {
+			t.Fatalf("%q no entrega audio sin sesión: fuera de proveedoresExactos", n)
 		}
 	}
+	// flac-rescue se queda: su índice ES el ISRC, así que resuelve por identidad.
+	if !contieneNombre(proveedoresExactos, "flac-rescue") {
+		t.Fatal("proveedoresExactos debe incluir flac-rescue (índice por ISRC)")
+	}
+
 	// Todo lo que está en proveedoresReSubidos tiene que clasificar como tal.
 	for _, n := range proveedoresReSubidos {
 		if !esProveedorReSubido(n) {

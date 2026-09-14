@@ -4,6 +4,8 @@ import (
 	"log"
 	"os"
 	"strings"
+
+	"github.com/zarz/bitly/go_backend/internal/audioguard"
 )
 
 func esArchivoAudioPlano(path string) bool {
@@ -32,46 +34,31 @@ func esArchivoAudioPlano(path string) bool {
 	return false
 }
 
-// isPlayableAudioFile validates that a file on disk is a real playable audio
-// container. Rejects MPEG-TS streams disguised as .mp3 (SoundCloud HLS),
-// zero-byte files, and other garbage. Must be called after the file is
-// finalized (renamed from .tmp) so the file is complete.
+// esArchivoAudioReproducible valida que un archivo recién descargado sea un
+// contenedor de audio real. Rechaza streams MPEG-TS disfrazados de .mp3
+// (SoundCloud HLS), archivos vacíos o diminutos, y cualquier otra cosa.
+//
+// DELEGA EN audioguard a propósito. Es el mismo filtro que protege la descarga
+// P2P de Soulseek, y hacerlo compartido es el punto: el archivo descargado de
+// Internet Archive pasa por acá igual que el que sube un par, así que los dos
+// quedan cubiertos por la MISMA lista blanca. Si cada ruta tuviera su propio
+// chequeo, la próxima fuente nueva volvería a abrir el agujero.
+//
+// Es lista blanca, no lista negra: lo que no se reconoce como audio NO pasa.
+// Un .exe renombrado a .flac se rechaza nombrando el motivo (firma MZ/PE), y
+// con él cualquier otro binario. Importa más allá de "ejecutarse": el archivo
+// se le entrega a ffmpeg para convertir o descifrar, y un parser de formatos
+// alimentado con datos hostiles es la superficie de ataque real.
+//
+// Se llama después de finalizar el archivo (renombrado desde .tmp), cuando ya
+// está completo.
 func esArchivoAudioReproducible(path string) bool {
-	f, err := os.Open(path)
-	if err != nil {
-		log.Printf("[playable-check] %s: open error: %v", path, err)
-		return false
-	}
-	defer f.Close()
-	buf := make([]byte, 12)
-	n, _ := f.Read(buf)
-	if n < 4 {
-		log.Printf("[playable-check] %s: file too small (%d bytes)", path, n)
-		return false
-	}
-	head := string(buf[:n])
-	// Known playable containers
-	if strings.HasPrefix(head, "fLaC") || strings.HasPrefix(head, "ID3") ||
-		strings.HasPrefix(head, "OggS") || strings.HasPrefix(head, "RIFF") {
-		log.Printf("[playable-check] %s: ACCEPTED (head=%q, n=%d)", path, head, n)
+	v := audioguard.Revisar(path)
+	if v.OK {
+		log.Printf("[playable-check] %s: ACCEPTED (formato=%s, %d bytes)", path, v.Formato, v.Bytes)
 		return true
 	}
-	// MP4/M4A: [size:4][ftyp:4][brand:...] — ftyp is at offset 4, not 0.
-	if n >= 8 && string(buf[4:8]) == "ftyp" {
-		log.Printf("[playable-check] %s: ACCEPTED (ftyp at offset 4, n=%d)", path, n)
-		return true
-	}
-	// WebM/Matroska (TIDAL .opus)
-	if n >= 4 && buf[0] == 0x1A && buf[1] == 0x45 && buf[2] == 0xDF && buf[3] == 0xA3 {
-		return true
-	}
-	// MPEG sync word (MP3 frame sync: 0xFF 0xFB/0xF3/0xF2)
-	if n >= 2 && buf[0] == 0xFF && (buf[1]&0xE0) == 0xE0 {
-		return true
-	}
-	// MPEG-TS starts with 0x47 (sync byte) — this is NOT a standalone
-	// playable file, it's a transport stream fragment (SoundCloud HLS).
-	log.Printf("[playable-check] %s: REJECTED (head=%q hex=%02x%02x%02x%02x, n=%d)", path, head, buf[0], buf[1], buf[2], buf[3], n)
+	log.Printf("[playable-check] %s: REJECTED (%s)", path, v.Motivo)
 	return false
 }
 

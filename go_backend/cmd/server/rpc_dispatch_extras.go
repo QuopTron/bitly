@@ -20,6 +20,8 @@ func dispatchExtra(method string, params map[string]interface{}) (interface{}, s
 		return backend.GetBundledExtensions(), "", true
 	case "setExtensionSettings":
 		return backend.SetExtensionSettings(rpcBody(params)), "", true
+	case "soulseekConectar":
+		return backend.ConectarSoulseek(rpcBody(params)), "", true
 	case "reinitializeExtension":
 		return backend.ReinitializeExtension(rpcBody(params)), "", true
 	case "invokeExtensionAction":

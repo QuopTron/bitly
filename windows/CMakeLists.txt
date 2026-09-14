@@ -82,6 +82,44 @@ set(INSTALL_BUNDLE_LIB_DIR "${CMAKE_INSTALL_PREFIX}")
 install(TARGETS ${BINARY_NAME} RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}"
   COMPONENT Runtime)
 
+# ── Runtime de Visual C++ (MSVC) ──────────────────────────────────────────
+# Qué bug arregla: la carpeta Release salía SIN msvcp140.dll ni
+# vcruntime140.dll, así que en una PC que no tuviera instalado el
+# "Redistribuible de Visual C++ 2015-2022" la app NO ARRANCABA (Windows:
+# "no se encuentra VCRUNTIME140.dll" / el proceso se cierra al instante). Eso
+# es lo que se reportaba como "el exe no es compatible con nuevas
+# arquitecturas": no es la CPU, es el runtime de C++ que falta.
+#
+# InstallRequiredSystemLibraries le pide a CMake las DLLs del CRT que
+# corresponden a la arquitectura que se está compilando (x64 o arm64), así que
+# el bundle queda autosuficiente en ambas: sin rutas hardcodeadas a Visual
+# Studio y sin asumir que el usuario instaló nada. Si la toolchain no expone el
+# CRT (build mínimo de VS Build Tools), la lista sale vacía y el build sigue
+# funcionando como antes en vez de romper.
+#
+# SKIP es obligatorio, no un detalle: el módulo agrega SU PROPIO install() con
+# destino relativo ("bin"), que CMake escribe como ${CMAKE_INSTALL_PREFIX}/bin
+# para resolverlo en el momento de instalar. El prefijo de Flutter es un
+# generator expression ($<TARGET_FILE_DIR:bitly>), y al correr
+# `cmake -P cmake_install.cmake` queda sin expandir: el instalador intentaba
+# crear la carpeta literal "$<TARGET_FILE_DIR:bitly>/bin" y el build moría con
+# "file cannot create directory" en el proyecto INSTALL.
+# Con SKIP, el módulo solo define la variable y el install() de abajo (destino
+# ABSOLUTO, resuelto en generación) pone las DLLs junto al exe.
+set(CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS_SKIP TRUE)
+include(InstallRequiredSystemLibraries)
+if(CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS)
+  list(REMOVE_DUPLICATES CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS)
+  install(FILES ${CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS}
+    DESTINATION "${CMAKE_INSTALL_PREFIX}"
+    COMPONENT Runtime)
+  message(STATUS "CRT de MSVC empaquetado: ${CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS}")
+else()
+  message(WARNING
+    "No se encontró el CRT de MSVC (InstallRequiredSystemLibraries vacío): "
+    "la app va a depender del Redistribuible de Visual C++ instalado en la PC.")
+endif()
+
 # Bundle the Go backend executable alongside the runner.
 set(GO_BACKEND_SRC "${CMAKE_SOURCE_DIR}/backend/bitly-backend.exe")
 if(EXISTS "${GO_BACKEND_SRC}")

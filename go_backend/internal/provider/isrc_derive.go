@@ -35,10 +35,19 @@ import (
 
 // proveedoresConISRC son los catálogos que publican ISRC, en orden de
 // preferencia: primero los que responden sin sesión (deezer por ISRC público,
-// los -web), después los que pueden requerir cuenta.
+// los -web), después los que pueden requerir cuenta, y AL FINAL musicbrainz.
+//
+// Por qué musicbrainz está y va último: es la única base de ISRC que no depende
+// de una cuenta, una sesión firmada ni un gateway comercial — su API pública
+// devuelve el ISRC de la grabación y cubre catálogo que los servicios
+// comerciales no tienen (sellos independientes, regional, clásica). Su límite
+// es de 1 request por segundo, así que se consulta al final: los catálogos
+// rápidos responden primero y el presupuesto de la derivación (4s) acota la
+// espera. Es lo que hace que un track indie tenga ISRC y pueda entrar al
+// rescate FLAC en vez de quedarse con el stream lossy por nombre.
 var proveedoresConISRC = []string{
 	"deezer", "qobuz-web", "tidal-web", "qobuz", "tidal",
-	"apple-music", "spotify-web", "amazon",
+	"apple-music", "spotify-web", "amazon", "musicbrainz",
 }
 
 const (

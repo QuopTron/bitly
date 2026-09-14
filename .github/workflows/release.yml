@@ -154,7 +154,15 @@ jobs:
       # Split-per-abi: un APK delgado por arquitectura. Flutter genera los tres
       # (arm64-v8a, armeabi-v7a y x86_64) con los nombres que la app y el sitio
       # esperan — NO se renombran.
+      #
+      # INCLUDE_X86_64 es OBLIGATORIO acá: android/app/build.gradle.kts excluye
+      # x86_64 (emulador/Chromebook) del splits.abi salvo que la variable valga
+      # "true". Sin ella el build NO produce app-x86_64-release.apk, y como el
+      # paso "Collect APKs" exige los tres (y update_service.dart lo elige en
+      # dispositivos x86_64), el job fallaba SIEMPRE en el collect.
       - name: Build release APKs (split-per-abi)
+        env:
+          INCLUDE_X86_64: "true"
         run: |
           set -o pipefail
           if ! flutter build apk --release --split-per-abi 2>&1 | tee /tmp/flutter_build.log; then
@@ -239,6 +247,16 @@ jobs:
       - name: Build Windows release
         run: flutter build windows --release
 
+      # El bundle tiene que traer el CRT de MSVC (msvcp140/vcruntime140…). Sin
+      # él la app solo arranca en PCs que ya tengan el Redistribuible de Visual
+      # C++ instalado; en una PC nueva Windows falla con "no se encuentra
+      # VCRUNTIME140.dll" y el proceso se cierra (reportado como "el exe no es
+      # compatible con las arquitecturas nuevas"). Se comprueba acá para no
+      # publicar un instalador que recién falla en la PC del usuario.
+      - name: Verify MSVC runtime in bundle
+        shell: bash
+        run: bash scripts/build/check_windows_bundle.sh build/windows/x64/runner/Release
+
       # El instalador debe salir SIEMPRE limpio (sin sesiones firmadas ni
       # stores cacheados) para forzar verificar las extensiones en cada
       # instalación nueva.
@@ -258,7 +276,10 @@ jobs:
         run: |
           ISCC="/c/Program Files (x86)/Inno Setup 6/ISCC.exe"
           mkdir -p dist
-          "$ISCC" "/DMyAppVersion=${{ steps.version.outputs.version }}" scripts/build/instalador_windows.iss
+          "$ISCC" \
+            "/DMyAppVersion=${{ steps.version.outputs.version }}" \
+            "/DMyBuildArch=x64" \
+            scripts/build/instalador_windows.iss
           ls -lh dist/
 
       - name: Publish GitHub Release (Windows)
@@ -266,4 +287,103 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           files: dist/Bitly-Setup-*.exe
+          fail_on_unmatched_files: true
+
+  # ─── Release Windows ARM64 (nativo) ─────────────────────────────────
+  # Por qué existe: `flutter build windows` compila para la arquitectura del
+  # HOST y NO acepta cross-compile (build_windows.dart elige windows-arm64 solo
+  # si el host es HostPlatform.windows_arm64). Por eso el paquete ARM64 solo
+  # puede salir de un runner ARM64 nativo — windows-11-arm, gratis en repos
+  # públicos.
+  #
+  # Es best-effort a propósito: si el runner o la toolchain ARM64 no están
+  # disponibles, el release x64 (que ya corrió) queda intacto, y el paquete x64
+  # igual funciona en ARM64 por emulación. Este job solo AGREGA el asset
+  # nativo Bitly-Setup-X.Y.Z-arm64.exe.
+  release-windows-arm64:
+    name: Build & Release Windows ARM64
+    runs-on: windows-11-arm
+    needs: release-windows
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read version from pubspec
+        id: version
+        shell: bash
+        run: |
+          VERSION=$(grep -E '^version:' pubspec.yaml | sed 's/version: *//' | cut -d'+' -f1)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Usando versión: $VERSION"
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go_backend/go.mod
+          cache-dependency-path: go_backend/go.sum
+
+      - name: Build Go backend (Windows arm64)
+        shell: bash
+        run: |
+          mkdir -p windows/backend
+          cd go_backend
+          GOOS=windows GOARCH=arm64 go build -ldflags="-s -w" -o "../windows/backend/bitly-backend.exe" ./cmd/server
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.41.6
+          cache: true
+
+      - name: Generate secrets.dart
+        shell: bash
+        run: |
+          cp lib/config/secretos.example.dart lib/config/secretos.dart
+          TOKEN="${{ secrets.PREMIUM_GITHUB_TOKEN }}"
+          if [ -n "$TOKEN" ]; then
+            sed -i "s|tu_github_token_aqui|$TOKEN|" lib/config/secretos.dart
+          fi
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      # En un host ARM64 Flutter compila a windows-arm64: la salida cae en
+      # build/windows/arm64/runner/Release (el directorio usa
+      # TargetPlatform.simpleName, que es 'arm64' para windows_arm64).
+      - name: Build Windows release (arm64)
+        run: flutter build windows --release
+
+      - name: Verify MSVC runtime in bundle
+        shell: bash
+        run: bash scripts/build/check_windows_bundle.sh build/windows/arm64/runner/Release
+
+      - name: Clean signed sessions
+        shell: bash
+        run: |
+          RELEASE="build/windows/arm64/runner/Release"
+          rm -rf "$RELEASE/signed_sessions" "$RELEASE/ext_data/signed_sessions"
+          rm -f "$RELEASE/signed_session_debug.log" "$RELEASE/ext_data/signed_session_debug.log"
+          rm -f "$RELEASE"/*_store.json || true
+
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Build installer (arm64)
+        shell: bash
+        run: |
+          ISCC="/c/Program Files (x86)/Inno Setup 6/ISCC.exe"
+          mkdir -p dist
+          "$ISCC" \
+            "/DMyAppVersion=${{ steps.version.outputs.version }}" \
+            "/DMyBuildArch=arm64" \
+            "/DMyBuildArm64" \
+            scripts/build/instalador_windows.iss
+          ls -lh dist/
+
+      - name: Publish GitHub Release (Windows ARM64)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: dist/Bitly-Setup-*-arm64.exe
           fail_on_unmatched_files: true

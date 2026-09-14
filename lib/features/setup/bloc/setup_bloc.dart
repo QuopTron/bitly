@@ -11,6 +11,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/servicios/proveedores/servicio_soulseek.dart';
 import 'setup_estado.dart';
 import 'setup_evento.dart';
 import 'setup_manejadores.dart';
@@ -19,8 +20,14 @@ import 'setup_manejadores.dart';
 class SetupBloc extends Bloc<EventoSetup, EstadoSetup>
     with ManejadoresSetup, ManejadoresSetupAvanzado {
   final ValueNotifier<Locale> _notifierIdioma;
+  final ServicioSoulseek _soulseek;
 
-  SetupBloc(this._notifierIdioma) : super(const EstadoSetup()) {
+  /// [soulseek] es un punto de inyección para los tests: el alta real pega
+  /// contra la red y el servidor de Soulseek, así que sin esto no se puede
+  /// verificar que un nombre tomado BLOQUEA el paso en vez de dejarlo pasar.
+  SetupBloc(this._notifierIdioma, {ServicioSoulseek? soulseek})
+      : _soulseek = soulseek ?? ServicioSoulseek(),
+        super(const EstadoSetup()) {
     on<SeleccionarIdioma>(onSeleccionarIdioma$);
     on<SiguientePaso>(onSiguientePaso$);
     on<PasoAnterior>(onPasoAnterior$);
@@ -34,8 +41,13 @@ class SetupBloc extends Bloc<EventoSetup, EstadoSetup>
     on<ChequearDatosExistentes>(onChequearDatosExistentes$);
     on<AceptarDatosExistentes>(onAceptarDatosExistentes$);
     on<VerificacionCompletada>(onVerificacionCompletada$);
+    on<IniciarSyncSoulseek>(onIniciarSyncSoulseek$);
+    on<SoulseekSyncCompletada>(onSoulseekSyncCompletada$);
   }
 
   @override
   ValueNotifier<Locale> get notifierIdioma => _notifierIdioma;
+
+  @override
+  ServicioSoulseek get servicioSoulseek => _soulseek;
 }

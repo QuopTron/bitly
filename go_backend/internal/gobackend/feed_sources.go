@@ -7,8 +7,9 @@ import "encoding/json"
 
 // GetSources returns the list of user-facing sources (providers/extensions)
 // registered in the backend. Internal metadata/rescue-only providers
-// (musicbrainz) and natives superseded by an extension (youtube, replaced by
-// ytmusic-spotiflac) are excluded so the UI shows no duplicate/empty bubbles.
+// (musicbrainz, internetarchive, soulseek, flac-rescue, redacted) and natives
+// superseded by an extension (youtube, replaced by ytmusic-spotiflac) are
+// excluded so the UI shows no duplicate/empty bubbles.
 func GetSources() string {
 	if reg == nil {
 		return `[]`
@@ -19,7 +20,7 @@ func GetSources() string {
 	}
 	names := make([]string, 0, 12)
 	for _, n := range reg.Names() {
-		if hidden[n] {
+		if hidden[n] || !esFuenteDeBusqueda(n) {
 			continue
 		}
 		names = append(names, n)

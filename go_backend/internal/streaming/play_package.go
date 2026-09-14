@@ -2,7 +2,9 @@ package streaming
 
 import (
 	"fmt"
+	"log"
 	"strings"
+	"time"
 
 	"github.com/zarz/bitly/go_backend/internal/lyrics"
 	"github.com/zarz/bitly/go_backend/internal/provider"
@@ -21,7 +23,14 @@ func GetStreamPackage(
 		quality = "FLAC"
 	}
 
+	// Instrumentación de LATENCIA (ver rescue_stream.go): el pedido de un stream
+	// se compone de metadata + atajo al proveedor preferido + rescate por fases.
+	// Sin estos tres números no se puede saber cuál se come los segundos.
+	inicioPkg := time.Now()
 	track := obtenerMetadata(reg, preferredProvider, trackID, trackName, artistName, isrc, spotifyID, deezerID, tidalID, qobuzID)
+	log.Printf("[play] metadata %.0fms (prov=%q track=%v isrc=%v)",
+		float64(time.Since(inicioPkg).Microseconds())/1000, preferredProvider, track != nil,
+		track != nil && track.ISRC != "")
 	if track != nil {
 		if trackName == "" {
 			trackName = track.Title
@@ -34,7 +43,10 @@ func GetStreamPackage(
 	streamURL := ""
 	streamProvider := ""
 	if preferredProvider != "" && esProviderStreaming(preferredProvider) {
+		inicioAtajo := time.Now()
 		url, err := intentarStream(reg, preferredProvider, trackID, track, quality)
+		log.Printf("[play] atajo propio %.0fms -> ok=%v err=%v",
+			float64(time.Since(inicioAtajo).Microseconds())/1000, url != "", err)
 		if err == nil && url != "" {
 			streamURL = url
 			streamProvider = preferredProvider
@@ -56,6 +68,8 @@ func GetStreamPackage(
 	if streamURL == "" {
 		return nil, fmt.Errorf("no se encontro stream en ningun proveedor")
 	}
+	log.Printf("[play] stream listo en %.0fms (prov=%q)",
+		float64(time.Since(inicioPkg).Microseconds())/1000, streamProvider)
 
 	// Reject a non-playable result (local path to an encrypted/DRM file) so the
 	// player never loops "Error decoding audio"; only http(s) URLs stream.

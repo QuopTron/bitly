@@ -25,6 +25,14 @@ enum PasoSetup {
   gracias,
 }
 
+/// Estado del alta de la cuenta de Soulseek durante el setup.
+///
+/// `inactivo` = todavía no se intentó (el usuario no pasó por el paso de
+/// nombre), `creando` = el backend está conectando por detrás, y los otros dos
+/// son el resultado. El paso final lo muestra: la cuenta se crea sin pedir
+/// nada, pero el usuario tiene que poder enterarse de que existe.
+enum SyncSoulseek { inactivo, creando, listo, fallo }
+
 /// Estado del flujo de setup.
 class EstadoSetup extends Equatable {
   final PasoSetup paso;
@@ -45,6 +53,9 @@ class EstadoSetup extends Equatable {
   final bool trialExistenteExpirado;
   final String? trialExistenteIniciadoEn;
   final String? trialExistenteExpiraEn;
+  final SyncSoulseek syncSoulseek;
+  final String mensajeSoulseek;
+  final String motivoSoulseek;
 
   const EstadoSetup({
     this.paso = PasoSetup.chequeandoExistente,
@@ -65,6 +76,9 @@ class EstadoSetup extends Equatable {
     this.trialExistenteExpirado = false,
     this.trialExistenteIniciadoEn,
     this.trialExistenteExpiraEn,
+    this.syncSoulseek = SyncSoulseek.inactivo,
+    this.mensajeSoulseek = '',
+    this.motivoSoulseek = '',
   });
 
   EstadoSetup copiarCon({
@@ -86,6 +100,9 @@ class EstadoSetup extends Equatable {
     bool? trialExistenteExpirado,
     String? trialExistenteIniciadoEn,
     String? trialExistenteExpiraEn,
+    SyncSoulseek? syncSoulseek,
+    String? mensajeSoulseek,
+    String? motivoSoulseek,
   }) =>
       EstadoSetup(
         paso: paso ?? this.paso,
@@ -110,6 +127,9 @@ class EstadoSetup extends Equatable {
             trialExistenteIniciadoEn ?? this.trialExistenteIniciadoEn,
         trialExistenteExpiraEn:
             trialExistenteExpiraEn ?? this.trialExistenteExpiraEn,
+        syncSoulseek: syncSoulseek ?? this.syncSoulseek,
+        mensajeSoulseek: mensajeSoulseek ?? this.mensajeSoulseek,
+        motivoSoulseek: motivoSoulseek ?? this.motivoSoulseek,
       );
 
   @override
@@ -132,5 +152,8 @@ class EstadoSetup extends Equatable {
         trialExistenteExpirado,
         trialExistenteIniciadoEn,
         trialExistenteExpiraEn,
+        syncSoulseek,
+        mensajeSoulseek,
+        motivoSoulseek,
       ];
 }

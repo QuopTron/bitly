@@ -221,8 +221,12 @@ jobs:
       # Framework Go para iOS: el pod local GoBackend (ios/GoBackend.podspec)
       # lo inyecta en el build de Xcode. El dispatcher InvokeRPC
       # (go_backend/bridge_rpc.go) expone TODOS los métodos al canal nativo.
+      # mkdir: gomobile NO crea el directorio padre, y ios/Frameworks no está
+      # versionado (el .xcframework se compila acá). Sin esto el bind falla con
+      # "no such file or directory".
       - name: Build Gobackend.xcframework (iOS)
         run: |
+          mkdir -p ios/Frameworks
           cd go_backend
           gomobile bind -target=ios -o ../ios/Frameworks/Gobackend.xcframework .
           ls -lh ../ios/Frameworks/

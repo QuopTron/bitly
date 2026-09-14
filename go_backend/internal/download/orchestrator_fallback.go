@@ -14,10 +14,13 @@ import (
 // those are unavailable (rate-limited/cold), fall back to YouTube (ytmusic)
 // whose audio is the actual song, and leave soundcloud's loose name-search —
 // which can pull a same-title remix — for last.
+// soulseek se suma junto a internetarchive (mismo tier) porque son las dos
+// fuentes que pueden dar FLAC sin pérdida cuando los catálogos fallan; no se
+// reordena el resto, para no cambiar el comportamiento ya medido de las otras.
 var preferredStreamOrder = []string{
 	"amazon", "deezer", "qobuz-web", "tidal-web", "flac-rescue",
 	"youtube", "ytmusic-spotiflac", "pandora",
-	"soundcloud", "internetarchive", "apple-music", "spotify-web",
+	"soundcloud", "internetarchive", "soulseek", "apple-music", "spotify-web",
 }
 
 // buildFallbackOrder derives the fallback order from the providers actually

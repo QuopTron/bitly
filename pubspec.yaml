@@ -1,7 +1,7 @@
 name: bitly
 description: Download Spotify tracks in FLAC from Tidal, Qobuz & Deezer
 publish_to: "none"
-version: 0.9.17+12065
+version: 0.9.18+12066
 
 environment:
   sdk: ^3.7.0
@@ -60,6 +60,11 @@ dependencies:
   # Libs nativas del player para las plataformas Apple (mismo media_kit).
   media_kit_libs_macos_video: ^1.1.4
   media_kit_libs_ios_video: ^1.1.4
+
+  # Torrent streaming: libtorrent 2.1.1 (el mismo motor de qBittorrent).
+  # Provee streaming HTTP mientras descarga — media_kit reproduce el FLAC
+  # desde la URL local sin esperar a que termine la descarga completa.
+  libtorrent_flutter: ^2.0.0
 
   # Database (Drift ORM). sqlite3_flutter_libs bundles libsqlite3.so into the
   # APK — without it the FFI loader can't find SQLite on Android and the app

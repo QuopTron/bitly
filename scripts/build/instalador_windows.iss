@@ -29,6 +29,25 @@
 #define MyAppExeName "bitly.exe"
 #define MyAppBackendName "bitly-backend.exe"
 
+; ── Arquitectura ────────────────────────────────────────────────────────────
+; El build de Flutter sale en build\windows\<arch>\runner\Release, así que la
+; carpeta NO se puede hardcodear a x64: las PCs nuevas (Snapdragon X, Surface
+; Pro ARM) compilan x64 con emulación pero arm64 nativo. El script de build
+; pasa /DMyBuildArch=arm64 cuando corresponde; por defecto x64.
+#ifndef MyBuildArch
+  #define MyBuildArch "x64"
+#endif
+
+; Sufijo del nombre del asset, derivado de la arquitectura. El de x64 se deja
+; EXACTO (Bitly-Setup-<ver>.exe) porque así lo esperan el detector de versiones
+; de la app y el sitio web; el de arm64 se distingue con -arm64 para que los dos
+; assets puedan convivir en la misma GitHub Release.
+#ifdef MyBuildArm64
+  #define MyOutputSuffix "-arm64"
+#else
+  #define MyOutputSuffix ""
+#endif
+
 [Setup]
 AppId={{8E3B9F2C-4A1D-4F6E-9C2B-B1A5C7D3E9F0}
 AppName={#MyAppName}
@@ -40,12 +59,20 @@ DisableProgramGroupPage=yes
 ; Instala por usuario (sin UAC) — más simple y no requiere admin.
 PrivilegesRequired=lowest
 OutputDir=..\..\dist
-OutputBaseFilename=Bitly-Setup-{#MyAppVersion}
+OutputBaseFilename=Bitly-Setup-{#MyAppVersion}{#MyOutputSuffix}
 SetupIconFile=..\..\windows\runner\resources\app_icon.ico
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
-ArchitecturesInstallIn64BitMode=x64compatible
+; `x64compatible` = x64 O arm64 (Windows ejecuta el paquete x64 por emulación
+; en las máquinas ARM), y el paquete arm64 solo entra donde es nativo.
+#ifdef MyBuildArm64
+  ArchitecturesAllowed=arm64
+  ArchitecturesInstallIn64BitMode=arm64
+#else
+  ArchitecturesAllowed=x64compatible
+  ArchitecturesInstallIn64BitMode=x64compatible
+#endif
 UninstallDisplayIcon={app}\{#MyAppExeName}
 ; El backend y el exe principal corren juntos; la app los gestiona.
 CloseApplications=yes
@@ -69,7 +96,9 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 ; build (scripts/build/build_windows_release.sh) borra signed_sessions del Release
 ; ANTES de compilar, para que el instalador SIEMPRE salga limpio y cada
 ; instalación fuerce verificar las extensiones.
-Source: "..\..\build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; La carpeta depende de la arquitectura ({#MyBuildArch}); hardcodear x64 dejaba
+; el instalador arm64 apuntando a un build que no existe.
+Source: "..\..\build\windows\{#MyBuildArch}\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

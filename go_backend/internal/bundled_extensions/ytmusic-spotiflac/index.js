@@ -110,6 +110,10 @@ function poTokenProviderMarkOk(endpoint) {
 
 // Endpoints a probar, en orden: el que ya funcionó, el configurado por el
 // usuario, o los locales por defecto. Un vacío significa "no hay proveedor".
+//
+// OJO: esta lista incluye los locales por defecto y por eso NO es la que se usa
+// para acuñar en el camino de reproducción — ver
+// poTokenProviderCandidatesParaAcunar().
 function poTokenProviderCandidates() {
   var out = [];
   var seen = {};
@@ -126,6 +130,45 @@ function poTokenProviderCandidates() {
   }
   var locales = CONFIG.poTokenLocalProviderURLs || [];
   for (var i = 0; i < locales.length; i++) push(locales[i]);
+  return out;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// EL PROVEEDOR DE PO TOKEN NO PUEDE FRENAR UNA REPRODUCCIÓN
+//
+// Medido con la extensión real (perfil de red, no intuición):
+//   resolución de audio con el camino de token activo ...... 15.899 ms
+//   la misma resolución sin tocar el proveedor .............    966 ms
+// Y el resultado era IDÉNTICO (android, itag=18): el token no se obtuvo (el
+// proveedor no estaba levantado) pero se pagaron 16 s por intentarlo.
+//
+// De dónde salían esos 16 s: poTokenLocalProviderURLs incluye
+// http://10.0.2.2:4416, que es el alias del loopback del HOST visto DESDE el
+// emulador de Android. Con el servidor levantado es cómodo, pero cuando NO hay
+// nadie escuchando esa IP no rechaza la conexión: la deja colgada hasta que
+// vence el timeout. El loopback real (127.0.0.1/localhost) sí rechaza al
+// instante, así que el costo entero era esa única dirección.
+//
+// Regla nueva: para acuñar solo se usan endpoints que YA demostraron servir
+// (poTokenProviderWorking) o el que el usuario configuró a mano
+// (poTokenProviderURL). Nada de sondear los locales por defecto en medio de una
+// canción. El token sigue disponible — pero cuando algo prueba que puede
+// ayudar, no antes.
+//
+// Nota de producto: el token es para cuando se inicia sesión con Google (o
+// cuando el usuario levanta su propio proveedor). Sin sesión, la cadena resuelve
+// igual por los clientes que no lo piden, en menos de un segundo.
+function poTokenProviderCandidatesParaAcunar() {
+  var out = [];
+  var seen = {};
+  function push(raw) {
+    var endpoint = normalizePoTokenProviderURL(raw);
+    if (!endpoint || seen[endpoint] || poTokenProviderCooling(endpoint)) return;
+    seen[endpoint] = true;
+    out.push(endpoint);
+  }
+  push(poTokenProviderWorking);
+  push(CONFIG.poTokenProviderURL);
   return out;
 }
 
@@ -209,6 +252,61 @@ function cacheSet(k, v) {
   _cache.set(k, { v, t: now() });
 }
 
+// ── Persistencia del estado ANÓNIMO de InnerTube ──────────────────────────
+// Sin una cuenta de Google conectada no hay token del usuario: lo único que
+// hace que la resolución sea rápida (y que YouTube no nos vea como cliente
+// nuevo) es el estado anónimo — sobre todo el visitorData de la sesión. Vive
+// en memorias de 10 min (_pageInfoSession) y se perdía en CADA arranque, así
+// que la app re-acuñaba un visitor por video: eso es justo lo que dispara el
+// throttle de ráfaga y el bloqueo "confirm you're not a bot" de la 2ª canción.
+//
+// Se guarda con la API `storage` de la extensión (manifest: "storage": true,
+// un JSON por extensión). Todo va envuelto en try/catch y se saltea si el
+// sandbox no expone `storage`: persistir es una optimización, nunca puede
+// romper la resolución.
+const PERSIST_PREFIX = "persist:";
+// TTL de la copia en disco, MÁS largo que el de memoria a propósito: lo que se
+// busca es que un relanzado el mismo día reutilice el mismo visitor anónimo.
+const PAGEINFO_DISCO_TTL_MS = 6 * 60 * 60 * 1000;
+
+function persistenciaDisponible() {
+  try {
+    return typeof storage !== "undefined" && storage !== null;
+  } catch (e) {
+    return false;
+  }
+}
+
+function persistirJson(k, v) {
+  if (!persistenciaDisponible()) return;
+  try {
+    storage.set(PERSIST_PREFIX + k, JSON.stringify({ v: v, t: now() }));
+  } catch (e) {}
+}
+
+function leerJsonPersistido(k, ttlMs) {
+  if (!persistenciaDisponible()) return null;
+  try {
+    var raw = storage.get(PERSIST_PREFIX + k);
+    if (!raw) return null;
+    var e = JSON.parse(raw);
+    if (!e || !e.t || (ttlMs && now() - e.t > ttlMs)) return null;
+    return e.v;
+  } catch (err) {
+    return null;
+  }
+}
+
+function borrarPersistido(k) {
+  if (!persistenciaDisponible()) return false;
+  try {
+    storage.delete(PERSIST_PREFIX + k);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
 const _poTokenCache = new Map();
 function poTokenCacheGet(k) {
   var e = _poTokenCache.get(k);
@@ -240,6 +338,9 @@ function poTokenCacheDelete(k) {
 const _clientHealth = new Map(); // name -> { until }
 // Last time an all-clients-blocked resolution was allowed to re-probe (ms).
 var _allClientsProbeAt = 0;
+// Último cliente que resolvió un stream con éxito en esta sesión. Es la salida
+// de emergencia cuando el mapa de salud bloqueó a TODOS (ver resolveOnce).
+var _lastClientOk = "";
 
 const CLIENT_BLOCK_HARD_MS = 30 * 60 * 1000; // deprecated/account-level: 30 min
 const CLIENT_BLOCK_SOFT_MS = 8 * 60 * 1000; // 4xx / bot-adjacent: 8 min
@@ -257,6 +358,40 @@ function innerTubeClientBlocked(name) {
 
 function noteInnerTubeClientBlock(name, err) {
   var msg = String(err || "");
+
+  // 1) Un error de ESA canción no puede gastar un cliente.
+  //
+  // "This video is unavailable" no matchea isBlockedVideoError (que busca
+  // "video unavailable", sin el "is"), así que antes caía acá y bloqueaba al
+  // cliente 8 minutos. Medido: un solo toque bloqueó 6 de los 7 clientes con
+  // mensajes que eran de la pista, no del cliente. Con la cadena vaciándose así,
+  // dos o tres toques seguidos la dejaban sin ninguno y la reproducción quedaba
+  // muda (ver la salida de emergencia en resolveOnce).
+  //
+  // Ojo: NO alcanza con ampliar isBlockedVideoError — eso hace que la cadena
+  // ABORTE en vez de pasar al siguiente cliente, y android sí puede tocar la
+  // canción que web_embedded rechaza. Acá solo se evita el bloqueo.
+  if (/video (?:is )?unavailable/i.test(msg)) {
+    L("info", "[InnerTube] " + name + ": error de la pista, no se bloquea");
+    return;
+  }
+
+  // 2) Nunca bloquear al ÚLTIMO cliente libre. Quedarse sin ninguno convierte
+  // cualquier toque posterior en un fallo instantáneo; con el pool vacío la
+  // reproducción depende del libro de salud en vez de YouTube.
+  var libres = 0;
+  for (var li = 0; li < INNERTUBE_CLIENTS.length; li++) {
+    var ln = INNERTUBE_CLIENTS[li].name;
+    if (ln !== name && !innerTubeClientBlocked(ln)) libres++;
+  }
+  if (libres === 0) {
+    L(
+      "warn",
+      "[InnerTube] " + name + ": es el último cliente libre, no se bloquea",
+    );
+    return;
+  }
+
   var ttl = CLIENT_BLOCK_SOFT_MS;
   if (
     /no longer supported in this application or device/i.test(msg) ||
@@ -297,11 +432,16 @@ function clearCachedTokens() {
     generic: _cache.size,
     clientHealth: _clientHealth.size,
     pageInfoSession: _pageInfoSession.size,
+    persistidos: 0,
   };
   _poTokenCache.clear();
   _cache.clear();
   _clientHealth.clear();
   _pageInfoSession.clear();
+  // El botón debe borrar TAMBIÉN lo persistido: si no, el visitor guardado
+  // sobrevive al "limpiar caché" y el usuario no tiene forma de resetear la
+  // sesión anónima cuando YouTube empieza a rechazarla.
+  if (borrarPersistido(PAGEINFO_SESION_CLAVE)) cleared.persistidos++;
   L("info", "clearCachedTokens: cleared", JSON.stringify(cleared));
   return { ok: true, cleared: cleared };
 }
@@ -948,13 +1088,19 @@ function requestExternalGvsPoToken(
   clientConfig,
   visitorData,
   bypassCache,
+  incluirLocales,
 ) {
   // Los candidatos se resuelven ANTES de mirar la config: si el usuario no
   // pegó ningún proveedor, poTokenProviderCandidates() devuelve los locales
   // (bgutil en 4416). Así basta con levantar el contenedor en la misma máquina
   // y YouTube deja de pedir "inicia sesión para confirmar que no eres un bot",
   // sin cuenta y sin pegar tokens a mano.
-  var endpoints = poTokenProviderCandidates();
+  // [incluirLocales] lo usa la prueba a pedido del usuario
+  // (probarProveedorPoTokenLocal): ahí sí se sondear los locales por defecto,
+  // porque el costo se paga una vez y fuera de una canción.
+  var endpoints = incluirLocales
+    ? poTokenProviderCandidates()
+    : poTokenProviderCandidatesParaAcunar();
   if (!endpoints.length) return "";
 
   var innertubeContext = JSON.parse(
@@ -1138,20 +1284,37 @@ function extractYouTubePlayerURL(text) {
 // bot session and triggers the "confirm you're not a bot" blocks on the 2nd+
 // song). One successful fetch is reused for ~10 min across every video.
 const _pageInfoSession = new Map(); // -> { v, until }
+// Clave del estado anónimo de sesión. El TTL de memoria (10 min) NO cambia:
+// sigue mandando para el uso en caliente. Lo que cambia es que ahora sobrevive
+// al cierre de la app, para no re-acuñar un visitor en cada arranque.
+const PAGEINFO_SESION_CLAVE = "pageinfo:global";
+
 function pageInfoSessionGet() {
   var e = _pageInfoSession.get("global");
-  if (!e) return null;
-  if (now() >= e.until) {
-    _pageInfoSession.delete("global");
-    return null;
+  if (e && now() < e.until) return e.v;
+  if (e) _pageInfoSession.delete("global");
+  // Sin sesión en memoria: se reusa la del disco (relanzado del mismo día).
+  // Es lo que evita que YouTube cuente un cliente nuevo por cada apertura.
+  var disco = leerJsonPersistido(PAGEINFO_SESION_CLAVE, PAGEINFO_DISCO_TTL_MS);
+  if (disco && (disco.visitorData || disco.playerUrl)) {
+    _pageInfoSession.set("global", {
+      v: disco,
+      until: now() + 10 * 60 * 1000,
+    });
+    return disco;
   }
-  return e.v;
+  return null;
 }
 function pageInfoSessionSet(pageInfo) {
   _pageInfoSession.set("global", {
     v: pageInfo,
     until: now() + 10 * 60 * 1000,
   });
+  // Solo se persiste algo usable: un pageInfo vacío (fetch bloqueado o HTML
+  // sin visitorData) no debe quedar guardado como si fuera una sesión válida.
+  if (pageInfo && (pageInfo.visitorData || pageInfo.playerUrl)) {
+    persistirJson(PAGEINFO_SESION_CLAVE, pageInfo);
+  }
 }
 
 // A 429/403 from the watch page means this IP is bot-gated for page fetches.
@@ -1773,7 +1936,10 @@ var _ordenDiagnostico = false;
 function proveedorPoTokenDisponible() {
   var mode = String(CONFIG.poTokenMode || "off").toLowerCase();
   if (mode !== "auto" && mode !== "external") return false;
-  return poTokenProviderCandidates().length > 0;
+  // Se pregunta a la lista de ACUÑADO, no a la de sondeo: un candidato local
+  // sin probar no es "un proveedor disponible", y priorizar los clientes que
+  // piden token por él solo agrega la espera del proveedor a cada canción.
+  return poTokenProviderCandidatesParaAcunar().length > 0;
 }
 
 // Orden efectivo de clientes para resolver audio.
@@ -2007,6 +2173,26 @@ function requestInnerTubeAudioDownload(videoID, forceVideo) {
         );
         _clientHealth.clear();
         _allClientsProbeAt = now() + 5 * 60 * 1000;
+      } else if (_lastClientOk) {
+        // SALIDA DE EMERGENCIA: nunca devolver "sin stream" por bookkeeping
+        // NUESTRO.
+        //
+        // Medido: un solo toque marca 6 de los 7 clientes bloqueados por
+        // 8-30 minutos (los fallos son de ESA canción, no del cliente). Si el
+        // último que quedaba vivo también falla una vez, TODOS quedan
+        // bloqueados y durante 5-10 minutos cada toque devolvía al instante
+        // "all clients failed (IP blocked); next probe in 10m" — o sea la
+        // reproducción quedaba muda aunque YouTube estuviera contestando bien.
+        // Dos o tres toques seguidos alcanzaban para llegar a ese estado.
+        //
+        // Acá se desbloquea SOLO el último cliente que funcionó: una llamada
+        // real, sin re-caminar los 6 que ya sabemos que están bloqueados.
+        L(
+          "warn",
+          "[InnerTube] all clients blocked; probando solo el último que anduvo: " +
+            _lastClientOk,
+        );
+        _clientHealth.delete(_lastClientOk);
       } else {
         throw new Error(
           "innertube: all clients failed (IP blocked); next probe in " +
@@ -2105,6 +2291,7 @@ function requestInnerTubeAudioDownload(videoID, forceVideo) {
           result.bitrate +
           "bps",
       );
+      _lastClientOk = client.name;
       return result;
     }
 
@@ -6952,6 +7139,31 @@ registerExtension({
       connected: !!CONFIG.oauthAccessToken,
       hasRefreshToken: !!CONFIG.oauthRefreshToken,
     };
+  },
+  // Prueba a pedido los proveedores LOCALES por defecto (bgutil en 4416,
+  // incluido el alias 10.0.2.2 del loopback del host desde el emulador).
+  //
+  // Existe porque sondearlos en medio de una canción es lo que costaba 16 s
+  // cuando no había nadie escuchando (ver poTokenProviderCandidatesParaAcunar).
+  // Acá el costo se paga UNA vez, cuando el usuario lo pide, y el endpoint que
+  // responda queda recordado: desde la próxima canción se priorizan los
+  // clientes con audio solo-audio (opus/m4a) en vez de itag=18.
+  probarProveedorPoTokenLocal: function () {
+    var endpoints = poTokenProviderCandidates();
+    if (!endpoints.length) {
+      return { ok: false, error: "sin candidatos locales" };
+    }
+    var sonda = {
+      name: "probe",
+      body: { context: { client: { clientName: "WEB" } } },
+    };
+    var token = requestExternalGvsPoToken("dQw4w9WgXcQ", sonda, "", true, true);
+    if (token) {
+      L("warn", "[POT] proveedor local responde: " + poTokenProviderWorking);
+      return { ok: true, endpoint: poTokenProviderWorking };
+    }
+    L("warn", "[POT] ningún proveedor local respondió");
+    return { ok: false, error: "ningún proveedor local respondió" };
   },
   clearOauthSession: function () {
     CONFIG.oauthAccessToken = "";

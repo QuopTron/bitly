@@ -24,7 +24,13 @@ class StringsSetup {
       usernameSubtitle,
       randomUsername,
       usernameKept,
-      usernameChanged;
+      usernameChanged,
+      soulseekAccountNotice,
+      soulseekConnecting,
+      soulseekReady,
+      soulseekPending,
+      soulseekNameTaken,
+      soulseekNameInvalid;
   final String completingSetup,
       freeDetailedInfo,
       premiumDetailedInfo,
@@ -190,6 +196,12 @@ class StringsSetup {
     required this.usernameHint,
     required this.usernameSubtitle,
     required this.randomUsername,
+    required this.soulseekAccountNotice,
+    required this.soulseekConnecting,
+    required this.soulseekReady,
+    required this.soulseekPending,
+    required this.soulseekNameTaken,
+    required this.soulseekNameInvalid,
     required this.usernameKept,
     required this.usernameChanged,
     required this.completingSetup,
@@ -411,6 +423,15 @@ class StringsSetup {
     usernameHint: 'Enter your name',
     usernameSubtitle: 'Type your name or use the random generator',
     randomUsername: 'Random',
+    soulseekAccountNotice:
+        'Continuing creates your Soulseek account with this name',
+    soulseekConnecting: 'Connecting your Soulseek account...',
+    soulseekReady: 'Your Soulseek account is ready',
+    soulseekPending: 'Soulseek: you can connect it from Settings',
+    soulseekNameTaken:
+        'That name is already taken on Soulseek. Pick another one to continue.',
+    soulseekNameInvalid:
+        'Soulseek names allow up to 30 characters, no accents or emojis.',
     usernameKept: 'Keep name',
     usernameChanged: 'Change name',
     completingSetup: 'Completing setup...',
@@ -643,6 +664,15 @@ class StringsSetup {
     usernameHint: 'Ingresa tu nombre',
     usernameSubtitle: 'Escribe tu nombre o usa el generador aleatorio',
     randomUsername: 'Aleatorio',
+    soulseekAccountNotice:
+        'Al continuar se crea tu cuenta de Soulseek con este nombre',
+    soulseekConnecting: 'Conectando tu cuenta de Soulseek...',
+    soulseekReady: 'Tu cuenta de Soulseek está lista',
+    soulseekPending: 'Soulseek: podés conectarlo desde Ajustes',
+    soulseekNameTaken:
+        'Ese nombre ya está tomado en Soulseek. Elegí otro para continuar.',
+    soulseekNameInvalid:
+        'Los nombres de Soulseek admiten hasta 30 caracteres, sin acentos ni emojis.',
     usernameKept: 'Mantener nombre',
     usernameChanged: 'Cambiar nombre',
     completingSetup: 'Completando configuración...',

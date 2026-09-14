@@ -53,11 +53,17 @@ class PaginaBusqueda extends StatefulWidget {
   State<PaginaBusqueda> createState() => _PaginaBusquedaState();
 }
 
+/// Pausa de escritura antes de buscar (ver _onTextoCambiado). Es a propósito
+/// larga: el usuario promedio teclea un título en más de un segundo y con un
+/// debounce corto la búsqueda se disparaba a mitad de palabra.
+const _pausaEscritura = Duration(milliseconds: 650);
+
 class _PaginaBusquedaState extends State<PaginaBusqueda> {
   final TextEditingController _controlador = TextEditingController();
   Timer? _debounce;
 
-  /// Fuente de búsqueda activa — cada búsqueda apunta a una extensión.
+  /// Fuente de búsqueda activa — cada búsqueda apunta a UNA extensión (nunca a
+  /// un modo "todas": los proveedores de respaldo no son catálogos buscables).
   String _fuente = '';
 
   /// Categoría activa: siempre hay una ('tracks' por defecto), sin modo "all".

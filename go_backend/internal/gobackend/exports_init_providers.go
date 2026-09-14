@@ -13,6 +13,7 @@ import (
 	"github.com/zarz/bitly/go_backend/internal/provider/musicbrainz"
 	"github.com/zarz/bitly/go_backend/internal/provider/qobuz"
 	"github.com/zarz/bitly/go_backend/internal/provider/redacted"
+	"github.com/zarz/bitly/go_backend/internal/provider/soulseek"
 	"github.com/zarz/bitly/go_backend/internal/provider/soundcloud"
 	"github.com/zarz/bitly/go_backend/internal/provider/spotify"
 	"github.com/zarz/bitly/go_backend/internal/provider/tidal"
@@ -85,6 +86,11 @@ func inicializarProviders(reg *provider.Registry) []bundled_extensions.Registere
 		// si el usuario pone sus credenciales en ajustes. El stream URL
 		// devuelto es un magnet link que libtorrent_flutter resuelve.
 		redacted.NewClient("", ""),
+		// Soulseek: catálogo comercial en FLAC al que se entra SIN invitación,
+		// SIN pago y sin dar datos personales (el alta es del lado del
+		// cliente: nombre + contraseña). Queda inerte hasta que haya
+		// credenciales EN AJUSTES, así el arranque nunca depende de la red.
+		soulseek.NewClient("", ""),
 	}
 	for _, np := range nativeRegister {
 		if replacedByExt[np.Name()] {

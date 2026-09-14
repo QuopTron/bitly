@@ -17,6 +17,12 @@ func (o *Orchestrator) attemptDownload(req Request, name string, p provider.Prov
 	if ep, ok := p.(*provider.ExtensionProvider); ok && outDir != "" {
 		return o.attemptExtensionDownload(req, name, p, ep, trackID, title, artist, outDir)
 	}
+	// Proveedor que trae el archivo por su cuenta (Soulseek: el par que sube
+	// abre la conexión de datos hacia nosotros, así que no existe una URL que
+	// se pueda pedir con GET). Se le pide el archivo ya escrito.
+	if d, ok := p.(descargadorPropio); ok && outDir != "" {
+		return o.attemptProviderDownload(req, name, p, d, trackID, outDir)
+	}
 	// Native provider: resolve a stream URL and download it to disk.
 	return o.attemptNativeDownload(req, name, p, trackID, title, artist, outDir)
 }

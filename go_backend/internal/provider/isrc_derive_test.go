@@ -94,6 +94,39 @@ func TestDerivarISRC_CacheaAciertosYFallos(t *testing.T) {
 	}
 }
 
+// TestDerivarISRC_UsaMusicBrainzCuandoLosComercialesNoTienen fija la última
+// capa de la cadena: MusicBrainz es la única base de ISRC sin cuenta ni sesión
+// firmada, y cubre catálogo que los servicios comerciales no tienen (sellos
+// independientes, regional, clásica). Sin ella, esos tracks se quedaban sin
+// ISRC y perdían el rescate FLAC.
+func TestDerivarISRC_UsaMusicBrainzCuandoLosComercialesNoTienen(t *testing.T) {
+	var llamadas int
+	r := registroConISRC("musicbrainz", []TrackResult{
+		{ID: "mb-1", Title: "Tema Indie Unico", Artist: "Banda Indie Unica", Duration: 210000, ISRC: "QZIND0000001"},
+	}, &llamadas)
+
+	got := DerivarISRC(r, "Tema Indie Unico", "Banda Indie Unica", 210000)
+	if got != "QZIND0000001" {
+		t.Fatalf("DerivarISRC = %q, quería el ISRC de MusicBrainz", got)
+	}
+	if llamadas == 0 {
+		t.Error("no se consultó MusicBrainz")
+	}
+}
+
+// TestProveedoresConISRCMusicBrainzVaAlFinal: su API limita a 1 request por
+// segundo, así que se consulta DESPUÉS de los catálogos rápidos; el presupuesto
+// de 4s acota la espera.
+func TestProveedoresConISRCMusicBrainzVaAlFinal(t *testing.T) {
+	if len(proveedoresConISRC) == 0 {
+		t.Fatal("la cadena de derivación está vacía")
+	}
+	ultimo := proveedoresConISRC[len(proveedoresConISRC)-1]
+	if ultimo != "musicbrainz" {
+		t.Errorf("el último proveedor es %q, quería musicbrainz (1 req/s)", ultimo)
+	}
+}
+
 func TestDuracionCompatible(t *testing.T) {
 	casos := []struct {
 		query, got int

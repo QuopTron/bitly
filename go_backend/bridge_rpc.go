@@ -201,6 +201,8 @@ func dispatchGomobile(metodo string, params map[string]interface{}) (interface{}
 		return backend.GetBundledExtensions(), ""
 	case "setExtensionSettings":
 		return backend.SetExtensionSettings(paramObj(params)), ""
+	case "soulseekConectar":
+		return backend.ConectarSoulseek(paramObj(params)), ""
 	case "reinitializeExtension":
 		return backend.ReinitializeExtension(paramObj(params)), ""
 	case "invokeExtensionAction":

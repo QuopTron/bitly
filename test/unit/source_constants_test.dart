@@ -50,6 +50,44 @@ void main() {
     });
   });
 
+  group('fuentesSoloRespaldo', () {
+    // Internet Archive y Soulseek no son catálogos navegables: existen para el
+    // rescate lossless. Si alguno se ofreciera como fuente de búsqueda, sus
+    // resultados se mezclarían con los de las extensiones reales.
+    test('Internet Archive, Soulseek y flac-rescue no son fuentes de búsqueda',
+        () {
+      for (final src in const [
+        'internetarchive',
+        'soulseek',
+        'flac-rescue',
+        'redacted',
+        'musicbrainz',
+      ]) {
+        expect(esFuenteDeBusqueda(src), isFalse,
+            reason: '$src no debe ofrecerse como fuente de búsqueda');
+      }
+    });
+
+    test('los catálogos reales sí son fuentes de búsqueda', () {
+      for (final src in const [
+        'deezer',
+        'spotify-web',
+        'apple-music',
+        'soundcloud',
+        'qobuz-web',
+        'tidal-web',
+        'ytmusic-spotiflac',
+      ]) {
+        expect(esFuenteDeBusqueda(src), isTrue,
+            reason: '$src debe seguir siendo buscable');
+      }
+    });
+
+    test('el id vacío (agrupado, interno) no rompe el filtro', () {
+      expect(esFuenteDeBusqueda(''), isTrue);
+    });
+  });
+
   group('etiquetasFuente', () {
     test('all sources have labels', () {
       for (final src in todasLasFuentes) {

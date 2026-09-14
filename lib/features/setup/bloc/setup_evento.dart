@@ -107,6 +107,46 @@ class AceptarDatosExistentes extends EventoSetup {
   List<Object?> get props => [aceptar];
 }
 
+/// Crea/conecta la cuenta de Soulseek con el nombre que el usuario escribió.
+///
+/// El nombre viaja EN EL EVENTO (no se lee de la base) porque durante el setup
+/// todavía no se persistió: leerlo de ahí devolvía vacío y el alta no se
+/// intentaba nunca.
+class IniciarSyncSoulseek extends EventoSetup {
+  final String usuario;
+
+  const IniciarSyncSoulseek(this.usuario);
+
+  @override
+  List<Object?> get props => [usuario];
+}
+
+/// Resultado de la creación de la cuenta de Soulseek.
+///
+/// [motivo] es lo que decide si el setup avanza (`nombre_tomado`,
+/// `nombre_invalido`, o vacío). Un nombre tomado o inválido lo tiene que
+/// corregir el usuario ANTES de seguir: si no, llegaría al final del setup con
+/// una cuenta que no existe y sin saber por qué. Cualquier otro fallo —sin
+/// internet, servidor lleno— no bloquea nada.
+class SoulseekSyncCompletada extends EventoSetup {
+  final bool ok;
+  final String mensaje;
+  final String motivo;
+
+  const SoulseekSyncCompletada({
+    required this.ok,
+    this.mensaje = '',
+    this.motivo = '',
+  });
+
+  /// El usuario puede resolverlo eligiendo otro nombre.
+  bool get problemaDeNombre =>
+      motivo == 'nombre_tomado' || motivo == 'nombre_invalido';
+
+  @override
+  List<Object?> get props => [ok, mensaje, motivo];
+}
+
 /// Notifica que la verificación de fuentes terminó (éxito o error).
 class VerificacionCompletada extends EventoSetup {
   final bool exito;

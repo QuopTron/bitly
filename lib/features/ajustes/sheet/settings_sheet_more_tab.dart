@@ -66,6 +66,10 @@ class _MoreTabState extends State<_MoreTab> {
           // Google connection
           _GoogleConnectionCard(glowColor: widget.glowColor),
           SizedBox(height: r.spacingM),
+          // Soulseek: cuenta propia en un click (nombre + Siguiente) para el
+          // catálogo en FLAC que no pide invitación, pago ni datos.
+          _SoulseekCard(glowColor: widget.glowColor),
+          SizedBox(height: r.spacingM),
           // Música propia del usuario (importación local + dedupe por ISRC)
           _BibliotecaLocalCard(glowColor: widget.glowColor),
           SizedBox(height: r.spacingM),

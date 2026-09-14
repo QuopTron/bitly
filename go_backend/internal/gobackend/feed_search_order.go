@@ -23,6 +23,13 @@ func providersBusquedaOrdenados() []provider.Provider {
 		if p == nil || seen[p.Name()] {
 			return
 		}
+		// Proveedores de respaldo (Internet Archive, Soulseek, flac-rescue,
+		// redacted, musicbrainz) NO participan de la búsqueda: no son
+		// catálogos navegables y sus "resultados" ensuciaban la lista — ver
+		// search_fuentes.go. Siguen en el registro para el rescate.
+		if !esFuenteDeBusqueda(p.Name()) {
+			return
+		}
 		seen[p.Name()] = true
 		ordered = append(ordered, p)
 	}
@@ -39,7 +46,7 @@ func providersBusquedaOrdenados() []provider.Provider {
 	return ordered
 }
 
-// searchAllSourceBest searches every provider IN PARALLEL (with a global
+// searchAllSourceBest searches every SEARCHABLE provider IN PARALLEL (with a global
 // timeout) and returns the combined results from ALL of them, each capped at
 // [limit]. A rate-limited (cooled) source is skipped fast. The Flutter side
 // groups the returned items by source, so a "Todas" search shows every

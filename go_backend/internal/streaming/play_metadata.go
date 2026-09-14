@@ -13,7 +13,22 @@ func obtenerMetadata(reg *provider.Registry, providerName, trackID, trackName, a
 		return cached
 	}
 
+	// ISRC por IDENTIDAD (SongLink/Odesli vía enrichTrack de la extensión) antes
+	// de cualquier búsqueda por nombre: ver play_metadata_enrich.go. Solo cuando
+	// la consulta no trae ya un ISRC y la fuente ES una extensión — los catálogos
+	// no lo necesitan porque su metadata ya lo incluye. El resultado se guarda en
+	// la caché de metadata, así que la llamada se paga una vez por canción.
+	var enriquecido *provider.EnrichTrackResult
+	if isrc == "" {
+		enriquecido = enriquecerPorIdentidad(reg, providerName, trackID, trackName)
+	}
+
 	store := func(t *provider.TrackResult) *provider.TrackResult {
+		if t != nil && t.ISRC == "" && !enriquecimientoVacio(enriquecido) {
+			copia := *t
+			aplicarEnriquecimiento(&copia, enriquecido)
+			t = &copia
+		}
 		guardarMetadata(cacheKey, t)
 		// Also index by the found track's ISRC so later calls that only carry a
 		// different provider id still hit (their key normalizes to the ISRC).
@@ -95,6 +110,22 @@ func obtenerMetadata(reg *provider.Registry, providerName, trackID, trackName, a
 					return store(best)
 				}
 			}
+		}
+	}
+	// Ningún catálogo la tiene, pero el hook por IDENTIDAD sí resolvió el ISRC:
+	// con eso alcanza para que la reproducción entre a la fase exacta por ISRC y
+	// al rescate FLAC. Antes este dato se descartaba y la canción quedaba
+	// condenada al stream lossy por nombre.
+	if !enriquecimientoVacio(enriquecido) {
+		base := &provider.TrackResult{
+			ID:       exactID,
+			Title:    trackName,
+			Artist:   artistName,
+			Provider: providerName,
+		}
+		aplicarEnriquecimiento(base, enriquecido)
+		if base.ISRC != "" {
+			return store(base)
 		}
 	}
 	return nil

@@ -49,6 +49,12 @@ func searchAllWithTimeout[T any](query string, limit int,
 
 	var wg sync.WaitGroup
 	for _, p := range providers {
+		// Los proveedores de respaldo (Internet Archive, Soulseek, flac-rescue,
+		// redacted, musicbrainz) no son catálogos de búsqueda: ver
+		// search_fuentes.go. Igual siguen registrados para el rescate.
+		if !esFuenteDeBusqueda(p.Name()) {
+			continue
+		}
 		wg.Add(1)
 		go func(prov provider.Provider) {
 			defer wg.Done()

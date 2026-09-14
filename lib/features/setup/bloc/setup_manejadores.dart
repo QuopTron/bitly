@@ -10,6 +10,8 @@
 // Parte del flujo: setup (flujo de bienvenida).
 // ─────────────────────────────────────────────────────────────
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -17,6 +19,7 @@ import '../../../app/inyeccion.dart' as inj;
 import '../../../core/backend_go/nucleo/contrato_backend.dart';
 import '../../../core/cache/almacenes/cache_ajustes.dart';
 import '../../../core/cache/almacenes/cache_premium.dart';
+import '../../../core/servicios/proveedores/servicio_soulseek.dart';
 import '../../../shared/utilidades/formato/nombres_aleatorios.dart';
 import 'setup_estado.dart';
 import 'setup_evento.dart';
@@ -28,6 +31,9 @@ part 'setup_manejadores_avanzado.dart';
 mixin ManejadoresSetup on Bloc<EventoSetup, EstadoSetup> {
   ValueNotifier<Locale> get notifierIdioma;
 
+  /// Cliente de Soulseek (inyectable: los tests usan uno falso).
+  ServicioSoulseek get servicioSoulseek;
+
   void onSeleccionarIdioma$(SeleccionarIdioma event, Emitter<EstadoSetup> emit) {
     notifierIdioma.value = Locale(event.locale);
     emit(state.copiarCon(idiomaSeleccionado: event.locale));
@@ -38,7 +44,15 @@ mixin ManejadoresSetup on Bloc<EventoSetup, EstadoSetup> {
       case PasoSetup.idioma:
         emit(state.copiarCon(paso: PasoSetup.usuario));
       case PasoSetup.usuario:
-        emit(state.copiarCon(paso: PasoSetup.googleSignIn));
+        // El alta de Soulseek se intenta ANTES de avanzar. Si el nombre ya
+        // está tomado en la red (o no es válido), el usuario tiene que elegir
+        // otro ACÁ: si lo dejáramos pasar, terminaría el setup con una cuenta
+        // que no existe y sin saber por qué. El avance lo dispara el
+        // resultado, no este evento.
+        // Un fallo que el usuario no puede resolver (sin internet, servidor
+        // lleno) sí avanza: la bienvenida no depende de Soulseek.
+        if (state.syncSoulseek == SyncSoulseek.creando) return; // ya corriendo
+        add(IniciarSyncSoulseek(state.usuario));
       case PasoSetup.googleSignIn:
         emit(state.copiarCon(paso: PasoSetup.modo));
       case PasoSetup.modo:
@@ -118,4 +132,60 @@ mixin ManejadoresSetup on Bloc<EventoSetup, EstadoSetup> {
     ));
   }
 
+  // ── Soulseek: alta de la cuenta con el nombre elegido ──
+
+  /// Marca que el alta empezó y la lanza sin esperarla.
+  void onIniciarSyncSoulseek$(
+    IniciarSyncSoulseek event,
+    Emitter<EstadoSetup> emit,
+  ) {
+    emit(state.copiarCon(syncSoulseek: SyncSoulseek.creando));
+    unawaited(_crearCuentaSoulseek(event.usuario));
+  }
+
+  /// Crea/conecta la cuenta con el nombre que el usuario escribió.
+  ///
+  /// El resultado vuelve como EVENTO (y no como `emit` directo) para que el
+  /// trabajo asíncrono no dependa de que este handler siga vivo.
+  Future<void> _crearCuentaSoulseek(String usuario) async {
+    try {
+      final nombre = usuario.trim();
+      if (nombre.isEmpty) {
+        // Sin nombre no se inventa uno: se le pide al usuario.
+        if (isClosed) return;
+        add(const SoulseekSyncCompletada(
+          ok: false,
+          mensaje: 'escribí un nombre de usuario',
+          motivo: 'nombre_invalido',
+        ));
+        return;
+      }
+      final resultado = await servicioSoulseek.crearOConectar(nombre);
+      if (isClosed) return;
+      add(SoulseekSyncCompletada(
+        ok: resultado.ok,
+        mensaje: resultado.mensaje,
+        motivo: resultado.ok ? '' : resultado.motivoClave,
+      ));
+    } catch (e) {
+      if (isClosed) return;
+      // Falla del puente/red: no es algo que el usuario deba corregir.
+      add(SoulseekSyncCompletada(ok: false, mensaje: 'Error: $e'));
+    }
+  }
+
+  void onSoulseekSyncCompletada$(
+    SoulseekSyncCompletada event,
+    Emitter<EstadoSetup> emit,
+  ) {
+    emit(state.copiarCon(
+      syncSoulseek: event.ok ? SyncSoulseek.listo : SyncSoulseek.fallo,
+      mensajeSoulseek: event.mensaje,
+      motivoSoulseek: event.motivo,
+      // Solo se avanza si no queda nada que el usuario deba corregir.
+      paso: (event.ok || !event.problemaDeNombre)
+          ? PasoSetup.googleSignIn
+          : state.paso,
+    ));
+  }
 }

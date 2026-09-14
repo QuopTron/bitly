@@ -25,11 +25,16 @@ type SourceSearchConfig struct {
 
 // GetSearchConfig returns the search category bubbles for every bundled source
 // that declares a searchBehavior. Sources without one (e.g. pandora) are
-// omitted so the UI offers no bogus category chips for them.
+// omitted so the UI offers no bogus category chips for them, and providers that
+// only exist for the lossless rescue (Internet Archive, Soulseek...) are
+// omitted too: no son catálogos navegables (ver search_fuentes.go).
 func GetSearchConfig() string {
 	out := make([]SourceSearchConfig, 0, len(bundledExts))
 	for _, e := range bundledExts {
 		if len(e.Search.Filters) == 0 {
+			continue
+		}
+		if !esFuenteDeBusqueda(e.ID) {
 			continue
 		}
 		cfg := SourceSearchConfig{

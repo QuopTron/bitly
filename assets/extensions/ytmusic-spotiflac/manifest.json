@@ -94,7 +94,14 @@
       "label": "PO Token Provider URL",
       "type": "string",
       "default": "",
-      "description": "Optional BgUtils-compatible provider base URL or /get_pot endpoint. Used for fresh GVS PO tokens when direct YouTube downloads need them."
+      "description": "Optional BgUtils-compatible provider base URL or /get_pot endpoint. Used for fresh GVS PO tokens when direct YouTube downloads need them. Necesario si tu proveedor local NO escucha en 127.0.0.1 (en un emulador de Android, el bgutil del host se alcanza como http://10.0.2.2:4416). Un proveedor local sin probar ya no se sondea durante una reproducción: usá el botón de abajo para probarlo una vez."
+    },
+    {
+      "key": "probarProveedorPoToken",
+      "label": "Probar proveedor de PO Token local",
+      "type": "button",
+      "action": "probarProveedorPoToken",
+      "description": "Prueba los proveedores locales por defecto (bgutil en 127.0.0.1:4416, localhost:4416 y 10.0.2.2:4416, este último es el loopback del host visto desde el emulador). Si alguno responde queda recordado y desde la próxima canción se usan los formatos de audio solo-audio (opus/m4a, mejor bitrate) en vez del itag=18. Sin proveedor, la reproducción igual funciona: solo que con el formato multiplexado."
     },
     {
       "key": "manualGvsPoToken",

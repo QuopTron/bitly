@@ -26,25 +26,29 @@ List<ConfigFiltroBusqueda> _filtrosPara(EstadoBusqueda state, String fuente) {
 
 /// Fuentes buscables del backend (la primaria primero), con fallback.
 ///
-/// La PRIMERA entrada es "Todas" (id vacío): el backend la interpreta como
-/// búsqueda multi-fuente en paralelo (runSearchStream con `source` vacío),
-/// deduplica por ISRC y va emitiendo resultados a medida que cada fuente
-/// responde — así la primera coincidencia aparece sin esperar a la más lenta.
+/// Cada búsqueda apunta a UNA extensión: ya no hay entrada "Todas". Buscar en
+/// todas a la vez metía en la lista resultados de proveedores de respaldo
+/// (Internet Archive, Soulseek) que no son catálogos navegables — ver
+/// search_fuentes.go en el backend, que aplica el mismo filtro. Acá se filtra
+/// además en el cliente para que el selector nunca ofrezca una fuente que el
+/// backend no puede buscar.
 Map<String, String> _fuentesBusqueda(EstadoBusqueda state) {
-  final ordenadas = <String, String>{'': nombreFuente('')};
+  final ordenadas = <String, String>{};
   final cfg = state.configBusqueda;
   if (cfg.isNotEmpty) {
     final primarias = cfg.entries.where((e) => e.value.primary).toList();
     final resto = cfg.entries.where((e) => !e.value.primary).toList();
     for (final e in [...primarias, ...resto]) {
+      if (!esFuenteDeBusqueda(e.key)) continue;
       ordenadas[e.key] = nombreFuente(e.key);
     }
     return ordenadas;
   }
   for (final s in const [
     'deezer', 'spotify-web', 'apple-music', 'soundcloud', 'amazon',
-    'qobuz-web', 'tidal-web', 'ytmusic-spotiflac', 'internetarchive',
+    'qobuz-web', 'tidal-web', 'ytmusic-spotiflac',
   ]) {
+    if (!esFuenteDeBusqueda(s)) continue;
     ordenadas[s] = nombreFuente(s);
   }
   return ordenadas;

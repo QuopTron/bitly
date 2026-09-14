@@ -10,6 +10,54 @@
 
 part of 'slide_gracias.dart';
 
+/// Estado del alta de Soulseek en el paso final: girando mientras conecta y,
+/// al terminar, el resultado en una sola línea.
+Widget _lineaSoulseek(
+  _SlideGraciasState st,
+  Color onBg,
+  Color glowColor,
+) {
+  final conectando = st.widget.state.syncSoulseek == SyncSoulseek.creando;
+  final ok = st.widget.state.syncSoulseek == SyncSoulseek.listo;
+  final color = conectando
+      ? onBg.withValues(alpha: 0.45)
+      : (ok ? glowColor : onBg.withValues(alpha: 0.45));
+  final texto = conectando
+      ? st.widget.loc.setup.soulseekConnecting
+      : (ok
+            ? st.widget.loc.setup.soulseekReady
+            : st.widget.loc.setup.soulseekPending);
+
+  return Padding(
+    padding: EdgeInsets.symmetric(horizontal: st.widget.r.spacingXL),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        if (conectando)
+          SizedBox(
+            width: st.widget.r.footerSize,
+            height: st.widget.r.footerSize,
+            child: CircularProgressIndicator(strokeWidth: 2, color: glowColor),
+          )
+        else
+          Icon(
+            ok ? Icons.hub_rounded : Icons.hub_outlined,
+            size: st.widget.r.footerSize + 1,
+            color: color,
+          ),
+        SizedBox(width: st.widget.r.spacingS),
+        Flexible(
+          child: Text(
+            texto,
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: st.widget.r.footerSize, color: color),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
 Widget _cuerpoGuardando(_SlideGraciasState st, Color onBg, Color glowColor) {
   return Padding(
     padding: EdgeInsets.only(bottom: st.widget.r.bottomPadding),
@@ -66,6 +114,13 @@ Widget _cuerpoPrincipal(_SlideGraciasState st, Color onBg, Color glowColor) {
         ),
         SizedBox(height: st.widget.r.spacingXL),
         _countdown(st, onBg, glowColor),
+        // Cierre del alta de Soulseek: se creó sola al pasar por el paso del
+        // nombre, así que acá se cuenta el resultado (o el motivo por el que
+        // quedó pendiente, que se resuelve desde Ajustes).
+        if (st.widget.state.syncSoulseek != SyncSoulseek.inactivo) ...[
+          SizedBox(height: st.widget.r.spacingL),
+          _lineaSoulseek(st, onBg, glowColor),
+        ],
         const Spacer(),
         if (st._mostrarSaltar)
           Padding(

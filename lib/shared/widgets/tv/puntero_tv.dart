@@ -70,6 +70,10 @@ class _PunteroTvState extends State<PunteroTv> {
   /// crea que son dispositivos distintos (y que el hover se pierda).
   static const int _idPuntero = 777;
 
+  /// Cuánto se separa el cursor del borde físico. En 0 el cursor puede quedar
+  /// justo en x=ancho (o y=alto), que ya está FUERA del área de hit testing.
+  static const double _margenBorde = 0.5;
+
   Offset _pos = Offset.zero;
   bool _posicionado = false;
   bool _presionando = false;
@@ -216,9 +220,20 @@ class _PunteroTvState extends State<PunteroTv> {
 
     final factor = 1 + _repeticion * 0.16;
     final t = _tamano;
+    // El tope es [size - _margenBorde] y no [size]: un clic en la coordenada
+    // EXACTA del ancho/alto cae fuera de la pantalla (hit testing usa rangos
+    // semiabiertos), así que el cursor podía quedar pegado a la esquina y el
+    // clic no activaba nada — el botón de la esquina del miniplayer era
+    // imposible de tocar.
     final nueva = Offset(
-      (_pos.dx + delta.dx * factor).clamp(0.0, t.width),
-      (_pos.dy + delta.dy * factor).clamp(0.0, t.height),
+      (_pos.dx + delta.dx * factor).clamp(
+        _margenBorde,
+        t.width - _margenBorde,
+      ),
+      (_pos.dy + delta.dy * factor).clamp(
+        _margenBorde,
+        t.height - _margenBorde,
+      ),
     );
     setState(() => _pos = nueva);
     _enviarHover();
@@ -298,6 +313,23 @@ class _PunteroTvState extends State<PunteroTv> {
   @override
   Widget build(BuildContext context) {
     return Stack(
+      // StackFit.expand NO es un detalle de estilo: con el `loose` por defecto
+      // (el de antes) el hijo recibía restricciones FLOJAS, así que el
+      // `FittedBox` del lienzo de TV (`vistaDisenoTv`) se dimensionaba a su
+      // HIJO (1280x720) en vez de a la pantalla — y como FittedBox solo escala
+      // cuando lo que manda es la caja del padre, NO escalaba nada.
+      //
+      // Consecuencia medida (test/unit/puntero_tv_padding_test.dart): en una TV
+      // de 1920x1080 la app se dibujaba a 1280x720 pegada a la esquina, mientras
+      // el puntero recorría los 1920x1080 reales. El cursor pasaba de largo del
+      // contenido (mitad de pantalla muerta) y, dentro del contenido, el clic
+      // caía 1,5 veces más a la derecha de donde se veía el cursor — el "hago
+      // clic acá y presiona allá" de la TV.
+      //
+      // Con expand, el hijo recibe restricciones EXACTAS (el tamaño real de la
+      // pantalla), el FittedBox escala el lienzo para llenar y el hit testing
+      // invierte esa misma transformación: el clic cae donde está el cursor.
+      fit: StackFit.expand,
       children: [
         widget.child,
         // El cursor nunca intercepta eventos: solo se dibuja.

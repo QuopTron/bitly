@@ -36,20 +36,16 @@ func searchProviderItems(p provider.Provider, query string, limit int, searchTyp
 				return items
 			}
 			for _, c := range res {
-				item := combinadoAFeedItem(c, ep.Name())
-				// Only filter tracks for relevance — albums/artists/playlists
-				// are kept as-is (user may want a different album by the same name).
-				if item.Type == "track" && queryTitle != "" {
-					tr := provider.TrackResult{
-						Title:  item.Name,
-						Artist: item.Artists,
-						ISRC:   item.ISRC,
-					}
-					if _, ok := provider.OriginalStrength(queryTitle, queryArtist, tr); !ok {
-						continue
-					}
-				}
-				items = append(items, item)
+				items = append(items, combinadoAFeedItem(c, ep.Name()))
+			}
+			// Solo se filtran los TRACKS por relevancia (álbumes/artistas/playlists
+			// se dejan como vienen: el usuario puede querer otro álbum con el mismo
+			// nombre). filtrarOriginales conserva lo que no es track y usa la misma
+			// política en dos pasadas que el resto del pipeline: sin eso, una consulta
+			// sin separador de artista devolvía vacío aunque la canción estuviera
+			// encontrada (ver su doc).
+			if queryTitle != "" {
+				items = filtrarOriginales(items, queryTitle, queryArtist)
 			}
 			if len(items) > 0 {
 				return items
@@ -68,7 +64,11 @@ func searchProviderItems(p provider.Provider, query string, limit int, searchTyp
 		}
 	case "track", "tracks", "song", "songs":
 		if ep, ok := p.(*provider.ExtensionProvider); ok {
-			res, err := ep.SearchFiltered(searchType, query, limit)
+			// El id del manifest de ESA extensión, no el canónico de la UI:
+			// pasarle "tracks" a Deezer (que declara "track") devolvía
+			// vacío sin error — ver search_filtro_extension.go.
+			res, err := ep.SearchFiltered(
+				filtroParaExtension(ep.Name(), searchType), query, limit)
 			if err != nil {
 				// Source is down (auth/session/rate-limit): don't burn a second
 				// full query on top of the failed one.
@@ -95,7 +95,9 @@ func searchProviderItems(p provider.Provider, query string, limit int, searchTyp
 		}
 	case "album", "albums":
 		if ep, ok := p.(*provider.ExtensionProvider); ok {
-			if res, err := ep.SearchFiltered(searchType, query, limit); err == nil && len(res) > 0 {
+			if res, err := ep.SearchFiltered(
+				filtroParaExtension(ep.Name(), searchType), query, limit,
+			); err == nil && len(res) > 0 {
 				return combinadosAFeedItems(res, ep.Name())
 			}
 		}
@@ -107,7 +109,9 @@ func searchProviderItems(p provider.Provider, query string, limit int, searchTyp
 		}
 	case "artist", "artists":
 		if ep, ok := p.(*provider.ExtensionProvider); ok {
-			if res, err := ep.SearchFiltered(searchType, query, limit); err == nil && len(res) > 0 {
+			if res, err := ep.SearchFiltered(
+				filtroParaExtension(ep.Name(), searchType), query, limit,
+			); err == nil && len(res) > 0 {
 				return combinadosAFeedItems(res, ep.Name())
 			}
 		}
@@ -119,7 +123,9 @@ func searchProviderItems(p provider.Provider, query string, limit int, searchTyp
 		}
 	case "playlist", "playlists":
 		if ep, ok := p.(*provider.ExtensionProvider); ok {
-			if res, err := ep.SearchFiltered(searchType, query, limit); err == nil && len(res) > 0 {
+			if res, err := ep.SearchFiltered(
+				filtroParaExtension(ep.Name(), searchType), query, limit,
+			); err == nil && len(res) > 0 {
 				return combinadosAFeedItems(res, ep.Name())
 			}
 		}
@@ -142,26 +148,73 @@ func combinadosAFeedItems(res []provider.CombinedResult, source string) []FeedIt
 	return items
 }
 
-// filtrarOriginales keeps only tracks that pass OriginalStrength, removing
-// covers, remixes, and wrong-versions from search results. This is applied
-// to SearchFiltered results (which bypass RankOriginalCandidates).
+// filtrarOriginales keeps what the user actually asked for, dropping covers,
+// remixes, karaoke and wrong songs. Se aplica a los resultados de
+// SearchFiltered, que NO pasan por RankOriginalCandidates.
+//
+// CUATRO NIVELES, EN ESTE ORDEN (el primero que encuentra algo, gana):
+//
+//  1. ESTRICTOS: título fuerte + artista confirmado (OriginalStrength). Es la
+//     máxima confianza y la misma política que el camino nativo.
+//  2. POR TÍTULO: el nombre del resultado coincide con la consulta y no es una
+//     variante.
+//  3. POR ARTISTA/ÁLBUM: la consulta nombra al ARTISTA (o al disco) y este
+//     resultado es suyo. **Esto era el bug**: quien busca "Canserbero" o "Bad
+//     Bunny" quiere las canciones de ese artista, pero el filtro solo comparaba
+//     contra el TÍTULO — y ningún tema se llama como el artista, así que la
+//     lista quedaba VACÍA mientras álbumes/artistas/playlists (que no pasan por
+//     este filtro) sí aparecían. Medido contra Deezer: q="Canserbero" devolvía
+//     25 temas y los 25 se descartaban; con este nivel entran los 25.
+//  4. ÚLTIMO RECURSO: no variantes con al menos 60% de solapamiento de tokens
+//     con la consulta. Es la red que evita la pantalla vacía cuando la
+//     relevancia la decidió la propia extensión (que es la única que conoce su
+//     catálogo). Nunca promueve un cover/remix/karaoke, y exige coincidencia
+//     real de texto: por eso no puede inundar de basura una búsqueda que no
+//     existe.
+//
+// Los niveles 2 y 3 se SUMAN (título primero): una búsqueda de artista suele
+// traer también algún tema homónimo, y ambos son lo que el usuario pidió.
 func filtrarOriginales(items []FeedItemGo, queryTitle, queryArtist string) []FeedItemGo {
-	filtered := make([]FeedItemGo, 0, len(items))
+	noTracks := make([]FeedItemGo, 0, len(items))
+	estrictos := make([]FeedItemGo, 0, len(items))
+	porTitulo := make([]FeedItemGo, 0, len(items))
+	porArtistaOAlbum := make([]FeedItemGo, 0, len(items))
+	ultimoRecurso := make([]FeedItemGo, 0, len(items))
 	for _, item := range items {
 		if item.Type != "track" {
-			filtered = append(filtered, item)
+			noTracks = append(noTracks, item)
 			continue
 		}
+		variante := provider.IsNonOriginalVariant(item.Name, queryTitle)
 		tr := provider.TrackResult{
 			Title:  item.Name,
 			Artist: item.Artists,
 			ISRC:   item.ISRC,
 		}
 		if _, ok := provider.OriginalStrength(queryTitle, queryArtist, tr); ok {
-			filtered = append(filtered, item)
+			estrictos = append(estrictos, item)
+			continue
+		}
+		if !variante && provider.FieldScore(queryTitle, item.Name) >= 2 {
+			porTitulo = append(porTitulo, item)
+			continue
+		}
+		if !variante && (provider.FieldScore(queryTitle, item.Artists) >= 2 ||
+			provider.FieldScore(queryTitle, item.AlbumName) >= 2) {
+			porArtistaOAlbum = append(porArtistaOAlbum, item)
+			continue
+		}
+		if !variante && provider.FieldScore(queryTitle, item.Name) >= 1 {
+			ultimoRecurso = append(ultimoRecurso, item)
 		}
 	}
-	return filtered
+	if len(estrictos) > 0 {
+		return append(noTracks, estrictos...)
+	}
+	if len(porTitulo) > 0 || len(porArtistaOAlbum) > 0 {
+		return append(append(noTracks, porTitulo...), porArtistaOAlbum...)
+	}
+	return append(noTracks, ultimoRecurso...)
 }
 
 // searchRankedAll uses the search engine (ISRC dedup + relevance ranking)

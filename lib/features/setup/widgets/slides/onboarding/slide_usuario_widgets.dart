@@ -68,7 +68,11 @@ Widget _botones(BuildContext context, SlideUsuario w, Color glowColor) {
           Expanded(
             child: BotonVidrio(
               label: w.loc.setup.next,
-              onPressed: w.state.usuario.trim().isNotEmpty
+              // Se bloquea mientras se crea la cuenta de Soulseek: sin eso, el
+              // usuario podría avanzar mientras el nombre todavía se está
+              // verificando y el rechazo llegaría tarde, en otro paso.
+              onPressed: w.state.usuario.trim().isNotEmpty &&
+                      w.state.syncSoulseek != SyncSoulseek.creando
                   ? () => context.read<SetupBloc>().add(const SiguientePaso())
                   : null,
               height: w.r.continueButtonHeight,

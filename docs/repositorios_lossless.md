@@ -157,3 +157,42 @@ fuentes que rescate una canción comercial**. Ya está medido con Internet
 Archive (15 de 16 candidatos eran karaoke/cover, 0 limpios y en rango). Sirven
 como catálogo propio —clásico, conciertos, 78rpm, netlabels, CC— y ahí sí
 entregan FLAC con artista real y sin ninguna cuenta.
+
+---
+
+## ISRC: de dónde sale gratis y sin cuenta
+
+Medido contra las APIs reales (2026-09-14). El ISRC es la llave del matching
+**autoritativo** (ver `matching_isrc_autoridad.go`), así que la pregunta era si
+se puede obtener sin cuenta en los catálogos de pago.
+
+| Catálogo | ISRC sin cuenta | Endpoint | Evidencia |
+|---|---|---|---|
+| **Deezer** | ✅ | `api.deezer.com/track/<id>` | `"isrc":"GBDUW0000059"` |
+| **Qobuz** | ✅ | `.../track/search?app_id=735532640` | `"isrc":"GBDUW0000053"` |
+| **Tidal** | ✅ | `/v1/search/tracks` + `/v1/tracks/<id>` | `"isrc":"GBDUW0000053"` |
+| **Apple** | ❌ | `itunes.apple.com/search` | devuelve `trackName`, **sin ISRC** |
+
+Qobuz y Tidal devolvieron el MISMO ISRC para el mismo tema (`GBDUW0000053`,
+*One More Time*): los catálogos se pueden **cruzar** para validar el ISRC antes
+de usarlo como llave. Apple queda afuera de la capa de identidad.
+
+Consecuencia de arquitectura: **el ISRC viene de la capa de metadata (gratis) y
+el audio de la capa libre.** Ningún catálogo de pago necesita credenciales para
+aportar su ISRC.
+
+## Regla: qué se conserva y qué no
+
+- **Lo que exige pago o datos personales NO se usa como fuente de audio** (ARL
+de Deezer, token de Tidal, cuenta de Qobuz).
+- **Las extensiones de pago NO se borran.** Se conservan como **autoridad de
+  ISRC y metadata**: su `isrc` viene del sello y `matching_isrc_autoridad.go` ya
+  las marca como autoritativas. Aportan identidad, no bits.
+- **Soulseek** es la única fuente de catálogo comercial **sin invitación** cuyo
+  registro es del lado del cliente (`slskd`: usuario y contraseña propios, sin
+  mail ni captcha — *"Enter the account and password you want directly. There's
+  no website needed"*). Único candidato real a "cuenta interna autocreada".
+  **No medido aún.**
+
+Esto es consistente con lo ya descartado arriba: los trackers privados siguen
+fuera por invitación + ratio + falta de ISRC en el nombre.

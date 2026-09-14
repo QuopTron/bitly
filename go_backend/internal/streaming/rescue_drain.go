@@ -15,12 +15,16 @@ const verifyGrace = 4 * time.Second
 // deadline passes, honoring provider order when several finish together. A
 // fresh timer per call is used (never a consumed one) so returning from the
 // spawn loop on deadline can't wedge on an already-fired channel.
-// [exactosEnVuelo] y [esReSubido] implementan la preferencia por la fuente
-// EXACTA: un resultado de un re-subido (YouTube/YouTube Music/SoundCloud) no
-// gana de inmediato si todavía quedan fuentes exactas intentándolo — espera
-// [graceExactos]. Se acepta igual si la fuente exacta llega a tiempo, si todas
-// terminaron, o si la gracia expira (una canción sonando es mejor que fallar).
-func recogerResultados(results <-chan rescueOut, verifyCh <-chan string, done <-chan struct{}, deadline *time.Time, exactosEnVuelo int, esReSubido func(string) bool) (string, string, bool) {
+// [bloqueantesEnVuelo] y [pol] implementan la preferencia por la MEJOR fuente:
+// un resultado retenido (un re-subido como YouTube/YouTube Music/SoundCloud, o
+// —cuando la calidad pedida es sin pérdida— cualquier fuente que no pueda dar
+// FLAC) no gana de inmediato si todavía quedan bloqueantes intentándolo: espera
+// la gracia de la política. Y si mientras espera llega un retenido MEJOR (un
+// FLAC real en vez de un transcodificado), el que espera se reemplaza: no se
+// descarta lo bueno por haber respondido tarde. Se acepta igual si el
+// bloqueante llega a tiempo, si todos terminaron, o si la gracia expira (una
+// canción sonando es mejor que un fallo de reproducción).
+func recogerResultados(results <-chan rescueOut, verifyCh <-chan string, done <-chan struct{}, deadline *time.Time, bloqueantesEnVuelo int, pol politicaCarrera) (string, string, bool) {
 	best := ""
 	bestName := ""
 	var verifyName string
@@ -31,21 +35,43 @@ func recogerResultados(results <-chan rescueOut, verifyCh <-chan string, done <-
 	for {
 		select {
 		case r := <-results:
-			if r.url == "" {
-				continue
-			}
-			// Una fuente que solo identifica por nombre no le gana a una exacta
-			// que todavía puede llegar: se retiene mientras queden exactas.
-			if esReSubido != nil && exactosEnVuelo > 0 && esReSubido(r.name) {
-				if pendiente == nil {
-					rr := r
-					pendiente = &rr
-					// Reemplaza cualquier timer previo (p. ej. el de la gracia de
-					// verificación) por el de la confianza.
+			if r.finBloqueante {
+				// Un bloqueante terminó sin stream. Si era el último, ya no hay
+				// NADA que pueda mejorar lo retenido dentro de esta fase: se
+				// sirve YA, sin esperar a que expire la gracia (que era tiempo
+				// muerto puro).
+				if bloqueantesEnVuelo > 0 {
+					bloqueantesEnVuelo--
+				}
+				// Con una verificación de sesión pendiente se mantiene la espera
+				// (verifyGrace): mostrar el modal para desbloquear el FLAC sigue
+				// teniendo sentido mientras esa decisión está en el aire.
+				if bloqueantesEnVuelo == 0 && pendiente != nil && verifyName == "" {
 					if graceTimer != nil {
 						graceTimer.Stop()
 					}
-					graceTimer = time.NewTimer(graceExactos)
+					return pendiente.url, pendiente.name, false
+				}
+				continue
+			}
+			if r.url == "" {
+				continue
+			}
+			// Un resultado de una fuente que no es la preferida (re-subido, o
+			// lossy cuando se pidió sin pérdida) no le gana a una mejor que
+			// todavía puede llegar: se retiene mientras queden bloqueantes.
+			// Si ya había uno retenido y este es MEJOR (p. ej. un FLAC real
+			// después de un 320kbps), reemplaza al que esperaba.
+			if pol.retiene(r.name) && bloqueantesEnVuelo > 0 {
+				if pendiente == nil || pol.prefiere(r.name, pendiente.name) {
+					rr := r
+					pendiente = &rr
+					// Reemplaza cualquier timer previo (p. ej. el de la gracia de
+					// verificación) por el de la política.
+					if graceTimer != nil {
+						graceTimer.Stop()
+					}
+					graceTimer = time.NewTimer(pol.graciaEfectiva())
 					graceCh = graceTimer.C
 				}
 				continue

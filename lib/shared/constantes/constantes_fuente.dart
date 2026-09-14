@@ -10,7 +10,7 @@
 
 import 'package:flutter/material.dart';
 
-/// Icono por id de proveedor ('' = todas las fuentes).
+/// Icono por id de proveedor ('' = agrupado, ya no se ofrece en la búsqueda).
 const iconosFuente = <String, IconData>{
   '': Icons.dashboard_outlined,
   'deezer': Icons.library_music,
@@ -26,11 +26,32 @@ const iconosFuente = <String, IconData>{
   'internetarchive': Icons.library_books,
 };
 
-/// Lista de todas las fuentes disponibles.
+/// Lista de todas las fuentes conocidas.
 const todasLasFuentes = [
   'deezer', 'spotify-web', 'spotify', 'apple-music', 'soundcloud',
   'amazon', 'qobuz-web', 'tidal-web', 'ytmusic-spotiflac', 'internetarchive',
 ];
+
+/// Fuentes de RESPALDO: no son catálogos navegables, existen para que el
+/// pipeline consiga el lossless exacto detrás de un ISRC (flac-rescue,
+/// internetarchive, soulseek, redacted) o para traer metadata (musicbrainz).
+/// Nunca se ofrecen como fuente de búsqueda — es la misma lista que
+/// `fuentesSoloRespaldo` del backend (go_backend/internal/gobackend/
+/// search_fuentes.go), así que si se agrega una fuente ahí hay que agregarla
+/// acá.
+const fuentesSoloRespaldo = <String>{
+  'flac-rescue',
+  'flacrescue',
+  'internetarchive',
+  'soulseek',
+  'redacted',
+  'musicbrainz',
+};
+
+/// ¿Se puede ofrecer este id en el selector de fuente de búsqueda?
+/// El id vacío se acepta solo por compatibilidad interna; la UI no lo ofrece.
+bool esFuenteDeBusqueda(String id) =>
+    id.isEmpty || !fuentesSoloRespaldo.contains(id);
 
 /// Etiqueta legible por id de proveedor.
 const etiquetasFuente = {

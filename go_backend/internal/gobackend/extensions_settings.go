@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/zarz/bitly/go_backend/internal/provider/flacrescue"
+	"github.com/zarz/bitly/go_backend/internal/provider/soulseek"
 	"github.com/zarz/bitly/go_backend/internal/sessionpool"
 )
 
@@ -39,6 +40,17 @@ func SetExtensionSettings(payload string) string {
 		if p := reg.Get("flac-rescue"); p != nil {
 			if fc, ok := p.(*flacrescue.Client); ok {
 				fc.SetSettings(settings)
+			}
+		}
+	}
+
+	// Caso especial: soulseek es un provider nativo (no una extensión JS).
+	// Recibe el usuario y la contraseña que Flutter guarda tras el botón
+	// "Siguiente"; sin credenciales el cliente queda inerte y NO abre red.
+	if params.ExtensionID == "soulseek" && reg != nil {
+		if p := reg.Get("soulseek"); p != nil {
+			if sc, ok := p.(*soulseek.Client); ok {
+				sc.SetSettings(settings)
 			}
 		}
 	}
