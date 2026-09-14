@@ -98,6 +98,49 @@ streaming viene con guardas que contradicen a Bitly.
 5. **Calidad por mapping** en `TrackResult` (la única mejora de arquitectura
    que vale la pena adoptar de `provider_mappings`).
 
+## ¿MA ya resuelve el catálogo unificado? (verificado en el código)
+
+Leído `music_assistant/controllers/music/controller.py` (3.625 líneas).
+
+**Sí trae:**
+
+- **Un solo punto de entrada**: `search(search_query, media_types,
+  limit=25)` (línea 449) devuelve `SearchResults` con una lista por tipo
+  (`artists`, `albums`, `tracks`, `playlists`, `radio`, `audiobooks`,
+  `podcasts`, `genres`), agregando la biblioteca local + TODOS los providers en
+  paralelo.
+- **Filtro por tipo** en la misma llamada.
+- **Caché de búsqueda** por clave `query-tipos-limit` (línea 502).
+- **Salteo de repetidos**: `_get_covered_media_types` (línea 2792) devuelve los
+  pares `(media_type, provider)` que la biblioteca ya cubre con una coincidencia
+  de nombre casi exacta, y esos combos **no se vuelven a consultar**.
+- **`provider_mappings`** + reconciliación: la misma grabación en varias fuentes
+  se une a nivel de **biblioteca** y se reproduce la mejor calidad.
+
+**No trae (y es lo que queremos):**
+
+- **Scroll infinito**: la búsqueda solo acepta `limit` por tipo. El único cursor
+  del archivo (línea 213) es para el *walk de reconciliación* de la biblioteca,
+  no para paginar resultados. `browse` es un árbol por provider, no un feed
+  mezclado y paginado.
+- **Un ítem con N IDs**: en vez de fusionar las copias en una sola tarjeta con
+  todos los mappings, **saltea** el provider ya cubierto. Bitly necesita lo
+  contrario: una entrada con `SpotifyID`/`DeezerID`/`TidalID`/`QobuzID` para
+  elegir la mejor calidad al vuelo.
+- **Agregación sin estado**: MA exige una **base SQLite + sync/escaneo** de cada
+  provider. Bitly es bajo demanda; adoptar el modelo de MA sería un cambio de
+  arquitectura grande y contrario a su naturaleza.
+- **Descarga/offline** y **cadena de rescate** por reproducción: MA no las tiene
+  (su política las prohíbe).
+
+**Veredicto:** MA resuelve ~la mitad (punto de entrada único, modelo
+normalizado, filtro por tipo, linking en biblioteca, mejor calidad). La otra
+mitad —scroll infinito, ítem fusionado con N IDs, agregación viva sin DB, y
+rescate— **hay que construirla**, y encaja sobre lo que Bitly ya tiene
+(`internal/search/`): su `Engine` ya agrega providers y ya tiene `ranker` y
+`Deduper`. Falta: (a) **fusionar** en vez de descartar, (b) **cursor**,
+(c) **filtros**, (d) adapters de las fuentes libres.
+
 ## Otros proyectos del ecosistema
 
 - **`tkem/mopidy-internetarchive`** (Apache-2.0) — backend de Mopidy para
