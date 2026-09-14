@@ -145,6 +145,26 @@ jobs:
           find "$FW_DIR" -name "*.framework" -type d \
             -exec codesign --force --sign - {} \;
 
+          # 2b) Firmar los binarios SUELTOS que NO viven dentro de un framework.
+          #     Qué bug arregla: libtorrent_flutter (el motor de torrents) instala
+          #     Contents/Frameworks/liblibtorrent_flutter.dylib — un dylib suelto,
+          #     sin .framework alrededor. Firmar solo los .framework lo dejaba sin
+          #     firma, y el codesign final del .app moría con:
+          #       "code object is not signed at all
+          #        In subcomponent: .../Contents/Frameworks/liblibtorrent_flutter.dylib"
+          #     Con eso el DMG NUNCA se generaba (el job fallaba antes del hdiutil).
+          #     Se firma cualquier Mach-O suelto, no solo .dylib/.so: un ejecutable
+          #     sin extensión (o un bundle nuevo de otro plugin) tendría el mismo
+          #     problema mañana.
+          #     Se EXCLUYEN los que están dentro de un .framework: esos ya quedaron
+          #     firmados arriba y re-firmarlos rompería el sello del framework.
+          find "$APP/Contents" -type f -not -path "*.framework/*" -print0 \
+            | while IFS= read -r -d '' f; do
+                if file -b "$f" | grep -q "Mach-O"; then
+                  codesign --force --sign - "$f"
+                fi
+              done
+
           # 3) Firmar la app SIN --deep (los frameworks ya están firmados)
           codesign --force --sign - \
             --entitlements macos/Runner/Release.entitlements \
