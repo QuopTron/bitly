@@ -566,12 +566,26 @@ function fetchArtist(userId) {
 // SEARCH
 // ============================================
 
+// normalizarFiltro acepta singular y plural para que la app no devuelva vacío
+// en las pestañas de canción/álbum/artista/playlist.
+function normalizarFiltroSC(f) {
+  f = String(f || "")
+    .trim()
+    .toLowerCase();
+  if (!f || f === "all") return "";
+  if (f === "song" || f === "track" || f === "tracks") return "tracks";
+  if (f === "album" || f === "albums") return "albums";
+  if (f === "artist" || f === "artists") return "artists";
+  if (f === "playlist" || f === "playlists") return "playlists";
+  return f;
+}
+
 function customSearch(query, options) {
   log.info("[SC] Searching:", query);
 
   var limit = (options && options.limit) || 20;
   var offset = (options && options.offset) || 0;
-  var filter = (options && options.filter) || null;
+  var filter = normalizarFiltroSC((options && options.filter) || null) || null;
   if (limit <= 0 || limit > 50) limit = 50;
 
   var isFiltered = filter && filter !== "all";

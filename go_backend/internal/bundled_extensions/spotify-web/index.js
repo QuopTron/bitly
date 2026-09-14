@@ -2256,13 +2256,33 @@ function atob(str) {
   return result;
 }
 
+// normalizarFiltro acepta singular y plural ("song"/"tracks", "album"/"albums",
+// etc.) porque la app usa formas distintas según el camino de llamada:
+//   - searchProviderItems/SearchFiltered → "tracks"/"albums"/... (plural genérico)
+//   - SearchTracks fallback             → "song" (singular)
+//   - filtros del manifest              → "tracks"/"albums"/... (plural)
+// Spotify-web internamente usa plural; sin esto un "song" no matchea y la
+// pestaña de canciones devuelve vacío.
+function normalizarFiltroSpotify(f) {
+  f = String(f || "")
+    .trim()
+    .toLowerCase();
+  if (!f || f === "all") return "";
+  if (f === "song" || f === "track" || f === "tracks") return "tracks";
+  if (f === "album" || f === "albums") return "albums";
+  if (f === "artist" || f === "artists") return "artists";
+  if (f === "playlist" || f === "playlists") return "playlists";
+  return f;
+}
+
 function customSearch(searchQuery, options) {
   log.info("Searching Spotify:", searchQuery);
   log.debug("Received options:", JSON.stringify(options));
 
   let limit = (options && options.limit) || 20;
   const offset = (options && options.offset) || 0;
-  const filter = (options && options.filter) || null; // "tracks", "albums", "artists", "playlists", or null for all
+  const filter =
+    normalizarFiltroSpotify((options && options.filter) || null) || null; // "tracks", "albums", "artists", "playlists", or null for all
 
   if (limit <= 0 || limit > 50) {
     limit = 50;

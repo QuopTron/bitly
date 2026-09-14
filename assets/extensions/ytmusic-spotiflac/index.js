@@ -4177,8 +4177,25 @@ function performSearchSync(query, searchParams) {
   return parsed;
 }
 
+// normalizarFiltro acepta singular y plural para que la app no devuelva vacío
+// en las pestañas de canción/álbum/artista/playlist (ver spotify-web por
+// detalles del por qué).
+function normalizarFiltroYT(f) {
+  f = String(f || "")
+    .trim()
+    .toLowerCase();
+  if (!f || f === "all") return "";
+  if (f === "song" || f === "track" || f === "tracks") return "tracks";
+  if (f === "album" || f === "albums") return "albums";
+  if (f === "artist" || f === "artists") return "artists";
+  if (f === "playlist" || f === "playlists") return "playlists";
+  // "videos" es un filtro válido de ytmusic (se usa internamente);
+  // se deja tal cual sin mapear.
+  return f;
+}
+
 function customSearchSync(query, options) {
-  var filter = (options && options.filter) || null;
+  var filter = normalizarFiltroYT((options && options.filter) || null) || null;
   var isFiltered = filter && filter !== "all";
 
   // Cache key includes filter for filtered searches
