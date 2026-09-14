@@ -12,6 +12,7 @@ import (
 	"github.com/zarz/bitly/go_backend/internal/provider/internetarchive"
 	"github.com/zarz/bitly/go_backend/internal/provider/musicbrainz"
 	"github.com/zarz/bitly/go_backend/internal/provider/qobuz"
+	"github.com/zarz/bitly/go_backend/internal/provider/redacted"
 	"github.com/zarz/bitly/go_backend/internal/provider/soundcloud"
 	"github.com/zarz/bitly/go_backend/internal/provider/spotify"
 	"github.com/zarz/bitly/go_backend/internal/provider/tidal"
@@ -80,6 +81,10 @@ func inicializarProviders(reg *provider.Registry) []bundled_extensions.Registere
 		// cuenta. Es la única fuente lossless que no depende de sesión ni de
 		// un gateway firmado.
 		internetarchive.NewClient(nil),
+		// REDacted: FLAC lossless vía torrent (~3M torrents). Solo se activa
+		// si el usuario pone sus credenciales en ajustes. El stream URL
+		// devuelto es un magnet link que libtorrent_flutter resuelve.
+		redacted.NewClient("", ""),
 	}
 	for _, np := range nativeRegister {
 		if replacedByExt[np.Name()] {
