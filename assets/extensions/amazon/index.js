@@ -24,6 +24,57 @@ var CONFIG = {
   deviceFamily: "WebPlayer",
   deviceModel: "WEBPLAYER",
   musicTerritory: "US",
+
+  // Storefronts de búsqueda, medidos contra la API real (2026-09).
+  //
+  // El problema: showSearch del storefront de EE.UU. responde un DIÁLOGO de
+  // "Error de servicio" (1.225 bytes) en vez de resultados cuando la IP no es
+  // de EE.UU., mientras showHome sigue devolviendo el esqueleto de la página con
+  // normalidad. Por eso la extensión parecía funcionar (el inicio cargaba) pero
+  // NINGUNA búsqueda devolvía nada.
+  //
+  // Medición con la misma sesión, mismas cabeceras y misma consulta
+  // ("bad bunny"), cambiando solo el storefront:
+  //   music.amazon.com     → 1.225 bytes   · diálogo de error
+  //   music.amazon.com.mx  → 2.117.263     · 6 bloques de resultados
+  //   music.amazon.es      → 2.202.323     · 6 bloques de resultados
+  //   music.amazon.co.uk   → 2.171.963     · 6 bloques de resultados
+  //   music.amazon.com.br  → 2.159.442     · 6 bloques de resultados
+  //
+  // Por eso la búsqueda recorre esta lista hasta que uno contesta resultados de
+  // verdad, y recuerda el que funcionó para no reintentar en cada tecla.
+  storefronts: [
+    {
+      base: "https://music.amazon.com",
+      mesh: "https://na.mesk.skill.music.a2z.com/api",
+      territory: "US",
+    },
+    {
+      base: "https://music.amazon.com.mx",
+      mesh: "https://na.mesk.skill.music.a2z.com/api",
+      territory: "MX",
+    },
+    {
+      base: "https://music.amazon.com.br",
+      mesh: "https://na.mesk.skill.music.a2z.com/api",
+      territory: "BR",
+    },
+    {
+      base: "https://music.amazon.es",
+      mesh: "https://eu.mesk.skill.music.a2z.com/api",
+      territory: "ES",
+    },
+    {
+      base: "https://music.amazon.co.uk",
+      mesh: "https://eu.mesk.skill.music.a2z.com/api",
+      territory: "GB",
+    },
+    {
+      base: "https://music.amazon.de",
+      mesh: "https://eu.mesk.skill.music.a2z.com/api",
+      territory: "DE",
+    },
+  ],
 };
 
 var USER_AGENTS = [
@@ -390,6 +441,84 @@ var _currentContext = {
   host: "music.amazon.com",
   timeZone: "UTC",
 };
+
+// Storefront que devolvió resultados reales la última vez. Se recuerda en
+// memoria para no recorrer la lista en cada búsqueda, y en disco (storage)
+// para que el primer intento tras reiniciar la app también vaya directo al
+// storefront que funciona en esta red. El de EE.UU. está geo-bloqueado desde
+// muchas IPs fuera de EE.UU., así que sin esto cada arranque pagaba ~1 s de más.
+var _CLAVE_STOREFRONT = "storefront_base";
+
+function storefrontRecordado() {
+  try {
+    if (
+      typeof storage === "undefined" ||
+      !storage ||
+      typeof storage.get !== "function"
+    ) {
+      return null;
+    }
+    var base = storage.get(_CLAVE_STOREFRONT);
+    if (!base) return null;
+    var lista = CONFIG.storefronts || [];
+    for (var i = 0; i < lista.length; i++) {
+      if (lista[i].base === base) return lista[i];
+    }
+  } catch (e) {}
+  return null;
+}
+
+function recordarStorefront(sf) {
+  try {
+    if (
+      typeof storage === "undefined" ||
+      !storage ||
+      typeof storage.set !== "function"
+    ) {
+      return;
+    }
+    if (sf && sf.base) storage.set(_CLAVE_STOREFRONT, sf.base);
+  } catch (e) {}
+}
+
+var _storefront = storefrontRecordado();
+
+// contextoDeStorefront arma el contexto de Amazon para un storefront concreto.
+function contextoDeStorefront(sf) {
+  var host = "music.amazon.com";
+  try {
+    host = new URL(sf.base).hostname.toLowerCase();
+  } catch (e) {}
+  return {
+    musicBaseURL: sf.base,
+    host: host,
+    timeZone: guessTimeZone(),
+    currency: defaultCurrencyForHost(host),
+  };
+}
+
+// storefrontsEnOrden lista los storefronts con el último que funcionó primero.
+function storefrontsEnOrden() {
+  var lista = CONFIG.storefronts || [];
+  if (!_storefront) return lista;
+  var orden = [_storefront];
+  for (var i = 0; i < lista.length; i++) {
+    if (lista[i].base !== _storefront.base) orden.push(lista[i]);
+  }
+  return orden;
+}
+
+// esDialogoDeError detecta que la respuesta NO trae resultados: Amazon contesta
+// 200 con un DialogTemplate ("Error de servicio") cuando el storefront no puede
+// atender la búsqueda. Se compara contra las interfaces reales de resultados.
+function esDialogoDeError(data) {
+  if (!data || !data.methods) return true;
+  var blob = deepStringify(data);
+  if (!blob) return true;
+  if (blob.indexOf("ShovelerWidgetElement") >= 0) return false;
+  if (blob.indexOf("SearchTemplate") >= 0) return false;
+  return true;
+}
 
 var _resourceContexts = new Map();
 var _resourceHints = new Map();
@@ -913,6 +1042,15 @@ function callDisplayCatalogTrack(trackId, context, _retried) {
     context || _currentContext || createAmazonContext(CONFIG.musicBaseURL);
   _currentContext = ctx;
   initSession(ctx);
+  // El detalle va por el MISMO storefront que sirvió la búsqueda, si ya se
+  // conoce: las respuestas de un storefront traen ids que se revalidan contra
+  // el mismo catálogo.
+  if (_storefront && !context) {
+    ctx = contextoDeStorefront(_storefront);
+    _currentContext = ctx;
+    initSession(ctx);
+  }
+  var meshBase = _storefront ? _storefront.mesh : CONFIG.skillBaseURL;
   var pageUrl = ctx.musicBaseURL + "/tracks/" + trackId;
   L("info", "[Amazon] callDisplayCatalogTrack:", trackId);
 
@@ -923,8 +1061,7 @@ function callDisplayCatalogTrack(trackId, context, _retried) {
   });
 
   var apiUrl =
-    CONFIG.skillBaseURL.replace(/\/api$/, "") +
-    "/api/cosmicTrack/displayCatalogTrack";
+    meshBase.replace(/\/api$/, "") + "/api/cosmicTrack/displayCatalogTrack";
   var res;
   try {
     res = fetch(apiUrl, {
@@ -1006,23 +1143,41 @@ function callShowSearch(keyword, context, _retried) {
     context || _currentContext || createAmazonContext(CONFIG.musicBaseURL);
   _currentContext = ctx;
   initSession(ctx);
-  var pageUrl = ctx.musicBaseURL + "/search/" + encodeURIComponent(keyword);
   L("info", "[Amazon] callShowSearch:", keyword);
 
-  var body = JSON.stringify({
-    filter: JSON.stringify({ IsLibrary: ["false"] }),
-    keyword: JSON.stringify({
-      interface:
-        "Web.TemplatesInterface.v1_0.Touch.SearchTemplateInterface.SearchKeywordClientInformation",
-      keyword: keyword,
-    }),
-    suggestedKeyword: keyword,
-    userHash: JSON.stringify({ level: "LIBRARY_MEMBER" }),
-    headers: buildHeaders(ctx, pageUrl),
-  });
+  // Recorrido de storefronts: el de EE.UU. devuelve un diálogo de error desde
+  // IPs fuera de EE.UU., así que se prueba el siguiente hasta encontrar uno que
+  // conteste resultados de verdad. El que funciona se recuerda en _storefront.
+  var lista = storefrontsEnOrden();
+  for (var i = 0; i < lista.length; i++) {
+    var sf = lista[i];
+    var ctxSf = contextoDeStorefront(sf);
+    _currentContext = ctxSf;
+    initSession(ctxSf);
+    var pageSf = sf.base + "/search/" + encodeURIComponent(keyword);
+    var bodySf = JSON.stringify({
+      filter: JSON.stringify({ IsLibrary: ["false"] }),
+      keyword: JSON.stringify({
+        interface:
+          "Web.TemplatesInterface.v1_0.Touch.SearchTemplateInterface.SearchKeywordClientInformation",
+        keyword: keyword,
+      }),
+      suggestedKeyword: keyword,
+      userHash: JSON.stringify({ level: "LIBRARY_MEMBER" }),
+      headers: buildHeaders(ctxSf, pageSf),
+    });
 
-  var result = _doShowSearch(CONFIG.skillBaseURL, keyword, pageUrl, body, ctx);
-  if (result) return result;
+    var data = _doShowSearch(sf.mesh, keyword, pageSf, bodySf, ctxSf);
+    if (data && !esDialogoDeError(data)) {
+      if (!_storefront || _storefront.base !== sf.base) {
+        L("info", "[Amazon] storefront de búsqueda:", sf.base);
+      }
+      _storefront = sf;
+      recordarStorefront(sf);
+      return data;
+    }
+    L("warn", "[Amazon] storefront sin resultados, probando otro:", sf.base);
+  }
 
   if (!_retried) {
     L("info", "[Amazon] showSearch failed, refreshing session and retrying...");
