@@ -329,6 +329,47 @@ func TestBuscarColeccionesUsaMediatypeCollection(t *testing.T) {
 	}
 }
 
+// TestBusquedaIncluyeMediatypeEtree fija el bug medido contra la API real:
+// los conciertos del Live Music Archive se indexan como mediatype "etree", no
+// "audio", así que un filtro mediatype:audio los deja afuera por completo
+// (265.593 items con FLAC contra 4 al filtrar por audio). La consulta tiene que
+// cubrir los dos tipos.
+func TestBusquedaIncluyeMediatypeEtree(t *testing.T) {
+	var consultas []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		consulta := r.URL.Query().Get("q")
+		consultas = append(consultas, consulta)
+		// El intento por título no encuentra nada: así se ejercita el pase de
+		// texto libre, que es el que consulta por mediatype.
+		resp := respuestaBusqueda{}
+		if strings.Contains(consulta, "title:") {
+			resp.Response.Docs = nil
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer srv.Close()
+
+	c := NewClient(nil)
+	c.SetBaseURL(srv.URL)
+	if _, err := c.SearchTracks("grateful dead cornell 77", 10); err != nil {
+		t.Fatalf("SearchTracks: %v", err)
+	}
+
+	encontrado := false
+	for _, consulta := range consultas {
+		if strings.Contains(consulta, "mediatype:(audio OR etree)") {
+			encontrado = true
+		}
+		if strings.Contains(consulta, "mediatype:audio ") || strings.HasSuffix(consulta, "mediatype:audio") {
+			t.Errorf("consulta con filtro viejo (pierde etree): %q", consulta)
+		}
+	}
+	if !encontrado {
+		t.Errorf("ninguna consulta incluyó etree; consultas = %q", consultas)
+	}
+}
+
 // TestStreamURLUsaElNodoDirecto fija el ahorro medido contra archive.org:
 // /download/<id>/<archivo> hace un 302 hacia el nodo real y ese salto cuesta
 // ~1 s de TTFB, así que la URL debe salir apuntando al nodo cuando la metadata

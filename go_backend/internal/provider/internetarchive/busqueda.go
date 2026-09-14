@@ -34,6 +34,17 @@ import (
 // consulta que encuentre muchos items sueltos se estiraría sin control.
 const maxItemsHidratados = 6
 
+// mediatypesAudio es el filtro de tipo de item del índice. NO alcanza con
+// "audio": archive.org clasifica los conciertos del Live Music Archive con
+// mediatype "etree", no "audio".
+//
+// Medido contra la API real (2026-09): format:Flac da 1.239.197 items, pero con
+// mediatype:audio quedan 954.575 — y `collection:etree AND format:Flac AND
+// mediatype:audio` devuelve 4 items contra 265.593 sin el filtro. O sea que el
+// filtro viejo dejaba afuera los 265.588 shows lossless de etree, que son justo
+// los que traen artista, fecha y recinto reales en su metadata.
+const mediatypesAudio = "(audio OR etree)"
+
 // coleccionesNoMusica son colecciones cuyo TÍTULO contiene canciones pero cuyo
 // contenido no es la canción: radios, podcasts y programas.
 //
@@ -176,7 +187,7 @@ func (c *Client) buscarItems(query string, filas int) ([]itemResumen, error) {
 	if err == nil && len(items) > 0 {
 		return items, nil
 	}
-	libres, errLibre := c.buscar(query, "audio", filas)
+	libres, errLibre := c.buscar(query, mediatypesAudio, filas)
 	if errLibre != nil {
 		// La reserva también falló: se propaga el error del intento principal
 		// si lo hubo, porque describe mejor el problema.
@@ -196,7 +207,7 @@ func (c *Client) buscarPorTitulo(query string, filas int) ([]itemResumen, error)
 	if frase == "" {
 		return nil, fmt.Errorf("%s: búsqueda vacía", name)
 	}
-	return c.buscar(`title:"`+frase+`"`, "audio", filas)
+	return c.buscar(`title:"`+frase+`"`, mediatypesAudio, filas)
 }
 
 // buscarColecciones consulta el índice de colecciones.
@@ -204,7 +215,8 @@ func (c *Client) buscarColecciones(query string, filas int) ([]itemResumen, erro
 	return c.buscar(query, "collection", filas)
 }
 
-// buscar ejecuta advancedsearch restringido a [mediatype].
+// buscar ejecuta advancedsearch restringido a [mediatype]. [mediatype] acepta
+// una expresión (p. ej. "(audio OR etree)"), no solo un valor suelto.
 func (c *Client) buscar(query string, mediatype string, filas int) ([]itemResumen, error) {
 	query = strings.TrimSpace(query)
 	if query == "" {
