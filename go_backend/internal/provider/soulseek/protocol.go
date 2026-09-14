@@ -411,8 +411,3 @@ func leerMensaje(r io.Reader) (codigo uint32, cuerpo []byte, err error) {
 	codigo = binary.LittleEndian.Uint32(cuerpo[:4])
 	return codigo, cuerpo[4:], nil
 }
-
-// empaquetarMensajeServidor se expone para los tests.
-func empaquetarMensajeServidor(codigo uint32, cuerpo []byte) []byte {
-	return mensajeServidor(codigo, cuerpo)
-}

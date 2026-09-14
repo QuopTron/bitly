@@ -107,13 +107,6 @@ func codificarTransferResponse(token uint32, permitido bool, tamano int64) []byt
 	return mensajeServidor(peerTransferResponse, e.Bytes())
 }
 
-// codificarPlaceInQueueRequest pregunta en qué puesto de la cola está el archivo.
-func codificarPlaceInQueueRequest(ruta string) []byte {
-	e := &escritor{}
-	e.str(ruta)
-	return mensajeServidor(peerPlaceInQueueRequest, e.Bytes())
-}
-
 // codificarSetWaitPort anuncia al servidor el puerto donde escuchamos las
 // conexiones F. Sin esto el par no sabe dónde conectarse y la descarga nunca
 // arranca.

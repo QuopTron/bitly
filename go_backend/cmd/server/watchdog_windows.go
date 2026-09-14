@@ -97,19 +97,6 @@ var (
 	procWaitForSingleObject = modkernel32.NewProc("WaitForSingleObject")
 )
 
-func procesoVivoWindows(pid int) bool {
-	manejo, err := windows.OpenProcess(
-		windows.PROCESS_QUERY_LIMITED_INFORMATION,
-		false,
-		uint32(pid),
-	)
-	if err != nil {
-		return false
-	}
-	_ = windows.CloseHandle(manejo)
-	return true
-}
-
 func init() {
 	_ = fmt.Sprintf // prevent unused import
 }

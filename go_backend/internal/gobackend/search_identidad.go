@@ -141,25 +141,6 @@ func claveNombre(name, artists string) string {
 	return normalizarIdentidad(quitarRuido(name)) + "|" + artistaPrincipalDe(artists)
 }
 
-// claveCanonicaTrack arma la identidad de un track a partir de su nombre,
-// artista y duración.
-//
-// POR QUÉ NO DEVUELVE UN ISRC "INVENTADO": un ISRC falso con forma de ISRC
-// (doce caracteres, p. ej. "QZABC1234567") sería peligroso, no útil — la app
-// lo manda a los catálogos para resolver la descarga (Deezer tiene
-// /track/isrc:{isrc}). Un código inventado no da "no encontrado": da OTRA
-// canción, o sea una descarga equivocada. Por eso la clave es explícitamente
-// local (prefijo `synth:`) y solo se usa para comparar dentro de la app.
-func claveCanonicaTrack(name, artists string, durationMs int) string {
-	base := "synth:" + claveNombre(name, artists)
-	if durationMs > 0 {
-		// Redondeo a 2 s: absorbe el redondeo de las APIs sin mezclar dos
-		// versiones distintas de la misma canción.
-		return base + "|" + itoa(durationMs/2000)
-	}
-	return base
-}
-
 // esElMismoTrack decide si dos resultados de búsqueda son la misma grabación.
 //
 // Con ISRC en ambos lados manda el ISRC. Si falta en alguno, se comparan
@@ -217,27 +198,4 @@ func propagarISRC(items []FeedItemGo) {
 			break
 		}
 	}
-}
-
-// itoa evita importar strconv solo por esto.
-func itoa(n int) string {
-	if n == 0 {
-		return "0"
-	}
-	neg := n < 0
-	if neg {
-		n = -n
-	}
-	var buf [20]byte
-	i := len(buf)
-	for n > 0 {
-		i--
-		buf[i] = byte('0' + n%10)
-		n /= 10
-	}
-	if neg {
-		i--
-		buf[i] = '-'
-	}
-	return string(buf[i:])
 }

@@ -42,7 +42,10 @@ func servidorFalso(t *testing.T, archivos []ArchivoEncontrado) (direccion string
 		// Se valida que el login esté bien formado: si el encoder cambia, el
 		// servidor falso deja de reconocerlo y el test falla en vez de pasar
 		// de casualidad.
-		if campos := nuevoLector(cuerpo); campos.str() == "" || campos.str() == "" {
+		campos := nuevoLector(cuerpo)
+		usuario := campos.str()
+		password := campos.str()
+		if usuario == "" || password == "" {
 			t.Error("el servidor falso no pudo leer usuario y contraseña del login")
 		}
 		respuesta := &escritor{}
