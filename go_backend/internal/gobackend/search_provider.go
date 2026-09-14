@@ -75,7 +75,11 @@ func searchProviderItems(p provider.Provider, query string, limit int, searchTyp
 				return items
 			}
 			if len(res) > 0 {
-				return combinadosAFeedItems(res, ep.Name())
+				items := combinadosAFeedItems(res, ep.Name())
+				if queryTitle != "" {
+					items = filtrarOriginales(items, queryTitle, queryArtist)
+				}
+				return items
 			}
 			// Genuine empty for this filter: fall through to SearchTracks once
 			// (some providers only populate the unfiltered search).
@@ -136,6 +140,28 @@ func combinadosAFeedItems(res []provider.CombinedResult, source string) []FeedIt
 		items = append(items, combinadoAFeedItem(c, source))
 	}
 	return items
+}
+
+// filtrarOriginales keeps only tracks that pass OriginalStrength, removing
+// covers, remixes, and wrong-versions from search results. This is applied
+// to SearchFiltered results (which bypass RankOriginalCandidates).
+func filtrarOriginales(items []FeedItemGo, queryTitle, queryArtist string) []FeedItemGo {
+	filtered := make([]FeedItemGo, 0, len(items))
+	for _, item := range items {
+		if item.Type != "track" {
+			filtered = append(filtered, item)
+			continue
+		}
+		tr := provider.TrackResult{
+			Title:  item.Name,
+			Artist: item.Artists,
+			ISRC:   item.ISRC,
+		}
+		if _, ok := provider.OriginalStrength(queryTitle, queryArtist, tr); ok {
+			filtered = append(filtered, item)
+		}
+	}
+	return filtered
 }
 
 // searchRankedAll uses the search engine (ISRC dedup + relevance ranking)

@@ -2796,16 +2796,16 @@ function handleUrl(url) {
       });
   }
 
-  if (parsed.type === "track") {
+  if (parsed.type === "track" || parsed.type === "tracks") {
     return handleTrackUrl(parsed);
   }
-  if (parsed.type === "album") {
+  if (parsed.type === "album" || parsed.type === "albums") {
     return handleAlbumUrl(parsed.id);
   }
-  if (parsed.type === "artist") {
+  if (parsed.type === "artist" || parsed.type === "artists") {
     return handleArtistUrl(parsed.id);
   }
-  if (parsed.type === "playlist") {
+  if (parsed.type === "playlist" || parsed.type === "playlists") {
     return handlePlaylistUrl(parsed.id);
   }
 
@@ -3627,7 +3627,12 @@ function parseSearchResults(data, filter) {
           );
           if (albumLinkInfo) trackAlbumId = albumLinkInfo.albumId || "";
         }
-        if (trackName && tId && trackInfo && trackInfo.type === "track") {
+        if (
+          trackName &&
+          tId &&
+          trackInfo &&
+          (trackInfo.type === "track" || trackInfo.type === "tracks")
+        ) {
           results.push({
             item_type: "track",
             id: tId,
