@@ -1,7 +1,7 @@
 {
   "name": "amazon",
   "displayName": "Amazon Music",
-  "version": "2.4.5",
+  "version": "2.4.6",
   "description": "Amazon Music metadata provider: browse tracks, albums, artists and playlists from Amazon Music links and search, all from Amazon's own web API. Amazon does not hand over audio without a Prime/Unlimited account, so audio is resolved from an open source instead — sin verificación ni modal.",
   "type": ["metadata_provider", "download_provider"],
   "minAppVersion": "4.9.1",

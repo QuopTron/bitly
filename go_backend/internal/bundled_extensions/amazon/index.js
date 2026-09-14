@@ -3499,23 +3499,32 @@ function getPlaylist(playlistId) {
 
 // ==================== Search ====================
 
-// normalizarFiltro acepta las DOS formas del filtro: la de los filtros del
-// manifest ("songs"/"albums"/"artists"/"playlists") y la que manda la app en
-// singular ("song"/"album"/"artist"/"playlist") — la misma que usan las
-// extensiones de Deezer/Tidal/Qobuz, que sí esperan singular.
+// normalizarFiltro acepta TODAS las formas del filtro que llegan desde la app,
+// porque cada llamador usa una distinta:
 //
-// Sin esto, un "song" no activaba NINGUNA categoría (wantTracks y las demás
-// quedaban en false) y la búsqueda devolvía 0 resultados aunque Amazon sí
-// hubiera contestado: era el "search returned 0 results" de la app.
+//   SearchFiltered (burbujas de categoría) → el id del manifest: "songs"
+//   SearchTracks / searchProviderItems      → "tracks" (el nombre genérico de
+//                                             la UI) o "song" (el fallback)
+//   SearchAlbums/Artists/Playlists          → "album"/"artist"/"playlist"
+//
+// Amazon internamente usa "songs" (plural, como sus filtros del manifest). Sin
+// esta normalización un "song" o un "tracks" no activaba NINGUNA categoría
+// (wantTracks y el resto quedaban en false) y la búsqueda devolvía 0 resultados
+// aunque Amazon sí hubiera contestado — el "Search returned 0 results" de la
+// app. Se verificó en vivo con los dos valores.
 function normalizarFiltro(filter) {
   var f = String(filter || "")
     .trim()
     .toLowerCase();
   if (!f || f === "all") return "";
-  if (f === "song" || f === "track") return "songs";
-  if (f === "album") return "albums";
-  if (f === "artist") return "artists";
-  if (f === "playlist") return "playlists";
+  if (f === "song" || f === "songs" || f === "track" || f === "tracks")
+    return "songs";
+  if (f === "album" || f === "albums") return "albums";
+  if (f === "artist" || f === "artists") return "artists";
+  if (f === "playlist" || f === "playlists") return "playlists";
+  // Filtro desconocido: se registra para que no vuelva a ser un vacío
+  // silencioso, y se deja tal cual (no activa categorías).
+  L("warn", "[Amazon] filtro de búsqueda no reconocido:", f);
   return f;
 }
 
