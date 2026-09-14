@@ -88,13 +88,13 @@ class BackendEscritorio extends BackendService
     _proceso!.stdout.transform(utf8.decoder).listen((l) => debugPrint('[backend] $l'));
     _proceso!.stderr.transform(utf8.decoder).listen((l) => debugPrint('[backend:err] $l'));
     _proceso!.exitCode.then((c) => debugPrint('[backend] salió con código $c'));
-    for (var i = 0; i < 30; i++) {
+    for (var i = 0; i < 60; i++) {
       try {
         await Future.delayed(const Duration(milliseconds: 200));
         if (await rpcCall('ping') == 'pong') return;
       } catch (_) {}
     }
-    debugPrint('[backend] health check agotó el tiempo');
+    debugPrint('[backend] health check agotó el tiempo (12s) — el binario Go no arrancó');
   }
 
   @override
@@ -114,6 +114,23 @@ class BackendEscritorio extends BackendService
       await _garantizarEnMarcha();
       if (await rpcCall('ping') != 'pong') return false;
 
+      // ── Post-ping init: extensiones, premium, callback ──
+      // Todo lo que sigue es NO-BLOQUEANTE: se lanza en background y la
+      // app entra al home de inmediato. Si las extensiones tardan en cargar,
+      // el feed mostrará "cargando" pero la UI responde. El keepalive /
+      // sync de arranque reintentará si algo falla.
+      _initPostPing();
+
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Init post-ping en background: extensiones, premium, callback, credenciales.
+  /// Lanzado desde healthCheck sin await para no bloquear el splash.
+  Future<void> _initPostPing() async {
+    try {
       // Busca el directorio de extensiones: junto al exe, luego CWD/assets,
       // luego CWD/extensions.
       String? dirExt;
@@ -127,14 +144,7 @@ class BackendEscritorio extends BackendService
       }
 
       if (dirExt != null) {
-        // No fatal: si la init del sistema de extensiones falla (p.ej. CWD
-        // bloqueado o disco lleno), la app sigue arriba — feed, búsqueda y
-        // streaming no dependen de las extensiones; el re-intento llega por
-        // el keepalive / sync de extensiones del arranque.
         try {
-          // En macOS el bundle .app es de SOLO LECTURA: los JS de las
-          // extensiones se leen de ahí, pero stores/sesiones/cookies deben
-          // vivir en Application Support (escribible) o el init fallará.
           var dirDatos = '$dirExt/../ext_data';
           if (Platform.isMacOS) {
             final home = Platform.environment['HOME'] ?? '';
@@ -147,8 +157,7 @@ class BackendEscritorio extends BackendService
           debugPrint('[backend] init de extensiones falló (no fatal): $e');
         }
       }
-      // Sin webview (Win/Linux): grants Cloudflare por servidor HTTP loopback
-      // local en vez del deep link spotiflac:// (macOS usa el WebView in-app).
+
       if (!Platform.isMacOS) {
         try {
           if (await ServidorCallbackEscritorio.instance.garantizarIniciado()) {
@@ -161,10 +170,9 @@ class BackendEscritorio extends BackendService
           }
         } catch (_) {}
       }
+
       await setPremiumGithubToken(tokenGithub);
 
-      // Sincroniza el estado premium (drift) a Go para que el gate de
-      // descargas respete códigos ya activados en una sesión previa.
       try {
         final premium = await sl<CachePremium>().getEstadoPremium();
         await syncPremiumStatus(
@@ -174,15 +182,12 @@ class BackendEscritorio extends BackendService
         );
       } catch (_) {}
 
-      // Empuja las credenciales guardadas de proveedores a las extensiones.
       try {
         final cache = sl<CacheAjustes>();
         await ServicioCredencialesProveedor(this, cache).empujarCredencialesAlArrancar();
       } catch (_) {}
-
-      return true;
-    } catch (_) {
-      return false;
+    } catch (e) {
+      debugPrint('[backend] _initPostPing error: $e');
     }
   }
 

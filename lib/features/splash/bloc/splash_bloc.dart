@@ -28,20 +28,16 @@ class SplashBloc extends Bloc<EventoSplash, EstadoSplash> {
   ) async {
     emit(const EstadoSplash(status: EstatusSplash.cargando));
     // El init en frío de Go (runtime + todos los motores JS de extensiones)
-    // puede tardar decenas de segundos en dispositivos lentos, y un primer
-    // intento transitorio a veces falla mientras el emulador/celular aún
-    // despierta. El "Reintentar" manual siempre funciona porque ya está
-    // caliente, así que se reintenta con backoff antes de mostrar el error.
+    // puede tardar unos segundos en dispositivos lentos. Un primer intento
+    // transitorio a veces falla mientras el dispositivo aún despierta.
+    // 30s es suficiente para un healthCheck completo: el backend arranca
+    // en <6s y la init de extensiones es non-blocking en desktop.
     const intentos = 3;
     for (var intento = 1; intento <= intentos; intento++) {
       try {
-        // Cubre todo el pipeline de healthCheck: initGoBackend espera hasta
-        // 120s del lado nativo (runtime Go + motores), y luego el sistema de
-        // extensiones + load tienen presupuestos propios de 30s. 200s
-        // garantiza que el primer intento complete un arranque en frío lento.
         final ok = await _backend
             .healthCheck()
-            .timeout(const Duration(seconds: 200));
+            .timeout(const Duration(seconds: 30));
         if (ok) {
           emit(const EstadoSplash(status: EstatusSplash.conectado));
           return;
