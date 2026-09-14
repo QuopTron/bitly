@@ -95,6 +95,37 @@ artista, fecha y recinto reales en su metadata (`creator`, `date`, `taper`,
 `source`, `subject`). Corregido en `internal/provider/internetarchive/busqueda.go`
 (constante `mediatypesAudio`).
 
+### BitTorrent: Internet Archive ya siembra cada item
+
+Verificado con un item real de etree (`inplainair2024-04-06`):
+
+```
+GET /download/inplainair2024-04-06/inplainair2024-04-06_archive.torrent
+→ HTTP 200 · 19.051 bytes · magic d8:announce3
+   announce       http://bt1.archive.org:6969/announce
+   announce-list  bt1.archive.org:6969 · bt2.archive.org:6969   (ambos con TCP OK)
+   web seeds      https://archive.org/download/
+                  http://ia601608.us.archive.org/28/items/       (nodo de almacenamiento)
+   archivos       45, con los FLAC ORIGINALES
+                  inplainair2024-04-06_01.flac  19.222.975
+                  inplainair2024-04-06_01.mp3    4.100.763
+```
+
+O sea: **el repositorio de torrents con FLAC ya está integrado** y es el mismo
+catálogo que el provider de Internet Archive. Dos detalles que lo hacen usable:
+
+1. Es un **torrent híbrido**: lleva `url-list` (web seeds) apuntando a IA y a su
+   nodo, así que las piezas se pueden pedir por HTTP aunque no haya ni un peer.
+2. Los hashes por pieza dan **verificación de integridad gratis** — hoy el
+   download no puede comprobar que el FLAC bajó entero.
+
+Cómo encaja en la arquitectura sin pelear con el motor:
+
+| Uso | Transporte | Por qué |
+|---|---|---|
+| **Streaming** | HTTP `Range` (lo de hoy) | un torrent no sirve el segundo 1: hay que juntar piezas primero, y eso empeora el TTFF |
+| **Descarga offline** | BitTorrent | secuencial, multi-nodo, verificado por pieza y sin el throttling por IP que archive.org aplica a las ráfagas |
+
 ## Fuentes descartadas (y por qué)
 
 | Fuente | Motivo medido |
@@ -105,6 +136,8 @@ artista, fecha y recinto reales en su metadata (`creator`, `date`, `taper`,
 | **Musopen** | `api.musopen.org/v1/albums`, `/api/albums` → **404** en todos los caminos probados. |
 | **Freesound** | Devuelve **previews** (`...-hq.mp3`), no el original; y es un banco de muestras, no de canciones. |
 | **Audius** | ✅ stream real con Range, ✅ 294 k items — pero **artista = uploader**. Solo descubrimiento. |
+| **Trackers privados de música** | Invitación + ratio (no automatizable a escala de app) y sin ISRC ni duración en el nombre: rompen justo el matching autoritativo/re-subido que ya está medido. Descartados como fuente de datos. |
+| **Buscadores DHT** (BTDigg, SolidTorrents…) | Resultados tipo `Artista - Álbum (FLAC)` sin metadata verificable, sin `Range` y con ejecutables sueltos: no hay forma de confirmar la grabación ni de streamear. |
 
 ## Conclusión de arquitectura
 
