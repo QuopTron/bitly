@@ -3499,9 +3499,31 @@ function getPlaylist(playlistId) {
 
 // ==================== Search ====================
 
+// normalizarFiltro acepta las DOS formas del filtro: la de los filtros del
+// manifest ("songs"/"albums"/"artists"/"playlists") y la que manda la app en
+// singular ("song"/"album"/"artist"/"playlist") — la misma que usan las
+// extensiones de Deezer/Tidal/Qobuz, que sí esperan singular.
+//
+// Sin esto, un "song" no activaba NINGUNA categoría (wantTracks y las demás
+// quedaban en false) y la búsqueda devolvía 0 resultados aunque Amazon sí
+// hubiera contestado: era el "search returned 0 results" de la app.
+function normalizarFiltro(filter) {
+  var f = String(filter || "")
+    .trim()
+    .toLowerCase();
+  if (!f || f === "all") return "";
+  if (f === "song" || f === "track") return "songs";
+  if (f === "album") return "albums";
+  if (f === "artist") return "artists";
+  if (f === "playlist") return "playlists";
+  return f;
+}
+
 function parseSearchResults(data, filter) {
   var results = [];
   if (!data || !data.methods) return results;
+
+  filter = normalizarFiltro(filter);
 
   // Determine which widget types to look for based on filter
   var wantTracks = !filter || filter === "songs";
@@ -3796,7 +3818,8 @@ function customSearchSync(query, options) {
 
   var filter = null;
   var context = _currentContext;
-  if (options && options.filter) filter = options.filter;
+  if (options && options.filter)
+    filter = normalizarFiltro(options.filter) || null;
   if (options && options.context) context = options.context;
 
   var cacheRegion = String(
