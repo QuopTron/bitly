@@ -1,11 +1,12 @@
 // ─────────────────────────────────────────────────────────────
 // slide_carpeta_almacenamiento.dart — Paso de carpeta de descargas
 // del setup: elige entre la carpeta por defecto (Documentos/Bitly)
-// o una personalizada con el picker; guarda la ruta (guardarRutaDescargas
-// + syncDownloadDir a Go) y avanza. Los helpers de ruta viven en el
-// part slide_carpeta_almacenamiento_helpers.dart.
+// o una personalizada con el picker; pide el permiso de almacenamiento
+// (Android), guarda la ruta (guardarRutaDescargas + syncDownloadDir a Go)
+// y avanza. Los helpers de ruta viven en el part
+// slide_carpeta_almacenamiento_helpers.dart.
 // Se conecta con: setup_bloc (SiguientePaso) + cache_ajustes +
-// backend_go (syncDownloadDir) + shared (vidrio, botón) + l10n.
+// backend_go (syncDownloadDir) + permission_handler + l10n.
 // Parte del flujo: setup (paso 8: carpeta de descargas).
 // ─────────────────────────────────────────────────────────────
 
@@ -15,8 +16,10 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../../../../../app/inyeccion.dart' as di;
+import '../../../../../shared/utilidades/plataforma/deteccion_plataforma.dart';
 import '../../../../../l10n/app_localizations.dart';
 import '../../../../../shared/tema/colores_app.dart';
 import '../../../../../shared/utilidades/plataforma/responsive.dart';
@@ -65,6 +68,10 @@ class _SlideCarpetaAlmacenamientoState extends State<SlideCarpetaAlmacenamiento>
   void initState() {
     super.initState();
     _iniciarPorDefecto();
+    // Pide permiso de almacenamiento al entrar al paso (solo Android).
+    // No bloquea: si lo niega, la carpeta por defecto de la app sigue
+    // funcionando sin permisos.
+    _solicitarPermisoAlmacenamientoSt(this);
   }
 
   Future<void> _iniciarPorDefecto() async {

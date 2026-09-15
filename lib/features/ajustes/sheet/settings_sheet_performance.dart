@@ -1,5 +1,11 @@
-// Parte del split de settings_sheet_new.dart — _PerformanceTab.
-// Extraído del archivo original (ver git log). No editar a mano.
+// ─────────────────────────────────────────────────────────────
+// settings_sheet_performance.dart — Pestaña Rendimiento del sheet de Ajustes: perfil de rendimiento,
+// animaciones y consumo (blur/efectos) de la app.
+//
+// Se conecta con: settings_sheet_new.dart (misma library) + cache de ajustes.
+// Parte del flujo: Ajustes → pestaña Rendimiento.
+// ─────────────────────────────────────────────────────────────
+
 part of 'settings_sheet_new.dart';
 
 class _PerformanceTab extends StatelessWidget {

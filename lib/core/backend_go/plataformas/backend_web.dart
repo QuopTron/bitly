@@ -124,13 +124,13 @@ class BackendWeb extends BackendService
           tier: premium.tier,
           expiresAt: premium.premiumHasta,
         );
-      } catch (_) {}
+      } catch (e) { debugPrint("[Backend] $e"); }
 
       // Perfil de rendimiento (concurrencia/buffer) ahora que el servidor
       // respondió.
       try {
         await di.empujarPerfilRendimientoABackend();
-      } catch (_) {}
+      } catch (e) { debugPrint("[Backend] $e"); }
 
       return true;
     } catch (_) {

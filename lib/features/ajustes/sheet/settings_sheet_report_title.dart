@@ -1,3 +1,10 @@
+// ─────────────────────────────────────────────────────────────
+// settings_sheet_report_title.dart — PART de settings_sheet_new.dart: título del diálogo de reporte
+// con su ícono.
+// Se conecta con: settings_sheet_new.dart (misma library).
+// Parte del flujo: Ajustes → Más (reporte).
+// ─────────────────────────────────────────────────────────────
+
 part of 'settings_sheet_new.dart';
 
 /// Título del diálogo de reporte: ícono bug/idea según el tipo y el texto

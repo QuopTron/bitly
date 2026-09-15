@@ -1,3 +1,10 @@
+// ─────────────────────────────────────────────────────────────
+// settings_sheet_appearance_tile.dart — PART de settings_sheet_new.dart: tile grande seleccionable (tema o
+// estilo) con icono, etiqueta y estado resaltado.
+// Se conecta con: settings_sheet_new.dart (misma library).
+// Parte del flujo: Ajustes → Apariencia (tiles).
+// ─────────────────────────────────────────────────────────────
+
 part of 'settings_sheet_new.dart';
 
 /// Un tile grande tappable del picker de tema (Oscuro / Claro):
@@ -32,7 +39,7 @@ class _ThemeTile extends StatelessWidget {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 220),
           curve: Curves.easeOutCubic,
-          padding: EdgeInsets.symmetric(vertical: r.spacingM, horizontal: r.spacingS),
+          padding: EdgeInsets.symmetric(vertical: r.spacingL, horizontal: r.spacingM),
           decoration: BoxDecoration(
             gradient:
                 selected
@@ -71,7 +78,7 @@ class _ThemeTile extends StatelessWidget {
               Icon(
                 icon,
                 color: selected ? glowColor : onBg.withValues(alpha: 0.45),
-                size: r.subtitleSize + 6,
+                size: r.subtitleSize + 10,
               ),
               SizedBox(height: 6),
               Text(

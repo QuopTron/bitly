@@ -33,6 +33,7 @@ part 'tutorial_overlay_tarjeta.dart';
 part 'tutorial_overlay_cabecera.dart';
 part 'tutorial_overlay_botones.dart';
 part 'tutorial_overlay_saltar.dart';
+part 'tutorial_overlay_tarjeta_build.dart';
 
 /// Overlay del tutorial interactivo. Se monta una vez en el shell de la Home
 /// (móvil y escritorio); si el tutorial ya se completó, no dibuja nada.

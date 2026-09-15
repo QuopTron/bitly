@@ -58,7 +58,7 @@ mixin DescargasCargaLotes on DescargasCargaTracks {
                     break;
                   }
                 }
-              } catch (_) {}
+              } catch (e) { debugPrint("[Descargas] $e"); }
             }
           }
           _metaLote[batchKey] = _MetaLote(
@@ -85,7 +85,7 @@ mixin DescargasCargaLotes on DescargasCargaTracks {
             for (final stateKey in idStrings) {
               mapaTrackALote[normalizarId(stateKey)] = batchKey;
             }
-          } catch (_) {}
+          } catch (e) { debugPrint("[Descargas] $e"); }
         }
       }
     }

@@ -29,62 +29,12 @@ import 'package:flutter/foundation.dart';
 import '../../backend_go/nucleo/contrato_backend.dart';
 import '../../cache/almacenes/cache_ajustes.dart';
 import '../../../app/inyeccion.dart' as di;
+import 'modelo_soulseek.dart';
 import 'servicio_credenciales_proveedor.dart';
 
-/// Motivo accionable del rechazo del backend (vacío = no hay motivo que el
-/// usuario pueda resolver).
-///
-/// Existe porque no todos los fallos son iguales: un nombre tomado o inválido
-/// lo arregla el usuario eligiendo otro, y el setup tiene que pedirle eso en
-/// vez de dejarlo pasar. Una caída de red o el servidor lleno, en cambio, no
-/// se arreglan desde acá y no deben frenar la bienvenida.
-enum MotivoSoulseek {
-  /// El nombre ya existe en la red con otra contraseña.
-  nombreTomado,
+export 'modelo_soulseek.dart';
 
-  /// El nombre no cumple las reglas del protocolo (largo, caracteres...).
-  nombreInvalido,
-
-  /// Sin motivo accionable (red, servidor, backend sin inicializar).
-  ninguno,
-}
-
-/// Resultado del botón "Siguiente".
-class ResultadoSoulseek {
-  final bool ok;
-  final String mensaje;
-  final String usuario;
-  final String password;
-  final bool passwordGenerada;
-  final MotivoSoulseek motivo;
-
-  const ResultadoSoulseek({
-    required this.ok,
-    required this.mensaje,
-    this.usuario = '',
-    this.password = '',
-    this.passwordGenerada = false,
-    this.motivo = MotivoSoulseek.ninguno,
-  });
-
-  /// El usuario puede resolverlo cambiando el nombre.
-  bool get problemaDeNombre =>
-      motivo == MotivoSoulseek.nombreTomado ||
-      motivo == MotivoSoulseek.nombreInvalido;
-
-  /// El motivo como clave estable, para que quien lo consuma (el setup) no
-  /// dependa del enum de este servicio para decidir qué mostrar.
-  String get motivoClave {
-    switch (motivo) {
-      case MotivoSoulseek.nombreTomado:
-        return 'nombre_tomado';
-      case MotivoSoulseek.nombreInvalido:
-        return 'nombre_invalido';
-      case MotivoSoulseek.ninguno:
-        return '';
-    }
-  }
-}
+part 'servicio_soulseek_helpers.dart';
 
 /// Alta/conexión de la cuenta de Soulseek y lectura de sus credenciales.
 class ServicioSoulseek {
@@ -181,42 +131,5 @@ class ServicioSoulseek {
     }
   }
 
-  /// Saca el prefijo técnico del backend ("soulseek: ") para mostrar el texto
-  /// tal como lo lee el usuario.
-  String _limpiarMensaje(String? crudo) {
-    final texto = (crudo ?? '').trim();
-    if (texto.isEmpty) return 'No se pudo conectar con Soulseek.';
-    return texto.startsWith('soulseek: ')
-        ? texto.substring('soulseek: '.length).trim()
-        : texto;
-  }
 
-  /// Traduce el motivo que manda Go. Un valor desconocido cae a [ninguno] a
-  /// propósito: la UI nunca debe bloquear al usuario por un motivo que no
-  /// entiende.
-  MotivoSoulseek _motivoDesde(String? motivo) {
-    switch (motivo) {
-      case 'nombre_tomado':
-        return MotivoSoulseek.nombreTomado;
-      case 'nombre_invalido':
-        return MotivoSoulseek.nombreInvalido;
-      default:
-        return MotivoSoulseek.ninguno;
-    }
-  }
-
-  /// El RPC de Go devuelve un string JSON; algunas plataformas ya lo
-  /// entregan decodificado. Se aceptan las dos formas.
-  Map<String, dynamic>? _comoMapa(Object? respuesta) {
-    try {
-      if (respuesta is Map) return Map<String, dynamic>.from(respuesta);
-      if (respuesta is String && respuesta.trim().isNotEmpty) {
-        final decodificado = jsonDecode(respuesta);
-        if (decodificado is Map) return Map<String, dynamic>.from(decodificado);
-      }
-    } catch (e) {
-      debugPrint('[Soulseek] respuesta ilegible: $e');
-    }
-    return null;
-  }
 }

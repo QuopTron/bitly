@@ -14,7 +14,11 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
+
 import '../verificacion/grant_verificacion.dart';
+
+part 'servidor_callback_escritorio_helpers.dart';
 
 /// Servidor loopback para recibir el grant de sesión firmada.
 class ServidorCallbackEscritorio {
@@ -61,7 +65,7 @@ class ServidorCallbackEscritorio {
       try {
         final cuerpo = await utf8.decoder.bind(request).join();
         grant = _extraerDelCuerpo(cuerpo);
-      } catch (_) {}
+      } catch (e) { debugPrint("[OAuth] error: $e"); }
     }
 
     _debugLog('grant extraído: ${grant == null ? 'null' : 'OK (${grant.length} chars)'}');
@@ -73,87 +77,18 @@ class ServidorCallbackEscritorio {
         ..write(_paginaExito);
       unawaited(request.response.close());
       // ignore: avoid_print
-      print('[Verificacion] loopback recibió grant');
+      debugPrint('[Verificacion] loopback recibió grant');
       _completar(grant);
       return;
     }
 
     // ignore: avoid_print
-    print('[Verificacion] loopback recibió petición sin grant: $urlCompleta');
+    debugPrint('[Verificacion] loopback recibió petición sin grant: $urlCompleta');
     request.response
       ..statusCode = HttpStatus.badRequest
       ..write('missing grant');
     await request.response.close();
   }
-
-  /// Extrae el grant del CUERPO de la petición (POST de la página). Acepta
-  /// JSON con clave explícita (incluso anidada en `data`), cuerpo
-  /// form-encoded/query (`grant=...&...`) y —solo como último recurso— un
-  /// token pelado con el prefijo real `gr_`. NO usa el fallback genérico de
-  /// `grantDeCadena` para no confundir un JSON arbitrario con un grant.
-  String? _extraerDelCuerpo(String cuerpo) {
-    final t = cuerpo.trim();
-    if (t.isEmpty) return null;
-    // 1) JSON con clave explícita.
-    try {
-      final decodificado = jsonDecode(t);
-      if (decodificado is Map) {
-        for (final clave in ['grant', 'code', 'token', 'session_grant']) {
-          final valor = decodificado[clave];
-          if (valor is String && valor.trim().isNotEmpty) {
-            return valor.trim();
-          }
-        }
-        final data = decodificado['data'];
-        if (data is Map) {
-          for (final clave in ['grant', 'code', 'token']) {
-            final valor = data[clave];
-            if (valor is String && valor.trim().isNotEmpty) {
-              return valor.trim();
-            }
-          }
-        }
-      }
-    } catch (_) {}
-    // 2) Form-encoded / query.
-    try {
-      final params = Uri.splitQueryString(t);
-      for (final clave in ['grant', 'code', 'token']) {
-        final valor = params[clave];
-        if (valor != null && valor.trim().isNotEmpty) return valor.trim();
-      }
-    } catch (_) {}
-    // 3) Token pelado con el prefijo real del grant.
-    final m = RegExp(r'^gr_[A-Za-z0-9_\-]+$').firstMatch(t);
-    return m?.group(0);
-  }
-
-  /// Log de diagnóstico a archivo (AppData/Bitly/verificacion_loopback.log)
-  /// para poder ver en release qué recibe el servidor loopback — en release
-  /// los print/debugPrint no son visibles.
-  void _debugLog(String mensaje) {
-    try {
-      final base = Platform.environment['APPDATA'] ??
-          Platform.environment['LOCALAPPDATA'] ??
-          '';
-      if (base.isEmpty) return;
-      final dir = Directory('$base${Platform.pathSeparator}Bitly');
-      if (!dir.existsSync()) dir.createSync(recursive: true);
-      final archivo =
-          File('${dir.path}${Platform.pathSeparator}verificacion_loopback.log');
-      final linea = '[${DateTime.now().toIso8601String()}] $mensaje\n';
-      archivo.writeAsStringSync(linea, mode: FileMode.append);
-    } catch (_) {}
-  }
-
-  static const _paginaExito = '''
-<!DOCTYPE html><html><head><meta charset="utf-8">
-<title>Verificación completada</title></head>
-<body style="font-family:sans-serif;background:#000;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh">
-<div style="text-align:center">
-<h2>✔ Verificación completada</h2>
-<p>Ya puedes cerrar esta pestaña y volver a la app.</p>
-</div></body></html>''';
 
   /// Espera el siguiente grant (o null si expira/lo cancelan).
   Future<String?> esperarGrant(Duration timeout) {

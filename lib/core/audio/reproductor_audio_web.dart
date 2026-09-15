@@ -16,19 +16,21 @@
 //     tap, así que normalmente alcanza; si igual lo bloquea, se emite
 //     un mensaje claro para que el usuario vuelva a tocar play.
 //
-// Ojo, esto NO es problema de CORS: un <audio> puede reproducir una URL
-// de otro dominio sin cabeceras CORS (a diferencia de fetch/XHR).
-//
+// Ojo: esto NO es problema de CORS — un <audio> reproduce una URL de otro
+// dominio sin cabeceras CORS (a diferencia de fetch/XHR).
 // Se elige por import condicional desde cubit_reproductor.dart.
 // Parte del flujo: reproducción (motor de audio web).
 // ─────────────────────────────────────────────────────────────
 
+import "package:flutter/foundation.dart";
 import 'dart:async';
 import 'dart:js_interop';
 
 import 'package:web/web.dart' as web;
 
 import 'reproductor_audio.dart';
+
+part 'reproductor_audio_web_eventos.dart';
 
 /// Crea el motor web. Mismo nombre que la implementación nativa.
 ReproductorAudio crearReproductorAudio() => ReproductorWeb();
@@ -42,18 +44,7 @@ class ReproductorWeb implements ReproductorAudio {
       // obligaría a CORS (que varios CDN no mandan).
       ..volume = 1.0;
 
-    _escuchar('timeupdate', () {
-      _posicion.add(
-        Duration(milliseconds: (_audio.currentTime * 1000).round()),
-      );
-    });
-    _escuchar('durationchange', _emitirDuracion);
-    _escuchar('loadedmetadata', _emitirDuracion);
-    _escuchar('ended', () => _completado.add(null));
-    _escuchar('playing', () => _reproduciendo.add(true));
-    _escuchar('play', () => _reproduciendo.add(true));
-    _escuchar('pause', () => _reproduciendo.add(false));
-    _escuchar('error', _emitirError);
+    _conectarEventos(this);
   }
 
   final web.HTMLAudioElement _audio =
@@ -64,35 +55,6 @@ class ReproductorWeb implements ReproductorAudio {
   final _completado = StreamController<void>.broadcast();
   final _reproduciendo = StreamController<bool>.broadcast();
   final _error = StreamController<String>.broadcast();
-
-  /// Registra un listener de un evento del elemento.
-  void _escuchar(String evento, void Function() alOcurrir) {
-    _audio.addEventListener(evento, ((web.Event _) => alOcurrir()).toJS);
-  }
-
-  /// La duración llega como NaN (todavía sin metadata) o Infinity (stream
-  /// en vivo): en esos casos no hay duración que reportar.
-  void _emitirDuracion() {
-    final segundos = _audio.duration;
-    if (segundos.isFinite && segundos > 0) {
-      _duracion.add(Duration(milliseconds: (segundos * 1000).round()));
-    }
-  }
-
-  /// Traduce el error del elemento a un mensaje accionable.
-  void _emitirError() {
-    final codigo = _audio.error?.code ?? 0;
-    final detalle = switch (codigo) {
-      1 => 'Reproducción cancelada',
-      2 => 'Error de red al traer el audio (¿sin conexión?)',
-      3 => 'El audio no se pudo decodificar',
-      4 =>
-        'El audio no está disponible o el enlace no es reproducible '
-            '(algunos streams exigen cabeceras que el navegador no puede mandar)',
-      _ => 'El navegador no pudo reproducir el audio',
-    };
-    _error.add(detalle);
-  }
 
   @override
   Duration get posicion =>
@@ -178,7 +140,7 @@ class ReproductorWeb implements ReproductorAudio {
       _audio.pause();
       _audio.removeAttribute('src');
       _audio.load();
-    } catch (_) {}
+    } catch (e) { debugPrint("[App] $e"); }
     await _posicion.close();
     await _duracion.close();
     await _completado.close();

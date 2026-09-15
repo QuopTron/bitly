@@ -12,7 +12,7 @@
 part of 'cubit_reproductor.dart';
 
 /// Helpers de apertura. Mixin aplicado en CubitReproductor.
-mixin ReproductorAperturaHelpers on ReproductorReporte {
+mixin ReproductorAperturaHelpers on ReproductorFalloOpen {
   /// Reapertura de un track — la implementación concreta vive en
   /// ReproductorApertura (arriba en la cadena); declaración para el watchdog.
   Future<void> _openTrack(ItemFeed track);
@@ -101,55 +101,5 @@ mixin ReproductorAperturaHelpers on ReproductorReporte {
     unawaited(Future<void>.delayed(const Duration(seconds: 8), checkStall));
   }
 
-  /// Reporta el fallo de resolución del open con un mensaje legible según el
-  /// tipo de error (verificación requerida / 429 / offline / genérico) y
-  /// abre el modal de verificación del proveedor que la necesita.
-  Future<void> _manejarFalloOpen(ItemFeed track) async {
-    final raw = _ultimoErrorStream.trim();
-    final rawLower = raw.toLowerCase();
-    final necesitaVerificacion =
-        _ultimoTipoErrorStream.toLowerCase() == 'verification_required' ||
-        rawLower.contains('verify_required') ||
-        rawLower.contains('verification required') ||
-        rawLower.contains('verify required');
-    String? msg;
-    if (necesitaVerificacion) {
-      final servicio =
-          _ultimoServicioStream.isNotEmpty
-              ? _ultimoServicioStream
-              : (track.source ?? '');
-      final nombre = ServicioVerificacion().nombreFuente(servicio);
-      msg =
-          nombre.isNotEmpty
-              ? 'Sesión de $nombre no verificada — completa la verificación '
-                  'para reproducir esta canción.'
-              : 'Sesión no verificada — completa la verificación para '
-                  'reproducir esta canción.';
-      // Refrescar ya la sesión del proveedor que la necesita (p.ej. amazon
-      // alcanzado durante fallback).
-      unawaited(_verificarServicioParaPlayback(servicio, nombre));
-    } else if (raw.contains('429') ||
-        rawLower.contains('rate limit') ||
-        rawLower.contains('too many')) {
-      msg =
-          'Proveedor temporalmente saturado (429) — inténtalo de nuevo '
-          'en unos segundos.';
-    } else if (_ultimoTipoErrorStream.toLowerCase() == 'offline' ||
-        rawLower.contains('sin conexión')) {
-      msg =
-          'Sin conexión a internet — descarga esta canción para '
-          'reproducirla sin red.';
-    } else if (raw.isNotEmpty) {
-      msg = 'No se pudo obtener un stream original para esta canción.';
-    }
-    if (msg != null) {
-      emit(
-        state.copiarCon(
-          estadoReproduccion: EstadoReproduccion.error,
-          mensajeError: msg,
-        ),
-      );
-      if (!necesitaVerificacion) ServicioVerificacion().mostrarAviso(msg);
-    }
-  }
+
 }

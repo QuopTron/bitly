@@ -21,7 +21,7 @@ NavigationDelegate _crearDelegate(_PanelVerificacionWebState state) {
     onNavigationRequest: (solicitud) {
       final grant = grantDeCadena(solicitud.url);
       if (grant != null) {
-        state._dispararGrant(grant);
+        _dispararGrant(state, grant);
         return NavigationDecision.prevent;
       }
       return NavigationDecision.navigate;
@@ -30,15 +30,15 @@ NavigationDelegate _crearDelegate(_PanelVerificacionWebState state) {
       if (url.contains('session-grant')) {
         debugPrint('[Verificacion] onPageStarted: $url');
       }
-      state._alIniciarPagina(url);
-      state._chequear(url);
+      _alIniciarPagina(state, url);
+      _chequear(state, url);
     },
     onPageFinished: (url) {
       if (url.contains('session-grant')) {
         debugPrint('[Verificacion] onPageFinished: $url');
       }
-      state._paginaTerminoDeCargar(url);
+      _paginaTerminoDeCargar(state, url);
     },
-    onWebResourceError: (error) => state._errorRecursoWeb(error),
+    onWebResourceError: (error) => _errorRecursoWeb(state, error),
   );
 }

@@ -13,6 +13,8 @@ import 'package:drift/drift.dart' show Value;
 import '../../base_datos/app_database.dart';
 import '../../base_datos/daos/download_dao.dart';
 
+part 'cache_descargas_lotes.dart';
+
 /// Caché local de historial de descargas — wrappers sobre [DownloadDao].
 class CacheDescargas {
   final DownloadDao _dao;
@@ -126,32 +128,4 @@ class CacheDescargas {
       await _dao.removeById(id);
     }
   }
-
-  Future<String?> getRutaArchivoPorId(String id) => _dao.getFilePathById(id);
-
-  Future<DownloadBatche?> getLotePorItem(String itemType, String itemId, String source) =>
-      _dao.getBatchByItem(itemType, itemId, source);
-
-  Future<void> quitarLotePorItem(String itemType, String itemId, String source) =>
-      _dao.removeBatchByItem(itemType, itemId, source);
-
-  Future<void> quitarLotes(List<String> keys) => _dao.removeBatches(keys);
-
-  /// Cuenta cuántos lotes referencian [trackId] en su track_ids.
-  Future<int> contarLotesReferenciandoTrack(String trackId) =>
-      _dao.countBatchesReferencingTrack(trackId);
-
-  /// Actualiza la ruta de archivo de una entrada del historial.
-  /// Se usa cuando el archivo real en disco difiere del guardado
-  /// (p.ej. tras renombrar .flac → .dec.flac por el decrypt).
-  Future<void> actualizarRutaArchivo(String id, String nuevaRuta) =>
-      _dao.updateFilePath(id, nuevaRuta);
-
-  /// Backfill de carátula de una entrada del historial (tracks viejos
-  /// descargados sin cover: les faltaba cover_url al momento de descargar).
-  Future<void> actualizarCaratulaTrack(
-    String id,
-    String coverUrl,
-    String coverPath,
-  ) => _dao.updateTrackCover(id, coverUrl, coverPath);
 }

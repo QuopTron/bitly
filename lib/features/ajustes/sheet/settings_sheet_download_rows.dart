@@ -1,6 +1,11 @@
-// Parte del split de settings_sheet_new.dart — dropdown de calidad y labels
-// de calidad (funciones top-level usadas por _DownloadQualityCard).
-// Extraídas del archivo original (ver git log).
+// ─────────────────────────────────────────────────────────────
+// settings_sheet_download_rows.dart — Filas de selección de calidad de descarga: el dropdown de calidad y las
+// etiquetas legibles de cada opción.
+//
+// Se conecta con: settings_sheet_download_quality.dart (las consume).
+// Parte del flujo: Ajustes → pestaña Descargas → calidad.
+// ─────────────────────────────────────────────────────────────
+
 part of 'settings_sheet_new.dart';
 
 Widget _downloadDropdownRow(

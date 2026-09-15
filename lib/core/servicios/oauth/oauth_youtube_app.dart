@@ -8,7 +8,9 @@
 // ServicioCredencialesProveedor.
 // Se conecta con: backend_go (startYoutubeOauth, stopYoutubeOauth,
 // exchangeYoutubeOauth) + cache_ajustes + credenciales proveedor +
-// oauth_youtube_webview.dart (página WebView).
+// oauth_youtube_webview.dart (página WebView). Las piezas de
+// escritorio (detección de WebView y flujo por navegador) viven en
+// oauth_youtube_app_escritorio.dart.
 // Parte del flujo: Ajustes → Google → Conectar YouTube.
 // ─────────────────────────────────────────────────────────────
 
@@ -26,6 +28,8 @@ import '../../cache/almacenes/cache_ajustes.dart';
 import 'oauth_youtube_webview.dart';
 import '../proveedores/servicio_credenciales_proveedor.dart';
 
+part 'oauth_youtube_app_escritorio.dart';
+
 /// OAuth de YouTube dentro de la app (WebView embebida, sin Chrome).
 class OAuthYouTubeApp {
   static const _idExt = 'ytmusic-spotiflac';
@@ -33,53 +37,6 @@ class OAuthYouTubeApp {
 
   static const _clienteIdEscritorio = oauthClienteIdEscritorio;
   static const _clienteSecretoEscritorio = oauthClienteSecretoEscritorio;
-
-  /// True donde hay implementación del WebView de webview_flutter: nativa en
-  /// Android/iOS/macOS y, en Windows, vía webview_win_floating (WebView2). En
-  /// Linux/web no existe y crear un WebViewController lanza "Null check
-  /// operator used on a null value".
-  static bool _soportaWebView() {
-    if (kIsWeb) return false;
-    switch (defaultTargetPlatform) {
-      case TargetPlatform.android:
-      case TargetPlatform.iOS:
-      case TargetPlatform.macOS:
-      case TargetPlatform.windows:
-        return true;
-      default:
-        return false;
-    }
-  }
-
-  /// Flujo desktop: abre el consentimiento en el navegador del sistema y hace
-  /// poll del listener loopback de Go hasta que capture el code (o cancele).
-  static Future<String?> _iniciarOAuthNavegador(
-    BackendService backend,
-    String authUrl,
-  ) async {
-    final abierto = await launchUrl(
-      Uri.parse(authUrl),
-      mode: LaunchMode.externalApplication,
-    );
-    if (!abierto) return null;
-
-    // Timeout generoso: el usuario puede tardar en iniciar sesión en Google.
-    const timeout = Duration(minutes: 3);
-    final inicio = DateTime.now();
-    while (DateTime.now().difference(inicio) < timeout) {
-      await Future<void>.delayed(const Duration(milliseconds: 800));
-      final raw = await backend.rpcCall('pollYoutubeOauth', {});
-      final res = raw is String
-          ? jsonDecode(raw) as Map<String, dynamic>
-          : Map<String, dynamic>.from(raw as Map);
-      if (res['done'] == true) {
-        final code = res['code'] as String?;
-        if (code != null && code.isNotEmpty) return code;
-        return null; // error o cancelación (el listener ya respondió).
-      }
-    }
-    return null;
-  }
 
   /// Inicia el listener de loopback de Go y abre el consentimiento.
   /// Devuelve el mensaje de éxito o null si falló/canceló.
@@ -128,7 +85,7 @@ class OAuthYouTubeApp {
     // Detiene el listener de loopback (pase lo que pase).
     try {
       await backend.rpcCall('stopYoutubeOauth', {});
-    } catch (_) {}
+    } catch (e) { debugPrint("[OAuth] error: $e"); }
 
     if (code == null || code.isEmpty) return null;
 

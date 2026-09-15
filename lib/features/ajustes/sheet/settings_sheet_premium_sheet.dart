@@ -1,3 +1,10 @@
+// ─────────────────────────────────────────────────────────────
+// settings_sheet_premium_sheet.dart — PART de settings_sheet_new.dart: hoja de activación Premium —
+// ingreso de código, verificación y acuse.
+// Se conecta con: settings_sheet_new.dart (misma library) + backend Go.
+// Parte del flujo: Ajustes → Más (activar Premium).
+// ─────────────────────────────────────────────────────────────
+
 part of 'settings_sheet_new.dart';
 
 /// Bottom-sheet modal de activación de Premium: input del código,

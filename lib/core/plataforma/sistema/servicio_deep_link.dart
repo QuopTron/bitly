@@ -6,6 +6,7 @@
 // Parte del flujo: arranque y llegada de links (WhatsApp, etc).
 // ─────────────────────────────────────────────────────────────
 
+import "package:flutter/foundation.dart";
 import 'dart:async';
 import 'dart:io';
 
@@ -50,7 +51,7 @@ class ServicioDeepLink {
           _linkPendiente = datos;
         }
       }
-    } catch (_) {}
+    } catch (e) { debugPrint("[App] $e"); }
   }
 
   /// Consume el deep link pendiente para que el overlay no se vuelva a mostrar.

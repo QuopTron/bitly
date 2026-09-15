@@ -39,7 +39,7 @@ Widget _vistaAgrupadaPorCategoria(
     children
         .add(_cabeceraSeccion(context, cat, items.length, r, colorBrillo, onBg));
     if (cat == 'tracks') {
-      children.addAll(_listaTracks(cuerpo, context, r, items));
+      children.addAll(_listaTracks(cuerpo, context, items));
     } else {
       children.add(_seccionGrilla(
         cuerpo,
@@ -82,7 +82,7 @@ Widget _vistaAgrupadaPorFuente(
     children.add(_cabeceraFuente(
         context, entry.key, entry.value.length, r, colorBrillo, onBg));
     if (cuerpo.tipoSeleccionado == 'tracks') {
-      children.addAll(_listaTracks(cuerpo, context, r, entry.value));
+      children.addAll(_listaTracks(cuerpo, context, entry.value));
     } else {
       children.add(_seccionGrilla(
         cuerpo,

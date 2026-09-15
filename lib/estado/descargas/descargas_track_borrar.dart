@@ -64,7 +64,7 @@ mixin DescargasTrackBorrar on DescargasDespacho {
       final esAmado = [meta.trackId, trackId, normalizedId]
           .any((id) => id.isNotEmpty && likeCubit.estaItemIdAmado(id));
       if (!esAmado) {
-        try { await _backend.deleteCover(meta.coverUrl!); } catch (_) {}
+        try { await _backend.deleteCover(meta.coverUrl!); } catch (e) { debugPrint("[Descargas] $e"); }
       }
     }
 

@@ -114,7 +114,7 @@ class _CabeceraDetalleState extends State<CabeceraDetalle>
         }
         setState(() => _colorDominante = color);
       }
-    } catch (_) {}
+    } catch (e) { debugPrint("[Feature] $e"); }
   }
 
   @override

@@ -111,6 +111,16 @@ class LimpiarBusqueda extends EventoBusqueda {
   const LimpiarBusqueda();
 }
 
+/// Cierra el estado de carga a la fuerza.
+///
+/// Lo emite el watchdog de la página cuando una búsqueda se pasó del tope de
+/// espera sin que el backend reportara `done` (puente nativo ocupado por una
+/// descarga/stream, extensión colgada). Sin esto la UI quedaba en esqueletos
+/// infinitos: el `cargando` solo lo apagaba el propio intento.
+class FinalizarBusquedaForzada extends EventoBusqueda {
+  const FinalizarBusquedaForzada();
+}
+
 /// La config de búsqueda por fuente se cargó desde el backend.
 class ConfigBusquedaCargada extends EventoBusqueda {
   final Map<String, ConfigBusquedaFuente> config;

@@ -7,6 +7,7 @@
 // Parte del flujo: arranque, setup, Ajustes, descargas.
 // ─────────────────────────────────────────────────────────────
 
+import "package:flutter/foundation.dart";
 import 'dart:convert';
 
 import '../../base_datos/app_database.dart';
@@ -99,6 +100,19 @@ class CacheAjustes {
   Future<void> guardarNivelRendimiento(NivelRendimiento nivel) =>
       _dao.set(_clavePerf, nivel.clave);
 
+  // ── Audio en segundo plano (PC/escritorio) ───────────
+  static const _claveAudioFondo = 'audio_en_segundo_plano';
+
+  /// Si es true, la música sigue sonando aunque otra app tenga audio.
+  /// Solo aplica en escritorio (PC/Mac); en móvil siempre se pausa.
+  Future<bool> getAudioEnSegundoPlano() async {
+    final raw = await _dao.get(_claveAudioFondo);
+    return raw == 'true';
+  }
+
+  Future<void> guardarAudioEnSegundoPlano(bool valor) =>
+      _dao.set(_claveAudioFondo, valor ? 'true' : 'false');
+
   static const _clavePrioridadDescarga = 'download_provider_priority';
 
   /// Lista ordenada persistida de proveedores de descarga (mejor-primero).
@@ -109,7 +123,7 @@ class CacheAjustes {
     try {
       final lista = jsonDecode(raw);
       if (lista is List) return lista.whereType<String>().toList();
-    } catch (_) {}
+    } catch (e) { debugPrint("[Cache] $e"); }
     return const [];
   }
 

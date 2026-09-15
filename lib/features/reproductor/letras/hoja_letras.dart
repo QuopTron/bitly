@@ -29,6 +29,7 @@ import '../../../shared/utilidades/plataforma/responsive.dart';
 import '../../../shared/widgets/tarjetas/portada/imagen_portada.dart';
 
 part 'hoja_letras_parse.dart';
+part 'hoja_letras_cabecera.dart';
 part 'hoja_letras_linea.dart';
 part 'hoja_letras_transporte.dart';
 part 'hoja_letras_fondo.dart';
@@ -100,7 +101,7 @@ class _HojaLetrasState extends State<_HojaLetras> {
         final resuelta = sl<CubitLikes>().caratulaLocalPara(actual);
         if (resuelta != null) return resuelta;
       }
-    } catch (_) {}
+    } catch (e) { debugPrint("[Feature] $e"); }
     return widget.track.coverUrl;
   }
 

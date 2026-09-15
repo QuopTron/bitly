@@ -8,65 +8,25 @@
 // blur usa el sigma del perfil de rendimiento (menos sigma en modo
 // bajo consumo) y el decode es acotado a 512px para que el blur
 // full-screen sea barato en móvil.
+// FondoAmbienteConCola (la variante atada a la cola) vive en
+// fondo_ambiente_con_cola.dart y se re-exporta acá.
 // Se conecta con: imagen_portada (helpers) + perfil_rendimiento +
-// cubit_cola + cubit_like + colores_app.
+// preferencias_estilo + inyeccion (notifiers globales).
 // Parte del flujo: Home (shell móvil/escritorio) — fondo global.
 // ─────────────────────────────────────────────────────────────
 
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../app/inyeccion.dart';
-import '../../../core/cache/estado/estado_cola.dart';
 import '../../../core/modelos/usuario/estilo_visual.dart';
 import '../../../core/modelos/usuario/perfil_rendimiento.dart';
 import '../../../core/modelos/usuario/preferencias_estilo.dart';
-import '../../../estado/cola/cubit_cola.dart';
-import '../../../estado/like/cubit_like.dart';
-import '../../tema/colores_app.dart';
-import '../../utilidades/portada/paleta_portada.dart';
 import '../tarjetas/portada/imagen_portada.dart';
+import 'fondo_ambiente_velo.dart';
 
-/// Fondo con el cover de la canción actual envuelve [child].
-/// Lee CubitCola (canción actual) y CubitLikes (mejor carátula local).
-class FondoAmbienteConCola extends StatelessWidget {
-  final Widget child;
-
-  const FondoAmbienteConCola({super.key, required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    return BlocBuilder<CubitCola, EstadoCola>(
-      builder: (context, estado) {
-        final track = estado.actual;
-        String? cover;
-        if (track != null) {
-          try {
-            cover = context.read<CubitLikes>().caratulaLocalPara(track) ??
-                track.coverUrl;
-          } catch (_) {
-            cover = track.coverUrl;
-          }
-        }
-        return Stack(
-          fit: StackFit.expand,
-          children: [
-            FondoAmbiente(
-              coverUrl: cover,
-              isDark: Theme.of(context).brightness == Brightness.dark,
-              bgColor: Theme.of(context).brightness == Brightness.dark
-                  ? ColoresApp.fondoOscuro
-                  : ColoresApp.fondoClaro,
-            ),
-            child,
-          ],
-        );
-      },
-    );
-  }
-}
+export 'fondo_ambiente_con_cola.dart';
 
 /// Capa de fondo: cover desenfocado + velo + gradiente inferior.
 /// En modo Spotify, reemplaza el cover por el color dominante del album.
@@ -121,7 +81,7 @@ class FondoAmbiente extends StatelessWidget {
                     ColoredBox(color: bgColor),
                   // Capa 2: velo — en Spotify usa color dominante.
                   if (spotify && url != null && url.isNotEmpty)
-                    _VeloDinamico(
+                    VeloDinamico(
                       coverUrl: url,
                       isDark: isDark,
                       defaultBg: bgColor,
@@ -154,66 +114,3 @@ class FondoAmbiente extends StatelessWidget {
   }
 }
 
-/// Velo dinámico que extrae el color dominante del cover y lo muestra
-/// como fondo sólido en modo Spotify. Transición animada al cambiar.
-class _VeloDinamico extends StatefulWidget {
-  final String coverUrl;
-  final bool isDark;
-  final Color defaultBg;
-
-  const _VeloDinamico({
-    required this.coverUrl,
-    required this.isDark,
-    required this.defaultBg,
-  });
-
-  @override
-  State<_VeloDinamico> createState() => _VeloDinamicoState();
-}
-
-class _VeloDinamicoState extends State<_VeloDinamico> {
-  Color? _acento;
-
-  @override
-  void initState() {
-    super.initState();
-    _extraerColor();
-  }
-
-  @override
-  void didUpdateWidget(covariant _VeloDinamico oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.coverUrl != widget.coverUrl) {
-      _extraerColor();
-    }
-  }
-
-  Future<void> _extraerColor() async {
-    try {
-      final paleta = await paletaParaPortada(widget.coverUrl);
-      if (mounted) {
-        setState(() {
-          _acento = paleta?.dominante;
-        });
-      }
-    } catch (_) {}
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colorBase = _acento ?? widget.defaultBg;
-    // Mezcla el color dominante con el fondo del tema para que no
-    // sobresature pero sea claramente visible.
-    final colorFinal = Color.lerp(
-      widget.defaultBg,
-      colorBase,
-      widget.isDark ? 0.45 : 0.30,
-    )!;
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 400),
-      curve: Curves.easeOutCubic,
-      color: colorFinal,
-    );
-  }
-}

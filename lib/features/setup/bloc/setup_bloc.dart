@@ -18,7 +18,7 @@ import 'setup_manejadores.dart';
 
 /// Bloc del setup: orquesta los 10 pasos del flujo de bienvenida.
 class SetupBloc extends Bloc<EventoSetup, EstadoSetup>
-    with ManejadoresSetup, ManejadoresSetupAvanzado {
+    with ManejadoresSoulseekSetup, ManejadoresSetup, ManejadoresSetupAvanzado {
   final ValueNotifier<Locale> _notifierIdioma;
   final ServicioSoulseek _soulseek;
 

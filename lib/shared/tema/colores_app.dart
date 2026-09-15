@@ -129,12 +129,8 @@ class ColoresApp {
   }
 
   /// Gradiente de fondo para cards: usa el color dominante como base.
-  static LinearGradient gradienteDinamico(
-    bool oscuro,
-    Color? acento, {
-    double alphaBase = 1.0,
-    double alphaTop = 0.2,
-  }) {
+  static LinearGradient gradienteDinamico(bool oscuro, Color? acento,
+      {double alphaBase = 1.0, double alphaTop = 0.2}) {
     final colorBase = acento ?? (oscuro ? superficieOscura : superficieClara);
     return LinearGradient(
       begin: Alignment.bottomCenter,

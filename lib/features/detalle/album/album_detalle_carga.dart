@@ -66,7 +66,7 @@ Future<void> _cargarDetalleAlbum(_AlbumDetallePaginaState st) async {
         detalle = DetalleAlbum.desdeJson(jsonDecode(json) as Map<String, dynamic>);
         memoria.setAlbum(st.widget.albumId, detalle);
       }
-    } catch (_) {}
+    } catch (e) { debugPrint("[Feature] $e"); }
     if (detalle != null && detalle.tracks.isNotEmpty) {
       st._album = detalle;
       st._cargando = false;
@@ -133,7 +133,7 @@ Future<void> _refrescarDesdeApi(
       st._error = false;
       st.repintar();
     }
-  } catch (_) {}
+  } catch (e) { debugPrint("[Feature] $e"); }
 }
 
 // (la reconstrucción offline desde el lote vive en album_detalle_lote.dart)

@@ -1,18 +1,22 @@
 // ---------------------------------------------------------------------------
 // download_dao.dart — DAO de descargas: cola, historial, lotes e ids ocultos.
+// Las operaciones sobre lotes viven en download_dao_lotes.dart.
 // Se conecta con: app_database.dart + CacheDescargas (DownloadCubit).
 // Parte del flujo: descargas (cola y historial).
 // ---------------------------------------------------------------------------
 
+import "package:flutter/foundation.dart";
 import 'dart:convert';
 import 'package:drift/drift.dart';
 import '../app_database.dart';
 import '../tables/download_tables.dart';
 
 part 'download_dao.g.dart';
+part 'download_dao_lotes.dart';
 
 @DriftAccessor(tables: [DownloadQueue, DownloadHistory, DownloadBatches, HiddenDownloadIds])
-class DownloadDao extends DatabaseAccessor<AppDatabase> with _$DownloadDaoMixin {
+class DownloadDao extends DatabaseAccessor<AppDatabase>
+    with _$DownloadDaoMixin, _DownloadDaoLotes {
   DownloadDao(super.db);
 
   Future<List<DownloadQueueData>> getQueue() => select(downloadQueue).get();
@@ -77,60 +81,6 @@ class DownloadDao extends DatabaseAccessor<AppDatabase> with _$DownloadDaoMixin 
               return t.id.equals('');
             }))
           .get();
-
-  Future<void> saveBatch(DownloadBatchesCompanion entry) =>
-      into(downloadBatches).insertOnConflictUpdate(entry);
-
-  Future<List<DownloadBatche>> getBatches({String? since}) {
-    if (since == null) return select(downloadBatches).get();
-    final sinceDt = DateTime.tryParse(since);
-    if (sinceDt == null) return select(downloadBatches).get();
-    return (select(downloadBatches)
-          ..where((t) => t.downloadedAt.isBiggerThanValue(sinceDt)))
-        .get();
-  }
-
-  Future<DownloadBatche?> getBatchByItem(
-    String itemType, String itemId, String source,
-  ) => (select(downloadBatches)
-        ..where((t) =>
-            t.itemType.equals(itemType) &
-            t.itemId.equals(itemId) &
-            t.source.equals(source)))
-      .getSingleOrNull();
-
-  Future<void> removeBatchByItem(
-          String itemType, String itemId, String source) =>
-      (delete(downloadBatches)
-            ..where((t) =>
-                t.itemType.equals(itemType) &
-                t.itemId.equals(itemId) &
-                t.source.equals(source)))
-          .go();
-
-  Future<void> removeBatches(List<String> keys) async {
-    for (final k in keys) {
-      await (delete(downloadBatches)..where((t) => t.batchKey.equals(k))).go();
-    }
-  }
-
-  /// Cuenta cuántos lotes referencian [trackId] (para borrar el audio solo
-  /// cuando ningún otro lote lo usa).
-  Future<int> countBatchesReferencingTrack(String trackId) async {
-    final batches = await select(downloadBatches).get();
-    var count = 0;
-    for (final b in batches) {
-      final raw = b.trackIds ?? '';
-      if (raw.isEmpty || raw == '[]') continue;
-      try {
-        final ids = (jsonDecode(raw) as List<dynamic>).map((e) => e.toString());
-        if (ids.any((id) => id.contains(trackId) || trackId.contains(id))) {
-          count++;
-        }
-      } catch (_) {}
-    }
-    return count;
-  }
 
   Future<String?> getFilePathById(String id) async {
     final rows = await (select(downloadHistory)

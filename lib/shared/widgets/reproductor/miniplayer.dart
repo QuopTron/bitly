@@ -29,6 +29,7 @@ part 'miniplayer_controles.dart';
 part 'miniplayer_piezas.dart';
 part 'miniplayer_pintor.dart';
 part 'miniplayer_progreso.dart';
+part 'miniplayer_barra.dart';
 
 /// Miniplayer con el track actual y sus controles.
 class Miniplayer extends StatefulWidget {

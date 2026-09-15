@@ -6,6 +6,7 @@
 // Parte del flujo: arranque (healthCheck → initGoBackend).
 // ─────────────────────────────────────────────────────────────
 
+import "package:flutter/foundation.dart";
 import 'dart:io';
 
 import 'package:flutter/services.dart';
@@ -30,6 +31,7 @@ import '../mixins/sesiones_acciones_mixin.dart';
 import '../mixins/sesiones_firmadas_mixin.dart';
 import '../mixins/sesiones_keepalive_mixin.dart';
 import '../nucleo/rpc_backend_mixin.dart';
+part 'backend_android_arranque.dart';
 
 class BackendAndroid extends BackendService
     with
@@ -48,33 +50,6 @@ class BackendAndroid extends BackendService
         RpcBackendMixin {
   static const _canal = MethodChannel('com.bitly/backend');
   bool _inicializado = false;
-
-  static const _archivosExt = <String, List<String>>{
-    'amazon': ['index.js', 'manifest.json'],
-    'apple-music': ['index.js', 'manifest.json'],
-    'deezer': ['index.js', 'manifest.json'],
-    'pandora': ['index.js', 'manifest.json'],
-    'qobuz-web': ['index.js', 'manifest.json'],
-    'soundcloud': ['index.js', 'manifest.json'],
-    'spotify-web': ['index.js', 'manifest.json'],
-    'tidal-web': ['index.js', 'manifest.json'],
-    'ytmusic-spotiflac': ['icon.jpg', 'index.js', 'manifest.json'],
-  };
-
-  Future<void> _garantizarExtensiones(String dirExt) async {
-    try {
-      for (final entrada in _archivosExt.entries) {
-        for (final archivo in entrada.value) {
-          try {
-            final data = await rootBundle.load('assets/extensions/${entrada.key}/$archivo');
-            final destino = File('$dirExt/${entrada.key}/$archivo');
-            destino.parent.createSync(recursive: true);
-            await destino.writeAsBytes(data.buffer.asUint8List());
-          } catch (_) {}
-        }
-      }
-    } catch (_) {}
-  }
 
   @override
   Future<dynamic> rpcCall(String method, [Map<String, dynamic>? params, Duration? timeout]) async {
@@ -110,38 +85,9 @@ class BackendAndroid extends BackendService
           await _canal
               .invokeMethod('loadExtensionsFromDir', {'dir_path': dirExt})
               .timeout(const Duration(seconds: 30));
-        } catch (_) {}
+        } catch (e) { debugPrint("[Backend] $e"); }
 
-        // Sincroniza la config guardada a la config en memoria de Go.
-        try {
-          final rutaDesc = await di.sl<CacheAjustes>().getRutaDescargas();
-          if (rutaDesc != null && rutaDesc.isNotEmpty) await syncDownloadDir(rutaDesc);
-          final datosSetup = await di.sl<CacheAjustes>().cargarDatosSetup();
-          if (datosSetup != null) {
-            await syncBackendConfig(mode: datosSetup.mode);
-          }
-          // Sincroniza el estado premium (drift) a Go para que el gate de
-          // descargas respete códigos ya activados en una sesión previa.
-          final premium = await di.sl<CachePremium>().getEstadoPremium();
-          await syncPremiumStatus(
-            isPremium: premium.esPremium,
-            tier: premium.tier,
-            expiresAt: premium.premiumHasta,
-          );
-          // Empuja el perfil de rendimiento (concurrencia/buffer) ahora que
-          // el runtime Go está confirmado — antes podría bloquear el bridge.
-          await di.empujarPerfilRendimientoABackend();
-          // Sincroniza la prioridad de proveedores de descarga persistida.
-          final prioridad = await di.sl<CacheAjustes>().getPrioridadProveedoresDescarga();
-          if (prioridad.isNotEmpty) await syncDownloadProviderPriority(prioridad);
-        } catch (_) {}
-
-        // Empuja las credenciales guardadas de proveedores a las extensiones.
-        try {
-          final cache = di.sl<CacheAjustes>();
-          await ServicioCredencialesProveedor(this, cache).empujarCredencialesAlArrancar();
-        } catch (_) {}
-
+        await _sincronizarArranqueGo(this);
         _inicializado = true;
       }
       return true;

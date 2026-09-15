@@ -1,3 +1,10 @@
+// ─────────────────────────────────────────────────────────────
+// settings_sheet_more_tab.dart — PART de settings_sheet_new.dart: pestaña Más — Premium, Google,
+// Soulseek, biblioteca local, reporte, caché y versión.
+// Se conecta con: settings_sheet_new.dart (misma library) + varios servicios.
+// Parte del flujo: Ajustes → Más.
+// ─────────────────────────────────────────────────────────────
+
 part of 'settings_sheet_new.dart';
 
 class _MoreTab extends StatefulWidget {
@@ -42,7 +49,7 @@ class _MoreTabState extends State<_MoreTab> {
           }
         }
       }
-    } catch (_) {}
+    } catch (e) { debugPrint("[Feature] $e"); }
   }
 
   @override

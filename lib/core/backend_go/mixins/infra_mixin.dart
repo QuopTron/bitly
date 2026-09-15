@@ -6,6 +6,7 @@
 // Parte del flujo: carátulas locales y reset de fábrica.
 // ─────────────────────────────────────────────────────────────
 
+import "package:flutter/foundation.dart";
 import '../nucleo/contrato_backend.dart';
 
 /// RPCs de caché de carátulas y reset de datos.
@@ -44,7 +45,7 @@ mixin InfraMixin on BackendService {
   Future<void> deleteCover(String coverUrl) async {
     try {
       await rpcCall('deleteCover', {'url': coverUrl});
-    } catch (_) {}
+    } catch (e) { debugPrint("[Backend] $e"); }
   }
 
   @override

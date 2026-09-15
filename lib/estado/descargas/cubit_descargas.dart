@@ -17,6 +17,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:logger/logger.dart';
 import '../../app/inyeccion.dart' as di;
@@ -30,7 +31,7 @@ import '../../core/modelos/ajustes_descarga.dart';
 import '../../core/modelos/feed/item_feed.dart';
 import '../../core/servicios/descarga/acceso_descarga.dart';
 import '../../core/servicios/desencriptado/desencriptado_stream.dart';
-import '../../core/servicios/descarga/estrategia_descarga.dart';
+import '../../shared/utilidades/descarga/estrategia_descarga.dart';
 import '../../core/servicios/utilidades/huella_item.dart';
 import '../../core/servicios/verificacion/servicio_verificacion.dart';
 import '../../core/servicios/utilidades/utilidades_id.dart';
@@ -71,12 +72,15 @@ part 'descargas_poll_item.dart';
 part 'descargas_poll_lotes.dart';
 part 'descargas_poll_timeout.dart';
 part 'descargas_poll_progreso.dart';
+part 'descargas_base_caches.dart';
+part 'descargas_estado_reintento.dart';
 
 final _log = Logger();
 
 /// Cubit de descargas — clase principal que combina la cadena de mixins.
 class CubitDescargas extends Cubit<EstadoCubitDescargas>
     with
+        DescargasBaseCaches,
         DescargasBase,
         DescargasReparar,
         DescargasRepararDecrypt,
@@ -88,6 +92,7 @@ class CubitDescargas extends Cubit<EstadoCubitDescargas>
         DescargasColaVerificar,
         DescargasReintentar,
         DescargasCola,
+        DescargasEstadoReintento,
         DescargasEstado,
         DescargasLoteFinalizar,
         DescargasAcceso,

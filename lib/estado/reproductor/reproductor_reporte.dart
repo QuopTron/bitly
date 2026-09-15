@@ -25,7 +25,7 @@ mixin ReproductorReporte on ReproductorVerificacion {
         }),
         'lastfmSessionKey': '',
       });
-    } catch (_) {}
+    } catch (e) { debugPrint("[App] $e"); }
   }
 
   /// Envía el scrobble final (track.scrobble + ListenBrainz import) al
@@ -46,6 +46,6 @@ mixin ReproductorReporte on ReproductorVerificacion {
         }),
         'lastfmSessionKey': '',
       });
-    } catch (_) {}
+    } catch (e) { debugPrint("[App] $e"); }
   }
 }

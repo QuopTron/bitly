@@ -43,7 +43,7 @@ mixin DescargasRepararDecrypt on DescargasReparar {
     if (resultado.exito && resultado.rutaArchivo != null) {
       try {
         await srcFile.delete();
-      } catch (_) {}
+      } catch (e) { debugPrint("[Descargas] $e"); }
       return resultado.rutaArchivo;
     }
     _log.e('[CubitDescargas] falló el decrypt de ffmpeg-kit: ${resultado.salida}');

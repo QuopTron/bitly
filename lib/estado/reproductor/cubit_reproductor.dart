@@ -60,6 +60,7 @@ part 'reproductor_archivos_temp.dart';
 part 'reproductor_video_local.dart';
 part 'reproductor_video_descarga.dart';
 part 'reproductor_video_fondo.dart';
+part 'reproductor_preload_vecinos.dart';
 part 'reproductor_preload.dart';
 part 'reproductor_preload_media.dart';
 part 'reproductor_controles.dart';
@@ -74,6 +75,10 @@ part 'reproductor_locales.dart';
 part 'reproductor_player_setup.dart';
 part 'reproductor_listener_cola.dart';
 part 'reproductor_init.dart';
+part 'reproductor_constantes.dart';
+part 'reproductor_player_errores.dart';
+part 'reproductor_completado_guards.dart';
+part 'reproductor_fallo_open.dart';
 
 /// Cubit del reproductor: ensambla los 24 mixins de estado, apertura, stream,
 /// precarga, controles, completado y limpieza sobre un Cubit de
@@ -90,17 +95,21 @@ class CubitReproductor extends Cubit<EstadoAudioReproductor>
         ReproductorVideoLocal,
         ReproductorVideoDescarga,
         ReproductorVideoFondo,
+        ReproductorPreloadVecinos,
         ReproductorPreload,
         ReproductorPreloadMedia,
         ReproductorControles,
         ReproductorVerificacion,
         ReproductorReporte,
+        ReproductorFalloOpen,
         ReproductorAperturaHelpers,
         ReproductorApertura,
         ReproductorAutoplay,
         ReproductorLimpieza,
+        ReproductorCompletadoGuards,
         ReproductorCompletado,
         ReproductorLocales,
+        ReproductorPlayerErrores,
         ReproductorPlayerSetup,
         ReproductorListenerCola,
         ReproductorInit

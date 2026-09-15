@@ -32,7 +32,7 @@ mixin ReproductorVerificacion on ReproductorControles {
           .getSignedSessionStatus(fuente)
           .timeout(const Duration(seconds: 3));
       if (estado.autenticado) return true;
-    } catch (_) {}
+    } catch (e) { debugPrint("[App] $e"); }
 
     // Preguntar al backend si un challenge fresco está pendiente. Si reporta
     // NINGUNO, NO bloquear: el token puede ya estar al día y la capa de
@@ -79,7 +79,7 @@ mixin ReproductorVerificacion on ReproductorControles {
     try {
       final estado = await backend.getSignedSessionStatus(servicio);
       if (estado.autenticado) return;
-    } catch (_) {}
+    } catch (e) { debugPrint("[App] $e"); }
     String url;
     try {
       url = await backend.getPendingVerificationUrl(servicio);

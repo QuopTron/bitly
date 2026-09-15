@@ -42,7 +42,7 @@ mixin DescargasLoteFinalizar on DescargasEstado {
             batchCoverPath = saved;
             break;
           }
-        } catch (_) {}
+        } catch (e) { debugPrint("[Descargas] $e"); }
         if (intento < 2) {
           await Future<void>.delayed(Duration(seconds: 1 << intento));
         }

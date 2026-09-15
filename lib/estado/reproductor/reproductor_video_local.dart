@@ -131,7 +131,7 @@ mixin ReproductorVideoLocal on ReproductorArchivosTemp {
             }
           }
         }
-      } catch (_) {}
+      } catch (e) { debugPrint("[App] $e"); }
     }
     return null;
   }

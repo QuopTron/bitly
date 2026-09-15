@@ -6,6 +6,7 @@
 // Parte del flujo: arranque (healthCheck → initGoBackend).
 // ─────────────────────────────────────────────────────────────
 
+import "package:flutter/foundation.dart";
 import 'package:flutter/services.dart';
 
 import '../../../config/secretos.dart';
@@ -79,7 +80,7 @@ class BackendIOS extends BackendService
           // Empuja el perfil de rendimiento ahora que Go está arriba (antes
           // podría bloquear el bridge y colgar el splash).
           await di.empujarPerfilRendimientoABackend();
-        } catch (_) {}
+        } catch (e) { debugPrint("[Backend] $e"); }
 
         _inicializado = true;
       }

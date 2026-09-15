@@ -1,3 +1,10 @@
+// ─────────────────────────────────────────────────────────────
+// settings_sheet_stats_sections.dart — PART de settings_sheet_new.dart: sección resumen de estadísticas
+// (premium, prueba, contadores y barras).
+// Se conecta con: settings_sheet_new.dart (misma library).
+// Parte del flujo: Ajustes (perfil/estadísticas).
+// ─────────────────────────────────────────────────────────────
+
 part of 'settings_sheet_new.dart';
 
 /// Sección de resumen del perfil: banner de tier + grids de estadísticas

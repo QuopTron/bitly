@@ -1,3 +1,10 @@
+// ─────────────────────────────────────────────────────────────
+// settings_sheet_cache_card.dart — PART de settings_sheet_new.dart: tarjetas de caché de streaming
+// explicada y de información de versión con acceso a releases.
+// Se conecta con: settings_sheet_new.dart (misma library) + backend Go.
+// Parte del flujo: Ajustes → Más (caché y versión).
+// ─────────────────────────────────────────────────────────────
+
 part of 'settings_sheet_new.dart';
 
 class _CacheExplainedCard extends StatelessWidget {

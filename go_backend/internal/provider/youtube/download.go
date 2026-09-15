@@ -2,7 +2,6 @@ package youtube
 
 import (
 	"fmt"
-	"os/exec"
 	"strings"
 )
 
@@ -41,8 +40,7 @@ func (c *Client) Download(videoID, outputDir, quality string) (*DownloadResult, 
 		url,
 	}
 
-	cmd := exec.Command(c.ytdlpPath, args...)
-	output, err := cmd.Output()
+	output, err := ejecutarYtDlp(c.ytdlpPath, args)
 	if err != nil {
 		return nil, fmt.Errorf("youtube: download failed: %w", err)
 	}

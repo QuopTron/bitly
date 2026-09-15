@@ -1,3 +1,11 @@
+// ─────────────────────────────────────────────────────────────
+// feed_titles.dart — Traducción de los títulos de sección del feed que devuelven las
+// extensiones en inglés (TIDAL, Spotify, YouTube Music…). Cae al
+// string original si no hay traducción o el idioma es inglés.
+// Se conecta con: app_localizations (locale).
+// Parte del flujo: Feed (títulos de secciones).
+// ─────────────────────────────────────────────────────────────
+
 import 'app_localizations.dart';
 
 /// Translations for the section titles that the backend extensions return in

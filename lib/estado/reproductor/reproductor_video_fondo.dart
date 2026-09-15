@@ -92,7 +92,7 @@ mixin ReproductorVideoFondo on ReproductorVideoDescarga {
         if (!await File(fp).exists()) {
           unawaited(_downloadUrlAArchivo(url, fp));
         }
-      } catch (_) {}
+      } catch (e) { debugPrint("[App] $e"); }
       return url;
     } catch (_) {
       return null;

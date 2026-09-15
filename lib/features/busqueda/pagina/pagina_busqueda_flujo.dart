@@ -40,6 +40,7 @@ Future<void> _guardarFuentePersistida(_PaginaBusquedaState st, String fuente) as
 /// Despacha EjecutarBusqueda con el filtro y límite de la categoría activa.
 void _despacharBusqueda(_PaginaBusquedaState st, String q) {
   final filterId = _idFiltroActivo(st);
+  st._armarWatchdog();
   st.context.read<BlocBusqueda>().add(EjecutarBusqueda(
         query: q,
         fuente: st._fuente,
@@ -53,48 +54,6 @@ void _ejecutarBusqueda(_PaginaBusquedaState st) {
   final q = st._controlador.text.trim();
   if (q.isEmpty) return;
   _despacharBusqueda(st, q);
-}
-
-/// Envío explícito (Enter / acción del teclado): un enlace de música se
-/// resuelve y se reproduce; cualquier otro texto se busca normalmente.
-Future<void> _enviarBusqueda(_PaginaBusquedaState st, String texto) async {
-  final q = texto.trim();
-  if (q.isEmpty) return;
-  st._debounce?.cancel();
-  if (ServicioEnlaces.enlaceEnTexto(q) != null) {
-    await _resolverEnlace(st, q);
-    return;
-  }
-  _despacharBusqueda(st, q);
-}
-
-/// Resuelve un enlace pegado/compartido: Go elige la extensión según su
-/// manifest y devuelve el ítem, que se encola y suena de inmediato.
-///
-/// Nunca busca la URL como texto: buscar "https://open.spotify.com/track/..."
-/// devolvía resultados que no tenían nada que ver con la canción del enlace.
-/// Si la fuente no puede resolverlo, se avisa al usuario.
-Future<void> _resolverEnlace(_PaginaBusquedaState st, String texto) async {
-  final enlace = ServicioEnlaces.enlaceEnTexto(texto);
-  if (enlace == null) return;
-  if (st.mounted) st._aplicar(() => st._buscando = true);
-  final resuelto = await ServicioEnlaces.instance.resolver(enlace);
-  if (!st.mounted) return;
-  st._aplicar(() => st._buscando = false);
-  if (resuelto == null) {
-    st.context.read<BlocBusqueda>().add(const LimpiarBusqueda());
-    _mostrarAviso(st, AppLocalizations.of(st.context).setup.linkResolveFailed);
-    return;
-  }
-  sl<CubitCola>().reproducirConContexto(resuelto.paraReproducir, resuelto.item);
-  _limpiarBusqueda(st);
-}
-
-/// Aviso breve sin bloquear la vista (el enlace no se pudo resolver).
-void _mostrarAviso(_PaginaBusquedaState st, String mensaje) {
-  ScaffoldMessenger.maybeOf(st.context)?.showSnackBar(
-    SnackBar(content: Text(mensaje), duration: const Duration(seconds: 5)),
-  );
 }
 
 /// Cambia la fuente, valida la categoría y re-busca.
@@ -135,6 +94,7 @@ void _onTipoCambiado(_PaginaBusquedaState st, String? tipo) {
 /// la URL completa y aparecían resultados basura que no eran esa canción.
 void _onTextoCambiado(_PaginaBusquedaState st, String valor) {
   st._debounce?.cancel();
+  st._watchdog?.cancel();
   final q = valor.trim();
   if (q.isEmpty) {
     st._aplicar(() => st._buscando = false);
@@ -166,6 +126,7 @@ void _onTextoCambiado(_PaginaBusquedaState st, String valor) {
 /// Limpia el campo y el estado de búsqueda.
 void _limpiarBusqueda(_PaginaBusquedaState st) {
   st._debounce?.cancel();
+  st._watchdog?.cancel();
   st._controlador.clear();
   st.context.read<BlocBusqueda>().add(const LimpiarBusqueda());
 }

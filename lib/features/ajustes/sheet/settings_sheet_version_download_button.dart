@@ -1,3 +1,10 @@
+// ─────────────────────────────────────────────────────────────
+// settings_sheet_version_download_button.dart — PART de settings_sheet_new.dart: botón de descarga/instalación de
+// una versión de la lista de releases.
+// Se conecta con: settings_sheet_new.dart (misma library).
+// Parte del flujo: Ajustes → Más (botón de versión).
+// ─────────────────────────────────────────────────────────────
+
 part of 'settings_sheet_new.dart';
 
 /// Botón de descarga de una release: si es la última y hay info de update

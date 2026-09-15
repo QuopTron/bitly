@@ -1,5 +1,11 @@
-// Parte del split de settings_sheet_new.dart — _ProfileHeader.
-// Extraído del archivo original (ver git log). No editar a mano.
+// ─────────────────────────────────────────────────────────────
+// settings_sheet_profile_header.dart — Cabecera de perfil del sheet de Ajustes: avatar, nombre de usuario y los
+// contadores de likes y descargas.
+//
+// Se conecta con: settings_sheet_new.dart (misma library) + EstadoPremium.
+// Parte del flujo: Ajustes → cabecera de perfil.
+// ─────────────────────────────────────────────────────────────
+
 part of 'settings_sheet_new.dart';
 
 class _ProfileHeader extends StatelessWidget {
@@ -139,7 +145,3 @@ class _ProfileHeader extends StatelessWidget {
     );
   }
 }
-
-// ═══════════════════════════════════════════════════════
-//  Profile / Stats view (shown when no tab is selected)
-// ═══════════════════════════════════════════════════════

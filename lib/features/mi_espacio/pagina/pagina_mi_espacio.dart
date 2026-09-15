@@ -28,6 +28,9 @@ import '../../../shared/utilidades/interaccion/acciones_item.dart';
 import '../../../shared/utilidades/plataforma/deteccion_plataforma.dart';
 import '../../../shared/utilidades/descarga/estrategia_descarga.dart';
 import '../../../shared/utilidades/plataforma/responsive.dart';
+import '../../../core/cache/estado/estado_like.dart';
+import '../../../core/servicios/utilidades/huella_item.dart';
+import '../filtros/controles_orden_mi_espacio.dart';
 import '../../../shared/widgets/vidrio/contenedor_vidrio.dart';
 import '../../detalle/comun/navegador_detalle.dart';
 import '../contenido/contenido_mi_espacio.dart';
@@ -37,11 +40,15 @@ import '../vistas/mi_espacio_movil.dart';
 import '../modelos_item.dart';
 import '../perfil/perfil_mi_espacio.dart';
 import '../vistas/pestanas_mi_espacio.dart';
+import '../filtros/barra_busqueda_mi_espacio.dart';
 
 part 'pagina_mi_espacio_acciones.dart';
 part 'pagina_mi_espacio_banner.dart';
 part 'pagina_mi_espacio_helpers.dart';
 part 'pagina_mi_espacio_widgets.dart';
+part 'pagina_mi_espacio_build.dart';
+part 'pagina_mi_espacio_cuerpo.dart';
+part 'pagina_mi_espacio_boton_busqueda.dart';
 
 /// Página de Mi Espacio (biblioteca personal).
 class PaginaMiEspacio extends StatefulWidget {
@@ -57,6 +64,9 @@ class _PaginaMiEspacioState extends State<PaginaMiEspacio> {
   int _pestanaSeleccionada = 0;
   List<Item> _playlists = [];
   Map<String, int> _contadoresReproduccion = {};
+  String _textoBusqueda = '';
+  FiltrosMiEspacio _filtros = const FiltrosMiEspacio();
+  bool _mostrarBusqueda = false;
 
   @override
   void didChangeDependencies() {
@@ -80,7 +90,7 @@ class _PaginaMiEspacioState extends State<PaginaMiEspacio> {
         final id = t['trackId'];
         if (id != null) contadores[id as String] = (t['count'] as int?) ?? 0;
       }
-    } catch (_) {}
+    } catch (e) { debugPrint("[Feature] $e"); }
     if (mounted) {
       setState(() {
         _username = u;
@@ -97,6 +107,16 @@ class _PaginaMiEspacioState extends State<PaginaMiEspacio> {
     if (i == 1) _recargarPlaylists();
   }
 
+  void _aplicar(VoidCallback fn) => setState(fn);
+
+  void _onBusquedaCambiada(String q) {
+    setState(() => _textoBusqueda = q);
+  }
+
+  void _onFiltrosCambiados(FiltrosMiEspacio f) {
+    setState(() => _filtros = f);
+  }
+
   /// Recarga las playlists propias desde drift y repinta.
   Future<void> _recargarPlaylists() async {
     final p = await cargarPlaylistsPropias();
@@ -104,29 +124,8 @@ class _PaginaMiEspacioState extends State<PaginaMiEspacio> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final esOscuro = Theme.of(context).brightness == Brightness.dark;
-    final onBg = esOscuro ? Colors.white : Colors.black;
+  Widget build(BuildContext context) => _construirPaginaMiEspacio(this);
 
-    final estadoDl = context.watch<CubitDescargas>().state;
-    final interrumpidas = estadoDl.descargas.values
-        .where((d) => d.estado == EstadoDescarga.interrumpido)
-        .length;
-    final hayLotesReintentables = estadoDl.descargas.entries.any(
-      (e) =>
-          e.value.estado == EstadoDescarga.interrumpido &&
-          (e.key.startsWith('album_') || e.key.startsWith('playlist_')),
-    );
-
-    final cabecera =
-        _construirCabecera(this, onBg, hayLotesReintentables, interrumpidas);
-    final cuerpo = _construirCuerpo(this, onBg);
-
-    if (usarLayoutEscritorio(context)) {
-      return MiEspacioEscritorio(cabecera: cabecera, cuerpo: cuerpo);
-    }
-    return MiEspacioMovil(cabecera: cabecera, cuerpo: cuerpo);
-  }
 
   /// Abre el detalle según el tipo de ítem (via navegador de detalle).
   void _onItemTap(Item item) {

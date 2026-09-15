@@ -8,6 +8,7 @@
 // Parte del flujo: setup premium, activación de códigos, arranque.
 // ─────────────────────────────────────────────────────────────
 
+import "package:flutter/foundation.dart";
 import 'dart:convert';
 
 import '../nucleo/contrato_backend.dart';
@@ -39,7 +40,7 @@ mixin PremiumMixin on BackendService {
   Future<void> setPremiumGithubToken(String token) async {
     try {
       await rpcCall('setPremiumGithubToken', {'token': token});
-    } catch (_) {}
+    } catch (e) { debugPrint("[Backend] $e"); }
   }
 
   /// Sincroniza el estado premium guardado en drift hacia el backend Go
@@ -57,6 +58,6 @@ mixin PremiumMixin on BackendService {
         'tier': tier,
         if (expiresAt != null && expiresAt > 0) 'expiresAt': expiresAt,
       });
-    } catch (_) {}
+    } catch (e) { debugPrint("[Backend] $e"); }
   }
 }

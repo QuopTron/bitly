@@ -18,7 +18,7 @@
 import 'package:bitly/core/backend_go/nucleo/contrato_backend.dart';
 import 'package:bitly/features/splash/bloc/splash_bloc.dart';
 import 'package:bitly/features/splash/bloc/splash_estado.dart';
-import 'package:bitly/features/splash/widgets/panel_error.dart';
+import 'package:bitly/features/splash/widgets/panel_error_web.dart';
 import 'package:bitly/l10n/app_localizations.dart';
 import 'package:bitly/shared/utilidades/plataforma/responsive.dart';
 import 'package:flutter/material.dart';

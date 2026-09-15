@@ -50,7 +50,7 @@ mixin DescargasRepararEscaneo on DescargasRepararDecrypt {
         try {
           final file = File((m['file_path'] ?? '').toString());
           if (await file.exists()) await file.delete();
-        } catch (_) {}
+        } catch (e) { debugPrint("[Descargas] $e"); }
       }
       await di.sl<CacheBiblioteca>().invalidarTodo();
 

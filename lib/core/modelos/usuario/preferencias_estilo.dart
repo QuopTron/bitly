@@ -3,6 +3,7 @@
 // mantienen el diseño fijo (Clásico). Cada flag corresponde a un
 // componente visual de la app.
 
+import "package:flutter/foundation.dart";
 import 'dart:convert';
 
 /// Preferencias de estilo por componente visual.
@@ -94,7 +95,7 @@ class PreferenciasEstilo {
       if (parsed is Map<String, dynamic>) {
         return PreferenciasEstilo.desdeJson(parsed);
       }
-    } catch (_) {}
+    } catch (e) { debugPrint("[App] $e"); }
     return const PreferenciasEstilo();
   }
 

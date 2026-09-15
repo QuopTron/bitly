@@ -1,5 +1,11 @@
-// Parte del split de settings_sheet_new.dart — widgets de _ProfileStatsView.
-// Extraídos del build original (ver git log). No editar a mano.
+// ─────────────────────────────────────────────────────────────
+// settings_sheet_stats_widgets.dart — Widgets de las estadísticas del perfil: banner de tier (Premium/Free con
+// trial) y las tarjetas de conteo.
+//
+// Se conecta con: settings_sheet_stats.dart (las consume).
+// Parte del flujo: Ajustes → estadísticas del perfil.
+// ─────────────────────────────────────────────────────────────
+
 part of 'settings_sheet_new.dart';
 
 /// Banner superior de estadísticas: Premium o Free (con trial restante).

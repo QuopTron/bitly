@@ -66,7 +66,7 @@ Future<String> _conectarNativo(ServicioOAuthYouTube servicio) async {
     final auth = await account.authorizationClient.authorizeScopes([_alcanceOAuth]);
     if (auth.accessToken.isEmpty) throw Exception('token vacío');
 
-    final guardados = await servicio._ajustesGuardados();
+    final guardados = await _ajustesGuardados(servicio);
     guardados['oauthAccessToken'] = auth.accessToken;
     await ServicioCredencialesProveedor(servicio._backend, servicio._cache)
         .guardarYReinicializar(ServicioOAuthYouTube.idExt, guardados);

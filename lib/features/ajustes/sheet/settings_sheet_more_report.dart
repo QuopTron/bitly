@@ -1,3 +1,10 @@
+// ─────────────────────────────────────────────────────────────
+// settings_sheet_more_report.dart — PART de settings_sheet_new.dart: tarjeta para reportar un bug o
+// enviar una sugerencia desde Ajustes.
+// Se conecta con: settings_sheet_new.dart (misma library).
+// Parte del flujo: Ajustes → Más (reporte).
+// ─────────────────────────────────────────────────────────────
+
 part of 'settings_sheet_new.dart';
 
 /// Card de reporte de bug / sugerencia dentro del tab "Más".

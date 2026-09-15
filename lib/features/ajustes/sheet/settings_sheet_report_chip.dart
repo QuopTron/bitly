@@ -1,3 +1,10 @@
+// ─────────────────────────────────────────────────────────────
+// settings_sheet_report_chip.dart — PART de settings_sheet_new.dart: chip seleccionable del tipo de
+// reporte (bug/sugerencia).
+// Se conecta con: settings_sheet_new.dart (misma library).
+// Parte del flujo: Ajustes → Más (reporte).
+// ─────────────────────────────────────────────────────────────
+
 part of 'settings_sheet_new.dart';
 
 /// Chip de selección Bug / Sugerencia dentro del diálogo de reporte.

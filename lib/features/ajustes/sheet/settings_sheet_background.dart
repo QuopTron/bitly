@@ -1,5 +1,11 @@
-// Parte del split de settings_sheet_new.dart — _SongTintedBackground.
-// Extraído del archivo original (ver git log). No editar a mano.
+// ─────────────────────────────────────────────────────────────
+// settings_sheet_background.dart — Fondo con tinte de la canción actual del sheet de Ajustes: pinta el color
+// dominante del cover detrás del contenido y lo anima al cambiar de track.
+//
+// Se conecta con: settings_sheet_new.dart (misma library) + paleta del cover.
+// Parte del flujo: Ajustes → fondo del sheet.
+// ─────────────────────────────────────────────────────────────
+
 part of 'settings_sheet_new.dart';
 
 class _SongTintedBackground extends StatefulWidget {

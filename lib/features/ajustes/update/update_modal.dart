@@ -25,6 +25,9 @@ import 'update_info.dart';
 export 'update_info.dart';
 export 'update_service.dart';
 
+part 'update_sheet_bloques.dart';
+part 'update_sheet_acciones.dart';
+
 part 'update_sheet_ui.dart';
 
 /// Muestra el modal de actualización con los datos del release.

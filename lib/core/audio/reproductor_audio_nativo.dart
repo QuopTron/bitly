@@ -14,6 +14,7 @@
 // Parte del flujo: reproducción (motor de audio nativo).
 // ─────────────────────────────────────────────────────────────
 
+import "package:flutter/foundation.dart";
 import 'package:media_kit/media_kit.dart';
 
 import 'reproductor_audio.dart';
@@ -101,7 +102,7 @@ class ReproductorMediaKit implements ReproductorAudio {
     // expone tipadas y algunas solo existen en ciertas versiones.
     try {
       await (_player.platform as dynamic).setProperty(clave, valor);
-    } catch (_) {}
+    } catch (e) { debugPrint("[App] $e"); }
   }
 
   @override

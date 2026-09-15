@@ -237,14 +237,19 @@ func politicaConfianza(quality string) politicaCarrera {
 // graceExactos es cuánto espera un resultado de re-subido a que llegue una
 // fuente exacta. Corto a propósito: si la fuente exacta necesita sesión o su
 // espejo está caído, la reproducción no se queda esperando.
-const graceExactos = 2500 * time.Millisecond
+//
+// Bajado de 2,5s a 1,2s: el tope de arranque es "stream en menos de 4s". La
+// gracia es un extra OPCIONAL —cuando la fuente exacta ya tiene el id resuelto
+// responde en ~1s, y si no apareció en este margen es porque necesita sesión o
+// está caída—, así que retener más solo se siente como que el tap no respondió.
+const graceExactos = 1200 * time.Millisecond
 
-// graceLossless es la espera cuando la calidad pedida es SIN PÉRDIDA: más larga
-// que graceExactos porque la fuente que puede darla tarda más (Internet Archive
-// resuelve en 1-2s; Soulseek, por la naturaleza de la red, algo más) y porque lo
-// que está en juego es 320kbps contra FLAC real. Sigue acotada: la reproducción
-// nunca espera más que esto por un "quizá".
-const graceLossless = 6 * time.Second
+// graceLossless es la espera cuando la calidad pedida es SIN PÉRDIDA. Bajada de
+// 6s a 1,8s por el mismo motivo que graceExactos: 6 segundos de silencio
+// esperando un FLAC que podía no llegar hacían que un tap pareciera roto (el
+// usuario medía ~16s de punta a punta). Ahora el FLAC solo gana si llega casi
+// junto con las demás: un 320k sonando ya es mejor que un FLAC hipotético.
+const graceLossless = 1800 * time.Millisecond
 
 // verifyGrace is how long a verification signal waits for a real stream to
 // land before committing to the "needs session" verdict. A provider that only

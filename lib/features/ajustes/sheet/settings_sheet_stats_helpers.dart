@@ -1,3 +1,10 @@
+// ─────────────────────────────────────────────────────────────
+// settings_sheet_stats_helpers.dart — PART de settings_sheet_new.dart: helpers de las estadísticas —
+// encabezado de sección y grilla de stats.
+// Se conecta con: settings_sheet_new.dart (misma library).
+// Parte del flujo: Ajustes (perfil/estadísticas).
+// ─────────────────────────────────────────────────────────────
+
 part of 'settings_sheet_new.dart';
 
 /// Encabezado de sección del perfil: ícono + etiqueta con el color de acento.

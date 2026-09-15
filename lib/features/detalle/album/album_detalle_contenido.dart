@@ -88,12 +88,11 @@ List<Widget> _construirContenido(
     final caratulaItem = likedCubit.caratulaLocalPara(item) ?? d.caratula;
     final esAmado = likedCubit.estaAmado(item);
     void play() => sl<CubitCola>().reproducirConContexto(d.items, item);
+    // Sin padding horizontal: la tarjeta ya trae su margen lateral.
     widgets.add(Padding(
-      padding: EdgeInsets.symmetric(
-        horizontal: r.spacingS,
-        vertical: r.spacingXS * 0.5,
-      ),
+      padding: EdgeInsets.symmetric(vertical: r.spacingXS * 0.5),
       child: TarjetaTrack(
+        item: item,
         titulo: item.name,
         subtitulo: (item.artists?.isNotEmpty == true)
             ? item.artists!

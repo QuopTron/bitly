@@ -77,7 +77,13 @@ Widget _cabeceraSeccion(
   Color onBg,
 ) {
   return Padding(
-    padding: EdgeInsets.fromLTRB(r.spacingS + 4, r.spacingM, r.spacingS, r.spacingS),
+    // Simétrico y alineado con la portada de la tarjeta (margen + padding).
+    padding: EdgeInsets.fromLTRB(
+      r.spacingS * 2,
+      r.spacingM,
+      r.spacingS * 2,
+      r.spacingS,
+    ),
     child: Row(
       children: [
         Icon(
@@ -118,7 +124,13 @@ Widget _cabeceraFuente(
   Color onBg,
 ) {
   return Padding(
-    padding: EdgeInsets.fromLTRB(r.spacingS + 4, r.spacingM, r.spacingS, r.spacingS),
+    // Simétrico y alineado con la portada de la tarjeta (margen + padding).
+    padding: EdgeInsets.fromLTRB(
+      r.spacingS * 2,
+      r.spacingM,
+      r.spacingS * 2,
+      r.spacingS,
+    ),
     child: Row(
       children: [
         Icon(

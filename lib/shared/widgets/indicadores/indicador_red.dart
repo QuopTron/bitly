@@ -19,7 +19,9 @@ import '../../tema/colores_app.dart';
 import '../../utilidades/plataforma/responsive.dart';
 import '../vidrio/contenedor_vidrio.dart';
 
+part 'indicador_red_hoja_piezas.dart';
 part 'indicador_red_hoja.dart';
+part 'indicador_red_etiqueta.dart';
 part 'indicador_red_barras.dart';
 
 /// Píldora compacta del estado de red. [onBg] es el color de contenido

@@ -31,7 +31,9 @@ Widget _cuerpoTarjetaTrack(
 
   return RepaintBoundary(
     child: Container(
-      width: r.width * 0.82,
+      // La tarjeta define su propio margen lateral (única fuente del gap
+      // horizontal): el host solo agrega padding vertical. Sin ancho fijo
+      // — así se adapta a cualquier DPI/ancho sin dejar gaps falsos.
       margin: EdgeInsets.symmetric(
         horizontal: r.spacingS,
         vertical: r.spacingXS,
@@ -68,64 +70,10 @@ Widget _cuerpoTarjetaTrack(
       clipBehavior: Clip.hardEdge,
       child: Stack(
         children: [
-          // En modo Clásico: portada de fondo. En Spotify: color dominante.
-          if (acento == null && t.coverUrl != null && t.coverUrl!.isNotEmpty)
-            Positioned.fill(
-              child: imagenDesdeUrl(
-                t.coverUrl,
-                ajuste: BoxFit.cover,
-                ancho: 128,
-                alto: 128,
-              ),
-            ),
-          if (acento != null)
-            Positioned.fill(
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 350),
-                curve: Curves.easeOutCubic,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Color.lerp(
-                          ColoresApp.superficie(esOscuro), acento, 0.45)!,
-                      Color.lerp(
-                          ColoresApp.superficie(esOscuro), acento, 0.20)!,
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          Positioned.fill(
-            child: Container(
-              // En Spotify el fondo ya es el color dominante, velo más sutil.
-              color: acento != null
-                  ? ColoresApp.veloDinamico(esOscuro, acento, alpha: 0.15)
-                  : ColoresApp.sombra(esOscuro).withValues(alpha: 0.4),
-            ),
-          ),
+          // Capas de fondo: arte + velo + gradientes (tarjeta_track_fondo).
+          ..._capasFondoTrack(t, fg, esOscuro, acento, efectosPesados),
           if (t.readyKey != null && t.readyKey!.isNotEmpty)
             _insigniaListoDe(t, context, r, loc, fg, esOscuro),
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    fg.withValues(alpha: esOscuro ? 0.05 : 0.0),
-                    Colors.transparent,
-                    (acento != null
-                            ? ColoresApp.sombraDinamica(esOscuro, acento)
-                            : ColoresApp.sombra(esOscuro))
-                        .withValues(alpha: efectosPesados ? 0.45 : 0.3),
-                  ],
-                  stops: const [0.0, 0.35, 1.0],
-                ),
-              ),
-            ),
-          ),
           // Ripple + feedback de tap: sobre el arte pero debajo del contenido
           // para que los botones de acción sigan recibiendo sus propios taps.
           Positioned.fill(

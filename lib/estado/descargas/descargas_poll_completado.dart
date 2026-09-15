@@ -70,7 +70,7 @@ mixin DescargasPollCompletado on DescargasPollPersistir {
               _carreraResuelta.add(rawId);
               return false;
             }
-          } catch (_) {}
+          } catch (e) { debugPrint("[Descargas] $e"); }
         }
         // El archivo fue sobreescrito por un proveedor en carrera con una
         // versión encriptada — pero primero chequear si existe una alternativa.
@@ -84,7 +84,7 @@ mixin DescargasPollCompletado on DescargasPollPersistir {
             final meta = _metaTrack[stateKey];
             final nid = meta != null && meta.trackId.isNotEmpty ? meta.trackId : stateKey;
             await _downloadCache.actualizarRutaArchivo(nid, raceAlt);
-          } catch (_) {}
+          } catch (e) { debugPrint("[Descargas] $e"); }
           return false;
         }
         // Sin alternativa — quitar de persistidos para que el decrypt corra abajo.

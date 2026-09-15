@@ -41,7 +41,7 @@ mixin DescargasColaVerificar on DescargasCarga {
               id: nid, trackName: meta.name, artistName: meta.artist ?? '',
               filePath: diskAlt, service: meta.source,
             );
-          } catch (_) {}
+          } catch (e) { debugPrint("[Descargas] $e"); }
           return true;
         }
       }
@@ -56,7 +56,7 @@ mixin DescargasColaVerificar on DescargasCarga {
             id: nid, trackName: meta.name, artistName: meta.artist ?? '',
             filePath: diskAlt, service: meta.source,
           );
-        } catch (_) {}
+        } catch (e) { debugPrint("[Descargas] $e"); }
         return true;
       }
       return false;
@@ -69,7 +69,7 @@ mixin DescargasColaVerificar on DescargasCarga {
       try {
         final nid = meta.trackId.isNotEmpty ? meta.trackId : baseId;
         await _downloadCache.actualizarRutaArchivo(nid, diskAlt);
-      } catch (_) {}
+      } catch (e) { debugPrint("[Descargas] $e"); }
       return true;
     }
     return false;

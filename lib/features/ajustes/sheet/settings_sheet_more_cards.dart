@@ -1,3 +1,10 @@
+// ─────────────────────────────────────────────────────────────
+// settings_sheet_more_cards.dart — PART de settings_sheet_new.dart: tarjeta de conexión con Google
+// usada en la pestaña Más.
+// Se conecta con: settings_sheet_new.dart (misma library).
+// Parte del flujo: Ajustes → Más (tarjeta Google).
+// ─────────────────────────────────────────────────────────────
+
 part of 'settings_sheet_new.dart';
 
 /// Card de conexión Google dentro del tab "Más".

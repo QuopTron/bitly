@@ -7,6 +7,7 @@
 // Parte del flujo: likes, descargas, ajustes.
 // ─────────────────────────────────────────────────────────────
 
+import "package:flutter/foundation.dart";
 import '../nucleo/contrato_backend.dart';
 
 /// Acciones core: like, descarga, progreso, tamaño estimado y config van a Go.
@@ -15,14 +16,14 @@ mixin AccionesMixin on BackendService {
   Future<void> likeItem(String itemId, bool liked) async {
     try {
       await rpcCall('likeItem', {'item_id': itemId, 'liked': liked});
-    } catch (_) {}
+    } catch (e) { debugPrint("[Backend] $e"); }
   }
 
   @override
   Future<void> downloadItem(String itemId) async {
     try {
       await rpcCall('downloadItem', {'item_id': itemId});
-    } catch (_) {}
+    } catch (e) { debugPrint("[Backend] $e"); }
   }
 
   // ── Progreso de descarga y estrategia (Go) ──────────────
@@ -40,7 +41,7 @@ mixin AccionesMixin on BackendService {
   Future<void> cancelDownload(String itemId) async {
     try {
       await rpcCall('cancelDownload', {'item_id': itemId});
-    } catch (_) {}
+    } catch (e) { debugPrint("[Backend] $e"); }
   }
 
   @override
@@ -60,7 +61,7 @@ mixin AccionesMixin on BackendService {
         'track_name': trackName,
         'artist_name': artistName,
       });
-    } catch (_) {}
+    } catch (e) { debugPrint("[Backend] $e"); }
   }
 
   @override
@@ -81,7 +82,7 @@ mixin AccionesMixin on BackendService {
   Future<void> syncDownloadDir(String path) async {
     try {
       await rpcCall('setDownloadDirectory', {'path': path});
-    } catch (_) {}
+    } catch (e) { debugPrint("[Backend] $e"); }
   }
 
   @override
@@ -98,14 +99,14 @@ mixin AccionesMixin on BackendService {
       if (downloadConcurrency != null) params['download_concurrency'] = downloadConcurrency;
       if (streamChunkSize != null) params['stream_chunk_size'] = streamChunkSize;
       if (params.isNotEmpty) await rpcCall('setBackendConfig', params);
-    } catch (_) {}
+    } catch (e) { debugPrint("[Backend] $e"); }
   }
 
   @override
   Future<void> syncDownloadProviderPriority(List<String> providers) async {
     try {
       await rpcCall('setDownloadProviderPriority', {'providers': providers});
-    } catch (_) {}
+    } catch (e) { debugPrint("[Backend] $e"); }
   }
 
 }

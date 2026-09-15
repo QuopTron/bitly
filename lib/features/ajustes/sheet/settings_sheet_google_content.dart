@@ -1,3 +1,10 @@
+// ─────────────────────────────────────────────────────────────
+// settings_sheet_google_content.dart — PART de settings_sheet_new.dart: contenido del tile de Google
+// (avatar, estado conectado/desconectado y acciones).
+// Se conecta con: settings_sheet_new.dart (misma library).
+// Parte del flujo: Ajustes → Más (tile de Google).
+// ─────────────────────────────────────────────────────────────
+
 part of 'settings_sheet_new.dart';
 
 /// Fila de contenido del tile de Google: ícono, textos de estado y el

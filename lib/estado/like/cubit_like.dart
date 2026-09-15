@@ -14,7 +14,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:drift/drift.dart' show Value;
-import 'package:flutter/foundation.dart' show protected;
+import 'package:flutter/foundation.dart' show debugPrint, protected;
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../app/inyeccion.dart' as di;
@@ -128,7 +128,7 @@ class CubitLikes extends Cubit<EstadoLikes>
         final batchCover = descargas.caratulaLotePara(batchKey);
         if (batchCover.isNotEmpty) return batchCover;
       }
-    } catch (_) {}
+    } catch (e) { debugPrint("[App] $e"); }
 
     // 3. Fallback a la URL de red original.
     return item.coverUrl;

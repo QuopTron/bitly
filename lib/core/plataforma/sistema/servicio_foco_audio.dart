@@ -13,6 +13,9 @@ import 'dart:async';
 
 import 'package:audio_session/audio_session.dart';
 
+import '../../../app/inyeccion.dart';
+import '../../cache/almacenes/cache_ajustes.dart';
+
 /// Contrato mínimo que el reproductor (CubitReproductor) debe exponer para
 /// que el foco de audio pueda pausar/reanudar. Evita que esta capa de
 /// plataforma dependa del cubit concreto.
@@ -31,6 +34,22 @@ class ServicioFocoAudio {
 
   bool _inicializado = false;
   bool _pausadoPorInterrupcion = false;
+  bool _permitirFondo = false;
+
+  /// Carga la preferencia del usuario (audio en segundo plano).
+  Future<void> _cargarPreferencia() async {
+    try {
+      _permitirFondo = await sl<CacheAjustes>().getAudioEnSegundoPlano();
+    } catch (_) {
+      _permitirFondo = false;
+    }
+  }
+
+  /// Actualiza la preferencia en caliente (llamar desde Settings).
+  Future<void> setPermitirFondo(bool valor) async {
+    _permitirFondo = valor;
+    await sl<CacheAjustes>().guardarAudioEnSegundoPlano(valor);
+  }
 
   /// Se inyecta el controlador del reproductor (se registra en el arranque,
   /// después de que GetIt esté listo).
@@ -42,6 +61,8 @@ class ServicioFocoAudio {
   Future<void> init() async {
     if (_inicializado) return;
     _inicializado = true;
+
+    await _cargarPreferencia();
 
     try {
       final sesion = await AudioSession.instance;
@@ -73,6 +94,17 @@ class ServicioFocoAudio {
   void _alInterrumpir(AudioInterruptionEvent evento) {
     final controlador = _controlador;
     if (controlador == null) return;
+
+    // Si el usuario habilitó "audio en segundo plano", ignoramos pausas y
+    // solo hacemos duck (bajar volumen). Así puede jugar o navegar mientras
+    // la música sigue sonando. En escritorio esto es especialmente útil.
+    if (_permitirFondo && evento.begin) {
+      if (evento.type == AudioInterruptionType.pause) {
+        // Convertir pausa en duck: no pausamos, solo bajamos volumen.
+        return;
+      }
+    }
+
     if (evento.begin) {
       switch (evento.type) {
         case AudioInterruptionType.duck:

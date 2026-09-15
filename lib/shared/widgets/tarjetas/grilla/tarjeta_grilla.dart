@@ -28,9 +28,12 @@ import '../portada/imagen_portada.dart';
 import '../../indicadores/indicador_descarga.dart';
 
 part 'tarjeta_grilla_descarga.dart';
+part 'tarjeta_grilla_color_wrapper.dart';
 part 'tarjeta_grilla_widgets.dart';
 part 'tarjeta_grilla_info.dart';
 part 'tarjeta_grilla_visual.dart';
+part 'tarjeta_grilla_placeholder.dart';
+part 'tarjeta_grilla_build.dart';
 
 /// Tarjeta de grilla (álbum/playlist/artista) reutilizada en varias vistas.
 class TarjetaGrilla extends StatelessWidget {
@@ -127,111 +130,5 @@ class TarjetaGrilla extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return ValueListenableBuilder<EstiloVisual>(
-      valueListenable: sl<ValueNotifier<EstiloVisual>>(),
-      builder: (context, estilo, _) {
-        return ValueListenableBuilder<PreferenciasEstilo>(
-          valueListenable: sl<ValueNotifier<PreferenciasEstilo>>(),
-          builder: (context, prefs, _) {
-            final r = Responsive(context);
-            final theme = Theme.of(context);
-            final esOscuro = theme.brightness == Brightness.dark;
-            final fondoFallback = ColoresApp.superficie(esOscuro);
-            final fg = ColoresApp.enSuperficie(esOscuro);
-            final ts = escalaTexto;
-            final efectosPesados =
-                sl<ValueNotifier<PerfilRendimiento>>().value.efectosPesados;
-
-            final spotify =
-                estilo == EstiloVisual.spotify && prefs.cardsGrilla;
-
-            return RepaintBoundary(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  if (spotify && colorDominante == null && coverUrl != null) {
-                    return _TarjetaGrillaColorWrapper(
-                      coverUrl: coverUrl!,
-                      builder: (colorDominante) => _cuerpoTarjeta(
-                        this,
-                        context,
-                        constraints,
-                        r,
-                        esOscuro,
-                        fondoFallback,
-                        fg,
-                        ts,
-                        efectosPesados,
-                        colorDominante: colorDominante,
-                      ),
-                    );
-                  }
-                  return _cuerpoTarjeta(
-                    this,
-                    context,
-                    constraints,
-                    r,
-                    esOscuro,
-                    fondoFallback,
-                    fg,
-                    ts,
-                    efectosPesados,
-                    colorDominante: spotify ? colorDominante : null,
-                  );
-                },
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-}
-
-/// Wrapper que extrae el color dominante del cover de forma asíncrona.
-/// Solo se usa en modo Spotify cuando no se proporciona colorDominante.
-class _TarjetaGrillaColorWrapper extends StatefulWidget {
-  final String coverUrl;
-  final Widget Function(Color? colorDominante) builder;
-
-  const _TarjetaGrillaColorWrapper({
-    required this.coverUrl,
-    required this.builder,
-  });
-
-  @override
-  State<_TarjetaGrillaColorWrapper> createState() =>
-      _TarjetaGrillaColorWrapperState();
-}
-
-class _TarjetaGrillaColorWrapperState extends State<_TarjetaGrillaColorWrapper> {
-  Color? _color;
-
-  @override
-  void initState() {
-    super.initState();
-    _extraerColor();
-  }
-
-  @override
-  void didUpdateWidget(covariant _TarjetaGrillaColorWrapper oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.coverUrl != widget.coverUrl) {
-      _extraerColor();
-    }
-  }
-
-  Future<void> _extraerColor() async {
-    try {
-      final paleta = await paletaParaPortada(widget.coverUrl);
-      if (mounted) {
-        setState(() {
-          _color = paleta?.dominante;
-        });
-      }
-    } catch (_) {}
-  }
-
-  @override
-  Widget build(BuildContext context) => widget.builder(_color);
+  Widget build(BuildContext context) => _construirTarjetaGrilla(this, context);
 }

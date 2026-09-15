@@ -1,3 +1,10 @@
+// ─────────────────────────────────────────────────────────────
+// settings_sheet_version_status.dart — PART de settings_sheet_new.dart: estado de la versión (al día,
+// actualización disponible) y comparación de semver.
+// Se conecta con: settings_sheet_new.dart (misma library).
+// Parte del flujo: Ajustes → Más (estado de versión).
+// ─────────────────────────────────────────────────────────────
+
 part of 'settings_sheet_new.dart';
 
 /// Card con la versión instalada y la última disponible en GitHub.

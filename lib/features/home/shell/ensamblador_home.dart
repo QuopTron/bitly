@@ -1,12 +1,14 @@
+// ─────────────────────────────────────────────────────────────
 // ensamblador_home.dart — Ensamblador de la Home: crea los blocs
 // de Búsqueda y Feed (con el backend Go), provee los cubits
 // globales en el árbol y construye los 4 slots del shell —
 // buscador (PaginaBusqueda), feed (PaginaFeed), miEspacio y
-// miniplayer. Dispara CargarFeed al montarse. Inyecta el
-// TutorialController y muestra el overlay interactivo post-setup.
+// miniplayer. El arranque (tutorial + sesiones + navegación de
+// items) vive en home_arranque.dart.
 // Se conecta con: busqueda_bloc + feed_bloc + cubits (cola, likes,
-// descargas, playlists) + pagina_home + tutorial_interactivo.
+// descargas, playlists) + pagina_home + home_arranque.
 // Parte del flujo: Home (ruta '/home' tras el splash/setup).
+// ─────────────────────────────────────────────────────────────
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -15,52 +17,31 @@ import '../../../app/inyeccion.dart';
 import '../../../core/backend_go/nucleo/contrato_backend.dart';
 import '../../../core/cache/almacenes/cache_busqueda.dart';
 import '../../../core/plataforma/red/servicio_calidad_red.dart';
-import '../../../core/servicios/verificacion/servicio_verificacion.dart';
-import '../../../core/modelos/feed/item_feed.dart';
 import '../../../estado/cola/cubit_cola.dart';
 import '../../../estado/descargas/cubit_descargas.dart';
 import '../../../estado/like/cubit_like.dart';
 import '../../../estado/playlists/cubit_playlists.dart';
 import '../../../estado/reproductor/cubit_reproductor.dart';
+import '../../../l10n/app_localizations.dart';
+import '../../../shared/widgets/base/transiciones_pagina.dart';
+import '../../../shared/widgets/reproductor/miniplayer.dart';
 import '../../busqueda/bloc/busqueda_bloc.dart';
 import '../../busqueda/pagina/pagina_busqueda.dart';
 import '../../feed/bloc/feed_bloc.dart';
 import '../../feed/bloc/feed_evento.dart';
 import '../../feed/pagina/feed_pagina.dart';
-import '../../detalle/comun/navegador_detalle.dart';
 import '../../mi_espacio/pagina/pagina_mi_espacio.dart';
 import '../../reproductor/pagina/reproductor_pagina.dart';
-import '../../../shared/widgets/reproductor/miniplayer.dart';
-import '../../../shared/widgets/base/transiciones_pagina.dart';
-import '../../../l10n/app_localizations.dart';
+import '../../tutorial_interactivo/motor/tutorial_claves.dart';
 import '../../tutorial_interactivo/motor/tutorial_controller.dart';
 import '../../tutorial_interactivo/motor/tutorial_host.dart';
-import '../../tutorial_interactivo/motor/tutorial_pasos.dart';
+import '../../tutorial_interactivo/motor/tutorial_provider.dart';
+import 'home_arranque.dart';
 import 'pagina_home.dart';
 
-/// InheritedProvider para que el TutorialController sea accesible
-/// desde cualquier parte del árbol de widgets.
-class TutorialProvider extends InheritedNotifier<TutorialController> {
-  const TutorialProvider({
-    super.key,
-    required TutorialController controller,
-    required super.child,
-  }) : super(notifier: controller);
-
-  static TutorialController of(BuildContext context) {
-    return context
-        .dependOnInheritedWidgetOfExactType<TutorialProvider>()!
-        .notifier!;
-  }
-
-  /// Igual que [of] pero devuelve null si no hay provider arriba: útil para
-  /// widgets que también se usan sueltos (tests, previews).
-  static TutorialController? maybeOf(BuildContext context) {
-    return context
-        .dependOnInheritedWidgetOfExactType<TutorialProvider>()
-        ?.notifier;
-  }
-}
+// El TutorialProvider vive en tutorial_provider.dart; se re-exporta para que
+// quien lea la Home siga encontrándolo por este archivo.
+export '../../tutorial_interactivo/motor/tutorial_provider.dart';
 
 /// Ensambla la Home: blocs + cubits + slots → shell.
 class EnsambladorHome extends StatefulWidget {
@@ -85,7 +66,7 @@ class _EnsambladorHomeState extends State<EnsambladorHome> {
     _blocBusqueda = BlocBusqueda(backend, sl<CacheBusqueda>());
     _blocFeed = BlocFeed(backend)..add(const CargarFeed());
     ServicioCalidadRed.instancia.iniciar();
-    _provisionarSesionesAlArrancar();
+    provisionarSesionesHome();
     _tutorialCtrl = TutorialController();
   }
 
@@ -97,66 +78,11 @@ class _EnsambladorHomeState extends State<EnsambladorHome> {
     super.didChangeDependencies();
     if (_tutorialArmado) return;
     _tutorialArmado = true;
-    _inicializarTutorial();
-  }
-
-  Future<void> _inicializarTutorial() async {
-    // Los textos salen del locale (una lista, en el mismo orden que los
-    // pasos) y los widgets objetivo se resuelven por GlobalKey.
-    final loc = AppLocalizations.of(context);
-    final pasos = crearPasosTutorial(loc.tutorialInteractivo.pasos);
-    // Un respiro antes de arrancar: el feed ocupa media pantalla y el primer
-    // objetivo del tutorial es su contenido. Sin esta espera el overlay sale
-    // en el primer frame, cuando todavía no hay ningún objetivo montado.
-    await Future<void>.delayed(const Duration(milliseconds: 600));
-    if (!mounted) return;
-    await _tutorialCtrl.inicializar(pasos);
-  }
-
-  Future<void> _provisionarSesionesAlArrancar() async {
-    await Future<void>.delayed(const Duration(milliseconds: 500));
-    final servicio = ServicioVerificacion();
-    try {
-      await servicio.provisionarSesionesFirmadas();
-      await servicio.reintentarPendientesSilencioso();
-    } catch (_) {}
-  }
-
-  void _navegarItem(BuildContext context, ItemFeed item) {
-    final fuente = item.source ?? '';
-    switch (item.type) {
-      case 'album':
-        abrirDetalleAlbum(
-          context,
-          id: item.id,
-          fuente: fuente,
-          coverUrl: item.coverUrl,
-        );
-      case 'playlist':
-        abrirDetallePlaylist(
-          context,
-          id: item.id,
-          nombre: item.name,
-          fuente: fuente,
-          coverUrl: item.coverUrl,
-        );
-      case 'artist':
-        abrirDetalleArtista(
-          context,
-          id: item.id,
-          nombre: item.name,
-          fuente: fuente,
-        );
-      default:
-        if (item.albumId != null && item.albumId!.isNotEmpty) {
-          abrirDetalleAlbum(
-            context,
-            id: item.albumId!,
-            fuente: fuente,
-            coverUrl: item.coverUrl,
-          );
-        }
-    }
+    armarTutorialHome(
+      ctrl: _tutorialCtrl,
+      loc: AppLocalizations.of(context),
+      estaMontado: () => mounted,
+    );
   }
 
   void _abrirReproductor(BuildContext context) {
@@ -201,10 +127,10 @@ class _EnsambladorHomeState extends State<EnsambladorHome> {
           ],
           child: PaginaHome(
             buscador: PaginaBusqueda(
-              onNavegarItem: (item) => _navegarItem(context, item),
+              onNavegarItem: (item) => navegarItemFeed(context, item),
             ),
             feed: PaginaFeed(
-              onNavegarItem: (item) => _navegarItem(context, item),
+              onNavegarItem: (item) => navegarItemFeed(context, item),
             ),
             miEspacio: const PaginaMiEspacio(),
             miniPlayer: KeyedSubtree(

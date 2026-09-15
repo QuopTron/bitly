@@ -3,7 +3,6 @@ package youtube
 import (
 	"encoding/json"
 	"fmt"
-	"os/exec"
 	"strings"
 
 	"github.com/zarz/bitly/go_backend/internal/provider"
@@ -14,8 +13,7 @@ func (c *Client) GetTrack(id string) (*provider.TrackResult, error) {
 	videoID := strings.TrimPrefix(id, "yt:")
 	url := fmt.Sprintf("https://music.youtube.com/watch?v=%s", videoID)
 	args := []string{"--dump-json", "--no-warnings", "--skip-download", url}
-	cmd := exec.Command(c.ytdlpPath, args...)
-	output, err := cmd.Output()
+	output, err := ejecutarYtDlp(c.ytdlpPath, args)
 	if err != nil {
 		return nil, fmt.Errorf("youtube: get track failed: %w", err)
 	}
@@ -42,8 +40,7 @@ func (c *Client) GetAlbum(id string) (*provider.AlbumResult, error) {
 	playlistID := strings.TrimPrefix(id, "yt:")
 	url := fmt.Sprintf("https://music.youtube.com/playlist?list=%s", playlistID)
 	args := []string{"--dump-json", "--no-warnings", "--skip-download", "--playlist-end", "1", url}
-	cmd := exec.Command(c.ytdlpPath, args...)
-	output, err := cmd.Output()
+	output, err := ejecutarYtDlp(c.ytdlpPath, args)
 	if err != nil {
 		return nil, fmt.Errorf("youtube: get album failed: %w", err)
 	}
@@ -65,8 +62,7 @@ func (c *Client) GetArtist(id string) (*provider.ArtistResult, error) {
 	channelID := strings.TrimPrefix(id, "yt:")
 	url := fmt.Sprintf("https://www.youtube.com/channel/%s", channelID)
 	args := []string{"--dump-json", "--no-warnings", "--skip-download", "--playlist-end", "1", url}
-	cmd := exec.Command(c.ytdlpPath, args...)
-	output, err := cmd.Output()
+	output, err := ejecutarYtDlp(c.ytdlpPath, args)
 	if err != nil {
 		return nil, fmt.Errorf("youtube: get artist failed: %w", err)
 	}
@@ -96,8 +92,7 @@ func (c *Client) GetStreamURL(id, quality string) (string, error) {
 		format = "bestaudio[abr<=320]/bestaudio/best"
 	}
 	args := []string{"-g", "-f", format, "--no-warnings", url}
-	cmd := exec.Command(c.ytdlpPath, args...)
-	output, err := cmd.Output()
+	output, err := ejecutarYtDlp(c.ytdlpPath, args)
 	if err != nil {
 		return "", fmt.Errorf("youtube: get stream URL failed: %w", err)
 	}

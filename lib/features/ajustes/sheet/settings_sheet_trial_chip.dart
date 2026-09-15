@@ -1,3 +1,10 @@
+// ─────────────────────────────────────────────────────────────
+// settings_sheet_trial_chip.dart — PART de settings_sheet_new.dart: chip con el restante de la
+// prueba gratis (o estado expirado).
+// Se conecta con: settings_sheet_new.dart (misma library).
+// Parte del flujo: Ajustes → Más (prueba).
+// ─────────────────────────────────────────────────────────────
+
 part of 'settings_sheet_new.dart';
 
 /// Chip con el tiempo restante de prueba gratis (o EXPIRADO).

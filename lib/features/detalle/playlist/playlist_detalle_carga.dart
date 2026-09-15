@@ -70,7 +70,7 @@ Future<void> _cargarDetallePlaylist(_PlaylistDetallePaginaState st) async {
             DetallePlaylist.desdeJson(jsonDecode(json) as Map<String, dynamic>);
         memoria.setPlaylist(st.widget.collectionId, detalle);
       }
-    } catch (_) {}
+    } catch (e) { debugPrint("[Feature] $e"); }
     if (detalle != null && detalle.tracks.isNotEmpty) {
       st._playlist = detalle;
       st._cargando = false;
@@ -139,5 +139,5 @@ Future<void> _refrescarDesdeApi(
     st._playlist = fresco;
     st._error = false;
     st.repintar();
-  } catch (_) {}
+  } catch (e) { debugPrint("[Feature] $e"); }
 }

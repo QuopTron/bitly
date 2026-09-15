@@ -1,3 +1,11 @@
+// ─────────────────────────────────────────────────────────────
+// settings_performance_section.dart — Selector de perfil de rendimiento (Bajo/Medio/Alto) y toggle de
+// audio en segundo plano. Al cambiar el perfil persiste la elección,
+// ajusta calidad de audio y sincroniza concurrencia/buffer con Go.
+// Se conecta con: cache_ajustes + backend_go + servicio_foco_audio.
+// Parte del flujo: Ajustes → Rendimiento.
+// ─────────────────────────────────────────────────────────────
+
 import 'package:flutter/material.dart';
 import '../../../shared/utilidades/plataforma/responsive.dart';
 import '../../../l10n/app_localizations.dart';
@@ -6,6 +14,8 @@ import '../../../core/cache/almacenes/cache_ajustes.dart';
 import '../../../core/backend_go/nucleo/contrato_backend.dart';
 import '../../../app/inyeccion.dart';
 import '../../../shared/widgets/vidrio/contenedor_vidrio.dart';
+
+import 'settings_audio_fondo.dart';
 
 /// Selector de perfil de rendimiento (Bajo / Medio / Alto).
 /// Al cambiar, persiste el perfil, ajusta la calidad de audio por defecto
@@ -75,12 +85,14 @@ class _SettingsPerformanceSectionState extends State<SettingsPerformanceSection>
       padding: EdgeInsets.all(r.spacingM),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(loc.setup.performanceProfile,
-          style: TextStyle(fontSize: r.subtitleSize, fontWeight: FontWeight.w600, color: widget.onBg)),
+          style: TextStyle(fontSize: r.subtitleSize + 1, fontWeight: FontWeight.w600, color: widget.onBg)),
         SizedBox(height: r.spacingM),
         ...perfiles.map((p) => Padding(
           padding: EdgeInsets.only(bottom: r.spacingS),
           child: _opcion(p.$1, p.$2, p.$3, p.$4, r),
         )),
+        SizedBox(height: r.spacingS),
+        AudioSegundoPlanoRow(onBg: widget.onBg, glowColor: widget.glowColor),
       ]),
     );
   }
@@ -100,10 +112,10 @@ class _SettingsPerformanceSectionState extends State<SettingsPerformanceSection>
           color: seleccionado ? widget.glowColor.withValues(alpha: 0.1) : Colors.transparent,
         ),
         child: Row(children: [
-          Icon(icon, size: r.subtitleSize, color: color),
+          Icon(icon, size: r.subtitleSize + 4, color: color),
           SizedBox(width: r.spacingS),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(label, style: TextStyle(fontSize: r.subtitleSize - 1, fontWeight: FontWeight.w600, color: widget.onBg)),
+            Text(label, style: TextStyle(fontSize: r.subtitleSize + 1, fontWeight: FontWeight.w600, color: widget.onBg)),
             SizedBox(height: 2),
             Text(desc, style: TextStyle(fontSize: r.footerSize - 2, color: widget.onBg.withValues(alpha: 0.5))),
           ])),

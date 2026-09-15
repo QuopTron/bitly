@@ -1,3 +1,10 @@
+// ─────────────────────────────────────────────────────────────
+// settings_sheet_version_releases.dart — PART de settings_sheet_new.dart: lista de releases con la última
+// destacada y sus notas.
+// Se conecta con: settings_sheet_new.dart (misma library).
+// Parte del flujo: Ajustes → Más (releases).
+// ─────────────────────────────────────────────────────────────
+
 part of 'settings_sheet_new.dart';
 
 /// Lista de releases de GitHub dentro del sheet de versiones.

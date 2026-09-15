@@ -12,9 +12,32 @@
 
 part of 'slide_carpeta_almacenamiento.dart';
 
+/// Pide el permiso de almacenamiento en Android (y lee-audio en 13+).
+/// No bloquea el flujo: si el usuario lo niega, la carpeta por defecto
+/// de la app (documentos privados) sigue funcionando sin permisos.
+Future<void> _solicitarPermisoAlmacenamientoSt(
+    _SlideCarpetaAlmacenamientoState st) async {
+  if (esEscritorio()) return;
+  try {
+    final estado = await Permission.storage.status;
+    if (!estado.isGranted && !estado.isLimited) {
+      await Permission.storage.request();
+    }
+    // Android 13+ separa el permiso en READ_MEDIA_AUDIO.
+    final audio = await Permission.audio.status;
+    if (!audio.isGranted && !audio.isLimited) {
+      await Permission.audio.request();
+    }
+  } catch (e) {
+    debugPrint("[StoragePermission] $e");
+  }
+}
+
 /// Abre el picker de carpeta y aplica la selección al State.
 Future<void> _elegirCarpetaSt(_SlideCarpetaAlmacenamientoState st) async {
   st._aplicar(() => st._eligiendo = true);
+  // Asegura el permiso antes de abrir el explorador de archivos.
+  await _solicitarPermisoAlmacenamientoSt(st);
   try {
     final result = await FilePicker.getDirectoryPath(
       dialogTitle: st.widget.loc.setup.storageTitle,
@@ -63,9 +86,9 @@ Future<void> _finalizarSetupSt(_SlideCarpetaAlmacenamientoState st) async {
     // Sincroniza la ruta con la config en memoria de Go.
     try {
       await di.sl<BackendService>().syncDownloadDir(st._rutaSeleccionada!);
-    } catch (_) {}
+    } catch (e) { debugPrint("[Feature] $e"); }
     if (st.mounted) {
       st.context.read<SetupBloc>().add(const SiguientePaso());
     }
-  } catch (_) {}
+  } catch (e) { debugPrint("[Feature] $e"); }
 }

@@ -37,6 +37,7 @@ part 'modal_cola_fila.dart';
 part 'modal_cola_fila_piezas.dart';
 part 'modal_cola_chip.dart';
 part 'modal_cola_fondo.dart';
+part 'velo_cola_estilo_state.dart';
 
 /// Abre el modal de la cola con el track actual resaltado.
 ///

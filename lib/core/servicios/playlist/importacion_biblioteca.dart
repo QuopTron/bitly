@@ -8,6 +8,7 @@
 // Parte del flujo: Ajustes → Más → Importar carpeta.
 // ─────────────────────────────────────────────────────────────
 
+import "package:flutter/foundation.dart";
 import '../../../app/inyeccion.dart';
 import '../../../estado/descargas/cubit_descargas.dart';
 import '../../backend_go/nucleo/contrato_backend.dart';
@@ -58,7 +59,7 @@ class ImportacionBiblioteca {
     // Refresca Mi Espacio con lo recién importado.
     try {
       await sl<CubitDescargas>().initialize();
-    } catch (_) {}
+    } catch (e) { debugPrint("[Servicio] $e"); }
 
     return ResultadoImportacion(
       archivos: _entero(respuesta['archivos']),

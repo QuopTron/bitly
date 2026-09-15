@@ -61,7 +61,7 @@ mixin DescargasPollDecrypt on DescargasPollCompletado {
         _fallosDecryptCount.remove(rawId);
         return (rutaReproducible: playablePath, continuar: true);
       }
-    } catch (_) {}
+    } catch (e) { debugPrint("[Descargas] $e"); }
     // FAST PATH 2: si el archivo encriptado NO es reproducible, chequear si
     // otro proveedor ya guardó un archivo reproducible (p.ej. Apple Music
     // .m4a, SoundCloud .mp3) ANTES de intentar el decrypt lento con
@@ -76,7 +76,7 @@ mixin DescargasPollDecrypt on DescargasPollCompletado {
         final meta = _metaTrack[stateKey];
         final nid = meta != null && meta.trackId.isNotEmpty ? meta.trackId : stateKey;
         await _downloadCache.actualizarRutaArchivo(nid, altPath);
-      } catch (_) {}
+      } catch (e) { debugPrint("[Descargas] $e"); }
       return (rutaReproducible: altPath, continuar: true);
     }
     // SLOW PATH: solo intentar el decrypt si no se encontró archivo reproducible.
@@ -106,7 +106,7 @@ mixin DescargasPollDecrypt on DescargasPollCompletado {
           final meta = _metaTrack[stateKey];
           final nid = meta != null && meta.trackId.isNotEmpty ? meta.trackId : stateKey;
           await _downloadCache.actualizarRutaArchivo(nid, altFinal);
-        } catch (_) {}
+        } catch (e) { debugPrint("[Descargas] $e"); }
         return (rutaReproducible: altFinal, continuar: true);
       }
       // No marcar interrumpido si la cola FIFO espera este track — la nueva

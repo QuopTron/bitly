@@ -39,6 +39,7 @@ List<Widget> _construirTracks(
           context.read<CubitLikes>().caratulaLocalPara(item);
       void play() => sl<CubitCola>().reproducirConContexto(tracks, item);
       widgets.add(TarjetaTrack(
+        item: item,
         titulo: item.name,
         subtitulo: item.artists ?? '',
         coverUrl: caratulaResuelta,

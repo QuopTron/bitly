@@ -75,7 +75,7 @@ mixin ReproductorLimpieza on ReproductorAutoplay {
           }
         }
       }
-    } catch (_) {}
+    } catch (e) { debugPrint("[App] $e"); }
     return out;
   }
 
@@ -101,7 +101,7 @@ mixin ReproductorLimpieza on ReproductorAutoplay {
           padre.deleteSync();
         }
       }
-    } catch (_) {}
+    } catch (e) { debugPrint("[App] $e"); }
   }
 
   /// ID normalizado del track actual, o null si no hay.

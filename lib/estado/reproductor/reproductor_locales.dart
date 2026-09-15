@@ -90,6 +90,6 @@ mixin ReproductorLocales on ReproductorCompletado {
 
       _archivosLocalesCargadosEn = DateTime.now();
       _ultimoTimestampCarga = DateTime.now().toUtc().toIso8601String();
-    } catch (_) {}
+    } catch (e) { debugPrint("[App] $e"); }
   }
 }

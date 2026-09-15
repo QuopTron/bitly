@@ -40,7 +40,7 @@ class _DescargaEstiloState extends State<_DescargaEstilo> {
     try {
       final paleta = await paletaParaPortada(url);
       if (mounted) setState(() => _acento = paleta?.dominante);
-    } catch (_) {}
+    } catch (e) { debugPrint("[Widget] $e"); }
   }
 
   @override

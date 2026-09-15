@@ -39,6 +39,8 @@ import '../estado/like/cubit_like.dart';
 import '../estado/playlists/cubit_playlists.dart';
 import '../estado/reproductor/cubit_reproductor.dart';
 
+part 'inyeccion_estado.dart';
+
 final sl = GetIt.instance;
 
 Future<void> configurarDependencias() async {
@@ -112,39 +114,8 @@ Future<void> configurarDependencias() async {
   }
   sl.registerLazySingleton<BackendService>(() => backend);
 
-  // ── 5. Servicios de dominio ──────────────────────────────
-  sl.registerLazySingleton<ServicioDominioPlaylist>(
-    () => ServicioDominioPlaylist(backend),
-  );
-
-  // ── 6. Cubits globales ───────────────────────────────────
-  // (player_cubit y los blocs de vistas se crean en el ensamblador
-  //  de Home; el reproductor se registra al migrar features/reproductor)
-  sl.registerLazySingleton<CubitCola>(() => CubitCola());
-  sl.registerLazySingleton<CubitLikes>(
-    () => CubitLikes(backend)..inicializar(),
-  );
-  sl.registerLazySingleton<CubitDescargas>(
-    () => CubitDescargas(backend)..initialize(),
-  );
-  sl.registerLazySingleton<CubitPlaylists>(
-    () => CubitPlaylists(sl<ServicioDominioPlaylist>())..inicializar(),
-  );
-  sl.registerLazySingleton<CubitReproductor>(
-    () => CubitReproductor(sl<CubitCola>()),
-  );
-
-  // ── 7. Blocs globales (splash + setup) ───────────────────
-  sl.registerLazySingleton<SplashBloc>(() => SplashBloc(backend));
-  sl.registerLazySingleton<SetupBloc>(
-    () => SetupBloc(sl<ValueNotifier<Locale>>()),
-  );
-
-  // ── 8. Navegación ─────────────────────────────────────────
-  // Índice de la pestaña activa de la Home (0=búsqueda, 1=inicio,
-  // 2=mi espacio). El navbar global lo escribe para volver a la Home
-  // en la pestaña correcta; HomePage lo escucha para animar.
-  sl.registerLazySingleton<ValueNotifier<int>>(() => ValueNotifier<int>(1));
+  // Servicios de dominio, cubits/blocs globales y navegación.
+  registrarServiciosYEstado(backend);
 }
 
 /// Carga el perfil de rendimiento guardado al notificador global.
@@ -170,5 +141,5 @@ Future<void> empujarPerfilRendimientoABackend() async {
       downloadConcurrency: perfil.concurrenciaDescargas,
       streamChunkSize: perfil.tamanoChunkStreaming,
     );
-  } catch (_) {}
+  } catch (e) { debugPrint("[App] $e"); }
 }

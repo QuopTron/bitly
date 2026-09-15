@@ -8,6 +8,11 @@ import "time"
 // VERIFY_REQUIRED) NEVER preempts a slower but genuinely playable source — a
 // deezer-verify-blocked track must fall back to youtube/soundcloud instead of
 // failing playback.
+// NO bajar de 4s: un proveedor bloqueado por verificación falla en ~1s mientras
+// una fuente que SÍ suena (youtube search + extracción ~2-4s) tarda más. El
+// veredicto de verificación solo puede ganar si ninguna fuente real apareció en
+// esta ventana — bajarla hacía que un deezer-verify preemptara a youtube y la
+// canción no sonara (TestRescueRaceVerifyGraceSlowStreamWins).
 const verifyGrace = 4 * time.Second
 
 // drainResults collects race results until either every worker finished, a

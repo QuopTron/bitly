@@ -1,3 +1,10 @@
+// ─────────────────────────────────────────────────────────────
+// strings_splash.dart — Strings de la pantalla de splash y de los paneles de error
+// (backend caído, sin conexión, versión web).
+// Se conecta con: app_localizations.dart (los consume).
+// Parte del flujo: splash / arranque.
+// ─────────────────────────────────────────────────────────────
+
 class StringsSplash {
   final String retry;
   final String backendNotResponding;

@@ -9,6 +9,7 @@
 // Parte del flujo: playlists (Mi Espacio, detalle y exportar).
 // ─────────────────────────────────────────────────────────────
 
+import "package:flutter/foundation.dart";
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../core/modelos/detalle/detalle_playlist.dart';
@@ -39,7 +40,7 @@ class CubitPlaylists extends Cubit<EstadoPlaylists> {
       emit(state.copiarCon(
         playlists: dominios.map(_dominioAItem).toList(),
       ));
-    } catch (_) {}
+    } catch (e) { debugPrint("[App] $e"); }
   }
 
   /// Carga las stats del usuario (conteos, nivel, progreso).
@@ -49,7 +50,7 @@ class CubitPlaylists extends Cubit<EstadoPlaylists> {
       if (stats != null) {
         emit(state.copiarCon(stats: stats));
       }
-    } catch (_) {}
+    } catch (e) { debugPrint("[App] $e"); }
   }
 
   /// Crea una playlist nueva. Devuelve su ID o null si falló.
@@ -60,7 +61,7 @@ class CubitPlaylists extends Cubit<EstadoPlaylists> {
         await cargarPlaylists();
         return dominio.id;
       }
-    } catch (_) {}
+    } catch (e) { debugPrint("[App] $e"); }
     return null;
   }
 
@@ -70,7 +71,7 @@ class CubitPlaylists extends Cubit<EstadoPlaylists> {
       await _servicioDominio.agregarTrack(playlistId, trackId);
       if (state.detalleActual?.id == playlistId) await cargarDetalle(playlistId);
       await cargarPlaylists();
-    } catch (_) {}
+    } catch (e) { debugPrint("[App] $e"); }
   }
 
   /// Quita un track de una playlist (recarga el detalle si es el actual).
@@ -79,7 +80,7 @@ class CubitPlaylists extends Cubit<EstadoPlaylists> {
       await _servicioDominio.quitarTrack(playlistId, trackId);
       if (state.detalleActual?.id == playlistId) await cargarDetalle(playlistId);
       await cargarPlaylists();
-    } catch (_) {}
+    } catch (e) { debugPrint("[App] $e"); }
   }
 
   /// Carga el detalle completo (con tracks) de una playlist.
@@ -89,7 +90,7 @@ class CubitPlaylists extends Cubit<EstadoPlaylists> {
       if (detalle != null) {
         emit(state.copiarCon(detalleActual: detalle));
       }
-    } catch (_) {}
+    } catch (e) { debugPrint("[App] $e"); }
   }
 
   /// Actualiza la carátula local de una playlist.
@@ -97,7 +98,7 @@ class CubitPlaylists extends Cubit<EstadoPlaylists> {
     try {
       await _servicioDominio.actualizarCaratula(playlistId, coverPath);
       await cargarPlaylists();
-    } catch (_) {}
+    } catch (e) { debugPrint("[App] $e"); }
   }
 
   /// Borra una playlist y limpia el detalle si estaba abierto.
@@ -106,7 +107,7 @@ class CubitPlaylists extends Cubit<EstadoPlaylists> {
       await _servicioDominio.borrar(playlistId);
       emit(state.copiarCon(detalleActual: null));
       await cargarPlaylists();
-    } catch (_) {}
+    } catch (e) { debugPrint("[App] $e"); }
   }
 
   /// Limpia el detalle actual de la UI.

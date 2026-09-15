@@ -19,6 +19,7 @@ import 'oauth_youtube_app.dart';
 import '../proveedores/servicio_credenciales_proveedor.dart';
 
 part 'oauth_youtube_nativo.dart';
+part 'servicio_oauth_youtube_helpers.dart';
 
 /// OAuth de YouTube: nativo (bonito, sin Chrome) → WebView in-app → error.
 class ServicioOAuthYouTube {
@@ -34,30 +35,13 @@ class ServicioOAuthYouTube {
 
   // ─── Conectar ──
 
-  /// True donde la estrategia WebView-in-app va PRIMERO (Android real y
-  /// Windows): el flujo nativo de Google pide el consentimiento de
-  /// youtube.readonly en un Chrome Custom Tab — abre Chrome y sale de la
-  /// app. El WebView embebido (webview_flutter en Android, webview_win_floating
-  /// en Windows) mantiene el consentimiento dentro de la app. iOS/macOS
-  /// conservan su picker nativo in-app (no abre Chrome).
-  static bool _webviewPrimero() {
-    if (kIsWeb) return false;
-    switch (defaultTargetPlatform) {
-      case TargetPlatform.android:
-      case TargetPlatform.windows:
-        return true;
-      default:
-        return false;
-    }
-  }
-
   /// Conecta YouTube. Orden: WebView in-app (Android/Windows, consentimiento
   /// embebido sin Chrome) → picker nativo (iOS/macOS) → error. Devuelve un
   /// mensaje legible (éxito, cancelado o error).
   Future<String> conectar([BuildContext? context]) async {
     if (_webviewPrimero()) {
       if (context != null && context.mounted) {
-        return _conectarInAppConReintento(context);
+        return _conectarInAppConReintento(this, context);
       }
       return 'No se pudo conectar YouTube en este dispositivo.';
     }
@@ -75,24 +59,10 @@ class ServicioOAuthYouTube {
     }
 
     if (context != null && context.mounted) {
-      return _conectarInAppConReintento(context);
+      return _conectarInAppConReintento(this, context);
     }
 
     return 'No se pudo conectar YouTube en este dispositivo.';
-  }
-
-  /// WebView in-app con un único reintento automático.
-  Future<String> _conectarInAppConReintento(BuildContext context) async {
-    final msg = await OAuthYouTubeApp.iniciarOAuth(context);
-    if (msg != null && msg.contains('✓')) return msg;
-
-    debugPrint('YouTube OAuth: primer intento WebView falló, reintentando...');
-    if (context.mounted) {
-      final retryMsg = await OAuthYouTubeApp.iniciarOAuth(context);
-      if (retryMsg != null && retryMsg.contains('✓')) return retryMsg;
-    }
-
-    return 'Error al conectar YouTube. Verifica tu conexión e intenta de nuevo.';
   }
 
   // ─── Token ──
@@ -123,7 +93,7 @@ class ServicioOAuthYouTube {
 
       if (res['ok'] == true && res['access_token'] != null) {
         final nuevo = res['access_token'] as String;
-        final guardados = await _ajustesGuardados();
+        final guardados = await _ajustesGuardados(this);
         guardados['oauthAccessToken'] = nuevo;
         await ServicioCredencialesProveedor(_backend, _cache)
             .guardarYReinicializar(idExt, guardados);
@@ -139,32 +109,14 @@ class ServicioOAuthYouTube {
 
   // ─── Helpers ──
 
-  /// Recupera los ajustes OAuth guardados completando id/secret por defecto.
-  Future<Map<String, String>> _ajustesGuardados() async {
-    const keys = [
-      'oauthClientId',
-      'oauthClientSecret',
-      'oauthAccessToken',
-      'oauthRefreshToken',
-    ];
-    final out = <String, String>{};
-    for (final key in keys) {
-      final v = (await _cache.getAjuste('${idExt}_$key') ?? '').trim();
-      if (v.isNotEmpty) out[key] = v;
-    }
-    out.putIfAbsent('oauthClientId', () => _clienteIdOAuthWeb);
-    out.putIfAbsent('oauthClientSecret', () => _clienteSecretoOAuthWeb);
-    return out;
-  }
-
   /// Cierra la sesión de YouTube y limpia los tokens.
   Future<String> cerrarSesion() async {
     try {
       await _inicializar();
       await _signOutNativo();
-    } catch (_) {}
+    } catch (e) { debugPrint("[OAuth] error: $e"); }
 
-    final guardados = await _ajustesGuardados();
+    final guardados = await _ajustesGuardados(this);
     guardados.remove('oauthAccessToken');
     guardados.remove('oauthRefreshToken');
     await _cache.guardarAjuste('${idExt}_oauthAccessToken', '');

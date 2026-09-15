@@ -38,6 +38,7 @@ part 'contenido_mi_espacio_grilla.dart';
 part 'contenido_mi_espacio_helpers.dart';
 part 'contenido_mi_espacio_vacio.dart';
 part 'contenido_mi_espacio_widgets.dart';
+part 'contenido_mi_espacio_grilla_item.dart';
 
 /// Cuerpo de Mi Espacio (lista de canciones o grilla por pestaña).
 class ContenidoMiEspacio extends StatelessWidget {

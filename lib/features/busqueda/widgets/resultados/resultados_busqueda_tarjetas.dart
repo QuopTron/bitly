@@ -1,9 +1,10 @@
 // ─────────────────────────────────────────────────────────────
 // resultados_busqueda_tarjetas.dart — PART de
-// resultados_busqueda.dart: lista de tracks de los resultados —
+// resultados_busqueda.dart: tarjetas de track de los resultados —
 // TarjetaTrack con like, descarga según estado, compartir, info y
-// más. Incluye el estado de descarga por clave de fuente o
-// huella/ISRC. La grilla vive en resultados_busqueda_grilla.dart.
+// más. Expone `_tarjetaTrack` (una card, para listas lazy) y
+// `_listaTracks` (map completo, para listas mixtas con cabeceras).
+// El estado de descarga sale por clave de fuente o huella/ISRC.
 // Se conecta con: resultados_busqueda.dart (misma library) +
 // tarjeta_track + huella_item + cubits (vía callbacks del padre).
 // Parte del flujo: búsqueda (resultados → tarjetas).
@@ -33,41 +34,50 @@ EstadoDescarga _estadoDescargaTrack(
   return EstadoDescarga.ninguno;
 }
 
-/// Tarjetas de track como hijos individuales del ListView — mismo layout
-/// y espaciado que el feed.
+/// Todas las tarjetas de track como widgets — para listas mixtas
+/// (cabeceras + cards) que no pueden usar un builder perezoso.
 List<Widget> _listaTracks(
   CuerpoResultadosBusqueda cuerpo,
   BuildContext context,
-  Responsive r,
   List<ItemFeed> items,
 ) {
-  return items.map((item) {
-    final huella = huellaItem(item);
-    final id = '${item.type}_${normalizarIdTrack(item.id)}_${item.source}';
-    void play() => sl<CubitCola>().reproducirConContexto(items, item);
-    final caratulaResuelta = context.read<CubitLikes>().caratulaLocalPara(item);
-    return TarjetaTrack(
-      titulo: item.name,
-      subtitulo: item.artists ?? '',
-      coverUrl: caratulaResuelta,
-      escalaTexto: 1.2,
-      readyKey: normalizarIdTrack(item.id),
-      esAmado: cuerpo.idsAmados.contains(huella),
-      onLike: () => cuerpo.onAlternarLike(id, item),
-      estadoDescarga: _estadoDescargaTrack(cuerpo, huella, id, item.isrc),
-      onDescargar: () => cuerpo.onIniciarDescarga(item),
-      onBorrar: cuerpo.onBorrarTrack != null
-          ? () => cuerpo.onBorrarTrack!(item)
-          : null,
-      onInfo: () => cuerpo.onMostrarInfo(context, item),
-      onMas: () => cuerpo.onMostrarMas(context, item),
-      onTap: play,
-      onCompartir: () => SharePlus.instance.share(ShareParams(
-            text: item.albumName != null
-                ? '🎵 ${item.name} — ${item.artists ?? ''}\n💿 ${item.albumName}'
-                : '🎵 ${item.name} — ${item.artists ?? ''}',
-          )),
-    );
-  }).toList();
+  return items
+      .map((item) => _tarjetaTrack(cuerpo, context, items, item))
+      .toList();
 }
 
+/// Construye UNA tarjeta de track de resultados (item de lista lazy).
+Widget _tarjetaTrack(
+  CuerpoResultadosBusqueda cuerpo,
+  BuildContext context,
+  List<ItemFeed> items,
+  ItemFeed item,
+) {
+  final huella = huellaItem(item);
+  final id = '${item.type}_${normalizarIdTrack(item.id)}_${item.source}';
+  void play() => sl<CubitCola>().reproducirConContexto(items, item);
+  final caratulaResuelta = context.read<CubitLikes>().caratulaLocalPara(item);
+  return TarjetaTrack(
+    item: item,
+    titulo: item.name,
+    subtitulo: item.artists ?? '',
+    coverUrl: caratulaResuelta,
+    escalaTexto: 1.2,
+    readyKey: normalizarIdTrack(item.id),
+    esAmado: cuerpo.idsAmados.contains(huella),
+    onLike: () => cuerpo.onAlternarLike(id, item),
+    estadoDescarga: _estadoDescargaTrack(cuerpo, huella, id, item.isrc),
+    onDescargar: () => cuerpo.onIniciarDescarga(item),
+    onBorrar: cuerpo.onBorrarTrack != null
+        ? () => cuerpo.onBorrarTrack!(item)
+        : null,
+    onInfo: () => cuerpo.onMostrarInfo(context, item),
+    onMas: () => cuerpo.onMostrarMas(context, item),
+    onTap: play,
+    onCompartir: () => SharePlus.instance.share(ShareParams(
+          text: item.albumName != null
+              ? '🎵 ${item.name} — ${item.artists ?? ''}\n💿 ${item.albumName}'
+              : '🎵 ${item.name} — ${item.artists ?? ''}',
+        )),
+  );
+}

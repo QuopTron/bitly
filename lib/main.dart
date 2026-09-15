@@ -65,10 +65,10 @@ Future<void> main() async {
       for (final f in stale) {
         try {
           await f.delete();
-        } catch (_) {}
+        } catch (e) { debugPrint("[App] $e"); }
       }
     }
-  } catch (_) {}
+  } catch (e) { debugPrint("[App] $e"); }
 
   // media_kit DEBE inicializarse antes de crear cualquier Player.
   // En web no existe (su backend es libmpv nativo): el arranque sigue sin él.

@@ -1,3 +1,10 @@
+// ─────────────────────────────────────────────────────────────
+// settings_sheet_premium_form.dart — PART de settings_sheet_new.dart: formulario de ingreso del código
+// Premium con validación y estado de carga.
+// Se conecta con: settings_sheet_new.dart (misma library).
+// Parte del flujo: Ajustes → Más (código Premium).
+// ─────────────────────────────────────────────────────────────
+
 part of 'settings_sheet_new.dart';
 
 class _PremiumCodeForm extends StatelessWidget {

@@ -1,3 +1,10 @@
+// ─────────────────────────────────────────────────────────────
+// settings_sheet_version_sheet.dart — PART de settings_sheet_new.dart: hoja que muestra la versión
+// actual y todas las releases de GitHub.
+// Se conecta con: settings_sheet_new.dart (misma library).
+// Parte del flujo: Ajustes → Más (hoja de versión).
+// ─────────────────────────────────────────────────────────────
+
 part of 'settings_sheet_new.dart';
 
 class _VersionSheet extends StatefulWidget {

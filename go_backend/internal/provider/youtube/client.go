@@ -5,7 +5,6 @@ package youtube
 import (
 	"encoding/json"
 	"fmt"
-	"os/exec"
 	"strings"
 
 	"github.com/zarz/bitly/go_backend/internal/provider"
@@ -43,8 +42,7 @@ func (c *Client) GetVideoURL(id, quality string) (string, error) {
 	}
 	format := fmt.Sprintf("bestvideo[height<=%s]+bestaudio/best[height<=%s]/best", height, height)
 	args := []string{"-g", "-f", format, "--no-warnings", url}
-	cmd := exec.Command(c.ytdlpPath, args...)
-	output, err := cmd.Output()
+	output, err := ejecutarYtDlp(c.ytdlpPath, args)
 	if err != nil {
 		return "", fmt.Errorf("youtube: get video URL failed: %w", err)
 	}
@@ -82,8 +80,7 @@ func (c *Client) SearchTracks(query string, limit int) ([]provider.TrackResult, 
 		"--extract-flat", "--skip-download",
 		searchQuery,
 	}
-	cmd := exec.Command(c.ytdlpPath, args...)
-	output, err := cmd.Output()
+	output, err := ejecutarYtDlp(c.ytdlpPath, args)
 	if err != nil {
 		return nil, fmt.Errorf("youtube: yt-dlp search failed: %w", err)
 	}

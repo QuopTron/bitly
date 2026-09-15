@@ -1,3 +1,10 @@
+// ─────────────────────────────────────────────────────────────
+// settings_sheet_report_dialog.dart — PART de settings_sheet_new.dart: diálogo para escribir y enviar
+// un reporte de bug o sugerencia.
+// Se conecta con: settings_sheet_new.dart (misma library).
+// Parte del flujo: Ajustes → Más (diálogo de reporte).
+// ─────────────────────────────────────────────────────────────
+
 part of 'settings_sheet_new.dart';
 
 /// Abre el diálogo de reporte bug / sugerencia. Al enviar crea un issue de
@@ -27,61 +34,16 @@ Future<void> showReportDialog(BuildContext context, Color glowColor) async {
               borderRadius: BorderRadius.circular(20),
             ),
             title: _ReportDialogTitle(isBug: isBug, loc: loc, onBg: onBg, r: r),
-            content: SizedBox(
-              width: double.maxFinite,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Type toggle: Bug / Sugerencia
-                  _ReportTypeToggle(
-                    isBug: isBug,
-                    glowColor: glow,
-                    onBg: onBg,
-                    r: r,
-                    onChanged: (v) => setModalState(() => isBug = v),
-                  ),
-                  SizedBox(height: r.spacingM),
-                  TextField(
-                    controller: titleCtrl,
-                    style: TextStyle(color: onBg),
-                    decoration: InputDecoration(
-                      labelText: loc.setup.reportTitle,
-                      labelStyle: TextStyle(color: onBg.withValues(alpha: 0.5)),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(
-                          color: onBg.withValues(alpha: 0.2),
-                        ),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: glow),
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: r.spacingS),
-                  TextField(
-                    controller: bodyCtrl,
-                    maxLines: 4,
-                    style: TextStyle(color: onBg),
-                    decoration: InputDecoration(
-                      hintText: loc.setup.reportBody,
-                      hintStyle: TextStyle(color: onBg.withValues(alpha: 0.4)),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(
-                          color: onBg.withValues(alpha: 0.2),
-                        ),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: glow),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+            content: _contenidoDialogoReporte(
+              isBug: isBug,
+              glow: glow,
+              onBg: onBg,
+              r: r,
+              loc: loc,
+              titleCtrl: titleCtrl,
+              bodyCtrl: bodyCtrl,
+              setModalState: setModalState,
+              onBugCambiado: (v) => setModalState(() => isBug = v),
             ),
             actions: [
               TextButton(

@@ -60,7 +60,7 @@ Future<void> _cargarDetalleArtista(_ArtistaDetallePaginaState st) async {
             DetalleArtista.desdeJson(jsonDecode(json) as Map<String, dynamic>);
         memoria.setArtista(st.widget.artistId, detalle);
       }
-    } catch (_) {}
+    } catch (e) { debugPrint("[Feature] $e"); }
   }
 
   // 4) Nada encontrado: marcar error si quedó null.
@@ -92,5 +92,5 @@ Future<void> _refrescarArtista(
     st._artista = fresco;
     st._error = false;
     st.repintar();
-  } catch (_) {}
+  } catch (e) { debugPrint("[Feature] $e"); }
 }

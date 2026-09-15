@@ -68,7 +68,7 @@ mixin DescargasCargaTracks on DescargasPolling {
               completados[key] = const DatosEstadoDescarga(estado: EstadoDescarga.completado, progreso: 1.0);
               try {
                 await _downloadCache.actualizarRutaArchivo(idNormalizado, alt);
-              } catch (_) {}
+              } catch (e) { debugPrint("[Descargas] $e"); }
             } else {
               completados[key] = const DatosEstadoDescarga(estado: EstadoDescarga.interrumpido);
               _idsTracksDescargados.remove(idNormalizado);
@@ -83,7 +83,7 @@ mixin DescargasCargaTracks on DescargasPolling {
               completados[key] = const DatosEstadoDescarga(estado: EstadoDescarga.completado, progreso: 1.0);
               try {
                 await _downloadCache.actualizarRutaArchivo(idNormalizado, alt);
-              } catch (_) {}
+              } catch (e) { debugPrint("[Descargas] $e"); }
             } else {
               completados[key] = const DatosEstadoDescarga(estado: EstadoDescarga.interrumpido);
               _idsTracksDescargados.remove(idNormalizado);
@@ -119,9 +119,9 @@ mixin DescargasCargaTracks on DescargasPolling {
               try {
                 await _downloadCache.actualizarCaratulaTrack(
                   rawId, '', recuperada);
-              } catch (_) {}
+              } catch (e) { debugPrint("[Descargas] $e"); }
             }
-          } catch (_) {}
+          } catch (e) { debugPrint("[Descargas] $e"); }
         }
         // No pisar una entrada en memoria con carátulas válidas con carátulas
         // null de la BD (entradas viejas sin cover_url por fallbacks

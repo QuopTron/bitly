@@ -9,6 +9,7 @@
 // Parte del flujo: playlists (exportar a archivos).
 // ─────────────────────────────────────────────────────────────
 
+import "package:flutter/foundation.dart";
 import 'dart:io';
 import '../../modelos/playlist/track_playlist.dart';
 
@@ -87,19 +88,19 @@ class GeneradorPlaylists {
 
     try {
       generados.add(await generarM3U(config));
-    } catch (_) {}
+    } catch (e) { debugPrint("[Servicio] $e"); }
 
     try {
       generados.add(await generarM3U8(config));
-    } catch (_) {}
+    } catch (e) { debugPrint("[Servicio] $e"); }
 
     try {
       generados.add(await generarCUE(config));
-    } catch (_) {}
+    } catch (e) { debugPrint("[Servicio] $e"); }
 
     try {
       generados.add(await generarNFO(config));
-    } catch (_) {}
+    } catch (e) { debugPrint("[Servicio] $e"); }
 
     return generados;
   }

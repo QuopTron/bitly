@@ -78,7 +78,7 @@ mixin DescargasBorrar on DescargasInicioPlaylist {
       // amado (el like muestra la misma portada en Mi Espacio).
       if (coversToDelete.isNotEmpty && !_padreAmado(batchKey)) {
         for (final coverUrl in coversToDelete) {
-          try { await _backend.deleteCover(coverUrl); } catch (_) {}
+          try { await _backend.deleteCover(coverUrl); } catch (e) { debugPrint("[Descargas] $e"); }
         }
       }
       await _downloadCache.borrarTracksDescargados(allIds.toList());

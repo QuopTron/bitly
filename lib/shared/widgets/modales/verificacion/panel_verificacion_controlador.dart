@@ -42,7 +42,7 @@ WebViewController _crearControlador(_PanelVerificacionWebState state) {
           debugPrint('[Verificacion] JS bridge mensaje: '
               '${mensaje.message.length > 120 ? mensaje.message.substring(0, 120) : mensaje.message} '
               '→ grant: ${grant == null ? 'null' : 'OK'}');
-          if (grant != null) state._dispararGrant(grant);
+          if (grant != null) _dispararGrant(state, grant);
         },
       )
       ..setNavigationDelegate(_crearDelegate(state));
@@ -58,7 +58,7 @@ WebViewController _crearControlador(_PanelVerificacionWebState state) {
         debugPrint('[Verificacion] JS bridge mensaje: '
             '${mensaje.message.length > 120 ? mensaje.message.substring(0, 120) : mensaje.message} '
             '→ grant: ${grant == null ? 'null' : 'OK'}');
-        if (grant != null) state._dispararGrant(grant);
+        if (grant != null) _dispararGrant(state, grant);
       },
     )
     ..setNavigationDelegate(_crearDelegate(state));

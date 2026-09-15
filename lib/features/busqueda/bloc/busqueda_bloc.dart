@@ -27,19 +27,7 @@ part 'busqueda_cache.dart';
 part 'busqueda_intento.dart';
 part 'busqueda_verificacion.dart';
 
-final _log = Logger();
-
-/// Fuentes cuyas BÚSQUEDAS requieren sesión firmada (el registry de
-/// ServicioVerificacion es la fuente de verdad): qobuz-web da 403 y amazon
-/// devuelve 0 sin verificar; tidal-web también pide sesión. Deezer/pandora
-/// buscan anónimo — vacío ahí es rate-limit o "sin resultados", nunca un
-/// problema de sesión.
-final _fuentesVerificarAlVacio = <String>{
-  ...ServicioVerificacion.fuentesSesionFirmada,
-}..removeAll(const {'deezer', 'pandora'});
-
-/// Resultado de intentar verificar una fuente con sesión firmada.
-enum _ResultadoVerificacion { verificada, noNecesaria, fallida }
+part 'busqueda_globales.dart';
 
 /// Bloc de búsqueda: streaming + cache + recientes + config por fuente.
 class BlocBusqueda extends Bloc<EventoBusqueda, EstadoBusqueda> {
@@ -135,6 +123,14 @@ class BlocBusqueda extends Bloc<EventoBusqueda, EstadoBusqueda> {
         error: null,
         haBuscado: false,
       ));
+    });
+
+    // Watchdog de la página: corta el spinner cuando un intento se pasó del
+    // tope de espera. No borra resultados ya recibidos (parciales sí valen):
+    // solo deja de mostrar carga y marca que ya se buscó.
+    on<FinalizarBusquedaForzada>((event, emit) {
+      if (!state.cargando) return;
+      emit(state.copiarCon(cargando: false, haBuscado: true));
     });
   }
 

@@ -1,3 +1,10 @@
+// ─────────────────────────────────────────────────────────────
+// settings_sheet_sheet_state.dart — PART de settings_sheet_new.dart: estado del SettingsSheet —
+// TabController, pestaña activa, premium y seguimiento del tutorial.
+// Se conecta con: settings_sheet_new.dart (misma library) + tutorial.
+// Parte del flujo: Ajustes (estado de la hoja).
+// ─────────────────────────────────────────────────────────────
+
 part of 'settings_sheet_new.dart';
 
 class _SettingsSheetState extends State<SettingsSheet>
@@ -13,7 +20,7 @@ class _SettingsSheetState extends State<SettingsSheet>
     try {
       final status = await sl<CachePremium>().getEstadoPremium();
       if (mounted) setState(() => _premium = status);
-    } catch (_) {}
+    } catch (e) { debugPrint("[Feature] $e"); }
   }
 
   @override

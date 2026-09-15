@@ -7,6 +7,7 @@
 // Parte del flujo: Inicio (feed del home).
 // ─────────────────────────────────────────────────────────────
 
+import "package:flutter/foundation.dart";
 import 'dart:convert';
 
 import '../../base_datos/app_database.dart';
@@ -73,6 +74,6 @@ class CacheFeed {
       await _dao.remove(_claveSecciones);
       await _dao.remove(_claveFuente);
       await _dao.remove(_claveTs);
-    } catch (_) {}
+    } catch (e) { debugPrint("[Cache] $e"); }
   }
 }

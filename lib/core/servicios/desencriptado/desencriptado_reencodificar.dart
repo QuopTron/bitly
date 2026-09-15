@@ -118,7 +118,7 @@ Future<ResultadoDesencriptadoStream> _reencodificarFallbacks({
     // Limpiar el archivo temporal
     try {
       await File(tmpMp4).delete();
-    } catch (_) {}
+    } catch (e) { debugPrint("[Desencriptado] error: $e"); }
   }
 
   // AAC re-encode fallback: cuando FLAC copy y FLAC re-encode fallan (p.ej.

@@ -1,5 +1,11 @@
-// Parte del split de settings_sheet_new.dart — widget _BubbleTab (extraído
-// del método _bubble de _SettingsSheetState). No editar a mano.
+// ─────────────────────────────────────────────────────────────
+// settings_sheet_bubble_tab.dart — Burbuja circular de navegación del sheet de Ajustes: círculo con glow,
+// icono y etiqueta chica; la activa lleva relleno, anillo y punto.
+//
+// Se conecta con: settings_sheet_new.dart (misma library).
+// Parte del flujo: Ajustes → fila de burbujas (tabs).
+// ─────────────────────────────────────────────────────────────
+
 part of 'settings_sheet_new.dart';
 
 /// One circular icon bubble: a small glowing circle with the icon, and a
@@ -36,8 +42,8 @@ class _BubbleTab extends StatelessWidget {
             AnimatedContainer(
               duration: const Duration(milliseconds: 250),
               curve: Curves.easeOutCubic,
-              width: 44,
-              height: 44,
+              width: 38,
+              height: 38,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient:
@@ -72,15 +78,15 @@ class _BubbleTab extends StatelessWidget {
               ),
               child: Icon(
                 _bubbleTabs[index].icon,
-                size: r.footerSize + 3,
+                size: r.footerSize + 1,
                 color: active ? Colors.white : onBg.withValues(alpha: 0.5),
               ),
             ),
-            SizedBox(height: 6),
+            SizedBox(height: 4),
             Text(
               _bubbleTabs[index].label,
               style: TextStyle(
-                fontSize: r.footerSize - 3,
+                fontSize: r.footerSize - 2,
                 fontWeight: active ? FontWeight.w700 : FontWeight.w500,
                 color: active ? glowColor : onBg.withValues(alpha: 0.45),
                 letterSpacing: active ? 0.2 : 0,

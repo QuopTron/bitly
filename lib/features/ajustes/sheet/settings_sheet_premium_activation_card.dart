@@ -1,3 +1,10 @@
+// ─────────────────────────────────────────────────────────────
+// settings_sheet_premium_activation_card.dart — PART de settings_sheet_new.dart: tarjeta que invita a activar
+// Premium cuando la prueba gratis terminó.
+// Se conecta con: settings_sheet_new.dart (misma library).
+// Parte del flujo: Ajustes → Más (activación Premium).
+// ─────────────────────────────────────────────────────────────
+
 part of 'settings_sheet_new.dart';
 
 class _PremiumActivationCard extends StatelessWidget {

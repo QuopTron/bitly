@@ -1,22 +1,20 @@
 // ─────────────────────────────────────────────────────────────
-// campo_usuario.dart — Campo de texto para el nombre de usuario
-// del setup: input con vidrio, dado para generar un nombre
-// aleatorio y badge de confirmación cuando hay texto. Emite
-// UsuarioCambiado al escribir.
-// Se conecta con: setup_bloc (UsuarioCambiado,
-// GenerarNombreAleatorio) + shared (vidrio, responsive) + l10n.
+// campo_usuario.dart — Campo del nombre de usuario del setup:
+// compone el input de vidrio (con el dado), el badge de confirmación
+// y el aviso de Soulseek. Las piezas viven en campo_usuario_input.dart
+// y campo_usuario_aviso.dart.
+// Se conecta con: setup_bloc/setup_estado + campo_usuario_input +
+// campo_usuario_aviso + l10n.
 // Parte del flujo: setup (paso 3: nombre de usuario).
 // ─────────────────────────────────────────────────────────────
 
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../l10n/app_localizations.dart';
 import '../../../../shared/utilidades/plataforma/responsive.dart';
-import '../../../../shared/widgets/vidrio/contenedor_vidrio.dart';
-import '../../bloc/setup_bloc.dart';
 import '../../bloc/setup_estado.dart';
-import '../../bloc/setup_evento.dart';
+import 'campo_usuario_aviso.dart';
+import 'campo_usuario_input.dart';
 
 /// Campo de nombre de usuario con generador aleatorio.
 class CampoUsuario extends StatelessWidget {
@@ -43,153 +41,21 @@ class CampoUsuario extends StatelessWidget {
       padding: EdgeInsets.symmetric(horizontal: r.spacingXL),
       child: Column(
         children: [
-          _input(context),
-          if (state.usuario.trim().isNotEmpty) _badge(),
-          _avisoSoulseek(),
-        ],
-      ),
-    );
-  }
-
-  Widget _input(BuildContext context) {
-    return ContenedorVidrio(
-      borderRadius: 12,
-      borderColor: onBg.withValues(alpha: 0.08),
-      bgColor: onBg.withValues(alpha: 0.03),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: controller,
-              decoration: InputDecoration(
-                hintText: loc.setup.usernameHint,
-                hintStyle: TextStyle(
-                  color: onBg.withValues(alpha: 0.35),
-                  fontSize: r.footerSize,
-                ),
-                border: InputBorder.none,
-                contentPadding: EdgeInsets.symmetric(
-                  horizontal: r.spacingM,
-                  vertical: r.spacingS + 2,
-                ),
-              ),
-              style: TextStyle(color: onBg, fontSize: r.subtitleSize),
-              textCapitalization: TextCapitalization.words,
-              onChanged: (val) =>
-                  context.read<SetupBloc>().add(UsuarioCambiado(val)),
-            ),
+          InputUsuarioNombre(
+            loc: loc,
+            r: r,
+            onBg: onBg,
+            glowColor: glowColor,
+            controller: controller,
           ),
-          _dado(context),
+          if (state.usuario.trim().isNotEmpty)
+            BadgeUsuarioNombre(
+              usuario: state.usuario,
+              r: r,
+              glowColor: glowColor,
+            ),
+          AvisoEstadoUsuario(state: state, r: r, onBg: onBg, loc: loc),
         ],
-      ),
-    );
-  }
-
-  Widget _dado(BuildContext context) {
-    return GestureDetector(
-      onTap: () => context.read<SetupBloc>().add(const GenerarNombreAleatorio()),
-      child: Container(
-        margin: EdgeInsets.all(4),
-        padding: EdgeInsets.all(r.spacingS),
-        decoration: BoxDecoration(
-          color: glowColor.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Icon(
-          Icons.casino,
-          color: glowColor,
-          size: r.languageCardIconSize * 0.75,
-        ),
-      ),
-    );
-  }
-
-  /// Una sola línea, con tres estados: aviso, conectando y rechazo.
-  ///
-  /// Esto sigue siendo el paso del nombre, no un formulario de Soulseek. La
-  /// cuenta se crea al continuar, pero el usuario ve qué va a pasar antes de
-  /// tocar el botón. Y si el nombre ya está tomado, el rechazo aparece acá —en
-  /// el mismo lugar donde lo puede arreglar— en vez de al final del setup.
-  Widget _avisoSoulseek() {
-    final creando = state.syncSoulseek == SyncSoulseek.creando;
-    final motivo = state.motivoSoulseek;
-    final bloqueado = state.syncSoulseek == SyncSoulseek.fallo &&
-        (motivo == 'nombre_tomado' || motivo == 'nombre_invalido');
-
-    final Color color = bloqueado
-        ? Colors.red.shade400
-        : onBg.withValues(alpha: creando ? 0.55 : 0.45);
-    final String texto = switch (motivo) {
-      'nombre_tomado' => loc.setup.soulseekNameTaken,
-      'nombre_invalido' => loc.setup.soulseekNameInvalid,
-      _ => loc.setup.soulseekAccountNotice,
-    };
-
-    return Padding(
-      padding: EdgeInsets.only(top: r.spacingS),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          if (creando)
-            SizedBox(
-              width: r.footerSize - 1,
-              height: r.footerSize - 1,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: onBg.withValues(alpha: 0.55),
-              ),
-            )
-          else
-            Icon(
-              bloqueado ? Icons.error_outline : Icons.hub_rounded,
-              size: r.footerSize - 1,
-              color: color,
-            ),
-          SizedBox(width: r.spacingXS),
-          Flexible(
-            child: Text(
-              creando ? loc.setup.soulseekConnecting : texto,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: r.footerSize - 1,
-                color: color,
-                height: 1.25,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _badge() {
-    return Padding(
-      padding: EdgeInsets.only(top: r.spacingS),
-      child: ContenedorVidrio(
-        borderRadius: 8,
-        borderColor: glowColor.withValues(alpha: 0.2),
-        bgColor: glowColor.withValues(alpha: 0.06),
-        padding: EdgeInsets.symmetric(
-          horizontal: r.spacingM,
-          vertical: r.spacingXS,
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.check, color: glowColor, size: r.footerSize),
-            SizedBox(width: r.spacingXS),
-            Flexible(
-              child: Text(
-                state.usuario,
-                style: TextStyle(
-                  color: glowColor,
-                  fontSize: r.footerSize,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

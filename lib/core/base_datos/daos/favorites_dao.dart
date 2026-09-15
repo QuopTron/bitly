@@ -127,4 +127,3 @@ class FavoritesDao extends DatabaseAccessor<AppDatabase> with _$FavoritesDaoMixi
           .write(FavoritePlaylistsCompanion(coverPath: Value(coverPath)));
 }
 
-

@@ -1,5 +1,11 @@
-// Parte del split de settings_sheet_new.dart — _DownloadsTab.
-// Extraído del archivo original (ver git log). No editar a mano.
+// ─────────────────────────────────────────────────────────────
+// settings_sheet_downloads_tab.dart — Pestaña Descargas del sheet de Ajustes: carpeta destino, calidad de
+// descarga y opciones de la cola de descargas.
+//
+// Se conecta con: settings_sheet_new.dart (misma library) + settings_sheet_download_quality.
+// Parte del flujo: Ajustes → pestaña Descargas.
+// ─────────────────────────────────────────────────────────────
+
 part of 'settings_sheet_new.dart';
 
 class _DownloadsTab extends StatelessWidget {

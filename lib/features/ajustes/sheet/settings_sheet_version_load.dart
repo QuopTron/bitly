@@ -1,3 +1,10 @@
+// ─────────────────────────────────────────────────────────────
+// settings_sheet_version_load.dart — PART de settings_sheet_new.dart: carga de la versión actual y de
+// la lista de releases desde GitHub.
+// Se conecta con: settings_sheet_new.dart (misma library) + update_service.
+// Parte del flujo: Ajustes → Más (cargar releases).
+// ─────────────────────────────────────────────────────────────
+
 part of 'settings_sheet_new.dart';
 
 /// Mixin con la carga de datos del sheet de versiones: versión instalada,
@@ -14,7 +21,7 @@ mixin _VersionSheetLoader on State<_VersionSheet> {
     try {
       final pkg = await PackageInfo.fromPlatform();
       state._currentVersion = pkg.version;
-    } catch (_) {}
+    } catch (e) { debugPrint("[Feature] $e"); }
 
     try {
       // Fetch latest for update info
@@ -27,7 +34,7 @@ mixin _VersionSheetLoader on State<_VersionSheet> {
         final tag = json['tag_name'] as String? ?? '';
         state._latestVersion = tag.replaceFirst('v', '').trim();
       }
-    } catch (_) {}
+    } catch (e) { debugPrint("[Feature] $e"); }
 
     try {
       // Fetch all releases for the version list
@@ -59,7 +66,7 @@ mixin _VersionSheetLoader on State<_VersionSheet> {
               );
             }).toList();
       }
-    } catch (_) {}
+    } catch (e) { debugPrint("[Feature] $e"); }
 
     if (!mounted) return;
     setState(() => state._loading = false);
@@ -68,6 +75,6 @@ mixin _VersionSheetLoader on State<_VersionSheet> {
     try {
       final info = await UpdateService().checkForUpdate();
       if (mounted) setState(() => state._updateInfo = info);
-    } catch (_) {}
+    } catch (e) { debugPrint("[Feature] $e"); }
   }
 }

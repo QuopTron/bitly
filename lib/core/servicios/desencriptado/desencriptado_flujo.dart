@@ -138,7 +138,7 @@ Future<ResultadoDesencriptadoStream> _desencriptarMovKeyDesbloqueado({
     try {
       final f = File(rutaSalida(ext));
       if (await f.exists()) await f.delete();
-    } catch (_) {}
+    } catch (e) { debugPrint("[Desencriptado] error: $e"); }
   }
   // Incluye el último error de ffmpeg + qué es el archivo realmente (ftyp=
   // cifrado válido, fLaC=plano, "<!"=página de error, tamaño=truncado).

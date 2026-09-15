@@ -59,7 +59,7 @@ class _FondoLetrasEstiloState extends State<_FondoLetrasEstilo> {
     try {
       final paleta = await paletaParaPortada(widget.caratula);
       if (mounted) setState(() => _acento = paleta?.dominante);
-    } catch (_) {}
+    } catch (e) { debugPrint("[Feature] $e"); }
   }
 
   @override

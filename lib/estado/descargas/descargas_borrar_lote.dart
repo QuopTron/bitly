@@ -55,7 +55,7 @@ mixin DescargasBorrarLote on DescargasBorrarPlaylist {
     // padre ya no está amado (el like muestra la misma portada).
     if (coversToDelete.isNotEmpty && !_padreAmado(batchKey)) {
       for (final coverUrl in coversToDelete) {
-        try { await _backend.deleteCover(coverUrl); } catch (_) {}
+        try { await _backend.deleteCover(coverUrl); } catch (e) { debugPrint("[Descargas] $e"); }
       }
     }
 

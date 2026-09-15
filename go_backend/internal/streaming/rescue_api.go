@@ -19,6 +19,11 @@ func rescuePorIdentificadores(reg *provider.Registry, quality, isrc, spotifyID, 
 		return "", "", false
 	}
 	names := ordenProvidersStreaming(reg)
+	// Presupuesto y paralelismo originales (5s, 2 workers): subir los workers a
+	// 3 disparaba 429 de los proveedores (tidal/soundcloud), el circuito de
+	// enfriamiento se abría y la 3ra canción seguida se quedaba sin stream. Esta
+	// fase corre EN PARALELO con la búsqueda por nombre, así que su presupuesto
+	// no suma a la latencia percibida.
 	url, prov, verified := carreraPorConfianzaCalidad(reg, names, 5*time.Second, 2, func(name string, p provider.Provider) (string, bool) {
 		resolvedID := ""
 		if ep, ok := p.(*provider.ExtensionProvider); ok {

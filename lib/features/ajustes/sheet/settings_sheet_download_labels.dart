@@ -1,3 +1,10 @@
+// ─────────────────────────────────────────────────────────────
+// settings_sheet_download_labels.dart — PART de settings_sheet_new.dart: etiquetas localizadas de calidad
+// de audio y de video para los selectores de descarga.
+// Se conecta con: settings_sheet_new.dart (misma library) + l10n.
+// Parte del flujo: Ajustes → Descargas (etiquetas).
+// ─────────────────────────────────────────────────────────────
+
 part of 'settings_sheet_new.dart';
 
 String _downloadQualityLabel(String q, AppLocalizations loc) {

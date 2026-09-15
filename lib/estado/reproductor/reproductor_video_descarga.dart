@@ -42,7 +42,7 @@ mixin ReproductorVideoDescarga on ReproductorVideoLocal {
     } catch (_) {
       try {
         if (await File(destino).exists()) await File(destino).delete();
-      } catch (_) {}
+      } catch (e) { debugPrint("[App] $e"); }
     }
   }
 }

@@ -1,3 +1,10 @@
+// ─────────────────────────────────────────────────────────────
+// settings_sheet_version_tile.dart — PART de settings_sheet_new.dart: tile de una release individual
+// con número, fecha y notas.
+// Se conecta con: settings_sheet_new.dart (misma library).
+// Parte del flujo: Ajustes → Más (tile de release).
+// ─────────────────────────────────────────────────────────────
+
 part of 'settings_sheet_new.dart';
 
 /// Tile de una release: badge INSTALADA/NUEVA, versión, fecha, changelog

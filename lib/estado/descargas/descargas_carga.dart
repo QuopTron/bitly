@@ -20,7 +20,7 @@ mixin DescargasCarga on DescargasCargaLotes {
     try {
       await _cargarUserId();
       await _cargarHistorial();
-    } catch (_) {}
+    } catch (e) { debugPrint("[Descargas] $e"); }
     emit(state.copiarCon(cargando: false));
     _empezarPolling();
     _empezarRefreshHistorial();
@@ -34,7 +34,7 @@ mixin DescargasCarga on DescargasCargaLotes {
   Future<void> _cargarUserId() async {
     try {
       await di.sl<CacheAjustes>().cargarDatosSetup();
-    } catch (_) {}
+    } catch (e) { debugPrint("[Descargas] $e"); }
   }
 
   /// Carga [getHistorialDescargas] y [getLotesDescargados] al estado.

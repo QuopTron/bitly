@@ -50,7 +50,7 @@ mixin DescargasPollFinalizar on DescargasPollFallido {
           filePlayable = false;
           _log.w('[poll] $rawId: Go dice completado pero falta el archivo: $playablePath');
         }
-      } catch (_) {}
+      } catch (e) { debugPrint("[Descargas] $e"); }
     }
     if (!filePlayable) {
       // El tracker de Go guarda .tmp.XXX como outputPath antes de que el
@@ -70,9 +70,9 @@ mixin DescargasPollFinalizar on DescargasPollFallido {
                 final meta = _metaTrack[stateKey];
                 final nid = meta != null && meta.trackId.isNotEmpty ? meta.trackId : stateKey;
                 await _downloadCache.actualizarRutaArchivo(nid, nonTmpPath);
-              } catch (_) {}
+              } catch (e) { debugPrint("[Descargas] $e"); }
             }
-          } catch (_) {}
+          } catch (e) { debugPrint("[Descargas] $e"); }
         }
       }
     }
@@ -89,7 +89,7 @@ mixin DescargasPollFinalizar on DescargasPollFallido {
           final meta = _metaTrack[stateKey];
           final nid = meta != null && meta.trackId.isNotEmpty ? meta.trackId : stateKey;
           await _downloadCache.actualizarRutaArchivo(nid, altPath);
-        } catch (_) {}
+        } catch (e) { debugPrint("[Descargas] $e"); }
       }
     }
     if (filePlayable) {

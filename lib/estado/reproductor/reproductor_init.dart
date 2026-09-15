@@ -49,7 +49,7 @@ mixin ReproductorInit on ReproductorListenerCola {
           _cacheUrlStream[entry.key] = _StreamCacheado(url, true, exp);
         }
       }
-    } catch (_) {}
+    } catch (e) { debugPrint("[App] $e"); }
   }
 
   @override
@@ -71,7 +71,7 @@ mixin ReproductorInit on ReproductorListenerCola {
         count++;
       }
       await prefs.setString(_claveCachePersistente, jsonEncode(map));
-    } catch (_) {}
+    } catch (e) { debugPrint("[App] $e"); }
   }
 
   /// Refleja la calidad del perfil de rendimiento seleccionado en el

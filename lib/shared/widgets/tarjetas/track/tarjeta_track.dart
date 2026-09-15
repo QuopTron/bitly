@@ -1,20 +1,19 @@
 // ─────────────────────────────────────────────────────────────
 // tarjeta_track.dart — Tarjeta de canción con carátula de fondo
-// (scrim oscuro), portada en miniatura, título/artista, insignia
-// de "listo" (stream pre-resuelto) y cluster de acciones: like,
-// descarga (según estado), compartir, info y más. El cuerpo vive
-// en tarjeta_track_cuerpo.dart, la insignia + acciones en
-// tarjeta_track_acciones.dart y los helpers de descarga en
-// tarjeta_track_descarga.dart.
-// Se conecta con: reproductor (tracksListos) + imagen_portada +
-// indicador_descarga + colores_app + responsive + l10n + haptico.
+// (scrim oscuro), portada, título/artista, insignia de "listo"
+// (stream pre-resuelto) y acciones: like, descarga, compartir,
+// info y más. Cuerpo, acciones y gesto de encolar viven en los
+// parts tarjeta_track_*.dart.
+// Se conecta con: reproductor + cubit_cola + responsive + l10n.
 // Parte del flujo: búsqueda, feed, mi espacio (listas de tracks).
 // ─────────────────────────────────────────────────────────────
 
 import 'package:flutter/material.dart';
 
 import '../../../../app/inyeccion.dart';
+import '../../../../core/modelos/feed/item_feed.dart';
 import '../../../../core/modelos/usuario/estilo_visual.dart';
+import '../../../../estado/cola/cubit_cola.dart';
 import '../../../../core/modelos/usuario/perfil_rendimiento.dart';
 import '../../../../core/modelos/usuario/preferencias_estilo.dart';
 import '../../../../estado/reproductor/cubit_reproductor.dart';
@@ -27,11 +26,13 @@ import '../portada/imagen_portada.dart';
 import '../../indicadores/indicador_descarga.dart';
 
 part 'tarjeta_track_descarga.dart';
+part 'tarjeta_track_deslizar.dart';
 part 'tarjeta_track_cuerpo.dart';
 part 'tarjeta_track_acciones.dart';
 part 'tarjeta_track_fila.dart';
+part 'tarjeta_track_color_wrapper.dart';
+part 'tarjeta_track_fondo.dart';
 
-/// Tarjeta de canción reutilizada en todas las listas de tracks.
 class TarjetaTrack extends StatelessWidget {
   final String titulo;
   final String subtitulo;
@@ -52,14 +53,15 @@ class TarjetaTrack extends StatelessWidget {
   final bool accionesHabilitadas;
   final double escalaTexto;
 
-  /// Id normalizado del track. Cuando el player lo marca como listo para
-  /// reproducir al instante (stream pre-resuelto o archivo local), se muestra
-  /// una insignia pequeña en la portada: arranca sin espera.
+  /// Id normalizado. Si el player lo marca listo (stream pre-resuelto o
+  /// archivo local), se muestra una insignia en la portada.
   final String? readyKey;
 
-  /// Color dominante extraído del cover. Se usa en modo Spotify para
-  /// teñir el fondo y velo de la tarjeta con el color del track.
+  /// Color dominante del cover (modo Spotify) para teñir la tarjeta.
   final Color? colorDominante;
+
+  /// Canción de la tarjeta; no-null habilita deslizar→derecha para encolar.
+  final ItemFeed? item;
 
   const TarjetaTrack({
     super.key,
@@ -83,6 +85,7 @@ class TarjetaTrack extends StatelessWidget {
     this.escalaTexto = 1.0,
     this.readyKey,
     this.colorDominante,
+    this.item,
   });
 
   @override
@@ -101,10 +104,8 @@ class TarjetaTrack extends StatelessWidget {
             final fondoFallback = ColoresApp.superficie(esOscuro);
             final colorIconoFallback = ColoresApp.enSuperficieApagado(esOscuro);
             final tamanoIcono = r.footerSize * 1.6 * escalaTexto;
-            final ts = escalaTexto;
             final efectosPesados =
                 sl<ValueNotifier<PerfilRendimiento>>().value.efectosPesados;
-
             final spotify =
                 estilo == EstiloVisual.spotify && prefs.cardsCancion;
 
@@ -119,69 +120,31 @@ class TarjetaTrack extends StatelessWidget {
                   fondoFallback,
                   colorIconoFallback,
                   tamanoIcono,
-                  ts,
+                  escalaTexto,
                   efectosPesados,
                   colorDominante: colorDominante,
                 );
 
             if (spotify && colorDominante == null && coverUrl != null) {
-              return _TarjetaTrackColorWrapper(
-                coverUrl: coverUrl!,
-                builder: contenido,
+              return _conDeslizarCola(
+                this,
+                context,
+                r,
+                _TarjetaTrackColorWrapper(
+                  coverUrl: coverUrl!,
+                  builder: contenido,
+                ),
               );
             }
-            return contenido(spotify ? colorDominante : null);
+            return _conDeslizarCola(
+              this,
+              context,
+              r,
+              contenido(spotify ? colorDominante : null),
+            );
           },
         );
       },
     );
   }
-}
-
-/// Wrapper que extrae el color dominante del cover de forma asíncrona.
-/// Solo se usa en modo Spotify cuando no se proporciona colorDominante.
-class _TarjetaTrackColorWrapper extends StatefulWidget {
-  final String coverUrl;
-  final Widget Function(Color? colorDominante) builder;
-
-  const _TarjetaTrackColorWrapper({
-    required this.coverUrl,
-    required this.builder,
-  });
-
-  @override
-  State<_TarjetaTrackColorWrapper> createState() =>
-      _TarjetaTrackColorWrapperState();
-}
-
-class _TarjetaTrackColorWrapperState extends State<_TarjetaTrackColorWrapper> {
-  Color? _color;
-
-  @override
-  void initState() {
-    super.initState();
-    _extraerColor();
-  }
-
-  @override
-  void didUpdateWidget(covariant _TarjetaTrackColorWrapper oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.coverUrl != widget.coverUrl) {
-      _extraerColor();
-    }
-  }
-
-  Future<void> _extraerColor() async {
-    try {
-      final paleta = await paletaParaPortada(widget.coverUrl);
-      if (mounted) {
-        setState(() {
-          _color = paleta?.dominante;
-        });
-      }
-    } catch (_) {}
-  }
-
-  @override
-  Widget build(BuildContext context) => widget.builder(_color);
 }

@@ -51,6 +51,7 @@ part 'reproductor_pagina_fondo.dart';
 part 'reproductor_pagina_build.dart';
 part 'reproductor_pagina_piezas.dart';
 part 'reproductor_pagina_metadata.dart';
+part 'velo_dinamico_reproductor.dart';
 
 /// Remembers the cover/video choice of the last full-player session.
 class _SesionVideo {

@@ -32,7 +32,7 @@ mixin ReproductorStreamProxy on ReproductorStream {
         _baseProxyStream = base;
         return base;
       }
-    } catch (_) {}
+    } catch (e) { debugPrint("[App] $e"); }
     return null;
   }
 

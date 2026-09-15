@@ -1,5 +1,11 @@
-// Parte del split de settings_sheet_new.dart — _DownloadQualityCard.
-// Extraído del archivo original (ver git log). No editar a mano.
+// ─────────────────────────────────────────────────────────────
+// settings_sheet_download_quality.dart — Tarjeta de calidad de descarga: elige el formato y el bitrate con el que
+// se bajan los temas cuando el pipeline no consigue FLAC.
+//
+// Se conecta con: settings_sheet_new.dart (misma library) + settings_sheet_download_quality_helpers.
+// Parte del flujo: Ajustes → pestaña Descargas → calidad.
+// ─────────────────────────────────────────────────────────────
+
 part of 'settings_sheet_new.dart';
 
 class _DownloadQualityCard extends StatefulWidget {

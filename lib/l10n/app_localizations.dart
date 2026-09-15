@@ -1,3 +1,11 @@
+// ─────────────────────────────────────────────────────────────
+// app_localizations.dart — AppLocalizations: agrupa todos los strings localizados de la app
+// (setup, splash, red, tutorial) y expone el acceso por contexto y
+// la selección de idioma (es/en).
+// Se conecta con: strings/ (todos los archivos de strings).
+// Parte del flujo: presentación (textos de toda la app).
+// ─────────────────────────────────────────────────────────────
+
 import 'package:flutter/material.dart';
 import 'strings/strings_red.dart';
 import 'strings/strings_splash.dart';

@@ -33,10 +33,11 @@ List<Widget> _construirContenidoArtista(
       final src = item.source ?? '';
       final clave = 'track_${normalizarIdTrack(item.id)}_$src';
       void play() => sl<CubitCola>().reproducirConContexto(d.tracks, item);
+      // Sin padding horizontal: la tarjeta ya trae su margen lateral.
       widgets.add(Padding(
-        padding: EdgeInsets.symmetric(
-            horizontal: r.spacingS, vertical: r.spacingXS * 0.5),
+        padding: EdgeInsets.symmetric(vertical: r.spacingXS * 0.5),
         child: TarjetaTrack(
+          item: item,
           titulo: item.name,
           subtitulo: artista.name,
           coverUrl: likedCubit.caratulaLocalPara(item),
@@ -90,10 +91,11 @@ List<Widget> _construirContenidoArtista(
       final clave = 'track_${normalizarIdTrack(item.id)}_$src';
       void play() =>
           sl<CubitCola>().reproducirConContexto(d.tracksOffline, item);
+      // Sin padding horizontal: la tarjeta ya trae su margen lateral.
       widgets.add(Padding(
-        padding: EdgeInsets.symmetric(
-            horizontal: r.spacingS, vertical: r.spacingXS * 0.5),
+        padding: EdgeInsets.symmetric(vertical: r.spacingXS * 0.5),
         child: TarjetaTrack(
+          item: item,
           titulo: item.name,
           subtitulo: item.artists ?? st.widget.artistName,
           coverUrl: likedCubit.caratulaLocalPara(item),

@@ -40,6 +40,7 @@ import '../widgets/entrada/chips_tipo_busqueda.dart';
 part 'pagina_busqueda_flujo.dart';
 part 'pagina_busqueda_helpers.dart';
 part 'pagina_busqueda_widgets.dart';
+part 'pagina_busqueda_enlaces.dart';
 
 /// Página de búsqueda con variante móvil/escritorio.
 class PaginaBusqueda extends StatefulWidget {
@@ -61,6 +62,14 @@ const _pausaEscritura = Duration(milliseconds: 650);
 class _PaginaBusquedaState extends State<PaginaBusqueda> {
   final TextEditingController _controlador = TextEditingController();
   Timer? _debounce;
+
+  /// Tope duro de espera de UNA búsqueda: passado este tiempo el watchdog
+  /// cierra el estado de carga aunque el backend no haya reportado `done`.
+  /// Sin él, una extensión colgada o el puente ocupado dejaban los esqueletos
+  /// cargando para siempre (el usuario no veía ni resultados ni "sin
+  /// resultados").
+  static const topeEspera = Duration(seconds: 14);
+  Timer? _watchdog;
 
   /// Fuente de búsqueda activa — cada búsqueda apunta a UNA extensión (nunca a
   /// un modo "todas": los proveedores de respaldo no son catálogos buscables).
@@ -84,8 +93,18 @@ class _PaginaBusquedaState extends State<PaginaBusqueda> {
   @override
   void dispose() {
     _debounce?.cancel();
+    _watchdog?.cancel();
     _controlador.dispose();
     super.dispose();
+  }
+
+  /// Arma (o rearma) el tope de espera de la búsqueda en curso.
+  void _armarWatchdog() {
+    _watchdog?.cancel();
+    _watchdog = Timer(topeEspera, () {
+      if (!mounted) return;
+      context.read<BlocBusqueda>().add(const FinalizarBusquedaForzada());
+    });
   }
 
   @override
@@ -93,6 +112,7 @@ class _PaginaBusquedaState extends State<PaginaBusqueda> {
     return BlocListener<BlocBusqueda, EstadoBusqueda>(
       listenWhen: (prev, cur) => prev.cargando && !cur.cargando,
       listener: (_, _) {
+        _watchdog?.cancel();
         if (mounted) setState(() => _buscando = false);
       },
       child: BlocBuilder<BlocBusqueda, EstadoBusqueda>(

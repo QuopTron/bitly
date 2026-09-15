@@ -1,3 +1,10 @@
+// ─────────────────────────────────────────────────────────────
+// strings_setup.dart — Strings de setup y de toda la app: idioma, modo, cuenta, ajustes,
+// descargas, Mi Espacio y textos generales, en español e inglés.
+// Se conecta con: app_localizations.dart (los consume).
+// Parte del flujo: setup + ajustes + toda la UI.
+// ─────────────────────────────────────────────────────────────
+
 class StringsSetup {
   final String selectLanguage, chooseLanguage, continueText, espanol, english;
   final String chooseMode,
@@ -631,7 +638,6 @@ class StringsSetup {
     reportSent: 'Report sent. Thanks!',
     reportFailed: "Couldn't send the report",
   );
-
 
   static const es = StringsSetup(
     selectLanguage: 'Selecciona tu idioma',

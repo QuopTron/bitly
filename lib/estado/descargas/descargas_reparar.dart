@@ -91,7 +91,7 @@ mixin DescargasReparar on DescargasBase {
             } finally {
               raf.closeSync();
             }
-          } catch (_) {}
+          } catch (e) { debugPrint("[Descargas] $e"); }
         }
       }
     } catch (e) {

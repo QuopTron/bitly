@@ -42,7 +42,7 @@ mixin LikeSyncTracks on AccionesLike {
           }
         }
       }
-    } catch (_) {}
+    } catch (e) { debugPrint("[App] $e"); }
     _rellenarCaratulaLocal(albumId, caratulaSincronizada);
   }
 
@@ -75,7 +75,7 @@ mixin LikeSyncTracks on AccionesLike {
           }
         }
       }
-    } catch (_) {}
+    } catch (e) { debugPrint("[App] $e"); }
     _rellenarCaratulaLocal(playlistId, caratulaSincronizada);
   }
 

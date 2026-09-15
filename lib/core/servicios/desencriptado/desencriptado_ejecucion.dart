@@ -57,7 +57,7 @@ Future<bool> _esperarArchivo(String ruta, {int intentos = 12}) async {
     try {
       final f = File(ruta);
       if (await f.exists() && (await f.length()) > 0) return true;
-    } catch (_) {}
+    } catch (e) { debugPrint("[Desencriptado] error: $e"); }
     await Future<void>.delayed(const Duration(milliseconds: 250));
   }
   return false;
@@ -75,7 +75,7 @@ Future<ResultadoDesencriptadoStream> _ejecutarDecrypt(
     String salida = '';
     try {
       salida = (await sesion.getOutput() ?? '').trim();
-    } catch (_) {}
+    } catch (e) { debugPrint("[Desencriptado] error: $e"); }
     final flusheado = await _esperarArchivo(rutaSalida);
     if (flusheado && await _pareceMediaDesencriptada(rutaSalida)) {
       return ResultadoDesencriptadoStream(

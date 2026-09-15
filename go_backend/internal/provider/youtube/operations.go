@@ -3,7 +3,6 @@ package youtube
 import (
 	"encoding/json"
 	"fmt"
-	"os/exec"
 
 	"github.com/zarz/bitly/go_backend/internal/provider"
 )
@@ -33,8 +32,7 @@ func (c *Client) SearchAlbums(query string, limit int) ([]provider.AlbumResult, 
 	searchQuery := fmt.Sprintf("ytsearch%d:%s", limit, query)
 	args := []string{"--dump-json", "--no-warnings", "--flat-playlist",
 		"--extract-flat", "--skip-download", searchQuery}
-	cmd := exec.Command(c.ytdlpPath, args...)
-	output, err := cmd.Output()
+	output, err := ejecutarYtDlp(c.ytdlpPath, args)
 	if err != nil {
 		return nil, fmt.Errorf("youtube: album search failed: %w", err)
 	}
@@ -63,8 +61,7 @@ func (c *Client) SearchPlaylists(query string, limit int) ([]provider.PlaylistRe
 	searchQuery := fmt.Sprintf("ytsearchpl%d:%s", limit, query)
 	args := []string{"--dump-json", "--no-warnings", "--flat-playlist",
 		"--extract-flat", "--skip-download", searchQuery}
-	cmd := exec.Command(c.ytdlpPath, args...)
-	output, err := cmd.Output()
+	output, err := ejecutarYtDlp(c.ytdlpPath, args)
 	if err != nil {
 		return nil, fmt.Errorf("youtube: playlist search failed: %w", err)
 	}
@@ -93,8 +90,7 @@ func (c *Client) SearchArtists(query string, limit int) ([]provider.ArtistResult
 	searchQuery := fmt.Sprintf("ytsearch%d:%s", limit*3, query)
 	args := []string{"--dump-json", "--no-warnings", "--flat-playlist",
 		"--extract-flat", "--skip-download", searchQuery}
-	cmd := exec.Command(c.ytdlpPath, args...)
-	output, err := cmd.Output()
+	output, err := ejecutarYtDlp(c.ytdlpPath, args)
 	if err != nil {
 		return nil, fmt.Errorf("youtube: artist search failed: %w", err)
 	}

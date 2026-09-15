@@ -26,6 +26,7 @@ import '../shell/ensamblador_home.dart';
 import '../widgets/barra_navegacion_lateral.dart';
 
 part 'home_escritorio_tutorial.dart';
+part 'home_escritorio_miniplayer.dart';
 
 /// Shell de escritorio de la Home: sidebar + panel de contenido.
 class HomeEscritorio extends StatefulWidget {
@@ -144,49 +145,6 @@ class _HomeEscritorioState extends State<HomeEscritorio>
           ],
         ),
       ),
-    );
-  }
-}
-
-/// Miniplayer en su variante de escritorio: tarjeta flotante con sombra y
-/// esquinas redondeadas (en móvil queda como barra pegada al borde). Se
-/// oculta entero cuando no hay track actual (el miniplayer interno devuelve
-/// un SizedBox.shrink, pero la tarjeta no debe dejar una sombra vacía).
-class _MiniplayerEscritorio extends StatelessWidget {
-  final Widget miniPlayer;
-
-  const _MiniplayerEscritorio({required this.miniPlayer});
-
-  @override
-  Widget build(BuildContext context) {
-    final esOscuro = Theme.of(context).brightness == Brightness.dark;
-    return BlocBuilder<CubitCola, EstadoCola>(
-      buildWhen:
-          (prev, curr) =>
-              prev.tieneActual != curr.tieneActual ||
-              prev.actual?.id != curr.actual?.id,
-      builder: (context, cola) {
-        if (!cola.tieneActual) return const SizedBox.shrink();
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(18, 4, 18, 14),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: esOscuro ? 0.45 : 0.14),
-                  blurRadius: 26,
-                  offset: const Offset(0, 10),
-                ),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: miniPlayer,
-            ),
-          ),
-        );
-      },
     );
   }
 }

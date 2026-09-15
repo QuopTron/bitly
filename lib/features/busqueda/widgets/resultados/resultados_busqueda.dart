@@ -134,12 +134,14 @@ class CuerpoResultadosBusqueda extends StatelessWidget {
       return _centroSinResultados(loc, r, onBg);
     }
     if (tipoSeleccionado == 'tracks') {
-      return ListView(
+      // Builder perezoso: solo se construyen las tarjetas visibles.
+      return ListView.builder(
         padding: EdgeInsets.only(
           top: r.spacingS,
           bottom: r.spacingS + r.val(120, 100, 150),
         ),
-        children: _listaTracks(this, context, r, items),
+        itemCount: items.length,
+        itemBuilder: (context, i) => _tarjetaTrack(this, context, items, items[i]),
       );
     }
     return _grillaUnica(this, context, r, colorBrillo, onBg, loc, items);

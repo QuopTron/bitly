@@ -9,6 +9,8 @@
 
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
+
 import '../../../app/inyeccion.dart' as di;
 import '../../backend_go/nucleo/contrato_backend.dart';
 import '../../cache/almacenes/cache_colecciones.dart';
@@ -89,7 +91,9 @@ class ServicioDominioPlaylist with ServicioDominioPlaylistConsultas {
     try {
       final existente = await _colecciones.getCaratulaPlaylist(playlistId);
       if (existente != null && existente.isNotEmpty) return existente;
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[Playlist] error leyendo carátula existente: $e');
+    }
     for (final c in covers) {
       final url = c?.trim() ?? '';
       if (url.isEmpty) continue;
@@ -99,7 +103,9 @@ class ServicioDominioPlaylist with ServicioDominioPlaylistConsultas {
           await _colecciones.actualizarCaratulaColeccion(playlistId, ruta);
           return ruta;
         }
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('[Playlist] error guardando carátula $url: $e');
+      }
     }
     return null;
   }

@@ -1,5 +1,11 @@
-// Parte del split de settings_sheet_new.dart — _ProfileStatsView.
-// Extraído del archivo original (ver git log). No editar a mano.
+// ─────────────────────────────────────────────────────────────
+// settings_sheet_stats.dart — Bloque de estadísticas del perfil (likes, descargas y estado Premium o
+// trial) con su animación de entrada.
+//
+// Se conecta con: settings_sheet_new.dart (misma library) + settings_sheet_stats_widgets.
+// Parte del flujo: Ajustes → estadísticas del perfil.
+// ─────────────────────────────────────────────────────────────
+
 part of 'settings_sheet_new.dart';
 
 class _ProfileStatsView extends StatefulWidget {

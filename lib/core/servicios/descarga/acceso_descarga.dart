@@ -9,6 +9,8 @@
 // Parte del flujo: botón de descarga (gate).
 // ─────────────────────────────────────────────────────────────
 
+import 'package:flutter/foundation.dart';
+
 import '../../../app/inyeccion.dart';
 import '../../cache/almacenes/cache_ajustes.dart';
 import '../../cache/almacenes/cache_premium.dart';
@@ -23,7 +25,9 @@ class VerificadorAccesoDescarga {
     try {
       final estado = await sl<CachePremium>().getEstadoPremium();
       if (estado.esPremium) return AccesoDescarga.premium;
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[AccesoDescarga] error leyendo premium: $e');
+    }
 
     // 2. Modo free → permitido mientras dure la ventana de 8h.
     try {
@@ -36,7 +40,9 @@ class VerificadorAccesoDescarga {
               : AccesoDescarga.expirado;
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[AccesoDescarga] error leyendo setup: $e');
+    }
 
     // Sin datos de setup aún (no debería pasar post-setup) → tratar la
     // ventana free como activa para que los usuarios nuevos nunca queden

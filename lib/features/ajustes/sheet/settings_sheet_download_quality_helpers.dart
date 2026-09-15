@@ -1,6 +1,11 @@
-// Parte del split de settings_sheet_new.dart — helpers de la fila de
-// configuración de calidad de descarga (funciones top-level usadas por
-// _DownloadQualityCard). Extraídas del archivo original (ver git log).
+// ─────────────────────────────────────────────────────────────
+// settings_sheet_download_quality_helpers.dart — Helpers de las filas de calidad de descarga (header y switch de cada
+// opción): funciones top-level que usa la tarjeta de calidad.
+//
+// Se conecta con: settings_sheet_download_quality.dart (las consume).
+// Parte del flujo: Ajustes → pestaña Descargas → calidad.
+// ─────────────────────────────────────────────────────────────
+
 part of 'settings_sheet_new.dart';
 
 Widget _downloadHeaderRow(

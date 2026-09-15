@@ -1,3 +1,10 @@
+// ─────────────────────────────────────────────────────────────
+// settings_sheet_sheet_widgets.dart — PART de settings_sheet_new.dart: fila de pestañas burbuja y el
+// contenedor que alterna entre perfil/estadísticas y las 4 pestañas.
+// Se conecta con: settings_sheet_new.dart (misma library).
+// Parte del flujo: Ajustes (pestañas burbuja).
+// ─────────────────────────────────────────────────────────────
+
 part of 'settings_sheet_new.dart';
 
 /// Fila de bubble tabs (Apariencia, Descargas, Rendimiento, Más).

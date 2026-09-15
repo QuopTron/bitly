@@ -40,6 +40,12 @@ class _PaginaWebViewOAuthState extends State<PaginaWebViewOAuth> {
       'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 '
       '(KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36';
 
+  /// UA de Chrome escritorio: en Windows/Linux la WebView no tiene UA propio
+  /// y Google bloquea el sign-in detectando "OAuthLib" en el UA.
+  static const _uaChromeEscritorio =
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+      '(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
+
   @override
   void initState() {
     super.initState();
@@ -54,9 +60,23 @@ class _PaginaWebViewOAuthState extends State<PaginaWebViewOAuth> {
       ..loadRequest(Uri.parse(widget.authUrl));
 
     // UA tipo Chrome para que el consentimiento se renderice en la WebView.
+    // En Android se usa el UA móvil; en Windows/Linux se usa el de escritorio
+    // para que Google no bloquee el sign-in detectando una WebView sin UA.
     final plataforma = _controlador.platform;
     if (plataforma is AndroidWebViewController) {
       unawaited(plataforma.setUserAgent(_uaChromeMovil));
+    } else {
+      // webview_win_floating / webview_flutter_wkwebview: setters genéricos.
+      unawaited(_aplicarUA(plataforma));
+    }
+  }
+
+  Future<void> _aplicarUA(dynamic plataforma) async {
+    try {
+      await (plataforma as dynamic).setUserAgent(_uaChromeEscritorio);
+    } catch (_) {
+      // Plataformas sin setUserAgent: el sign-in puede fallar; el flujo
+      // de retry en _conectarInAppConReintento lo maneja.
     }
   }
 

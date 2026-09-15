@@ -1,3 +1,10 @@
+// ─────────────────────────────────────────────────────────────
+// settings_sheet_stats_top_section.dart — PART de settings_sheet_new.dart: sección de top canciones más
+// escuchadas del usuario.
+// Se conecta con: settings_sheet_new.dart (misma library).
+// Parte del flujo: Ajustes (estadísticas).
+// ─────────────────────────────────────────────────────────────
+
 part of 'settings_sheet_new.dart';
 
 class _StatsTopTracksSection extends StatelessWidget {

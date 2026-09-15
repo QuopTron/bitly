@@ -8,7 +8,9 @@
 // Parte del flujo: reproductor (modal de cola, hoja).
 // ─────────────────────────────────────────────────────────────
 
+
 part of 'modal_cola.dart';
+
 
 class _HojaCola extends StatelessWidget {
   final bool mostrarVideo;
@@ -89,7 +91,7 @@ class _HojaCola extends StatelessWidget {
       if (cola.tracks.isNotEmpty) {
         return cola.tracks.first.coverUrl;
       }
-    } catch (_) {}
+    } catch (e) { debugPrint("[Feature] $e"); }
     return null;
   }
 }
@@ -101,59 +103,4 @@ class _VeloColaEstilo extends StatefulWidget {
   const _VeloColaEstilo({required this.esOscuro, required this.caratula});
   @override
   State<_VeloColaEstilo> createState() => _VeloColaEstiloState();
-}
-
-class _VeloColaEstiloState extends State<_VeloColaEstilo> {
-  Color? _acento;
-  @override
-  void initState() {
-    super.initState();
-    _extraerColor();
-  }
-  @override
-  void didUpdateWidget(covariant _VeloColaEstilo oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.caratula != widget.caratula) _extraerColor();
-  }
-  Future<void> _extraerColor() async {
-    if (widget.caratula == null || widget.caratula!.isEmpty) return;
-    try {
-      final paleta = await paletaParaPortada(widget.caratula);
-      if (mounted) setState(() => _acento = paleta?.dominante);
-    } catch (_) {}
-  }
-  @override
-  Widget build(BuildContext context) {
-    return ValueListenableBuilder<EstiloVisual>(
-      valueListenable: sl<ValueNotifier<EstiloVisual>>(),
-      builder: (context, estilo, _) {
-        return ValueListenableBuilder<PreferenciasEstilo>(
-          valueListenable: sl<ValueNotifier<PreferenciasEstilo>>(),
-          builder: (context, prefs, _) {
-            final spotify =
-                estilo == EstiloVisual.spotify && prefs.fondosModals;
-            if (spotify && _acento != null) {
-              final defaultBg = widget.esOscuro
-                  ? const Color(0xFF141414)
-                  : const Color(0xFFF6F6F6);
-              final colorFinal = Color.lerp(
-                defaultBg,
-                _acento!,
-                widget.esOscuro ? 0.35 : 0.25,
-              )!;
-              return AnimatedContainer(
-                duration: const Duration(milliseconds: 400),
-                curve: Curves.easeOutCubic,
-                color: colorFinal,
-              );
-            }
-            return Container(
-              color: (widget.esOscuro ? Colors.black : Colors.white)
-                  .withValues(alpha: widget.esOscuro ? 0.74 : 0.55),
-            );
-          },
-        );
-      },
-    );
-  }
 }

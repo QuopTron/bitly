@@ -31,8 +31,12 @@ export 'grant_verificacion.dart';
 
 part 'verificacion_estado.dart';
 part 'verificacion_keepalive.dart';
-part 'verificacion_lote.dart';
+part 'verificacion_silenciosa.dart';
+part 'verificacion_navegador.dart';
+part 'verificacion_dialogo.dart';
 part 'verificacion_mostrar.dart';
+part 'verificacion_fuentes.dart';
+part 'verificacion_lote.dart';
 part 'verificacion_ui.dart';
 
 final _logVerificacion = Logger();
@@ -52,7 +56,11 @@ class ServicioVerificacion
         WidgetsBindingObserver,
         VerificacionEstado,
         VerificacionKeepalive,
+        VerificacionSilenciosa,
+        VerificacionNavegador,
+        VerificacionDialogo,
         VerificacionMostrar,
+        VerificacionFuentes,
         VerificacionLote,
         VerificacionUi {
   static final ServicioVerificacion _instancia = ServicioVerificacion._();

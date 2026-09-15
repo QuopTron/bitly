@@ -37,7 +37,7 @@ mixin DescargasPollFallido on DescargasTrack {
             playableAlt = outputPath;
             _log.i('[poll] $rawId: Go reporta failed pero outputPath es reproducible: $outputPath — persistiendo');
           }
-        } catch (_) {}
+        } catch (e) { debugPrint("[Descargas] $e"); }
         // Fast path 1b: outputPath puede ser .tmp.XXX (antes del rename finalize).
         if (playableAlt == null && outputPath.contains('.tmp.')) {
           try {
@@ -47,7 +47,7 @@ mixin DescargasPollFallido on DescargasTrack {
               playableAlt = nonTmp;
               _log.i('[poll] $rawId: Go reporta failed pero el path non-tmp es reproducible: $nonTmp — persistiendo');
             }
-          } catch (_) {}
+          } catch (e) { debugPrint("[Descargas] $e"); }
         }
       }
       // Fast path 2: escanear el directorio buscando un archivo alternativo.
@@ -64,7 +64,7 @@ mixin DescargasPollFallido on DescargasTrack {
             id: nid, trackName: meta?.name ?? '', artistName: meta?.artist ?? '',
             filePath: playableAlt, service: meta?.source ?? '',
           );
-        } catch (_) {}
+        } catch (e) { debugPrint("[Descargas] $e"); }
         _completadosPersistidos.add(rawId);
         dl[stateKey] = const DatosEstadoDescarga(estado: EstadoDescarga.completado, progreso: 1.0);
         _senializarTrackTerminado(stateKey);

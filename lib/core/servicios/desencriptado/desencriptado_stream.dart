@@ -5,12 +5,12 @@
 // reproducible. Serializa las corridas para no saturar RAM.
 // Se conecta con: ffmpeg_kit + player_cubit/download_cubit.
 // Parte del flujo: reproducción/descarga de streams cifrados.
-// ─────────────────────────────────────────────────────────────
-
+// ─────────────────────────────────────────────────────────────import 'dart:async';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:ffmpeg_kit_flutter_new_audio/ffmpeg_kit.dart';
 
 part 'desencriptado_claves.dart';

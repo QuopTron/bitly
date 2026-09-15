@@ -1,3 +1,11 @@
+// ─────────────────────────────────────────────────────────────
+// settings_sheet_new.dart — Hoja de Ajustes principal: punto de entrada (showSettingsSheet),
+// el widget SettingsSheet y la lista de pestañas burbuja. Reúne los
+// parts que construyen las 4 pestañas y el perfil/estadísticas.
+// Se conecta con: todos los settings_sheet_*.dart (parts) + cubits + caches.
+// Parte del flujo: Ajustes (hoja modal).
+// ─────────────────────────────────────────────────────────────
+
 import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' show ImageFilter;
@@ -30,10 +38,11 @@ import '../../../core/servicios/proveedores/servicio_soulseek.dart';
 import '../../../config/secretos.dart';
 import '../../../app/inyeccion.dart';
 import '../../../shared/widgets/vidrio/contenedor_vidrio.dart';
-import '../secciones/settings_sections.dart';
+
+import '../secciones/settings_sections_reset.dart';
 import '../secciones/settings_cache_section.dart';
 import '../secciones/settings_performance_section.dart';
-import '../secciones/settings_stats.dart';
+import '../secciones/settings_storage_section.dart';
 import '../update/update_modal.dart';
 import '../../../shared/utilidades/portada/paleta_portada.dart';
 import '../../../shared/utilidades/formato/estilo_helper.dart';
@@ -43,9 +52,15 @@ import '../../../shared/widgets/tarjetas/portada/imagen_portada.dart' show image
 import '../../../core/modelos/usuario/estilo_visual.dart';
 import '../../../core/modelos/usuario/preferencias_estilo.dart';
 import '../../../core/modelos/usuario/perfil_rendimiento.dart';
+part 'settings_sheet_entry.dart';
+
 part 'settings_sheet_background.dart';
 part 'settings_sheet_profile_header.dart';
 part 'settings_sheet_appearance.dart';
+part 'settings_sheet_appearance_theme.dart';
+part 'settings_sheet_appearance_style.dart';
+part 'settings_sheet_appearance_granular.dart';
+part 'settings_sheet_appearance_toggle.dart';
 part 'settings_sheet_appearance_tile.dart';
 part 'settings_sheet_downloads_tab.dart';
 part 'settings_sheet_performance.dart';
@@ -61,7 +76,6 @@ part 'settings_sheet_download_rows.dart';
 part 'settings_sheet_download_picker.dart';
 part 'settings_sheet_download_labels.dart';
 part 'settings_sheet_download_quality_helpers.dart';
-
 part 'settings_sheet_more_tab.dart';
 part 'settings_sheet_google_tile.dart';
 part 'settings_sheet_google_content.dart';
@@ -78,7 +92,14 @@ part 'settings_sheet_report_submit.dart';
 part 'settings_sheet_report_chip.dart';
 part 'settings_sheet_report_type_toggle.dart';
 part 'settings_sheet_more_cards.dart';
-part 'settings_sheet_soulseek.dart';
+part 'settings_sheet_soulseek_card.dart';
+part 'settings_sheet_soulseek_tile.dart';
+part 'settings_sheet_soulseek_tile_visual.dart';
+part 'settings_sheet_soulseek_sheet.dart';
+part 'settings_sheet_soulseek_sheet_visual.dart';
+part 'settings_sheet_soulseek_form.dart';
+part 'settings_sheet_soulseek_password.dart';
+part 'settings_sheet_soulseek_header.dart';
 part 'settings_sheet_cache_card.dart';
 part 'settings_sheet_biblioteca_local.dart';
 part 'settings_sheet_version_sheet.dart';
@@ -93,81 +114,7 @@ part 'settings_sheet_stats_top_tile.dart';
 part 'settings_sheet_stats_helpers.dart';
 part 'settings_sheet_sheet_build.dart';
 part 'settings_sheet_sheet_widgets.dart';
-
-// Tab order: Apariencia first (live color), then Descargas, Rendimiento, Más.
-// Top-level para que los part files (p.ej. _BubbleTab) puedan leerlo.
-final List<({IconData icon, String label})> _bubbleTabs = [
-  (icon: Icons.palette_outlined, label: 'Apariencia'),
-  (icon: Icons.download_rounded, label: 'Descargas'),
-  (icon: Icons.speed_rounded, label: 'Rendimiento'),
-  (icon: Icons.more_horiz, label: 'Más'),
-];
-
-/// Reacts to the current queue + playback: when a track is loaded (and has a
-/// cover) the sheet gets tinted with the cover's dominant color via a blurred
-/// ambient backdrop; when playback stops / queue empties it fades back to the
-/// theme's default surface. Colors animate so the transition is smooth.
-///
-/// [tutorial] es opcional: cuando el tutorial interactivo abre la hoja, se la
-/// pasa para que la hoja siga el paso (qué pestaña mostrar).
-Future<void> showSettingsSheet(
-  BuildContext context, {
-  required String username,
-  required bool isDark,
-  required ValueChanged<bool> onThemeChanged,
-  required VoidCallback onLanguageChanged,
-  String likedCount = '0',
-  String downloadedCount = '0',
-  TutorialController? tutorial,
-}) {
-  // Devuelve el Future de la ruta: quien la abre sabe cuándo se cerró (el
-  // tutorial lo necesita para no cerrar algo que el usuario ya cerró).
-  return showModalBottomSheet<void>(
-    context: context,
-    backgroundColor: Colors.transparent,
-    isScrollControlled: true,
-    builder:
-        (_) => BlocProvider<CubitCola>.value(
-          value: sl<CubitCola>(),
-          child: SettingsSheet(
-            username: username,
-            isDark: isDark,
-            onThemeChanged: onThemeChanged,
-            onLanguageChanged: onLanguageChanged,
-            likedCount: likedCount,
-            downloadedCount: downloadedCount,
-            tutorial: tutorial,
-          ),
-        ),
-  );
-}
-
-// ─────────────────────────────────────────────────────
-//  Root widget
-// ─────────────────────────────────────────────────────
-class SettingsSheet extends StatefulWidget {
-  final String username;
-  final bool isDark;
-  final ValueChanged<bool> onThemeChanged;
-  final VoidCallback onLanguageChanged;
-  final String likedCount;
-  final String downloadedCount;
-
-  /// Si el tutorial interactivo abrió la hoja, para seguirlo pestaña por
-  /// pestaña. null = uso normal.
-  final TutorialController? tutorial;
-
-  const SettingsSheet({
-    super.key,
-    required this.username,
-    required this.isDark,
-    required this.onThemeChanged,
-    required this.onLanguageChanged,
-    this.likedCount = '0',
-    this.downloadedCount = '0',
-    this.tutorial,
-  });
-
-  @override
-  State<SettingsSheet> createState() => _SettingsSheetState();
-}
+part 'settings_sheet_body_state.dart';
+part 'settings_sheet_report_dialog_contenido.dart';
+part 'settings_sheet_soulseek_form_build.dart';
+part 'settings_sheet_biblioteca_local_build.dart';

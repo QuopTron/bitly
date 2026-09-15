@@ -1,3 +1,10 @@
+// ─────────────────────────────────────────────────────────────
+// settings_sheet_report_submit.dart — PART de settings_sheet_new.dart: envío del reporte al backend
+// con manejo de errores y acuse al usuario.
+// Se conecta con: settings_sheet_new.dart (misma library) + backend Go.
+// Parte del flujo: Ajustes → Más (enviar reporte).
+// ─────────────────────────────────────────────────────────────
+
 part of 'settings_sheet_new.dart';
 
 /// Crea un issue de GitHub en QuopTron/bitly con el token configurado.

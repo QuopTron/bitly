@@ -1,3 +1,10 @@
+// ─────────────────────────────────────────────────────────────
+// settings_sheet_premium_widgets.dart — PART de settings_sheet_new.dart: piezas visuales de la hoja
+// Premium (encabezado, íconos y estados).
+// Se conecta con: settings_sheet_new.dart (misma library).
+// Parte del flujo: Ajustes → Más (UI Premium).
+// ─────────────────────────────────────────────────────────────
+
 part of 'settings_sheet_new.dart';
 
 /// Header del sheet de activación: ícono Premium brillante + título

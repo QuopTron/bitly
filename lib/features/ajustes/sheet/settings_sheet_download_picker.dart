@@ -1,3 +1,10 @@
+// ─────────────────────────────────────────────────────────────
+// settings_sheet_download_picker.dart — PART de settings_sheet_new.dart: hoja de selección de calidad de
+// descarga (audio/video) con opciones y estado actual.
+// Se conecta con: settings_sheet_new.dart (misma library).
+// Parte del flujo: Ajustes → Descargas (selector).
+// ─────────────────────────────────────────────────────────────
+
 part of 'settings_sheet_new.dart';
 
 Future<void> _showPicker({

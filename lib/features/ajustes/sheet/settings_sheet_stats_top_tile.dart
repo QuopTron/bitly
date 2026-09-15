@@ -1,3 +1,10 @@
+// ─────────────────────────────────────────────────────────────
+// settings_sheet_stats_top_tile.dart — PART de settings_sheet_new.dart: tile de una canción del top de
+// más escuchadas (portada + contador).
+// Se conecta con: settings_sheet_new.dart (misma library).
+// Parte del flujo: Ajustes (estadísticas).
+// ─────────────────────────────────────────────────────────────
+
 part of 'settings_sheet_new.dart';
 
 /// Una fila del top de tracks más escuchados.

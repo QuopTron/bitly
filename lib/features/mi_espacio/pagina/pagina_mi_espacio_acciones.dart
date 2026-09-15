@@ -104,7 +104,7 @@ Future<void> _onCrearPlaylistDesdeDescargados(_PaginaMiEspacioState st) async {
         '${loc.setup.miSpacePlaylist} "$nombre" ${loc.setup.downloaded}',
       );
     }
-  } catch (_) {}
+  } catch (e) { debugPrint("[Feature] $e"); }
 }
 
 /// Descarga por lote (álbum/playlist) con la acción globalizada.

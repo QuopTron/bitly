@@ -1,3 +1,10 @@
+// ─────────────────────────────────────────────────────────────
+// settings_sheet_more_premium.dart — PART de settings_sheet_new.dart: tarjeta de estado Premium con
+// restante de prueba gratis y acceso a activación.
+// Se conecta con: settings_sheet_new.dart (misma library) + cache_premium.
+// Parte del flujo: Ajustes → Más (Premium).
+// ─────────────────────────────────────────────────────────────
+
 part of 'settings_sheet_new.dart';
 
 /// Card de cuenta Premium dentro del tab "Más" del settings sheet.
