@@ -13,13 +13,21 @@
 // (las funciones internas son declaraciones de primer nivel, así que se pueden
 // exponer concatenando código en el MISMO contexto) y verifica:
 //   1. normalizePoTokenProviderURL arma bien el endpoint /get_pot
-//   2. sin proveedor configurado se prueba PRIMERO el local (bgutil 4416):
-//      basta con levantar el contenedor para que YouTube deje de bloquear
-//   3. el contrato real de bgutil ({visitor_data} -> {po_token}) se usa de una
-//      sola petición, no dos
-//   4. mode=off no toca ningún proveedor
-//   5. un proveedor caído se enfría: las canciones siguientes NO pagan una
+//   2. al acuñar SIN proveedor configurado no se toca ningún endpoint: sondear
+//      los locales en medio de una canción costaba ~16 s cuando 10.0.2.2:4416
+//      (el alias del loopback del host visto desde el emulador) no contesta y
+//      deja la conexión colgada hasta el timeout
+//   3. con el proveedor configurado por el usuario se usa ESE endpoint, con el
+//      contrato real de bgutil ({content_binding} -> {poToken}) en UNA petición
+//   4. el proveedor viejo (≤1.x) que solo acepta visitor_data sigue soportado
+//      como segundo intento en el MISMO endpoint
+//   5. mode=off no toca ningún proveedor
+//   6. un proveedor caído se enfría: las canciones siguientes NO pagan una
 //      conexión fallida cada una
+//   7. el sondeo A PEDIDO (probarProveedorPoTokenLocal) sí prueba los locales,
+//      incluido el alias del emulador, y recuerda el endpoint que respondió
+//   8. el orden de clientes solo prioriza los que traen audio-only cuando hay
+//      un proveedor disponible; si no, vuelve solo al clásico (visionos)
 //
 // Uso (desde la raíz del repo):
 //   node scripts/pruebas/extensiones/ytmusic_pot.js
@@ -37,6 +45,7 @@ const ruta =
   process.argv[2] ||
   path.join(
     __dirname,
+    "..",
     "..",
     "..",
     "assets",
@@ -101,7 +110,9 @@ function cargar(fetchImpl) {
   const hook =
     "\n;globalThis.__t = { requestExternalGvsPoToken: requestExternalGvsPoToken," +
     " getGvsPoToken: getGvsPoToken, normalizePoTokenProviderURL: normalizePoTokenProviderURL," +
-    " poTokenProviderCandidates: poTokenProviderCandidates, get CONFIG() { return CONFIG; }," +
+    " poTokenProviderCandidates: poTokenProviderCandidates," +
+    " poTokenProviderCandidatesParaAcunar: poTokenProviderCandidatesParaAcunar," +
+    " get CONFIG() { return CONFIG; }," +
     " setTokenMode: function (m) { CONFIG.poTokenMode = m; }," +
     " clientesInnerTubeEnOrden: clientesInnerTubeEnOrden," +
     " proveedorPoTokenDisponible: proveedorPoTokenDisponible," +
@@ -216,21 +227,30 @@ console.log("\n== 1) normalizePoTokenProviderURL ==");
 }
 
 console.log(
-  "\n== 2) sin proveedor configurado se prueba el local (bgutil 4416) ==",
+  "\n== 2) al acuñar SIN proveedor configurado no se sondean los locales ==",
 );
 {
+  // Regresión que costaba ~16 s por canción: sondear 10.0.2.2:4416 (el alias del
+  // loopback del host visto desde el emulador) cuando no hay nadie escuchando NO
+  // rechaza la conexión: la deja colgada hasta el timeout. Acuñar en medio de una
+  // canción solo puede usar un endpoint que YA sirvió o uno configurado por el
+  // usuario. Los locales quedan solo para el sondeo a pedido (sección 7).
   const { t, llamadas } = cargar(serverBgutil2x());
   const cands = t.poTokenProviderCandidates();
   check(
-    "el primer candidato es el local 4416",
+    "la lista de sondeo incluye el local 4416 como primer candidato",
     cands[0] === "http://127.0.0.1:4416/get_pot",
     JSON.stringify(cands),
   );
-
   check(
-    "incluye el alias del emulador (10.0.2.2) para llegar al loopback del PC",
+    "la lista de sondeo incluye el alias del emulador (10.0.2.2)",
     cands.indexOf("http://10.0.2.2:4416/get_pot") !== -1,
     JSON.stringify(cands),
+  );
+  check(
+    "sin proveedor, la lista de ACUÑADO está vacía",
+    t.poTokenProviderCandidatesParaAcunar().length === 0,
+    JSON.stringify(t.poTokenProviderCandidatesParaAcunar()),
   );
 
   const out = t.requestExternalGvsPoToken(
@@ -239,8 +259,30 @@ console.log(
     "visitor1",
     false,
   );
+  check("devuelve vacío (no hay proveedor probado)", !out, JSON.stringify(out));
   check(
-    "devuelve el token del proveedor local",
+    "CERO peticiones: no se paga el cuelgue de 10.0.2.2",
+    llamadas.length === 0,
+    "hubo " + llamadas.length,
+  );
+}
+
+console.log(
+  "\n== 2b) proveedor configurado: contrato bgutil 2.x en UNA petición ==",
+);
+{
+  // El usuario pegó su proveedor en Ajustes: ESE endpoint es el que se usa para
+  // acuñar (nada de sondear los locales de paso).
+  const { t, llamadas } = cargar(serverBgutil2x());
+  t.CONFIG.poTokenProviderURL = "http://127.0.0.1:4416";
+  const out = t.requestExternalGvsPoToken(
+    "VIDEO1",
+    clienteGvs(),
+    "visitor1",
+    false,
+  );
+  check(
+    "devuelve el token del proveedor configurado",
     !!(out && out.token === "TOKEN_CONTENT_BINDING"),
     JSON.stringify(out),
   );
@@ -261,9 +303,10 @@ console.log(
   }
 }
 
-console.log("\n== 2b) proveedor VIEJO (1.x) que solo acepta visitor_data ==");
+console.log("\n== 2c) proveedor VIEJO (1.x) que solo acepta visitor_data ==");
 {
   const { t, llamadas } = cargar(serverBgutil1x());
+  t.CONFIG.poTokenProviderURL = "http://127.0.0.1:4416";
   const out = t.requestExternalGvsPoToken(
     "VIDEO2",
     clienteGvs(),
@@ -285,6 +328,7 @@ console.log("\n== 2b) proveedor VIEJO (1.x) que solo acepta visitor_data ==");
 console.log("\n== 3) mode=off no consulta ningún proveedor ==");
 {
   const { t, llamadas } = cargar(() => respuestaBgutil("TOKEN", "v"));
+  t.CONFIG.poTokenProviderURL = "http://127.0.0.1:4416";
   t.setTokenMode("off");
   const out = t.getGvsPoToken("VIDEO1", clienteGvs(), "visitor1", false);
   check("devuelve vacío", !out, String(out));
@@ -299,7 +343,7 @@ console.log(
     throw new Error("connect ECONNREFUSED 127.0.0.1:4416");
   });
   t.setTokenMode("auto");
-  const candidatos = t.poTokenProviderCandidates().length;
+  t.CONFIG.poTokenProviderURL = "http://127.0.0.1:4416";
   const uno = t.requestExternalGvsPoToken("V1", clienteGvs(), "vd", false);
   const tras1 = llamadas.length;
   const dos = t.requestExternalGvsPoToken("V2", clienteGvs(), "vd", false);
@@ -307,31 +351,28 @@ console.log(
   const tres = t.requestExternalGvsPoToken("V3", clienteGvs(), "vd", false);
   const tras3 = llamadas.length;
   check("primer intento devuelve vacío", !uno, String(uno));
-  check("segundo y tercer intento tampoco inventan token", !dos && !tres);
   check(
-    "la 1ra canción prueba a lo sumo los candidatos locales (" +
-      candidatos +
-      ")",
-    tras1 <= candidatos,
+    "el primer intento sí pagó la conexión (una sola vez)",
+    tras1 === 1,
     "hubo " + tras1,
   );
+  check("segundo y tercer intento tampoco inventan token", !dos && !tres);
   check(
-    "la 2da canción completa los candidatos, no reinicia la lista",
-    tras2 <= candidatos,
-    "hubo " + tras2,
+    "a partir del 1er fallo CERO conexiones (todo en cooldown)",
+    tras2 === tras1 && tras3 === tras2,
+    tras1 + " -> " + tras2 + " -> " + tras3,
   );
   check(
-    "a partir de ahí CERO conexiones (todo en cooldown)",
-    tras3 === tras2,
-    "pasó de " + tras2 + " a " + tras3,
+    "el endpoint en cooldown deja de ofrecerse para acuñar",
+    t.poTokenProviderCandidatesParaAcunar().length === 0,
   );
 }
 
-console.log("\n== 4b) proveedor SOLO alcanzable por el alias del emulador ==");
+console.log("\n== 4b) el sondeo A PEDIDO sí prueba el alias del emulador ==");
 {
-  // Reproduce el caso real del emulador: el server corre en el PC, así que
+  // Reproduce el botón "probar proveedor": el server corre en el PC, así que
   // 127.0.0.1/localhost (dentro del emulador) rechazan la conexión y solo
-  // 10.0.2.2 contesta. Sin ese candidato, YouTube queda bloqueado en el emulador.
+  // 10.0.2.2 contesta. Acá sí se pagan las conexiones, pero UNA vez y a pedido.
   const { t, llamadas } = cargar((url) => {
     if (String(url).indexOf("10.0.2.2:4416") === -1) {
       throw new Error("connect ECONNREFUSED " + url);
@@ -344,6 +385,7 @@ console.log("\n== 4b) proveedor SOLO alcanzable por el alias del emulador ==");
     clienteGvs(),
     "vd",
     false,
+    true,
   );
   check(
     "encuentra el proveedor por el alias del emulador",
@@ -352,15 +394,24 @@ console.log("\n== 4b) proveedor SOLO alcanzable por el alias del emulador ==");
   );
   check(
     "de la lista de candidatos, el último que contesta es el alias",
-    String(llamadas[llamadas.length - 1].url).indexOf("10.0.2.2:4416") !== -1,
+    llamadas.length > 0 &&
+      String(llamadas[llamadas.length - 1].url).indexOf("10.0.2.2:4416") !== -1,
     llamadas.map((l) => l.url).join(" -> "),
+  );
+  check(
+    "el endpoint que respondió queda recordado como working",
+    t.poTokenProviderCandidatesParaAcunar().length === 1 &&
+      t.poTokenProviderCandidatesParaAcunar()[0].indexOf("10.0.2.2:4416") !==
+        -1,
+    JSON.stringify(t.poTokenProviderCandidatesParaAcunar()),
   );
 }
 
-console.log("\n== 5) mode=auto con proveedor sano ==");
+console.log("\n== 5) mode=auto con proveedor configurado y sano ==");
 {
   const { t, llamadas, avisos } = cargar(serverBgutil2x());
   t.setTokenMode("auto");
+  t.CONFIG.poTokenProviderURL = "http://127.0.0.1:4416";
   const tok = t.getGvsPoToken("VIDEO9", clienteGvs(), "visitor9", false);
   check(
     "getGvsPoToken devuelve el token",
@@ -394,43 +445,64 @@ console.log(
   "\n== 6) orden de clientes: solo se priorizan los que dan audio-only si HAY proveedor ==",
 );
 {
-  // Proveedor caído. Antes de intentar nada no se puede saber que está caído,
-  // así que el primer intento va optimista (prioriza los clientes con token) y
-  // ESE intento es el que lo marca en cooldown. Lo que importa —y es el
-  // invariante que evita degradar la app cuando no hay proveedor— es que a
-  // partir de ahí el orden VUELVE solo al clásico: no queda priorizando
-  // clientes que no pueden funcionar en cada canción.
+  // Sin proveedor configurado la respuesta es inmediata: no hay nada que probar,
+  // así que el orden queda en el clásico (visionos primero) y no se paga ni una
+  // conexión. Es el estado por defecto de la app.
   const sinProv = cargar(() => {
     throw new Error("connect ECONNREFUSED");
   });
   sinProv.t.setTokenMode("auto");
   check(
-    "proveedor caído: el 1er intento va optimista (no se puede saber antes de probar)",
-    sinProv.t.proveedorPoTokenDisponible() === true,
-  );
-
-  // Un intento real contra el proveedor caído.
-  sinProv.t.requestExternalGvsPoToken("V1", clienteGvs(), "vd", false);
-
-  check(
-    "proveedor caído: tras el fallo, proveedorPoTokenDisponible() = false",
+    "sin proveedor: proveedorPoTokenDisponible() = false",
     sinProv.t.proveedorPoTokenDisponible() === false,
   );
   const clasico = sinProv.t.clientesInnerTubeEnOrden().map((c) => c.name);
   check(
-    "proveedor caído: el orden VUELVE al anónimo (empieza visionos)",
+    "sin proveedor: el orden queda en el anónimo (empieza visionos)",
     clasico.join(",") === sinProv.t.nombresClientesOriginales.join(","),
     clasico.join(","),
   );
   check(
-    "proveedor caído: el primero es visionos (anónimo sin PO token ni JS player)",
+    "sin proveedor: el primero es visionos (anónimo sin PO token ni JS player)",
     clasico[0] === "visionos",
     clasico[0],
+  );
+  check(
+    "sin proveedor: no se pagó ninguna conexión",
+    sinProv.llamadas.length === 0,
+    "hubo " + sinProv.llamadas.length,
+  );
+
+  // Proveedor configurado pero caído: el primer acuñado falla y lo marca en
+  // cooldown. Lo importante —y es el invariante que evita degradar la app— es
+  // que a partir de ahí el orden VUELVE solo al clásico: no queda priorizando
+  // clientes que no pueden funcionar en cada canción.
+  const caido = cargar(() => {
+    throw new Error("connect ECONNREFUSED");
+  });
+  caido.t.setTokenMode("auto");
+  caido.t.CONFIG.poTokenProviderURL = "http://127.0.0.1:4416";
+  check(
+    "proveedor configurado: proveedorPoTokenDisponible() = true",
+    caido.t.proveedorPoTokenDisponible() === true,
+  );
+  caido.t.requestExternalGvsPoToken("V1", clienteGvs(), "vd", false);
+  check(
+    "tras el fallo, proveedorPoTokenDisponible() = false",
+    caido.t.proveedorPoTokenDisponible() === false,
+  );
+  check(
+    "tras el fallo el orden VUELVE al anónimo (empieza visionos)",
+    caido.t
+      .clientesInnerTubeEnOrden()
+      .map((c) => c.name)
+      .join(",") === caido.t.nombresClientesOriginales.join(","),
   );
 
   // Con proveedor sano: los clientes que exigen token van PRIMERO.
   const conProv = cargar(serverBgutil2x());
   conProv.t.setTokenMode("auto");
+  conProv.t.CONFIG.poTokenProviderURL = "http://127.0.0.1:4416";
   check(
     "con proveedor: proveedorPoTokenDisponible() = true",
     conProv.t.proveedorPoTokenDisponible() === true,
@@ -619,6 +691,7 @@ console.log(
 
   const { t } = cargar(serverBgutil2x());
   t.setTokenMode("auto");
+  t.CONFIG.poTokenProviderURL = "http://127.0.0.1:4416";
 
   check(
     "la clave de audio y la de video son distintas para el mismo video",
