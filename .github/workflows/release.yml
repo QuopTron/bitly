@@ -93,6 +93,9 @@ jobs:
       - name: Build Go backend AAR (Android)
         run: |
           set -o pipefail
+          # gomobile NO crea el directorio padre y android/app/libs está
+          # gitignoreado entero, así que en un checkout limpio no existe.
+          mkdir -p android/app/libs
           cd go_backend
           if ! gomobile bind -target=android -androidapi=24 -o "../android/app/libs/bitly.aar" . 2>&1 | tee /tmp/gomobile.log; then
             echo "::error::=== gomobile bind FAILED (tail del log) ==="
