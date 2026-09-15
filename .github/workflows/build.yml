@@ -203,6 +203,14 @@ jobs:
       - name: Flutter pub get
         run: flutter pub get
 
+      # El plugin libtorrent_flutter extrae su zip con `cmake -E tar`, que usa
+      # libarchive. Acá el plugin vive detrás de .plugin_symlinks y libarchive
+      # rechaza escribir a través de un symlink ("Cannot extract through
+      # symlink"). Dejamos el prebuilt listo antes de compilar.
+      - name: Preparar prebuilt de libtorrent (x64)
+        shell: pwsh
+        run: ./scripts/build/preparar_libtorrent_windows.ps1 -Arch x64
+
       # El default de shell en runners Windows es PowerShell, no bash — se fija
       # bash explícitamente para que el pipefail/tee/grep del diagnóstico funcionen.
       - name: Build Windows release

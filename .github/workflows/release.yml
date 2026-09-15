@@ -247,6 +247,15 @@ jobs:
       - name: Flutter pub get
         run: flutter pub get
 
+      # El plugin libtorrent_flutter extrae su zip con `cmake -E tar`, que usa
+      # libarchive. En CI el plugin vive detrás de .plugin_symlinks y libarchive
+      # rechaza escribir a través de un symlink ("Cannot extract through
+      # symlink"). Dejamos el prebuilt listo con Expand-Archive, que no tiene
+      # esa restricción, y el plugin salta la descarga.
+      - name: Preparar prebuilt de libtorrent (x64)
+        shell: pwsh
+        run: ./scripts/build/preparar_libtorrent_windows.ps1 -Arch x64
+
       - name: Build Windows release
         run: flutter build windows --release
 
@@ -350,6 +359,12 @@ jobs:
 
       - name: Flutter pub get
         run: flutter pub get
+
+      # Mismo motivo que en x64: libarchive no extrae a través del symlink de
+      # .plugin_symlinks. El zip arm64 trae los DLLs para la build nativa ARM64.
+      - name: Preparar prebuilt de libtorrent (arm64)
+        shell: pwsh
+        run: ./scripts/build/preparar_libtorrent_windows.ps1 -Arch arm64
 
       # En un host ARM64 Flutter compila a windows-arm64: la salida cae en
       # build/windows/arm64/runner/Release (el directorio usa
