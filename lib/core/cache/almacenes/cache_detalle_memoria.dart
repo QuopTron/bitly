@@ -32,7 +32,8 @@ class CacheDetalleMemoria {
     }
   }
 
-  bool _estaFresca(_Entrada e) => DateTime.now().millisecondsSinceEpoch < e.expiraEn;
+  bool _estaFresca(_Entrada e) =>
+      DateTime.now().millisecondsSinceEpoch < e.expiraEn;
 
   // ── Playlist ──
 
@@ -47,7 +48,10 @@ class CacheDetalleMemoria {
   }
 
   void setPlaylist(String id, DetallePlaylist detalle, {int? ttlMs}) {
-    _playlists[id] = _Entrada(detalle, DateTime.now().millisecondsSinceEpoch + (ttlMs ?? _ttlPorDefectoMs));
+    _playlists[id] = _Entrada(
+      detalle,
+      DateTime.now().millisecondsSinceEpoch + (ttlMs ?? _ttlPorDefectoMs),
+    );
     _desalojarSiNecesario(_playlists);
   }
 
@@ -66,7 +70,10 @@ class CacheDetalleMemoria {
   }
 
   void setAlbum(String id, DetalleAlbum detalle, {int? ttlMs}) {
-    _albums[id] = _Entrada(detalle, DateTime.now().millisecondsSinceEpoch + (ttlMs ?? _ttlPorDefectoMs));
+    _albums[id] = _Entrada(
+      detalle,
+      DateTime.now().millisecondsSinceEpoch + (ttlMs ?? _ttlPorDefectoMs),
+    );
     _desalojarSiNecesario(_albums);
   }
 
@@ -85,7 +92,10 @@ class CacheDetalleMemoria {
   }
 
   void setArtista(String id, DetalleArtista detalle, {int? ttlMs}) {
-    _artists[id] = _Entrada(detalle, DateTime.now().millisecondsSinceEpoch + (ttlMs ?? _ttlPorDefectoMs));
+    _artists[id] = _Entrada(
+      detalle,
+      DateTime.now().millisecondsSinceEpoch + (ttlMs ?? _ttlPorDefectoMs),
+    );
     _desalojarSiNecesario(_artists);
   }
 

@@ -1,10 +1,16 @@
 // ─────────────────────────────────────────────────────────────
 // reproductor_completado_guards.dart — PART de cubit_reproductor.dart:
 // detección de completaciones FALSAS del track — EOF de stream
-// muerto/truncado (el player quedaría en un limbo de silencio) y
-// stream corto tipo preview de 30s. En ambos casos re-abre el MISMO
-// track una vez por el pipeline con respaldo de descarga y avisa al
-// llamador que NO hay que avanzar la cola.
+// muerto/truncado, clip corto tipo preview de 30s y evento espurio de
+// media_kit — re-abriendo el MISMO track una vez por el pipeline con
+// respaldo de descarga.
+//
+// La DECISIÓN vive en decision_completado.dart (pura y testeada); acá
+// solo se aplica: se reabre cuando corresponde y se avisa al llamador
+// que NO hay que avanzar la cola. Ninguna rama deja la cola en pausa
+// sin avanzar: ese era el bug de "termina y se queda muda". Cuando la
+// decisión es IGNORAR queda agendada la red de seguridad del avance
+// (reproductor_avance_seguro.dart) por si el audio ya había terminado.
 // Cadena de mixins: … → limpieza → completado_guards → completado.
 // Se conecta con: cubit_reproductor.dart (misma library).
 // Parte del flujo: reproducción (fin de canción / stream roto).
@@ -12,67 +18,76 @@
 
 part of 'cubit_reproductor.dart';
 
-mixin ReproductorCompletadoGuards on ReproductorLimpieza {
-  /// True cuando la completación fue FALSA y ya se reintentó: el
-  /// llamador debe salir sin avanzar la cola.
+mixin ReproductorCompletadoGuards on ReproductorAvanceSeguro {
+  /// True cuando la completación fue FALSA y ya se recuperó: el llamador debe
+  /// salir sin avanzar la cola. En cualquier otro caso devuelve false y la
+  /// cola avanza (nunca se queda muda).
   bool _completacionFalsa(
     ItemFeed? completado,
     bool desdeHttp,
     int durMs,
     int posMs,
   ) {
-    // ── Guard de EOF de stream muerto/truncado ─────────────────────────────
-    // Una completación con duración real que murió antes de entregar audio
-    // significativo = media muerto (proxy vacío, 403 silencioso, tubería
-    // cortada). NO es fin de archivo: el player quedaba en un limbo
-    // "pausado sin reproducir" que solo limpiaba una descarga de fondo
-    // (30s+ de silencio). Re-resolver el MISMO track una vez por el pipeline
-    // de descarga; si muere igual, avanzar y pasarlo.
-    final eofStreamMuerto =
-        completado != null && desdeHttp && durMs > 0 && posMs <= durMs * 0.10;
-    if (eofStreamMuerto) {
-      final normId = normalizarId(completado.id);
-      if (_muertosStreamRecuperados.add(normId)) {
-        debugPrint(
-          '[Player] EOF de stream muerto (pos=$posMs, dur=$durMs) '
-          'para $normId — re-resolviendo vía respaldo de descarga.',
-        );
-        _cacheUrlStream.remove(_claveCacheStream(normId));
-        _futuresStream.remove(_claveCacheStream(normId));
-        _urlRotaPorTrack[normId] = _ultimaUriAbierta ?? '';
-        unawaited(_openTrack(completado));
+    if (completado == null) return false;
+    final normId = normalizarId(completado.id);
+    final msDesdeOpen = _tsMediaAbierto == null
+        ? -1
+        : DateTime.now().difference(_tsMediaAbierto!).inMilliseconds;
+
+    final decision = decidirCompletado(
+      desdeHttp: desdeHttp,
+      durMs: durMs,
+      posMs: posMs,
+      duracionCatalogoMs: completado.durationMs ?? 0,
+      msDesdeOpen: msDesdeOpen,
+      yaSeIntentoPreview: _tracksRecuperadosPreview.contains(normId),
+      yaSeIntentoStreamMuerto: _muertosStreamRecuperados.contains(normId),
+    );
+
+    switch (decision) {
+      case DecisionCompletado.avanzar:
+        return false;
+      case DecisionCompletado.ignorar:
+        // `completed` espurio justo tras open: se asume que el audio sigue
+        // sonando y no se avanza. Pero si en realidad el media terminó, la
+        // cola quedaría muda: se agenda la revisión de seguridad.
+        _agendarAvanceSeguro('completado espurio descartado');
         return true;
-      }
-    } else if (durMs <= 0 || posMs < durMs - 1500) {
-      return true;
+      case DecisionCompletado.reabrirMismo:
+        _recuperarMismoTrack(completado, normId, durMs, posMs);
+        return true;
     }
+  }
 
-    // ── Guard anti-preview ─────────────────────────────────────────────────
-    // Un stream http directo que termina MUY corto de la duración real es casi
-    // seguro un preview/clip de 30s. Avanzar en esa completación falsa
-    // saltaría la canción real — re-abrir el MISMO track una vez vía respaldo
-    // de descarga (que valida la longitud completa).
-    final esperadoMs = completado?.durationMs ?? 0;
-    final reproducidoMs = durMs;
-    if (completado != null &&
-        desdeHttp &&
-        esperadoMs >= 60000 &&
-        reproducidoMs > 0 &&
-        reproducidoMs <= esperadoMs * 0.55) {
-      final normId = normalizarId(completado.id);
-      if (_tracksRecuperadosPreview.add(normId)) {
-        debugPrint(
-          '[Player] Stream corto para $normId: sonó $reproducidoMs '
-          'ms de $esperadoMs ms esperados — re-resolviendo vía respaldo.',
-        );
-        _cacheUrlStream.remove(_claveCacheStream(normId));
-        _futuresStream.remove(_claveCacheStream(normId));
-        _urlRotaPorTrack[normId] = _ultimaUriAbierta!;
-        unawaited(_openTrack(completado));
-        return true; // NO avanzar la cola en la completación falsa del clip
-      }
-    }
-
-    return false;
+  /// Re-resuelve el MISMO track por el pipeline con respaldo de descarga,
+  /// marcando cuál de los dos presupuestos se gastó (preview o stream muerto).
+  /// Cada track tiene UNA recuperación por motivo: si se agota, la cola avanza
+  /// para no quedar en pausa.
+  void _recuperarMismoTrack(
+    ItemFeed completado,
+    String normId,
+    int durMs,
+    int posMs,
+  ) {
+    final esPreview = durMs > 0 &&
+        (completado.durationMs ?? 0) >= 60000 &&
+        durMs <= (completado.durationMs ?? 0) * fraccionPreviewCompletado;
+    final marca = esPreview ? _tracksRecuperadosPreview : _muertosStreamRecuperados;
+    marca.add(normId);
+    debugPrint(
+      '[Player] completación falsa (${esPreview ? "clip corto" : "stream truncado"}) '
+      'pos=$posMs dur=$durMs para $normId — re-resolviendo el MISMO track.',
+    );
+    // La URL cacheada es la que falló: descartarla para forzar el respaldo —
+    // y PERSISTIR el descarte, porque si no el caché en disco la revive en el
+    // próximo arranque y la canción vuelve a cortarse a los 30s. La re-apertura
+    // pide el pipeline completo (con respaldo), así que el backend devuelve el
+    // archivo real en vez de otro clip.
+    final clave = _claveCacheStream(normId);
+    _cacheUrlStream.remove(clave);
+    _futuresStream.remove(clave);
+    _urlRotaPorTrack[normId] = _ultimaUriAbierta ?? '';
+    unawaited(_guardarCachePersistente());
+    unawaited(_openTrack(completado));
   }
 }

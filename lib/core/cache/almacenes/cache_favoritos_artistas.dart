@@ -16,13 +16,21 @@ mixin CacheFavoritosArtistas {
   /// Lista de artistas favoritos en JSON (claves camelCase + snake_case).
   Future<String> getArtistasFavoritos() async {
     final items = await _dao.getFavoriteArtists();
-    final lista = items.map((e) => <String, dynamic>{
-      'artistId': e.artistId, 'name': e.name,
-      'imageUrl': e.imageUrl, 'imagePath': e.imagePath ?? '',
-      'provider': e.provider ?? '',
-      'addedAt': e.addedAt.toIso8601String(),
-      'artist_id': e.artistId, 'image_url': e.imageUrl,
-    }).toList();
+    final lista =
+        items
+            .map(
+              (e) => <String, dynamic>{
+                'artistId': e.artistId,
+                'name': e.name,
+                'imageUrl': e.imageUrl,
+                'imagePath': e.imagePath ?? '',
+                'provider': e.provider ?? '',
+                'addedAt': e.addedAt.toIso8601String(),
+                'artist_id': e.artistId,
+                'image_url': e.imageUrl,
+              },
+            )
+            .toList();
     return jsonEncode(lista);
   }
 

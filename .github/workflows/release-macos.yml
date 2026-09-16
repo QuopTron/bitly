@@ -148,14 +148,14 @@ jobs:
           # 2b) Firmar el código SUELTO: dylibs, .so y ejecutables que NO viven
           #     dentro de un .framework.
           #
-          #     Qué bug arregla: libtorrent_flutter (el motor de torrents) instala
-          #     Contents/Frameworks/liblibtorrent_flutter.dylib — un dylib suelto,
-          #     sin .framework alrededor. Antes solo se firmaban los .framework,
-          #     así que ese dylib quedaba sin firma y el codesign final del .app
-          #     moría con "code object is not signed at all / In subcomponent:
-          #     ...liblibtorrent_flutter.dylib". El job terminaba ANTES del
-          #     hdiutil, así que el DMG no se generaba nunca y el release salía
-          #     sin asset de macOS.
+          #     Qué bug arregla: hay binarios que NO viven dentro de un
+          #     .framework — el dylib del backend Go del propio proyecto y los
+          #     dylibs sueltos que agregan otras dependencias nativas. Antes solo
+          #     se firmaban los .framework, así que esos quedaban sin firma y el
+          #     codesign final del .app moría con "code object is not signed at
+          #     all / In subcomponent: ...". El job terminaba ANTES del hdiutil,
+          #     así que el DMG no se generaba nunca y el release salía sin asset
+          #     de macOS.
           #
           #     Se recorre por glob y NO con `find | while`: el `while` de una
           #     tubería corre en un subshell, y con `bash -e` (el default de
@@ -262,7 +262,7 @@ jobs:
         run: |
           mkdir -p ios/Frameworks
           cd go_backend
-          gomobile bind -target=ios -o ../ios/Frameworks/Gobackend.xcframework .
+          gomobile bind -target=ios -ldflags="-s -w" -o ../ios/Frameworks/Gobackend.xcframework .
           ls -lh ../ios/Frameworks/
 
       - name: Setup Flutter

@@ -2,8 +2,10 @@
 // reproductor_stream_resolve.dart — PART de cubit_reproductor.dart:
 // resolución de la URL de stream con caché en memoria + persistente:
 // reuso de resultados de preload, probe de vida de URLs cacheadas,
-// deduplicación de resoluciones concurrentes y reuso de la URL probe
-// como plan B cuando el respaldo de descarga no produjo copia.
+// deduplicación de resoluciones concurrentes, reuso de la URL probe
+// como plan B cuando el respaldo de descarga no produjo copia y el
+// rechazo de URLs que huelen a CLIP de 30s (una entrada vieja del caché
+// persistente no puede volver a cortar la canción).
 // Se conecta con: reproductor_stream_pipeline.dart (misma library).
 // Parte del flujo: reproducción (resolver URL de streaming).
 // ─────────────────────────────────────────────────────────────
@@ -41,6 +43,7 @@ mixin ReproductorStreamResolve on ReproductorStreamPipeline {
     // fuente de stream completo. Un stream que ya falló fuerza re-resolución.
     if (cacheado != null &&
         !_urlStreamVieja(cacheado) &&
+        !_urlParecePreview(cacheado.url) &&
         (esPreload ||
             cacheado.conRespaldo ||
             (_puedeReusarPreloadDirecto(track, cacheado.url) &&
@@ -85,7 +88,10 @@ mixin ReproductorStreamResolve on ReproductorStreamPipeline {
       }
       // Un tap real que no pudo producir una copia de calidad de descarga
       // todavía tiene la URL de stream directo del preload como plan B.
-      if (!esPreload && cacheado != null && !cacheado.conRespaldo) {
+      if (!esPreload &&
+          cacheado != null &&
+          !cacheado.conRespaldo &&
+          !_urlParecePreview(cacheado.url)) {
         if (_urlRotaPorTrack[normKey] != cacheado.url) return cacheado.url;
       }
       return url;
@@ -97,5 +103,25 @@ mixin ReproductorStreamResolve on ReproductorStreamPipeline {
         _futuresStream.remove(key);
       }
     }
+  }
+
+  /// Marcadores de una URL de MUESTRA (clip de ~30s). El backend ya rechaza
+  /// estos candidatos; esto evita además que el caché persistente (guardado
+  /// por versiones anteriores) vuelva a servir un clip.
+  bool _urlParecePreview(String url) {
+    final u = url.toLowerCase();
+    for (final marca in const [
+      '/sample',
+      'sample/',
+      'sample?',
+      'sample_',
+      '_sample',
+      'preview',
+      '/30s',
+      '_30s',
+    ]) {
+      if (u.contains(marca)) return true;
+    }
+    return false;
   }
 }

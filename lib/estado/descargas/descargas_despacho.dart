@@ -39,7 +39,10 @@ mixin DescargasDespacho on DescargasBorrarLote {
     // Guardar SOLO por baseId — no agregar audioKey al mapa de descargas
     // porque el escaneo por prefijo de la UI lo vería como entrada aparte,
     // mostrando varios puntos naranjas para el mismo track.
-    dl[baseId] = const DatosEstadoDescarga(estado: EstadoDescarga.enProgreso, progreso: 0.0);
+    dl[baseId] = const DatosEstadoDescarga(
+      estado: EstadoDescarga.enProgreso,
+      progreso: 0.0,
+    );
     if (itemId.isNotEmpty) _itemIdAKeyEstado[itemId] = baseId;
     // Usar el ID normalizado para consistencia con BD y borrado.
     final normalizedTrackId = normalizarId(itemId);
@@ -53,8 +56,10 @@ mixin DescargasDespacho on DescargasBorrarLote {
       (metaComun['isrc'] as String?) ?? '',
     );
     _iniciadosEn[baseId] = DateTime.now();
-    _log.i('[despacharTrackIndividual] baseId=$baseId itemId="$itemId" titulo="${metaComun['track_title']}" '
-        'artista="${metaComun['artist_name']}" isrc="${metaComun['isrc']}" source="${metaComun['source']}"');
+    _log.i(
+      '[despacharTrackIndividual] baseId=$baseId itemId="$itemId" titulo="${metaComun['track_title']}" '
+      'artista="${metaComun['artist_name']}" isrc="${metaComun['isrc']}" source="${metaComun['source']}"',
+    );
     _asegurarPolling();
 
     final audioStrategy = <String, dynamic>{

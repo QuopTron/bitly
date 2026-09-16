@@ -18,7 +18,9 @@ part of 'cubit_descargas.dart';
 mixin DescargasTrackBatch on DescargasTrackBorrar {
   @override
   Future<void> _actualizarEstadoLoteTrasBorrar(
-      String normalizedId, Map<String, DatosEstadoDescarga> dl) async {
+    String normalizedId,
+    Map<String, DatosEstadoDescarga> dl,
+  ) async {
     for (final batchKey in _batchTrackIds.keys.toList()) {
       final trackIds = _batchTrackIds[batchKey]!;
       // Encontrar el audioId de este lote que coincide con el ID normalizado.
@@ -50,19 +52,28 @@ mixin DescargasTrackBatch on DescargasTrackBorrar {
             final st = dl[id]?.estado;
             if (st == EstadoDescarga.completado) {
               completados++;
-            } else if (st == EstadoDescarga.ninguno || st == EstadoDescarga.interrumpido) {
+            } else if (st == EstadoDescarga.ninguno ||
+                st == EstadoDescarga.interrumpido) {
               detenidos++;
             }
           }
           final total = trackIds.length;
           final todoListo = (completados + detenidos) >= total;
           if (todoListo && completados == total) {
-            dl[batchKey] = const DatosEstadoDescarga(estado: EstadoDescarga.completado, progreso: 1.0);
+            dl[batchKey] = const DatosEstadoDescarga(
+              estado: EstadoDescarga.completado,
+              progreso: 1.0,
+            );
             await _finalizarLoteCompletado(batchKey, trackIds);
             _batchTrackIds.remove(batchKey);
           } else {
             dl[batchKey] = DatosEstadoDescarga(
-              estado: todoListo ? EstadoDescarga.ninguno : (completados > 0 ? EstadoDescarga.enProgreso : EstadoDescarga.ninguno),
+              estado:
+                  todoListo
+                      ? EstadoDescarga.ninguno
+                      : (completados > 0
+                          ? EstadoDescarga.enProgreso
+                          : EstadoDescarga.ninguno),
               progreso: total > 0 ? completados / total : 0.0,
             );
           }

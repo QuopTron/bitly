@@ -2,6 +2,7 @@ package gobackend
 
 import (
 	"encoding/json"
+	"log"
 
 	"github.com/zarz/bitly/go_backend/internal/streaming"
 )
@@ -28,10 +29,15 @@ func streamPackageFallback(params *streamPackageParams) string {
 	if streaming.IsFullStreamProvider(params.PreferredProvider) {
 		url, name, err := streaming.StreamQuick(reg, params.PreferredProvider, params.TrackID, params.Quality, params.ISRC, params.SpotifyID, params.DeezerID, params.TidalID, params.QobuzID, params.TrackName, params.ArtistName)
 		if err == nil && url != "" {
-			streamFailClear(failKey)
-			pkg := &streaming.StreamPackage{AudioURL: url, Provider: name, Quality: params.Quality}
-			data, _ := json.Marshal(pkg)
-			return string(data)
+			// Un clip de ~30s NO es reproducir la canción: se descarta el
+			// candidato y el flujo sigue (rescate y, si no, descarga real).
+			if !streaming.EsPreviewStream(url, name, params.DurationMS, params.Quality) {
+				streamFailClear(failKey)
+				pkg := &streaming.StreamPackage{AudioURL: url, Provider: name, Quality: params.Quality}
+				data, _ := json.Marshal(pkg)
+				return string(data)
+			}
+			log.Printf("[play] %s devolvió un clip para este track: se busca la canción completa", name)
 		}
 		// El proveedor preferido tiene la cancion exacta pero necesita su
 		// sesion firmada verificada (p. ej. deezer VERIFY_REQUIRED). Se
@@ -52,10 +58,16 @@ func streamPackageFallback(params *streamPackageParams) string {
 	// may serve the same exact track via its ISRC / cross-provider id in
 	// ~1-2s. Probe them before committing to the slow download pipeline.
 	if url, name, err := streaming.RescueStreamURL(reg, params.Quality, params.ISRC, params.SpotifyID, params.DeezerID, params.TidalID, params.QobuzID, params.TrackName, params.ArtistName); err == nil && url != "" {
-		streamFailClear(failKey)
-		pkg := &streaming.StreamPackage{AudioURL: url, Provider: name, Quality: params.Quality}
-		data, _ := json.Marshal(pkg)
-		return string(data)
+		// Mismo guard que arriba: si el rescate solo consiguió un clip
+		// (espejo sin cuentas de pago, ítem de muestra de Archive), se cae
+		// a la descarga real en vez de cortar la canción a los 30s.
+		if !streaming.EsPreviewStream(url, name, params.DurationMS, params.Quality) {
+			streamFailClear(failKey)
+			pkg := &streaming.StreamPackage{AudioURL: url, Provider: name, Quality: params.Quality}
+			data, _ := json.Marshal(pkg)
+			return string(data)
+		}
+		log.Printf("[play] el rescate (%s) solo consiguió un clip: se baja la canción completa", name)
 	} else if verr, ok := err.(*streaming.VerifyRequiredError); ok {
 		// La cancion exacta se encontro en un proveedor full-stream pero su
 		// sesion no esta verificada y nada mas pudo streamearla. El

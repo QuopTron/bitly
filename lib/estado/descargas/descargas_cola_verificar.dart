@@ -38,10 +38,15 @@ mixin DescargasColaVerificar on DescargasCarga {
           try {
             final nid = meta.trackId.isNotEmpty ? meta.trackId : baseId;
             await _downloadCache.guardarTrackDescargado(
-              id: nid, trackName: meta.name, artistName: meta.artist ?? '',
-              filePath: diskAlt, service: meta.source,
+              id: nid,
+              trackName: meta.name,
+              artistName: meta.artist ?? '',
+              filePath: diskAlt,
+              service: meta.source,
             );
-          } catch (e) { debugPrint("[Descargas] $e"); }
+          } catch (e) {
+            debugPrint("[Descargas] $e");
+          }
           return true;
         }
       }
@@ -49,14 +54,21 @@ mixin DescargasColaVerificar on DescargasCarga {
       // SoundCloud .mp3 pueden existir aunque el poll nunca actualizó la BD).
       final diskAlt = await _buscarArchivoAlternativo(baseId);
       if (diskAlt != null) {
-        _log.i('[verificar] sin fila en BD pero encontrado en disco: $diskAlt para $baseId');
+        _log.i(
+          '[verificar] sin fila en BD pero encontrado en disco: $diskAlt para $baseId',
+        );
         try {
           final nid = meta.trackId.isNotEmpty ? meta.trackId : baseId;
           await _downloadCache.guardarTrackDescargado(
-            id: nid, trackName: meta.name, artistName: meta.artist ?? '',
-            filePath: diskAlt, service: meta.source,
+            id: nid,
+            trackName: meta.name,
+            artistName: meta.artist ?? '',
+            filePath: diskAlt,
+            service: meta.source,
           );
-        } catch (e) { debugPrint("[Descargas] $e"); }
+        } catch (e) {
+          debugPrint("[Descargas] $e");
+        }
         return true;
       }
       return false;
@@ -69,7 +81,9 @@ mixin DescargasColaVerificar on DescargasCarga {
       try {
         final nid = meta.trackId.isNotEmpty ? meta.trackId : baseId;
         await _downloadCache.actualizarRutaArchivo(nid, diskAlt);
-      } catch (e) { debugPrint("[Descargas] $e"); }
+      } catch (e) {
+        debugPrint("[Descargas] $e");
+      }
       return true;
     }
     return false;
@@ -92,14 +106,29 @@ mixin DescargasColaVerificar on DescargasCarga {
     required String baseId,
     String? calidadForzada,
   }) {
-    final itemId = metaComun['item_id'] as String? ?? metaComun['track_id'] as String? ?? '';
+    final itemId =
+        metaComun['item_id'] as String? ??
+        metaComun['track_id'] as String? ??
+        '';
     final source = metaComun['source'] as String? ?? '';
 
     final dl = Map<String, DatosEstadoDescarga>.from(state.descargas);
-    dl[baseId] = const DatosEstadoDescarga(estado: EstadoDescarga.enCola, progreso: 0.0);
+    dl[baseId] = const DatosEstadoDescarga(
+      estado: EstadoDescarga.enCola,
+      progreso: 0.0,
+    );
     emit(state.copiarCon(descargas: dl));
 
-    _colaDescargas.add(_TrackEnCola(metaComun, itemId, source, ajustes, calidadForzada, '_singles'));
+    _colaDescargas.add(
+      _TrackEnCola(
+        metaComun,
+        itemId,
+        source,
+        ajustes,
+        calidadForzada,
+        '_singles',
+      ),
+    );
     _procesarColaDescargas();
   }
 

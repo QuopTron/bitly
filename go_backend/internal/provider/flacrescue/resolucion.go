@@ -104,9 +104,6 @@ func (c *Client) resolverPorISRC(isrc string, formatos []string) (string, string
 	c.mu.RLock()
 	espejos := append([]string(nil), c.mirrors...)
 	c.mu.RUnlock()
-	if len(espejos) == 0 {
-		return "", "", errors.New("flac-rescue: sin espejos configurados")
-	}
 
 	claveCache := isrc + "@" + strings.Join(formatos, ",")
 	c.cacheMu.Lock()
@@ -118,6 +115,27 @@ func (c *Client) resolverPorISRC(isrc string, formatos []string) (string, string
 		return e.url, e.mirror, nil
 	}
 	c.cacheMu.Unlock()
+
+	// Canal Qobuz firmado PRIMERO cuando hay credenciales: devuelve una URL de
+	// CDN directa (suena al instante, sin bajar ni descifrar el archivo), así
+	// que pagar los espejos antes sería cambiar velocidad por nada. Sin
+	// credenciales esto no hace NI UNA petición (ver qobuzCredenciales), y va
+	// ANTES del control de espejos porque no los necesita.
+	//
+	// Para un pedido SIN PÉRDIDA la respuesta se verifica (ver qobuz_archivo.go):
+	// sin token de suscriptor Qobuz degrada a MP3, y en ese caso el canal falla a
+	// propósito para que los espejos (que sí pueden traer el FLAC) sigan teniendo
+	// la oportunidad.
+	if len(formatos) > 0 {
+		if audioURL, err := c.resolverQobuzFirmado(isrc, formatos[0]); err == nil {
+			c.guardarCache(claveCache, audioURL, "qobuz-firmado")
+			return audioURL, "qobuz-firmado", nil
+		}
+	}
+
+	if len(espejos) == 0 {
+		return "", "", errors.New("flac-rescue: sin espejos configurados")
+	}
 
 	// Los espejos que ya avisaron que no tienen cuentas vivas se saltan: probarlos
 	// cuesta un timeout entero por formato para un error que no va a cambiar en
@@ -134,21 +152,22 @@ func (c *Client) resolverPorISRC(isrc string, formatos []string) (string, string
 	}
 	espejos = vivos
 
+	// La cascada de formatos sigue siendo SERIAL (primero FLAC, después MP3):
+	// lo que va en paralelo son los espejos DENTRO de cada formato, así que el
+	// tiempo pasa a ser el del espejo más rápido en vez de la suma de todos.
 	fin := time.Now().Add(presupuestoTotal)
 	var ultimo error
 	for _, formato := range formatos {
-		for _, espejo := range espejos {
-			if time.Now().After(fin) {
-				return "", "", c.guardarFallo(claveCache, fmt.Errorf("tiempo agotado (%v)", ultimo))
-			}
-			audioURL, err := c.resolverEnEspejo(espejo, isrc, formato)
-			if err != nil {
-				ultimo = err
-				continue
-			}
-			c.guardarCache(claveCache, audioURL, espejo)
-			return audioURL, espejo, nil
+		if time.Now().After(fin) {
+			return "", "", c.guardarFallo(claveCache, fmt.Errorf("tiempo agotado (%v)", ultimo))
 		}
+		audioURL, espejo, err := c.carreraPorFormato(espejos, isrc, formato, fin)
+		if err != nil {
+			ultimo = err
+			continue
+		}
+		c.guardarCache(claveCache, audioURL, espejo)
+		return audioURL, espejo, nil
 	}
 	if ultimo == nil {
 		ultimo = errors.New("sin respuesta de los espejos")

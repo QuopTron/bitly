@@ -28,12 +28,16 @@ class _BubbleTabsRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: r.spacingXL),
+      // Padding parejo y chico: con 5 burbujas, el padding grande dejaba las
+      // últimas dos (Rendimiento y Estadísticas) pegadas al borde y fuera de
+      // eje respecto de las primeras.
+      padding: EdgeInsets.symmetric(horizontal: r.spacingS),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        // Sin spaceEvenly: cada burbuja ya ocupa un Expanded igual, y sumar
+        // reparto por espacios libres corría el eje cuando las etiquetas
+        // tenían distinto ancho.
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Expanded: con 5 burbujas (Compartidos incluida) los anchos se
-          // reparten y ninguna etiqueta desborda en pantallas chicas.
           for (var i = 0; i < _bubbleTabs.length; i++)
             Expanded(
               child: _BubbleTab(

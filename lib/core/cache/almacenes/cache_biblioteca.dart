@@ -27,8 +27,7 @@ class CacheBiblioteca {
     required int offset,
     String busqueda = '',
     String orden = '',
-  }) =>
-      _obtenerSiFresco(_clavePagina(limit, offset, busqueda, orden));
+  }) => _obtenerSiFresco(_clavePagina(limit, offset, busqueda, orden));
 
   Future<void> setPaginaBiblioteca({
     required int limit,
@@ -36,8 +35,7 @@ class CacheBiblioteca {
     String busqueda = '',
     String orden = '',
     required String json,
-  }) =>
-      _dao.set(_clavePagina(limit, offset, busqueda, orden), json);
+  }) => _dao.set(_clavePagina(limit, offset, busqueda, orden), json);
 
   // ── Conteo de biblioteca ────────────────────────────────────
 
@@ -46,8 +44,10 @@ class CacheBiblioteca {
   Future<String?> getConteoBiblioteca({String busqueda = ''}) =>
       _obtenerSiFresco(_claveConteo(busqueda));
 
-  Future<void> setConteoBiblioteca({String busqueda = '', required String json}) =>
-      _dao.set(_claveConteo(busqueda), json);
+  Future<void> setConteoBiblioteca({
+    String busqueda = '',
+    required String json,
+  }) => _dao.set(_claveConteo(busqueda), json);
 
   // ── Grupos de álbumes ───────────────────────────────────────
 
@@ -58,16 +58,14 @@ class CacheBiblioteca {
     required int limit,
     required int offset,
     String busqueda = '',
-  }) =>
-      _obtenerSiFresco(_claveGruposAlbumes(limit, offset, busqueda));
+  }) => _obtenerSiFresco(_claveGruposAlbumes(limit, offset, busqueda));
 
   Future<void> setGruposAlbumes({
     required int limit,
     required int offset,
     String busqueda = '',
     required String json,
-  }) =>
-      _dao.set(_claveGruposAlbumes(limit, offset, busqueda), json);
+  }) => _dao.set(_claveGruposAlbumes(limit, offset, busqueda), json);
 
   // ── Conteo de grupos de álbumes ─────────────────────────────
 
@@ -77,8 +75,10 @@ class CacheBiblioteca {
   Future<String?> getConteoGruposAlbumes({String busqueda = ''}) =>
       _obtenerSiFresco(_claveConteoGrupos(busqueda));
 
-  Future<void> setConteoGruposAlbumes({String busqueda = '', required String json}) =>
-      _dao.set(_claveConteoGrupos(busqueda), json);
+  Future<void> setConteoGruposAlbumes({
+    String busqueda = '',
+    required String json,
+  }) => _dao.set(_claveConteoGrupos(busqueda), json);
 
   // ── Conteo de tracks sueltos ────────────────────────────────
 
@@ -88,8 +88,10 @@ class CacheBiblioteca {
   Future<String?> getConteoTracksSueltos({String busqueda = ''}) =>
       _obtenerSiFresco(_claveConteoTracksSueltos(busqueda));
 
-  Future<void> setConteoTracksSueltos({String busqueda = '', required String json}) =>
-      _dao.set(_claveConteoTracksSueltos(busqueda), json);
+  Future<void> setConteoTracksSueltos({
+    String busqueda = '',
+    required String json,
+  }) => _dao.set(_claveConteoTracksSueltos(busqueda), json);
 
   // ── Operaciones en lote ─────────────────────────────────────
 

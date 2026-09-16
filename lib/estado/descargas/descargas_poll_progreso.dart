@@ -27,7 +27,8 @@ mixin DescargasPollProgreso on DescargasPollTimeout {
       final json = await _backend.getAllDownloadProgress();
       final data = json.isNotEmpty ? jsonDecode(json) : null;
       final rawItems = (data is Map) ? data['items'] : null;
-      final items = (rawItems is Map<String, dynamic>) ? rawItems : <String, dynamic>{};
+      final items =
+          (rawItems is Map<String, dynamic>) ? rawItems : <String, dynamic>{};
 
       // ── 0. Chequear si algún item necesita verificación ──
       if (items.isNotEmpty) {
@@ -36,7 +37,9 @@ mixin DescargasPollProgreso on DescargasPollTimeout {
           final p = entry.value as Map<String, dynamic>;
           final status = _estadoDe(p);
           if (status == 'verification_required') {
-            _log.i('[_pollProgreso] Detectado verification_required para ${entry.key}');
+            _log.i(
+              '[_pollProgreso] Detectado verification_required para ${entry.key}',
+            );
             // Marcar SOLO el track que necesita verificación como interrumpido,
             // no TODOS los en progreso — otros tracks pueden seguir
             // descargando exitosamente y no deben ser afectados.
@@ -44,7 +47,10 @@ mixin DescargasPollProgreso on DescargasPollTimeout {
             final stateKey = _itemIdAKeyEstado[rawId] ?? rawId;
             final dl = Map<String, DatosEstadoDescarga>.from(state.descargas);
             if (dl[stateKey]?.estado == EstadoDescarga.enProgreso) {
-              dl[stateKey] = const DatosEstadoDescarga(estado: EstadoDescarga.interrumpido, progreso: 0.0);
+              dl[stateKey] = const DatosEstadoDescarga(
+                estado: EstadoDescarga.interrumpido,
+                progreso: 0.0,
+              );
               emit(state.copiarCon(descargas: dl));
             }
             // Señalar a la cola para que no se bloquee en un track pegado.
@@ -91,19 +97,25 @@ mixin DescargasPollProgreso on DescargasPollTimeout {
         // estados modificados por _procesarColaDescargas durante gaps async
         // (p.ej. await de decrypt). Solo aplicar nuestro cambio cuando la key
         // no fue tocada desde el snapshot del inicio del poll.
-        final currentDl = Map<String, DatosEstadoDescarga>.from(state.descargas);
+        final currentDl = Map<String, DatosEstadoDescarga>.from(
+          state.descargas,
+        );
         for (final entry in dl.entries) {
           final current = currentDl[entry.key];
           final initial = initialPollDl[entry.key];
-          if (initial == null || current == null || current.estado == initial.estado) {
+          if (initial == null ||
+              current == null ||
+              current.estado == initial.estado) {
             currentDl[entry.key] = entry.value;
           }
         }
-        emit(state.copiarCon(
-          descargas: currentDl,
-          huellasDescargadas: fps,
-          errorDesencriptado: _errorDesencriptadoPendiente,
-        ));
+        emit(
+          state.copiarCon(
+            descargas: currentDl,
+            huellasDescargadas: fps,
+            errorDesencriptado: _errorDesencriptadoPendiente,
+          ),
+        );
         _errorDesencriptadoPendiente = null;
         _ajustarTasaRefreshHistorial();
       }

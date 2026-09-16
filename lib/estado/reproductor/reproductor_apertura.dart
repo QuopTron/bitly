@@ -14,6 +14,24 @@ part of 'cubit_reproductor.dart';
 
 /// Apertura de tracks. Mixin aplicado en CubitReproductor.
 mixin ReproductorApertura on ReproductorAperturaHelpers {
+  /// Abre [track] sin poder dejar el reproductor en un estado muerto.
+  ///
+  /// Quienes abren desde la cola (listener, track pendiente del arranque) no
+  /// pueden quedarse sin reacción: si _openTrack lanzara, el error subía como
+  /// no manejado y la cola quedaba muda (el miniplayer no aparecía y parecía
+  /// que la app se trabó). Acá el fallo se registra y el estado pasa a error,
+  /// que es lo que la UI ya sabe mostrar/reintentar.
+  Future<void> _abrirTrackSeguro(ItemFeed track) async {
+    try {
+      await _openTrack(track);
+    } catch (e, pila) {
+      debugPrint('[Reproductor] no se pudo abrir ${track.id}: $e\n$pila');
+      if (!isClosed) {
+        emit(state.copiarCon(estadoReproduccion: EstadoReproduccion.error));
+      }
+    }
+  }
+
   /// Abre y reproduce [track]: archivo local primero, luego stream en vivo
   /// (con verificación de sesión firmada si hace falta), y errores legibles.
   @override

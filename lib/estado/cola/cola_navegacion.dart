@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────
 // cola_navegacion.dart — PART de cubit_cola.dart. Navegación de la
-// cola: siguiente/anterior (con historial real en shuffle), saltar
-// a índice, shuffle, modo de repetición y aleatorización.
+// cola: siguiente/anterior (con historial real en shuffle) y saltar a
+// índice. El orden aleatorio vive en cola_orden_aleatorio.dart.
 // Se conecta con: EstadoCola (mismo library).
 // Parte del flujo: reproducción (controles del player/miniplayer).
 // ─────────────────────────────────────────────────────────────
@@ -9,12 +9,13 @@
 part of 'cubit_cola.dart';
 
 /// Navegación de la cola. Mixin aplicado en CubitCola.
-mixin ColaNavegacion on Cubit<EstadoCola> {
+mixin ColaNavegacion on ColaOrdenAleatorio {
   /// Índices de tracks reproducidos previamente (registrados con shuffle
   /// activo) para que `anterior()` vuelva al track REAL que sonó antes en vez
   /// de uno aleatorio. Acotado para evitar crecimiento infinito; se limpia
   /// cuando la cola se reemplaza con un contexto nuevo.
   final List<int> _historial = [];
+
   /// Avanza al siguiente track. Devuelve true si hay track para reproducir,
   /// false si la cola se agotó (sin más tracks y sin repeat).
   ///
@@ -43,7 +44,10 @@ mixin ColaNavegacion on Cubit<EstadoCola> {
         emit(state.copiarCon(indiceActual: -1));
         return false;
       }
-      siguienteIndice = _indiceAleatorio();
+      final avanzado = _avanzarEnOrden(desde);
+      if (avanzado < 0) return false;
+      emit(state.copiarCon(indiceActual: avanzado));
+      return true;
     } else {
       siguienteIndice = desde + 1;
       if (siguienteIndice >= state.tracks.length) {
@@ -63,13 +67,23 @@ mixin ColaNavegacion on Cubit<EstadoCola> {
     if (state.tracks.isEmpty || !state.tieneActual) return;
     if (state.shuffle) {
       // Con shuffle, "anterior" vuelve al track que realmente sonó antes
-      // (historial) en lugar de saltar a un índice aleatorio.
+      // (historial) en lugar de saltar a un índice aleatorio. Además se mueve
+      // el cursor del orden: volver atrás y avanzar de nuevo debe caer en el
+      // MISMO siguiente, no en otro al azar.
       while (_historial.isNotEmpty) {
         final ultimo = _historial.removeLast();
         if (ultimo >= 0 && ultimo < state.tracks.length && ultimo != state.indiceActual) {
+          final pos = _ordenShuffle.indexOf(ultimo);
+          if (pos >= 0) _posShuffle = pos;
           emit(state.copiarCon(indiceActual: ultimo));
           return;
         }
+      }
+      // Sin historial (arranque): se queda en el primer lugar del orden.
+      if (_ordenShuffle.isNotEmpty) {
+        _posShuffle = 0;
+        emit(state.copiarCon(indiceActual: _ordenShuffle.first));
+        return;
       }
       emit(state.copiarCon(indiceActual: _indiceAleatorio()));
       return;
@@ -91,17 +105,6 @@ mixin ColaNavegacion on Cubit<EstadoCola> {
     emit(state.copiarCon(indiceActual: index));
   }
 
-  void alternarShuffle() {
-    emit(state.copiarCon(shuffle: !state.shuffle));
-  }
-
-  /// Fija shuffle on/off a un valor específico (desde controles del SO).
-  void setShuffle(bool valor) {
-    if (state.shuffle != valor) {
-      emit(state.copiarCon(shuffle: valor));
-    }
-  }
-
   /// Fija el modo de repetición desde los controles del SO.
   void setModoRepeticionStr(String mode) {
     final ModoRepeticion siguiente;
@@ -116,12 +119,6 @@ mixin ColaNavegacion on Cubit<EstadoCola> {
     if (state.modoRepeticion != siguiente) {
       emit(state.copiarCon(modoRepeticion: siguiente));
     }
-  }
-
-  void ciclarModoRepeticion() {
-    final modos = ModoRepeticion.values;
-    final siguiente = (modos.indexOf(state.modoRepeticion) + 1) % modos.length;
-    emit(state.copiarCon(modoRepeticion: modos[siguiente]));
   }
 
   int _indiceAleatorio() {

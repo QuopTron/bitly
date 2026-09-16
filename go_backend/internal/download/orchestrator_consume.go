@@ -53,6 +53,13 @@ consume:
 				continue
 			}
 			if res.Success {
+				// Una candidata que devolvió un preview/clip no cuenta como
+				// descarga: se descarta y la carrera sigue con las demás fuentes
+				// (antes el usuario quedaba con un archivo de 30s).
+				if !esDuracionPlausible(res.FilePath, req.DurationMS) {
+					st.lastErr = "preview/clip descartado de " + res.Provider
+					continue
+				}
 				if !esProviderUltimoRecurso(res.Provider) {
 					return res
 				}

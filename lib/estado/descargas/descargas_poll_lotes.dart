@@ -37,7 +37,8 @@ mixin DescargasPollLotes on DescargasPollItem {
         final st = dl[id]?.estado;
         if (st == EstadoDescarga.completado) {
           completados++;
-        } else if (st == EstadoDescarga.ninguno || st == EstadoDescarga.interrumpido) {
+        } else if (st == EstadoDescarga.ninguno ||
+            st == EstadoDescarga.interrumpido) {
           detenidos++;
         }
       }
@@ -47,7 +48,10 @@ mixin DescargasPollLotes on DescargasPollItem {
 
       if (todoListo) {
         if (completados == total) {
-          dl[batchKey] = const DatosEstadoDescarga(estado: EstadoDescarga.completado, progreso: 1.0);
+          dl[batchKey] = const DatosEstadoDescarga(
+            estado: EstadoDescarga.completado,
+            progreso: 1.0,
+          );
           await _finalizarLoteCompletado(batchKey, trackIds);
           _batchTrackIds.remove(batchKey);
           _reintentosAutoPorLote.remove(batchKey);
@@ -57,13 +61,17 @@ mixin DescargasPollLotes on DescargasPollItem {
           // más tarde (manual o vía retry) pueda elevarlo a completado.
           // Auto-retry hasta _maxReintentosAutoLote veces para que el lote
           // quede verde sin intervención manual.
-          dl[batchKey] = DatosEstadoDescarga(estado: EstadoDescarga.ninguno, progreso: progreso);
+          dl[batchKey] = DatosEstadoDescarga(
+            estado: EstadoDescarga.ninguno,
+            progreso: progreso,
+          );
           final retryCount = _reintentosAutoPorLote[batchKey] ?? 0;
           // Recolectar los IDs fallidos de este lote.
           final failedIds = <String>{};
           for (final id in trackIds) {
             final st = dl[id]?.estado;
-            if (st == EstadoDescarga.interrumpido || st == EstadoDescarga.ninguno) {
+            if (st == EstadoDescarga.interrumpido ||
+                st == EstadoDescarga.ninguno) {
               failedIds.add(id);
             }
           }
@@ -71,13 +79,19 @@ mixin DescargasPollLotes on DescargasPollItem {
           final yaFallidos = _reintentosFallidosPorLote[batchKey] ?? {};
           final nuevosFallos = failedIds.difference(yaFallidos);
           if (retryCount < _maxReintentosAutoLote &&
-              _datosLote.containsKey(batchKey) && nuevosFallos.isNotEmpty) {
+              _datosLote.containsKey(batchKey) &&
+              nuevosFallos.isNotEmpty) {
             _reintentosAutoPorLote[batchKey] = retryCount + 1;
-            _reintentosFallidosPorLote[batchKey] = yaFallidos.union(nuevosFallos);
-            _log.i('[lote] auto-retry #$retryCount para $batchKey (${nuevosFallos.length} fallos nuevos, ${yaFallidos.length} previos)');
+            _reintentosFallidosPorLote[batchKey] = yaFallidos.union(
+              nuevosFallos,
+            );
+            _log.i(
+              '[lote] auto-retry #$retryCount para $batchKey (${nuevosFallos.length} fallos nuevos, ${yaFallidos.length} previos)',
+            );
             final bk = batchKey;
             Future.delayed(const Duration(seconds: 15), () {
-              if (_batchTrackIds.containsKey(bk) && _datosLote.containsKey(bk)) {
+              if (_batchTrackIds.containsKey(bk) &&
+                  _datosLote.containsKey(bk)) {
                 reintentarTracksFallidosLote(bk);
               }
             });
@@ -85,7 +99,10 @@ mixin DescargasPollLotes on DescargasPollItem {
         }
         changed = true;
       } else if (completados > 0) {
-        dl[batchKey] = DatosEstadoDescarga(estado: EstadoDescarga.enProgreso, progreso: progreso);
+        dl[batchKey] = DatosEstadoDescarga(
+          estado: EstadoDescarga.enProgreso,
+          progreso: progreso,
+        );
         changed = true;
       }
     }

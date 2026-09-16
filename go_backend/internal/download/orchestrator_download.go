@@ -111,6 +111,9 @@ func (o *Orchestrator) Download(req Request) *Result {
 	// fastest working source starts producing the file immediately.
 	if len(candidates) > 0 {
 		if res := o.consumeCandidates(candidates, req, outDir, st); res != nil {
+			// Etiquetas + carátula DENTRO del archivo, best-effort: el usuario
+			// descargó una canción completa, no un stream suelto.
+			o.etiquetarDescarga(res, req)
 			return res
 		}
 	}

@@ -42,13 +42,18 @@ class CacheFeed {
     try {
       final raw = await _dao.get(_claveSecciones);
       if (raw == null || raw.isEmpty) return null;
-      final lista = (jsonDecode(raw) as List)
-          .map((e) => SeccionFeed.desdeJson(e as Map<String, dynamic>))
-          .toList();
+      final lista =
+          (jsonDecode(raw) as List)
+              .map((e) => SeccionFeed.desdeJson(e as Map<String, dynamic>))
+              .toList();
       final fuente = await _dao.get(_claveFuente) ?? '';
       final tsRaw = await _dao.get(_claveTs);
       final ts = tsRaw != null ? DateTime.tryParse(tsRaw) : null;
-      final datos = DatosCacheFeed(secciones: lista, fuenteSeleccionada: fuente, ultimaObtencion: ts);
+      final datos = DatosCacheFeed(
+        secciones: lista,
+        fuenteSeleccionada: fuente,
+        ultimaObtencion: ts,
+      );
       return datos.tieneContenido ? datos : null;
     } catch (_) {
       await _limpiar();
@@ -56,7 +61,10 @@ class CacheFeed {
     }
   }
 
-  Future<void> guardar(List<SeccionFeed> secciones, String fuenteSeleccionada) async {
+  Future<void> guardar(
+    List<SeccionFeed> secciones,
+    String fuenteSeleccionada,
+  ) async {
     try {
       await _dao.set(
         _claveSecciones,
@@ -74,6 +82,8 @@ class CacheFeed {
       await _dao.remove(_claveSecciones);
       await _dao.remove(_claveFuente);
       await _dao.remove(_claveTs);
-    } catch (e) { debugPrint("[Cache] $e"); }
+    } catch (e) {
+      debugPrint("[Cache] $e");
+    }
   }
 }

@@ -23,8 +23,9 @@ mixin DescargasPollTimeout on DescargasPollLotes {
     // (6 polls), marcarlos interrumpidos — PERO nunca matar el track que la
     // cola FIFO está esperando (tiene su propio timeout y puede estar en
     // fase de decrypt).
-    final hayEnProgreso = state.descargas.values
-        .any((d) => d.estado == EstadoDescarga.enProgreso);
+    final hayEnProgreso = state.descargas.values.any(
+      (d) => d.estado == EstadoDescarga.enProgreso,
+    );
     if (hayEnProgreso && items.isEmpty) {
       _rachaProgresoVacio++;
       if (_rachaProgresoVacio >= 6) {
@@ -34,7 +35,10 @@ mixin DescargasPollTimeout on DescargasPollLotes {
           if (dl[key]!.estado == EstadoDescarga.enProgreso) {
             // CRÍTICO: nunca matar el track que la cola FIFO espera.
             if (key == _idTrackActualCola) continue;
-            dl[key] = const DatosEstadoDescarga(estado: EstadoDescarga.interrumpido, progreso: 0.0);
+            dl[key] = const DatosEstadoDescarga(
+              estado: EstadoDescarga.interrumpido,
+              progreso: 0.0,
+            );
             changed = true;
           }
         }
@@ -71,37 +75,67 @@ mixin DescargasPollTimeout on DescargasPollLotes {
           }
         }
         if (liveStatus == 'completed') {
-          _log.i('[poll] timeout duro para $id pero Go reporta completado — marcando completado');
-          hardDl[id] = const DatosEstadoDescarga(estado: EstadoDescarga.completado, progreso: 1.0);
+          _log.i(
+            '[poll] timeout duro para $id pero Go reporta completado — marcando completado',
+          );
+          hardDl[id] = const DatosEstadoDescarga(
+            estado: EstadoDescarga.completado,
+            progreso: 1.0,
+          );
           _iniciadosEn.remove(id);
           hardTimedOut = true;
-          if (!id.endsWith('_lyrics') && !id.endsWith('_video')) _senializarTrackTerminado(id);
+          if (!id.endsWith('_lyrics') && !id.endsWith('_video')) {
+            _senializarTrackTerminado(id);
+          }
         } else if (liveStatus == 'failed' || liveStatus == 'cancelled') {
-          _log.i('[poll] timeout duro para $id pero Go reporta $liveStatus — marcando interrumpido');
-          hardDl[id] = const DatosEstadoDescarga(estado: EstadoDescarga.interrumpido, progreso: 0.0);
+          _log.i(
+            '[poll] timeout duro para $id pero Go reporta $liveStatus — marcando interrumpido',
+          );
+          hardDl[id] = const DatosEstadoDescarga(
+            estado: EstadoDescarga.interrumpido,
+            progreso: 0.0,
+          );
           _iniciadosEn.remove(id);
           hardTimedOut = true;
-          if (!id.endsWith('_lyrics') && !id.endsWith('_video')) _senializarTrackTerminado(id);
+          if (!id.endsWith('_lyrics') && !id.endsWith('_video')) {
+            _senializarTrackTerminado(id);
+          }
         } else if (liveStatus == 'downloading' || liveStatus == 'preparing') {
           // Go sigue trabajando en este item — extender el timeout.
-          _log.d('[poll] timeout duro para $id pero Go aún reporta $liveStatus — extendiendo');
+          _log.d(
+            '[poll] timeout duro para $id pero Go aún reporta $liveStatus — extendiendo',
+          );
           _iniciadosEn[id] = ahora;
         } else {
           // Item desaparecido del tracker — la descarga completó mientras el
           // poll estaba ocupado. Chequear un archivo reproducible en disco.
           final altPath = await _buscarArchivoAlternativo(id);
           if (altPath != null) {
-            _log.i('[poll] timeout duro para $id pero existe archivo en disco: $altPath — marcando completado');
-            hardDl[id] = const DatosEstadoDescarga(estado: EstadoDescarga.completado, progreso: 1.0);
+            _log.i(
+              '[poll] timeout duro para $id pero existe archivo en disco: $altPath — marcando completado',
+            );
+            hardDl[id] = const DatosEstadoDescarga(
+              estado: EstadoDescarga.completado,
+              progreso: 1.0,
+            );
             _iniciadosEn.remove(id);
             hardTimedOut = true;
-            if (!id.endsWith('_lyrics') && !id.endsWith('_video')) _senializarTrackTerminado(id);
+            if (!id.endsWith('_lyrics') && !id.endsWith('_video')) {
+              _senializarTrackTerminado(id);
+            }
           } else {
-            _log.i('[poll] timeout duro para $id — sin tracker, sin archivo — marcando interrumpido');
-            hardDl[id] = const DatosEstadoDescarga(estado: EstadoDescarga.interrumpido, progreso: 0.0);
+            _log.i(
+              '[poll] timeout duro para $id — sin tracker, sin archivo — marcando interrumpido',
+            );
+            hardDl[id] = const DatosEstadoDescarga(
+              estado: EstadoDescarga.interrumpido,
+              progreso: 0.0,
+            );
             _iniciadosEn.remove(id);
             hardTimedOut = true;
-            if (!id.endsWith('_lyrics') && !id.endsWith('_video')) _senializarTrackTerminado(id);
+            if (!id.endsWith('_lyrics') && !id.endsWith('_video')) {
+              _senializarTrackTerminado(id);
+            }
           }
         }
       }

@@ -57,6 +57,9 @@ mixin ReproductorAperturaHelpers on ReproductorFalloOpen {
       // Solo una completación sin un open más nuevo en vuelo puede ser EOF
       // real; cualquier otra pertenece al media que este open descartó.
       _generacionAbiertaEn = _generacionOpen;
+      // Marca de tiempo del open: permite distinguir el `completed` espurio que
+      // media_kit emite al arrancar de un fin real sin duración.
+      _tsMediaAbierto = DateTime.now();
     } catch (e) {
       // Open falló silenciosamente — el watchdog de stall lo maneja abajo.
     }

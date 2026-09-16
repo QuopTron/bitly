@@ -33,6 +33,7 @@ part 'hoja_letras_parse.dart';
 part 'hoja_letras_cabecera.dart';
 part 'hoja_letras_linea.dart';
 part 'hoja_letras_transporte.dart';
+part 'hoja_letras_transporte_progreso.dart';
 part 'hoja_letras_fondo.dart';
 part 'hoja_letras_util.dart';
 part 'hoja_letras_build.dart';

@@ -22,19 +22,27 @@ mixin DescargasTrack on DescargasTrackBatch {
       if (entry.value.estado != EstadoDescarga.completado) continue;
       if (!entry.key.startsWith('track_')) continue;
       // Saltar keys de subtareas (_audio, _lyrics, _video) — solo baseId tiene metadata.
-      if (entry.key.endsWith('_audio') || entry.key.endsWith('_lyrics') || entry.key.endsWith('_video')) continue;
+      if (entry.key.endsWith('_audio') || entry.key.endsWith('_lyrics') ||
+          entry.key.endsWith('_video')) {
+        continue;
+      }
       final meta = _metaTrack[entry.key];
       if (meta != null) {
         // Preferir la ruta local de carátula (JPG en disco) sobre la URL.
-        final cover = (meta.coverPath != null && meta.coverPath!.isNotEmpty)
-            ? meta.coverPath
-            : meta.coverUrl;
-        result.add(ItemFeed(
-          id: meta.trackId,
-          type: 'track', name: meta.name,
-          artists: meta.artist, coverUrl: cover,
-          source: meta.source,
-        ));
+        final cover =
+            (meta.coverPath != null && meta.coverPath!.isNotEmpty)
+                ? meta.coverPath
+                : meta.coverUrl;
+        result.add(
+          ItemFeed(
+            id: meta.trackId,
+            type: 'track',
+            name: meta.name,
+            artists: meta.artist,
+            coverUrl: cover,
+            source: meta.source,
+          ),
+        );
         continue;
       }
       // Fallback: parsear la key (solo seguro cuando el ID no tiene guiones bajos).
@@ -53,11 +61,16 @@ mixin DescargasTrack on DescargasTrackBatch {
           break;
         }
       }
-      result.add(ItemFeed(
-        id: fallbackId,
-        type: 'track', name: fallbackName ?? '', artists: fallbackArtist,
-        coverUrl: fallbackCover, source: fallbackSrc,
-      ));
+      result.add(
+        ItemFeed(
+          id: fallbackId,
+          type: 'track',
+          name: fallbackName ?? '',
+          artists: fallbackArtist,
+          coverUrl: fallbackCover,
+          source: fallbackSrc,
+        ),
+      );
     }
     return result;
   }
@@ -66,9 +79,16 @@ mixin DescargasTrack on DescargasTrackBatch {
   /// descargado). Preserva la metadata de carátula existente si hay, si no usa
   /// los datos del lote.
   @override
-  void _asegurarMetaTrack(String baseId, String normalizedId, Map<String, dynamic> trackMap, String source) {
+  void _asegurarMetaTrack(
+    String baseId,
+    String normalizedId,
+    Map<String, dynamic> trackMap,
+    String source,
+  ) {
     final existing = _metaTrack[baseId];
-    if (existing != null && (existing.coverUrl?.isNotEmpty == true || existing.coverPath?.isNotEmpty == true)) {
+    if (existing != null &&
+        (existing.coverUrl?.isNotEmpty == true ||
+            existing.coverPath?.isNotEmpty == true)) {
       return;
     }
     _metaTrack[baseId] = _InfoTrack(

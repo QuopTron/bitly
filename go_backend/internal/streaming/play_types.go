@@ -45,18 +45,44 @@ var streamingProviders = []string{
 // temas sumaba hasta 6,4s antes de que el re-subido siquiera arrancara).
 //
 // El audio sale de YouTube, sí o sí: ytmusic-spotiflac (yt-dlp / InnerTube) y
-// youtube. Cuando la calidad pedida es sin pérdida, Internet Archive,
-// Soulseek y flac-rescue compiten por dar el FLAC real y la política de
-// confianza les da la última palabra. soundcloud va último: identifica flojo
-// (nombre suelto) y es el fallback más suelto.
+// youtube. Cuando la calidad pedida es sin pérdida, Internet Archive y
+// flac-rescue compiten por dar el FLAC real y la política de confianza les da
+// la última palabra. soundcloud va último: identifica flojo (nombre suelto) y
+// es el fallback más suelto.
+//
+// SOULSEEK NO ESTÁ ACÁ, y es a propósito. Su GetStreamURL no existe: el
+// protocolo es peer-to-peer (ConnectToPeer → QueueUpload → transferencia F),
+// así que la búsqueda funciona y la reproducción directa no. Meterlo en la
+// carrera no solo gastaba un turno del pool y una búsqueda P2P completa en
+// cada tap: con calidad sin pérdida entraba como BLOQUEANTE (ver
+// fuentesLosslessSiempre), y un resultado de YouTube/yt-dlp esperaba una
+// gracia por una fuente que no puede entregar ni un byte. Su lugar es la
+// DESCARGA (ver proveedoresSoloDescarga).
 //
 // El orden importa poco para QUIÉN gana (eso lo decide la política de
 // confianza, no el orden de llegada), pero importa para CUÁNDO empieza cada
 // uno: el primero de la lista reclama turno primero.
 var proveedoresAudio = []string{
 	"ytmusic-spotiflac", "youtube",
-	"internetarchive", "soulseek", "flac-rescue",
+	"internetarchive", "flac-rescue",
 	"soundcloud",
+}
+
+// proveedoresSoloDescarga pueden conseguir el audio, pero NUNCA servirlo como
+// stream: su única vía es bajar el archivo (el orquestador de descargas sí los
+// usa: ver orchestrator_fallback.go). Se declaran acá para que la carrera de
+// streaming los ignore a propósito y no por accidente, y para que un test
+// pueda pincharlo.
+var proveedoresSoloDescarga = []string{"soulseek"}
+
+// esProveedorSoloDescarga reporta si [name] solo puede aportar por descarga.
+func esProveedorSoloDescarga(name string) bool {
+	for _, n := range proveedoresSoloDescarga {
+		if n == name {
+			return true
+		}
+	}
+	return false
 }
 
 // proveedoresExactos son las fuentes que pueden confirmar la GRABACIÓN EXACTA
@@ -107,12 +133,18 @@ var proveedoresLossless = []string{
 }
 
 // fuentesLosslessSiempre son las que NO dependen de una suscripción para dar
-// sin pérdida: su catálogo ES lossless (Internet Archive publica FLAC propio,
-// Soulseek comparte FLAC entre pares, flac-rescue resuelve FLAC por ISRC).
-// Cuando la calidad pedida es sin pérdida y alguna de estas sigue en vuelo, es
-// a ellas a las que se les da la gracia — no a un catálogo sin sesión, que va
-// a fallar igual.
-var fuentesLosslessSiempre = []string{"flac-rescue", "internetarchive", "soulseek"}
+// sin pérdida Y pueden entregarla EN VIVO: su catálogo ES lossless (Internet
+// Archive publica FLAC propio, flac-rescue resuelve FLAC por ISRC). Cuando la
+// calidad pedida es sin pérdida y alguna de estas sigue en vuelo, es a ellas a
+// las que se les da la gracia — no a un catálogo sin sesión, que va a fallar
+// igual.
+//
+// Soulseek salió de esta lista aunque sus archivos SÍ sean FLAC: en la carrera
+// de streaming no puede entregar nada (ver proveedoresSoloDescarga), así que
+// darle la gracia era esperar 1,8s por un resultado imposible. Sigue en
+// proveedoresLossless, que describe CAPACIDAD de audio (y habilita las
+// descargas), no participación en la carrera.
+var fuentesLosslessSiempre = []string{"flac-rescue", "internetarchive"}
 
 // esProveedorLossless reporta si [name] puede entregar audio sin pérdida.
 func esProveedorLossless(name string) bool {

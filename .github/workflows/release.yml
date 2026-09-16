@@ -97,7 +97,7 @@ jobs:
           # gitignoreado entero, así que en un checkout limpio no existe.
           mkdir -p android/app/libs
           cd go_backend
-          if ! gomobile bind -target=android -androidapi=24 -o "../android/app/libs/bitly.aar" . 2>&1 | tee /tmp/gomobile.log; then
+          if ! gomobile bind -target=android -androidapi=24 -ldflags="-s -w" -o "../android/app/libs/bitly.aar" . 2>&1 | tee /tmp/gomobile.log; then
             echo "::error::=== gomobile bind FAILED (tail del log) ==="
             tail -40 /tmp/gomobile.log | while IFS= read -r line; do echo "::error::$line"; done
             exit 1
@@ -247,15 +247,6 @@ jobs:
       - name: Flutter pub get
         run: flutter pub get
 
-      # El plugin libtorrent_flutter extrae su zip con `cmake -E tar`, que usa
-      # libarchive. En CI el plugin vive detrás de .plugin_symlinks y libarchive
-      # rechaza escribir a través de un symlink ("Cannot extract through
-      # symlink"). Dejamos el prebuilt listo con Expand-Archive, que no tiene
-      # esa restricción, y el plugin salta la descarga.
-      - name: Preparar prebuilt de libtorrent (x64)
-        shell: pwsh
-        run: ./scripts/build/preparar_libtorrent_windows.ps1 -Arch x64
-
       - name: Build Windows release
         run: flutter build windows --release
 
@@ -367,12 +358,6 @@ jobs:
       - name: Flutter pub get
         run: flutter pub get
 
-      # Mismo motivo que en x64: libarchive no extrae a través del symlink de
-      # .plugin_symlinks. El zip arm64 trae los DLLs para la build nativa ARM64.
-      - name: Preparar prebuilt de libtorrent (arm64)
-        shell: pwsh
-        run: ./scripts/build/preparar_libtorrent_windows.ps1 -Arch arm64
-
       # En un host ARM64 Flutter compila a windows-arm64: la salida cae en
       # build/windows/arm64/runner/Release (el directorio usa
       # TargetPlatform.simpleName, que es 'arm64' para windows_arm64).
@@ -413,4 +398,71 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           files: dist/Bitly-Setup-*-arm64.exe
+          fail_on_unmatched_files: true
+
+  # ─── Release Web (PWA + TV por navegador) ───────────────────────────
+  # Publica el build web como ZIP para servir la app desde cualquier host
+  # estático (y abrirla en TVs/computadoras sin instalar nada). El backend
+  # Go va compilado para Linux amd64 dentro del ZIP: es el binario que la
+  # PWA levanta cuando corre en un servidor propio.
+  release-web:
+    name: Build & Release Web (PWA)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read version from pubspec
+        id: version
+        run: |
+          VERSION=$(grep -E '^version:' pubspec.yaml | sed 's/version: *//' | cut -d'+' -f1)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Usando versión: $VERSION"
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go_backend/go.mod
+          cache-dependency-path: go_backend/go.sum
+
+      - name: Build Go backend (Linux amd64)
+        run: |
+          cd go_backend
+          go build -ldflags="-s -w" -o ../build/web/bitly-backend ./cmd/server
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.41.6
+          cache: true
+
+      - name: Generate secrets.dart
+        run: |
+          cp lib/config/secretos.example.dart lib/config/secretos.dart
+          TOKEN="${{ secrets.PREMIUM_GITHUB_TOKEN }}"
+          if [ -n "$TOKEN" ]; then
+            sed -i "s|tu_github_token_aqui|$TOKEN|" lib/config/secretos.dart
+          fi
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Build Flutter web (PWA)
+        run: flutter build web --release --base-href /
+
+      - name: Package PWA
+        run: |
+          mkdir -p dist
+          chmod +x build/web/bitly-backend
+          cp build/web/bitly-backend build/web/bitly-backend-linux-amd64
+          rm -f build/web/bitly-backend
+          # Zip con la raíz adentro: se descomprime y se sirve tal cual.
+          (cd build/web && zip -qr "$GITHUB_WORKSPACE/dist/bitly-pwa-${{ steps.version.outputs.version }}.zip" .)
+          ls -lh dist/
+
+      - name: Publish GitHub Release (Web/PWA)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: dist/bitly-pwa-*.zip
           fail_on_unmatched_files: true

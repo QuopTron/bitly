@@ -34,7 +34,12 @@ func readFLAC(path string, meta *Metadata) (*Metadata, error) {
 		meta.DurationMs = int(totalSamples * 1000 / int64(meta.SampleRate))
 	}
 
-	meta.Bitrate = int(int64(meta.FileSize) * 8 / (int64(meta.DurationMs) / 1000) / 1000)
+	// El bitrate solo se puede calcular con una duración de al menos un segundo:
+	// dividir por DurationMs/1000 daba división por cero (panic del backend)
+	// con cualquier FLAC de menos de 1s (candidatas truncadas, previews).
+	if meta.DurationMs >= 1000 {
+		meta.Bitrate = int(int64(meta.FileSize) * 8 / (int64(meta.DurationMs) / 1000) / 1000)
+	}
 	return meta, nil
 }
 
@@ -116,10 +121,13 @@ func readOGG(path string, meta *Metadata) (*Metadata, error) {
 func readWAV(path string, meta *Metadata) (*Metadata, error) {
 	meta.SampleRate = 44100
 	meta.BitDepth = 16
-	meta.Bitrate = 1411     // CD quality
-	if meta.FileSize > 44 { // WAV header is 44 bytes
+	meta.Bitrate = 1411 // CD quality
+	// Los divisores se comprueban antes: un WAV con cabecera rara (bit depth 0)
+	// dividía por cero y tumbaba el backend.
+	bytesPorMuestra := int64(meta.BitDepth / 8)
+	if meta.FileSize > 44 && meta.SampleRate > 0 && bytesPorMuestra > 0 {
 		audioBytes := meta.FileSize - 44
-		meta.DurationMs = int(audioBytes * 8 / int64(meta.SampleRate) / int64(meta.BitDepth/8) / 2 * 1000)
+		meta.DurationMs = int(audioBytes * 8 / int64(meta.SampleRate) / bytesPorMuestra / 2 * 1000)
 	}
 	return meta, nil
 }

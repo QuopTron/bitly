@@ -44,13 +44,19 @@ mixin DescargasPollFinalizar on DescargasPollFallido {
         if (await pf.exists()) {
           filePlayable = await _esAudioDecodificable(pf);
           if (!filePlayable) {
-            _log.w('[poll] $rawId: Go dice completado pero el archivo no es reproducible: $playablePath');
+            _log.w(
+              '[poll] $rawId: Go dice completado pero el archivo no es reproducible: $playablePath',
+            );
           }
         } else {
           filePlayable = false;
-          _log.w('[poll] $rawId: Go dice completado pero falta el archivo: $playablePath');
+          _log.w(
+            '[poll] $rawId: Go dice completado pero falta el archivo: $playablePath',
+          );
         }
-      } catch (e) { debugPrint("[Descargas] $e"); }
+      } catch (e) {
+        debugPrint("[Descargas] $e");
+      }
     }
     if (!filePlayable) {
       // El tracker de Go guarda .tmp.XXX como outputPath antes de que el
@@ -62,17 +68,26 @@ mixin DescargasPollFinalizar on DescargasPollFallido {
           try {
             final ntFile = File(nonTmpPath);
             if (await ntFile.exists() && await _esAudioDecodificable(ntFile)) {
-              _log.i('[poll] $rawId: falta el .tmp pero existe el non-tmp: $nonTmpPath — usándolo');
+              _log.i(
+                '[poll] $rawId: falta el .tmp pero existe el non-tmp: $nonTmpPath — usándolo',
+              );
               playablePath = nonTmpPath;
               filePlayable = true;
               _completadosSinArchivoCount.remove(rawId);
               try {
                 final meta = _metaTrack[stateKey];
-                final nid = meta != null && meta.trackId.isNotEmpty ? meta.trackId : stateKey;
+                final nid =
+                    meta != null && meta.trackId.isNotEmpty
+                        ? meta.trackId
+                        : stateKey;
                 await _downloadCache.actualizarRutaArchivo(nid, nonTmpPath);
-              } catch (e) { debugPrint("[Descargas] $e"); }
+              } catch (e) {
+                debugPrint("[Descargas] $e");
+              }
             }
-          } catch (e) { debugPrint("[Descargas] $e"); }
+          } catch (e) {
+            debugPrint("[Descargas] $e");
+          }
         }
       }
     }
@@ -81,42 +96,71 @@ mixin DescargasPollFinalizar on DescargasPollFallido {
       // hayan guardado un archivo válido junto al roto.
       final altPath = await _buscarArchivoAlternativo(stateKey, playablePath);
       if (altPath != null) {
-        _log.i('[poll] $rawId: archivo no reproducible pero existe alternativa: $altPath — usándola');
+        _log.i(
+          '[poll] $rawId: archivo no reproducible pero existe alternativa: $altPath — usándola',
+        );
         playablePath = altPath;
         filePlayable = true;
         _completadosSinArchivoCount.remove(rawId);
         try {
           final meta = _metaTrack[stateKey];
-          final nid = meta != null && meta.trackId.isNotEmpty ? meta.trackId : stateKey;
+          final nid =
+              meta != null && meta.trackId.isNotEmpty ? meta.trackId : stateKey;
           await _downloadCache.actualizarRutaArchivo(nid, altPath);
-        } catch (e) { debugPrint("[Descargas] $e"); }
+        } catch (e) {
+          debugPrint("[Descargas] $e");
+        }
       }
     }
     if (filePlayable) {
-      dl[stateKey] = const DatosEstadoDescarga(estado: EstadoDescarga.completado, progreso: 1.0);
+      dl[stateKey] = const DatosEstadoDescarga(
+        estado: EstadoDescarga.completado,
+        progreso: 1.0,
+      );
     } else {
       if (stateKey == _idTrackActualCola) {
-        _log.i('[poll] $rawId: archivo no reproducible pero la cola está activa — manteniendo enProgreso');
-        dl[stateKey] = const DatosEstadoDescarga(estado: EstadoDescarga.enProgreso, progreso: 0.95);
+        _log.i(
+          '[poll] $rawId: archivo no reproducible pero la cola está activa — manteniendo enProgreso',
+        );
+        dl[stateKey] = const DatosEstadoDescarga(
+          estado: EstadoDescarga.enProgreso,
+          progreso: 0.95,
+        );
       } else {
-        dl[stateKey] = const DatosEstadoDescarga(estado: EstadoDescarga.interrumpido, progreso: 0.0);
+        dl[stateKey] = const DatosEstadoDescarga(
+          estado: EstadoDescarga.interrumpido,
+          progreso: 0.0,
+        );
         _errorDesencriptadoPendiente = 'decrypt';
       }
     }
     // Actualizar keys hermanas de subtareas (audio/letras/video) si existen.
     final audioKey = '${stateKey}_audio';
     if (dl.containsKey(audioKey)) {
-      dl[audioKey] = filePlayable
-          ? const DatosEstadoDescarga(estado: EstadoDescarga.completado, progreso: 1.0)
-          : const DatosEstadoDescarga(estado: EstadoDescarga.interrumpido, progreso: 0.0);
+      dl[audioKey] =
+          filePlayable
+              ? const DatosEstadoDescarga(
+                estado: EstadoDescarga.completado,
+                progreso: 1.0,
+              )
+              : const DatosEstadoDescarga(
+                estado: EstadoDescarga.interrumpido,
+                progreso: 0.0,
+              );
     }
     final lyricsKey = '${stateKey}_lyrics';
     if (dl.containsKey(lyricsKey)) {
-      dl[lyricsKey] = const DatosEstadoDescarga(estado: EstadoDescarga.completado, progreso: 1.0);
+      dl[lyricsKey] = const DatosEstadoDescarga(
+        estado: EstadoDescarga.completado,
+        progreso: 1.0,
+      );
     }
     final videoKey = '${stateKey}_video';
     if (dl.containsKey(videoKey)) {
-      dl[videoKey] = const DatosEstadoDescarga(estado: EstadoDescarga.completado, progreso: 1.0);
+      dl[videoKey] = const DatosEstadoDescarga(
+        estado: EstadoDescarga.completado,
+        progreso: 1.0,
+      );
     }
 
     // Señalar a la cola secuencial que este track terminó. PERO: si el archivo
@@ -130,20 +174,34 @@ mixin DescargasPollFinalizar on DescargasPollFallido {
         final noFileCount = _completadosSinArchivoCount[rawId] ?? 0;
         _completadosSinArchivoCount[rawId] = noFileCount + 1;
         if (noFileCount >= 4) {
-          _log.w('[poll] $rawId: archivo no reproducible tras ${noFileCount + 1} polls, abandonando');
+          _log.w(
+            '[poll] $rawId: archivo no reproducible tras ${noFileCount + 1} polls, abandonando',
+          );
           _completadosSinArchivoCount.remove(rawId);
-          dl[stateKey] = const DatosEstadoDescarga(estado: EstadoDescarga.interrumpido, progreso: 0.0);
+          dl[stateKey] = const DatosEstadoDescarga(
+            estado: EstadoDescarga.interrumpido,
+            progreso: 0.0,
+          );
           _completadosPersistidos.add(rawId);
           _senializarTrackTerminado(stateKey);
         } else {
-          _log.i('[poll] $rawId: archivo no reproducible, esperando alternativa (${noFileCount + 1}/4)');
+          _log.i(
+            '[poll] $rawId: archivo no reproducible, esperando alternativa (${noFileCount + 1}/4)',
+          );
         }
       }
     }
 
     // Persistir solo la completación BASE (audio) — impl. en PollPersistir.
     if (!isSubTask) {
-      await _persistirCompletado(rawId, stateKey, playablePath, trackName, artistName, fps);
+      await _persistirCompletado(
+        rawId,
+        stateKey,
+        playablePath,
+        trackName,
+        artistName,
+        fps,
+      );
     }
     _iniciadosEn.remove(stateKey);
     return true;

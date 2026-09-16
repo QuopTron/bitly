@@ -40,7 +40,9 @@ mixin ReproductorListenerCola on ReproductorPlayerSetup {
           return;
         }
         _forzarReopen = false;
-        unawaited(_openTrack(actual));
+        // Seguro: un fallo de apertura no puede dejar la cola muda ni tirar
+        // un error no manejado desde el listener.
+        unawaited(_abrirTrackSeguro(actual));
       } else if (!estadoCola.tieneActual) {
         // Serializado: el stop no debe pisar un open en vuelo (crash de
         // media_kit "Callback invoked after it has been deleted").

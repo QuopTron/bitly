@@ -9,6 +9,7 @@ import 'package:bitly/core/plataforma/sistema/servicio_deep_link.dart';
 import 'package:bitly/core/servicios/compartir/datos_compartido.dart';
 import 'package:bitly/l10n/app_localizations.dart';
 import 'package:bitly/shared/widgets/base/overlay_compartido.dart';
+import 'package:bitly/shared/widgets/base/overlay_compartido_contenido.dart';
 import 'package:bitly/shared/utilidades/plataforma/efectos_app.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -69,6 +70,8 @@ Finder _placaCarta() => find.byWidgetPredicate(
               BorderRadius.circular(18),
     );
 
+Finder _findFondo() => find.byType(FondoCompartido);
+
 void main() {
   tearDown(EfectosApp.reiniciar);
 
@@ -126,6 +129,80 @@ void main() {
     // Sin efectos la entrada se resuelve igual y no queda nada animando.
     await tester.pump(const Duration(seconds: 3));
     expect(find.text('Reproducir'), findsOneWidget);
+  });
+
+  testWidgets('sin blur (gama baja) el fondo se vela mucho más',
+      (tester) async {
+    EfectosApp.aplicar(efectosPesados: false, sigmaMax: 0);
+    await _montar(tester);
+    final velo = tester.widget<ColoredBox>(
+      find
+          .descendant(
+            of: find.byType(FondoCompartido),
+            matching: find.byType(ColoredBox),
+          )
+          .first,
+    );
+    // El velo es el único separador: tiene que tapar bastante más.
+    expect(velo.color.a, greaterThan(0.7));
+    expect(find.byType(BackdropFilter), findsNothing);
+  });
+
+  testWidgets('con blur el fondo desenfoca y vela menos', (tester) async {
+    EfectosApp.aplicar(efectosPesados: true, sigmaMax: 26);
+    await _montar(tester);
+    final velo = tester.widget<ColoredBox>(
+      find
+          .descendant(
+            of: find.byType(FondoCompartido),
+            matching: find.byType(ColoredBox),
+          )
+          .first,
+    );
+    expect(velo.color.a, lessThan(0.5));
+    expect(find.byType(BackdropFilter), findsWidgets);
+  });
+
+  testWidgets('el fondo queda fuera del contenido que se anima',
+      (tester) async {
+    await _montar(tester);
+    // El fondo lo pinta el OVERLAY (estático), no el contenido: así no se
+    // reconstruye en cada frame mientras la carta cae.
+    expect(
+      find.descendant(
+        of: find.byType(OverlayCompartidoContenido),
+        matching: _findFondo(),
+      ),
+      findsNothing,
+    );
+    expect(
+      find.descendant(
+        of: find.byType(OverlayCompartido),
+        matching: _findFondo(),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('los textos no heredan el estilo de aviso de MaterialApp',
+      (tester) async {
+    await _montar(tester);
+    // MaterialApp pinta un subrayado DOBLE amarillo (fallback style) en
+    // los textos que no están dentro de un Material. La carta se monta en
+    // el builder de MaterialApp, así que tiene que traer el suyo: sin esto
+    // aparecían dos líneas amarillas debajo de cada texto (bug real de
+    // release, no de debug).
+    final ctx = tester.element(find.text('Todo de Ti'));
+    final estilo = DefaultTextStyle.of(ctx).style;
+    expect(estilo.decoration, isNot(TextDecoration.underline));
+    expect(estilo.decorationColor, isNot(const Color(0xFFFFFF00)));
+    expect(
+      find.ancestor(
+        of: find.text('Todo de Ti'),
+        matching: find.byType(Material),
+      ),
+      findsWidgets,
+    );
   });
 
   testWidgets('la carta es chica: no ocupa la pantalla', (tester) async {

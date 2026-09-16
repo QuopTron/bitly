@@ -1,14 +1,20 @@
 // ─────────────────────────────────────────────────────────────
 // settings_compartidos_tab.dart — PART de settings_sheet_new.dart:
-// pestaña "Compartidos" — la lista de quién te compartió qué.
+// pestaña "Estadísticas", que ahora reúne las DOS cosas que el usuario
+// mira junta: cómo viene escuchando (horas, niveles y premios) y quién
+// le compartió qué.
 //
-// Muestra, del más nuevo al más viejo: quién lo mandó, la canción con
-// su carátula, el ISRC y cuándo llegó. Tocar una la vuelve a resolver y
-// la encola al final, que es lo natural después de verla.
+// Del más nuevo al más viejo: quién lo mandó, la canción con su
+// carátula, el ISRC y cuándo llegó. Tocar una la vuelve a resolver y la
+// encola al final, que es lo natural después de verla.
+//
+// Las estadísticas salen del mismo dato local que usa el perfil
+// (ReproduccionStats): no hay un segundo contador que pueda divergir.
 //
 // Se conecta con: settings_sheet_new.dart (misma library) +
-// servicio_historial_compartidos + ServicioCompartir + CubitCola.
-// Parte del flujo: Ajustes → Compartidos.
+// servicio_historial_compartidos + ServicioCompartir + CubitCola +
+// ReproduccionStats + niveles_escucha.
+// Parte del flujo: Ajustes → Estadísticas.
 // ─────────────────────────────────────────────────────────────
 
 part of 'settings_sheet_new.dart';
@@ -27,6 +33,9 @@ class _CompartidosTabState extends State<_CompartidosTab> {
   List<CompartidoRecibido> _items = const [];
   bool _cargando = true;
 
+  /// Stats de escucha (mismo dato que el perfil) para la cabecera.
+  EstadisticasUsuario? _stats;
+
   @override
   void initState() {
     super.initState();
@@ -34,10 +43,24 @@ class _CompartidosTabState extends State<_CompartidosTab> {
   }
 
   Future<void> _cargar() async {
-    final items = await ServicioHistorialCompartidos.instance.cargar();
+    // Las dos fuentes son locales y baratas; si una falla, la otra se muestra
+    // igual (nunca dejamos la pestaña en blanco).
+    List<CompartidoRecibido> items = const [];
+    EstadisticasUsuario? stats;
+    try {
+      items = await ServicioHistorialCompartidos.instance.cargar();
+    } catch (e) {
+      debugPrint('[Estadísticas] historial de compartidos: $e');
+    }
+    try {
+      stats = await sl<ReproduccionStats>().getStatsUsuario();
+    } catch (e) {
+      debugPrint('[Estadísticas] stats locales: $e');
+    }
     if (!mounted) return;
     setState(() {
       _items = items;
+      _stats = stats;
       _cargando = false;
     });
   }
@@ -65,7 +88,6 @@ class _CompartidosTabState extends State<_CompartidosTab> {
   @override
   Widget build(BuildContext context) {
     final r = Responsive(context);
-    final l = AppLocalizations.of(context).setup;
 
     if (_cargando) {
       return Center(
@@ -80,45 +102,41 @@ class _CompartidosTabState extends State<_CompartidosTab> {
       );
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final onBg = ColoresApp.enSuperficie(isDark);
+    final ms = _stats?.totalTiempoReproducidoMs ?? 0;
+    final progreso = ProgresoEscucha.desdeMs(ms);
+
+    // Una sola lista: cabecera de escucha + niveles + compartidos. Así todo
+    // scrollea junto y la pestaña no queda partida en dos zonas.
+    return ListView(
+      padding: EdgeInsets.all(r.spacingL),
       children: [
-        Padding(
-          padding: EdgeInsets.fromLTRB(r.spacingL, r.spacingS, r.spacingL, 0),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  l.compartidosLabel,
-                  style: TextStyle(
-                    fontSize: r.subtitleSize,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white.withValues(alpha: 0.9),
-                  ),
-                ),
-              ),
-              if (_items.isNotEmpty)
-                TextButton(
-                  onPressed: _borrar,
-                  child: Text(l.compartidosBorrar),
-                ),
-            ],
-          ),
+        _ResumenEscucha(
+          stats: _stats,
+          milisegundos: ms,
+          glowColor: widget.glowColor,
+          onBg: onBg,
+          r: r,
         ),
-        Expanded(
-          child: _items.isEmpty
-              ? _vacio(r, l.compartidosVacio)
-              : ListView.separated(
-                  padding: EdgeInsets.all(r.spacingL),
-                  itemCount: _items.length,
-                  separatorBuilder: (_, _) => SizedBox(height: r.spacingS),
-                  itemBuilder: (context, i) => _filaCompartido(
-                    context,
-                    r,
-                    _items[i],
-                    onTap: () => _encolar(_items[i]),
-                  ),
-                ),
+        if (_stats != null) ...[
+          SizedBox(height: r.spacingM),
+          _NivelesEscuchaCard(
+            progreso: progreso,
+            horasTotales: ms ~/ 3600000,
+            glowColor: widget.glowColor,
+            onBg: onBg,
+            r: r,
+          ),
+        ],
+        SizedBox(height: r.spacingM),
+        _ListaCompartidos(
+          items: _items,
+          glowColor: widget.glowColor,
+          onBg: onBg,
+          r: r,
+          onBorrar: _borrar,
+          onTocar: _encolar,
         ),
       ],
     );

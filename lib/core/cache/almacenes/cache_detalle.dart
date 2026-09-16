@@ -75,14 +75,19 @@ class CacheDetalle {
     required int totalTiempoReproducidoMs,
   }) {
     const maxNivel = 6;
-    final nivel = _nivelCrudo(totalDescargas, totalLikes, totalTiempoReproducidoMs);
+    final nivel = _nivelCrudo(
+      totalDescargas,
+      totalLikes,
+      totalTiempoReproducidoMs,
+    );
     final siguiente = nivel >= maxNivel ? maxNivel : nivel + 1;
-    final progreso = _progresoCrudo(totalDescargas, totalLikes, totalTiempoReproducidoMs, nivel);
-    return {
-      'level': nivel,
-      'nextLevel': siguiente,
-      'progress': progreso,
-    };
+    final progreso = _progresoCrudo(
+      totalDescargas,
+      totalLikes,
+      totalTiempoReproducidoMs,
+      nivel,
+    );
+    return {'level': nivel, 'nextLevel': siguiente, 'progress': progreso};
   }
 
   static int _nivelCrudo(int descargas, int likes, int reproduccionMs) {
@@ -95,15 +100,20 @@ class CacheDetalle {
     return 0;
   }
 
-  static double _progresoCrudo(int descargas, int likes, int reproduccionMs, int nivel) {
+  static double _progresoCrudo(
+    int descargas,
+    int likes,
+    int reproduccionMs,
+    int nivel,
+  ) {
     // Requisitos por nivel (descargas, likes, reproduccionMs)
     const requisitos = <(int, int, int)>[
-      (10, 0, 0),              // Bronze
-      (50, 20, 10800000),      // Silver I
-      (100, 50, 36000000),     // Silver II
-      (200, 100, 72000000),    // Gold I
-      (500, 200, 180000000),   // Gold II
-      (1000, 500, 360000000),  // Gold III
+      (10, 0, 0), // Bronze
+      (50, 20, 10800000), // Silver I
+      (100, 50, 36000000), // Silver II
+      (200, 100, 72000000), // Gold I
+      (500, 200, 180000000), // Gold II
+      (1000, 500, 360000000), // Gold III
     ];
     if (nivel >= requisitos.length) return 1.0;
 

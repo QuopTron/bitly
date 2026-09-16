@@ -203,14 +203,6 @@ jobs:
       - name: Flutter pub get
         run: flutter pub get
 
-      # El plugin libtorrent_flutter extrae su zip con `cmake -E tar`, que usa
-      # libarchive. Acá el plugin vive detrás de .plugin_symlinks y libarchive
-      # rechaza escribir a través de un symlink ("Cannot extract through
-      # symlink"). Dejamos el prebuilt listo antes de compilar.
-      - name: Preparar prebuilt de libtorrent (x64)
-        shell: pwsh
-        run: ./scripts/build/preparar_libtorrent_windows.ps1 -Arch x64
-
       # El default de shell en runners Windows es PowerShell, no bash — se fija
       # bash explícitamente para que el pipefail/tee/grep del diagnóstico funcionen.
       - name: Build Windows release
@@ -295,7 +287,10 @@ jobs:
         run: |
           cd go_backend
           mkdir -p ../android/app/libs
-          gomobile bind -target=android -androidapi=24 -o "../android/app/libs/bitly.aar" .
+          # -ldflags="-s -w": sin tabla de símbolos ni info de debug. El AAR baja
+          # ~40% (medido: 55,5 MB -> 32,7 MB) y con él el APK, sin tocar una
+          # línea de código. Los símbolos no se usan en release.
+          gomobile bind -target=android -androidapi=24 -ldflags="-s -w" -o "../android/app/libs/bitly.aar" .
         # ANDROID_* ya están en GITHUB_ENV desde el paso Resolve Android SDK/NDK.
         # (El contexto `env` de Actions no expone las predefinidas del runner.)
         env:
@@ -344,16 +339,20 @@ jobs:
       # (emulador/Chromebook) salvo que la variable valga "true". El release de
       # GitHub publica los TRES APKs, así que el APK de CI tiene que cubrir las
       # mismas arquitecturas para que lo que se prueba acá sea lo que se publica.
-      - name: Build Android release APK
+      # split-per-abi (no un APK universal): así CI prueba EXACTAMENTE los
+      # mismos tres APKs que publica el release. Con `--release` a secas y el
+      # splits.abi de build.gradle.kts activo, Flutter no genera
+      # app-release.apk y el upload fallaba por archivo inexistente.
+      - name: Build Android release APKs (split-per-abi)
         env:
           INCLUDE_X86_64: "true"
-        run: flutter build apk --release
+        run: flutter build apk --release --split-per-abi
 
-      - name: Upload artifact (Android)
+      - name: Upload artifacts (Android)
         uses: actions/upload-artifact@v4
         with:
           name: bitly-android
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: build/app/outputs/flutter-apk/app-*-release.apk
           if-no-files-found: error
 
   # ─── Build iOS (best-effort, solo macOS) ────────────────────────────

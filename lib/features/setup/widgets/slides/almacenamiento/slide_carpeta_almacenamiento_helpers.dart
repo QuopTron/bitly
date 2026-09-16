@@ -124,9 +124,10 @@ Widget _botonContinuar(
       height: r.continueButtonHeight,
       child: BotonVidrio(
         label: loc.setup.continueText,
-        onPressed: st._rutaSeleccionada != null && !guardando
-            ? () => _finalizarSetupSt(st)
-            : null,
+        onPressed:
+            st._rutaSeleccionada != null && !guardando
+                ? () => _finalizarSetupSt(st)
+                : null,
         isLoading: guardando,
         height: r.continueButtonHeight,
         accent: glowColor,

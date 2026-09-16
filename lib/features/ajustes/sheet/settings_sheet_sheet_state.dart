@@ -10,7 +10,12 @@ part of 'settings_sheet_new.dart';
 class _SettingsSheetState extends State<SettingsSheet>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  int? _selectedTab; // null = profile/stats view, 0..3 = specific tab
+
+  /// Pestaña activa. Arranca en la PRIMERA burbuja (Apariencia): el usuario
+  /// abre Ajustes para tocar algo, no para mirar un tablero de estadísticas.
+  /// null = vista de perfil/estadísticas (a la que se llega destildando una
+  /// burbuja, no al abrir).
+  int? _selectedTab = 0;
 
   /// Real account tier read from the local premium DB (free/premium/lifetime),
   /// so the header + advanced settings never claim "Premium" for free users.
@@ -26,8 +31,11 @@ class _SettingsSheetState extends State<SettingsSheet>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: _bubbleTabs.length, vsync: this)
-      ..addListener(() {
+    _tabController = TabController(
+      length: _bubbleTabs.length,
+      vsync: this,
+      initialIndex: _selectedTab ?? 0,
+    )..addListener(() {
         if (mounted) setState(() {});
       });
     _loadPremium();

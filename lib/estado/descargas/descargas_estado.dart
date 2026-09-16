@@ -21,14 +21,24 @@ mixin DescargasEstado on DescargasEstadoReintento {
   void confirmarErrorDesencriptado() {
     if (_errorDesencriptadoPendiente != null) {
       _errorDesencriptadoPendiente = null;
-      emit(state.copiarCon(errorDesencriptado: null, limpiarErrorDesencriptado: true));
+      emit(
+        state.copiarCon(
+          errorDesencriptado: null,
+          limpiarErrorDesencriptado: true,
+        ),
+      );
     }
   }
 
   /// Limpia el snackbar del gate del plan free tras verlo.
   void confirmarBloqueoDescarga() {
     if (state.gateDescargaBloqueado != null) {
-      emit(state.copiarCon(gateDescargaBloqueado: null, limpiarGateBloqueado: true));
+      emit(
+        state.copiarCon(
+          gateDescargaBloqueado: null,
+          limpiarGateBloqueado: true,
+        ),
+      );
     }
   }
 
@@ -56,14 +66,18 @@ mixin DescargasEstado on DescargasEstadoReintento {
     _log.i('[_manejarVerificacionRequerida] Iniciando...');
     final servicio = ServicioVerificacion();
     if (!servicio.estaListo) {
-      _log.w('[_manejarVerificacionRequerida] ServicioVerificacion no inicializado');
+      _log.w(
+        '[_manejarVerificacionRequerida] ServicioVerificacion no inicializado',
+      );
       return;
     }
     // Sin fuentes con sesión firmada no hay nada que verificar: el
     // "verification_required" del backend es un falso positivo (p.ej. error de
     // red clasificado erróneamente). Cortamos para no abrir el WebView.
     if (ServicioVerificacion.fuentesSesionFirmada.isEmpty) {
-      _log.i('[_manejarVerificacionRequerida] sin fuentes con sesión firmada, skip');
+      _log.i(
+        '[_manejarVerificacionRequerida] sin fuentes con sesión firmada, skip',
+      );
       return;
     }
     try {
@@ -83,16 +97,14 @@ mixin DescargasEstado on DescargasEstadoReintento {
           // NUNCA abrir una cadena de modals: intento silencioso + aviso con
           // acción "Verificar" (el usuario decide cuándo resolver).
           _log.i('[$extId] verificando sin intrusión ($nombreMostrado)');
-          await servicio.verificarFuenteNoIntrusiva(
-            extId,
-            nombreMostrado,
-            url,
-          );
+          await servicio.verificarFuenteNoIntrusiva(extId, nombreMostrado, url);
         } catch (e) {
           _log.w('[$extId] error de verificación: $e');
         }
       }
-      _log.i('[_manejarVerificacionRequerida] Verificación completa, reintentando lotes interrumpidos');
+      _log.i(
+        '[_manejarVerificacionRequerida] Verificación completa, reintentando lotes interrumpidos',
+      );
       reintentarTodosInterrumpidos();
     } catch (e) {
       _log.e('[_manejarVerificacionRequerida] Error: $e');

@@ -23,15 +23,19 @@ mixin DescargasReparar on DescargasBase {
 
   /// Busca un archivo reproducible (m4a, mp3...) en disco para el mismo track
   /// cuando el decrypt del FLAC encriptado falló. Escanea el directorio padre.
-  Future<String?> _buscarArchivoAlternativo(String stateKey,
-      [String rutaEncriptada = '']) async {
+  Future<String?> _buscarArchivoAlternativo(
+    String stateKey, [
+    String rutaEncriptada = '',
+  ]) async {
     final parts = stateKey.split('_');
     if (parts.length < 3) return null;
     final normId = parts.sublist(1, parts.length - 1).join('_');
     String dirPath;
     if (rutaEncriptada.isNotEmpty) {
-      dirPath = rutaEncriptada
-          .substring(0, rutaEncriptada.lastIndexOf(Platform.pathSeparator));
+      dirPath = rutaEncriptada.substring(
+        0,
+        rutaEncriptada.lastIndexOf(Platform.pathSeparator),
+      );
     } else {
       try {
         final dirDescargas = await di.sl<CacheAjustes>().getRutaDescargas();
@@ -50,7 +54,9 @@ mixin DescargasReparar on DescargasBase {
       for (final f in dir.listSync(followLinks: false)) {
         if (f is! File) continue;
         final nombre = f.path.split(Platform.pathSeparator).last;
-        if (!nombre.toLowerCase().startsWith('${normId.toLowerCase()}_audio.')) {
+        if (!nombre.toLowerCase().startsWith(
+          '${normId.toLowerCase()}_audio.',
+        )) {
           continue;
         }
         if (nombre.contains('.tmp.') || nombre.contains('.enc.')) continue;
@@ -63,7 +69,8 @@ mixin DescargasReparar on DescargasBase {
                 try {
                   final head = raf.readSync(4);
                   if (head.length < 4) continue;
-                  final esID3 = head[0] == 0x49 && head[1] == 0x44 && head[2] == 0x33;
+                  final esID3 =
+                      head[0] == 0x49 && head[1] == 0x44 && head[2] == 0x33;
                   final esMPEG = head[0] == 0xFF && (head[1] & 0xE0) == 0xE0;
                   final esTS = head[0] == 0x47;
                   if (!esID3 && !esMPEG && !esTS) continue;
@@ -78,26 +85,33 @@ mixin DescargasReparar on DescargasBase {
           }
         }
         if ((ext == '.flac' || ext == '.dec.flac') &&
-            f.existsSync() && f.lengthSync() > 1024) {
+            f.existsSync() &&
+            f.lengthSync() > 1024) {
           try {
             final raf = f.openSync(mode: FileMode.read);
             try {
               final head = raf.readSync(4);
               if (head.length >= 4 &&
-                  head[0] == 0x66 && head[1] == 0x4C &&
-                  head[2] == 0x61 && head[3] == 0x43) {
+                  head[0] == 0x66 &&
+                  head[1] == 0x4C &&
+                  head[2] == 0x61 &&
+                  head[3] == 0x43) {
                 return f.path;
               }
             } finally {
               raf.closeSync();
             }
-          } catch (e) { debugPrint("[Descargas] $e"); }
+          } catch (e) {
+            debugPrint("[Descargas] $e");
+          }
         }
       }
     } catch (e) {
       _log.w('[buscarAlt] error escaneando $dirPath para $stateKey: $e');
     }
-    _log.w('[buscarAlt] sin archivo reproducible para $stateKey en $dirPath (normId=$normId)');
+    _log.w(
+      '[buscarAlt] sin archivo reproducible para $stateKey en $dirPath (normId=$normId)',
+    );
     return null;
   }
 
@@ -115,26 +129,40 @@ mixin DescargasReparar on DescargasBase {
       if (magic.length < 4) return false;
       switch (ext) {
         case 'flac':
-          return magic[0] == 0x66 && magic[1] == 0x4C &&
-              magic[2] == 0x61 && magic[3] == 0x43; // "fLaC"
+          return magic[0] == 0x66 &&
+              magic[1] == 0x4C &&
+              magic[2] == 0x61 &&
+              magic[3] == 0x43; // "fLaC"
         case 'mp3':
-          if (magic[0] == 0x49 && magic[1] == 0x44 && magic[2] == 0x33) return true; // ID3
-          if (magic[0] == 0xFF && (magic[1] & 0xE0) == 0xE0) return true; // frame MPEG
+          if (magic[0] == 0x49 && magic[1] == 0x44 && magic[2] == 0x33) {
+            return true; // ID3
+          }
+          if (magic[0] == 0xFF && (magic[1] & 0xE0) == 0xE0) {
+            return true; // frame MPEG
+          }
           if (magic[0] == 0x47) return true; // MPEG-TS (HLS de SoundCloud)
           return false;
         case 'wav':
-          return magic[0] == 0x52 && magic[1] == 0x49 &&
-              magic[2] == 0x46 && magic[3] == 0x46; // "RIFF"
+          return magic[0] == 0x52 &&
+              magic[1] == 0x49 &&
+              magic[2] == 0x46 &&
+              magic[3] == 0x46; // "RIFF"
         case 'ogg':
-          return magic[0] == 0x4F && magic[1] == 0x67 &&
-              magic[2] == 0x67 && magic[3] == 0x53; // "OggS"
+          return magic[0] == 0x4F &&
+              magic[1] == 0x67 &&
+              magic[2] == 0x67 &&
+              magic[3] == 0x53; // "OggS"
         case 'opus':
-          if (magic[0] == 0x4F && magic[1] == 0x67 &&
-              magic[2] == 0x67 && magic[3] == 0x53) {
+          if (magic[0] == 0x4F &&
+              magic[1] == 0x67 &&
+              magic[2] == 0x67 &&
+              magic[3] == 0x53) {
             return true; // OggS
           }
-          if (magic[0] == 0x1A && magic[1] == 0x45 &&
-              magic[2] == 0xDF && magic[3] == 0xA3) {
+          if (magic[0] == 0x1A &&
+              magic[1] == 0x45 &&
+              magic[2] == 0xDF &&
+              magic[3] == 0xA3) {
             return true; // WebM
           }
           return true; // Opus crudo: aceptar si el archivo existe

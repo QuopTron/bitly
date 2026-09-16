@@ -16,7 +16,10 @@ part of 'cubit_descargas.dart';
 /// Finalización y persistencia de lotes. Mixin aplicado en CubitDescargas.
 mixin DescargasLoteFinalizar on DescargasEstado {
   /// Persiste un lote completado y refresca los caches.
-  Future<void> _finalizarLoteCompletado(String batchKey, List<String> trackIds) async {
+  Future<void> _finalizarLoteCompletado(
+    String batchKey,
+    List<String> trackIds,
+  ) async {
     if (_lotesGuardadosCompletados.contains(batchKey)) return;
     _lotesGuardadosCompletados.add(batchKey);
     final parts = batchKey.split('_');
@@ -25,12 +28,14 @@ mixin DescargasLoteFinalizar on DescargasEstado {
     final src = parts.last;
     final itemId = parts.sublist(1, parts.length - 1).join('_');
     final batchData = _datosLote[batchKey];
-    final batchName = (batchData?.tracks.isNotEmpty == true)
-        ? (batchData!.tracks.first['album_name'] as String? ?? '')
-        : '';
-    final batchCover = (batchData?.tracks.isNotEmpty == true)
-        ? (batchData!.tracks.first['cover_url'] as String? ?? '')
-        : '';
+    final batchName =
+        (batchData?.tracks.isNotEmpty == true)
+            ? (batchData!.tracks.first['album_name'] as String? ?? '')
+            : '';
+    final batchCover =
+        (batchData?.tracks.isNotEmpty == true)
+            ? (batchData!.tracks.first['cover_url'] as String? ?? '')
+            : '';
     // Guardar la carátula del lote en local para persistencia offline.
     // Reintentar 3 veces con backoff exponencial (igual que tracks únicos).
     String batchCoverPath = '';
@@ -42,16 +47,28 @@ mixin DescargasLoteFinalizar on DescargasEstado {
             batchCoverPath = saved;
             break;
           }
-        } catch (e) { debugPrint("[Descargas] $e"); }
+        } catch (e) {
+          debugPrint("[Descargas] $e");
+        }
         if (intento < 2) {
           await Future<void>.delayed(Duration(seconds: 1 << intento));
         }
       }
     }
-    _metaLote[batchKey] = _MetaLote(batchName, itemType, itemId, src,
-        coverUrl: batchCover, coverPath: batchCoverPath);
+    _metaLote[batchKey] = _MetaLote(
+      batchName,
+      itemType,
+      itemId,
+      src,
+      coverUrl: batchCover,
+      coverPath: batchCoverPath,
+    );
     await _downloadCache.guardarLoteDescargado(
-      batchKey, itemType, itemId, src, batchName,
+      batchKey,
+      itemType,
+      itemId,
+      src,
+      batchName,
       trackIds: trackIds,
       coverUrl: batchCover,
       coverPath: batchCoverPath,

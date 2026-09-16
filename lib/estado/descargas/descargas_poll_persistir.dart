@@ -25,10 +25,14 @@ mixin DescargasPollPersistir on DescargasPollFinalizar {
     Set<String> fps,
   ) async {
     final meta = _metaTrack[stateKey];
-    var trackId = meta?.trackId ?? (stateKey.startsWith('track_') && stateKey.length > 6
-        ? stateKey.substring(6, stateKey.lastIndexOf('_'))
-        : rawId);
-    final src = meta?.source ?? (stateKey.contains('_') ? stateKey.split('_').last : '');
+    var trackId =
+        meta?.trackId ??
+        (stateKey.startsWith('track_') && stateKey.length > 6
+            ? stateKey.substring(6, stateKey.lastIndexOf('_'))
+            : rawId);
+    final src =
+        meta?.source ??
+        (stateKey.contains('_') ? stateKey.split('_').last : '');
     // Un track del feed puede llegar con provider id vacío (pero ISRC válido)
     // — amazon/otros resuelven un archivo real por ISRC. Fallback al ISRC para
     // persistir una fila identificable, borrable y reproducible.
@@ -56,26 +60,38 @@ mixin DescargasPollPersistir on DescargasPollFinalizar {
       }
       if (coverPath != null && coverPath.isNotEmpty && meta != null) {
         _metaTrack[stateKey] = _InfoTrack(
-          meta.trackId, meta.name, meta.artist, meta.coverUrl, meta.source, coverPath,
+          meta.trackId,
+          meta.name,
+          meta.artist,
+          meta.coverUrl,
+          meta.source,
+          coverPath,
         );
       }
     }
-    String stripSufijo(String s) => s.endsWith('_audio') || s.endsWith('_video')
-        ? s.substring(0, s.length - 6)
-        : s.endsWith('_lyrics') ? s.substring(0, s.length - 7) : s;
-    unawaited(_downloadCache.guardarTrackDescargado(
-      id: trackId,
-      trackName: trackName.isNotEmpty ? trackName : (isrc.isNotEmpty ? isrc : rawId),
-      artistName: artistName.isNotEmpty ? artistName : '',
-      isrc: isrc.isNotEmpty ? isrc : null,
-      service: src,
-      filePath: playablePath.isNotEmpty ? playablePath : null,
-      providerTrackId: stripSufijo(rawId),
-      providerSource: src,
-      coverUrl: trackCoverUrl,
-      coverPath: coverPath,
-    ));
-    final fpName = trackName.isNotEmpty ? trackName : (isrc.isNotEmpty ? isrc : rawId);
+    String stripSufijo(String s) =>
+        s.endsWith('_audio') || s.endsWith('_video')
+            ? s.substring(0, s.length - 6)
+            : s.endsWith('_lyrics')
+            ? s.substring(0, s.length - 7)
+            : s;
+    unawaited(
+      _downloadCache.guardarTrackDescargado(
+        id: trackId,
+        trackName:
+            trackName.isNotEmpty ? trackName : (isrc.isNotEmpty ? isrc : rawId),
+        artistName: artistName.isNotEmpty ? artistName : '',
+        isrc: isrc.isNotEmpty ? isrc : null,
+        service: src,
+        filePath: playablePath.isNotEmpty ? playablePath : null,
+        providerTrackId: stripSufijo(rawId),
+        providerSource: src,
+        coverUrl: trackCoverUrl,
+        coverPath: coverPath,
+      ),
+    );
+    final fpName =
+        trackName.isNotEmpty ? trackName : (isrc.isNotEmpty ? isrc : rawId);
     final fpArtist = trackName.isNotEmpty ? artistName : '';
     fps.add(huellaDesdeNombre(fpName, fpArtist));
     _completadosPersistidos.add(rawId);

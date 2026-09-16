@@ -36,13 +36,16 @@ mixin DescargasRepararEscaneo on DescargasRepararDecrypt {
         }
       }
       if (rotas.isEmpty) return;
-      _log.w('[CubitDescargas] Reparando ${rotas.length} descarga(s) corrupta(s)...');
+      _log.w(
+        '[CubitDescargas] Reparando ${rotas.length} descarga(s) corrupta(s)...',
+      );
 
       // Quitar filas rotas de la BD y borrar los archivos inutilizables.
-      final idsRotas = rotas
-          .map((m) => (m['id'] ?? '').toString())
-          .where((id) => id.isNotEmpty)
-          .toList();
+      final idsRotas =
+          rotas
+              .map((m) => (m['id'] ?? '').toString())
+              .where((id) => id.isNotEmpty)
+              .toList();
       if (idsRotas.isNotEmpty) {
         await _downloadCache.borrarTracksDescargados(idsRotas);
       }
@@ -50,7 +53,9 @@ mixin DescargasRepararEscaneo on DescargasRepararDecrypt {
         try {
           final file = File((m['file_path'] ?? '').toString());
           if (await file.exists()) await file.delete();
-        } catch (e) { debugPrint("[Descargas] $e"); }
+        } catch (e) {
+          debugPrint("[Descargas] $e");
+        }
       }
       await di.sl<CacheBiblioteca>().invalidarTodo();
 

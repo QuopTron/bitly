@@ -63,6 +63,12 @@ func InvokeExtensionAction(payload string) string {
 	if params.Provider == "" || params.Action == "" {
 		return jsonErrorString("faltan provider/action")
 	}
+	// Los providers NATIVOS (Go) no son extensiones JS: sus acciones se
+	// atienden aparte, con el mismo contrato, para que Ajustes → Credenciales
+	// pueda tener botones en ambos casos.
+	if respuesta, manejada := invocarAccionFlacRescue(params.Provider, params.Action); manejada {
+		return respuesta
+	}
 	if reg == nil {
 		return jsonErrorString("no inicializado")
 	}

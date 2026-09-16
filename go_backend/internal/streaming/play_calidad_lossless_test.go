@@ -31,17 +31,23 @@ func TestVocabularioDeCalidadSinPerdida(t *testing.T) {
 	}
 }
 
-// Internet Archive y Soulseek identifican por nombre (son "re-subidos" para el
-// orden de identidad) pero entregan FLAC real y sin sesión: tienen que contar
-// como fuentes sin pérdida, y YouTube no.
+// Internet Archive, Soulseek y flac-rescue entregan FLAC real y sin sesión: eso
+// es CAPACIDAD de audio (habilita las descargas) y no depende de que puedan
+// streamear. YouTube no puede entregar sin pérdida.
 func TestClasificacionDeFuentesSinPerdida(t *testing.T) {
 	for _, n := range []string{"internetarchive", "soulseek", "flac-rescue"} {
 		if !esProveedorLossless(n) {
 			t.Errorf("%q debería poder entregar sin pérdida", n)
 		}
+	}
+	// La gracia solo la dan las que pueden entregar EN VIVO.
+	for _, n := range []string{"internetarchive", "flac-rescue"} {
 		if !esFuenteLosslessSiempre(n) {
 			t.Errorf("%q no depende de suscripción para dar sin pérdida", n)
 		}
+	}
+	if esFuenteLosslessSiempre("soulseek") {
+		t.Error("soulseek no puede entregar en vivo: no debe dar la gracia de pérdida")
 	}
 	for _, n := range []string{"youtube", "ytmusic-spotiflac", "soundcloud"} {
 		if esProveedorLossless(n) {
@@ -51,9 +57,17 @@ func TestClasificacionDeFuentesSinPerdida(t *testing.T) {
 			t.Errorf("%q identifica por nombre y debe esperar a las exactas", n)
 		}
 	}
-	// Soulseek tiene que estar en el orden de streaming, si no nunca participa.
+	// Soulseek tiene que estar FUERA de las fuentes de AUDIO (no entrega ni un
+	// byte por stream) y declarado como fuente de solo descarga, no borrado en
+	// silencio. En streamingProviders (metadata) sí va: ahí aporta búsqueda.
+	if contieneNombre(proveedoresAudio, "soulseek") {
+		t.Fatal("soulseek volvió a la carrera de audio: no puede servir un stream")
+	}
+	if !esProveedorSoloDescarga("soulseek") {
+		t.Fatal("soulseek debe declararse en proveedoresSoloDescarga")
+	}
 	if !contieneNombre(streamingProviders, "soulseek") {
-		t.Fatal("soulseek no está en streamingProviders: no participaría de la carrera")
+		t.Fatal("soulseek debe seguir buscando en metadata (streamingProviders)")
 	}
 }
 

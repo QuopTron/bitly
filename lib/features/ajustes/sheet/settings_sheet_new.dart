@@ -6,6 +6,7 @@
 // Parte del flujo: Ajustes (hoja modal).
 // ─────────────────────────────────────────────────────────────
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -25,6 +26,13 @@ import '../../../core/modelos/ajustes_descarga.dart';
 import '../../../core/modelos/usuario/estado_premium.dart';
 import '../../../core/cache/reproduccion/reproduccion_cache.dart';
 import '../../../core/cache/reproduccion/reproduccion_stats.dart';
+import '../../../core/modelos/logros/niveles_escucha.dart';
+import '../../../core/modelos/logros/progreso_escucha.dart';
+import '../../../core/servicios/estadisticas/caratulas_escucha.dart';
+import '../../../core/servicios/estadisticas/detalle_escucha.dart';
+import '../../../core/servicios/estadisticas/filtro_escucha.dart';
+import '../../../core/servicios/estadisticas/formato_escucha.dart';
+import '../../../core/modelos/usuario/estadisticas_usuario.dart';
 import '../../../core/cache/estado/estado_cola.dart';
 import '../../../core/cache/almacenes/cache_premium.dart';
 import '../../../core/cache/almacenes/cache_ajustes.dart';
@@ -51,7 +59,8 @@ import '../../../shared/utilidades/portada/paleta_portada.dart';
 import '../../../shared/utilidades/formato/estilo_helper.dart';
 import '../../tutorial_interactivo/motor/tutorial_controller.dart';
 import '../../tutorial_interactivo/motor/tutorial_pasos.dart';
-import '../../../shared/widgets/tarjetas/portada/imagen_portada.dart' show imagenDesdeUrl;
+import '../../../shared/widgets/tarjetas/portada/imagen_portada.dart'
+    show ImagenPortada, imagenDesdeUrl;
 import '../../../core/modelos/usuario/estilo_visual.dart';
 import '../../../core/modelos/usuario/preferencias_estilo.dart';
 import '../../../core/modelos/usuario/perfil_rendimiento.dart';
@@ -119,6 +128,17 @@ part 'settings_sheet_stats_helpers.dart';
 part 'settings_sheet_sheet_build.dart';
 part 'settings_sheet_sheet_widgets.dart';
 part 'settings_compartidos_tab.dart';
+part 'settings_compartidos_lista.dart';
+part 'settings_estadisticas_niveles.dart';
+part 'settings_estadisticas_nivel_chip.dart';
+part 'settings_estadisticas_resumen.dart';
+part 'settings_estadisticas_detalle.dart';
+part 'settings_estadisticas_detalle_lista.dart';
+part 'settings_estadisticas_etiquetas.dart';
+part 'settings_estadisticas_tirador.dart';
+part 'settings_estadisticas_detalle_fila.dart';
+part 'settings_estadisticas_detalle_filtros.dart';
+part 'settings_estadisticas_chip_filtro.dart';
 part 'settings_compartidos_fila.dart';
 part 'settings_sheet_body_state.dart';
 part 'settings_sheet_report_dialog_contenido.dart';

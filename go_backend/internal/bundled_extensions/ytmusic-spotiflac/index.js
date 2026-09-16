@@ -1942,6 +1942,51 @@ function proveedorPoTokenDisponible() {
   return poTokenProviderCandidatesParaAcunar().length > 0;
 }
 
+// ponerGanadorPrimero sube al frente el cliente que ACABA de resolver un
+// stream en esta sesión (ganador pegado / sticky winner).
+//
+// POR QUÉ: el orden estático arranca siempre por el mismo cliente y en una IP
+// marcada ese es justo el que YouTube rechaza; la cadena quedaba pagando 2-9
+// POST + sus sondas por canción aunque hubiera un cliente que dos segundos
+// antes había funcionado con la MISMA huella (mismo equipo, misma IP, mismo
+// tipo de bloqueo). Con el ganador primero, de la segunda canción en adelante
+// resolver suele ser UNA petición.
+//
+// LÍMITES, que es lo que evita degradar la calidad:
+//   1. Nunca se sube un cliente marcado como bloqueado por el mapa de salud
+//      (ese ya falló hace minutos: subirlo sería volver a pagar su timeout).
+//   2. Solo se sube DENTRO de su clase (pide token / no pide token). Cambiar de
+//      clase por latencia sería perder audio-only: los clientes que no piden
+//      token suelen devolver itag=18 (video+audio ~128k) aunque haya proveedor
+//      de PO Token que permita 251 opus. Primero la calidad, después el turno.
+//   3. Si el ganador es el primero (o ya no está en la lista), no se toca nada.
+function ponerGanadorPrimero(orden) {
+  if (!_lastClientOk || !orden || orden.length < 2) return orden;
+  if (innerTubeClientBlocked(_lastClientOk)) return orden;
+  var idx = -1;
+  for (var gi = 0; gi < orden.length; gi++) {
+    if (orden[gi].name === _lastClientOk) {
+      idx = gi;
+      break;
+    }
+  }
+  if (idx <= 0) return orden;
+  if (!!orden[idx].requiresGvsPoToken !== !!orden[0].requiresGvsPoToken) {
+    return orden;
+  }
+  var conGanador = [orden[idx]];
+  for (var gj = 0; gj < orden.length; gj++) {
+    if (gj !== idx) conGanador.push(orden[gj]);
+  }
+  L(
+    "info",
+    "[InnerTube] ganador pegado: " +
+      _lastClientOk +
+      " pasa al frente del orden de clientes",
+  );
+  return conGanador;
+}
+
 // Orden efectivo de clientes para resolver audio.
 function clientesInnerTubeEnOrden() {
   // Diagnóstico de UNA línea por sesión, a nivel warn (el nivel por defecto del
@@ -1963,7 +2008,8 @@ function clientesInnerTubeEnOrden() {
           : " -> sin proveedor: se prioriza visionos (audio solo-audio anónimo)"),
     );
   }
-  if (!proveedorPoTokenDisponible()) return INNERTUBE_CLIENTS;
+  if (!proveedorPoTokenDisponible())
+    return ponerGanadorPrimero(INNERTUBE_CLIENTS);
 
   var conToken = [];
   var sinToken = [];
@@ -1993,7 +2039,7 @@ function clientesInnerTubeEnOrden() {
         " para conseguir audio solo-audio (mejor bitrate que itag=18)",
     );
   }
-  return conToken.concat(sinToken);
+  return ponerGanadorPrimero(conToken.concat(sinToken));
 }
 
 function refreshInnerTubeAudioCandidate(videoID, oldCandidate, pageInfo) {

@@ -26,6 +26,8 @@ import '../core/cache/almacenes/cache_colecciones.dart';
 import '../core/cache/almacenes/cache_feed.dart';
 import '../core/cache/reproduccion/reproduccion_cache.dart';
 import '../core/cache/reproduccion/reproduccion_stats.dart';
+import '../core/servicios/estadisticas/caratulas_escucha.dart';
+import '../core/servicios/estadisticas/detalle_escucha.dart';
 import '../core/cache/reproduccion/reproduccion_detalle_local.dart';
 import '../core/cache/reproduccion/reproduccion_sync.dart';
 import '../core/modelos/usuario/estilo_visual.dart';
@@ -81,6 +83,8 @@ Future<void> configurarDependencias() async {
   sl.registerLazySingleton<CacheFeed>(() => CacheFeed(db));
   sl.registerLazySingleton<ReproduccionCache>(() => ReproduccionCache(db));
   sl.registerLazySingleton<ReproduccionStats>(() => ReproduccionStats(db));
+  sl.registerLazySingleton<DetalleEscucha>(() => DetalleEscucha(db));
+  sl.registerLazySingleton<CaratulasEscucha>(CaratulasEscucha.new);
   sl.registerLazySingleton<ReproduccionDetalleLocal>(() => ReproduccionDetalleLocal(db));
   sl.registerLazySingleton<ReproduccionSync>(() => ReproduccionSync(db));
 

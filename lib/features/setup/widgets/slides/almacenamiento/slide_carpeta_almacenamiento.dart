@@ -27,6 +27,8 @@ import '../../../../../shared/widgets/vidrio/boton_vidrio.dart';
 import '../../../../../shared/widgets/vidrio/contenedor_vidrio.dart';
 import '../../../../../core/backend_go/nucleo/contrato_backend.dart';
 import '../../../../../core/cache/almacenes/cache_ajustes.dart';
+import '../../../../../core/cache/almacenes/cache_biblioteca.dart';
+import '../../../../../core/cache/almacenes/cache_descargas.dart';
 import '../../../bloc/setup_bloc.dart';
 import '../../../bloc/setup_estado.dart';
 import '../../../bloc/setup_evento.dart';
@@ -56,7 +58,8 @@ class SlideCarpetaAlmacenamiento extends StatefulWidget {
       _SlideCarpetaAlmacenamientoState();
 }
 
-class _SlideCarpetaAlmacenamientoState extends State<SlideCarpetaAlmacenamiento> {
+class _SlideCarpetaAlmacenamientoState
+    extends State<SlideCarpetaAlmacenamiento> {
   String? _rutaSeleccionada;
   bool _usandoPorDefecto = false;
   bool _eligiendo = false;
@@ -116,9 +119,10 @@ class _SlideCarpetaAlmacenamientoState extends State<SlideCarpetaAlmacenamiento>
                     tieneRuta: _rutaSeleccionada != null,
                     usandoPorDefecto: _usandoPorDefecto,
                     eligiendo: _eligiendo,
-                    rutaMostrada: _usandoPorDefecto
-                        ? loc.setup.storageDefaultPath
-                        : (_rutaSeleccionada ?? ''),
+                    rutaMostrada:
+                        _usandoPorDefecto
+                            ? loc.setup.storageDefaultPath
+                            : (_rutaSeleccionada ?? ''),
                     etiquetaSeleccionada: loc.setup.storageSelected,
                     etiquetaSinCarpeta: loc.setup.noFolder,
                     onBg: onBg,

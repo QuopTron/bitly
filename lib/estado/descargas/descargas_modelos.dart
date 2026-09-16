@@ -10,6 +10,13 @@
 
 part of 'cubit_descargas.dart';
 
+/// Cuántas veces se reencola la MISMA canción al frente del FIFO antes de
+/// darla por interrumpida y dejar avanzar el orden. 2 = primer intento +
+/// 2 reintentos con la calidad degradada un escalón (FLAC → MP3_320 →
+/// MP3_128), que es lo que hace que una canción pedida sin pérdida termine
+/// bajando igual en vez de quedar en rojo.
+const int _maxReintentosInSitu = 2;
+
 /// Guarda los datos originales de los tracks de un lote para poder reintentar
 /// los que fallaron después.
 class _DatosLote {
@@ -18,7 +25,12 @@ class _DatosLote {
   final String source;
   final String? calidadForzada;
 
-  const _DatosLote(this.tracks, this.ajustes, this.source, [this.calidadForzada]);
+  const _DatosLote(
+    this.tracks,
+    this.ajustes,
+    this.source, [
+    this.calidadForzada,
+  ]);
 }
 
 /// Un track individual esperando en la cola secuencial de descargas.
@@ -30,8 +42,14 @@ class _TrackEnCola {
   final String? calidadForzada;
   final String? batchKey;
 
-  const _TrackEnCola(this.trackMap, this.trackId, this.source, this.ajustes,
-      [this.calidadForzada, this.batchKey]);
+  const _TrackEnCola(
+    this.trackMap,
+    this.trackId,
+    this.source,
+    this.ajustes, [
+    this.calidadForzada,
+    this.batchKey,
+  ]);
 }
 
 /// Metadata persistente de un track descargado (sobrevive reinicios vía BD).
@@ -48,8 +66,15 @@ class _InfoTrack {
   /// no traiga id).
   final String isrc;
 
-  const _InfoTrack(this.trackId, this.name, this.artist, this.coverUrl,
-      this.source, [this.coverPath, this.isrc = '']);
+  const _InfoTrack(
+    this.trackId,
+    this.name,
+    this.artist,
+    this.coverUrl,
+    this.source, [
+    this.coverPath,
+    this.isrc = '',
+  ]);
 }
 
 /// Metadata de un lote (álbum/playlist) descargado.
@@ -61,6 +86,12 @@ class _MetaLote {
   final String coverUrl;
   final String coverPath;
 
-  const _MetaLote(this.name, this.itemType, this.itemId, this.source,
-      {this.coverUrl = '', this.coverPath = ''});
+  const _MetaLote(
+    this.name,
+    this.itemType,
+    this.itemId,
+    this.source, {
+    this.coverUrl = '',
+    this.coverPath = '',
+  });
 }

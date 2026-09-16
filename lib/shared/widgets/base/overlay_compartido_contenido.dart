@@ -20,6 +20,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/modelos/feed/item_feed.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../utilidades/plataforma/efectos_app.dart';
 import '../../utilidades/plataforma/responsive.dart';
 import '../tarjetas/portada/imagen_portada.dart';
 import '../vidrio/desenfoque_adaptativo.dart';
@@ -50,6 +51,10 @@ class OverlayCompartidoContenido extends StatelessWidget {
   /// "agregar a la cola".
   final bool enCola;
 
+  /// Si false, no pinta el fondo: lo pone el dueño (así el desenfoque no
+  /// se reconstruye en cada frame de la animación de entrada).
+  final bool mostrarFondo;
+
   /// Acción principal: reproducir o encolar, según [enCola].
   final VoidCallback onAccion;
   final VoidCallback onDismiss;
@@ -64,6 +69,7 @@ class OverlayCompartidoContenido extends StatelessWidget {
     required this.onAccion,
     required this.onDismiss,
     this.enCola = false,
+    this.mostrarFondo = true,
   });
 
   /// Caída de la carta: llega desde arriba y se asienta antes de la mitad.
@@ -90,7 +96,8 @@ class OverlayCompartidoContenido extends StatelessWidget {
     return Stack(
       textDirection: TextDirection.ltr,
       children: [
-        Positioned.fill(child: _fondoOverlay(context, onDismiss)),
+        if (mostrarFondo)
+          Positioned.fill(child: FondoCompartido(onDismiss: onDismiss)),
         Center(
           child: SingleChildScrollView(
             padding: EdgeInsets.symmetric(
@@ -116,9 +123,10 @@ class OverlayCompartidoContenido extends StatelessWidget {
                       child: GestureDetector(
                         behavior: HitTestBehavior.opaque,
                         onTap: () {},
-                        child: esTrack
-                            ? _tarjetaTrackMini(cs, this, r, l)
-                            : _tarjetaGridMini(cs, this, r, l),
+                        child:
+                            esTrack
+                                ? _tarjetaTrackMini(cs, this, r, l)
+                                : _tarjetaGridMini(cs, this, r, l),
                       ),
                     ),
                   ),

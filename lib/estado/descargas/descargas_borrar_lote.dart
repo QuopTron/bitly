@@ -39,13 +39,17 @@ mixin DescargasBorrarLote on DescargasBorrarPlaylist {
       final title = (t['track_title'] as String?) ?? '';
       final artist = (t['artist_name'] as String?) ?? '';
       if (title.isNotEmpty && artist.isNotEmpty) {
-        fileStems.add('${_sanitizarNombreArchivo(artist)} - ${_sanitizarNombreArchivo(title)}');
+        fileStems.add(
+          '${_sanitizarNombreArchivo(artist)} - ${_sanitizarNombreArchivo(title)}',
+        );
       }
       final coverUrl = (t['cover_url'] as String?) ?? '';
       if (coverUrl.isNotEmpty) {
         final likeCubit = di.sl<CubitLikes>();
-        final esAmado = [originalId, normalizedId]
-            .any((id) => id.isNotEmpty && likeCubit.estaItemIdAmado(id));
+        final esAmado = [
+          originalId,
+          normalizedId,
+        ].any((id) => id.isNotEmpty && likeCubit.estaItemIdAmado(id));
         if (!esAmado) coversToDelete.add(coverUrl);
       }
     }
@@ -55,7 +59,11 @@ mixin DescargasBorrarLote on DescargasBorrarPlaylist {
     // padre ya no está amado (el like muestra la misma portada).
     if (coversToDelete.isNotEmpty && !_padreAmado(batchKey)) {
       for (final coverUrl in coversToDelete) {
-        try { await _backend.deleteCover(coverUrl); } catch (e) { debugPrint("[Descargas] $e"); }
+        try {
+          await _backend.deleteCover(coverUrl);
+        } catch (e) {
+          debugPrint("[Descargas] $e");
+        }
       }
     }
 
@@ -67,10 +75,14 @@ mixin DescargasBorrarLote on DescargasBorrarPlaylist {
       if (originalId.isEmpty) continue;
       final normalizedId = normalizarId(originalId);
       final likeCubit = di.sl<CubitLikes>();
-      final esAmado = [originalId, normalizedId]
-          .any((id) => id.isNotEmpty && likeCubit.estaItemIdAmado(id));
+      final esAmado = [
+        originalId,
+        normalizedId,
+      ].any((id) => id.isNotEmpty && likeCubit.estaItemIdAmado(id));
       // batchCount incluye este lote (aún no removido de la BD), >1 = compartido.
-      final batchCount = await _downloadCache.contarLotesReferenciandoTrack(normalizedId);
+      final batchCount = await _downloadCache.contarLotesReferenciandoTrack(
+        normalizedId,
+      );
       if (!esAmado && batchCount <= 1) {
         stemsToDelete.addAll({originalId, normalizedId});
         for (final id in {originalId, normalizedId}) {
@@ -79,7 +91,9 @@ mixin DescargasBorrarLote on DescargasBorrarPlaylist {
         final title = (t['track_title'] as String?) ?? '';
         final artist = (t['artist_name'] as String?) ?? '';
         if (title.isNotEmpty && artist.isNotEmpty) {
-          stemsToDelete.add('${_sanitizarNombreArchivo(artist)} - ${_sanitizarNombreArchivo(title)}');
+          stemsToDelete.add(
+            '${_sanitizarNombreArchivo(artist)} - ${_sanitizarNombreArchivo(title)}',
+          );
         }
       }
     }
@@ -89,9 +103,15 @@ mixin DescargasBorrarLote on DescargasBorrarPlaylist {
 
     // Quitar referencias del player para TODOS los tracks; borrar archivos
     // solo para tracks que ningún otro lote/like referencia.
-    di.sl<CubitReproductor>().eliminarArchivosLocalesPorProveedores(fileStems.toList(), borrarArchivos: false);
+    di.sl<CubitReproductor>().eliminarArchivosLocalesPorProveedores(
+      fileStems.toList(),
+      borrarArchivos: false,
+    );
     if (stemsToDelete.isNotEmpty) {
-      di.sl<CubitReproductor>().eliminarArchivosLocalesPorProveedores(stemsToDelete.toList(), borrarArchivos: true);
+      di.sl<CubitReproductor>().eliminarArchivosLocalesPorProveedores(
+        stemsToDelete.toList(),
+        borrarArchivos: true,
+      );
     }
     di.sl<CacheBiblioteca>().invalidarTodo();
 
@@ -103,7 +123,8 @@ mixin DescargasBorrarLote on DescargasBorrarPlaylist {
       dl.remove(audioId);
       final meta = _metaTrack[audioId];
       if (meta != null) {
-        final fpName = meta.name.isNotEmpty ? meta.name : normalizarId(meta.trackId);
+        final fpName =
+            meta.name.isNotEmpty ? meta.name : normalizarId(meta.trackId);
         final fpArtist = meta.artist ?? '';
         fps.remove(huellaDesdeNombre(fpName, fpArtist));
       }
@@ -114,18 +135,27 @@ mixin DescargasBorrarLote on DescargasBorrarPlaylist {
         final normId = parts.sublist(1, parts.length - 1).join('_');
         _idsTracksDescargados.remove(normId);
       }
-      trackerIds.addAll(_itemIdAKeyEstado.entries
-          .where((e) => e.value == audioId)
-          .map((e) => e.key));
+      trackerIds.addAll(
+        _itemIdAKeyEstado.entries
+            .where((e) => e.value == audioId)
+            .map((e) => e.key),
+      );
       _itemIdAKeyEstado.removeWhere((k, v) => v == audioId);
       // Limpiar state keys de video y letra.
       dl.remove('${audioId}_video');
       dl.remove('${audioId}_lyrics');
-      trackerIds.addAll(_itemIdAKeyEstado.entries
-          .where((e) => e.value == '${audioId}_video' || e.value == '${audioId}_lyrics')
-          .map((e) => e.key));
-      _itemIdAKeyEstado.removeWhere((k, v) =>
-          v == '${audioId}_video' || v == '${audioId}_lyrics');
+      trackerIds.addAll(
+        _itemIdAKeyEstado.entries
+            .where(
+              (e) =>
+                  e.value == '${audioId}_video' ||
+                  e.value == '${audioId}_lyrics',
+            )
+            .map((e) => e.key),
+      );
+      _itemIdAKeyEstado.removeWhere(
+        (k, v) => v == '${audioId}_video' || v == '${audioId}_lyrics',
+      );
     }
     // Olvidar la persistencia y sacar la entrada del tracker de Go para que el
     // próximo poll no resucite la descarga borrada.

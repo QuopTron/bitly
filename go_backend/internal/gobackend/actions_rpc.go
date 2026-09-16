@@ -99,6 +99,7 @@ func DownloadByStrategy(payload string) string {
 		TidalID:    strOf(raw, "tidal_id", "tidalId"),
 		QobuzID:    strOf(raw, "qobuz_id", "qobuzId"),
 		DurationMS: strInt(raw, "duration_ms", "durationMs"),
+		CoverURL:   strOf(raw, "cover_url", "coverUrl"),
 	}
 	if downloadOrch == nil {
 		return jsonErrorString("no inicializado")

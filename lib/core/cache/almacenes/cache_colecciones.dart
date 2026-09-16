@@ -22,8 +22,10 @@ class CacheColecciones {
   Future<void> quitarTrackColeccion(String collectionId, String trackId) =>
       _dao.removeTrack(collectionId, trackId);
 
-  Future<void> actualizarCaratulaColeccion(String collectionId, String coverPath) =>
-      _dao.updateCover(collectionId, coverPath);
+  Future<void> actualizarCaratulaColeccion(
+    String collectionId,
+    String coverPath,
+  ) => _dao.updateCover(collectionId, coverPath);
 
   Future<String?> getCaratulaPlaylist(String collectionId) =>
       _dao.getCover(collectionId);

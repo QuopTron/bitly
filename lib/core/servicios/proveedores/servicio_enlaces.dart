@@ -34,6 +34,16 @@ class ServicioEnlaces {
   /// Enlaces ya resueltos y listos para reproducir.
   Stream<ResultadoEnlace> get resultados => _controller.stream;
 
+  /// Texto compartido que NO se pudo resolver todavía (ver
+  /// [reintentarPendientes]).
+  ///
+  /// Por qué existe: al abrir la app con "Compartir a Bitly" en frío, el
+  /// share intent llega antes de que el motor Go termine de arrancar, así que
+  /// la resolución devolvía null y el enlace se perdía en silencio (la canción
+  /// no sonaba y no aparecía el miniplayer). Con esto se recuerda y se
+  /// reintenta UNA vez cuando la app ya está lista.
+  String? _textoPendiente;
+
   BackendService get _backend => di.sl<BackendService>();
 
   /// Escucha los enlaces que llegan compartidos a la app.
@@ -46,6 +56,7 @@ class ServicioEnlaces {
   Future<void> _procesarCompartido(String texto) async {
     final datos = ServicioCompartir.instance.leerEnlace(texto.trim());
     if (datos != null) {
+      _textoPendiente = null;
       ServicioDeepLink.instance.emitir(DatosDeepLink(
         type: datos.tipo,
         id: datos.isrc,
@@ -55,9 +66,26 @@ class ServicioEnlaces {
       return;
     }
     final enlace = enlaceEnTexto(texto);
-    if (enlace == null) return;
+    if (enlace == null) {
+      _textoPendiente = null;
+      return;
+    }
+    _textoPendiente = texto;
     final resuelto = await resolver(enlace);
-    if (resuelto != null) _controller.add(resuelto);
+    if (resuelto == null) return; // queda pendiente para reintentar
+    _textoPendiente = null;
+    _controller.add(resuelto);
+  }
+
+  /// Reintenta el enlace compartido que quedó sin resolver (el caso típico: la
+  /// app se abrió en frío con un "Compartir a Bitly" y el motor todavía no
+  /// estaba listo). Se llama cuando la app termina de arrancar; si el enlace
+  /// ya se resolvió no hace nada.
+  Future<void> reintentarPendientes() async {
+    final texto = _textoPendiente;
+    if (texto == null) return;
+    _textoPendiente = null;
+    await _procesarCompartido(texto);
   }
 
   /// Resuelve un enlace y devuelve el ítem (null si ninguna fuente pudo).

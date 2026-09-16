@@ -7,6 +7,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import 'package:flutter/material.dart';
+import 'strings/strings_estadisticas.dart';
 import 'strings/strings_red.dart';
 import 'strings/strings_splash.dart';
 import 'strings/strings_setup.dart';
@@ -24,6 +25,7 @@ class AppLocalizations {
   late final StringsTutorial tutorial;
   late final StringsTutorialInteractivo tutorialInteractivo;
   late final StringsRed red;
+  late final StringsEstadisticas estadisticas;
 
   AppLocalizations(this.locale) {
     final isEn = locale.languageCode == 'en';
@@ -33,6 +35,7 @@ class AppLocalizations {
     tutorialInteractivo =
         isEn ? StringsTutorialInteractivo.en : StringsTutorialInteractivo.es;
     red = isEn ? StringsRed.en : StringsRed.es;
+    estadisticas = isEn ? StringsEstadisticas.en : StringsEstadisticas.es;
   }
 
   static AppLocalizations of(BuildContext context) {

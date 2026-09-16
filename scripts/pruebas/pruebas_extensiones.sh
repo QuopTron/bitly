@@ -116,6 +116,8 @@ for copia in "assets:$ASSETS" "bundled:$BUNDLED"; do
   nombre="${copia%%:*}"; dir="${copia#*:}"
   corre "ytmusic PO token ($nombre)" \
     node "$HARNESS/ytmusic_pot.js" "$dir/ytmusic-spotiflac/index.js"
+  corre "ytmusic clientes ($nombre)" \
+    node "$HARNESS/ytmusic_clientes.js" "$dir/ytmusic-spotiflac/index.js"
 done
 
 # ── Enlaces compartidos: Spotify + YouTube ────────────────────────────────
@@ -168,6 +170,11 @@ if [ -n "$faltan" ]; then
 else
   printf '%-34s %s\n' "guía POT -> archivos reales" "ok"
 fi
+
+# ── Proxy de Qobuz (opcional): firma MD5 y contrato de /keys ────────────────
+# No es una extensión, pero es el mismo tipo de verificador: JS offline que evita
+# un fallo silencioso (una firma mal armada que Qobuz rechaza con 401).
+corre "proxy Qobuz (firma + /keys)" node "$RAIZ/deeplinks/proxy-qobuz/verificar.mjs"
 
 # ── Paridad de las copias (lo que verifica el harness vs lo que embebe la app) ─
 echo

@@ -17,14 +17,23 @@ mixin CacheFavoritosPlaylists {
   /// Lista de playlists favoritas en JSON (claves camelCase + snake_case).
   Future<String> getPlaylistsFavoritas() async {
     final items = await _dao.getFavoritePlaylists();
-    final lista = items.map((e) => <String, dynamic>{
-      'playlistId': e.playlistId, 'name': e.name,
-      'coverUrl': e.coverUrl ?? '', 'coverPath': e.coverPath ?? '',
-      'description': e.description ?? '', 'provider': e.provider ?? '',
-      'externalUrl': e.externalUrl ?? '',
-      'addedAt': e.addedAt.toIso8601String(),
-      'playlist_id': e.playlistId, 'cover_url': e.coverUrl ?? '',
-    }).toList();
+    final lista =
+        items
+            .map(
+              (e) => <String, dynamic>{
+                'playlistId': e.playlistId,
+                'name': e.name,
+                'coverUrl': e.coverUrl ?? '',
+                'coverPath': e.coverPath ?? '',
+                'description': e.description ?? '',
+                'provider': e.provider ?? '',
+                'externalUrl': e.externalUrl ?? '',
+                'addedAt': e.addedAt.toIso8601String(),
+                'playlist_id': e.playlistId,
+                'cover_url': e.coverUrl ?? '',
+              },
+            )
+            .toList();
     return jsonEncode(lista);
   }
 
@@ -43,16 +52,18 @@ mixin CacheFavoritosPlaylists {
     bool liked = true,
   }) async {
     if (liked) {
-      await _dao.addFavoritePlaylist(FavoritePlaylistsCompanion(
-        playlistId: Value(playlistId),
-        name: Value(name),
-        coverUrl: Value(coverUrl ?? ''),
-        coverPath: Value(coverPath ?? ''),
-        description: Value(description ?? ''),
-        provider: Value(provider ?? ''),
-        externalUrl: Value(externalUrl ?? ''),
-        addedAt: Value(DateTime.now()),
-      ));
+      await _dao.addFavoritePlaylist(
+        FavoritePlaylistsCompanion(
+          playlistId: Value(playlistId),
+          name: Value(name),
+          coverUrl: Value(coverUrl ?? ''),
+          coverPath: Value(coverPath ?? ''),
+          description: Value(description ?? ''),
+          provider: Value(provider ?? ''),
+          externalUrl: Value(externalUrl ?? ''),
+          addedAt: Value(DateTime.now()),
+        ),
+      );
     } else {
       await _dao.removeFavoritePlaylist(playlistId);
     }

@@ -19,6 +19,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app.dart';
+import 'app/depuracion.dart';
 import 'app/inyeccion.dart';
 import './core/plataforma/sistema/perfil_runtime.dart';
 import './core/plataforma/notificacion/puente_notificacion_media.dart';
@@ -32,6 +33,9 @@ import './shared/utilidades/plataforma/deteccion_tv.dart';
 /// Punto de entrada de la app.
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // En release no se imprime ninguna línea de diagnóstico (en debug sí).
+  silenciarDepuracion();
 
   // ¿Corremos en TV? Se pregunta UNA vez, antes de runApp, para que el primer
   // frame ya nazca con el layout de escritorio (el que queremos en TV) y no

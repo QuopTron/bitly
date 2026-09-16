@@ -58,6 +58,12 @@ class DownloadDao extends DatabaseAccessor<AppDatabase>
   Future<int> getHistoryCount() =>
       select(downloadHistory).get().then((r) => r.length);
 
+  /// Historial COMPLETO (sin el límite de paginación de [getHistory]). Se usa
+  /// en tareas de mantenimiento que deben ver todas las filas, como la
+  /// re-vinculación de rutas cuando el usuario mueve la carpeta de descargas.
+  Future<List<DownloadHistoryData>> getAllHistory() =>
+      select(downloadHistory).get();
+
   Future<void> saveEntry(DownloadHistoryCompanion entry) =>
       into(downloadHistory).insertOnConflictUpdate(entry);
 

@@ -31,8 +31,9 @@ mixin DescargasPolling on DescargasRepararEscaneo {
   void _empezarPolling() {
     _timerProgreso?.cancel();
     _timerProgreso = Timer.periodic(const Duration(seconds: 3), (_) {
-      final hayActivas = state.descargas.values
-          .any((d) => d.estado == EstadoDescarga.enProgreso);
+      final hayActivas = state.descargas.values.any(
+        (d) => d.estado == EstadoDescarga.enProgreso,
+      );
       if (hayActivas || _rachaProgresoVacio > 0) {
         _pollProgreso();
       } else {
@@ -53,14 +54,15 @@ mixin DescargasPolling on DescargasRepararEscaneo {
   /// Reinicia el refresh del historial con intervalo adaptativo: 10s durante
   /// descargas activas, 30s en reposo.
   void _ajustarTasaRefreshHistorial() {
-    final hayActivas = state.descargas.values
-        .any((d) => d.estado == EstadoDescarga.enProgreso);
-    final intervaloActual = _timerHistorial != null && _timerHistorial!.isActive
-        ? const Duration(seconds: 30)
-        : Duration.zero;
-    final intervaloDeseado = hayActivas
-        ? const Duration(seconds: 10)
-        : const Duration(seconds: 30);
+    final hayActivas = state.descargas.values.any(
+      (d) => d.estado == EstadoDescarga.enProgreso,
+    );
+    final intervaloActual =
+        _timerHistorial != null && _timerHistorial!.isActive
+            ? const Duration(seconds: 30)
+            : Duration.zero;
+    final intervaloDeseado =
+        hayActivas ? const Duration(seconds: 10) : const Duration(seconds: 30);
     if (intervaloActual != intervaloDeseado) {
       _timerHistorial?.cancel();
       _timerHistorial = Timer.periodic(intervaloDeseado, (_) {

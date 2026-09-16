@@ -45,7 +45,9 @@ mixin DescargasPollItem on DescargasPollDecrypt {
       if (estadoActual != EstadoDescarga.interrumpido &&
           estadoActual != EstadoDescarga.completado) {
         dl[stateKey] = DatosEstadoDescarga(
-            estado: EstadoDescarga.enProgreso, progreso: progress.toDouble());
+          estado: EstadoDescarga.enProgreso,
+          progreso: progress.toDouble(),
+        );
         return true;
       }
       return false;

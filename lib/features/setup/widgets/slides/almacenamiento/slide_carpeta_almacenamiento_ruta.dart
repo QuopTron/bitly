@@ -16,7 +16,8 @@ part of 'slide_carpeta_almacenamiento.dart';
 /// No bloquea el flujo: si el usuario lo niega, la carpeta por defecto
 /// de la app (documentos privados) sigue funcionando sin permisos.
 Future<void> _solicitarPermisoAlmacenamientoSt(
-    _SlideCarpetaAlmacenamientoState st) async {
+  _SlideCarpetaAlmacenamientoState st,
+) async {
   if (esEscritorio()) return;
   try {
     final estado = await Permission.storage.status;
@@ -86,9 +87,24 @@ Future<void> _finalizarSetupSt(_SlideCarpetaAlmacenamientoState st) async {
     // Sincroniza la ruta con la config en memoria de Go.
     try {
       await di.sl<BackendService>().syncDownloadDir(st._rutaSeleccionada!);
-    } catch (e) { debugPrint("[Feature] $e"); }
+    } catch (e) {
+      debugPrint("[Feature] $e");
+    }
+    // Si el usuario eligió una carpeta que ya tiene descargas (p.ej. reinstaló
+    // la app), sus archivos se re-vinculan para que la biblioteca los vea en la
+    // ubicación nueva en vez de darlos por perdidos.
+    try {
+      final movidos = await di.sl<CacheDescargas>().reubicarArchivosEnCarpeta(
+        st._rutaSeleccionada!,
+      );
+      if (movidos > 0) await di.sl<CacheBiblioteca>().invalidarTodo();
+    } catch (e) {
+      debugPrint("[Feature] relink: $e");
+    }
     if (st.mounted) {
       st.context.read<SetupBloc>().add(const SiguientePaso());
     }
-  } catch (e) { debugPrint("[Feature] $e"); }
+  } catch (e) {
+    debugPrint("[Feature] $e");
+  }
 }

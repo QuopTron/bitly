@@ -16,7 +16,8 @@ part of 'cubit_descargas.dart';
 mixin DescargasCargaTracks on DescargasPolling {
   /// Bloque 1 de _cargarHistorial: tracks individuales desde la BD.
   /// Devuelve (fingerprints, items completados, cambió algo).
-  Future<(Set<String>, Map<String, DatosEstadoDescarga>, bool)> _cargarHistorialTracks() async {
+  Future<(Set<String>, Map<String, DatosEstadoDescarga>, bool)>
+  _cargarHistorialTracks() async {
     final fps = <String>{};
     final completados = <String, DatosEstadoDescarga>{};
     var cambiado = false;
@@ -27,7 +28,8 @@ mixin DescargasCargaTracks on DescargasPolling {
       for (final e in lista) {
         final m = e as Map<String, dynamic>;
         final trackName = (m['track_name'] ?? m['trackName'] ?? '') as String;
-        final artistName = (m['artist_name'] ?? m['artistName'] ?? '') as String;
+        final artistName =
+            (m['artist_name'] ?? m['artistName'] ?? '') as String;
         if (trackName.isNotEmpty) {
           fps.add(huellaDesdeNombre(trackName, artistName));
         }
@@ -64,37 +66,65 @@ mixin DescargasCargaTracks on DescargasPolling {
             // guardó otra extensión).
             final alt = await _buscarArchivoAlternativo(key, rutaArchivo);
             if (alt != null) {
-              _log.i('[cargarHistorial] archivo ausente en $rutaArchivo pero se encontró alternativa: $alt para $key');
-              completados[key] = const DatosEstadoDescarga(estado: EstadoDescarga.completado, progreso: 1.0);
+              _log.i(
+                '[cargarHistorial] archivo ausente en $rutaArchivo pero se encontró alternativa: $alt para $key',
+              );
+              completados[key] = const DatosEstadoDescarga(
+                estado: EstadoDescarga.completado,
+                progreso: 1.0,
+              );
               try {
                 await _downloadCache.actualizarRutaArchivo(idNormalizado, alt);
-              } catch (e) { debugPrint("[Descargas] $e"); }
+              } catch (e) {
+                debugPrint("[Descargas] $e");
+              }
             } else {
-              completados[key] = const DatosEstadoDescarga(estado: EstadoDescarga.interrumpido);
+              completados[key] = const DatosEstadoDescarga(
+                estado: EstadoDescarga.interrumpido,
+              );
               _idsTracksDescargados.remove(idNormalizado);
               _historialSaltados.add(key);
-              _log.w('[cargarHistorial] archivo ausente en disco: $rutaArchivo para $key — se quitó de descargados para permitir re-descarga');
+              _log.w(
+                '[cargarHistorial] archivo ausente en disco: $rutaArchivo para $key — se quitó de descargados para permitir re-descarga',
+              );
             }
           } else if (!await _esAudioDecodificable(file)) {
             // Existe pero no es reproducible (DRM encriptado, corrupto...).
             final alt = await _buscarArchivoAlternativo(key, rutaArchivo);
             if (alt != null) {
-              _log.i('[cargarHistorial] archivo no reproducible en $rutaArchivo pero se encontró alternativa: $alt para $key');
-              completados[key] = const DatosEstadoDescarga(estado: EstadoDescarga.completado, progreso: 1.0);
+              _log.i(
+                '[cargarHistorial] archivo no reproducible en $rutaArchivo pero se encontró alternativa: $alt para $key',
+              );
+              completados[key] = const DatosEstadoDescarga(
+                estado: EstadoDescarga.completado,
+                progreso: 1.0,
+              );
               try {
                 await _downloadCache.actualizarRutaArchivo(idNormalizado, alt);
-              } catch (e) { debugPrint("[Descargas] $e"); }
+              } catch (e) {
+                debugPrint("[Descargas] $e");
+              }
             } else {
-              completados[key] = const DatosEstadoDescarga(estado: EstadoDescarga.interrumpido);
+              completados[key] = const DatosEstadoDescarga(
+                estado: EstadoDescarga.interrumpido,
+              );
               _idsTracksDescargados.remove(idNormalizado);
               _historialSaltados.add(key);
-              _log.w('[cargarHistorial] archivo no reproducible: $rutaArchivo para $key — se quitó de descargados para permitir re-descarga');
+              _log.w(
+                '[cargarHistorial] archivo no reproducible: $rutaArchivo para $key — se quitó de descargados para permitir re-descarga',
+              );
             }
           } else {
-            completados[key] = const DatosEstadoDescarga(estado: EstadoDescarga.completado, progreso: 1.0);
+            completados[key] = const DatosEstadoDescarga(
+              estado: EstadoDescarga.completado,
+              progreso: 1.0,
+            );
           }
         } else {
-          completados[key] = const DatosEstadoDescarga(estado: EstadoDescarga.completado, progreso: 1.0);
+          completados[key] = const DatosEstadoDescarga(
+            estado: EstadoDescarga.completado,
+            progreso: 1.0,
+          );
         }
         cambiado = true;
         final coverUrl = (m['cover_url'] ?? m['coverUrl'] ?? '') as String;
@@ -118,16 +148,24 @@ mixin DescargasCargaTracks on DescargasPolling {
               coverPath = recuperada;
               try {
                 await _downloadCache.actualizarCaratulaTrack(
-                  rawId, '', recuperada);
-              } catch (e) { debugPrint("[Descargas] $e"); }
+                  rawId,
+                  '',
+                  recuperada,
+                );
+              } catch (e) {
+                debugPrint("[Descargas] $e");
+              }
             }
-          } catch (e) { debugPrint("[Descargas] $e"); }
+          } catch (e) {
+            debugPrint("[Descargas] $e");
+          }
         }
         // No pisar una entrada en memoria con carátulas válidas con carátulas
         // null de la BD (entradas viejas sin cover_url por fallbacks
         // incompletos al momento de descargar).
         final existente = _metaTrack[key];
-        final existenteTieneCover = existente?.coverUrl?.isNotEmpty == true ||
+        final existenteTieneCover =
+            existente?.coverUrl?.isNotEmpty == true ||
             existente?.coverPath?.isNotEmpty == true;
         if (!existenteTieneCover) {
           _metaTrack[key] = _InfoTrack(

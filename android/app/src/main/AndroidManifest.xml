@@ -101,6 +101,16 @@
                 <data android:scheme="https" android:host="bitly-site.pages.dev" android:pathPrefix="/open"/>
             </intent-filter>
         </activity>
+        <!-- Deep links: la URL NO debe entrar como RUTA del router. El enlace
+             compartido lo recibe MainActivity por MethodChannel y Dart lo
+             descifra; si el motor lo empujara como ruta, GoRouter intentaría
+             navegar a "/open" y quedaría la pantalla "Page Not Found"
+             (GoException: no routes for location: /open) detrás de la carta.
+             En iOS el equivalente es FlutterDeepLinkingEnabled=false. -->
+        <meta-data
+            android:name="flutter_deeplinking_enabled"
+            android:value="false" />
+
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

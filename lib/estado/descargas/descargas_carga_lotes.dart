@@ -11,7 +11,8 @@ part of 'cubit_descargas.dart';
 
 mixin DescargasCargaLotes on DescargasCargaTracks {
   /// Bloque 2 de _cargarHistorial: lotes desde la BD + backfill de carátulas.
-  Future<(Map<String, DatosEstadoDescarga>, bool)> _cargarHistorialLotes() async {
+  Future<(Map<String, DatosEstadoDescarga>, bool)>
+  _cargarHistorialLotes() async {
     final completados = <String, DatosEstadoDescarga>{};
     var cambiado = false;
 
@@ -25,7 +26,10 @@ mixin DescargasCargaLotes on DescargasCargaTracks {
         final m = e as Map<String, dynamic>;
         final batchKey = (m['batch_key'] ?? '') as String;
         if (batchKey.isEmpty) continue;
-        completados[batchKey] = const DatosEstadoDescarga(estado: EstadoDescarga.completado, progreso: 1.0);
+        completados[batchKey] = const DatosEstadoDescarga(
+          estado: EstadoDescarga.completado,
+          progreso: 1.0,
+        );
         cambiado = true;
         final nombre = (m['name'] ?? '') as String;
         final itemType = (m['item_type'] ?? '') as String;
@@ -58,11 +62,16 @@ mixin DescargasCargaLotes on DescargasCargaTracks {
                     break;
                   }
                 }
-              } catch (e) { debugPrint("[Descargas] $e"); }
+              } catch (e) {
+                debugPrint("[Descargas] $e");
+              }
             }
           }
           _metaLote[batchKey] = _MetaLote(
-            nombre, itemType, itemId, source,
+            nombre,
+            itemType,
+            itemId,
+            source,
             coverUrl: coverUrlLote,
             coverPath: coverPathLote,
           );
@@ -85,7 +94,9 @@ mixin DescargasCargaLotes on DescargasCargaTracks {
             for (final stateKey in idStrings) {
               mapaTrackALote[normalizarId(stateKey)] = batchKey;
             }
-          } catch (e) { debugPrint("[Descargas] $e"); }
+          } catch (e) {
+            debugPrint("[Descargas] $e");
+          }
         }
       }
     }
@@ -102,17 +113,25 @@ mixin DescargasCargaLotes on DescargasCargaTracks {
         if (batchKey == null) continue;
         final bm = _metaLote[batchKey];
         if (bm == null) continue;
-        final albumAmado = cubitLikes.state.todosAmados.values
-            .where((i) =>
-                i.type == bm.itemType &&
-                normalizarId(i.id) == normalizarId(bm.itemId))
-            .firstOrNull;
-        final coverAlbum = albumAmado?.rutaCaratulaLocal?.isNotEmpty == true
-            ? albumAmado!.rutaCaratulaLocal
-            : albumAmado?.coverUrl;
+        final albumAmado =
+            cubitLikes.state.todosAmados.values
+                .where(
+                  (i) =>
+                      i.type == bm.itemType &&
+                      normalizarId(i.id) == normalizarId(bm.itemId),
+                )
+                .firstOrNull;
+        final coverAlbum =
+            albumAmado?.rutaCaratulaLocal?.isNotEmpty == true
+                ? albumAmado!.rutaCaratulaLocal
+                : albumAmado?.coverUrl;
         if (coverAlbum != null && coverAlbum.isNotEmpty) {
           _metaTrack[entry.key] = _InfoTrack(
-            meta.trackId, meta.name, meta.artist, coverAlbum, meta.source,
+            meta.trackId,
+            meta.name,
+            meta.artist,
+            coverAlbum,
+            meta.source,
             meta.coverPath,
           );
           cambiado = true;
@@ -132,12 +151,16 @@ mixin DescargasCargaLotes on DescargasCargaTracks {
           vistos.add(batchKey);
           continue;
         }
-        final cover = (meta.coverPath?.isNotEmpty ?? false)
-            ? meta.coverPath!
-            : (meta.coverUrl ?? '');
+        final cover =
+            (meta.coverPath?.isNotEmpty ?? false)
+                ? meta.coverPath!
+                : (meta.coverUrl ?? '');
         if (cover.isNotEmpty) {
           _metaLote[batchKey] = _MetaLote(
-            bm.name, bm.itemType, bm.itemId, bm.source,
+            bm.name,
+            bm.itemType,
+            bm.itemId,
+            bm.source,
             coverUrl: bm.coverUrl.isNotEmpty ? bm.coverUrl : cover,
             coverPath: bm.coverPath.isNotEmpty ? bm.coverPath : cover,
           );

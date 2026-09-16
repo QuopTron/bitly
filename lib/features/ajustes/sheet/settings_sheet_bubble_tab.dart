@@ -1,6 +1,13 @@
 // ─────────────────────────────────────────────────────────────
-// settings_sheet_bubble_tab.dart — Burbuja circular de navegación del sheet de Ajustes: círculo con glow,
-// icono y etiqueta chica; la activa lleva relleno, anillo y punto.
+// settings_sheet_bubble_tab.dart — Burbuja circular de navegación del
+// sheet de Ajustes: círculo con glow, icono y etiqueta chica; la activa
+// lleva relleno, anillo y punto.
+//
+// Posicionamiento: el círculo y la etiqueta van cada uno en un slot de
+// ancho completo. Así las cinco burbujas quedan en el mismo eje (antes
+// "Rendimiento" y "Estadísticas" se veían corridas porque cada columna
+// se centraba sobre su propio ancho de etiqueta) y el conjunto aguanta
+// cualquier DPI o escala de texto del sistema.
 //
 // Se conecta con: settings_sheet_new.dart (misma library).
 // Parte del flujo: Ajustes → fila de burbujas (tabs).
@@ -8,8 +15,7 @@
 
 part of 'settings_sheet_new.dart';
 
-/// One circular icon bubble: a small glowing circle with the icon, and a
-/// tiny label underneath. Active bubble gets a filled glow + ring + dot indicator.
+/// Burbuja circular: círculo con el icono y una etiqueta chica debajo.
 class _BubbleTab extends StatelessWidget {
   final int index;
   final bool active;
@@ -38,68 +44,34 @@ class _BubbleTab extends StatelessWidget {
         curve: Curves.easeOutCubic,
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
-              curve: Curves.easeOutCubic,
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient:
-                    active
-                        ? LinearGradient(
-                          colors: [
-                            glowColor.withValues(alpha: 0.9),
-                            glowColor.withValues(alpha: 0.5),
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        )
-                        : null,
-                color: active ? null : onBg.withValues(alpha: 0.05),
-                border: Border.all(
-                  color:
-                      active
-                          ? Colors.white.withValues(alpha: 0.3)
-                          : onBg.withValues(alpha: 0.08),
-                  width: active ? 1.5 : 1.0,
-                ),
-                boxShadow:
-                    active
-                        ? [
-                          BoxShadow(
-                            color: glowColor.withValues(alpha: 0.3),
-                            blurRadius: 16,
-                            spreadRadius: 0,
-                          ),
-                        ]
-                        : null,
-              ),
-              child: Icon(
-                _bubbleTabs[index].icon,
-                size: r.footerSize + 1,
-                color: active ? Colors.white : onBg.withValues(alpha: 0.5),
-              ),
+            // Slot de ancho completo: todas las burbujas comparten eje.
+            SizedBox(
+              width: double.infinity,
+              child: Center(child: _circulo()),
             ),
-            SizedBox(height: 4),
-            // FittedBox: la etiqueta se encoge si su burbuja es angosta
-            // (pantallas chicas o muchas pestañas) en vez de desbordar.
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                _bubbleTabs[index].label,
-                maxLines: 1,
-                style: TextStyle(
-                  fontSize: r.footerSize - 2,
-                  fontWeight: active ? FontWeight.w700 : FontWeight.w500,
-                  color: active ? glowColor : onBg.withValues(alpha: 0.45),
-                  letterSpacing: active ? 0.2 : 0,
+            const SizedBox(height: 4),
+            SizedBox(
+              width: double.infinity,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                // La etiqueta se encoge si la burbuja es angosta (pantalla
+                // chica o texto del sistema grande) en vez de desbordar.
+                child: Text(
+                  _bubbleTabs[index].label,
+                  maxLines: 1,
+                  style: TextStyle(
+                    fontSize: r.footerSize - 2,
+                    fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                    color: active ? glowColor : onBg.withValues(alpha: 0.45),
+                    letterSpacing: active ? 0.2 : 0,
+                  ),
                 ),
               ),
             ),
-            // Active dot indicator.
-            SizedBox(height: 3),
+            const SizedBox(height: 3),
+            // Punto que marca la pestaña activa.
             AnimatedContainer(
               duration: const Duration(milliseconds: 250),
               curve: Curves.easeOutCubic,
@@ -112,6 +84,50 @@ class _BubbleTab extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  /// Círculo con glow: relleno, anillo y sombra cuando está activa.
+  Widget _circulo() {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOutCubic,
+      width: 38,
+      height: 38,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: active
+            ? LinearGradient(
+                colors: [
+                  glowColor.withValues(alpha: 0.9),
+                  glowColor.withValues(alpha: 0.5),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              )
+            : null,
+        color: active ? null : onBg.withValues(alpha: 0.05),
+        border: Border.all(
+          color: active
+              ? Colors.white.withValues(alpha: 0.3)
+              : onBg.withValues(alpha: 0.08),
+          width: active ? 1.5 : 1.0,
+        ),
+        boxShadow: active
+            ? [
+                BoxShadow(
+                  color: glowColor.withValues(alpha: 0.3),
+                  blurRadius: 16,
+                  spreadRadius: 0,
+                ),
+              ]
+            : null,
+      ),
+      child: Icon(
+        _bubbleTabs[index].icon,
+        size: r.footerSize + 1,
+        color: active ? Colors.white : onBg.withValues(alpha: 0.5),
       ),
     );
   }

@@ -123,13 +123,22 @@ mixin ReproductorInit on ReproductorListenerCola {
 
     // Cargar archivos locales ANTES de marcar _listo para que _openTrack()
     // pueda encontrar tracks descargados inmediatamente.
-    _playbackCache = di.sl<ReproduccionCache>();
-    await _loadLocalFiles();
+    //
+    // _listo se marca SIEMPRE, incluso si esto falla: mientras quede en falso,
+    // cada pedido de reproducción se guarda como pendiente y NUNCA suena (ni
+    // aparece el miniplayer), y el usuario ve una app que no responde a nada.
+    // Antes esto quedaba fuera del try y un fallo dejaba el motor mudo para
+    // siempre, hasta reiniciar.
+    try {
+      _playbackCache = di.sl<ReproduccionCache>();
+      await _loadLocalFiles();
+    } catch (e) {
+      debugPrint('[Reproductor] arranque sin archivos locales: $e');
+    }
 
     _listo = true;
-    if (_trackPendiente != null) {
-      _openTrack(_trackPendiente!);
-      _trackPendiente = null;
-    }
+    final pendiente = _trackPendiente;
+    _trackPendiente = null;
+    if (pendiente != null) unawaited(_abrirTrackSeguro(pendiente));
   }
 }

@@ -20,6 +20,7 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:logger/logger.dart';
+import 'package:path_provider/path_provider.dart';
 import '../../app/inyeccion.dart' as di;
 import '../../core/backend_go/nucleo/contrato_backend.dart';
 import '../../core/cache/almacenes/cache_ajustes.dart';
@@ -30,6 +31,7 @@ import '../../core/cache/estado/estado_descarga.dart';
 import '../../core/modelos/ajustes_descarga.dart';
 import '../../core/modelos/feed/item_feed.dart';
 import '../../core/servicios/descarga/acceso_descarga.dart';
+import '../../core/servicios/descargas/escalado_calidad.dart';
 import '../../core/servicios/desencriptado/desencriptado_stream.dart';
 import '../../shared/utilidades/descarga/estrategia_descarga.dart';
 import '../../core/servicios/utilidades/huella_item.dart';
@@ -49,7 +51,9 @@ part 'descargas_carga_lotes.dart';
 part 'descargas_carga.dart';
 part 'descargas_cola_verificar.dart';
 part 'descargas_reintentar.dart';
+part 'descargas_cola_reintento.dart';
 part 'descargas_cola.dart';
+part 'descargas_cola_track.dart';
 part 'descargas_estado.dart';
 part 'descargas_lote_finalizar.dart';
 part 'descargas_acceso.dart';
@@ -91,7 +95,9 @@ class CubitDescargas extends Cubit<EstadoCubitDescargas>
         DescargasCarga,
         DescargasColaVerificar,
         DescargasReintentar,
+        DescargasColaReintento,
         DescargasCola,
+        DescargasColaTrack,
         DescargasEstadoReintento,
         DescargasEstado,
         DescargasLoteFinalizar,

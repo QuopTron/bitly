@@ -23,7 +23,11 @@ mixin DescargasBorrarPlaylist on DescargasBorrar {
       return;
     }
     // Tras reinicio: obtener los track IDs desde la entrada del lote.
-    var batch = await _downloadCache.getLotePorItem('playlist', playlistId, source);
+    var batch = await _downloadCache.getLotePorItem(
+      'playlist',
+      playlistId,
+      source,
+    );
     var sourceEfectiva = source;
     if (batch == null && source.isNotEmpty) {
       batch = await _downloadCache.getLotePorItem('playlist', playlistId, '');
@@ -56,8 +60,12 @@ mixin DescargasBorrarPlaylist on DescargasBorrar {
           final meta = _metaTrack[stateKey];
           if (meta != null) {
             fileStems.add('lyrics_${_sha1Hex(meta.trackId)}');
-            if (meta.name.isNotEmpty && meta.artist != null && meta.artist!.isNotEmpty) {
-              fileStems.add('${_sanitizarNombreArchivo(meta.artist!)} - ${_sanitizarNombreArchivo(meta.name)}');
+            if (meta.name.isNotEmpty &&
+                meta.artist != null &&
+                meta.artist!.isNotEmpty) {
+              fileStems.add(
+                '${_sanitizarNombreArchivo(meta.artist!)} - ${_sanitizarNombreArchivo(meta.name)}',
+              );
             }
             if (meta.coverUrl != null && meta.coverUrl!.isNotEmpty) {
               coversToDelete.add(meta.coverUrl!);
@@ -70,13 +78,24 @@ mixin DescargasBorrarPlaylist on DescargasBorrar {
       // está amada (el like muestra la misma portada en Mi Espacio).
       if (coversToDelete.isNotEmpty && !_padreAmado(batchKey)) {
         for (final coverUrl in coversToDelete) {
-          try { await _backend.deleteCover(coverUrl); } catch (e) { debugPrint("[Descargas] $e"); }
+          try {
+            await _backend.deleteCover(coverUrl);
+          } catch (e) {
+            debugPrint("[Descargas] $e");
+          }
         }
       }
       await _downloadCache.borrarTracksDescargados(allIds.toList());
-      di.sl<CubitReproductor>().eliminarArchivosLocalesPorProveedores(fileStems.toList(), borrarArchivos: true);
+      di.sl<CubitReproductor>().eliminarArchivosLocalesPorProveedores(
+        fileStems.toList(),
+        borrarArchivos: true,
+      );
     }
-    await _downloadCache.quitarLotePorItem('playlist', playlistId, sourceEfectiva);
+    await _downloadCache.quitarLotePorItem(
+      'playlist',
+      playlistId,
+      sourceEfectiva,
+    );
     di.sl<CacheBiblioteca>().invalidarTodo();
     final dl = Map<String, DatosEstadoDescarga>.from(state.descargas);
     final fps = Set<String>.from(state.huellasDescargadas);
@@ -87,7 +106,8 @@ mixin DescargasBorrarPlaylist on DescargasBorrar {
       dl.remove(stateKey);
       final meta = _metaTrack[stateKey];
       if (meta != null) {
-        final fpName = meta.name.isNotEmpty ? meta.name : normalizarId(meta.trackId);
+        final fpName =
+            meta.name.isNotEmpty ? meta.name : normalizarId(meta.trackId);
         final fpArtist = meta.artist ?? '';
         fps.remove(huellaDesdeNombre(fpName, fpArtist));
       }
@@ -97,14 +117,17 @@ mixin DescargasBorrarPlaylist on DescargasBorrar {
         final normId = parts.sublist(1, parts.length - 1).join('_');
         _idsTracksDescargados.remove(normId);
       }
-      trackerIds.addAll(_itemIdAKeyEstado.entries
-          .where((e) => e.value == stateKey)
-          .map((e) => e.key));
+      trackerIds.addAll(
+        _itemIdAKeyEstado.entries
+            .where((e) => e.value == stateKey)
+            .map((e) => e.key),
+      );
       _itemIdAKeyEstado.removeWhere((k, v) => v == stateKey);
       dl.remove('${stateKey}_video');
       dl.remove('${stateKey}_lyrics');
-      _itemIdAKeyEstado.removeWhere((k, v) =>
-          v == '${stateKey}_video' || v == '${stateKey}_lyrics');
+      _itemIdAKeyEstado.removeWhere(
+        (k, v) => v == '${stateKey}_video' || v == '${stateKey}_lyrics',
+      );
     }
     _borradosPendientes.addAll(trackerIds);
     for (final tid in trackerIds) {

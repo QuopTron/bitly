@@ -31,7 +31,9 @@ mixin DescargasInicioAlbum on DescargasInicio {
     if (!await _verificarCarpetaDescargas()) return;
     if (!await _verificarSesionesAntesDeDescargar()) return;
 
-    final s = ajustes ?? const AjustesDescarga();
+    // Sin ajustes explícitos se leen los del usuario: la calidad, las letras
+    // y el video SIEMPRE salen de Ajustes, nunca de los valores por defecto.
+    final s = await ajustesDeDescarga(ajustes);
     final audioIds = <String>[];
     final dl = Map<String, DatosEstadoDescarga>.from(state.descargas);
     final seenIsrcs = <String>{}; // Dedup por ISRC dentro del lote.
@@ -43,22 +45,34 @@ mixin DescargasInicioAlbum on DescargasInicio {
       final baseId = 'track_${normalizedTid}_$source';
       audioIds.add(baseId);
 
-      final yaHecho = _idsTracksDescargados.contains(normalizedTid)
-          || state.descargas[baseId]?.estado == EstadoDescarga.completado;
+      final yaHecho =
+          _idsTracksDescargados.contains(normalizedTid) ||
+          state.descargas[baseId]?.estado == EstadoDescarga.completado;
       if (yaHecho) {
         _asegurarMetaTrack(baseId, normalizedTid, t, source);
-        dl[baseId] = const DatosEstadoDescarga(estado: EstadoDescarga.completado, progreso: 1.0);
+        dl[baseId] = const DatosEstadoDescarga(
+          estado: EstadoDescarga.completado,
+          progreso: 1.0,
+        );
         continue;
       }
       // Dedup por ISRC en el mismo lote (tracks bonus de ediciones múltiples).
       final isrc = (t['isrc'] ?? '').toString();
       if (isrc.isNotEmpty && !seenIsrcs.add(isrc)) {
         _log.i('[iniciarDescargaAlbum] skip ISRC duplicado en lote: $isrc');
-        dl[baseId] = const DatosEstadoDescarga(estado: EstadoDescarga.completado, progreso: 1.0);
+        dl[baseId] = const DatosEstadoDescarga(
+          estado: EstadoDescarga.completado,
+          progreso: 1.0,
+        );
         continue;
       }
-      dl[baseId] = const DatosEstadoDescarga(estado: EstadoDescarga.enCola, progreso: 0.0);
-      _colaDescargas.add(_TrackEnCola(t, tid, source, s, calidadForzada, batchKey));
+      dl[baseId] = const DatosEstadoDescarga(
+        estado: EstadoDescarga.enCola,
+        progreso: 0.0,
+      );
+      _colaDescargas.add(
+        _TrackEnCola(t, tid, source, s, calidadForzada, batchKey),
+      );
     }
 
     if (audioIds.isEmpty) return;
@@ -66,18 +80,33 @@ mixin DescargasInicioAlbum on DescargasInicio {
     _datosLote[batchKey] = _DatosLote(tracks, s, source, calidadForzada);
     _asegurarPolling();
 
-    dl[batchKey] = const DatosEstadoDescarga(estado: EstadoDescarga.enProgreso, progreso: 0.0);
+    dl[batchKey] = const DatosEstadoDescarga(
+      estado: EstadoDescarga.enProgreso,
+      progreso: 0.0,
+    );
     emit(state.copiarCon(descargas: dl));
 
     // Persistir el lote como in_progress para que sobreviva un reinicio.
-    final batchName = (tracks.isNotEmpty) ? (tracks.first['album_name'] as String? ?? '') : '';
-    final albumMeta = tracks.map((t) => <String, dynamic>{
-      'name': (t['track_title'] ?? '') as String,
-      'artist': (t['artist_name'] ?? '') as String,
-      'cover': (t['cover_url'] ?? '') as String,
-    }).toList();
+    final batchName =
+        (tracks.isNotEmpty)
+            ? (tracks.first['album_name'] as String? ?? '')
+            : '';
+    final albumMeta =
+        tracks
+            .map(
+              (t) => <String, dynamic>{
+                'name': (t['track_title'] ?? '') as String,
+                'artist': (t['artist_name'] ?? '') as String,
+                'cover': (t['cover_url'] ?? '') as String,
+              },
+            )
+            .toList();
     await _downloadCache.guardarLoteDescargado(
-      batchKey, 'album', albumId, source, batchName,
+      batchKey,
+      'album',
+      albumId,
+      source,
+      batchName,
       trackIds: audioIds,
       trackMeta: albumMeta,
     );

@@ -17,7 +17,11 @@ mixin DescargasRepararDecrypt on DescargasReparar {
   /// Desencripta un archivo descargado encriptado/DRM vía ffmpeg-kit.
   /// Devuelve la ruta desencriptada (o null al fallar).
   Future<String?> _desencriptarArchivoDescargado(
-      String rutaSrc, String clave, String ext, [String formatoEntrada = '']) async {
+    String rutaSrc,
+    String clave,
+    String ext, [
+    String formatoEntrada = '',
+  ]) async {
     final srcFile = File(rutaSrc);
     if (!await srcFile.exists()) return null;
 
@@ -25,14 +29,18 @@ mixin DescargasRepararDecrypt on DescargasReparar {
     // marcado como encriptado siendo en realidad un contenedor plano
     // reproducible (zarz sirviendo un FLAC plano con clave vieja).
     if (await _esAudioPlano(srcFile)) {
-      _log.i('[CubitDescargas] marcado como encriptado pero es audio plano, se usa directo: $rutaSrc');
+      _log.i(
+        '[CubitDescargas] marcado como encriptado pero es audio plano, se usa directo: $rutaSrc',
+      );
       return rutaSrc;
     }
 
     // Pasar la extensión original para que la cadena completa de fallbacks de
     // desencriptarArchivoMovKey esté disponible (.flac → .mp4 → .m4a →
     // re-codificar → nuclear).
-    _log.i('[CubitDescargas] decrypt src=$rutaSrc key=$clave ext=$ext inputFormat=$formatoEntrada');
+    _log.i(
+      '[CubitDescargas] decrypt src=$rutaSrc key=$clave ext=$ext inputFormat=$formatoEntrada',
+    );
     final resultado = await desencriptarArchivoMovKey(
       rutaOrigen: rutaSrc,
       clave: clave,
@@ -43,10 +51,14 @@ mixin DescargasRepararDecrypt on DescargasReparar {
     if (resultado.exito && resultado.rutaArchivo != null) {
       try {
         await srcFile.delete();
-      } catch (e) { debugPrint("[Descargas] $e"); }
+      } catch (e) {
+        debugPrint("[Descargas] $e");
+      }
       return resultado.rutaArchivo;
     }
-    _log.e('[CubitDescargas] falló el decrypt de ffmpeg-kit: ${resultado.salida}');
+    _log.e(
+      '[CubitDescargas] falló el decrypt de ffmpeg-kit: ${resultado.salida}',
+    );
     return null;
   }
 
@@ -59,7 +71,10 @@ mixin DescargasRepararDecrypt on DescargasReparar {
       try {
         final head = await raf.read(4);
         final magic = String.fromCharCodes(head);
-        return magic == 'fLaC' || magic == 'ID3' || magic == 'OggS' || magic == 'RIFF';
+        return magic == 'fLaC' ||
+            magic == 'ID3' ||
+            magic == 'OggS' ||
+            magic == 'RIFF';
       } finally {
         await raf.close();
       }

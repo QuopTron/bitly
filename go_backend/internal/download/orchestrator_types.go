@@ -27,6 +27,9 @@ type Request struct {
 	TidalID    string `json:"tidalId,omitempty"`
 	QobuzID    string `json:"qobuzId,omitempty"`
 	DurationMS int    `json:"durationMs,omitempty"`
+	// CoverURL es la portada del catálogo. Se incrusta DENTRO del archivo
+	// descargado (ver etiquetas_descarga.go); vacío = solo se escriben tags.
+	CoverURL string `json:"coverUrl,omitempty"`
 }
 
 // Result holds the outcome of a download.

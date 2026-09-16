@@ -76,6 +76,11 @@ mixin ReproductorEstadoCache on ReproductorBase {
   /// `completed` cuya generación no coincide no debe avanzar la cola.
   int _generacionAbiertaEn = 0;
 
+  /// Cuándo terminó de abrir el media actual. Distingue un `completed` espurio
+  /// (media_kit lo emite justo tras open, antes de parsear la duración) de un
+  /// fin real sin duración (ver decision_completado.dart).
+  DateTime? _tsMediaAbierto;
+
   /// Identidad (id|source) del track que el último open está abriendo/abrió.
   String? _claveTrackAbierto;
 

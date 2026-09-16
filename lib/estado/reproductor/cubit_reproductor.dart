@@ -11,7 +11,8 @@
 //   stream_resolve → archivos_temp → video_local → video_descarga →
 //   video_fondo → preload → preload_media → controles → verificacion →
 //   reporte → apertura_helpers → apertura → autoplay → limpieza →
-//   completado → locales → player_setup → listener_cola → init.
+//   avance_seguro → completado_guards → completado → locales →
+//   player_setup → listener_cola → init.
 // Se conecta con: CubitCola (cola), BackendService (Go), caches
 // drift, ServicioVerificacion y ServicioConectividad.
 // Parte del flujo: reproducción (miniplayer, notificación, player).
@@ -43,6 +44,7 @@ import '../../core/modelos/feed/item_feed.dart';
 import '../../core/modelos/usuario/perfil_rendimiento.dart';
 import '../../core/plataforma/red/servicio_calidad_red.dart';
 import '../../core/plataforma/red/servicio_conectividad.dart';
+import '../../core/servicios/reproduccion/decision_completado.dart';
 import '../../core/plataforma/sistema/servicio_foco_audio.dart';
 import '../../core/servicios/desencriptado/desencriptado_stream.dart';
 import '../../core/servicios/utilidades/huella_item.dart';
@@ -70,6 +72,7 @@ part 'reproductor_apertura_helpers.dart';
 part 'reproductor_apertura.dart';
 part 'reproductor_autoplay.dart';
 part 'reproductor_limpieza.dart';
+part 'reproductor_avance_seguro.dart';
 part 'reproductor_completado.dart';
 part 'reproductor_locales.dart';
 part 'reproductor_player_setup.dart';
@@ -106,6 +109,7 @@ class CubitReproductor extends Cubit<EstadoAudioReproductor>
         ReproductorApertura,
         ReproductorAutoplay,
         ReproductorLimpieza,
+        ReproductorAvanceSeguro,
         ReproductorCompletadoGuards,
         ReproductorCompletado,
         ReproductorLocales,

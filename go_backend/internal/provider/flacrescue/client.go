@@ -83,6 +83,21 @@ type Client struct {
 	// su timeout completo antes de pasar al siguiente.
 	sinCuentasMu sync.Mutex
 	sinCuentas   map[string]time.Time
+
+	// Canal "Qobuz firmado" (ver qobuz_firmado.go): credenciales con las que se
+	// firma la petición a la API de Qobuz. Vacías = canal apagado (estado por
+	// defecto: sin ellas no se paga ni una petición).
+	qobuzBase    string
+	qobuzAppID   string
+	qobuzSecreto string
+	qobuzToken   string
+	qobuzFormato string
+	// qobuzKeysURL es el origen opcional de claves (ver qobuz_claves.go): si
+	// está configurado, las claves se piden y se refrescan solas.
+	qobuzKeysURL string
+
+	clavesMu sync.Mutex
+	claves   clavesQobuz
 }
 
 type cacheEntry struct {
@@ -156,6 +171,13 @@ func (c *Client) SetSettings(settings map[string]string) {
 	if len(settings) == 0 {
 		return
 	}
+	c.aplicarAjustesEspejos(settings)
+	c.SetSettingsQobuz(settings)
+}
+
+// aplicarAjustesEspejos aplica el bloque de espejos (mirrors/origin/format),
+// que es independiente del canal Qobuz firmado.
+func (c *Client) aplicarAjustesEspejos(settings map[string]string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -175,6 +197,21 @@ func (c *Client) SetSettings(settings map[string]string) {
 	}
 }
 
+// SetSettingsQobuz aplica los ajustes del canal Qobuz firmado. Va aparte
+// para que SetSettings no crezca con un tema que no tiene nada que ver con
+// los espejos (y para que un test pueda fijar el canal sin tocar espejos).
+func (c *Client) SetSettingsQobuz(settings map[string]string) {
+	if !tocaQobuz(settings) {
+		return
+	}
+	if !c.aplicarAjustesQobuz(settings) {
+		return
+	}
+	c.cacheMu.Lock()
+	c.cache = map[string]cacheEntry{} // credenciales nuevas, resoluciones viejas fuera
+	c.cacheMu.Unlock()
+}
+
 // Mirrors devuelve una copia de la lista actual (estado/debug).
 func (c *Client) Mirrors() []string {
 	c.mu.RLock()
@@ -186,10 +223,6 @@ func (c *Client) Mirrors() []string {
 // provider.Provider — flac-rescue resuelve AUDIO, no catálogo. Los
 // métodos de búsqueda devuelven error porque no tiene metadata propia.
 // ─────────────────────────────────────────────────────────────
-
-func (c *Client) SearchTracks(query string, limit int) ([]provider.TrackResult, error) {
-	return nil, errNoCatalogo("búsqueda por nombre")
-}
 
 func (c *Client) SearchAlbums(query string, limit int) ([]provider.AlbumResult, error) {
 	return nil, errNoCatalogo("búsqueda de álbumes")
@@ -234,10 +267,16 @@ func (c *Client) GetTrackByISRC(isrc string) (*provider.TrackResult, error) {
 // GetStreamURL resuelve un ISRC a URL de audio directa. Es el método
 // crítico: el orquestador lo llama en streaming y descarga.
 func (c *Client) GetStreamURL(id, quality string) (string, error) {
-	isrc := normalizarISRC(id)
-	if isrc == "" {
+	clave := normalizarISRC(id)
+	// Un id de PISTA (numérico, del catálogo de Qobuz) no es un ISRC y puede
+	// tener menos de 5 caracteres: se acepta tal cual para que el canal Qobuz
+	// firmado resuelva en UNA petición cuando el llamador ya tiene el id.
+	if clave == "" && esIDNumerico(strings.TrimSpace(id)) {
+		clave = strings.TrimSpace(id)
+	}
+	if clave == "" {
 		return "", errNoCatalogo("se requiere ISRC")
 	}
-	url, _, err := c.resolverPorISRC(isrc, c.calidadAFormatos(quality))
+	url, _, err := c.resolverPorISRC(clave, c.calidadAFormatos(quality))
 	return url, err
 }

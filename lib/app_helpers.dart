@@ -86,19 +86,46 @@ Future<void> cargarAjustesGuardadosApp({
 
 /// Reproduce un enlace ya resuelto: encola sus tracks y, si el usuario no está
 /// en una pantalla de arranque, lo lleva al home para ver el miniplayer.
+///
+/// El `go` va SOLO si no estamos ya en el home: Buscar, Inicio y Mi Espacio
+/// viven DENTRO de `/home` (el miniplayer es un slot del shell, se ve en las
+/// tres), así que navegar cuando ya estamos ahí no aportaba nada y sí podía
+/// tirar abajo lo que el usuario tenía abierto encima (detalle, reproductor).
+///
+/// Todo el cuerpo va protegido: esto corre desde el listener de enlaces
+/// (evento asíncrono de la raíz), así que una excepción acá se perdería como
+/// error no manejado y podía dejar la carta abierta o el router a medio
+/// navegar (la app parecía trabada). Si algo falla, se cierra la carta igual.
 void reproducirEnlaceApp({
   required ResultadoEnlace resuelto,
   required GoRouter router,
   required VoidCallback limpiarLink,
 }) {
   limpiarLink();
-  di.sl<CubitCola>().reproducirConContexto(
-    resuelto.paraReproducir,
-    resuelto.item,
-  );
-  final ruta = router.routerDelegate.currentConfiguration.uri.path;
-  if (ruta != RouteNames.setup.path && ruta != RouteNames.splash.path) {
+  try {
+    di.sl<CubitCola>().reproducirConContexto(
+      resuelto.paraReproducir,
+      resuelto.item,
+    );
+  } catch (e) {
+    debugPrint('[Enlaces] no se pudo encolar el compartido: $e');
+    return;
+  }
+  String ruta;
+  try {
+    ruta = router.routerDelegate.currentConfiguration.uri.path;
+  } catch (_) {
+    // Router todavía sin resolver (arranque): la cola ya quedó cargada y el
+    // miniplayer aparece solo cuando el home se monte.
+    return;
+  }
+  final enArranque =
+      ruta.isEmpty || ruta == RouteNames.splash.path || ruta == RouteNames.setup.path;
+  if (enArranque || ruta == RouteNames.home.path) return;
+  try {
     router.go(RouteNames.home.path);
+  } catch (e) {
+    debugPrint('[Enlaces] no se pudo ir al home: $e');
   }
 }
 

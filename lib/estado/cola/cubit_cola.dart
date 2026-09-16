@@ -13,14 +13,17 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../core/cache/estado/estado_cola.dart';
 import '../../core/modelos/feed/item_feed.dart';
+import '../../core/servicios/utilidades/utilidades_id.dart';
 
+part 'cola_orden_aleatorio.dart';
 part 'cola_navegacion.dart';
 
-class CubitCola extends Cubit<EstadoCola> with ColaNavegacion {
+class CubitCola extends Cubit<EstadoCola> with ColaOrdenAleatorio, ColaNavegacion {
   CubitCola() : super(const EstadoCola());
 
   void reproducir(ItemFeed item) {
     _historial.clear();
+    _invalidarOrdenShuffle();
     emit(state.copiarCon(tracks: [item], indiceActual: 0));
   }
 
@@ -37,18 +40,45 @@ class CubitCola extends Cubit<EstadoCola> with ColaNavegacion {
       return;
     }
     _historial.clear();
-    final idx = items.indexWhere(
+    _invalidarOrdenShuffle();
+    var idx = _indiceDe(items, item);
+    final tracks = List<ItemFeed>.from(items);
+    // El track tocado TIENE que quedar como actual. Si el contexto no lo
+    // contiene (grillas con otro id de proveedor, listas recortadas), se pone
+    // primero: dejar el índice en 0 haría que sonara OTRA canción y que, al
+    // terminar, el avance cayera en un lugar equivocado de la cola.
+    if (idx < 0) {
+      tracks.insert(0, item);
+      idx = 0;
+    }
+    emit(state.copiarCon(tracks: tracks, indiceActual: idx));
+  }
+
+  /// Índice de [item] dentro de [items]: por identidad estable (id+source),
+  /// después por id normalizado y por último por nombre+artista (la misma
+  /// canción puede llegar con otro id de proveedor). Devuelve -1 si no está.
+  int _indiceDe(List<ItemFeed> items, ItemFeed item) {
+    final exacto = items.indexWhere(
       (t) => t.id == item.id && t.source == item.source,
     );
-    emit(state.copiarCon(
-      tracks: List<ItemFeed>.from(items),
-      indiceActual: idx >= 0 ? idx : 0,
-    ));
+    if (exacto >= 0) return exacto;
+    final norm = normalizarId(item.id);
+    final porId = items.indexWhere((t) => normalizarId(t.id) == norm);
+    if (porId >= 0) return porId;
+    final nombre = item.name.trim().toLowerCase();
+    if (nombre.isEmpty) return -1;
+    return items.indexWhere(
+      (t) =>
+          t.name.trim().toLowerCase() == nombre &&
+          (t.artists ?? '').trim().toLowerCase() ==
+              (item.artists ?? '').trim().toLowerCase(),
+    );
   }
 
   void reproducirLista(List<ItemFeed> items, {int indiceInicio = 0}) {
     if (items.isEmpty) return;
     _historial.clear();
+    _invalidarOrdenShuffle();
     emit(state.copiarCon(
       tracks: items,
       indiceActual: indiceInicio.clamp(0, items.length - 1),
@@ -56,6 +86,7 @@ class CubitCola extends Cubit<EstadoCola> with ColaNavegacion {
   }
 
   void agregarSiguiente(ItemFeed item) {
+    _invalidarOrdenShuffle();
     final tracks = List<ItemFeed>.from(state.tracks);
     final insertarEn = state.tieneActual ? state.indiceActual + 1 : tracks.length;
     tracks.insert(insertarEn, item);
@@ -64,12 +95,14 @@ class CubitCola extends Cubit<EstadoCola> with ColaNavegacion {
   }
 
   void agregarAlFinal(ItemFeed item) {
+    _invalidarOrdenShuffle();
     final tracks = List<ItemFeed>.from(state.tracks)..add(item);
     emit(state.copiarCon(tracks: tracks));
   }
 
   void eliminar(int index) {
     if (index < 0 || index >= state.tracks.length) return;
+    _invalidarOrdenShuffle();
     final tracks = List<ItemFeed>.from(state.tracks)..removeAt(index);
     int nuevoIndice = state.indiceActual;
     if (index < state.indiceActual) {
@@ -82,10 +115,12 @@ class CubitCola extends Cubit<EstadoCola> with ColaNavegacion {
 
   void limpiar() {
     _historial.clear();
+    _invalidarOrdenShuffle();
     emit(const EstadoCola());
   }
 
   void reordenar(int indiceViejo, int indiceNuevo) {
+    _invalidarOrdenShuffle();
     final tracks = List<ItemFeed>.from(state.tracks);
     final item = tracks.removeAt(indiceViejo);
     tracks.insert(indiceNuevo, item);
@@ -103,6 +138,7 @@ class CubitCola extends Cubit<EstadoCola> with ColaNavegacion {
   /// Añade una lista de tracks al final de la cola (para autoplay/radio).
   void agregarTracks(List<ItemFeed> items) {
     if (items.isEmpty) return;
+    _invalidarOrdenShuffle();
     final tracks = List<ItemFeed>.from(state.tracks)..addAll(items);
     emit(state.copiarCon(tracks: tracks));
   }
@@ -111,6 +147,7 @@ class CubitCola extends Cubit<EstadoCola> with ColaNavegacion {
   /// la cola anterior). Arranca desde el primer track.
   void reemplazarCola(List<ItemFeed> items) {
     _historial.clear();
+    _invalidarOrdenShuffle();
     emit(EstadoCola(
       tracks: items,
       indiceActual: items.isNotEmpty ? 0 : -1,

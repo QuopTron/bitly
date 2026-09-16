@@ -5,12 +5,14 @@ import android.app.ActivityManager
 import android.app.UiModeManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import com.ryanheise.audioservice.AudioServiceActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodCall
@@ -20,6 +22,8 @@ import java.io.File
 import java.util.concurrent.Executors
 
 class MainActivity : AudioServiceActivity() {
+    // Tag de los logs de diagnóstico (ver logD/logE/logW más abajo).
+    private val TAG_LOG = "NativeBridge"
     private val CHANNEL = "com.bitly/backend"
     private val SESSION_CHANNEL = "com.bitly/session_grant"
     private val OAUTH_CHANNEL = "com.bitly/oauth_callback"
@@ -73,6 +77,27 @@ class MainActivity : AudioServiceActivity() {
     // Hard per-call timeout for Go RPCs. Legit fallback downloads can take
     // ~30-40s, so this is a safety net, not the normal path.
     private val callTimeoutSeconds = 45L
+
+    // Logs de diagnóstico: SOLO en builds de debug. En release no se imprime
+    // nada (antes estas líneas se veían en logcat como "NativeBridge: ...").
+    //
+    // Se mira el flag `debuggable` del propio APK (no BuildConfig, que AGP 8 ya
+    // no genera solo): así el silencio no depende del gradle.
+    private val enDebug: Boolean by lazy {
+        (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
+    }
+
+    private fun logD(mensaje: String) {
+        if (enDebug) Log.i(TAG_LOG, mensaje)
+    }
+
+    private fun logE(mensaje: String, error: Throwable? = null) {
+        if (enDebug) Log.e(TAG_LOG, mensaje, error)
+    }
+
+    private fun logW(mensaje: String) {
+        if (enDebug) Log.w(TAG_LOG, mensaje)
+    }
     private val handler = Handler(Looper.getMainLooper())
 
     private var safResult: MethodChannel.Result? = null
@@ -233,10 +258,10 @@ class MainActivity : AudioServiceActivity() {
             if (engine != null) {
                 MethodChannel(engine.dartExecutor.binaryMessenger, SESSION_CHANNEL)
                     .invokeMethod("onSessionGrant", grant, null)
-                android.util.Log.i("NativeBridge", "Session grant forwarded to Flutter")
+                logD("Session grant forwarded to Flutter")
             }
         } catch (e: Exception) {
-            android.util.Log.e("NativeBridge", "forwardSessionGrant error: ${e.message}")
+            logE("forwardSessionGrant error: ${e.message}")
         }
     }
 
@@ -246,10 +271,10 @@ class MainActivity : AudioServiceActivity() {
             if (engine != null) {
                 MethodChannel(engine.dartExecutor.binaryMessenger, SHARE_CHANNEL)
                     .invokeMethod("onSharedText", texto, null)
-                android.util.Log.i("NativeBridge", "Shared text forwarded to Flutter")
+                logD("Shared text forwarded to Flutter")
             }
         } catch (e: Exception) {
-            android.util.Log.e("NativeBridge", "forwardSharedText error: ${e.message}")
+            logE("forwardSharedText error: ${e.message}")
         }
     }
 
@@ -259,10 +284,10 @@ class MainActivity : AudioServiceActivity() {
             if (engine != null) {
                 MethodChannel(engine.dartExecutor.binaryMessenger, DEEPLINK_CHANNEL)
                     .invokeMethod("onDeepLink", enlace, null)
-                android.util.Log.i("NativeBridge", "Deep link forwarded to Flutter")
+                logD("Deep link forwarded to Flutter")
             }
         } catch (e: Exception) {
-            android.util.Log.e("NativeBridge", "forwardDeepLink error: ${e.message}")
+            logE("forwardDeepLink error: ${e.message}")
         }
     }
 
@@ -277,17 +302,17 @@ class MainActivity : AudioServiceActivity() {
                 )
                 MethodChannel(engine.dartExecutor.binaryMessenger, OAUTH_CHANNEL)
                     .invokeMethod("onOAuthCallback", payload, null)
-                android.util.Log.i("NativeBridge", "OAuth callback forwarded to Flutter")
+                logD("OAuth callback forwarded to Flutter")
             }
         } catch (e: Exception) {
-            android.util.Log.e("NativeBridge", "forwardOAuthCallback error: ${e.message}")
+            logE("forwardOAuthCallback error: ${e.message}")
         }
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
-        android.util.Log.i("NativeBridge", "FlutterEngine configured.")
+        logD("FlutterEngine configured.")
 
         // Deliver a grant that arrived before Flutter was ready (cold start).
         pendingSessionGrant?.let {
@@ -366,18 +391,15 @@ class MainActivity : AudioServiceActivity() {
                                             try {
                                                 Gobackend.setAppDataDir(appDataDir)
                                             } catch (e: Exception) {
-                                                android.util.Log.w(
-                                                    "NativeBridge",
-                                                    "setAppDataDir failed: ${e.message}",
-                                                )
+                                                logW("setAppDataDir failed: ${e.message}")
                                             }
                                         }
                                         Gobackend.initBackend()
                                         val s = Gobackend.initGlobalState()
-                                        android.util.Log.i("NativeBridge", "Go backend initialized: $s")
+                                        logD("Go backend initialized: $s")
                                         f.complete(s)
                                     } catch (e: Exception) {
-                                        android.util.Log.e("NativeBridge", "Failed to init Go backend: ${e.message}")
+                                        logE("Failed to init Go backend: ${e.message}")
                                         // Clear the cached future so a retry can
                                         // re-run init from scratch (a transient
                                         // cold-start failure must not poison
@@ -442,7 +464,7 @@ class MainActivity : AudioServiceActivity() {
 
     private fun dispatchGoCall(call: MethodCall, result: MethodChannel.Result) {
         val methodName = call.method
-        android.util.Log.i("NativeBridge", "dispatchGoCall: method=$methodName")
+        logD("dispatchGoCall: method=$methodName")
         executor.execute {
             try {
                 // Build argument list from call.arguments
@@ -510,25 +532,22 @@ class MainActivity : AudioServiceActivity() {
                         val res = future.get(callTimeoutSeconds, java.util.concurrent.TimeUnit.SECONDS)
                         handler.post { result.success(res) }
                     } catch (e: java.util.concurrent.TimeoutException) {
-                        android.util.Log.e(
-                            "NativeBridge",
-                            "dispatchGoCall TIMEOUT: $methodName > ${callTimeoutSeconds}s"
-                        )
+                        logE("dispatchGoCall TIMEOUT: $methodName > ${callTimeoutSeconds}s")
                         try {
                             Gobackend.dumpGoroutines("")
                         } catch (t: Throwable) {
-                            android.util.Log.e("NativeBridge", "dumpGoroutines failed: ${t.message}")
+                            logE("dumpGoroutines failed: ${t.message}")
                         }
                         handler.post {
                             result.error("CALL_TIMEOUT", "Go call $methodName timed out after ${callTimeoutSeconds}s", null)
                         }
                     } catch (e: Exception) {
-                        android.util.Log.e("NativeBridge", "dispatchGoCall error: ${e.message}")
+                        logE("dispatchGoCall error: ${e.message}")
                         handler.post { result.error("BACKEND_ERROR", e.message, null) }
                     }
                 }
             } catch (e: Exception) {
-                android.util.Log.e("NativeBridge", "dispatchGoCall error: ${e.message}")
+                logE("dispatchGoCall error: ${e.message}")
                 handler.post { result.error("BACKEND_ERROR", e.message, null) }
             }
         }

@@ -28,17 +28,29 @@ class CacheFavoritos with CacheFavoritosArtistas, CacheFavoritosPlaylists {
 
   Future<String> getTracksAmados() async {
     final items = await _dao.getLovedTracks();
-    final lista = items.map((e) => <String, dynamic>{
-      'trackId': e.trackId, 'trackName': e.trackName,
-      'artistName': e.artistName, 'albumName': e.albumName ?? '',
-      'coverUrl': e.coverUrl ?? '', 'coverPath': e.coverPath ?? '',
-      'isrc': e.isrc ?? '', 'durationMs': e.durationMs ?? 0,
-      'provider': e.provider ?? '',
-      'addedAt': e.addedAt.toIso8601String(),
-      'track_id': e.trackId, 'track_name': e.trackName,
-      'artist_name': e.artistName, 'album_name': e.albumName ?? '',
-      'cover_url': e.coverUrl ?? '', 'duration_ms': e.durationMs ?? 0,
-    }).toList();
+    final lista =
+        items
+            .map(
+              (e) => <String, dynamic>{
+                'trackId': e.trackId,
+                'trackName': e.trackName,
+                'artistName': e.artistName,
+                'albumName': e.albumName ?? '',
+                'coverUrl': e.coverUrl ?? '',
+                'coverPath': e.coverPath ?? '',
+                'isrc': e.isrc ?? '',
+                'durationMs': e.durationMs ?? 0,
+                'provider': e.provider ?? '',
+                'addedAt': e.addedAt.toIso8601String(),
+                'track_id': e.trackId,
+                'track_name': e.trackName,
+                'artist_name': e.artistName,
+                'album_name': e.albumName ?? '',
+                'cover_url': e.coverUrl ?? '',
+                'duration_ms': e.durationMs ?? 0,
+              },
+            )
+            .toList();
     return jsonEncode(lista);
   }
 
@@ -75,15 +87,24 @@ class CacheFavoritos with CacheFavoritosArtistas, CacheFavoritosPlaylists {
 
   Future<String> getAlbumesFavoritos() async {
     final items = await _dao.getFavoriteAlbums();
-    final lista = items.map((e) => <String, dynamic>{
-      'albumId': e.albumId, 'name': e.name,
-      'artistId': e.artistId, 'artistName': e.artistName,
-      'coverUrl': e.coverUrl, 'coverPath': e.coverPath ?? '',
-      'provider': e.provider ?? '',
-      'addedAt': e.addedAt.toIso8601String(),
-      'album_id': e.albumId, 'artist_name': e.artistName,
-      'cover_url': e.coverUrl,
-    }).toList();
+    final lista =
+        items
+            .map(
+              (e) => <String, dynamic>{
+                'albumId': e.albumId,
+                'name': e.name,
+                'artistId': e.artistId,
+                'artistName': e.artistName,
+                'coverUrl': e.coverUrl,
+                'coverPath': e.coverPath ?? '',
+                'provider': e.provider ?? '',
+                'addedAt': e.addedAt.toIso8601String(),
+                'album_id': e.albumId,
+                'artist_name': e.artistName,
+                'cover_url': e.coverUrl,
+              },
+            )
+            .toList();
     return jsonEncode(lista);
   }
 
@@ -124,8 +145,10 @@ class CacheFavoritos with CacheFavoritosArtistas, CacheFavoritosPlaylists {
   Future<void> actualizarImagenArtista(String artistId, String imagePath) =>
       _dao.updateFavoriteArtistImagePath(artistId, imagePath);
 
-  Future<void> actualizarCaratulaPlaylist(String playlistId, String coverPath) =>
-      _dao.updateFavoritePlaylistCoverPath(playlistId, coverPath);
+  Future<void> actualizarCaratulaPlaylist(
+    String playlistId,
+    String coverPath,
+  ) => _dao.updateFavoritePlaylistCoverPath(playlistId, coverPath);
 
   Future<void> actualizarCaratulaTrack(String trackId, String coverPath) =>
       _dao.updateLovedTrackCoverPath(trackId, coverPath);

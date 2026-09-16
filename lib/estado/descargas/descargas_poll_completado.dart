@@ -43,7 +43,8 @@ mixin DescargasPollCompletado on DescargasPollPersistir {
     // Las subtareas (letras/video) tienen su propio evento de completación pero
     // su stateKey es de subtarea (p.ej. track_123_deezer_lyrics) donde
     // _metaTrack no tiene entrada — produciría un trackId incorrecto.
-    final isSubTask = stateKey.endsWith('_lyrics') || stateKey.endsWith('_video');
+    final isSubTask =
+        stateKey.endsWith('_lyrics') || stateKey.endsWith('_video');
 
     // Ya persistido en un poll anterior (Go reporta los items completados
     // indefinidamente): solo mantener el estado visual. El path del tracker ya
@@ -55,7 +56,9 @@ mixin DescargasPollCompletado on DescargasPollPersistir {
       // Sin esto, el archivo encriptado queda en disco pero el track sigue
       // "completed" con un archivo no reproducible.
       if (_carreraResuelta.contains(rawId)) return false;
-      if (encrypted && clientDecrypt && decKey.isNotEmpty &&
+      if (encrypted &&
+          clientDecrypt &&
+          decKey.isNotEmpty &&
           !_decryptClienteHecho.contains(rawId) &&
           !_decryptClienteSaltado.contains(rawId)) {
         // Antes de reprocesar, chequear si el archivo actual en disco sigue
@@ -65,30 +68,44 @@ mixin DescargasPollCompletado on DescargasPollPersistir {
         if (outputPath.isNotEmpty) {
           try {
             final curFile = File(outputPath);
-            if (await curFile.exists() && await _esAudioDecodificable(curFile)) {
-              _log.i('[poll] $rawId: carrera de proveedores pero el archivo actual sigue siendo reproducible — saltando re-proceso');
+            if (await curFile.exists() &&
+                await _esAudioDecodificable(curFile)) {
+              _log.i(
+                '[poll] $rawId: carrera de proveedores pero el archivo actual sigue siendo reproducible — saltando re-proceso',
+              );
               _carreraResuelta.add(rawId);
               return false;
             }
-          } catch (e) { debugPrint("[Descargas] $e"); }
+          } catch (e) {
+            debugPrint("[Descargas] $e");
+          }
         }
         // El archivo fue sobreescrito por un proveedor en carrera con una
         // versión encriptada — pero primero chequear si existe una alternativa.
         final raceAlt = await _buscarArchivoAlternativo(stateKey, outputPath);
         if (raceAlt != null) {
-          _log.i('[poll] $rawId: carrera de proveedores pero se encontró alternativa: $raceAlt — manteniendo completado');
+          _log.i(
+            '[poll] $rawId: carrera de proveedores pero se encontró alternativa: $raceAlt — manteniendo completado',
+          );
           _carreraResuelta.add(rawId);
           // Actualizar el path de BD para que _verificarArchivoDescargado de
           // la cola no falle al chequear el path encriptado (ahora obsoleto).
           try {
             final meta = _metaTrack[stateKey];
-            final nid = meta != null && meta.trackId.isNotEmpty ? meta.trackId : stateKey;
+            final nid =
+                meta != null && meta.trackId.isNotEmpty
+                    ? meta.trackId
+                    : stateKey;
             await _downloadCache.actualizarRutaArchivo(nid, raceAlt);
-          } catch (e) { debugPrint("[Descargas] $e"); }
+          } catch (e) {
+            debugPrint("[Descargas] $e");
+          }
           return false;
         }
         // Sin alternativa — quitar de persistidos para que el decrypt corra abajo.
-        _log.i('[poll] reprocesando $rawId: archivo sobreescrito con versión encriptada (carrera de proveedores)');
+        _log.i(
+          '[poll] reprocesando $rawId: archivo sobreescrito con versión encriptada (carrera de proveedores)',
+        );
         _completadosPersistidos.remove(rawId);
       } else {
         return false;
@@ -100,12 +117,31 @@ mixin DescargasPollCompletado on DescargasPollPersistir {
     // que el flujo de streaming — antes de persistir un archivo reproducible.
     // Si no, el archivo guardado es un stream encriptado no reproducible.
     var playablePath = outputPath;
-    if (!isSubTask && playablePath.isNotEmpty && encrypted && clientDecrypt && decKey.isNotEmpty) {
-      final resultado = await _desencriptarSiNecesario(rawId, stateKey, p, playablePath, isSubTask, dl);
+    if (!isSubTask &&
+        playablePath.isNotEmpty &&
+        encrypted &&
+        clientDecrypt &&
+        decKey.isNotEmpty) {
+      final resultado = await _desencriptarSiNecesario(
+        rawId,
+        stateKey,
+        p,
+        playablePath,
+        isSubTask,
+        dl,
+      );
       if (!resultado.continuar) return true;
       playablePath = resultado.rutaReproducible ?? playablePath;
     }
 
-    return _finalizarEstadoCompletado(rawId, stateKey, p, dl, fps, playablePath, isSubTask);
+    return _finalizarEstadoCompletado(
+      rawId,
+      stateKey,
+      p,
+      dl,
+      fps,
+      playablePath,
+      isSubTask,
+    );
   }
 }

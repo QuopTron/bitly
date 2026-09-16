@@ -19,9 +19,17 @@ class CachePremium {
   CachePremium(AppDatabase db) : _dao = PremiumDao(db);
 
   Future<void> activarPremium(String code) async {
-    await _dao.setTier('premium', premiumUntil:
-        DateTime.now().add(const Duration(days: 365)).millisecondsSinceEpoch ~/ 1000);
-    _log.i('[CachePremium] Premium activado con código ${code.substring(0, code.length.clamp(0, 30))}');
+    await _dao.setTier(
+      'premium',
+      premiumUntil:
+          DateTime.now()
+              .add(const Duration(days: 365))
+              .millisecondsSinceEpoch ~/
+          1000,
+    );
+    _log.i(
+      '[CachePremium] Premium activado con código ${code.substring(0, code.length.clamp(0, 30))}',
+    );
   }
 
   Future<EstadoPremium> getEstadoPremium() async {
@@ -31,8 +39,15 @@ class CachePremium {
       return const EstadoPremium(tier: 'free', premiumHasta: 0, activo: false);
     }
     final ahora = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-    final activo = p.tier != 'free' && (p.premiumUntil == null || ahora < p.premiumUntil!);
-    _log.i('[CachePremium] tier=${p.tier} premiumHasta=${p.premiumUntil} ahora=$ahora activo=$activo');
-    return EstadoPremium(tier: p.tier, premiumHasta: p.premiumUntil ?? 0, activo: activo);
+    final activo =
+        p.tier != 'free' && (p.premiumUntil == null || ahora < p.premiumUntil!);
+    _log.i(
+      '[CachePremium] tier=${p.tier} premiumHasta=${p.premiumUntil} ahora=$ahora activo=$activo',
+    );
+    return EstadoPremium(
+      tier: p.tier,
+      premiumHasta: p.premiumUntil ?? 0,
+      activo: activo,
+    );
   }
 }

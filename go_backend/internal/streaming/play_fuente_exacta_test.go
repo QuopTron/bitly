@@ -42,8 +42,8 @@ func (s *verifStubProvider) GetStreamURL(id, quality string) (string, error) {
 }
 
 // Política de fuentes de audio: los catálogos BUSCAN, no streamean. Solo
-// YouTube (sí o sí) y —si se pidió sin pérdida— Internet Archive / Soulseek /
-// flac-rescue pueden aportar audio. Antes la carrera metía a
+// YouTube (sí o sí) y —si se pidió sin pérdida— Internet Archive / flac-rescue
+// pueden aportar audio (Soulseek aporta por descarga, no por stream). Antes la carrera metía a
 // spotify-web/qobuz-web/tidal-web/amazon/apple-music, que sin sesión firmada no
 // pueden resolver una URL: ocupaban un turno del pool para devolver nada y
 // retrasaban el turno del re-subido que sí tenía el audio.
@@ -71,11 +71,20 @@ func TestFuentesDeAudioExcluyenCatalogosDeBusqueda(t *testing.T) {
 	if proveedoresAudio[0] != "ytmusic-spotiflac" {
 		t.Fatalf("ytmusic-spotiflac debe reclamar el primer turno; es %q", proveedoresAudio[0])
 	}
-	// Y el FLAC real cuando se pidió sin pérdida.
-	for _, n := range []string{"internetarchive", "soulseek", "flac-rescue"} {
+	// Y el FLAC real cuando se pidió sin pérdida: las que pueden STREAMEARLO.
+	for _, n := range []string{"internetarchive", "flac-rescue"} {
 		if !contieneNombre(proveedoresAudio, n) {
 			t.Errorf("%q debe ser fuente de audio (FLAC sin sesión)", n)
 		}
+	}
+	// Soulseek entrega FLAC pero solo por DESCARGA: fuera de las fuentes de
+	// audio, dentro de proveedoresSoloDescarga (el orquestador de descargas sí
+	// lo usa). Ver TestSoulseekSoloDescarga en play_fuentes_stream_test.go.
+	if contieneNombre(proveedoresAudio, "soulseek") {
+		t.Fatal("soulseek no puede streamear (P2P): no puede ser fuente de audio")
+	}
+	if !esProveedorSoloDescarga("soulseek") || !esProveedorLossless("soulseek") {
+		t.Fatal("soulseek debe seguir como fuente lossless de descarga")
 	}
 
 	// Ningún re-subido puede estar entre las fuentes exactas.

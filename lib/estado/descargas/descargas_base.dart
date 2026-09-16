@@ -46,6 +46,12 @@ mixin DescargasBase on DescargasBaseCaches {
   /// infinitos para tracks que fallan consistentemente.
   final Map<String, Set<String>> _reintentosFallidosPorLote = {};
 
+  /// Reintentos EN SITIO por track (baseId → reintentos ya consumidos). Una
+  /// canción que falla NO deja avanzar el FIFO: se reencola al FRENTE con la
+  /// calidad degradada hasta agotar [_maxReintentosInSitu]. Se limpia cuando
+  /// el track completa y cuando la cola se vacía.
+  final Map<String, int> _intentosPorTrack = {};
+
   /// Clave "track_{id}_{source}" → metadata, poblada desde la BD y lotes.
   final Map<String, _InfoTrack> _metaTrack = {};
 
