@@ -43,7 +43,7 @@ List<String> _candidatosClaveDesencriptado(String claveCruda) {
     final decodificado = base64Decode(sinPrefijo.replaceAll(RegExp(r'\s+'), ''));
     final hex = decodificado.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
     agregarHex(hex);
-  } catch (e) { debugPrint("[Desencriptado] error: $e"); }
+  } catch (e) { debugPrint("[Decrypted] error: $e"); }
 
   // Algunos builds de FFmpeg aceptan la clave cruda de 16 bytes directa.
   agregarHex(sinPrefijo);

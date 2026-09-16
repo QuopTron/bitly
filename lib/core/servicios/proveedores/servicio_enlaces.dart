@@ -18,7 +18,9 @@ import 'dart:async';
 import '../../backend_go/nucleo/contrato_backend.dart';
 import '../../../app/inyeccion.dart' as di;
 import '../../modelos/resultado_enlace.dart';
+import '../../plataforma/sistema/servicio_deep_link.dart';
 import '../../plataforma/sistema/servicio_share_intent.dart';
+import '../compartir/servicio_compartir.dart';
 
 /// Resuelve enlaces de Spotify/YouTube/Deezer... a un ítem reproducible.
 class ServicioEnlaces {
@@ -39,8 +41,19 @@ class ServicioEnlaces {
     ServicioShareIntent.instance.urlsCompartidas.listen(_procesarCompartido);
   }
 
-  /// Texto compartido → primer enlace → resolver → emitir.
+  /// Texto compartido → enlace de Bitly (se muestra la carta "te
+  /// compartieron") o primer enlace de otra fuente → resolver → emitir.
   Future<void> _procesarCompartido(String texto) async {
+    final datos = ServicioCompartir.instance.leerEnlace(texto.trim());
+    if (datos != null) {
+      ServicioDeepLink.instance.emitir(DatosDeepLink(
+        type: datos.tipo,
+        id: datos.isrc,
+        query: datos.nombre,
+        compartido: datos,
+      ));
+      return;
+    }
     final enlace = enlaceEnTexto(texto);
     if (enlace == null) return;
     final resuelto = await resolver(enlace);

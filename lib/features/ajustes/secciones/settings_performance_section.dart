@@ -7,6 +7,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import 'package:flutter/material.dart';
+import '../../../shared/utilidades/plataforma/efectos_app.dart';
 import '../../../shared/utilidades/plataforma/responsive.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../core/modelos/usuario/perfil_rendimiento.dart';
@@ -52,6 +53,12 @@ class _SettingsPerformanceSectionState extends State<SettingsPerformanceSection>
 
     // Refleja el perfil activo en toda la app (listas, efectos, carátulas).
     sl<ValueNotifier<PerfilRendimiento>>().value = perfil;
+    // Y en el interruptor global de efectos: al elegir "Bajo" los desenfoques
+    // se apagan al instante en vez de necesitar reiniciar la app.
+    EfectosApp.aplicar(
+      efectosPesados: perfil.efectosPesados,
+      sigmaMax: perfil.sigmaDesenfoque,
+    );
 
     // Sincroniza la calidad de audio por defecto con el perfil.
     final ajustes = await cacheAjustes.getAjustesDescarga();

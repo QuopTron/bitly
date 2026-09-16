@@ -89,18 +89,16 @@ Widget _lineaKaraoke(
           spans.add(TextSpan(text: ' $w', style: sp));
         }
       }
-      widgetTexto = Text.rich(
-        TextSpan(children: spans),
-        textAlign: TextAlign.center,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
+      widgetTexto = TextoMarquesina(
+        span: TextSpan(children: spans),
+        estilo: const TextStyle(),
       );
     } else {
       final pintado = (linea.texto.length * progreso)
           .round()
           .clamp(0, linea.texto.length);
-      widgetTexto = Text.rich(
-        TextSpan(
+      widgetTexto = TextoMarquesina(
+        span: TextSpan(
           children: [
             TextSpan(
               text: linea.texto.substring(0, pintado),
@@ -115,9 +113,7 @@ Widget _lineaKaraoke(
             ),
           ],
         ),
-        textAlign: TextAlign.center,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
+        estilo: const TextStyle(),
       );
     }
 
@@ -144,7 +140,9 @@ Widget _lineaKaraoke(
         st._lineas[i].texto,
         textAlign: TextAlign.center,
         maxLines: 1,
-        overflow: TextOverflow.ellipsis,
+        // Sin "…": cuando la línea larga pase a activa se desplaza y se lee
+        // entera. Recortada no da la impresión falsa de que ahí termina.
+        overflow: TextOverflow.clip,
       ),
     ),
   );

@@ -1,32 +1,47 @@
 // ─────────────────────────────────────────────────────────────
-// overlay_compartido.dart — Overlay tipo TikTok "te compartieron":
-// se muestra al abrir la app desde un deep link (WhatsApp, etc.)
-// con la portada, nombre y botones de reproducir / omitir.
-// Se conecta con: servicio_deep_link (datos del link) + ImagenPortada
-// + ItemFeed + Responsive + ColoresApp.
-// Parte del flujo: arranque / llegada de deep links (overlay global).
+// overlay_compartido.dart — Overlay "te compartieron" que aparece al
+// abrir Bitly desde un enlace compartido.
+//
+// Qué hace: monta la carta CHICA del ítem compartido sobre la app (que
+// queda desenfocada detrás) y le da una entrada corta: cae un poco,
+// se asienta y aparece el resto. Una sola animación de 460 ms y ningún
+// bucle infinito, así no cuesta GPU.
+//
+// Quién decide "reproducir" o "agregar a la cola" es el estado raíz
+// (app_compartido.dart); acá solo se pinta y se avisa qué se tocó.
+//
+// Se conecta con: servicio_deep_link (DatosDeepLink) +
+// overlay_compartido_contenido + ItemFeed.
+// Parte del flujo: enlace compartido → carta → reproducir/encolar.
 // ─────────────────────────────────────────────────────────────
 
 import 'package:flutter/material.dart';
 
 import '../../../core/modelos/feed/item_feed.dart';
+import '../../../core/plataforma/sistema/servicio_deep_link.dart';
 import 'overlay_compartido_contenido.dart';
 
 /// Overlay "compartido contigo" para aperturas por deep link.
 class OverlayCompartido extends StatefulWidget {
-  final String? type;
-  final String? id;
-  final String? query;
+  final DatosDeepLink link;
   final VoidCallback onDismiss;
+
+  /// Reproduce la canción (reemplaza la cola).
   final VoidCallback onPlay;
+
+  /// La encola al final sin cortar lo que ya suena.
+  final VoidCallback onAgregar;
+
+  /// ¿Ya hay algo reproduciéndose? Cambia el botón por "agregar a la cola".
+  final bool enCola;
 
   const OverlayCompartido({
     super.key,
-    this.type,
-    this.id,
-    this.query,
+    required this.link,
     required this.onDismiss,
     required this.onPlay,
+    required this.onAgregar,
+    this.enCola = false,
   });
 
   @override
@@ -35,71 +50,39 @@ class OverlayCompartido extends StatefulWidget {
 
 class _OverlayCompartidoState extends State<OverlayCompartido>
     with SingleTickerProviderStateMixin {
-  late AnimationController _animCtrl;
-  late Animation<double> _fadeAnim;
-  late Animation<Offset> _slideAnim;
-  ItemFeed? _foundItem;
-  bool _cargando = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _animCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 600),
-    );
-    _fadeAnim = CurvedAnimation(parent: _animCtrl, curve: Curves.ease);
-    _slideAnim = Tween<Offset>(
-      begin: const Offset(0, 0.3),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _animCtrl, curve: Curves.easeOutCubic));
-    _animCtrl.forward();
-    _resolverItem();
-  }
+  /// Entrada de la carta: caída + asentado + aparición de las opciones.
+  late final AnimationController _entrada = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 460),
+  )..forward();
 
   @override
   void dispose() {
-    _animCtrl.dispose();
+    _entrada.dispose();
     super.dispose();
-  }
-
-  /// Usa el query como nombre del ítem para la vista del overlay.
-  Future<void> _resolverItem() async {
-    setState(() {
-      _foundItem = ItemFeed(
-        id: widget.id ?? '',
-        type: widget.type ?? 'track',
-        name: widget.query ?? 'Canción compartida',
-        source: '',
-      );
-      _cargando = false;
-    });
   }
 
   @override
   Widget build(BuildContext context) {
+    final compartido = widget.link.compartido;
     return AnimatedBuilder(
-      animation: _animCtrl,
-      builder: (context, _) {
-        return FadeTransition(
-          opacity: _fadeAnim,
-          child: SlideTransition(
-            position: _slideAnim,
-            child: Scaffold(
-              backgroundColor: Colors.black.withValues(alpha: 0.95),
-              body: SafeArea(
-                child: OverlayCompartidoContenido(
-                  item: _foundItem,
-                  cargando: _cargando,
-                  type: widget.type ?? 'track',
-                  onPlay: widget.onPlay,
-                  onDismiss: widget.onDismiss,
-                ),
-              ),
+      animation: _entrada,
+      builder: (context, _) => OverlayCompartidoContenido(
+        item: compartido?.comoItem ??
+            ItemFeed(
+              id: widget.link.id,
+              type: widget.link.type,
+              name: widget.link.query,
+              source: '',
             ),
-          ),
-        );
-      },
+        emisor: compartido?.emisor ?? '',
+        isrc: compartido?.isrc ?? widget.link.id,
+        type: widget.link.type,
+        progreso: _entrada.value,
+        enCola: widget.enCola,
+        onAccion: widget.enCola ? widget.onAgregar : widget.onPlay,
+        onDismiss: widget.onDismiss,
+      ),
     );
   }
 }

@@ -78,20 +78,26 @@ class _SettingsSheetBodyState extends State<_SettingsSheetBody> {
             // Descargas, Rendimiento y Más (el contenido cambia con la
             // pestaña que el tutorial va pidiendo).
             Expanded(
-              child: KeyedSubtree(
-                key: keyTutorialAjustesContenido,
-                child: _SettingsTabs(
-                  controller: widget.tabController,
-                  selectedTab: widget.selectedTab,
-                  isDark: isDark,
-                  glowColor: glowColor,
-                  premium: widget.premium,
-                  likedCount: widget.likedCount,
-                  downloadedCount: widget.downloadedCount,
-                  onThemeChanged: widget.onThemeChanged,
-                  onLanguageChanged: widget.onLanguageChanged,
-                  onStyleChanged: widget.onStyleChanged,
-                  onPremiumChanged: widget.onPremiumChanged,
+              // El menú de navegación del celular (3 teclas) tapa el borde
+              // físico: la hoja se ancla ahí, así que reservamos su alto para
+              // que el último botón de cada pestaña nunca quede debajo.
+              child: Padding(
+                padding: EdgeInsets.only(bottom: insetInferiorSistema(context)),
+                child: KeyedSubtree(
+                  key: keyTutorialAjustesContenido,
+                  child: _SettingsTabs(
+                    controller: widget.tabController,
+                    selectedTab: widget.selectedTab,
+                    isDark: isDark,
+                    glowColor: glowColor,
+                    premium: widget.premium,
+                    likedCount: widget.likedCount,
+                    downloadedCount: widget.downloadedCount,
+                    onThemeChanged: widget.onThemeChanged,
+                    onLanguageChanged: widget.onLanguageChanged,
+                    onStyleChanged: widget.onStyleChanged,
+                    onPremiumChanged: widget.onPremiumChanged,
+                  ),
                 ),
               ),
             ),
@@ -103,13 +109,8 @@ class _SettingsSheetBodyState extends State<_SettingsSheetBody> {
     if (hasTrack) {
       sheet = ClipRRect(
         borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(
-            sigmaX:
-                sl<ValueNotifier<PerfilRendimiento>>().value.sigmaDesenfoque,
-            sigmaY:
-                sl<ValueNotifier<PerfilRendimiento>>().value.sigmaDesenfoque,
-          ),
+        child: DesenfoqueAdaptativo(
+          sigma: sl<ValueNotifier<PerfilRendimiento>>().value.sigmaDesenfoque,
           child: sheet,
         ),
       );

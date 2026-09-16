@@ -10,7 +10,6 @@
 // Parte del flujo: reproductor (modal de cola).
 // ─────────────────────────────────────────────────────────────
 
-import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -27,12 +26,15 @@ import '../../../estado/like/cubit_like.dart';
 import '../../../shared/tema/colores_app.dart';
 import '../../../shared/utilidades/interaccion/haptico.dart';
 import '../../../shared/utilidades/portada/paleta_portada.dart';
+import '../../../shared/utilidades/plataforma/insets_sistema.dart';
 import '../../../shared/utilidades/plataforma/responsive.dart';
 import '../../../shared/widgets/tarjetas/portada/imagen_portada.dart';
 import '../video/textura_video_fondo.dart';
+import '../../../shared/widgets/vidrio/desenfoque_adaptativo.dart';
 
 part 'modal_cola_hoja.dart';
 part 'modal_cola_piezas.dart';
+part 'modal_cola_vacio.dart';
 part 'modal_cola_fila.dart';
 part 'modal_cola_fila_piezas.dart';
 part 'modal_cola_chip.dart';

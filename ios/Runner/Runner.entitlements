@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Universal Links: el dominio tiene que ser el mismo que publica
+	     https://<dominio>/.well-known/apple-app-site-association y el mismo
+	     que arma el enlace en lib/core/servicios/compartir/servicio_compartir.dart.
+	     El archivo se publica desde la carpeta public/ del repo bitly-site.
+	     Si el dominio cambia, se cambia acá y en ese archivo.
+	     Requiere cuenta de Apple Developer paga (los equipos personales no
+	     soportan la capability Associated Domains). -->
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:bitly-site.pages.dev</string>
+	</array>
+</dict>
+</plist>

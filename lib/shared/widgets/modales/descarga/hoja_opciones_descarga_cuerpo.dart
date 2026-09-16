@@ -93,7 +93,11 @@ class _DescargaEstiloState extends State<_DescargaEstilo> {
                 _bannerInfo(st, r, loc, onBg, brillo),
               SizedBox(height: r.spacingM),
               _botonDescargar(st, r, loc, onBg, brillo),
-              SizedBox(height: r.spacingXL),
+              // + menú de navegación del sistema: el botón Descargar vive al
+              // pie de la hoja, que se ancla al borde físico de la pantalla.
+              SizedBox(
+                height: r.spacingXL + insetInferiorSistema(st.context),
+              ),
             ],
           ),
         ),
@@ -129,10 +133,7 @@ class _DescargaEstiloState extends State<_DescargaEstilo> {
               return ClipRRect(
                 borderRadius:
                     const BorderRadius.vertical(top: Radius.circular(24)),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-                  child: hoja,
-                ),
+                child: DesenfoqueAdaptativo(sigma: 24, child: hoja),
               );
             }
             return hoja;

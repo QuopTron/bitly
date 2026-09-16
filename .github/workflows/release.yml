@@ -288,7 +288,14 @@ jobs:
         run: |
           ISCC="/c/Program Files (x86)/Inno Setup 6/ISCC.exe"
           mkdir -p dist
-          "$ISCC" \
+          # MSYS (Git Bash) convierte los argumentos que empiezan con "/" a rutas
+          # de Windows ANTES de pasarlos a un programa nativo: "/DMyAppVersion=0.9.19"
+          # llegaba a ISCC como "C:/Program Files/Git/DMyAppVersion=0.9.19", o sea un
+          # SEGUNDO nombre de script, y el compilador abortaba con
+          # "You may not specify more than one script filename".
+          # Con esto la conversión se apaga SOLO para ISCC (la ruta del exe se
+          # resuelve igual): reproducido y verificado en Windows con Git Bash.
+          MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' "$ISCC" \
             "/DMyAppVersion=${{ steps.version.outputs.version }}" \
             "/DMyBuildArch=x64" \
             scripts/build/instalador_windows.iss
@@ -392,7 +399,9 @@ jobs:
         run: |
           ISCC="/c/Program Files (x86)/Inno Setup 6/ISCC.exe"
           mkdir -p dist
-          "$ISCC" \
+          # Mismo arreglo que el instalador x64: sin esto, Git Bash convierte
+          # "/DMyAppVersion=..." en una ruta y ISCC ve más de un script.
+          MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' "$ISCC" \
             "/DMyAppVersion=${{ steps.version.outputs.version }}" \
             "/DMyBuildArch=arm64" \
             "/DMyBuildArm64" \

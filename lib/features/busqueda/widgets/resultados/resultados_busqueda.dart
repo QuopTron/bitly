@@ -13,7 +13,6 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:share_plus/share_plus.dart';
 
 import '../../../../app/inyeccion.dart';
 import '../../../../core/cache/estado/estado_descarga.dart';
@@ -30,10 +29,12 @@ import '../../../../shared/widgets/esqueletos/esqueleto_busqueda.dart';
 import '../../../../shared/widgets/tarjetas/grilla/tarjeta_grilla.dart';
 import '../../../../shared/widgets/tarjetas/track/tarjeta_track.dart';
 import '../../../../shared/utilidades/formato/estilo_helper.dart';
+import '../../../../core/servicios/compartir/servicio_compartir.dart';
 
 part 'resultados_busqueda_estados.dart';
 part 'resultados_busqueda_grilla.dart';
 part 'resultados_busqueda_secciones.dart';
+part 'resultados_busqueda_cabeceras.dart';
 part 'resultados_busqueda_tarjetas.dart';
 part 'resultados_busqueda_vistas.dart';
 

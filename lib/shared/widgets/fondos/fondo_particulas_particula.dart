@@ -72,3 +72,41 @@ class _Particula {
     }
   }
 }
+
+
+
+/// Painter que dibuja todas las partículas con su glow cacheado.
+class _PainterParticulas extends CustomPainter {
+  final List<_Particula> particles;
+  final Color glowColor, particleColor;
+
+  _PainterParticulas({
+    required this.particles,
+    required this.glowColor,
+    required this.particleColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    for (final p in particles) {
+      p.asegurarCache(glowColor, particleColor);
+      final tp = p.glyph;
+      final gp = p.glowPaint;
+      if (tp == null || gp == null) continue;
+      final cx = p.x * size.width, cy = p.y * size.height;
+      canvas.save();
+      canvas.translate(cx, cy);
+      canvas.rotate(p.rotation);
+      // Glow suave: un círculo de gradiente radial (cacheado) — sin saveLayer.
+      canvas.drawCircle(Offset.zero, p.size * 1.6, gp);
+      tp.paint(canvas, Offset(-tp.width / 2, -tp.height / 2));
+      canvas.restore();
+    }
+  }
+
+  @override
+  bool shouldRepaint(_PainterParticulas oldDelegate) =>
+      oldDelegate.particles != particles ||
+      oldDelegate.glowColor != glowColor ||
+      oldDelegate.particleColor != particleColor;
+}

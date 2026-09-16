@@ -23,6 +23,7 @@ import './core/plataforma/sistema/servicio_deep_link.dart';
 import './core/servicios/oauth/servicio_callback_oauth.dart';
 import './core/servicios/proveedores/servicio_enlaces.dart';
 import './core/servicios/verificacion/servicio_verificacion.dart';
+import 'estado/cola/cubit_cola.dart';
 import 'features/setup/bloc/setup_bloc.dart';
 import 'features/splash/bloc/splash_bloc.dart';
 import 'l10n/app_localizations.dart';
@@ -30,6 +31,8 @@ import 'app_contenido.dart';
 
 import 'router/app_router.dart';
 import 'shared/tema/envoltorio_color_dinamico.dart';
+
+part 'app_compartido.dart';
 
 /// App raíz: tema dinámico + blocs globales + router + deep links.
 class BitlyApp extends StatefulWidget {
@@ -39,7 +42,7 @@ class BitlyApp extends StatefulWidget {
   State<BitlyApp> createState() => _BitlyAppState();
 }
 
-class _BitlyAppState extends State<BitlyApp> {
+class _BitlyAppState extends State<BitlyApp> with ManejadoresCompartidos {
   late final NotificadoresAjustesApp _ajustes = NotificadoresAjustesApp();
   final _navigatorKey = GlobalKey<NavigatorState>();
   late final GoRouter _router =
@@ -57,7 +60,8 @@ class _BitlyAppState extends State<BitlyApp> {
     ServicioCallbackOAuth().init();
     // Enlaces de música (compartidos a la app o resueltos por la UI): en
     // cuanto Go devuelve el ítem, se encola y se reproduce.
-    _subEnlaces = ServicioEnlaces.instance.resultados.listen(_reproducirEnlace);
+    _subEnlaces =
+        ServicioEnlaces.instance.resultados.listen(reproducirResueltoCompartido);
     // Deep link inicial (app abierta vía link de WhatsApp, etc.).
     final inicial = ServicioDeepLink.instance.consumirPendiente();
     if (inicial != null) {
@@ -79,25 +83,14 @@ class _BitlyAppState extends State<BitlyApp> {
     setState(() => _linkCompartido = null);
   }
 
-  /// Reproduce un enlace ya resuelto delegando en el helper global.
-  void _reproducirEnlace(ResultadoEnlace resuelto) {
-    if (!mounted) return;
-    reproducirEnlaceApp(
-      resuelto: resuelto,
-      router: _router,
-      limpiarLink: _descartarCompartido,
-    );
-  }
+  @override
+  GoRouter get routerCompartido => _router;
 
-  /// Botón "Reproducir" del overlay: resuelve el enlace y lo reproduce.
-  Future<void> _reproducirCompartido() async {
-    await reproducirCompartidoApp(
-      link: _linkCompartido,
-      router: _router,
-      limpiarLink: _descartarCompartido,
-      onResuelto: _reproducirEnlace,
-    );
-  }
+  @override
+  DatosDeepLink? get linkCompartidoPendiente => _linkCompartido;
+
+  @override
+  void limpiarCompartido() => _descartarCompartido();
 
   @override
   void dispose() {
@@ -136,7 +129,9 @@ class _BitlyAppState extends State<BitlyApp> {
               hijo: hijo,
               linkCompartido: _linkCompartido,
               onDismiss: _descartarCompartido,
-              onPlay: _reproducirCompartido,
+              onPlay: reproducirCompartido,
+              onAgregar: agregarCompartidoALaCola,
+              hayReproduccion: hayReproduccion,
             ),
           ),
         );

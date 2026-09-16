@@ -9,7 +9,6 @@
 // Parte del flujo: reproductor (letras karaoke).
 // ─────────────────────────────────────────────────────────────
 
-import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -27,6 +26,8 @@ import '../../../estado/reproductor/cubit_reproductor.dart';
 import '../../../shared/utilidades/portada/paleta_portada.dart';
 import '../../../shared/utilidades/plataforma/responsive.dart';
 import '../../../shared/widgets/tarjetas/portada/imagen_portada.dart';
+import '../../../shared/widgets/texto/texto_marquesina.dart';
+import '../../../shared/widgets/vidrio/desenfoque_adaptativo.dart';
 
 part 'hoja_letras_parse.dart';
 part 'hoja_letras_cabecera.dart';

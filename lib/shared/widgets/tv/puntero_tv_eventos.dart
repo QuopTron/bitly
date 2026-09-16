@@ -67,16 +67,20 @@ class EmisorPunteroTv {
     ));
   }
 
-  /// Emula un clic completo (down + up diferido).
+  /// Emula un clic completo (down + up diferido) en la posición del cursor.
   ///
-  /// La posición global se re-lee justo antes de cada evento para que un
-  /// frame intermedio no mueva el cursor y el clic caiga en otro widget
-  /// ("click falso").
+  /// La posición se CONGELA una sola vez y se usa para el tap completo. Si el
+  /// up se enviara en otra coordenada (por ejemplo porque una flecha del D-pad
+  /// movió el cursor entre ambos eventos, o porque el hover de un frame movió
+  /// la vista), el motor de gestos vería un arrastre y CANCELARÍA el toque: el
+  /// botón no se activaba o se activaba el vecino ("clic falso"). Congelada, el
+  /// clic cae exactamente donde se ve el cursor.
   void clicar() {
     if (presionando) return;
     presionando = true;
     _actualizarEstado(() {});
 
+    // Hover primero: posiciona el hit-test debajo del cursor.
     hover();
     final g = posicionGlobal();
     _enviar(PointerDownEvent(
@@ -86,11 +90,10 @@ class EmisorPunteroTv {
       buttons: kPrimaryButton,
     ));
     Timer(const Duration(milliseconds: 80), () {
-      final gUp = posicionGlobal();
       _enviar(PointerUpEvent(
         device: idPuntero,
         kind: PointerDeviceKind.mouse,
-        position: gUp,
+        position: g,
         buttons: 0,
       ));
       presionando = false;

@@ -21,6 +21,11 @@ Widget _construirHojaInfoCancion({
   required String duracion,
   required Color fondoModal,
 }) {
+  // Lado de la carátula: proporcional al ancho pero ACOTADO. Sin tope, en una
+  // pantalla ancha o de DPI alto (PC/tablet) la carátula crecía al 50% del
+  // ancho y la hoja quedaba deformada — el diseño debe verse igual en
+  // cualquier densidad.
+  final ladoCaratula = (r.width * 0.5).clamp(120.0, 220.0);
   return Container(
     margin: EdgeInsets.only(top: r.spacingXL * 2),
     decoration: BoxDecoration(
@@ -46,12 +51,12 @@ Widget _construirHojaInfoCancion({
             if (item.coverUrl != null && item.coverUrl!.isNotEmpty)
               ImagenPortada(
                 coverUrl: item.coverUrl,
-                ancho: r.width * 0.5,
-                alto: r.width * 0.5,
+                ancho: ladoCaratula,
+                alto: ladoCaratula,
                 radioBorde: 16,
                 fallback: Container(
-                  width: r.width * 0.5,
-                  height: r.width * 0.5,
+                  width: ladoCaratula,
+                  height: ladoCaratula,
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(16),
@@ -90,7 +95,10 @@ Widget _construirHojaInfoCancion({
                   item.type),
             SizedBox(height: r.spacingL),
             _botonCompartir(context, r, onBg, item),
-            SizedBox(height: r.spacingXL),
+            // + menú de navegación del sistema (la hoja se ancla al borde).
+            SizedBox(
+              height: r.spacingXL + insetInferiorSistema(context),
+            ),
           ],
         ),
       ),

@@ -34,7 +34,9 @@ class _FilaEsqueletoState extends State<_FilaEsqueleto>
     _ctrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1500),
-    )..repeat();
+    );
+    // Gama baja: shimmer quieto (ver esqueleto_carga.dart).
+    if (EfectosApp.permitirDesenfoque.value) _ctrl.repeat();
   }
 
   @override
@@ -47,6 +49,7 @@ class _FilaEsqueletoState extends State<_FilaEsqueleto>
   Widget build(BuildContext context) {
     final alto = widget.esTrack ? 72.0 : 220.0;
     final radio = widget.esTrack ? 18.0 : 16.0;
+    final estatico = !EfectosApp.permitirDesenfoque.value;
     return AnimatedBuilder(
       animation: _ctrl,
       builder: (context, _) {
@@ -55,12 +58,15 @@ class _FilaEsqueletoState extends State<_FilaEsqueleto>
           margin: const EdgeInsets.symmetric(vertical: 6),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(radio),
-            gradient: LinearGradient(
-              begin: Alignment(-1.0 + 2.0 * _ctrl.value, 0),
-              end: Alignment(-0.5 + 2.0 * _ctrl.value, 0),
-              colors: [widget.base, widget.brillo, widget.base],
-              stops: const [0.0, 0.5, 1.0],
-            ),
+            color: estatico ? widget.base : null,
+            gradient: estatico
+                ? null
+                : LinearGradient(
+                    begin: Alignment(-1.0 + 2.0 * _ctrl.value, 0),
+                    end: Alignment(-0.5 + 2.0 * _ctrl.value, 0),
+                    colors: [widget.base, widget.brillo, widget.base],
+                    stops: const [0.0, 0.5, 1.0],
+                  ),
           ),
         );
       },

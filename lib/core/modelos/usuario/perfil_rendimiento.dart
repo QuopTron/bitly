@@ -64,13 +64,17 @@ class PerfilRendimiento {
   /// Si las listas usan construcción perezosa (builder) y paginación.
   final bool listasPerezosas;
 
-  /// Sigma del desenfoque de fondos: bajo en perfiles sin efectos pesados
-  /// y según plataforma (móvil más liviano que escritorio).
+  /// Sigma del desenfoque de fondos.
+  ///
+  /// Gama baja → 0: un blur a pantalla completa en una GPU modesta
+  /// (PowerVR/Mali de entrada) se compone en cada frame y es lo que congela
+  /// la app en un Helio G. Gama media móvil → 12 (barato y se ve bien).
   double get sigmaDesenfoque {
-    if (!efectosPesados) return 10;
+    if (!efectosPesados) return 0;
     final movil = !kIsWeb &&
         (defaultTargetPlatform == TargetPlatform.android ||
             defaultTargetPlatform == TargetPlatform.iOS);
+    if (nivel == NivelRendimiento.medio) return movil ? 12 : 32;
     return movil ? 26 : 48;
   }
 

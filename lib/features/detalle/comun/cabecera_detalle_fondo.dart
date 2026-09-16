@@ -38,12 +38,7 @@ List<Widget> _capasFondo(
         child: RepaintBoundary(
           child: Opacity(
             opacity: t * 0.65,
-            child: ImageFiltered(
-              imageFilter: ui.ImageFilter.blur(
-                sigmaX: efectosPesados ? 20 : 6,
-                sigmaY: efectosPesados ? 20 : 6,
-              ),
-              child: Transform.scale(scale: 1.5, child: _fondoBlur(st)),
+            child: DesenfoqueHijo(sigma: efectosPesados ? 20 : 6, child: Transform.scale(scale: 1.5, child: _fondoBlur(st)),
             ),
           ),
         ),

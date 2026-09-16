@@ -45,5 +45,26 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<!-- Esquema propio: permite abrir la carta "te compartieron" desde
+	     cualquier app/plataforma con bitly://open?s=... y también sirve de
+	     respaldo si el Universal Link todavía no está verificado. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.example.bitly</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>bitly</string>
+			</array>
+		</dict>
+	</array>
+	<!-- Los enlaces entrantes los maneja AppDelegate por su canal propio
+	     (com.bitly/deep_link): se apaga el manejador automático de Flutter
+	     para que no consuma el link antes que nuestro código. -->
+	<key>FlutterDeepLinkingEnabled</key>
+	<false/>
 </dict>
 </plist>

@@ -83,13 +83,19 @@ class _BubbleTab extends StatelessWidget {
               ),
             ),
             SizedBox(height: 4),
-            Text(
-              _bubbleTabs[index].label,
-              style: TextStyle(
-                fontSize: r.footerSize - 2,
-                fontWeight: active ? FontWeight.w700 : FontWeight.w500,
-                color: active ? glowColor : onBg.withValues(alpha: 0.45),
-                letterSpacing: active ? 0.2 : 0,
+            // FittedBox: la etiqueta se encoge si su burbuja es angosta
+            // (pantallas chicas o muchas pestañas) en vez de desbordar.
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                _bubbleTabs[index].label,
+                maxLines: 1,
+                style: TextStyle(
+                  fontSize: r.footerSize - 2,
+                  fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                  color: active ? glowColor : onBg.withValues(alpha: 0.45),
+                  letterSpacing: active ? 0.2 : 0,
+                ),
               ),
             ),
             // Active dot indicator.

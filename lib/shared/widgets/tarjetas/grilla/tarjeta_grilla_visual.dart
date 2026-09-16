@@ -41,8 +41,8 @@ Widget _fondoTarjeta(
   // Modo Clásico: cover borroso o gradiente placeholder.
   if (t.coverUrl != null && t.coverUrl!.isNotEmpty) {
     if (efectosPesados) {
-      return ImageFiltered(
-        imageFilter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+      return DesenfoqueHijo(
+        sigma: 18,
         child: imagenDesdeUrl(
           t.coverUrl,
           ajuste: BoxFit.cover,

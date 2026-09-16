@@ -149,6 +149,14 @@ class StringsSetup {
   final String share;
   final String shareTrack;
   final String shareAlbum;
+  final String compartidoTitulo;
+  final String compartidoCancion;
+  final String reproducir;
+  final String agregarACola;
+  final String compartidosLabel;
+  final String compartidosVacio;
+  final String compartidosDe;
+  final String compartidosBorrar;
   // ── Downloads ───────────────────────────────────────────────
   final String downloadInterruptedOne;
   final String downloadInterruptedMany;
@@ -355,6 +363,14 @@ class StringsSetup {
     required this.share,
     required this.shareTrack,
     required this.shareAlbum,
+    required this.compartidoTitulo,
+    required this.compartidoCancion,
+    required this.reproducir,
+    required this.agregarACola,
+    required this.compartidosLabel,
+    required this.compartidosVacio,
+    required this.compartidosDe,
+    required this.compartidosBorrar,
     required this.downloadInterruptedOne,
     required this.downloadInterruptedMany,
     required this.retryInterrupted,
@@ -597,6 +613,14 @@ class StringsSetup {
     share: 'Share',
     shareTrack: '🎵 {track} — {artist}',
     shareAlbum: '💿 {album} — {artist}',
+    compartidoTitulo: 'SHARED WITH YOU',
+    compartidoCancion: 'Shared song',
+    reproducir: 'Play',
+    agregarACola: 'Add to queue',
+    compartidosLabel: 'Shared',
+    compartidosVacio: 'Nobody has shared a song with you yet',
+    compartidosDe: 'Shared by {user}',
+    compartidosBorrar: 'Clear',
     downloadInterruptedOne: '1 download interrupted',
     downloadInterruptedMany: '{count} downloads interrupted',
     retryInterrupted: 'Retry',
@@ -841,6 +865,14 @@ class StringsSetup {
     share: 'Compartir',
     shareTrack: '🎵 {track} — {artist}',
     shareAlbum: '💿 {album} — {artist}',
+    compartidoTitulo: 'TE COMPARTIERON',
+    compartidoCancion: 'Canción compartida',
+    reproducir: 'Reproducir',
+    agregarACola: 'Agregar a la cola',
+    compartidosLabel: 'Compartidos',
+    compartidosVacio: 'Todavía nadie te compartió una canción',
+    compartidosDe: 'Compartido por {user}',
+    compartidosBorrar: 'Borrar',
     downloadInterruptedOne: 'Una descarga se interrumpió',
     downloadInterruptedMany: '{count} descargas interrumpidas',
     retryInterrupted: 'Reintentar',

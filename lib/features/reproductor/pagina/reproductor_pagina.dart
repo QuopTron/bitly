@@ -12,7 +12,6 @@
 
 import 'dart:async';
 import 'dart:io';
-import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -42,6 +41,7 @@ import '../letras/hoja_letras.dart';
 import '../cola/modal_cola.dart';
 import '../controles/selector_velocidad_reproductor.dart';
 import '../video/textura_video_fondo.dart';
+import '../../../shared/widgets/vidrio/desenfoque_adaptativo.dart';
 
 part 'reproductor_pagina_estado.dart';
 part 'reproductor_pagina_video.dart';

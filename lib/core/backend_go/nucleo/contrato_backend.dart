@@ -39,6 +39,11 @@ abstract class BackendService {
   /// reproducible. null si ninguna fuente pudo resolverlo.
   Future<ResultadoEnlace?> resolveUrl(String url);
 
+  /// Resuelve un ISRC a la canción real, buscando en todas las fuentes
+  /// (`isrc:"..."`). Es la vía rápida para reproducir un enlace compartido:
+  /// match exacto en vez de una búsqueda por nombre. null si no hay match.
+  Future<ItemFeed?> resolverIsrc(String isrc);
+
   // ── Acciones (likes, descargas) ───────────────────────
   Future<void> likeItem(String itemId, bool liked);
   Future<void> downloadItem(String itemId);

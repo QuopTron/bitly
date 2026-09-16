@@ -111,7 +111,9 @@ class _VersionSheetState extends State<_VersionSheet> with _VersionSheetLoader {
                 onDownloadApk: _downloadApk,
               ),
             ),
-            SizedBox(height: r.bottomPadding),
+            SizedBox(
+              height: r.bottomPadding + insetInferiorSistema(context),
+            ),
           ],
         ),
       ),

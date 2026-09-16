@@ -14,43 +14,9 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
+import '../../utilidades/plataforma/efectos_app.dart';
+
 part 'fondo_particulas_particula.dart';
-
-/// Painter que dibuja todas las partículas con su glow cacheado.
-class _PainterParticulas extends CustomPainter {
-  final List<_Particula> particles;
-  final Color glowColor, particleColor;
-
-  _PainterParticulas({
-    required this.particles,
-    required this.glowColor,
-    required this.particleColor,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    for (final p in particles) {
-      p.asegurarCache(glowColor, particleColor);
-      final tp = p.glyph;
-      final gp = p.glowPaint;
-      if (tp == null || gp == null) continue;
-      final cx = p.x * size.width, cy = p.y * size.height;
-      canvas.save();
-      canvas.translate(cx, cy);
-      canvas.rotate(p.rotation);
-      // Glow suave: un círculo de gradiente radial (cacheado) — sin saveLayer.
-      canvas.drawCircle(Offset.zero, p.size * 1.6, gp);
-      tp.paint(canvas, Offset(-tp.width / 2, -tp.height / 2));
-      canvas.restore();
-    }
-  }
-
-  @override
-  bool shouldRepaint(_PainterParticulas oldDelegate) =>
-      oldDelegate.particles != particles ||
-      oldDelegate.glowColor != glowColor ||
-      oldDelegate.particleColor != particleColor;
-}
 
 /// Fondo animado de notas musicales con glow.
 class FondoParticulas extends StatefulWidget {
@@ -85,7 +51,15 @@ class _FondoParticulasState extends State<FondoParticulas>
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 40),
-    )..repeat();
+    );
+    // Gama baja: sin partículas. Es un CustomPainter animado a pantalla
+    // completa (glow + glifo por partícula, 40 s sin parar): en una GPU de
+    // entrada es de lo más caro que hay y no aporta nada esencial.
+    if (!EfectosApp.permitirDesenfoque.value) {
+      _particulas = const [];
+      return;
+    }
+    _controller.repeat();
     _particulas = List.generate(
       widget.particleCount,
       (_) => _crearParticula(),
@@ -123,6 +97,8 @@ class _FondoParticulasState extends State<FondoParticulas>
 
   @override
   Widget build(BuildContext context) {
+    // Sin partículas en gama baja: no se monta ni el painter ni el controller.
+    if (_particulas.isEmpty) return const SizedBox.shrink();
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, _) {

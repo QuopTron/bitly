@@ -3,24 +3,25 @@
 // carátula, nombre, artista, filas de detalle y compartir. Con un
 // track reproduciéndose el fondo usa vidrio desenfocado. Las
 // piezas visuales viven en modal_info_cancion_widgets.dart.
-// Se conecta con: imagen_portada + cubit_cola + l10n + share_plus.
+// Se conecta con: imagen_portada + cubit_cola + l10n + servicio_compartir.
 // Parte del flujo: acciones de ítem (info) — todas las vistas.
 // ─────────────────────────────────────────────────────────────
 
-import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
-import 'package:share_plus/share_plus.dart';
 
 import '../../../../app/inyeccion.dart';
 import '../../../../core/modelos/usuario/estilo_visual.dart';
 import '../../../../core/modelos/feed/item_feed.dart';
 import '../../../../core/modelos/usuario/preferencias_estilo.dart';
+import '../../../../core/servicios/compartir/servicio_compartir.dart';
 import '../../../../estado/cola/cubit_cola.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../utilidades/portada/paleta_portada.dart';
+import '../../../utilidades/plataforma/insets_sistema.dart';
 import '../../../utilidades/plataforma/responsive.dart';
 import '../../tarjetas/portada/imagen_portada.dart';
+import '../../vidrio/desenfoque_adaptativo.dart';
 
 part 'modal_info_cancion_widgets.dart';
 part 'modal_info_cancion_estilo.dart';

@@ -72,7 +72,11 @@ Widget _construirHojaAgregarA(_AgregarAEstiloState st, BuildContext context) {
                         sl<CubitCola>().agregarSiguiente(item);
                       }),
                     ],
-                    SizedBox(height: r.bottomPadding),
+                    // + menú de navegación del sistema: la hoja se ancla al
+                    // borde físico, sin esto el último botón queda debajo.
+                    SizedBox(
+                      height: r.bottomPadding + insetInferiorSistema(context),
+                    ),
                   ],
                 ),
               ),
@@ -101,10 +105,7 @@ Widget _construirHojaAgregarA(_AgregarAEstiloState st, BuildContext context) {
               hoja = ClipRRect(
                 borderRadius:
                     const BorderRadius.vertical(top: Radius.circular(24)),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-                  child: hoja,
-                ),
+                child: DesenfoqueAdaptativo(sigma: 24, child: hoja),
               );
             }
             return hoja;

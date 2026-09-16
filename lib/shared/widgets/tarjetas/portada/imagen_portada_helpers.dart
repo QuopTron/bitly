@@ -109,6 +109,21 @@ class _PlaceholderShimmerState extends State<_PlaceholderShimmer>
         (Theme.of(context).brightness == Brightness.dark
             ? const Color(0xFF1A1A1A)
             : const Color(0xFFE8E8E8));
+
+    // Gama baja: sin shimmer. Cada tarjeta cargando tendría su propio
+    // AnimationController repintando un gradiente en cada frame; con 10
+    // visibles eso solo ya come la GPU.
+    if (!EfectosApp.permitirDesenfoque.value) {
+      return Container(
+        width: widget.ancho,
+        height: widget.alto,
+        decoration: BoxDecoration(
+          color: base,
+          borderRadius: BorderRadius.circular(widget.radioBorde),
+        ),
+      );
+    }
+
     return AnimatedBuilder(
       animation: _ctrl,
       builder: (context, _) {

@@ -6,11 +6,13 @@
 
 import 'package:flutter/material.dart';
 import '../../../shared/tema/colores_app.dart';
+import '../../../shared/utilidades/plataforma/insets_sistema.dart';
 import '../../../shared/widgets/fondos/fondo_ambiente.dart';
 import '../../tutorial_interactivo/motor/tutorial_controller.dart';
 import '../shell/ensamblador_home.dart';
 import '../widgets/barra_navegacion_flotante.dart';
 
+part 'home_movil_barra_inferior.dart';
 part 'home_movil_overlay.dart';
 part 'home_movil_seccion.dart';
 part 'home_movil_tutorial.dart';
@@ -87,7 +89,11 @@ class _HomeMovilState extends State<HomeMovil> {
       // todo el shell (igual que el diseño anterior con AmbientBackdrop y el
       // tinte de los modals).
       body: FondoAmbienteConCola(
+        // El inset de abajo NO se delega a SafeArea: lo reserva la barra
+        // inferior (ver _BarraInferiorShell) para que el menú de navegación
+        // del celular nunca tape el miniplayer ni la navbar.
         child: SafeArea(
+          bottom: false,
           child: Stack(
             children: [
               // PageView de secciones con animación de opacidad/escala.
@@ -115,21 +121,11 @@ class _HomeMovilState extends State<HomeMovil> {
                 ),
               ),
               // Miniplayer + navbar flotante al pie.
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    widget.miniPlayer,
-                    BarraNavegacionFlotante(
-                      isDark: isDark,
-                      currentIndex: _tab,
-                      onTap: _onNavTap,
-                    ),
-                  ],
-                ),
+              _BarraInferiorShell(
+                miniPlayer: widget.miniPlayer,
+                isDark: isDark,
+                currentIndex: _tab,
+                onTap: _onNavTap,
               ),
               // Overlay de preparación de fuentes.
               if (widget.preparando)

@@ -53,12 +53,7 @@ class _FondoAmbiental extends StatelessWidget {
                     TexturaVideoFondo(controller: videoController!)
                   else if (!spotify && url != null && url.isNotEmpty)
                     ClipRect(
-                      child: ImageFiltered(
-                        imageFilter: ImageFilter.blur(
-                          sigmaX: sigma,
-                          sigmaY: sigma,
-                        ),
-                        child: Transform.scale(
+                      child: DesenfoqueHijo(sigma: sigma, child: Transform.scale(
                           scale: 1.25,
                           child: imagenDesdeUrl(
                             url,

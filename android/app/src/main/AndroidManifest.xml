@@ -84,11 +84,21 @@
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="bitly" android:host="open"/>
             </intent-filter>
-            <intent-filter>
+            <!-- App Link VERIFICADO: con android:autoVerify="true" + el
+                 assetlinks.json publicado en
+                 https://bitly-site.pages.dev/.well-known/assetlinks.json (con la
+                 huella SHA-256 de firma de ESTA app), Android manda el enlace
+                 https://bitly-site.pages.dev/open?s=... directo a Bitly: sin
+                 selector de apps y sin abrir el navegador, también desde
+                 WhatsApp. El archivo se publica desde la carpeta public/ del
+                 repo bitly-site.
+                 Si el dominio cambia, se cambia acá, en el assetlinks.json y en
+                 lib/core/servicios/compartir/servicio_compartir.dart. -->
+            <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
-                <data android:scheme="https" android:host="bitly.app" android:pathPrefix="/open"/>
+                <data android:scheme="https" android:host="bitly-site.pages.dev" android:pathPrefix="/open"/>
             </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.

@@ -6,7 +6,6 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:share_plus/share_plus.dart';
 
 import '../../../app/inyeccion.dart';
 import '../../../core/backend_go/nucleo/contrato_backend.dart';
@@ -35,6 +34,7 @@ import '../../../shared/widgets/modales/descarga/hoja_opciones_descarga.dart';
 import '../../../shared/widgets/tarjetas/track/tarjeta_track.dart';
 import '../comun/cabecera_detalle.dart';
 import '../comun/esqueleto_detalle.dart';
+import '../../../core/servicios/compartir/servicio_compartir.dart';
 
 part 'playlist_detalle_batch.dart';
 part 'playlist_detalle_carga.dart';

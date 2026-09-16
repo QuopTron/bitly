@@ -15,6 +15,7 @@ final List<({IconData icon, String label})> _bubbleTabs = [
   (icon: Icons.palette_outlined, label: 'Apariencia'),
   (icon: Icons.download_rounded, label: 'Descargas'),
   (icon: Icons.speed_rounded, label: 'Rendimiento'),
+  (icon: Icons.share_outlined, label: 'Compartidos'),
   (icon: Icons.more_horiz, label: 'Más'),
 ];
 

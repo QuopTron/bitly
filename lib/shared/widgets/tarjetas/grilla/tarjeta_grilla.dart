@@ -11,7 +11,6 @@
 // ─────────────────────────────────────────────────────────────
 
 import 'dart:math' as math;
-import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
@@ -26,6 +25,7 @@ import '../../../utilidades/portada/paleta_portada.dart';
 import '../../../utilidades/plataforma/responsive.dart';
 import '../portada/imagen_portada.dart';
 import '../../indicadores/indicador_descarga.dart';
+import '../../vidrio/desenfoque_adaptativo.dart';
 
 part 'tarjeta_grilla_descarga.dart';
 part 'tarjeta_grilla_color_wrapper.dart';

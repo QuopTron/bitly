@@ -32,14 +32,18 @@ class _BubbleTabsRow extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
+          // Expanded: con 5 burbujas (Compartidos incluida) los anchos se
+          // reparten y ninguna etiqueta desborda en pantallas chicas.
           for (var i = 0; i < _bubbleTabs.length; i++)
-            _BubbleTab(
-              index: i,
-              active: currentIndex == i,
-              glowColor: glowColor,
-              onBg: onBg,
-              r: r,
-              onTap: () => onTap(i),
+            Expanded(
+              child: _BubbleTab(
+                index: i,
+                active: currentIndex == i,
+                glowColor: glowColor,
+                onBg: onBg,
+                r: r,
+                onTap: () => onTap(i),
+              ),
             ),
         ],
       ),
@@ -98,6 +102,7 @@ class _SettingsTabs extends StatelessWidget {
           onStyleChanged: onStyleChanged,
         ),
         _DownloadsTab(glowColor: glowColor),
+        _CompartidosTab(glowColor: glowColor),
         _PerformanceTab(glowColor: glowColor),
         _MoreTab(
           glowColor: glowColor,

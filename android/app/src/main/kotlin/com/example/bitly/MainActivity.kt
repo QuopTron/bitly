@@ -1,6 +1,7 @@
 package com.example.bitly
 
 import android.app.Activity
+import android.app.ActivityManager
 import android.app.UiModeManager
 import android.content.Context
 import android.content.Intent
@@ -35,17 +36,40 @@ class MainActivity : AudioServiceActivity() {
     // Each call also has a hard timeout (see dispatchGoCall) so the Dart side
     // always gets a response instead of hanging forever.
     //
-    // El tamaño se ADAPTA a los núcleos del equipo (4-8): en telefonos de 8
-    // nucleos, un pool fijo de 4 serializaba busquedas/descargas/resolucion de
-    // streams detras de 4 llamadas lentas y el resto de la app parecia colgada.
-    // El tope de 8 mantiene el uso de RAM acotado (cada llamada de Go puede
-    // abrir un motor JS de extension).
-    private val executor = Executors.newFixedThreadPool(
-        Runtime.getRuntime().availableProcessors().coerceIn(4, 8),
-    )
+    // El tamaño se ADAPTA a los núcleos Y a la RAM del equipo: cada llamada de
+    // Go puede abrir un motor JS de extensión (decenas de MB). En un celular de
+    // gama baja (Helio G, 2-4 GB) dejar 4+ llamadas vivas a la vez agotaba la
+    // RAM, Android empezaba a matar/suspender y la app se congelaba.
+    // `memoryClass` es el heap que Android le da al proceso: <=128 MB son
+    // equipos chicos. Es `lazy` a propósito: el Context recién está adjunto
+    // cuando corre onCreate, no en el constructor.
+    private val executor by lazy { Executors.newFixedThreadPool(tamanoPoolGo()) }
     // Dedicated watcher thread: waits on the Go-call Future with a timeout so
     // a stuck call never consumes a pool thread as a waiter.
     private val callWatcher = Executors.newSingleThreadExecutor()
+
+    /**
+     * Cuántas llamadas de Go pueden estar vivas a la vez en ESTE equipo.
+     *
+     * Se combina la cantidad de núcleos con el heap del proceso: en gama baja
+     * (memoryClass <= 128) no más de 2, en gama media hasta 4, y en equipos
+     * grandes hasta 8. Antes era siempre `coerceIn(4, 8)`, que en un Helio G de
+     * 2-4 GB abría 4 motores JS a la vez y congelaba la app.
+     */
+    private fun tamanoPoolGo(): Int {
+        val nucleos = Runtime.getRuntime().availableProcessors()
+        val claseMemoria = try {
+            (getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager).memoryClass
+        } catch (e: Exception) {
+            256
+        }
+        val techo = when {
+            claseMemoria <= 128 -> 2
+            claseMemoria <= 256 -> 4
+            else -> 8
+        }
+        return nucleos.coerceIn(2, techo)
+    }
     // Hard per-call timeout for Go RPCs. Legit fallback downloads can take
     // ~30-40s, so this is a safety net, not the normal path.
     private val callTimeoutSeconds = 45L
@@ -114,15 +138,26 @@ class MainActivity : AudioServiceActivity() {
     }
 
     /**
-     * Enlaces de música abiertos por deep link (bitly://open?url=https://...).
-     * Se entregan a Flutter para resolverlos y reproducirlos.
+     * Enlaces abiertos por deep link, en sus dos formas:
+     *
+     * - `bitly://open?s=...` / `https://bitly.app/open?s=...` → canción
+     *   compartida: el payload cifrado lo descifra Flutter y muestra la carta
+     *   "te compartieron".
+     * - `bitly://open?url=https://open.spotify.com/...` (formato viejo) → la
+     *   app lo resuelve contra Go.
+     *
+     * Se reenvía la URI COMPLETA (no solo `url`): así Flutter decide, y los
+     * enlaces nuevos con `?s=` también entran.
      */
     private fun handleOpenDeepLink(intent: Intent, uri: android.net.Uri) {
-        val enlace = uri.getQueryParameter("url") ?: ""
-        if (enlace.isEmpty()) return
+        val traeAlgo = uri.getQueryParameter("s") != null ||
+            !uri.getQueryParameter("url").isNullOrEmpty() ||
+            !uri.getQueryParameter("id").isNullOrEmpty() ||
+            !uri.getQueryParameter("q").isNullOrEmpty()
+        if (!traeAlgo) return
         intent.data = null
-        pendingDeepLink = enlace
-        if (flutterReady) forwardDeepLink(enlace)
+        pendingDeepLink = uri.toString()
+        if (flutterReady) forwardDeepLink(uri.toString())
     }
 
     /**
@@ -142,6 +177,16 @@ class MainActivity : AudioServiceActivity() {
             }
             uri.scheme.equals("bitly", ignoreCase = true) &&
                 uri.host.equals("open", ignoreCase = true) -> handleOpenDeepLink(intent, uri)
+            // Enlace compartido por WhatsApp/Telegram: https://<host>/open?s=...
+            //
+            // Se mira la RUTA y no el host a propósito: el host queda fijado en
+            // el manifest (con autoVerify) y en el assetlinks.json del dominio,
+            // así que solo llega acá un enlace del dominio verificado; mirar el
+            // host acá obligaba a tocar este archivo cada vez que cambiaba el
+            // dominio y dejaba el enlace sin resolver (la app abría vacía).
+            // El payload viene cifrado y firmado, así que uno falso se descarta.
+            uri.scheme.equals("https", ignoreCase = true) &&
+                uri.path.orEmpty().startsWith("/open") -> handleOpenDeepLink(intent, uri)
         }
     }
 

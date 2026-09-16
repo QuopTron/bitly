@@ -111,7 +111,9 @@ class _SoulseekSheetVisual extends StatelessWidget {
                   onSiguiente: onSiguiente,
                   onToggleRevelada: onToggleRevelada,
                 ),
-              SizedBox(height: r.bottomPadding),
+              SizedBox(
+                height: r.bottomPadding + insetInferiorSistema(context),
+              ),
             ],
           ),
         ),

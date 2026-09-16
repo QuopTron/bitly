@@ -12,6 +12,7 @@ import '../mixins/acciones_mixin.dart';
 import '../mixins/ajustes_mixin.dart';
 import '../mixins/detalle_mixin.dart';
 import '../mixins/editor_etiquetas_mixin.dart';
+import '../mixins/isrc_mixin.dart';
 import '../mixins/enlaces_mixin.dart';
 import '../mixins/feed_busqueda_mixin.dart';
 import '../mixins/infra_mixin.dart';
@@ -29,6 +30,7 @@ mixin RpcBackendMixin on BackendService,
     PremiumMixin,
     EditorEtiquetasMixin,
     EnlacesMixin,
+    IsrcMixin,
     SesionesFirmadasMixin {
   @override
   Future<dynamic> rpcCall(String method, [Map<String, dynamic>? params, Duration? timeout]);

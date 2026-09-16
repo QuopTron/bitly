@@ -131,9 +131,7 @@ Widget _tarjetaCancion(
               : null,
       onInfo: () => mostrarInfoCancion(context, feedItem),
       onMas: () => mostrarAgregarA(context, feedItem),
-      onCompartir: () => SharePlus.instance.share(ShareParams(
-            text: '🎵 ${s.titulo} — ${s.subtitulo}',
-          )),
+      onCompartir: () => ServicioCompartir.instance.compartir(feedItem),
     ),
   );
 }

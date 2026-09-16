@@ -1,55 +1,96 @@
 // ─────────────────────────────────────────────────────────────
 // overlay_compartido_acciones.dart — PART de
-// overlay_compartido_contenido.dart: botones del overlay "te
-// compartieron" — reproducir ya (círculo con glow) y omitir
-// (píldora translúcida).
+// overlay_compartido_contenido.dart: las opciones de abajo.
+//
+// Dos píldoras chicas: la principal invierte los colores del tema
+// (negra en tema claro, blanca en oscuro) y dice "Reproducir" o
+// "Agregar a la cola" según lo que ya esté sonando; al lado, "Omitir".
+// Las dos cierran la carta y los textos salen del l10n.
+//
 // Se conecta con: overlay_compartido_contenido.dart (misma library).
-// Parte del flujo: arranque / llegada de deep links.
+// Parte del flujo: enlace compartido → carta → reproducir/encolar.
 // ─────────────────────────────────────────────────────────────
 
 part of 'overlay_compartido_contenido.dart';
 
-/// Botón circular de reproducir el ítem compartido.
-Widget _botonPlayOverlay(OverlayCompartidoContenido w, Color brillo) {
-  return GestureDetector(
-    onTap: w.onPlay,
-    child: Container(
-      width: 64,
-      height: 64,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: brillo,
-        boxShadow: [
-          BoxShadow(
-            color: brillo.withValues(alpha: 0.4),
-            blurRadius: 20,
-            spreadRadius: 2,
-          ),
-        ],
+/// Opciones de la carta: acción principal + omitir.
+Widget _accionesOverlay(
+  ColorScheme cs,
+  OverlayCompartidoContenido w,
+  Responsive r,
+  StringsSetup l,
+) {
+  return Wrap(
+    alignment: WrapAlignment.center,
+    spacing: r.spacingS + 2,
+    runSpacing: r.spacingS,
+    children: [
+      _pildora(
+        cs,
+        r,
+        texto: w.enCola ? l.agregarACola : l.reproducir,
+        icono: w.enCola
+            ? Icons.playlist_add_rounded
+            : Icons.play_arrow_rounded,
+        onTap: w.onAccion,
+        relleno: true,
       ),
-      child: const Icon(Icons.play_arrow_rounded, size: 36, color: Colors.white),
-    ),
+      _pildora(
+        cs,
+        r,
+        texto: l.notificationSkip,
+        icono: Icons.close_rounded,
+        onTap: w.onDismiss,
+        relleno: false,
+      ),
+    ],
   );
 }
 
-/// Botón de omitir (cierra el overlay sin reproducir).
-Widget _botonOmitirOverlay(OverlayCompartidoContenido w, Responsive r) {
+/// Píldora de acción: llena (principal) o translúcida (secundaria).
+Widget _pildora(
+  ColorScheme cs,
+  Responsive r, {
+  required String texto,
+  required IconData icono,
+  required VoidCallback onTap,
+  required bool relleno,
+}) {
+  final colorTexto = relleno ? cs.surface : cs.onSurface;
   return GestureDetector(
-    onTap: w.onDismiss,
+    behavior: HitTestBehavior.opaque,
+    onTap: onTap,
     child: Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+      constraints: BoxConstraints(minHeight: r.continueButtonHeight - 8),
+      padding: EdgeInsets.symmetric(
+        horizontal: r.spacingM + 4,
+        vertical: r.spacingS,
       ),
-      child: Text(
-        'Omitir',
-        style: TextStyle(
-          fontSize: r.subtitleSize - 1,
-          color: Colors.white.withValues(alpha: 0.7),
-          fontWeight: FontWeight.w600,
+      decoration: BoxDecoration(
+        color: relleno ? cs.onSurface : cs.surface.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: relleno
+              ? Colors.transparent
+              : cs.outlineVariant.withValues(alpha: 0.6),
         ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icono, size: r.footerSize + 4, color: colorTexto),
+          SizedBox(width: r.spacingS),
+          Text(
+            texto,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: r.footerSize + 1,
+              fontWeight: FontWeight.w700,
+              color: colorTexto,
+            ),
+          ),
+        ],
       ),
     ),
   );

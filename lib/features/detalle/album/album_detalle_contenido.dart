@@ -108,11 +108,7 @@ List<Widget> _construirContenido(
         onDescargar: () => mostrarOpcionesDescarga(context, item, esOscuro),
         onBorrar: () => dlCubit.borrarDescargaTrack(item.id, d.src),
         onTap: play,
-        onCompartir: () => SharePlus.instance.share(ShareParams(
-              text: item.albumName != null
-                  ? '🎵 ${item.name} — ${item.artists ?? ''}\n💿 ${item.albumName}'
-                  : '🎵 ${item.name} — ${item.artists ?? ''}',
-            )),
+        onCompartir: () => ServicioCompartir.instance.compartir(item),
       ),
     ));
   }

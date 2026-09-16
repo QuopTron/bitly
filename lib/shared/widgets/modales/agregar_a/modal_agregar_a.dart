@@ -10,7 +10,6 @@
 // espacio.
 // ─────────────────────────────────────────────────────────────
 
-import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -25,7 +24,9 @@ import '../../../../estado/playlists/cubit_playlists.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../tema/colores_app.dart';
 import '../../../utilidades/portada/paleta_portada.dart';
+import '../../../utilidades/plataforma/insets_sistema.dart';
 import '../../../utilidades/plataforma/responsive.dart';
+import '../../vidrio/desenfoque_adaptativo.dart';
 
 part 'modal_agregar_a_crear.dart';
 part 'modal_agregar_a_estilo.dart';

@@ -135,7 +135,9 @@ class _SelectorPlaylist extends StatelessWidget {
                     ));
                   },
                 )),
-            SizedBox(height: r.bottomPadding),
+            SizedBox(
+              height: r.bottomPadding + insetInferiorSistema(context),
+            ),
           ],
         ),
       ),

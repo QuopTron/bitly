@@ -10,6 +10,9 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../modelos/usuario/perfil_rendimiento.dart';
+import 'deteccion_gama.dart';
+
 enum NivelRendimientoRuntime { bajo, estandar, alto }
 
 class PerfilRuntime {
@@ -68,9 +71,16 @@ class PerfilRuntime {
   };
 }
 
-const _claveNivelPerfilRuntime = 'runtime_profile_tier_v1';
+// v2: la v1 quedaba SIEMPRE en "standard" (nunca detectaba nada), así que
+// subir la clave es lo que hace que los equipos de gama baja ya instalados
+// vuelvan a calcular su perfil (y su caché) al actualizar.
+const _claveNivelPerfilRuntime = 'runtime_profile_tier_v2';
 
-/// Carga o crea el perfil de runtime del dispositivo actual.
+/// Carga el perfil de runtime del dispositivo actual.
+///
+/// Si no hay valor guardado se DETECTA la gama del equipo (núcleos + RAM) en
+/// vez de asumir "estándar": un celular de gama baja necesita la caché chica
+/// para no llenar la RAM y que el sistema no lo mate por OOM.
 Future<PerfilRuntime> cargarPerfilRuntime(SharedPreferences prefs) async {
   final nivelCacheado = prefs.getString(_claveNivelPerfilRuntime);
   if (nivelCacheado != null) {
@@ -78,10 +88,17 @@ Future<PerfilRuntime> cargarPerfilRuntime(SharedPreferences prefs) async {
     if (cacheado != null) return cacheado;
   }
 
-  const porDefecto = PerfilRuntime.estandar();
-  await prefs.setString(_claveNivelPerfilRuntime, porDefecto.claveNivel);
-  return porDefecto;
+  final detectado = segmentoPorGama(await detectarNivelRendimiento());
+  await prefs.setString(_claveNivelPerfilRuntime, detectado.claveNivel);
+  return detectado;
 }
+
+/// Traduce la gama de rendimiento a la caché de imágenes correspondiente.
+PerfilRuntime segmentoPorGama(NivelRendimiento nivel) => switch (nivel) {
+  NivelRendimiento.bajo => const PerfilRuntime.bajo(),
+  NivelRendimiento.alto => const PerfilRuntime.alto(),
+  NivelRendimiento.medio => const PerfilRuntime.estandar(),
+};
 
 /// Guarda el nivel del perfil de runtime en SharedPreferences.
 Future<void> guardarPerfilRuntime(SharedPreferences prefs, PerfilRuntime perfil) async {

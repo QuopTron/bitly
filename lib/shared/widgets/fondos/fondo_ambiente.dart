@@ -15,6 +15,7 @@
 // Parte del flujo: Home (shell móvil/escritorio) — fondo global.
 // ─────────────────────────────────────────────────────────────
 
+import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
@@ -23,6 +24,7 @@ import '../../../app/inyeccion.dart';
 import '../../../core/modelos/usuario/estilo_visual.dart';
 import '../../../core/modelos/usuario/perfil_rendimiento.dart';
 import '../../../core/modelos/usuario/preferencias_estilo.dart';
+import '../../utilidades/plataforma/efectos_app.dart';
 import '../tarjetas/portada/imagen_portada.dart';
 import 'fondo_ambiente_velo.dart';
 
@@ -51,8 +53,14 @@ class FondoAmbiente extends StatelessWidget {
           valueListenable: sl<ValueNotifier<PreferenciasEstilo>>(),
           builder: (context, prefs, _) {
             final url = coverUrl;
-            final sigma =
-                sl<ValueNotifier<PerfilRendimiento>>().value.sigmaDesenfoque;
+            // El blur de este fondo es a PANTALLA COMPLETA y se recompone en
+            // cada frame: es lo más caro de la app. En gama baja se pinta el
+            // cover sin desenfocar (una sola textura) y el velo mantiene la
+            // legibilidad; el desenfoque solo se acota al tope del perfil.
+            final sigma = math.min(
+              sl<ValueNotifier<PerfilRendimiento>>().value.sigmaDesenfoque,
+              EfectosApp.sigmaMaximo.value,
+            );
             final spotify =
                 estilo == EstiloVisual.spotify && prefs.fondoPrincipal;
 
@@ -60,23 +68,10 @@ class FondoAmbiente extends StatelessWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  // Capa 1: cover borroso (solo en modo Clásico).
+                  // Capa 1: cover de fondo (con blur solo si el perfil lo
+                  // permite; sin él es una sola textura, casi gratis).
                   if (!spotify && url != null && url.isNotEmpty)
-                    ClipRect(
-                      child: ImageFiltered(
-                        imageFilter:
-                            ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
-                        child: Transform.scale(
-                          scale: 1.25,
-                          child: imagenDesdeUrl(
-                            url,
-                            ajuste: BoxFit.cover,
-                            ancho: 512,
-                            alto: double.infinity,
-                          ),
-                        ),
-                      ),
-                    )
+                    ClipRect(child: _CoverFondo(url: url, sigma: sigma))
                   else
                     ColoredBox(color: bgColor),
                   // Capa 2: velo — en Spotify usa color dominante.
@@ -110,6 +105,35 @@ class FondoAmbiente extends StatelessWidget {
           },
         );
       },
+    );
+  }
+}
+
+/// Cover del fondo ambiente: escalado 1.25 y desenfocado SOLO si [sigma] > 0.
+///
+/// Separa el caso "con blur" del "sin blur" para que la GPU no pague un
+/// `ImageFiltered` a pantalla completa en los equipos de gama baja.
+class _CoverFondo extends StatelessWidget {
+  final String url;
+  final double sigma;
+
+  const _CoverFondo({required this.url, required this.sigma});
+
+  @override
+  Widget build(BuildContext context) {
+    final cover = Transform.scale(
+      scale: 1.25,
+      child: imagenDesdeUrl(
+        url,
+        ajuste: BoxFit.cover,
+        ancho: 512,
+        alto: double.infinity,
+      ),
+    );
+    if (sigma <= 0) return cover;
+    return ImageFiltered(
+      imageFilter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
+      child: cover,
     );
   }
 }

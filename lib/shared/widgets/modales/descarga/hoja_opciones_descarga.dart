@@ -11,7 +11,6 @@
 // ─────────────────────────────────────────────────────────────
 
 import 'dart:convert';
-import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 
@@ -29,8 +28,10 @@ import '../../../tema/colores_app.dart';
 import '../../../utilidades/descarga/estrategia_descarga.dart';
 import '../../../utilidades/formato/formato_tamano.dart';
 import '../../../utilidades/portada/paleta_portada.dart';
+import '../../../utilidades/plataforma/insets_sistema.dart';
 import '../../../utilidades/plataforma/responsive.dart';
 import '../../vidrio/contenedor_vidrio.dart';
+import '../../vidrio/desenfoque_adaptativo.dart';
 
 part 'hoja_opciones_descarga_cuerpo.dart';
 part 'hoja_opciones_descarga_estado.dart';

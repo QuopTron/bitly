@@ -20,7 +20,9 @@ import '../../../app/inyeccion.dart';
 import '../../../core/modelos/usuario/estilo_visual.dart';
 import '../../../core/modelos/usuario/perfil_rendimiento.dart';
 import '../../../core/modelos/usuario/preferencias_estilo.dart';
+import '../../../shared/utilidades/plataforma/insets_sistema.dart';
 import '../../../shared/utilidades/plataforma/responsive.dart';
+import '../../../shared/widgets/vidrio/desenfoque_adaptativo.dart';
 
 part 'cabecera_detalle_color.dart';
 part 'cabecera_detalle_imagen.dart';

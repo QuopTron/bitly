@@ -13,6 +13,16 @@ import GoBackend
 @objc class AppDelegate: FlutterAppDelegate {
   private let CHANNEL = "com.bitly/backend"
 
+  // Enlaces entrantes: el MISMO contrato que Android (MainActivity.kt).
+  // Universal Link (https://<dominio>/open?s=...) y esquema propio
+  // (bitly://open?s=...) llegan por acá y se reenvían a Dart, que muestra la
+  // carta "te compartieron".
+  private let DEEPLINK_CHANNEL = "com.bitly/deep_link"
+
+  // Enlace que llegó antes de que Flutter estuviera listo (arranque en frío
+  // con el link): Dart lo pide con getInitialDeepLink, igual que en Android.
+  private var pendingDeepLink: String?
+
   // Las llamadas a Go corren en una cola propia: la init del runtime de Go
   // no es reentrante y una llamada lenta (JS de una extensión) no debe
   // bloquear el hilo principal de iOS. Cada respuesta vuelve a main.
@@ -24,7 +34,79 @@ import GoBackend
   ) -> Bool {
     GeneratedPluginRegistrant.register(with: self)
     registerBackendChannel()
+    registerDeepLinkChannel()
+    // Un enlace puede llegar un instante DESPUÉS de este método (cold start
+    // con Universal Link): se reenvía cuando el motor ya está arriba.
+    if pendingDeepLink != nil {
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+        self?.reenviarEnlacePendiente()
+      }
+    }
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+
+  /// Canal de deep links: responde el enlace inicial (si lo había) y deja
+  /// listo el reenvío al vuelo cuando la app ya está abierta.
+  private func registerDeepLinkChannel() {
+    guard let controller = window?.rootViewController as? FlutterViewController else { return }
+    let canal = FlutterMethodChannel(name: DEEPLINK_CHANNEL, binaryMessenger: controller.binaryMessenger)
+    canal.setMethodCallHandler { [weak self] llamada, resultado in
+      switch llamada.method {
+      case "getInitialDeepLink":
+        let enlace = self?.pendingDeepLink ?? ""
+        self?.pendingDeepLink = nil
+        DispatchQueue.main.async { resultado(enlace) }
+      default:
+        resultado(FlutterMethodNotImplemented)
+      }
+    }
+  }
+
+  /// Universal Link (https://<dominio>/open?s=...).
+  override func application(
+    _ application: UIApplication,
+    continue userActivity: NSUserActivity,
+    restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void
+  ) -> Bool {
+    if userActivity.activityType == NSUserActivityTypeBrowsingWeb,
+       let url = userActivity.webpageURL {
+      manejarEnlace(url.absoluteString)
+      return true
+    }
+    return super.application(application, continue: userActivity, restorationHandler: restorationHandler)
+  }
+
+  /// Esquema propio (bitly://open?s=...) y cualquier otro openURL.
+  override func application(
+    _ app: UIApplication,
+    open url: URL,
+    options: [UIApplication.OpenURLOptionsKey: Any] = [:]
+  ) -> Bool {
+    if manejarEnlace(url.absoluteString) { return true }
+    return super.application(app, open: url, options: options)
+  }
+
+  /// Reenvía el enlace a Dart si es un enlace de Bitly; si no, lo ignora para
+  /// que otros plugins (OAuth, sesión firmada) lo reciban.
+  @discardableResult
+  private func manejarEnlace(_ enlace: String) -> Bool {
+    let esBitly = enlace.lowercased().hasPrefix("bitly://")
+      || enlace.lowercased().contains("://bitly.app/open")
+    guard esBitly else { return false }
+    pendingDeepLink = enlace
+    reenviarEnlacePendiente()
+    return true
+  }
+
+  /// Entrega el enlace pendiente por el canal (una sola vez).
+  private func reenviarEnlacePendiente() {
+    guard let enlace = pendingDeepLink else { return }
+    guard let controller = window?.rootViewController as? FlutterViewController else { return }
+    pendingDeepLink = nil
+    let canal = FlutterMethodChannel(name: DEEPLINK_CHANNEL, binaryMessenger: controller.binaryMessenger)
+    DispatchQueue.main.async {
+      canal.invokeMethod("onDeepLink", arguments: enlace)
+    }
   }
 
   private func registerBackendChannel() {

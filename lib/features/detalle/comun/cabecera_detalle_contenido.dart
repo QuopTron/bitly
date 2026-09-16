@@ -95,9 +95,10 @@ Widget _contenidoDetalle(
           ),
         ),
         ...w.children,
-        // Espacio inferior para el chrome flotante global
-        // (miniplayer + navbar) sobre las páginas de detalle.
-        SizedBox(height: MediaQuery.paddingOf(st.context).bottom + 176),
+        // Espacio inferior para el chrome flotante global (miniplayer +
+        // navbar) MÁS el menú de navegación del celular: sin él, el último
+        // botón de la lista queda debajo de las 3 teclas del sistema.
+        SizedBox(height: insetInferiorSistema(st.context) + 176),
       ],
     ),
   );

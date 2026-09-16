@@ -24,6 +24,8 @@ Widget construirContenidoApp({
   required DatosDeepLink? linkCompartido,
   required VoidCallback onDismiss,
   required VoidCallback onPlay,
+  required VoidCallback onAgregar,
+  bool hayReproduccion = false,
 }) {
   Widget contenido = Stack(
     textDirection: TextDirection.ltr,
@@ -32,11 +34,11 @@ Widget construirContenidoApp({
       if (linkCompartido != null)
         Positioned.fill(
           child: OverlayCompartido(
-            type: linkCompartido.type,
-            id: linkCompartido.id,
-            query: linkCompartido.query,
+            link: linkCompartido,
             onDismiss: onDismiss,
             onPlay: onPlay,
+            onAgregar: onAgregar,
+            enCola: hayReproduccion,
           ),
         ),
     ],

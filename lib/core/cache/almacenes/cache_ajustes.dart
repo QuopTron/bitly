@@ -16,6 +16,7 @@ import '../../backend_go/nucleo/ayudantes_backend.dart';
 import '../../modelos/ajustes_descarga.dart';
 import '../../modelos/datos_setup.dart';
 import '../../modelos/usuario/perfil_rendimiento.dart';
+import '../../plataforma/sistema/deteccion_gama.dart';
 import '../../modelos/usuario/preferencias_estilo.dart';
 
 /// Caché local de ajustes — wrappers sobre [SettingsDao].
@@ -92,9 +93,17 @@ class CacheAjustes {
 
   static const _clavePerf = 'perf_profile';
 
+  /// Perfil de rendimiento activo.
+  ///
+  /// La PRIMERA vez (sin elección guardada) se deduce del equipo: un celular
+  /// de gama baja entra en "bajo" y arranca sin los desenfoques que lo
+  /// congelaban. Si el usuario elige uno en Ajustes, esa elección manda.
   Future<NivelRendimiento> getNivelRendimiento() async {
     final raw = await _dao.get(_clavePerf);
-    return NivelRendimientoExt.desdeClave(raw);
+    if (raw != null) return NivelRendimientoExt.desdeClave(raw);
+    final detectado = await detectarNivelRendimiento();
+    await _dao.set(_clavePerf, detectado.clave);
+    return detectado;
   }
 
   Future<void> guardarNivelRendimiento(NivelRendimiento nivel) =>

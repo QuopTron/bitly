@@ -93,12 +93,7 @@ class _SongTintedBackgroundState extends State<_SongTintedBackground> {
         children: [
           if (!estilo && _hasTrack && _cover != null && _cover!.isNotEmpty)
             Positioned.fill(
-              child: ImageFiltered(
-                imageFilter: ImageFilter.blur(
-                  sigmaX: sl<ValueNotifier<PerfilRendimiento>>().value.sigmaDesenfoque,
-                  sigmaY: sl<ValueNotifier<PerfilRendimiento>>().value.sigmaDesenfoque,
-                ),
-                child: Transform.scale(
+              child: DesenfoqueHijo(sigma: sl<ValueNotifier<PerfilRendimiento>>().value.sigmaDesenfoque, child: Transform.scale(
                   scale: 1.3,
                   child: imagenDesdeUrl(
                     _cover!,

@@ -8,7 +8,6 @@
 
 import 'dart:convert';
 import 'dart:io';
-import 'dart:ui' show ImageFilter;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -18,6 +17,7 @@ import 'package:open_filex/open_filex.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../../../shared/utilidades/plataforma/insets_sistema.dart';
 import '../../../shared/utilidades/plataforma/responsive.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/tema/colores_app.dart';
@@ -34,6 +34,9 @@ import '../../../core/servicios/playlist/importacion_biblioteca.dart';
 import '../../../estado/reproductor/cubit_reproductor.dart';
 import '../../../estado/cola/cubit_cola.dart';
 import '../../../core/servicios/oauth/servicio_oauth_youtube.dart';
+import '../../../core/servicios/compartir/compartido_recibido.dart';
+import '../../../core/servicios/compartir/servicio_compartir.dart';
+import '../../../core/servicios/compartir/servicio_historial_compartidos.dart';
 import '../../../core/servicios/proveedores/servicio_soulseek.dart';
 import '../../../config/secretos.dart';
 import '../../../app/inyeccion.dart';
@@ -52,6 +55,7 @@ import '../../../shared/widgets/tarjetas/portada/imagen_portada.dart' show image
 import '../../../core/modelos/usuario/estilo_visual.dart';
 import '../../../core/modelos/usuario/preferencias_estilo.dart';
 import '../../../core/modelos/usuario/perfil_rendimiento.dart';
+import '../../../shared/widgets/vidrio/desenfoque_adaptativo.dart';
 part 'settings_sheet_entry.dart';
 
 part 'settings_sheet_background.dart';
@@ -114,6 +118,8 @@ part 'settings_sheet_stats_top_tile.dart';
 part 'settings_sheet_stats_helpers.dart';
 part 'settings_sheet_sheet_build.dart';
 part 'settings_sheet_sheet_widgets.dart';
+part 'settings_compartidos_tab.dart';
+part 'settings_compartidos_fila.dart';
 part 'settings_sheet_body_state.dart';
 part 'settings_sheet_report_dialog_contenido.dart';
 part 'settings_sheet_soulseek_form_build.dart';

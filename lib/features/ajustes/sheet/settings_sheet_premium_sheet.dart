@@ -116,7 +116,9 @@ class _PremiumActivationSheetState extends State<_PremiumActivationSheet> {
               r: r,
               onActivate: _activate,
             ),
-            SizedBox(height: r.bottomPadding),
+            SizedBox(
+              height: r.bottomPadding + insetInferiorSistema(context),
+            ),
           ],
         ),
       ),

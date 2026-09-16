@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 
+import '../shared/utilidades/plataforma/efectos_app.dart';
 import '../core/backend_go/plataformas/backend_android.dart';
 import '../core/backend_go/plataformas/backend_escritorio.dart';
 import '../core/backend_go/plataformas/backend_ios.dart';
@@ -40,6 +41,7 @@ import '../estado/playlists/cubit_playlists.dart';
 import '../estado/reproductor/cubit_reproductor.dart';
 
 part 'inyeccion_estado.dart';
+part 'inyeccion_perfil.dart';
 
 final sl = GetIt.instance;
 
@@ -118,28 +120,3 @@ Future<void> configurarDependencias() async {
   registrarServiciosYEstado(backend);
 }
 
-/// Carga el perfil de rendimiento guardado al notificador global.
-/// IMPORTANTE: solo llamar DESPUÉS de que el backend Go esté inicializado
-/// (healthCheck) — el push del perfil es un RPC y antes del init puede
-/// bloquear el bridge nativo y colgar el splash.
-Future<void> cargarPerfilRendimiento() async {
-  final cache = sl<CacheAjustes>();
-  final nivel = await cache.getNivelRendimiento();
-  final perfil = PerfilRendimiento.paraNivel(nivel);
-  sl<ValueNotifier<PerfilRendimiento>>().value = perfil;
-}
-
-/// Empuja el perfil de rendimiento cargado al backend Go. Llamar después
-/// del healthCheck (runtime Go arriba) para que el RPC devuelva al instante
-/// en vez de encolarse detrás del init nativo.
-Future<void> empujarPerfilRendimientoABackend() async {
-  final perfil = sl<ValueNotifier<PerfilRendimiento>>().value;
-  try {
-    (sl<BackendService>()).syncBackendConfig(
-      mode: perfil.nivel.clave,
-      streamCacheMaxMb: perfil.cacheStreamingMaxMb,
-      downloadConcurrency: perfil.concurrenciaDescargas,
-      streamChunkSize: perfil.tamanoChunkStreaming,
-    );
-  } catch (e) { debugPrint("[App] $e"); }
-}

@@ -19,6 +19,7 @@ import '../mixins/ajustes_mixin.dart';
 import '../mixins/biblioteca_local_mixin.dart';
 import '../mixins/detalle_mixin.dart';
 import '../mixins/editor_etiquetas_mixin.dart';
+import '../mixins/isrc_mixin.dart';
 import '../mixins/enlaces_mixin.dart';
 import '../mixins/feed_busqueda_mixin.dart';
 import '../mixins/infra_mixin.dart';
@@ -39,6 +40,7 @@ class BackendIOS extends BackendService
         PremiumMixin,
         EditorEtiquetasMixin,
         EnlacesMixin,
+    IsrcMixin,
         SesionesFirmadasMixin,
         SesionesAccionesMixin,
         SesionesKeepaliveMixin,

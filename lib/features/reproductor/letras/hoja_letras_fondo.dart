@@ -88,12 +88,7 @@ class _FondoLetrasEstiloState extends State<_FondoLetrasEstilo> {
             }
             return ClipRRect(
               borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
-              child: ImageFiltered(
-                imageFilter: ImageFilter.blur(
-                  sigmaX: widget.sigma,
-                  sigmaY: widget.sigma,
-                ),
-                child: Transform.scale(
+              child: DesenfoqueHijo(sigma: widget.sigma, child: Transform.scale(
                   scale: 1.3,
                   child: imagenDesdeUrl(
                     widget.caratula,

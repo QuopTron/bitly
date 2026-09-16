@@ -17,16 +17,12 @@ String _formatearDuracion(int ms) {
   return '$minutos:$segundos';
 }
 
-/// Botón de compartir con el texto del ítem.
+/// Botón de compartir: manda el enlace de Bitly con los datos cifrados
+/// (ISRC, nombre, carátula y quién lo comparte).
 Widget _botonCompartir(
     BuildContext context, Responsive r, Color onBg, ItemFeed item) {
   return GestureDetector(
-    onTap: () {
-      final texto = item.albumName != null
-          ? '🎵 ${item.name} — ${item.artists ?? ''}\n💿 ${item.albumName}'
-          : '🎵 ${item.name} — ${item.artists ?? ''}';
-      SharePlus.instance.share(ShareParams(text: texto));
-    },
+    onTap: () => ServicioCompartir.instance.compartir(item),
     child: Container(
       margin: EdgeInsets.symmetric(horizontal: r.spacingXL),
       padding: EdgeInsets.symmetric(vertical: r.spacingM),

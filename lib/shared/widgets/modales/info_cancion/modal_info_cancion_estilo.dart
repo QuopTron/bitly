@@ -100,10 +100,7 @@ class _InfoCancionEstiloState extends State<_InfoCancionEstilo> {
               hoja = ClipRRect(
                 borderRadius:
                     const BorderRadius.vertical(top: Radius.circular(24)),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-                  child: hoja,
-                ),
+                child: DesenfoqueAdaptativo(sigma: 24, child: hoja),
               );
             }
             return hoja;

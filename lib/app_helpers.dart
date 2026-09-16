@@ -14,12 +14,16 @@ import 'package:go_router/go_router.dart';
 import 'app/inyeccion.dart' as di;
 import 'core/cache/almacenes/cache_ajustes.dart';
 import 'core/modelos/resultado_enlace.dart';
+import 'core/servicios/compartir/datos_compartido.dart';
+import 'core/servicios/compartir/servicio_compartir.dart';
 import 'core/modelos/usuario/estilo_visual.dart';
 import 'core/modelos/usuario/preferencias_estilo.dart';
 import 'core/plataforma/sistema/servicio_deep_link.dart';
 import 'core/servicios/proveedores/servicio_enlaces.dart';
 import 'estado/cola/cubit_cola.dart';
 import 'router/route_names.dart';
+
+part 'app_helpers_compartido.dart';
 
 /// Agrupa los notificadores globales de ajustes resueltos desde el inyector,
 /// con el alta y baja de listeners en un solo lugar.
@@ -98,22 +102,3 @@ void reproducirEnlaceApp({
   }
 }
 
-/// Resuelve el enlace compartido contra Go y lo reproduce; si no se puede,
-/// deja al usuario en el home.
-Future<void> reproducirCompartidoApp({
-  required DatosDeepLink? link,
-  required GoRouter router,
-  required VoidCallback limpiarLink,
-  required void Function(ResultadoEnlace) onResuelto,
-}) async {
-  limpiarLink();
-  if (link == null) return;
-  if (link.url.isNotEmpty) {
-    final resuelto = await ServicioEnlaces.instance.resolver(link.url);
-    if (resuelto != null) {
-      onResuelto(resuelto);
-      return;
-    }
-  }
-  router.go(RouteNames.home.path);
-}

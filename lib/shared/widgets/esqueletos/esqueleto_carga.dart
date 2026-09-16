@@ -12,6 +12,8 @@
 
 import 'package:flutter/material.dart';
 
+import '../../utilidades/plataforma/efectos_app.dart';
+
 part 'esqueleto_fila.dart';
 
 /// Bloque shimmer base: gradiente pulsante sobre una forma redondeada.
@@ -41,7 +43,11 @@ class _EsqueletoCargaState extends State<EsqueletoCarga>
     _ctrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1500),
-    )..repeat();
+    );
+    // Gama baja: sin shimmer. Cada esqueleto visible tendría su propio
+    // controller repintando un gradiente en CADA frame; con 8 filas eso solo ya
+    // come la GPU y es lo que hacía sentir la lista "trabada".
+    if (EfectosApp.permitirDesenfoque.value) _ctrl.repeat();
   }
 
   @override
@@ -59,6 +65,7 @@ class _EsqueletoCargaState extends State<EsqueletoCarga>
     final brillo = oscuro
         ? Colors.white.withValues(alpha: 0.12)
         : Colors.black.withValues(alpha: 0.08);
+    final estatico = !EfectosApp.permitirDesenfoque.value;
 
     return AnimatedBuilder(
       animation: _ctrl,
@@ -68,12 +75,15 @@ class _EsqueletoCargaState extends State<EsqueletoCarga>
           height: widget.alto,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(widget.radioBorde),
-            gradient: LinearGradient(
-              begin: Alignment(-1.0 + 2.0 * _ctrl.value, 0),
-              end: Alignment(-0.5 + 2.0 * _ctrl.value, 0),
-              colors: [base, brillo, base],
-              stops: const [0.0, 0.5, 1.0],
-            ),
+            color: estatico ? base : null,
+            gradient: estatico
+                ? null
+                : LinearGradient(
+                    begin: Alignment(-1.0 + 2.0 * _ctrl.value, 0),
+                    end: Alignment(-0.5 + 2.0 * _ctrl.value, 0),
+                    colors: [base, brillo, base],
+                    stops: const [0.0, 0.5, 1.0],
+                  ),
           ),
         );
       },

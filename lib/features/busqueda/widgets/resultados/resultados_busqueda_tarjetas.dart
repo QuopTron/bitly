@@ -74,10 +74,6 @@ Widget _tarjetaTrack(
     onInfo: () => cuerpo.onMostrarInfo(context, item),
     onMas: () => cuerpo.onMostrarMas(context, item),
     onTap: play,
-    onCompartir: () => SharePlus.instance.share(ShareParams(
-          text: item.albumName != null
-              ? '🎵 ${item.name} — ${item.artists ?? ''}\n💿 ${item.albumName}'
-              : '🎵 ${item.name} — ${item.artists ?? ''}',
-        )),
+    onCompartir: () => ServicioCompartir.instance.compartir(item),
   );
 }

@@ -1,15 +1,24 @@
 // ─────────────────────────────────────────────────────────────
-// contenedor_vidrio.dart — Contenedor glassmorphism moderno con
-// blur real opcional (BackdropFilter) y gradiente opcional. Todos
-// los parámetros nuevos son opt-in para que los llamadores
-// existentes sigan igual (sin blur ni gradiente por defecto).
-// Se conecta con: todas las vistas y widgets (superficies glass).
+// contenedor_vidrio.dart — Contenedor glassmorphism con blur real
+// opcional (BackdropFilter) y gradiente opcional. Todos los
+// parámetros nuevos son opt-in para que los llamadores existentes
+// sigan igual (sin blur ni gradiente por defecto).
+//
+// Adaptativo: el blur se delega a DesenfoqueAdaptativo y el glow se omite
+// cuando el perfil de rendimiento dice que no hay efectos pesados. Así las
+// 40+ superficies de vidrio de la app son gratis en un equipo de gama baja
+// (el desenfoque a pantalla completa es justo lo que congela las GPU
+// modestas tipo PowerVR de un Helio G) sin tocar ningún llamador.
+//
+// Se conecta con: todas las vistas y widgets (superficies glass) +
+// efectos_app (interruptor global de efectos) + desenfoque_adaptativo.
 // Parte del flujo: presentación (superficies y tarjetas).
 // ─────────────────────────────────────────────────────────────
 
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
+
+import '../../utilidades/plataforma/efectos_app.dart';
+import 'desenfoque_adaptativo.dart';
 
 /// Contenedor glassmorphism con blur/gradiente/glow opcionales.
 class ContenedorVidrio extends StatelessWidget {
@@ -21,7 +30,7 @@ class ContenedorVidrio extends StatelessWidget {
   final EdgeInsetsGeometry? padding;
   final Color? bgColor;
 
-  /// Cuando no es null aplica un [BackdropFilter] con este sigma de blur.
+  /// Cuando no es null aplica un desenfoque de fondo con este sigma.
   /// Valores típicos: 12–24. null (default) desactiva el blur.
   final double? blurSigma;
 
@@ -57,9 +66,11 @@ class ContenedorVidrio extends StatelessWidget {
   Widget build(BuildContext context) {
     final radius = borderRadius;
     final border = borderColor ?? Colors.transparent;
+    final sinEfectos = !EfectosApp.permitirDesenfoque.value;
 
-    // ── Sombra del glow ──
-    final sombras = glowBorder
+    // ── Sombra del glow ── (se omite en gama baja: una sombra con blur alto
+    // por tarjeta se paga caro al desplazar listas largas).
+    final sombras = (glowBorder && !sinEfectos)
         ? [
             BoxShadow(
               color: border.withValues(alpha: 0.18),
@@ -69,9 +80,7 @@ class ContenedorVidrio extends StatelessWidget {
           ]
         : null;
 
-    // Sin BackdropFilter cuando no hay blur — ahorra compositing de GPU
-    // en los 40+ lugares donde se usa este contenedor.
-    Widget contenido = Container(
+    final contenido = Container(
       padding: padding,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(radius),
@@ -83,13 +92,11 @@ class ContenedorVidrio extends StatelessWidget {
       child: child,
     );
 
+    // El desenfoque pasa por DesenfoqueAdaptativo: en gama baja se apaga solo.
     Widget interno = ClipRRect(
       borderRadius: BorderRadius.circular(radius),
       child: blurSigma != null
-          ? BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: blurSigma!, sigmaY: blurSigma!),
-              child: contenido,
-            )
+          ? DesenfoqueAdaptativo(sigma: blurSigma!, child: contenido)
           : contenido,
     );
 

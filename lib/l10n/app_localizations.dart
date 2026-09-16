@@ -11,6 +11,10 @@ import 'strings/strings_red.dart';
 import 'strings/strings_splash.dart';
 import 'strings/strings_setup.dart';
 import 'strings/strings_tutorial.dart';
+
+// Los strings de setup/toda la app se reexportan: quien usa AppLocalizations
+// puede tipar `StringsSetup` sin importar el archivo de strings a mano.
+export 'strings/strings_setup.dart';
 import 'strings/strings_tutorial_interactivo.dart';
 
 class AppLocalizations {
