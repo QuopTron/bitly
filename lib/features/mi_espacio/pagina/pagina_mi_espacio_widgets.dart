@@ -12,8 +12,10 @@
 part of 'pagina_mi_espacio.dart';
 
 /// Cabecera de Mi Espacio: perfil + banner de descargas.
+/// [hayReintentables] = hay descargas cortadas que se pueden reintentar (lotes
+/// o canciones sueltas); [interrumpidas] = cuántas son, para el texto.
 Widget _construirCabecera(
-    _PaginaMiEspacioState st, Color onBg, bool hayLotes, int interrumpidas) {
+    _PaginaMiEspacioState st, Color onBg, bool hayReintentables, int interrumpidas) {
   final estadoLike = st.context.watch<CubitLikes>().state;
   final stats = st.context.watch<CubitPlaylists>().state.stats;
 
@@ -37,7 +39,7 @@ Widget _construirCabecera(
         onIdiomaCambiado: () => _onIdiomaCambiado(st),
       ),
       SizedBox(height: 12),
-      if (hayLotes) _bannerReintentar(st.context, onBg, interrumpidas),
+      if (hayReintentables) _bannerReintentar(st.context, onBg, interrumpidas),
     ],
   );
 }

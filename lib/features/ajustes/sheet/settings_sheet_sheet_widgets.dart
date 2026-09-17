@@ -106,8 +106,11 @@ class _SettingsTabs extends StatelessWidget {
           onStyleChanged: onStyleChanged,
         ),
         _DownloadsTab(glowColor: glowColor),
-        _CompartidosTab(glowColor: glowColor),
+        // ORDEN = el de las burbujas (settings_sheet_entry): Rendimiento en la
+        // tercera y Estadísticas en la cuarta. Estaban invertidas, así que cada
+        // burbuja abría la pestaña de la otra.
         _PerformanceTab(glowColor: glowColor),
+        _CompartidosTab(glowColor: glowColor),
         _MoreTab(
           glowColor: glowColor,
           premium: premium,

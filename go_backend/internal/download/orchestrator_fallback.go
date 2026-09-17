@@ -35,6 +35,9 @@ func construirOrdenFallback(reg *provider.Registry, priority []string) []string 
 		"musicbrainz": true,
 		"spotify":     true,
 		"apple":       true,
+		// Last.fm no entrega audio: aporta identidad y el video OFICIAL de
+		// YouTube en el rescate final (ver orchestrator_video_oficial.go).
+		"lastfm": true,
 	}
 	for _, name := range priority {
 		p := reg.Get(name)

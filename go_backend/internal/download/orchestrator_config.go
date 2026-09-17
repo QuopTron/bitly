@@ -31,14 +31,13 @@ func GlobalOutputDir() string {
 // overwhelming low-end devices. Overridable via SetConcurrency.
 const maxConcurrentDownloads = 1
 
-// maxParallelCandidates bounds how many resolved providers are raced in
-// parallel for a single download. The warm resolve already surfaced the fastest
-// sources first, so beyond this a slow extra candidate just wastes budget.
-const maxParallelCandidates = 4
-
 // maxParallelDownloads caps simultaneous in-flight download attempts for ONE
-// request (the "second plans" race). Providers that fail fast (429/verification)
-// release their slot quickly, so this rarely saturates.
+// request (the "second plans" race). Es un tope de intentos EN VUELO, no de
+// candidatos: apenas una fuente falla (429, sin cuenta, sin stream) libera su
+// lugar y entra la siguiente del orden. Antes existía además un tope de 4
+// candidatos elegidos ANTES de descargar, y con los catálogos sin cuenta esos 4
+// puestos se llenaban de fuentes que fallaban al instante: InnerTube/SoundCloud
+// nunca llegaban a intentarlo y la descarga terminaba en "fallaron todos".
 const maxParallelDownloads = 3
 
 // authorityGrace is how long the download race waits, after a last-resort
@@ -75,6 +74,7 @@ func NewOrchestrator(reg *provider.Registry) *Orchestrator {
 		active:        make(map[string]bool),
 		concurrency:   make(chan struct{}, maxConcurrentDownloads),
 		fallbackOrder: construirOrdenFallback(reg, preferredStreamOrder),
+		mejoraCh:      make(chan trabajoMejoraFLAC, capacidadMejoraFLAC),
 	}
 }
 

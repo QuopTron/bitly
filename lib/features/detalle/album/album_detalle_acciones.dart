@@ -47,7 +47,9 @@ Widget _filaAcciones(
             : d.estadoLote == EstadoDescarga.enProgreso
                 ? const Color(0xFFFF9800)
                 : null,
-        onTap: st._estaEnLinea && !d.todosDescargados
+        // Con el lote completo (o todo el álbum contado) no hay nada que
+        // bajar: el botón queda en verde y apagado, coherente con su icono.
+        onTap: st._estaEnLinea && !loteListo
             ? () => _descargarAlbumCompleto(st)
             : null,
       ),
@@ -94,13 +96,13 @@ Future<void> _descargarAlbumCompleto(_AlbumDetallePaginaState st) async {
       album.coverUrl ??
       st.widget.coverUrl;
 
-  // Solo tracks que aún no están completados.
+  // Solo tracks que aún no están completados (misma verificación que el
+  // conteo del badge: id+fuente o ISRC de otra extensión).
   final tracks = album.tracks
-      .where((t) {
-        final clave = 'track_${normalizarIdTrack(t.trackId)}_$src';
-        return dlCubit.estadoDescargaPara(clave).estado !=
-            EstadoDescarga.completado;
-      })
+      .where(
+        (t) =>
+            !dlCubit.trackDescargado(t.trackId, source: src, isrc: t.isrc),
+      )
       .map((t) => <String, dynamic>{
             'track_id': t.trackId,
             'track_title': t.name,

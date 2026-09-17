@@ -13,12 +13,54 @@ enum EstadoDescarga { ninguno, enCola, enProgreso, completado, interrumpido }
 class DatosEstadoDescarga {
   final EstadoDescarga estado;
   final double progreso;
+
+  /// Motivo del fallo cuando el estado es [EstadoDescarga.interrumpido]. Lo
+  /// escribe quien corta la descarga (poll, gate, carpeta) y lo muestra la UI:
+  /// antes existía el campo pero ninguna vista lo leía, así que una descarga
+  /// fallida quedaba en rojo sin decir por qué.
   final String? mensajeError;
+
+  /// Reintento en sitio ya consumido (0 = el intento original) y cuántos hay
+  /// en total. Permite que la UI diga "Reintentando 2/3" en vez de mostrar el
+  /// mismo estado de cola para un reintento que para el primer intento.
+  final int intento;
+  final int totalIntentos;
 
   const DatosEstadoDescarga({
     this.estado = EstadoDescarga.ninguno,
     this.progreso = 0.0,
     this.mensajeError,
+    this.intento = 0,
+    this.totalIntentos = 0,
+  });
+
+  /// ¿Es un reintento en curso (no el intento original)?
+  bool get esReintento => intento > 0;
+}
+
+/// Datos del fallo definitivo de una descarga (ya sin reintentos). Guarda
+/// DATOS, no una frase armada: el texto lo compone la UI con l10n, igual que
+/// el resto de los avisos del proyecto (p.ej. el código 'decrypt').
+class FalloDescarga {
+  /// Clave interna de la descarga que falló (p.ej. "track_x_ytmusic"). Permite
+  /// que la UI vuelva a encolarla sin adivinar de qué canción se trata.
+  final String baseId;
+
+  /// Qué falló, tal como el usuario lo reconoce (título de la canción).
+  final String titulo;
+
+  /// Motivo técnico que devolvió el backend/proveedor (no traducible).
+  final String motivo;
+
+  /// true si el corte pide una acción del usuario (carpeta sin permiso, sesión
+  /// vencida): reintentar solo repetiría el mismo aviso.
+  final bool necesitaUsuario;
+
+  const FalloDescarga({
+    required this.titulo,
+    required this.motivo,
+    this.baseId = '',
+    this.necesitaUsuario = false,
   });
 }
 
@@ -36,6 +78,12 @@ class EstadoCubitDescargas extends Equatable {
   /// un aviso único mientras esté seteado, luego lo limpia vía
   /// DownloadCubit.confirmarErrorDesencriptado.
   final String? errorDesencriptado;
+
+  /// Aviso único de una descarga que quedó fallida SIN reintentos pendientes.
+  /// La UI lo muestra una vez y lo limpia con confirmarFalloDescarga. Es la
+  /// única forma en que el usuario se entera de por qué falló: antes el motivo
+  /// moría en el mapa de estados y la descarga quedaba en rojo sin explicación.
+  final FalloDescarga? falloDescarga;
 
   /// true cuando la carpeta de descargas ya no es accesible (grant SAF
   /// revocado, directorio borrado, permiso denegado). La UI muestra un
@@ -55,6 +103,7 @@ class EstadoCubitDescargas extends Equatable {
     this.errorDesencriptado,
     this.carpetaPerdida = false,
     this.gateDescargaBloqueado,
+    this.falloDescarga,
   });
 
   EstadoCubitDescargas copiarCon({
@@ -68,6 +117,8 @@ class EstadoCubitDescargas extends Equatable {
     bool limpiarCarpetaPerdida = false,
     String? gateDescargaBloqueado,
     bool limpiarGateBloqueado = false,
+    FalloDescarga? falloDescarga,
+    bool limpiarFalloDescarga = false,
   }) =>
       EstadoCubitDescargas(
         descargas: descargas ?? this.descargas,
@@ -79,6 +130,9 @@ class EstadoCubitDescargas extends Equatable {
         gateDescargaBloqueado: limpiarGateBloqueado
             ? null
             : (gateDescargaBloqueado ?? this.gateDescargaBloqueado),
+        falloDescarga: limpiarFalloDescarga
+            ? null
+            : (falloDescarga ?? this.falloDescarga),
       );
 
   @override
@@ -90,5 +144,6 @@ class EstadoCubitDescargas extends Equatable {
     errorDesencriptado,
     carpetaPerdida,
     gateDescargaBloqueado,
+    falloDescarga,
   ];
 }

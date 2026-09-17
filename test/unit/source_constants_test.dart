@@ -37,8 +37,14 @@ void main() {
       ]));
     });
 
-    test('has 12 entries (incl. todas/empty)', () {
-      expect(iconosFuente.length, 12);
+    // 12 fuentes de catálogo + el id agrupado (''). 'youtube' NO es una
+    // fuente más de la lista: es el id con el que entra un resultado
+    // identificado por Last.fm (nombre canónico + video oficial), porque el
+    // audio sale de YouTube sí o sí. Igual necesita icono y etiqueta.
+    test('has 13 entries (incl. todas/empty y youtube)', () {
+      expect(iconosFuente.length, 13);
+      expect(iconosFuente.containsKey('youtube'), isTrue);
+      expect(etiquetasFuente['youtube'], 'YouTube');
     });
   });
 

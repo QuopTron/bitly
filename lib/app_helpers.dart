@@ -17,6 +17,7 @@ import 'core/modelos/resultado_enlace.dart';
 import 'core/servicios/compartir/datos_compartido.dart';
 import 'core/servicios/compartir/servicio_compartir.dart';
 import 'core/modelos/usuario/estilo_visual.dart';
+import 'core/modelos/usuario/preferencias_apariencia.dart';
 import 'core/modelos/usuario/preferencias_estilo.dart';
 import 'core/plataforma/sistema/servicio_deep_link.dart';
 import 'core/servicios/proveedores/servicio_enlaces.dart';
@@ -32,15 +33,18 @@ class NotificadoresAjustesApp {
       : locale = di.sl<ValueNotifier<Locale>>(),
         themeMode = di.sl<ValueNotifier<ThemeMode>>(),
         estiloVisual = di.sl<ValueNotifier<EstiloVisual>>(),
-        preferenciasEstilo = di.sl<ValueNotifier<PreferenciasEstilo>>();
+        preferenciasEstilo = di.sl<ValueNotifier<PreferenciasEstilo>>(),
+        preferenciasApariencia =
+            di.sl<ValueNotifier<PreferenciasApariencia>>();
 
   final ValueNotifier<Locale> locale;
   final ValueNotifier<ThemeMode> themeMode;
   final ValueNotifier<EstiloVisual> estiloVisual;
   final ValueNotifier<PreferenciasEstilo> preferenciasEstilo;
+  final ValueNotifier<PreferenciasApariencia> preferenciasApariencia;
 
   Iterable<Listenable> get _todos =>
-      [locale, themeMode, estiloVisual, preferenciasEstilo];
+      [locale, themeMode, estiloVisual, preferenciasEstilo, preferenciasApariencia];
 
   /// Registra el mismo callback en los cuatro notificadores.
   void suscribir(VoidCallback onCambio) {
@@ -79,6 +83,12 @@ Future<void> cargarAjustesGuardadosApp({
     }
     final prefsGuardadas = await cache.getPreferenciasEstilo();
     if (estaMontado()) ajustes.preferenciasEstilo.value = prefsGuardadas;
+    // Diseño personalizable (borde del reproductor, separación, redondeo):
+    // sin esto, cada arranque volvía al diseño de fábrica.
+    final aparienciaGuardada = await cache.getPreferenciasApariencia();
+    if (estaMontado()) {
+      ajustes.preferenciasApariencia.value = aparienciaGuardada;
+    }
   } catch (e) {
     debugPrint("[App] $e");
   }

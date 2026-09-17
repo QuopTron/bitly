@@ -17,6 +17,7 @@ import '../../modelos/ajustes_descarga.dart';
 import '../../modelos/datos_setup.dart';
 import '../../modelos/usuario/perfil_rendimiento.dart';
 import '../../plataforma/sistema/deteccion_gama.dart';
+import '../../modelos/usuario/preferencias_apariencia.dart';
 import '../../modelos/usuario/preferencias_estilo.dart';
 
 /// Caché local de ajustes — wrappers sobre [SettingsDao].
@@ -90,6 +91,18 @@ class CacheAjustes {
 
   Future<void> guardarPreferenciasEstilo(PreferenciasEstilo prefs) =>
       _dao.set(_clavePreferenciasEstilo, prefs.toJsonString());
+
+  // ── Preferencias de diseño (Apariencia) ──
+  static const _clavePreferenciasApariencia = 'appearance_preferences';
+
+  /// Borde del reproductor, separación de grillas y redondeo de cards.
+  Future<PreferenciasApariencia> getPreferenciasApariencia() async {
+    final raw = await _dao.get(_clavePreferenciasApariencia);
+    return PreferenciasApariencia.desdeJsonString(raw);
+  }
+
+  Future<void> guardarPreferenciasApariencia(PreferenciasApariencia prefs) =>
+      _dao.set(_clavePreferenciasApariencia, prefs.toJsonString());
 
   static const _clavePerf = 'perf_profile';
 

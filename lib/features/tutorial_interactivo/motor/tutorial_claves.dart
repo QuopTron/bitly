@@ -54,5 +54,10 @@ class PestanaAjustes {
   static const int apariencia = 0;
   static const int descargas = 1;
   static const int rendimiento = 2;
-  static const int mas = 3;
+
+  /// Estadísticas + compartidos.
+  static const int estadisticas = 3;
+
+  /// Más (última desde que Estadísticas tiene su propia burbuja).
+  static const int mas = 4;
 }

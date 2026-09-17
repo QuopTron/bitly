@@ -10,6 +10,7 @@ import (
 	"github.com/zarz/bitly/go_backend/internal/provider/deezer"
 	"github.com/zarz/bitly/go_backend/internal/provider/flacrescue"
 	"github.com/zarz/bitly/go_backend/internal/provider/internetarchive"
+	"github.com/zarz/bitly/go_backend/internal/provider/lastfm"
 	"github.com/zarz/bitly/go_backend/internal/provider/musicbrainz"
 	"github.com/zarz/bitly/go_backend/internal/provider/qobuz"
 	"github.com/zarz/bitly/go_backend/internal/provider/redacted"
@@ -17,6 +18,7 @@ import (
 	"github.com/zarz/bitly/go_backend/internal/provider/soundcloud"
 	"github.com/zarz/bitly/go_backend/internal/provider/spotify"
 	"github.com/zarz/bitly/go_backend/internal/provider/tidal"
+	"github.com/zarz/bitly/go_backend/internal/provider/tidalhifi"
 	"github.com/zarz/bitly/go_backend/internal/provider/youtube"
 )
 
@@ -75,9 +77,19 @@ func inicializarProviders(reg *provider.Registry) []bundled_extensions.Registere
 		spotify.NewClient(nil, "", ""),
 		youtube.NewClient(ytdlpPath),
 		musicbrainz.NewClient(nil, ""),
+		// Last.fm: SOLO identidad y el video OFICIAL de YouTube de cada pista
+		// (no entrega audio ni ISRC). No aparece en la búsqueda: lo usan la
+		// identidad entre extensiones y el rescate cuando todas las fuentes
+		// fallaron, con caché de 12 h y 1 petición cada 3 s para no ganarse
+		// el desafío anti-bot del sitio.
+		lastfm.NewClient(nil),
 		apple.NewClient(nil, "", "us"),
 		soundcloud.NewClient(nil, ""),
 		flacrescue.NewClient(),
+		// Tidal HiFi anónimo: catálogo Tidal con ISRC y el audio sin pérdida
+		// REAL (FLAC 44,1 kHz) sin cuenta y sin captcha. Es un descargador
+		// propio (el audio llega en segmentos DASH que el canal arma solo).
+		tidalhifi.NewClient(),
 		// Internet Archive: catálogo abierto con FLAC real, sin API key ni
 		// cuenta. Es la única fuente lossless que no depende de sesión ni de
 		// un gateway firmado.

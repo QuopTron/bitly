@@ -33,12 +33,12 @@ DatosVistaPlaylist _calcularDatosPlaylist(
       .estadoDescargaPara('playlist_${normalizarIdTrack(playlist.id)}_$src')
       .estado;
 
-  // Conteo de tracks descargados para el badge y la barra de progreso.
+  // Conteo de tracks descargados para el badge y la barra de progreso:
+  // clave exacta o ISRC, así un track bajado desde otra extensión también
+  // cuenta (antes la playlist decía "0 descargado" con el archivo en disco).
   int descargados = 0;
   for (final t in playlist.tracks) {
-    final clave = 'track_${normalizarIdTrack(t.trackId)}_$src';
-    if (dlCubit.estadoDescargaPara(clave).estado ==
-        EstadoDescarga.completado) {
+    if (dlCubit.trackDescargado(t.trackId, source: src, isrc: t.isrc)) {
       descargados++;
     }
   }

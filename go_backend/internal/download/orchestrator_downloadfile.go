@@ -1,10 +1,8 @@
 package download
 
 import (
-	"bufio"
 	"context"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"os"
@@ -18,8 +16,24 @@ import (
 // resume: if a partial download exists for the same URL, it sends a Range
 // header to resume from where it left off instead of restarting from zero.
 func descargarAArchivo(url, outDir string, req Request, title, artist string, onProgress func(done, total int64)) (string, error) {
+	return descargarAArchivoCon(url, outDir, req, title, artist, onProgress, true)
+}
+
+// descargarAArchivoCon es descargarAArchivo con el sondeo/reanudación opcional.
+//
+// sondear=false es para enlaces de UN SOLO USO (los sitios raspables de FLAC):
+// el enlace firmado se consume con la primera petición —el sondeo con
+// Range: bytes=0-0 incluido— y la descarga real recibe 409 Conflict. Verificado
+// contra superflac: sondeo 200 y descarga siguiente 409, con el mismo enlace.
+func descargarAArchivoCon(url, outDir string, req Request, title, artist string, onProgress func(done, total int64), sondear bool) (string, error) {
 	if err := os.MkdirAll(outDir, 0755); err != nil {
 		return "", err
+	}
+	// Un llamador sin interés en el progreso (la mejora a FLAC, por ejemplo)
+	// pasa nil: se reemplaza por un aviso vacío en vez de panicar al primer
+	// bloque escrito.
+	if onProgress == nil {
+		onProgress = func(int64, int64) {}
 	}
 
 	ext := detectarExt(url)
@@ -49,7 +63,7 @@ func descargarAArchivo(url, outDir string, req Request, title, artist string, on
 	// así que un FLAC de decenas de MB llega varias veces más rápido en N
 	// tramos. Si el origen no soporta rangos o el archivo es chico, sigue la
 	// ruta secuencial de abajo sin cambiar nada.
-	if partialPath == "" || existingSize == 0 {
+	if sondear && (partialPath == "" || existingSize == 0) {
 		if info := sondearOrigen(context.Background(), client, url); info.soporta {
 			parcial, cerrar := os.CreateTemp(outDir, nombreParcial(pista, huella, ext, true))
 			if cerrar == nil {
@@ -67,7 +81,7 @@ func descargarAArchivo(url, outDir string, req Request, title, artist string, on
 		}
 	}
 
-	if partialPath != "" && existingSize > 0 {
+	if parcialReanudable(sondear, partialPath, existingSize) {
 		// Attempt resume with Range header.
 		reqHTTP, _ := http.NewRequest("GET", url, nil)
 		reqHTTP.Header.Set("Range", fmt.Sprintf("bytes=%d-", existingSize))
@@ -98,81 +112,12 @@ func descargarAArchivo(url, outDir string, req Request, title, artist string, on
 	}
 
 	// Full download from zero.
-	resp, err = client.Get(url)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("HTTP %d al obtener stream", resp.StatusCode)
-	}
+	return descargarSecuencialBajandoCompleto(client, url, outDir, dest, pista, huella, ext, onProgress)
+}
 
-	tmp, err := os.CreateTemp(outDir, nombreParcial(pista, huella, ext, false))
-	if err != nil {
-		return "", err
-	}
-	tmpPath := tmp.Name()
-	defer func() {
-		if _, statErr := os.Stat(tmpPath); statErr == nil {
-			os.Remove(tmpPath)
-		}
-	}()
-
-	// Escritura con buffer grande: con 64 KB de lectura + write() crudo el
-	// costo de syscalls se nota en archivos grandes. 512 KB de lectura y un
-	// bufio.Writer encima reducen mucho los viajes al kernel.
-	var done int64
-	buf := make([]byte, 512*1024)
-	escritor := bufio.NewWriterSize(tmp, 512*1024)
-	for {
-		n, rerr := resp.Body.Read(buf)
-		if n > 0 {
-			if _, werr := escritor.Write(buf[:n]); werr != nil {
-				tmp.Close()
-				return "", werr
-			}
-			done += int64(n)
-			onProgress(done, resp.ContentLength)
-		}
-		if rerr == io.EOF {
-			break
-		}
-		if rerr != nil {
-			tmp.Close()
-			return "", rerr
-		}
-	}
-	if flerr := escritor.Flush(); flerr != nil {
-		tmp.Close()
-		return "", flerr
-	}
-	// Sincronizar antes del rename: sin esto, un corte de energía podía dejar
-	// un archivo con el nombre final pero con datos sin bajar a disco.
-	if serr := tmp.Sync(); serr != nil {
-		tmp.Close()
-		return "", serr
-	}
-	tmp.Close()
-
-	if err := os.Rename(tmpPath, dest); err != nil {
-		// Cross-device rename fallback.
-		if in, inErr := os.Open(tmpPath); inErr == nil {
-			out, outErr := os.Create(dest)
-			if outErr == nil {
-				_, _ = io.Copy(out, in)
-				out.Close()
-				in.Close()
-				os.Remove(tmpPath)
-			} else {
-				in.Close()
-				return "", outErr
-			}
-		} else {
-			return "", inErr
-		}
-	}
-
-	_ = title
-	_ = artist
-	return dest, nil
+// parcialReanudable dice si corresponde intentar retomar un parcial ya bajado.
+// Con sondear=false (enlaces de un solo uso) nunca: la reanudación pediría el
+// enlace otra vez y el servidor responde 409.
+func parcialReanudable(sondear bool, partialPath string, existingSize int64) bool {
+	return sondear && partialPath != "" && existingSize > 0
 }

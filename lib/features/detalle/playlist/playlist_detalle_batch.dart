@@ -22,13 +22,13 @@ Future<void> _descargarPlaylistCompleta(_PlaylistDetallePaginaState st) async {
       : (playlist.tracks.first.provider ?? '');
   final caratula = st._caratulaResuelta ?? st.widget.coverUrl;
 
-  // Solo tracks que aún no están completados.
+  // Solo tracks que aún no están completados (misma verificación que el
+  // conteo del badge: id+fuente o ISRC de otra extensión).
   final tracks = playlist.tracks
-      .where((t) {
-        final clave = 'track_${normalizarIdTrack(t.trackId)}_$src';
-        return dlCubit.estadoDescargaPara(clave).estado !=
-            EstadoDescarga.completado;
-      })
+      .where(
+        (t) =>
+            !dlCubit.trackDescargado(t.trackId, source: src, isrc: t.isrc),
+      )
       .map((t) => <String, dynamic>{
             'track_id': t.trackId,
             'track_title': t.name,

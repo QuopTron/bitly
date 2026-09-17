@@ -71,7 +71,11 @@ Widget _portadaNitidaDe(
     clipBehavior: Clip.hardEdge,
     decoration: BoxDecoration(
       shape: t._esArtista ? BoxShape.circle : BoxShape.rectangle,
-      borderRadius: t._esArtista ? null : BorderRadius.circular(14),
+      // Redondeo personalizable (Ajustes → Apariencia → Diseño); con el
+      // valor de fábrica son los 14 px de siempre.
+      borderRadius: t._esArtista
+          ? null
+          : BorderRadius.circular(AparienciaHelper.radioCards(context)),
       color: t.coverUrl == null ? ColoresApp.superficie(esOscuro) : null,
       border: Border.all(color: ColoresApp.borde(esOscuro), width: 0.6),
       boxShadow: efectosPesados

@@ -23,6 +23,7 @@ import '../../../tema/colores_app.dart';
 import '../../../utilidades/interaccion/haptico.dart';
 import '../../../utilidades/portada/paleta_portada.dart';
 import '../../../utilidades/plataforma/responsive.dart';
+import '../../../utilidades/formato/apariencia_helper.dart';
 import '../portada/imagen_portada.dart';
 import '../../indicadores/indicador_descarga.dart';
 import '../../vidrio/desenfoque_adaptativo.dart';

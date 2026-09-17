@@ -36,6 +36,9 @@ Widget _buildMiniplayer(
               context.read<CubitLikes>().caratulaLocalPara(track);
           final buffering =
               player.estadoReproduccion == EstadoReproduccion.buffering;
+          // Borde del reproductor elegido por el usuario (Ajustes →
+          // Apariencia → Diseño): sin borde, suave (el de siempre) o marcado.
+          final trazo = AparienciaHelper.trazoBorde(context);
 
           return _WidgetAnimadoTrack(
             key: ValueKey('mp_tween_${track.id}'),
@@ -69,10 +72,12 @@ Widget _buildMiniplayer(
                             : const Color(0xFFFFFFFF),
                         borderRadius:
                             const BorderRadius.vertical(top: Radius.circular(8)),
-                        border: Border.all(
-                          color: fg.withValues(alpha: 0.1),
-                          width: 0.5,
-                        ),
+                        border: trazo.$2 == 0
+                            ? null
+                            : Border.all(
+                                color: fg.withValues(alpha: trazo.$1),
+                                width: trazo.$2,
+                              ),
                       ),
                       child: Padding(
                         padding: EdgeInsets.symmetric(

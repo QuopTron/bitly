@@ -157,6 +157,29 @@ void main() {
       await tester.pump(const Duration(milliseconds: 120));
       expect(clics, hasLength(1));
     });
+
+    testWidgets('el cursor sigue al mouse real (air mouse)', (tester) async {
+      // Los controles con giroscopio mandan eventos de mouse DE VERDAD: si el
+      // cursor dibujado se quedaba en el centro, el clic del control caía sobre
+      // otra tarjeta (el "clic falso" al mover el puntero).
+      final clics = <Offset>[];
+      final dispositivos = <PointerDeviceKind>[];
+      await tester.pumpWidget(
+        _appDePrueba(clics: clics, dispositivos: dispositivos),
+      );
+
+      final gesto = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesto.addPointer(location: const Offset(400, 300));
+      await gesto.moveTo(const Offset(120, 80));
+      await tester.pump();
+
+      expect(
+        tester.getCenter(find.byKey(PunteroTv.claveCursor)),
+        const Offset(120, 80),
+        reason: 'el cursor dibujado debe ir donde el control tiene el puntero',
+      );
+      await gesto.removePointer();
+    });
   });
 
   group('lienzo de diseño de TV', () {

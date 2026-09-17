@@ -62,32 +62,14 @@ const List<ConfigProveedor> proveedoresRescate = [
             'app trae de fábrica; si pegás algo, lo tuyo manda.',
       ),
       CampoProveedor(
-        key: 'qobuz_app_id',
-        label: 'Qobuz app_id (opcional)',
-        hint: 'Canal Qobuz firmado: con estas credenciales el rescate devuelve '
-            'una URL de FLAC DIRECTA de Qobuz, así que la canción suena al '
-            'instante (sin descargarla antes). Son las credenciales de la app '
-            'web de Qobuz; si las dejas vacías, el canal queda apagado y se usan '
-            'solo los espejos.',
-      ),
-      CampoProveedor(
-        key: 'qobuz_app_secret',
-        label: 'Qobuz app_secret (opcional)',
-        hint: 'Se usa para firmar la petición (junto con app_id). Necesario para '
-            'activar el canal Qobuz firmado.',
-      ),
-      CampoProveedor(
-        key: 'qobuz_user_token',
-        label: 'Qobuz token de usuario (opcional)',
-        hint: 'Solo si tu cuenta de Qobuz lo necesita para servir FLAC. Va por '
-            'cabecera, nunca dentro de la URL.',
-      ),
-    ],
-    acciones: [
-      AccionProveedor(
-        action: 'probarCanal',
-        label: 'Probar canal Qobuz',
-        icon: Icons.science_outlined,
+        key: 'sitios',
+        label: 'Sitios raspables de FLAC (vienen encendidos)',
+        hint: 'Páginas que entregan el FLAC real sin cuenta y sin pedirte nada: '
+            'se consultan solas, por detrás, cuando ninguna otra fuente tiene la '
+            'calidad sin pérdida. Dejalas encendidas; si querés apagarlas, '
+            'escribí off. También podés limitarlas a una lista separada por '
+            'comas (ejemplo: https://superflac.com).',
+        multiline: true,
       ),
     ],
   ),

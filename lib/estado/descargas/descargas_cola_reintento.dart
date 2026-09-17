@@ -50,8 +50,51 @@ mixin DescargasColaReintento on DescargasReintentar {
       estado: EstadoDescarga.interrumpido,
       progreso: 0.0,
       mensajeError: motivo,
+      intento: _intentoActual(baseId),
+      totalIntentos: _maxReintentosInSitu + 1,
     );
     emit(state.copiarCon(descargas: dl));
+  }
+
+  /// Título legible de [baseId] para los avisos al usuario (metadato del
+  /// despacho; si no está, lo que traiga el propio track).
+  String _tituloDeTrack(String baseId, _TrackEnCola track) {
+    final meta = _metaTrack[baseId];
+    if (meta != null && meta.name.trim().isNotEmpty) return meta.name.trim();
+    final titulo = (track.trackMap['title'] ?? track.trackMap['name'] ?? '')
+        .toString()
+        .trim();
+    return titulo.isEmpty ? baseId : titulo;
+  }
+
+  /// Publica el aviso único de fallo definitivo: la canción se quedó sin
+  /// reintentos y sin archivo. Guarda DATOS (título + motivo) y la UI arma el
+  /// texto con l10n; antes el motivo moría dentro del mapa de estados y el
+  /// usuario solo veía la tarjeta en rojo sin saber por qué.
+  void _avisarFalloDefinitivo(
+    String baseId,
+    _TrackEnCola track,
+    String motivo, {
+    bool necesitaUsuario = false,
+  }) {
+    final limpio = motivo.trim();
+    emit(
+      state.copiarCon(
+        falloDescarga: FalloDescarga(
+          baseId: baseId,
+          titulo: _tituloDeTrack(baseId, track),
+          motivo: limpio.isEmpty ? 'unknown' : limpio,
+          necesitaUsuario: necesitaUsuario,
+        ),
+      ),
+    );
+  }
+
+  /// Limpia el aviso de fallo definitivo tras mostrarlo.
+  void confirmarFalloDescarga() {
+    if (state.falloDescarga != null) {
+      emit(state.copiarCon(limpiarFalloDescarga: true));
+    }
   }
 
   /// Reencola la MISMA canción al frente de la cola con la calidad del
@@ -70,9 +113,11 @@ mixin DescargasColaReintento on DescargasReintentar {
     // volvería a descargar nada.
     _limpiarEstadoPollTrack(normalizarId(track.trackId), baseId);
     final dl = Map<String, DatosEstadoDescarga>.from(state.descargas);
-    dl[baseId] = const DatosEstadoDescarga(
+    dl[baseId] = DatosEstadoDescarga(
       estado: EstadoDescarga.enCola,
       progreso: 0.0,
+      intento: n,
+      totalIntentos: _maxReintentosInSitu + 1,
     );
     emit(state.copiarCon(descargas: dl));
     _log.w(

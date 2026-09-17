@@ -19,14 +19,21 @@ import (
 //   resetDatabase ()
 // =========================================================================
 
-var coversDir = ".covers"
+// coversDirPortadas es la carpeta de portadas cuando todavía no hay carpeta de
+// descargas configurada. Antes era la ruta relativa ".covers", que en Android
+// (CWD "/") resolvía a /.covers — la RAÍZ del sistema, no escribible — así que
+// las portadas fallaban en silencio. Cuelga del directorio de datos de la app,
+// que sí es escribible en todas las plataformas.
+func coversDirPortadas() string {
+	return filepath.Join(filepath.Dir(dirExtensiones()), "covers")
+}
 
-// coversDirPath returns the covers directory, creating it if needed.
+// rutaDirPortadas returns the covers directory, creating it if needed.
 func rutaDirPortadas() string {
 	if dir := getDownloadDir(); dir != "" {
 		return filepath.Join(dir, ".covers")
 	}
-	return coversDir
+	return coversDirPortadas()
 }
 
 // CoversDir returns the absolute covers directory so the desktop server can

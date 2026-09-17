@@ -22,6 +22,10 @@ type TrackResult struct {
 	DeezerID  string `json:"deezer_id,omitempty"`
 	TidalID   string `json:"tidal_id,omitempty"`
 	QobuzID   string `json:"qobuz_id,omitempty"`
+	// YouTubeID es el video OFICIAL de la pista, cuando una fuente de
+	// identidad (Last.fm) lo conoce. Permite resolver el audio sin búsqueda
+	// por nombre, que es lo que más tarda y lo que más se equivoca.
+	YouTubeID string `json:"youtube_id,omitempty"`
 }
 
 // AlbumResult is the normalized album result across all providers.
@@ -43,6 +47,9 @@ type ArtistResult struct {
 	PictureURL string `json:"pictureUrl"`
 	Fans       int    `json:"fans"`
 	Provider   string `json:"provider"`
+	// Genres son las etiquetas del artista. Las completa la fuente que las
+	// tiene (Last.fm); el resto las deja vacías.
+	Genres []string `json:"genres,omitempty"`
 }
 
 // PlaylistResult is the normalized playlist result across all providers.

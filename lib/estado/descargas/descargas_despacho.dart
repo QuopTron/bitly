@@ -26,10 +26,9 @@ mixin DescargasDespacho on DescargasBorrarLote {
     final acceso = await VerificadorAccesoDescarga.verificar();
     if (acceso == AccesoDescarga.expirado) {
       _log.w('[despacharTrackIndividual] bloqueado por gate free: $baseId');
-      bloquearDescarga(
-        baseId,
-        'Tu prueba gratis de 8 horas terminó. Activa Premium para seguir descargando.',
-      );
+      // El aviso lo arma la UI con l10n a partir del código 'gate' (el estado
+      // ya no guarda frases en un solo idioma).
+      bloquearDescarga(baseId, 'gate');
       return;
     }
     if (!await _verificarSesionesAntesDeDescargar()) return;

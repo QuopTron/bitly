@@ -1,8 +1,8 @@
 // ─────────────────────────────────────────────────────────────
 // app_contenido.dart — Construye el contenido raíz de la app: el
-// router, el overlay "te compartieron" de deep links y las capas
-// de TV (lienzo de diseño fijo + puntero del control remoto) y la
-// protección de layout para todas las pantallas.
+// router, los avisos de descarga, el overlay "te compartieron" de
+// deep links y las capas de TV (lienzo de diseño fijo + puntero del
+// control remoto) y la protección de layout para todas las pantallas.
 // Se conecta con: app.dart (lo usa en el builder de MaterialApp).
 // Parte del flujo: arranque (capa visual raíz).
 // ─────────────────────────────────────────────────────────────
@@ -14,6 +14,7 @@ import 'shared/utilidades/plataforma/deteccion_plataforma.dart';
 import 'shared/utilidades/plataforma/escala_texto.dart';
 import 'shared/utilidades/plataforma/vista_tv.dart';
 import 'shared/widgets/base/overlay_compartido.dart';
+import 'shared/widgets/descargas/avisos_descarga.dart';
 import 'shared/widgets/tv/puntero_tv.dart';
 
 /// Arma el contenido raíz: el hijo del router, el overlay de deep link y las
@@ -31,6 +32,10 @@ Widget construirContenidoApp({
     textDirection: TextDirection.ltr,
     children: [
       if (hijo != null) hijo,
+      // Avisos de descarga (fallo, carpeta, gate, decrypt, reinicio): van
+      // sobre la app y DEBAJO del overlay de enlace compartido, que ocupa la
+      // pantalla cuando aparece.
+      const AvisosDescarga(),
       if (linkCompartido != null)
         Positioned.fill(
           child: OverlayCompartido(

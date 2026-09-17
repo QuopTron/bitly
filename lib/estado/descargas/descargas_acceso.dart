@@ -101,10 +101,22 @@ mixin DescargasAcceso on DescargasLoteFinalizar {
     return '';
   }
 
+  /// ¿Esta canción ya está en disco? Clave exacta (id + fuente) o por ISRC
+  /// cuando se bajó desde otra extensión (misma grabación, identidad exacta).
+  /// Lo usan los detalles de álbum/playlist para contar y para no volver a
+  /// bajar lo que ya está.
+  bool trackDescargado(String trackId, {String source = '', String? isrc}) =>
+      trackDescargadoEnEstado(
+        descargas: state.descargas,
+        huellasDescargadas: state.huellasDescargadas,
+        trackId: trackId,
+        source: source,
+        isrc: isrc,
+      );
+
   /// True si hay un lote completado (álbum/playlist) con [type] e [id]
   /// normalizado en el estado en memoria.
-  bool esColeccionDescargada(String type, String id) {
-    final normalized = normalizarId(id);
+  bool esColeccionDescargada(String type, String id) {    final normalized = normalizarId(id);
     for (final entry in state.descargas.entries) {
       if (entry.value.estado != EstadoDescarga.completado) continue;
       if (!entry.key.startsWith('${type}_')) continue;

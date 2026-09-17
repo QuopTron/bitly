@@ -20,6 +20,12 @@ mixin DescargasColaTrack on DescargasCola {
   Future<bool> _procesarTrackDeCola(_TrackEnCola track, String baseId) async {
     _completadorTrackActual = Completer<void>();
     _idTrackActualCola = baseId;
+    // Recordar los datos del intento: el aviso de descarga puede volver a
+    // lanzar esta misma canción después de un fallo definitivo.
+    _trackMapPorBaseId[baseId] = track.trackMap;
+    // Cada track arranca sin el veredicto del anterior: quién lo corta (poll,
+    // gate, timeout) es quién decide si el reintento en sitio corresponde.
+    _falloReintentable = false;
 
     _log.i('[cola] ▶ START track=$baseId titulo="${track.trackMap['track_title']}" '
         'cola_restante=${_colaDescargas.length}');
@@ -101,10 +107,12 @@ mixin DescargasColaTrack on DescargasCola {
       return false;
     }
 
-    // Interrumpido/ninguno (p.ej. bloqueo por gate o carpeta inaccesible): el
-    // corte ya lo marcó su responsable y necesita al usuario, no un reintento.
-    _falloReintentable = false;
-    _log.i('[cola] ⏹ track=$baseId cortado con estado=$estadoActual');
+    // Interrumpido/ninguno: quién lo marcó ya dejó su veredicto en
+    // _falloReintentable (el poll lo calcula del motivo; el gate del plan free
+    // y la carpeta inaccesible lo ponen en false porque necesitan al usuario).
+    // Antes se forzaba false acá y ningún fallo de proveedor se reintentaba.
+    _log.i('[cola] ⏹ track=$baseId cortado con estado=$estadoActual '
+        '(reintentable=$_falloReintentable)');
     return false;
   }
 }

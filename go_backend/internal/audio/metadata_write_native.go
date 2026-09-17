@@ -21,45 +21,17 @@ func WriteMetadata(path string, meta *Metadata) error {
 	return fmt.Errorf("ERR_AUDIO_WRITE: escritura nativa no soportada para %s", ext)
 }
 
+// escribirMetadataFLAC etiqueta un FLAC con COMENTARIOS VORBIS, que es el
+// bloque que define el formato (ver flac_tags_write.go).
+//
+// Antes se escribían APE tags: un FLAC no lleva APE, así que las etiquetas
+// quedaban invisibles para cualquier reproductor (incluido el lector propio de
+// la app) y el archivo se reescribía entero al pedo.
 func escribirMetadataFLAC(path string, meta *Metadata) error {
-	tags, err := ReadAPETags(path)
-	if err != nil {
-		tags = &APETags{}
+	if meta == nil {
+		return nil
 	}
-
-	if meta.Title != "" {
-		tags.Set("TITLE", meta.Title)
-	}
-	if meta.Artist != "" {
-		tags.Set("ARTIST", meta.Artist)
-	}
-	if meta.Album != "" {
-		tags.Set("ALBUM", meta.Album)
-	}
-	if meta.AlbumArtist != "" {
-		tags.Set("ALBUMARTIST", meta.AlbumArtist)
-	}
-	if meta.Genre != "" {
-		tags.Set("GENRE", meta.Genre)
-	}
-	if meta.ISRC != "" {
-		tags.Set("ISRC", meta.ISRC)
-	}
-	if meta.Year > 0 {
-		tags.Set("DATE", fmt.Sprintf("%d", meta.Year))
-	}
-	if meta.TrackNumber > 0 {
-		if meta.TrackTotal > 0 {
-			tags.Set("TRACKNUMBER", fmt.Sprintf("%d/%d", meta.TrackNumber, meta.TrackTotal))
-		} else {
-			tags.Set("TRACKNUMBER", fmt.Sprintf("%d", meta.TrackNumber))
-		}
-	}
-	if meta.DiscNumber > 0 {
-		tags.Set("DISCNUMBER", fmt.Sprintf("%d", meta.DiscNumber))
-	}
-
-	return WriteAPETags(path, tags)
+	return escribirMetadataFLACVorbis(path, meta)
 }
 
 func escribirMetadataMP3(path string, meta *Metadata) error {
@@ -109,6 +81,25 @@ func escribirMetadataMP3(path string, meta *Metadata) error {
 
 func escribirMetadataM4A(path string, meta *Metadata) error {
 	tags := make(map[string]string)
+	// Título/artista/álbum son las etiquetas que el usuario ve en cualquier
+	// reproductor: antes el escritor de M4A solo guardaba ISRC y género, así que
+	// una canción bajada de InnerTube quedaba sin nombre ni artista dentro del
+	// archivo aunque la app los mostrara por su propia base de datos.
+	if meta.Title != "" {
+		tags["Title"] = meta.Title
+	}
+	if meta.Artist != "" {
+		tags["Artist"] = meta.Artist
+	}
+	if meta.AlbumArtist != "" {
+		tags["AlbumArtist"] = meta.AlbumArtist
+	}
+	if meta.Album != "" {
+		tags["Album"] = meta.Album
+	}
+	if meta.Year > 0 {
+		tags["Date"] = fmt.Sprintf("%d", meta.Year)
+	}
 	if meta.ISRC != "" {
 		tags["ISRC"] = meta.ISRC
 	}

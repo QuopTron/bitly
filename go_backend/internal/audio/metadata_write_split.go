@@ -2,7 +2,6 @@ package audio
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"strings"
 )
@@ -19,65 +18,61 @@ func RewriteSplitArtistTags(path string, artists []string, albumArtists []string
 	return reescribirArtistasOGG(path, artists, albumArtists)
 }
 
+// reescribirArtistasFLAC separa "A & B" en VARIOS comentarios ARTIST, que es
+// como el formato expresa más de un artista en una pista.
+//
+// Qué estaba mal antes: se recorría el archivo a mano y, en los bloques que no
+// eran de comentarios, se copiaba SOLO el cuerpo sin su cabecera — el archivo
+// quedaba con la metadata corrida y el audio ininterpretable. Además el bloque
+// de comentarios se rearmaba desde cero, así que título, álbum, ISRC y portada
+// se perdían. Ahora se reemplaza únicamente el bloque de comentarios y todo lo
+// demás (STREAMINFO, portada, audio) se conserva tal cual.
 func reescribirArtistasFLAC(path string, artists, albumArtists []string) error {
-	f, err := os.Open(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
-
-	// Read entire file
-	data, err := io.ReadAll(f)
-	if err != nil {
-		return err
-	}
-
 	if len(data) < 4 || string(data[:4]) != "fLaC" {
 		return fmt.Errorf("ERR_AUDIO_NO_FLAC: no es un archivo FLAC")
 	}
-
-	// Find Vorbis comment block and rebuild with multiple artist entries
-	offset := 4
-	var newBlocks []byte
-	newBlocks = append(newBlocks, data[:4]...) // fLaC header
-
-	for offset < len(data) {
-		if offset+4 > len(data) {
-			break
-		}
-		blockHeader := data[offset : offset+4]
-		isLast := blockHeader[0]&0x80 != 0
-		blockType := blockHeader[0] & 0x7F
-		blockSize := int(blockHeader[1])<<16 | int(blockHeader[2])<<8 | int(blockHeader[3])
-
-		if offset+4+blockSize > len(data) {
-			break
-		}
-
-		blockData := data[offset+4 : offset+4+blockSize]
-
-		if blockType == 4 { // Vorbis comment
-			rebuilt := reconstruirBloqueVorbis(blockData, artists, albumArtists)
-			// Write new block header
-			rebuiltSize := len(rebuilt)
-			newBlocks = append(newBlocks, 0x84) // type 4, not last
-			if isLast {
-				newBlocks[len(newBlocks)-1] |= 0x80
-			}
-			newBlocks = append(newBlocks, byte(rebuiltSize>>16))
-			newBlocks = append(newBlocks, byte(rebuiltSize>>8))
-			newBlocks = append(newBlocks, byte(rebuiltSize))
-			newBlocks = append(newBlocks, rebuilt...)
-		} else {
-			newBlocks = append(newBlocks, blockData...)
-		}
-
-		offset += 4 + blockSize
+	bloques, vendor, previos, audio, err := partirFLAC(data)
+	if err != nil {
+		return err
 	}
+	if len(bloques) == 0 || bloques[0].tipo != 0 {
+		return fmt.Errorf("ERR_AUDIO_NO_FLAC: %s sin STREAMINFO", path)
+	}
+	salida := []bloqueMetaFLAC{bloques[0], bloqueComentarios(vendor, comentariosConArtistas(previos, artists, albumArtists))}
+	salida = append(salida, bloques[1:]...)
+	return SafeSaveFLAC(path, armarFLAC(salida, audio))
+}
 
-	// Append audio data
-	newBlocks = append(newBlocks, data[offset:]...)
-	return SafeSaveFLAC(path, newBlocks)
+// comentariosConArtistas conserva las etiquetas ajenas y los campos que no
+// tocamos, y reemplaza ARTIST/ALBUMARTIST por una entrada por nombre.
+func comentariosConArtistas(previos, artists, albumArtists []string) []string {
+	salida := make([]string, 0, len(previos)+len(artists)+len(albumArtists))
+	for _, entrada := range previos {
+		clave, _, ok := strings.Cut(entrada, "=")
+		if !ok {
+			continue
+		}
+		switch strings.ToUpper(strings.TrimSpace(clave)) {
+		case "ARTIST", "ALBUMARTIST":
+			continue
+		}
+		salida = append(salida, entrada)
+	}
+	for _, a := range artists {
+		if strings.TrimSpace(a) != "" {
+			salida = append(salida, "ARTIST="+a)
+		}
+	}
+	for _, a := range albumArtists {
+		if strings.TrimSpace(a) != "" {
+			salida = append(salida, "ALBUMARTIST="+a)
+		}
+	}
+	return salida
 }
 
 func reescribirArtistasOGG(path string, artists, albumArtists []string) error {

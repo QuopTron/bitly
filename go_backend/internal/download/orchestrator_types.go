@@ -75,4 +75,11 @@ type Orchestrator struct {
 	// default [preferredStreamOrder]. Rebuilt into fallbackOrder on set.
 	priorityOrder []string
 	concurrency   chan struct{}
+
+	// mejoraCh es la cola de la mejora silenciosa a sin pérdida y mejoraOnce
+	// arranca su worker una sola vez, en el primer trabajo. Va aparte de la
+	// carrera de descargas para no afectar el tiempo de entrega
+	// (ver orchestrator_mejora_flac.go).
+	mejoraCh   chan trabajoMejoraFLAC
+	mejoraOnce sync.Once
 }

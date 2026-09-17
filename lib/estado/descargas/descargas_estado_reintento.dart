@@ -10,25 +10,6 @@
 part of 'cubit_descargas.dart';
 
 mixin DescargasEstadoReintento on DescargasCola {
-  void reintentarTodosInterrumpidos() {
-    final retryBatchKeys =
-        state.descargas.entries
-            .where(
-              (e) =>
-                  (e.value.estado == EstadoDescarga.interrumpido ||
-                      e.value.estado == EstadoDescarga.ninguno) &&
-                  (e.key.startsWith('album_') ||
-                      e.key.startsWith('playlist_')) &&
-                  _datosLote.containsKey(e.key),
-            )
-            .map((e) => e.key)
-            .toList();
-    if (retryBatchKeys.isEmpty) return;
-    for (final batchKey in retryBatchKeys) {
-      reintentarTracksFallidosLote(batchKey);
-    }
-  }
-
   /// Pre-chequeo de sesiones firmadas antes de descargar (gate premium).
   Future<bool> _verificarSesionesAntesDeDescargar() async {
     return true;

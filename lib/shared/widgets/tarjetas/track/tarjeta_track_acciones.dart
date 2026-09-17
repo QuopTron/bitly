@@ -54,6 +54,16 @@ Widget _insigniaListoDe(
   );
 }
 
+/// Envuelve el indicador en el tooltip de reintento cuando la descarga va por
+/// su segundo intento o más; si no, lo devuelve tal cual.
+Widget _conTooltipReintento(TarjetaTrack t, AppLocalizations loc, Widget hijo) {
+  if (t.intentoDescarga <= 0 || t.totalIntentosDescarga <= 0) return hijo;
+  final texto = loc.descargas.reintentoChip
+      .replaceAll('{n}', '${t.intentoDescarga}')
+      .replaceAll('{total}', '${t.totalIntentosDescarga}');
+  return Tooltip(message: texto, child: hijo);
+}
+
 Widget _clusterAccionesDe(
   TarjetaTrack t,
   BuildContext context,
@@ -67,11 +77,18 @@ Widget _clusterAccionesDe(
   Widget cluster = Row(
     mainAxisSize: MainAxisSize.min,
     children: [
-      IndicadorDescarga(
-        estado: t.mostrarAnimacionBorrar
-            ? EstadoDescarga.completado
-            : t.estadoDescarga,
-        tamano: 10,
+      // Dato de reintento en el tooltip: mientras la cola reintenta la misma
+      // canción (otra calidad/fuente) el punto se ve igual que una descarga
+      // normal, así que el detalle va acá sin tocar el layout de la tarjeta.
+      _conTooltipReintento(
+        t,
+        loc,
+        IndicadorDescarga(
+          estado: t.mostrarAnimacionBorrar
+              ? EstadoDescarga.completado
+              : t.estadoDescarga,
+          tamano: 10,
+        ),
       ),
       SizedBox(width: r.spacingS),
       Semantics(

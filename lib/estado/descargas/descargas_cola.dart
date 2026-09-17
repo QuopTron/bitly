@@ -27,6 +27,11 @@ mixin DescargasCola on DescargasColaReintento {
   /// (arriba en la cadena).
   Future<bool> _procesarTrackDeCola(_TrackEnCola track, String baseId);
 
+  /// Reintento manual de todo lo que quedó cortado — implementación concreta en
+  /// DescargasReintentoGlobal (arriba en la cadena). Se declara acá para que los
+  /// mixins intermedios (verificación) puedan pedirlo sin conocer la cola.
+  void reintentarTodosInterrumpidos();
+
   /// Procesa la cola global un track a la vez. Los lotes se procesan en FIFO:
   /// primero todos los tracks del lote 1, luego los del lote 2, etc. Un track
   /// que falla se reintenta a SÍ MISMO (con calidad degradada) antes de que el
@@ -53,6 +58,20 @@ mixin DescargasCola on DescargasColaReintento {
       }
       _log.w('[cola] ✖ $baseId agotó $_maxReintentosInSitu reintento(s) — '
           'queda interrumpido y el FIFO avanza');
+      // El usuario se entera: sin este aviso la canción quedaba en rojo sin
+      // decir por qué ni qué hacer. El motivo es el último que reportó Go.
+      //
+      // Excepción: el gate del plan free ya tiene SU propio aviso
+      // (bloquearDescarga), así que publicar además el fallo genérico mostraría
+      // un motivo interno ("gate") encima del mensaje que sí explica qué hacer.
+      if (state.gateDescargaBloqueado == null) {
+        _avisarFalloDefinitivo(
+          baseId,
+          track,
+          state.descargas[baseId]?.mensajeError ?? '',
+          necesitaUsuario: !_falloReintentable,
+        );
+      }
       _olvidarIntentos(baseId);
     }
 

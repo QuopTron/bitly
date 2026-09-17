@@ -59,6 +59,14 @@ class _AppearanceTab extends StatelessWidget {
             onStyleChanged: onStyleChanged,
           ),
           SizedBox(height: r.spacingS),
+          // ── Diseño personalizable (borde, separación y redondeo) ──
+          _DisenoCard(
+            glowColor: glowColor,
+            onBg: onBg,
+            r: r,
+            loc: loc,
+          ),
+          SizedBox(height: r.spacingS),
           // ── Language ──
           SettingsLanguageSection(
             onBg: onBg,

@@ -47,6 +47,11 @@ func InitGlobalState() string {
 
 	// Registra extension-based proveedores FIRST (puede ser overwritten por native abajo).
 	bundledExts = inicializarProviders(reg)
+	// Sin esto las extensiones no podían escribir en la carpeta de descargas del
+	// usuario (el sandbox solo permitía el CWD del proceso) y toda descarga de
+	// ytmusic/deezer/amazon/soundcloud terminaba en "not in allowed
+	// directories".
+	sincronizarDirectoriosExtensiones()
 
 	searchEngine = search.New(reg, search.DefaultConfig())
 	downloadOrch = download.NewOrchestrator(reg)

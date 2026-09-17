@@ -29,6 +29,10 @@ Widget _vistaGrilla(
       final columnas =
           disponible > 1000 ? 6 : disponible > 700 ? 4 : disponible > 340 ? 3 : 2;
       final gap = estilo ? r.spacingXS * 0.5 : r.spacingXS;
+      // Separación personalizable (Ajustes → Apariencia → Diseño): el
+      // multiplicador de fábrica reproduce el diseño de siempre.
+      final sepX = gap * AparienciaHelper.espacioX(parentCtx);
+      final sepY = gap * AparienciaHelper.espacioY(parentCtx);
       return SingleChildScrollView(
         padding: EdgeInsets.fromLTRB(
           estilo ? 2 : r.spacingS * 0.5,
@@ -78,8 +82,8 @@ Widget _vistaGrilla(
               physics: const NeverScrollableScrollPhysics(),
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: columnas,
-                mainAxisSpacing: gap,
-                crossAxisSpacing: gap,
+                mainAxisSpacing: sepY,
+                crossAxisSpacing: sepX,
                 childAspectRatio: 0.72,
               ),
               itemCount: c.items.length,

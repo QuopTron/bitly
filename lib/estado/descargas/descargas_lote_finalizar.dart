@@ -22,8 +22,11 @@ mixin DescargasLoteFinalizar on DescargasEstado {
   ) async {
     if (_lotesGuardadosCompletados.contains(batchKey)) return;
     _lotesGuardadosCompletados.add(batchKey);
+    // Solo álbumes y playlists: la cola de singles usa la key interna
+    // '_singles', que no es una colección y no debe persistirse como lote.
+    if (!esClaveDeColeccion(batchKey)) return;
     final parts = batchKey.split('_');
-    if (parts.length < 2) return;
+    if (parts.length < 3) return;
     final itemType = parts[0];
     final src = parts.last;
     final itemId = parts.sublist(1, parts.length - 1).join('_');

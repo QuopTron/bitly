@@ -30,21 +30,30 @@ func (o *Orchestrator) attemptExtensionDownload(req Request, name string, p prov
 	})
 	if !result.Success {
 		cooldown.MarkOpError(name, downloadCooldownOp, result.Error)
+		// El motivo de la extensión se registra acá: sin esta línea, un fallo de
+		// proveedor solo se veía como "fallaron todos" y era indiagnosticable.
+		log.Printf("[orchestrator] ✖ %s: itemID=%q err=%q", name, req.ItemID, result.Error)
+		// Si la extensión declara que no puede servir audio (sin cuenta propia /
+		// metadata-only), se recuerda para no volver a intentarla en cada
+		// descarga de la sesión.
+		marcarProviderSinAudio(name, result.Error)
 		if vt := clasificarErrorVerificacion(result.Error); vt != "" {
 			// Remember the verification-needing provider so we can surface it
 			// only if every provider ends up streamless.
 			o.tracker.SetError(req.ItemID, "verification required")
-			return &Result{ItemID: req.ItemID, Success: false, Error: "Download failed: " + result.Error, ErrorType: vt, Service: name}
+			return &Result{ItemID: req.ItemID, Provider: name, Success: false, Error: "Download failed: " + result.Error, ErrorType: vt, Service: name}
 		}
 		// Storage write failures cannot be solved by trying another provider —
 		// propagate the error so the fallback loop stops immediately.
 		if esFalloEscrituraAlmacenamiento(result.Error) {
-			return &Result{ItemID: req.ItemID, Success: false, Error: result.Error, ErrorType: "storage_write_failure", Service: name}
+			return &Result{ItemID: req.ItemID, Provider: name, Success: false, Error: result.Error, ErrorType: "storage_write_failure", Service: name}
 		}
-		return &Result{ItemID: req.ItemID, Success: false, Error: result.Error}
+		// Provider en el Result: el resumen de fallos final y el log necesitan
+		// saber QUÉ fuente falló (antes salían sin nombre).
+		return &Result{ItemID: req.ItemID, Provider: name, Success: false, Error: result.Error}
 	}
 	if result.FilePath == "" {
-		return &Result{ItemID: req.ItemID, Success: false, Error: fmt.Sprintf("%s: sin archivo", name)}
+		return &Result{ItemID: req.ItemID, Provider: name, Success: false, Error: fmt.Sprintf("%s: sin archivo", name)}
 	}
 	// Double-check the downloaded file is the ORIGINAL song. The extension
 	// reports the real title/artist of what it put on disk; if they don't
@@ -53,7 +62,8 @@ func (o *Orchestrator) attemptExtensionDownload(req Request, name string, p prov
 	if req.Title != "" && (result.Title != "" || result.Artist != "") {
 		if _, ok := provider.OriginalStrength(req.Title, req.Artist, provider.TrackResult{Title: result.Title, Artist: result.Artist}); !ok {
 			_ = os.Remove(result.FilePath)
-			return &Result{ItemID: req.ItemID, Success: false, Error: fmt.Sprintf("%s: archivo no es la cancion original", name)}
+			log.Printf("[orchestrator] ✖ %s: itemID=%q descartado (no es la original: %q - %q)", name, req.ItemID, result.Title, result.Artist)
+			return &Result{ItemID: req.ItemID, Provider: name, Success: false, Error: fmt.Sprintf("%s: archivo no es la cancion original", name)}
 		}
 	}
 	// Providers like amazon hand back an encrypted/DRM file (.m4a) with a
@@ -95,7 +105,8 @@ func (o *Orchestrator) attemptExtensionDownload(req Request, name string, p prov
 	}
 	if result.Encrypted {
 		_ = os.Remove(result.FilePath)
-		return &Result{ItemID: req.ItemID, Success: false, Error: fmt.Sprintf("%s: stream encriptado no reproducible", name)}
+		log.Printf("[orchestrator] ✖ %s: itemID=%q stream encriptado sin clave para descifrar", name, req.ItemID)
+		return &Result{ItemID: req.ItemID, Provider: name, Success: false, Error: fmt.Sprintf("%s: stream encriptado no reproducible", name)}
 	}
 	result.FilePath = o.applyQuality(req.ItemID, result.FilePath, outDir, req.Quality)
 	result.FilePath = finalizarArchivoDescarga(outDir, req.ItemID, result.FilePath)
@@ -112,7 +123,7 @@ func (o *Orchestrator) attemptExtensionDownload(req Request, name string, p prov
 			info, _ := os.Stat(result.FilePath)
 			log.Printf("[orchestrator] %s: downloaded file is HLS manifest (%d bytes), not audio — deleting", name, info.Size())
 			_ = os.Remove(result.FilePath)
-			return &Result{ItemID: req.ItemID, Success: false, Error: fmt.Sprintf("%s: HLS manifest, no audio data", name)}
+			return &Result{ItemID: req.ItemID, Provider: name, Success: false, Error: fmt.Sprintf("%s: HLS manifest, no audio data", name)}
 		}
 		// The archivo puede ser un DRM-encrypted container (e.g. Apple Music .m4a)
 		// that the client can decrypt via ffmpeg-kit. Return as encrypted so
@@ -125,7 +136,8 @@ func (o *Orchestrator) attemptExtensionDownload(req Request, name string, p prov
 			return &Result{ItemID: req.ItemID, Success: true, Provider: name, FilePath: result.FilePath, Encrypted: true, ClientDecrypt: true}
 		}
 		_ = os.Remove(result.FilePath)
-		return &Result{ItemID: req.ItemID, Success: false, Error: fmt.Sprintf("%s: archivo corrupto o muy pequeno", name)}
+		log.Printf("[orchestrator] ✖ %s: itemID=%q archivo no reproducible (corrupto o muy pequeño)", name, req.ItemID)
+		return &Result{ItemID: req.ItemID, Provider: name, Success: false, Error: fmt.Sprintf("%s: archivo corrupto o muy pequeno", name)}
 	}
 	cooldown.MarkOpOk(name, downloadCooldownOp)
 	o.tracker.SetOutputPath(req.ItemID, result.FilePath)

@@ -54,6 +54,11 @@ Widget _grillaDe(ContenidoFeed c, BuildContext context, Responsive r,
       final columnas =
           disponible > 1000 ? 6 : disponible > 700 ? 4 : disponible > 340 ? 3 : 2;
       final gap = estilo ? r.spacingXS * 0.5 : r.spacingXS;
+      // Separación personalizable por el usuario (Ajustes → Apariencia →
+      // Diseño). Con el multiplicador de fábrica (1) el alto y el ancho
+      // quedan exactamente como estaban.
+      final sepX = gap * AparienciaHelper.espacioX(context);
+      final sepY = gap * AparienciaHelper.espacioY(context);
       return Padding(
         padding: EdgeInsets.symmetric(horizontal: estilo ? 2 : r.spacingS * 0.5),
         child: GridView.builder(
@@ -61,8 +66,8 @@ Widget _grillaDe(ContenidoFeed c, BuildContext context, Responsive r,
           physics: const NeverScrollableScrollPhysics(),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: columnas,
-            mainAxisSpacing: gap,
-            crossAxisSpacing: gap,
+            mainAxisSpacing: sepY,
+            crossAxisSpacing: sepX,
             childAspectRatio: 0.72,
           ),
           itemCount: items.length,

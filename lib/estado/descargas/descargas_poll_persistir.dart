@@ -95,6 +95,11 @@ mixin DescargasPollPersistir on DescargasPollFinalizar {
     final fpArtist = trackName.isNotEmpty ? artistName : '';
     fps.add(huellaDesdeNombre(fpName, fpArtist));
     _completadosPersistidos.add(rawId);
+    // Ruta publicada para este item: si Go la cambia luego (mejora silenciosa
+    // a FLAC), el poll detecta el cambio y re-apunta la fila de la BD.
+    if (playablePath.isNotEmpty) {
+      _rutasPersistidasPorItem[rawId] = playablePath;
+    }
     // Registrar el archivo en el mapa local del player para reproducir desde
     // disco sin esperar una recarga de BD.
     if (playablePath.isNotEmpty) {

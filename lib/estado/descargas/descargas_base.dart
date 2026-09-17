@@ -55,6 +55,12 @@ mixin DescargasBase on DescargasBaseCaches {
   /// Clave "track_{id}_{source}" → metadata, poblada desde la BD y lotes.
   final Map<String, _InfoTrack> _metaTrack = {};
 
+  /// rawId de Go → ruta que se persistió en la BD. Sirve para detectar que Go
+  /// REEMPLAZÓ el archivo en segundo plano (mejora silenciosa a FLAC): si el
+  /// path reportado cambia, la fila y el reproductor tienen que apuntar al
+  /// nuevo o la próxima reproducción buscaría un archivo que ya no existe.
+  final Map<String, String> _rutasPersistidasPorItem = {};
+
   /// IDs normalizados que ya existen en el historial de descargas.
   final Set<String> _idsTracksDescargados = {};
 

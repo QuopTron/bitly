@@ -84,6 +84,12 @@ type Client struct {
 	sinCuentasMu sync.Mutex
 	sinCuentas   map[string]time.Time
 
+	// sitios son los sitios RASPABLES de FLAC habilitados (ver sitios_flac.go).
+	// Van aparte de los espejos porque hablan otro protocolo y solo sirven para
+	// descargar, no para reproducir.
+	sitiosMu sync.RWMutex
+	sitios   []sitioFLAC
+
 	// Canal "Qobuz firmado" (ver qobuz_firmado.go): credenciales con las que se
 	// firma la petición a la API de Qobuz. Vacías = canal apagado (estado por
 	// defecto: sin ellas no se paga ni una petición).
@@ -119,6 +125,7 @@ func NewClient() *Client {
 		http:       &http.Client{Timeout: timeoutPorPedido},
 		cache:      map[string]cacheEntry{},
 		sinCuentas: map[string]time.Time{},
+		sitios:     append([]sitioFLAC(nil), sitiosConocidos...),
 	}
 }
 
@@ -172,6 +179,7 @@ func (c *Client) SetSettings(settings map[string]string) {
 		return
 	}
 	c.aplicarAjustesEspejos(settings)
+	c.habilitarSitios(settings)
 	c.SetSettingsQobuz(settings)
 }
 

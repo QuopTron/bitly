@@ -2,28 +2,69 @@ package download
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/zarz/bitly/go_backend/internal/cooldown"
 	"github.com/zarz/bitly/go_backend/internal/provider"
 )
 
-// buildCandidates walks the try-list and keeps only providers that resolved a
-// track id for this item, reverse-verifying that a non-owner's id is the
-// ORIGINAL requested track. Bounded by maxParallelCandidates and the fallback
-// budget (maxFallbackDuration).
-func (o *Orchestrator) buildCandidates(tryOrder []string, req Request, lookKey string, st *fallbackState) []providerAttempt {
-	candidates := make([]providerAttempt, 0, maxParallelCandidates)
-	for _, name := range tryOrder {
-		// The Android RPC channel enforces un 60s tiempo de espera en getStreamPackage;
-		// Once este budget es spent we stop iniciando nuevo proveedor intentos (a
-		// provider already mid-download is never interrupted) and return a
-		// structured error inside the window instead of being killed by the
-		// client-side timeout mid-flight.
+// candidatosFeeder entrega candidatos verificados BAJO DEMANDA, en el orden del
+// try-list, a medida que la carrera le pide más.
+//
+// Por qué existe: antes la lista se cortaba en maxParallelCandidates (4) ANTES
+// de descargar nada. Como el orden arranca por los catálogos exactos
+// (amazon/deezer/qobuz) y esos pueden estar sin cuenta o rate-limited, los 4
+// puestos se llenaban con fuentes que fallan al instante y las que SÍ pueden
+// entregar audio (InnerTube/YouTube, SoundCloud, Internet Archive) nunca
+// entraban a la carrera: la descarga terminaba en "fallaron todos" aunque
+// hubiera de sobra de dónde bajarla.
+//
+// El tope ahora es de intentos SIMULTÁNEOS (maxParallelDownloads) y no de
+// candidatos totales: apenas una fuente que falla rápido libera su lugar, se
+// verifica y entra la siguiente.
+type candidatosFeeder struct {
+	o        *Orchestrator
+	req      Request
+	lookKey  string
+	st       *fallbackState
+	tryOrder []string
+
+	// mu serializa las llamadas a siguiente(): cada candidato puede requerir
+	// llamadas de red (resolver el id, verificar que sea la canción correcta) y
+	// el estado del iterador se comparte entre los intentos que van pidiendo
+	// trabajo en paralelo.
+	mu  sync.Mutex
+	pos int
+}
+
+// nuevoFeeder crea el feeder para un request.
+func (o *Orchestrator) nuevoFeeder(
+	tryOrder []string,
+	req Request,
+	lookKey string,
+	st *fallbackState,
+) *candidatosFeeder {
+	return &candidatosFeeder{o: o, req: req, lookKey: lookKey, st: st, tryOrder: tryOrder}
+}
+
+// siguiente devuelve el próximo candidato ya resuelto y verificado (que su id
+// corresponde a la canción pedida), o false si se agotó el try-list o el
+// presupuesto de búsqueda.
+func (f *candidatosFeeder) siguiente() (providerAttempt, bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	o, req, st := f.o, f.req, f.st
+	for f.pos < len(f.tryOrder) {
+		// El canal RPC de Android corta getStreamPackage a los 60s: al agotar el
+		// presupuesto no se inician intentos nuevos (uno ya en curso nunca se
+		// interrumpe) para devolver un error estructurado a tiempo.
 		if time.Since(st.fallbackStart) > maxFallbackDuration {
 			st.lastErr = "fallback: tiempo de búsqueda agotado"
-			break
+			return providerAttempt{}, false
 		}
+		name := f.tryOrder[f.pos]
+		f.pos++
 		if name == req.Provider && req.Provider == "" {
 			continue
 		}
@@ -35,33 +76,32 @@ func (o *Orchestrator) buildCandidates(tryOrder []string, req Request, lookKey s
 		if ep, ok := p.(*provider.ExtensionProvider); ok && !ep.DownloadCapable() {
 			continue
 		}
+		// Un proveedor que ya avisó que no puede servir audio (catálogo sin
+		// cuenta propia, extensión metadata-only) se salta sin gastar
+		// resolución: reintentarlo no cambia nada y quema el presupuesto que
+		// necesitan las fuentes que sí entregan archivos.
+		if providerSinAudio(name) {
+			continue
+		}
 		// Circuit breaker: skip providers cooling down from rate-limits (429).
-		// Hammering them only burns the 50s fallback budget that a later
-		// provider (soundcloud/ytmusic) needs to actually yield a stream.
 		if cooldown.IsCooledOp(name, downloadCooldownOp) {
 			continue
 		}
-		trackID, title, artist := resolucionCacheada(p, name, lookKey, req)
+		trackID, title, artist := resolucionCacheada(p, name, f.lookKey, req)
 		if trackID == "" {
 			continue
 		}
-		// A proveedor otro than el owner resuelto el canción (cross-proveedor id,
-		// ISRC or search): never download a wrong/similar song. Reverse-verify the
-		// resolved id against the requested title/artist via the provider's own
-		// record; the owner's own native id is trusted (it IS the source track).
+		// Un proveedor que no es el dueño del track resuelve el id por cruce de
+		// ids, ISRC o búsqueda: nunca se descarga una canción parecida. Se
+		// verifica contra el registro del propio proveedor; el id nativo del
+		// dueño se confía (ES la canción fuente).
 		if name != req.Provider && req.Title != "" {
 			if !confirmarMatchDescarga(p, trackID, req.ISRC, req.Title, req.Artist, req.DurationMS) {
 				st.lastErr = fmt.Sprintf("%s: el stream no es la cancion solicitada", name)
 				continue
 			}
 		}
-		candidates = append(candidates, providerAttempt{name, p, trackID, title, artist})
-		if len(candidates) >= maxParallelCandidates {
-			break
-		}
+		return providerAttempt{name, p, trackID, title, artist}, true
 	}
-	return candidates
+	return providerAttempt{}, false
 }
-
-// consumeCandidates races every candidate's download in parallel and returns
-// el primero exitoso (exact) Result, honoring el grace window para// last-resort sources and stopping early on storage write failures.

@@ -6,11 +6,17 @@
 // aceleración al mantener. La emulación de eventos de mouse vive en
 // puntero_tv_eventos.dart.
 //
+// También SIGUE al mouse real (control con giroscopio / air mouse):
+// esos controles mandan eventos de mouse de verdad, así que si el
+// cursor dibujado se quedaba en otro lado, el clic del control caía
+// sobre otra tarjeta (el "clic falso" al mover el puntero).
+//
 // Se conecta con: puntero_tv.dart (monta este estado) +
 // puntero_tv_eventos.dart.
 // Parte del flujo: entrada de usuario en TV.
 // ─────────────────────────────────────────────────────────────
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -88,6 +94,36 @@ mixin PunteroTvEstado<T extends StatefulWidget> on State<T> {
         key == LogicalKeyboardKey.numpadEnter ||
         key == LogicalKeyboardKey.gameButtonA ||
         key == LogicalKeyboardKey.space;
+  }
+
+  /// Sigue al mouse REAL (air mouse): el cursor dibujado se pone donde el
+  /// control tiene su puntero, así el clic cae donde el usuario lo ve.
+  ///
+  /// Los eventos que emite este mismo puntero se ignoran: si no, se
+  /// realimentaría consigo mismo.
+  void adoptarPunteroReal(PointerEvent evento) {
+    if (!mounted) return;
+    if (evento.device == EmisorPunteroTv.idPuntero) return;
+    if (evento.kind != PointerDeviceKind.mouse &&
+        evento.kind != PointerDeviceKind.trackpad) {
+      return;
+    }
+    final local = _local(evento.position);
+    final t = _tamano;
+    setState(() {
+      posCursor = Offset(
+        local.dx.clamp(_margenBorde, t.width - _margenBorde),
+        local.dy.clamp(_margenBorde, t.height - _margenBorde),
+      );
+      posicionadoCursor = true;
+    });
+  }
+
+  /// Pasa una posición global a coordenadas del lienzo del puntero.
+  Offset _local(Offset global) {
+    final caja = _caja;
+    if (caja == null) return global;
+    return caja.globalToLocal(global);
   }
 
   /// Handler principal del teclado.

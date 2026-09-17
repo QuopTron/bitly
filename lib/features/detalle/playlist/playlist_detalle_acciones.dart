@@ -47,7 +47,9 @@ Widget _filaAccionesPlaylist(
             : d.estadoLote == EstadoDescarga.enProgreso
                 ? const Color(0xFFFF9800)
                 : null,
-        onTap: st._estaEnLinea && !d.todosDescargados
+        // Con el lote completo (o toda la playlist contada) no hay nada que
+        // bajar: el botón queda en verde y apagado, coherente con su icono.
+        onTap: st._estaEnLinea && !loteListo
             ? () => _descargarPlaylistCompleta(st)
             : null,
       ),

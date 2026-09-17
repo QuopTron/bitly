@@ -97,9 +97,16 @@ mixin DescargasPollFallido on DescargasTrack {
           '[poll] $rawId: Go reporta failed tras $count polls — sin archivo, abandonando',
         );
         _fallidosSinArchivoCount.remove(rawId);
-        dl[stateKey] = const DatosEstadoDescarga(
+        // Habilitar el reintento EN SITIO de la cola salvo que el motivo pida
+        // al usuario (sin espacio, permiso, verificación): antes la cola
+        // avanzaba y la canción quedaba en rojo sin un segundo intento.
+        _falloReintentable = falloDescargaReintentable(
+          (p['error'] ?? p['errorType'] ?? '').toString(),
+        );
+        dl[stateKey] = DatosEstadoDescarga(
           estado: EstadoDescarga.interrumpido,
           progreso: 0.0,
+          mensajeError: (p['error'] ?? '').toString(),
         );
         _completadosPersistidos.add(rawId);
         _senializarTrackTerminado(stateKey);
@@ -114,9 +121,13 @@ mixin DescargasPollFallido on DescargasTrack {
       }
       return true;
     }
-    dl[stateKey] = const DatosEstadoDescarga(
+    _falloReintentable = falloDescargaReintentable(
+      (p['error'] ?? p['errorType'] ?? '').toString(),
+    );
+    dl[stateKey] = DatosEstadoDescarga(
       estado: EstadoDescarga.interrumpido,
       progreso: 0.0,
+      mensajeError: (p['error'] ?? '').toString(),
     );
     _iniciadosEn.remove(stateKey);
     _senializarTrackTerminado(stateKey);

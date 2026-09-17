@@ -25,6 +25,22 @@ type fallbackState struct {
 	encryptedSeen       bool
 	verificationSeen    bool
 	verificationService string
+
+	// fallosPorProveedor guarda el motivo de cada candidata que falló, en el
+	// orden en que se intentaron. Sirve para el log de diagnóstico y para que el
+	// mensaje final diga en QUÉ falló cada fuente, no solo que "fallaron todas".
+	fallosPorProveedor []string
+}
+
+// registrarFallo anota el motivo de una candidata fallida.
+func (st *fallbackState) registrarFallo(provider, err string) {
+	if strings.TrimSpace(err) == "" {
+		return
+	}
+	if provider == "" {
+		provider = "?"
+	}
+	st.fallosPorProveedor = append(st.fallosPorProveedor, provider+": "+err)
 }
 
 // Download executes a single download with provider fallback.
@@ -62,6 +78,14 @@ func (o *Orchestrator) Download(req Request) *Result {
 		outDir = GlobalOutputDir()
 	}
 
+	// Restos de intentos anteriores (temporales de la descarga por tramos,
+	// copias de etiquetado interrumpidas) no deben quedarse en la carpeta del
+	// usuario: los compañeros de esta misma carrera siguen corriendo aunque el
+	// primero ya haya ganado y, si el proceso muere, su temporal nunca se
+	// borra. Se limpia como mucho una vez cada diez minutos por carpeta y
+	// nunca sobre archivos recién escritos (podrían estar en vuelo).
+	limpiarRestosSiCorresponde(outDir)
+
 	st := &fallbackState{fallbackStart: time.Now()}
 
 	// Enrich the request's ISRC when the feed item didn't carry one (e.g.
@@ -98,26 +122,43 @@ func (o *Orchestrator) Download(req Request) *Result {
 	// brand-new track starts immediately on slow sources.
 	tryOrder := o.warmResolveAndOrder(providersToTry, req, lookKey)
 
-	// Construye el candidate lista: cada proveedor que resuelto un canción id para
-	// Este item. este fase solo resolves + reverse-verifies (sin network
-	// download) and is bounded so we never spend the whole budget enumerating.
-	candidates := o.buildCandidates(tryOrder, req, lookKey, st)
-
-	// Fire every candidate's download in parallel ("second plans" delegated to
-	// goroutines). The first source to yield a playable, verified file wins;
-	// el remaining companions mantener running pero su resultados son discarded y
-	// their partial ".tmp." files are never served (StreamCacheFile skips them).
-	// This convierte el previamente serial 50s budget en un race where the
-	// fastest working source starts producing the file immediately.
-	if len(candidates) > 0 {
-		if res := o.consumeCandidates(candidates, req, outDir, st); res != nil {
-			// Etiquetas + carátula DENTRO del archivo, best-effort: el usuario
-			// descargó una canción completa, no un stream suelto.
-			o.etiquetarDescarga(res, req)
-			return res
-		}
+	// La carrera pide candidatos AL FEEDER a medida que libera lugares en vez de
+	// recibir una lista cortada de antemano: los catálogos sin cuenta fallan al
+	// instante y en su lugar entran las fuentes que sí pueden entregar audio
+	// (InnerTube/YouTube, SoundCloud, Internet Archive) dentro del presupuesto.
+	feeder := o.nuevoFeeder(tryOrder, req, lookKey, st)
+	if res := o.consumeCandidates(feeder, req, outDir, st); res != nil {
+		// Etiquetas + carátula DENTRO del archivo, best-effort: el usuario
+		// descargó una canción completa, no un stream suelto.
+		o.etiquetarDescarga(res, req)
+		// Mejora silenciosa a sin pérdida: la canción YA está entregada (con
+		// pérdida si el ganador fue InnerTube/SoundCloud) y el FLAC se busca
+		// después, en segundo plano. No retrasa esta descarga ni la cola.
+		o.solicitarMejoraFLAC(req, outDir, res)
+		return res
 	}
 
-	o.tracker.SetError(req.ItemID, "all providers failed")
-	return st.finalResult(req.ItemID)
+	// ÚLTIMO recurso, invisible: Last.fm publica el video OFICIAL de YouTube de
+	// cada pista (el del propio canal del artista). Si todas las fuentes
+	// fallaron, se pide el audio por ESE id, sin búsqueda por nombre — que es
+	// justo lo que suele fallar. Cacheado, y con el sitio en pausa si devolvió
+	// su desafío anti-bot.
+	if res := o.intentarConVideoOficial(req, outDir, st); res != nil {
+		o.etiquetarDescarga(res, req)
+		o.solicitarMejoraFLAC(req, outDir, res)
+		return res
+	}
+
+	// El motivo REAL (no "all providers failed") va al tracker y al log: es lo
+	// único que ve el usuario en el aviso de descarga y lo único que permite
+	// diagnosticar sin volver a reproducir el fallo. Antes el tracker recibía
+	// siempre el texto genérico y los errores de cada proveedor se perdían en
+	// st.lastErr sin registrarse en ningún lado.
+	final := st.finalResult(req.ItemID)
+	o.tracker.SetError(req.ItemID, final.Error)
+	log.Printf(
+		"[orchestrator] ✖ FAILED itemID=%q provider=%q type=%q err=%q",
+		req.ItemID, final.Provider, final.ErrorType, final.Error,
+	)
+	return final
 }

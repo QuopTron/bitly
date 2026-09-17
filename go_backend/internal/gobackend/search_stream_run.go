@@ -32,6 +32,12 @@ func runSearchStream(gen int64, query string, limit int, source string, searchTy
 		}
 	}
 
+	// Red de identidad: si las extensiones no devolvieron NINGUNA canción,
+	// Last.fm aporta el nombre canónico y el video oficial de YouTube (ver
+	// search_lastfm_rescate.go). Va antes de marcar `done` para que la lista
+	// llegue completa en el último sondeo.
+	reforzarBusquedaConLastfm(gen, query, source, searchType)
+
 	currentSearchStream.mu.Lock()
 	if currentSearchStream.generation == gen {
 		currentSearchStream.done = true

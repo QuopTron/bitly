@@ -45,6 +45,8 @@ mixin DescargasEstado on DescargasEstadoReintento {
   /// Marca [baseId] como bloqueada por el gate free (ventana de 8h expirada),
   /// muestra el [mensaje] en la UI y libera el procesador de la cola.
   void bloquearDescarga(String baseId, String mensaje) {
+    // Necesita al usuario: reintentar repetiría el mismo aviso.
+    _falloReintentable = false;
     final dl = Map<String, DatosEstadoDescarga>.from(state.descargas);
     dl[baseId] = DatosEstadoDescarga(
       estado: EstadoDescarga.interrumpido,

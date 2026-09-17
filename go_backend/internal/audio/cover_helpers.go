@@ -32,10 +32,6 @@ func writeBE32(buf *bytes.Buffer, v uint32) {
 	buf.Write([]byte{byte(v >> 24), byte(v >> 16), byte(v >> 8), byte(v)})
 }
 
-func encodeBE32(v uint32) []byte {
-	return []byte{byte(v >> 24), byte(v >> 16), byte(v >> 8), byte(v)}
-}
-
 func detectMIME(data []byte) string {
 	if len(data) < 4 {
 		return "image/jpeg"
@@ -82,31 +78,4 @@ func buildAPICFrameData(mimeBytes, coverData []byte) []byte {
 	data[sizePos+2] = byte(frameSize >> 8)
 	data[sizePos+3] = byte(frameSize)
 	return data
-}
-
-func findAtom(data []byte, atomName string) int {
-	for i := 0; i <= len(data)-8; i++ {
-		if string(data[i+4:i+8]) == atomName {
-			return i
-		}
-		if i+4 <= len(data) {
-			size := int(data[i])<<24 | int(data[i+1])<<16 |
-				int(data[i+2])<<8 | int(data[i+3])
-			if size > 0 {
-				i += size - 1
-			} else {
-				break
-			}
-		}
-	}
-	return -1
-}
-
-func findAtomIn(data []byte, atomName string) int {
-	for i := 0; i <= len(data)-8; i++ {
-		if string(data[i+4:i+8]) == atomName {
-			return i
-		}
-	}
-	return -1
 }

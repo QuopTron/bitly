@@ -62,7 +62,9 @@ import '../../tutorial_interactivo/motor/tutorial_pasos.dart';
 import '../../../shared/widgets/tarjetas/portada/imagen_portada.dart'
     show ImagenPortada, imagenDesdeUrl;
 import '../../../core/modelos/usuario/estilo_visual.dart';
+import '../../../core/modelos/usuario/preferencias_apariencia.dart';
 import '../../../core/modelos/usuario/preferencias_estilo.dart';
+import '../../../shared/utilidades/formato/apariencia_helper.dart';
 import '../../../core/modelos/usuario/perfil_rendimiento.dart';
 import '../../../shared/widgets/vidrio/desenfoque_adaptativo.dart';
 part 'settings_sheet_entry.dart';
@@ -70,6 +72,8 @@ part 'settings_sheet_entry.dart';
 part 'settings_sheet_background.dart';
 part 'settings_sheet_profile_header.dart';
 part 'settings_sheet_appearance.dart';
+part 'settings_sheet_appearance_diseno.dart';
+part 'settings_sheet_appearance_diseno_piezas.dart';
 part 'settings_sheet_appearance_theme.dart';
 part 'settings_sheet_appearance_style.dart';
 part 'settings_sheet_appearance_granular.dart';

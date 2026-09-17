@@ -1,7 +1,7 @@
 name: bitly
 description: Download Spotify tracks in FLAC from Tidal, Qobuz & Deezer
 publish_to: "none"
-version: 0.9.21+16069
+version: 0.9.22+16070
 
 environment:
   sdk: ^3.7.0

@@ -62,7 +62,17 @@ class _PunteroTvState extends State<PunteroTv> with PunteroTvEstado<PunteroTv> {
     return Stack(
       fit: StackFit.expand,
       children: [
-        widget.child,
+        // El contenido escucha los eventos de puntero SOLO para seguir al
+        // mouse real (air mouse / control con giroscopio): así el cursor
+        // dibujado y el del control son el mismo y el clic cae donde se ve.
+        // `translucent` deja pasar los eventos al árbol de gestos de siempre.
+        Listener(
+          behavior: HitTestBehavior.translucent,
+          onPointerHover: adoptarPunteroReal,
+          onPointerMove: adoptarPunteroReal,
+          onPointerDown: adoptarPunteroReal,
+          child: widget.child,
+        ),
         Positioned(
           left: posCursor.dx - PunteroTv.radio,
           top: posCursor.dy - PunteroTv.radio,

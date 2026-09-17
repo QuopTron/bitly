@@ -61,6 +61,10 @@ func SetDownloadDirectory(payload string) string {
 	// el writable aplicación dir so un verificado sesión survives restarts (embedded
 	// sandboxes otherwise use "." on Android and can't write).
 	extensions.SetSignedSessionDataDir(filepath.Join(params.Path, ".bitly_sessions"))
+	// El sandbox de extensiones debe poder escribir en la carpeta nueva: si el
+	// usuario la mueve en Ajustes y no se republica, la próxima descarga falla
+	// con "not in allowed directories".
+	sincronizarDirectoriosExtensiones()
 	return `{"ok":true}`
 }
 
@@ -87,6 +91,9 @@ func SetBackendConfig(payload string) string {
 	if params.StreamChunkSize > 0 {
 		streaming.SetChunkSize(params.StreamChunkSize)
 	}
+	// El tamaño/carpeta de la caché de streaming cambia la lista de directorios
+	// escribibles de las extensiones (ver extensions_dirs.go).
+	sincronizarDirectoriosExtensiones()
 	return `{"ok":true}`
 }
 

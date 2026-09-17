@@ -32,6 +32,7 @@ import '../../core/modelos/ajustes_descarga.dart';
 import '../../core/modelos/feed/item_feed.dart';
 import '../../core/servicios/descarga/acceso_descarga.dart';
 import '../../core/servicios/descargas/escalado_calidad.dart';
+import '../../core/servicios/descargas/fallo_reintentable.dart';
 import '../../core/servicios/desencriptado/desencriptado_stream.dart';
 import '../../shared/utilidades/descarga/estrategia_descarga.dart';
 import '../../core/servicios/utilidades/huella_item.dart';
@@ -39,6 +40,8 @@ import '../../core/servicios/verificacion/servicio_verificacion.dart';
 import '../../core/servicios/utilidades/utilidades_id.dart';
 import '../like/cubit_like.dart';
 import '../reproductor/cubit_reproductor.dart';
+import 'lote_restaurado.dart';
+import 'track_descargado.dart';
 
 part 'descargas_modelos.dart';
 part 'descargas_base.dart';
@@ -47,6 +50,7 @@ part 'descargas_reparar_decrypt.dart';
 part 'descargas_reparar_escaneo.dart';
 part 'descargas_polling.dart';
 part 'descargas_carga_tracks.dart';
+part 'descargas_carga_lotes_caratulas.dart';
 part 'descargas_carga_lotes.dart';
 part 'descargas_carga.dart';
 part 'descargas_cola_verificar.dart';
@@ -60,6 +64,7 @@ part 'descargas_acceso.dart';
 part 'descargas_inicio.dart';
 part 'descargas_inicio_album.dart';
 part 'descargas_inicio_playlist.dart';
+part 'descargas_reintento_global.dart';
 part 'descargas_borrar.dart';
 part 'descargas_borrar_playlist.dart';
 part 'descargas_borrar_lote.dart';
@@ -91,6 +96,7 @@ class CubitDescargas extends Cubit<EstadoCubitDescargas>
         DescargasRepararEscaneo,
         DescargasPolling,
         DescargasCargaTracks,
+        DescargasCargaLotesCaratulas,
         DescargasCargaLotes,
         DescargasCarga,
         DescargasColaVerificar,
@@ -105,6 +111,7 @@ class CubitDescargas extends Cubit<EstadoCubitDescargas>
         DescargasInicio,
         DescargasInicioAlbum,
         DescargasInicioPlaylist,
+        DescargasReintentoGlobal,
         DescargasBorrar,
         DescargasBorrarPlaylist,
         DescargasBorrarLote,

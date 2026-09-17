@@ -22,13 +22,18 @@ type Metadata struct {
 	Genre       string `json:"genre"`
 	ISRC        string `json:"isrc"`
 	DurationMs  int    `json:"durationMs"`
-	SampleRate  int    `json:"sampleRate"`
-	BitDepth    int    `json:"bitDepth"`
-	Bitrate     int    `json:"bitrate"`
-	Format      string `json:"format"` // flac, mp3, m4a, ogg, wav, aiff
-	HasCover    bool   `json:"hasCover"`
-	FilePath    string `json:"filePath"`
-	FileSize    int64  `json:"fileSize"`
+	// DuracionExacta indica que DurationMs salió de una cabecera real (FLAC
+	// STREAMINFO, MP3 Xing/frames, MP4 mvhd, WAV PCM) y no de una estimación por
+	// tamaño ÷ bitrate. Sin este dato nadie debe decidir en base a la duración
+	// (el guard anti-preview rechazaba canciones completas por una estimación).
+	DuracionExacta bool   `json:"duracionExacta,omitempty"`
+	SampleRate     int    `json:"sampleRate"`
+	BitDepth       int    `json:"bitDepth"`
+	Bitrate        int    `json:"bitrate"`
+	Format         string `json:"format"` // flac, mp3, m4a, ogg, wav, aiff
+	HasCover       bool   `json:"hasCover"`
+	FilePath       string `json:"filePath"`
+	FileSize       int64  `json:"fileSize"`
 }
 
 // ReadFileMetadata reads tags from an audio file based on its extension.

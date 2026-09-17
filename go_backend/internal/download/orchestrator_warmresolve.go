@@ -119,7 +119,6 @@ func (o *Orchestrator) warmResolveAndOrder(providersToTry []string, req Request,
 	return tryOrder
 }
 
-// buildCandidates walks the try-list and keeps only providers that resolved a
-// track id for this item, reverse-verifying that a non-owner's id is the
-// ORIGINAL requested track. Bounded by maxParallelCandidates and the fallback
-// budget (maxFallbackDuration).
+// (Los candidatos ya no se arman acá como lista fija: los entrega
+// candidatosFeeder en orchestrator_candidates.go a medida que la carrera libera
+// lugares, respetando el presupuesto maxFallbackDuration.)

@@ -32,6 +32,7 @@ import '../core/cache/reproduccion/reproduccion_detalle_local.dart';
 import '../core/cache/reproduccion/reproduccion_sync.dart';
 import '../core/modelos/usuario/estilo_visual.dart';
 import '../core/modelos/usuario/perfil_rendimiento.dart';
+import '../core/modelos/usuario/preferencias_apariencia.dart';
 import '../core/modelos/usuario/preferencias_estilo.dart';
 import '../core/servicios/playlist/servicio_dominio_playlist.dart';
 import '../features/setup/bloc/setup_bloc.dart';
@@ -60,6 +61,10 @@ Future<void> configurarDependencias() async {
   );
   sl.registerLazySingleton<ValueNotifier<PreferenciasEstilo>>(
     () => ValueNotifier(const PreferenciasEstilo()),
+  );
+  // Diseño personalizable (borde del reproductor, separación y redondeo).
+  sl.registerLazySingleton<ValueNotifier<PreferenciasApariencia>>(
+    () => ValueNotifier(PreferenciasApariencia.deFabrica),
   );
   sl.registerLazySingleton<ValueNotifier<PerfilRendimiento>>(
     () => ValueNotifier(PerfilRendimiento.medio),

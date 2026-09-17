@@ -61,10 +61,19 @@ mixin DescargasPollLotes on DescargasPollItem {
           // más tarde (manual o vía retry) pueda elevarlo a completado.
           // Auto-retry hasta _maxReintentosAutoLote veces para que el lote
           // quede verde sin intervención manual.
-          dl[batchKey] = DatosEstadoDescarga(
-            estado: EstadoDescarga.ninguno,
-            progreso: progreso,
-          );
+          //
+          // Solo se emite si el progreso CAMBIÓ: un lote parcial restaurado de
+          // la BD se revisa en cada ciclo de poll y reasignar el mismo valor
+          // dispararía un rebuild de toda la UI cada 3 s.
+          final previo = dl[batchKey];
+          if (previo?.estado != EstadoDescarga.ninguno ||
+              previo?.progreso != progreso) {
+            dl[batchKey] = DatosEstadoDescarga(
+              estado: EstadoDescarga.ninguno,
+              progreso: progreso,
+            );
+            changed = true;
+          }
           final retryCount = _reintentosAutoPorLote[batchKey] ?? 0;
           // Recolectar los IDs fallidos de este lote.
           final failedIds = <String>{};
@@ -99,11 +108,15 @@ mixin DescargasPollLotes on DescargasPollItem {
         }
         changed = true;
       } else if (completados > 0) {
-        dl[batchKey] = DatosEstadoDescarga(
-          estado: EstadoDescarga.enProgreso,
-          progreso: progreso,
-        );
-        changed = true;
+        final previo = dl[batchKey];
+        if (previo?.estado != EstadoDescarga.enProgreso ||
+            previo?.progreso != progreso) {
+          dl[batchKey] = DatosEstadoDescarga(
+            estado: EstadoDescarga.enProgreso,
+            progreso: progreso,
+          );
+          changed = true;
+        }
       }
     }
     return changed;

@@ -5,45 +5,6 @@ import (
 	"encoding/binary"
 )
 
-func inyectarFreeformEnUdta(udtaAtom []byte, tags map[string]string) []byte {
-	var buf bytes.Buffer
-	buf.Write(udtaAtom[:8]) // keep header
-
-	offset := 8
-	for offset < len(udtaAtom) {
-		if offset+8 > len(udtaAtom) {
-			buf.Write(udtaAtom[offset:])
-			break
-		}
-		atomSize := int(udtaAtom[offset])<<24 | int(udtaAtom[offset+1])<<16 | int(udtaAtom[offset+2])<<8 | int(udtaAtom[offset+3])
-		if atomSize < 8 || offset+atomSize > len(udtaAtom) {
-			buf.Write(udtaAtom[offset:])
-			break
-		}
-		buf.Write(udtaAtom[offset : offset+atomSize])
-		offset += atomSize
-	}
-
-	// Append freeform atoms
-	for key, value := range tags {
-		if value == "" {
-			continue
-		}
-		freeAtom := construirAtomoFreeform(key, value)
-		buf.Write(freeAtom)
-	}
-
-	// Update size
-	size := buf.Len()
-	out := buf.Bytes()
-	out[0] = byte(size >> 24)
-	out[1] = byte(size >> 16)
-	out[2] = byte(size >> 8)
-	out[3] = byte(size)
-
-	return out
-}
-
 func construirAtomoFreeform(key, value string) []byte {
 	// iTunes freeform: ----:com.apple.iTunes:KEY
 	atomKey := "----:com.apple.iTunes:" + key

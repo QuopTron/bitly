@@ -35,6 +35,10 @@ var fuentesSoloRespaldo = map[string]bool{
 	"soulseek":        true, // P2P; su búsqueda es por nombre de archivo, no por catálogo
 	"redacted":        true, // torrent privado de FLAC
 	"musicbrainz":     true, // solo metadata/ISRC, no entrega audio
+	// Last.fm es la capa de IDENTIDAD: nombres canónicos y el video oficial
+	// de YouTube. No entrega audio, así que no es un catálogo que se le pueda
+	// ofrecer al usuario; trabaja por dentro (ver provider/lastfm).
+	"lastfm": true,
 }
 
 // esFuenteDeBusqueda dice si un proveedor puede ofrecerse/evaluarse como fuente

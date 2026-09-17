@@ -23,6 +23,10 @@ const iconosFuente = <String, IconData>{
   'qobuz-web': Icons.album,
   'tidal-web': Icons.waves,
   'ytmusic-spotiflac': Icons.play_circle_fill,
+  // El audio sale de YouTube sí o sí, así que un resultado identificado por
+  // Last.fm (nombre canónico + video oficial) entra con este id y se muestra
+  // como YouTube: es de donde se va a reproducir.
+  'youtube': Icons.play_circle_fill,
   'internetarchive': Icons.library_books,
 };
 
@@ -66,6 +70,7 @@ const etiquetasFuente = {
   'qobuz-web': 'Qobuz',
   'tidal-web': 'TIDAL',
   'ytmusic-spotiflac': 'YouTube',
+  'youtube': 'YouTube',
   'internetarchive': 'Internet Archive',
 };
 

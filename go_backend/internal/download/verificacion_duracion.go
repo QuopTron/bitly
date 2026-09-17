@@ -22,7 +22,12 @@ import (
 
 // fraccionDuracionMinima es la proporción mínima que un archivo debe durar
 // respecto de la canción pedida. Un preview/clip queda muy por debajo.
-const fraccionDuracionMinima = 0.55
+//
+// Es holgada a propósito: existen ediciones (radio edit, versión de álbum vs
+// sencillo) que legítimamente duran bastante menos, y rechazar una descarga
+// buena es peor que aceptar un clip — de un clip el usuario se da cuenta y
+// vuelve a intentar; de una descarga buena rechazada, no.
+const fraccionDuracionMinima = 0.5
 
 // duracionMinimaCatalogoMs: por debajo de esto no se aplica el guard (clips
 // promocionales, intros y tracks cortos legítimos existen).
@@ -31,16 +36,22 @@ const duracionMinimaCatalogoMs = 60000
 // esDuracionPlausible reporta si un archivo descargado dura lo suficiente como
 // para ser la canción pedida y no un preview.
 //
-// Devuelve true (aceptar) cuando no hay datos para juzgar: sin duración de
-// catálogo, sin archivo, o cuando la duración del archivo no se pudo leer
-// (formatos encriptados que se descifran más adelante). El guard solo rechaza
-// cuando PUEDE CONFIRMAR que el archivo es un clip.
+// Devuelve true (aceptar) salvo que PUEDA CONFIRMAR que el archivo es un clip.
+// "Confirmar" exige que la duración sea REAL (meta.DuracionExacta): cuando era
+// una estimación por tamaño ÷ bitrate supuesto, una canción completa de 200s se
+// medía como 87s y este guard tiraba descargas buenas dejando al usuario sin
+// música. Sin dato fiable no se juzga (mismo criterio que un archivo encriptado
+// que se descifra más adelante).
 func esDuracionPlausible(filePath string, duracionCatalogoMs int) bool {
 	if filePath == "" || duracionCatalogoMs < duracionMinimaCatalogoMs {
 		return true
 	}
 	meta, err := audio.ReadFileMetadata(filePath)
 	if err != nil || meta == nil || meta.DurationMs <= 0 {
+		return true
+	}
+	if !meta.DuracionExacta {
+		// Duración estimada: no alcanza para rechazar nada.
 		return true
 	}
 	limite := int(float64(duracionCatalogoMs) * fraccionDuracionMinima)

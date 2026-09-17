@@ -61,6 +61,17 @@ class ServicioDeepLink {
     } catch (e) { debugPrint("[App] $e"); }
   }
 
+  /// Guarda un enlace para cuando la raíz de la app lo consuma (lo usa el
+  /// router cuando el enlace llega como URL: web/PWA, donde no hay canal
+  /// nativo que lo reenvíe). No emite nada todavía: si la app está
+  /// arrancando, el pendiente se toma en el initState y la carta aparece
+  /// apenas se sale del splash.
+  void guardarPendiente(DatosDeepLink datos) {
+    final compartido = datos.compartido;
+    if (compartido != null) _registrarCompartido(compartido);
+    _linkPendiente = datos;
+  }
+
   /// Emite un link armado dentro de la app (p. ej. un enlace de Bitly que
   /// llegó por el share sheet de Android y se tradujo a DatosDeepLink).
   void emitir(DatosDeepLink datos) {

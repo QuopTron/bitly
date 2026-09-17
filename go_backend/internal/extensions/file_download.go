@@ -92,19 +92,32 @@ func registerFileDownload(s *Sandbox, fileObj *goja.Object) {
 }
 
 // resolverRuta comprueba que la ruta este dentro de los directorios permitidos.
+//
+// Dos fuentes: la lista del manifest (casi siempre {"."}, el CWD del proceso)
+// y los directorios REALES de la app (carpeta de descargas del usuario, caché
+// de streaming, datos), registrados con SetDirectoriosPermitidos. Sin la
+// segunda, la descarga de cualquier extensión fallaba con "not in allowed
+// directories" apenas el usuario elegía una carpeta fuera del CWD.
 func resolverRuta(s *Sandbox, path string) (string, error) {
 	abs, err := filepath.Abs(path)
 	if err != nil {
 		return "", err
 	}
-	if len(s.Config.AllowedDirs) == 0 {
+	if len(s.Config.AllowedDirs) == 0 && len(DirectoriosPermitidos()) == 0 {
 		return "", fmt.Errorf("file operations not allowed (no allowed dirs)")
 	}
 	for _, dir := range s.Config.AllowedDirs {
-		allowed, _ := filepath.Abs(dir)
-		if strings.HasPrefix(abs, allowed) {
+		allowed, err := filepath.Abs(dir)
+		if err != nil {
+			continue
+		}
+		if dentroDeRuta(abs, allowed) {
 			return abs, nil
 		}
 	}
-	return "", fmt.Errorf("path %s is not in allowed directories", path)
+	if rutaPermitida(abs) {
+		return abs, nil
+	}
+	return "", fmt.Errorf("path %s is not in allowed directories (%s)",
+		path, strings.Join(DirectoriosPermitidos(), ", "))
 }

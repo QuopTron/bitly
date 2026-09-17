@@ -52,6 +52,13 @@ mixin DescargasBaseCaches on Cubit<EstadoCubitDescargas> {
   Completer<void>? _completadorTrackActual;
   String? _idTrackActualCola;
 
+  /// Último trackMap con el que se intentó cada baseId (título, artista, ISRC,
+  /// duración, item_id). Permite reintentar una canción que quedó en fallo
+  /// definitivo desde el aviso de descarga, con los MISMOS datos del intento
+  /// original: sin esto, reintentar exigiría volver a armar la metadata y el
+  /// guard anti-preview se quedaría sin duración de referencia.
+  final Map<String, Map<String, dynamic>> _trackMapPorBaseId = {};
+
   /// Map de IDs de extensión → nombres amigables para mostrar.
   final Map<String, String> _nombresMostrarProveedor = {
     'deezer': 'Deezer',

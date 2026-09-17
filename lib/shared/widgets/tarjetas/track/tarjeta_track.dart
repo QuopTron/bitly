@@ -41,6 +41,13 @@ class TarjetaTrack extends StatelessWidget {
   final bool esAmado;
   final VoidCallback? onLike;
   final EstadoDescarga estadoDescarga;
+
+  /// Reintento en sitio ya consumido y cuántos hay en total (0 = intento
+  /// original). Con intento > 0 la tarjeta marca la descarga como "en
+  /// reintento" para que el usuario entienda por qué vuelve a empezar.
+  final int intentoDescarga;
+  final int totalIntentosDescarga;
+
   final VoidCallback? onDescargar;
   final VoidCallback? onPausar;
   final VoidCallback? onBorrar;
@@ -72,6 +79,8 @@ class TarjetaTrack extends StatelessWidget {
     this.esAmado = false,
     this.onLike,
     this.estadoDescarga = EstadoDescarga.ninguno,
+    this.intentoDescarga = 0,
+    this.totalIntentosDescarga = 0,
     this.onDescargar,
     this.onPausar,
     this.onBorrar,

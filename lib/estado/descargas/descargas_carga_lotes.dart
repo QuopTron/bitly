@@ -1,16 +1,24 @@
 // ─────────────────────────────────────────────────────────────
 // descargas_carga_lotes.dart — PART de cubit_descargas.dart:
-// restauración de lotes (álbumes/playlists) desde downloaded_batches
-// (marca completado, puebla _metaLote y _batchTrackIds) y backfill
-// de carátulas: tracks sin cover adoptan la del álbum amado y lotes
-// sin cover adoptan la del primer track con una.
+// restauración de lotes (álbumes/playlists) desde downloaded_batches.
+//
+// La fila del lote se escribe al EMPEZAR la descarga, así que acá NO
+// se confía en ella: cada lote se marca completado solo si TODOS sus
+// tracks están de verdad descargados (ver lote_restaurado.dart); si
+// falta alguno queda parcial con su progreso y sigue vivo para que
+// bajar los que faltan lo eleve a completado. Las claves que no son
+// de colección (la cola de singles guarda '_singles') se descartan.
+//
+// El backfill de carátulas vive en
+// descargas_carga_lotes_caratulas.dart.
+// Se conecta con: descargas_carga_lotes_caratulas.dart (misma library).
 // Parte del flujo: descargas (carga del historial).
 // ─────────────────────────────────────────────────────────────
 
 part of 'cubit_descargas.dart';
 
-mixin DescargasCargaLotes on DescargasCargaTracks {
-  /// Bloque 2 de _cargarHistorial: lotes desde la BD + backfill de carátulas.
+mixin DescargasCargaLotes on DescargasCargaLotesCaratulas {
+  /// Bloque 2 de _cargarHistorial: lotes desde la BD (verificados).
   Future<(Map<String, DatosEstadoDescarga>, bool)>
   _cargarHistorialLotes() async {
     final completados = <String, DatosEstadoDescarga>{};
@@ -20,155 +28,98 @@ mixin DescargasCargaLotes on DescargasCargaTracks {
       desde: _ultimoTimestampLotes,
     );
     final mapaTrackALote = <String, String>{};
+    final clavesBasura = <String>[];
     if (lotesJson.isNotEmpty && lotesJson != '[]') {
       final lista = jsonDecode(lotesJson) as List;
       for (final e in lista) {
         final m = e as Map<String, dynamic>;
         final batchKey = (m['batch_key'] ?? '') as String;
         if (batchKey.isEmpty) continue;
-        completados[batchKey] = const DatosEstadoDescarga(
-          estado: EstadoDescarga.completado,
-          progreso: 1.0,
+        if (!esClaveDeColeccion(batchKey)) {
+          clavesBasura.add(batchKey);
+          continue;
+        }
+        final source = (m['source'] ?? '') as String;
+        final idStrings = idsStateKeysDeLote((m['track_ids'] ?? '') as String);
+        final r = evaluarLoteRestaurado(
+          idStrings,
+          (stateKey) => _loteTrackDescargado(stateKey, source),
         );
+        completados[batchKey] = estadoDeLoteRestaurado(r);
+        if (!r.completo) {
+          _log.i(
+            '[cargarHistorial] lote parcial $batchKey: '
+            '${r.listos}/${r.total} tracks en disco',
+          );
+        }
         cambiado = true;
         final nombre = (m['name'] ?? '') as String;
         final itemType = (m['item_type'] ?? '') as String;
         final itemId = (m['item_id'] ?? '') as String;
-        final source = (m['source'] ?? '') as String;
         if (nombre.isNotEmpty) {
-          var coverUrlLote = (m['cover_url'] ?? '') as String;
-          var coverPathLote = (m['cover_path'] ?? '') as String;
-          if (coverUrlLote.isEmpty && coverPathLote.isEmpty) {
-            final trackIdsRaw = (m['track_ids'] ?? '') as String;
-            if (trackIdsRaw.isNotEmpty) {
-              try {
-                final idsParseados = jsonDecode(trackIdsRaw) as List;
-                for (final tid in idsParseados) {
-                  String stateKey;
-                  if (tid is Map<String, dynamic>) {
-                    stateKey = (tid['id'] ?? '') as String;
-                    if (coverUrlLote.isEmpty) {
-                      coverUrlLote = (tid['cover'] ?? '') as String;
-                    }
-                  } else {
-                    stateKey = tid.toString();
-                  }
-                  final meta = _metaTrack[stateKey];
-                  if (meta != null &&
-                      ((meta.coverPath?.isNotEmpty ?? false) ||
-                          (meta.coverUrl?.isNotEmpty ?? false))) {
-                    coverPathLote = meta.coverPath ?? '';
-                    coverUrlLote = meta.coverUrl ?? '';
-                    break;
-                  }
-                }
-              } catch (e) {
-                debugPrint("[Descargas] $e");
-              }
-            }
-          }
+          final cover = _coverDeLote(m, idStrings);
           _metaLote[batchKey] = _MetaLote(
             nombre,
             itemType,
             itemId,
             source,
-            coverUrl: coverUrlLote,
-            coverPath: coverPathLote,
+            coverUrl: cover.url,
+            coverPath: cover.path,
           );
         }
-        // Mapa inverso: trackId → batchKey y _batchTrackIds para el backfill.
-        final trackIdsRaw = (m['track_ids'] ?? '') as String;
-        if (trackIdsRaw.isNotEmpty) {
-          try {
-            final idsParseados = jsonDecode(trackIdsRaw) as List;
-            final idStrings = <String>[];
-            for (final entry in idsParseados) {
-              if (entry is String) {
-                idStrings.add(entry);
-              } else if (entry is Map<String, dynamic>) {
-                final id = (entry['id'] ?? '') as String;
-                if (id.isNotEmpty) idStrings.add(id);
-              }
-            }
-            _batchTrackIds[batchKey] = idStrings;
-            for (final stateKey in idStrings) {
-              mapaTrackALote[normalizarId(stateKey)] = batchKey;
-            }
-          } catch (e) {
-            debugPrint("[Descargas] $e");
+        // Mapa inverso: trackId → batchKey y _batchTrackIds. Los lotes
+        // parciales también entran: así el poll puede elevarlos a
+        // completado cuando se bajan los tracks que faltaban.
+        if (idStrings.isNotEmpty) {
+          _batchTrackIds[batchKey] = idStrings;
+          for (final stateKey in idStrings) {
+            mapaTrackALote[normalizarId(stateKey)] = batchKey;
           }
         }
       }
     }
+    if (clavesBasura.isNotEmpty) {
+      _log.w(
+        '[cargarHistorial] descartando ${clavesBasura.length} lote(s) que no '
+        'son colección: $clavesBasura',
+      );
+      await _downloadCache.quitarLotes(clavesBasura);
+    }
     _ultimoTimestampLotes = DateTime.now().toUtc().toIso8601String();
 
-    // ── 3. Backfill: tracks con cover null adoptan la del álbum/playlist ──
-    if (mapaTrackALote.isNotEmpty) {
-      final cubitLikes = di.sl<CubitLikes>();
-      for (final entry in _metaTrack.entries) {
-        final meta = entry.value;
-        if (meta.coverUrl?.isNotEmpty ?? false) continue;
-        if (meta.coverPath?.isNotEmpty ?? false) continue;
-        final batchKey = mapaTrackALote[meta.trackId];
-        if (batchKey == null) continue;
-        final bm = _metaLote[batchKey];
-        if (bm == null) continue;
-        final albumAmado =
-            cubitLikes.state.todosAmados.values
-                .where(
-                  (i) =>
-                      i.type == bm.itemType &&
-                      normalizarId(i.id) == normalizarId(bm.itemId),
-                )
-                .firstOrNull;
-        final coverAlbum =
-            albumAmado?.rutaCaratulaLocal?.isNotEmpty == true
-                ? albumAmado!.rutaCaratulaLocal
-                : albumAmado?.coverUrl;
-        if (coverAlbum != null && coverAlbum.isNotEmpty) {
-          _metaTrack[entry.key] = _InfoTrack(
-            meta.trackId,
-            meta.name,
-            meta.artist,
-            coverAlbum,
-            meta.source,
-            meta.coverPath,
-          );
-          cambiado = true;
-        }
-      }
-    }
-
-    // ── 3b. Backfill: lotes sin cover adoptan la del primer track con una ──
-    if (mapaTrackALote.isNotEmpty) {
-      final vistos = <String>{};
-      for (final entry in _metaTrack.entries) {
-        final meta = entry.value;
-        final batchKey = mapaTrackALote[meta.trackId];
-        if (batchKey == null || vistos.contains(batchKey)) continue;
-        final bm = _metaLote[batchKey];
-        if (bm == null || bm.coverUrl.isNotEmpty) {
-          vistos.add(batchKey);
-          continue;
-        }
-        final cover =
-            (meta.coverPath?.isNotEmpty ?? false)
-                ? meta.coverPath!
-                : (meta.coverUrl ?? '');
-        if (cover.isNotEmpty) {
-          _metaLote[batchKey] = _MetaLote(
-            bm.name,
-            bm.itemType,
-            bm.itemId,
-            bm.source,
-            coverUrl: bm.coverUrl.isNotEmpty ? bm.coverUrl : cover,
-            coverPath: bm.coverPath.isNotEmpty ? bm.coverPath : cover,
-          );
-          cambiado = true;
-        }
-        vistos.add(batchKey);
-      }
-    }
+    if (await _backfillCaratulasDeLotes(mapaTrackALote)) cambiado = true;
     return (completados, cambiado);
+  }
+
+  /// ¿La state key del lote está realmente descargada? Estado en memoria
+  /// ya completado o id presente en el historial verificado de la BD.
+  bool _loteTrackDescargado(String stateKey, String source) {
+    if (state.descargas[stateKey]?.estado == EstadoDescarga.completado) {
+      return true;
+    }
+    final id = idDeStateKey(stateKey, source);
+    return id.isNotEmpty && _idsTracksDescargados.contains(id);
+  }
+
+  /// Carátula ya guardada del lote (URL y ruta local), o la del primer
+  /// track del lote que tenga una.
+  ({String url, String path}) _coverDeLote(
+    Map<String, dynamic> m,
+    List<String> idStrings,
+  ) {
+    var url = (m['cover_url'] ?? '') as String;
+    var path = (m['cover_path'] ?? '') as String;
+    if (url.isNotEmpty || path.isNotEmpty) return (url: url, path: path);
+    for (final stateKey in idStrings) {
+      final meta = _metaTrack[stateKey];
+      if (meta == null) continue;
+      if (meta.coverPath?.isNotEmpty ?? false) {
+        return (url: meta.coverUrl ?? '', path: meta.coverPath!);
+      }
+      if (meta.coverUrl?.isNotEmpty ?? false) {
+        return (url: meta.coverUrl!, path: '');
+      }
+    }
+    return (url: '', path: '');
   }
 }

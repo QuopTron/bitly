@@ -117,6 +117,18 @@ func rescueStream(reg *provider.Registry, track *provider.TrackResult, trackName
 		}()
 	}
 
+	// FASE DEL VIDEO OFICIAL: arranca ya, en paralelo, y solo se la espera al
+	// final cuando NINGUNA otra fase consiguió audio (ver más abajo). Es la
+	// salida cuando la búsqueda por nombre no confirma la canción: el id
+	// oficial no busca, resuelve.
+	chVideo := make(chan resultadoFase, 1)
+	if trackName != "" && artistName != "" {
+		go func() {
+			u, provName := faseVideoOficial(reg, track, trackName, artistName, quality)
+			chVideo <- resultadoFase{url: u, prov: provName}
+		}()
+	}
+
 	// Phase 1: la GRABACIÓN EXACTA por ISRC. Ahora la atiende prácticamente solo
 	// flac-rescue (su índice ES el ISRC): los catálogos salieron del audio, así
 	// que ya no hay un deezer/qobuz que resuelva por ISRC sin cuenta.
@@ -165,6 +177,21 @@ func rescueStream(reg *provider.Registry, track *provider.TrackResult, trackName
 			return r.url, r.prov, nil, false
 		}
 		attempted = append(attempted, names...)
+	}
+	// Última oportunidad antes de declarar el fallo: el video OFICIAL de la
+	// pista. Ya viene corriendo desde el arranque, así que en el caso normal ya
+	// está listo; la gracia acota lo que puede sumar (la pausa del cliente de
+	// Last.fm). Un video oficial es identidad, no parecido: entra aunque las
+	// fases por nombre hayan fallado.
+	if trackName != "" && artistName != "" {
+		select {
+		case r := <-chVideo:
+			if r.url != "" {
+				return r.url, r.prov, nil, false
+			}
+		case <-time.After(esperaVideoOficial):
+			log.Printf("[rescue] video oficial: sin respuesta en %.0fs", esperaVideoOficial.Seconds())
+		}
 	}
 	if verifyName != "" {
 		return "", verifyName, attempted, true

@@ -127,6 +127,7 @@ mixin DescargasPollFinalizar on DescargasPollFallido {
           progreso: 0.95,
         );
       } else {
+        _falloReintentable = true;
         dl[stateKey] = const DatosEstadoDescarga(
           estado: EstadoDescarga.interrumpido,
           progreso: 0.0,
@@ -178,6 +179,11 @@ mixin DescargasPollFinalizar on DescargasPollFallido {
             '[poll] $rawId: archivo no reproducible tras ${noFileCount + 1} polls, abandonando',
           );
           _completadosSinArchivoCount.remove(rawId);
+          // El archivo no quedó reproducible: otro intento (otra fuente,
+          // calidad degradada) puede sí dejarlo. Se habilita el reintento en
+          // sitio; el gate y la carpeta sin permiso son los únicos que NO lo
+          // habilitan, y esos los marca bloquearDescarga().
+          _falloReintentable = true;
           dl[stateKey] = const DatosEstadoDescarga(
             estado: EstadoDescarga.interrumpido,
             progreso: 0.0,

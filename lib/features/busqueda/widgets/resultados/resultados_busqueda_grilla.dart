@@ -31,6 +31,9 @@ Widget _seccionGrilla(
       final columnas =
           disponible > 1000 ? 6 : disponible > 700 ? 4 : disponible > 340 ? 3 : 2;
       final gap = estilo ? r.spacingXS * 0.5 : r.spacingXS;
+      // Separación personalizable (Ajustes → Apariencia → Diseño).
+      final sepX = gap * AparienciaHelper.espacioX(context);
+      final sepY = gap * AparienciaHelper.espacioY(context);
       return Column(
         children: [
           if (titulo != null)
@@ -63,8 +66,8 @@ Widget _seccionGrilla(
             padding: EdgeInsets.symmetric(horizontal: estilo ? 2 : r.spacingS * 0.5),
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: columnas,
-              mainAxisSpacing: gap,
-              crossAxisSpacing: gap,
+              mainAxisSpacing: sepY,
+              crossAxisSpacing: sepX,
               // Misma proporción que el grid del feed.
               childAspectRatio: 0.72,
             ),

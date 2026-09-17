@@ -50,6 +50,15 @@ mixin DescargasPollCompletado on DescargasPollPersistir {
     // indefinidamente): solo mantener el estado visual. El path del tracker ya
     // es el definitivo (Go marca "completed" después del finalize).
     if (!isSubTask && _completadosPersistidos.contains(rawId)) {
+      // Mejora silenciosa a sin pérdida: Go puede haber REEMPLAZADO el archivo
+      // (p.ej. el .m4a de InnerTube por un FLAC de Soulseek/Internet Archive) y
+      // republica el path. El archivo viejo ya no existe, así que sin esto la
+      // fila de la BD y el reproductor apuntarían a un archivo borrado.
+      if (outputPath.isNotEmpty &&
+          _rutasPersistidasPorItem[rawId] != outputPath) {
+        await _adoptarArchivoMejorado(rawId, stateKey, outputPath);
+        return false;
+      }
       // Fix de carrera de proveedores: cuando SoundCloud completa primero
       // (no encriptado) y Amazon luego sobreescribe el archivo con un FLAC
       // encriptado, el poll debe reprocesar el item para correr el decrypt.
@@ -142,6 +151,37 @@ mixin DescargasPollCompletado on DescargasPollPersistir {
       fps,
       playablePath,
       isSubTask,
+    );
+  }
+
+  /// Re-apunta la fila de la BD y el mapa del reproductor al archivo que Go
+  /// dejó en su lugar (mejora a mayor calidad). No toca carátulas ni letras:
+  /// siguen siendo del mismo track.
+  Future<void> _adoptarArchivoMejorado(
+    String rawId,
+    String stateKey,
+    String rutaNueva,
+  ) async {
+    final meta = _metaTrack[stateKey];
+    final trackId =
+        meta != null && meta.trackId.isNotEmpty ? meta.trackId : rawId;
+    final providerTrackId = rawId.endsWith('_audio')
+        ? rawId.substring(0, rawId.length - 6)
+        : rawId;
+    _rutasPersistidasPorItem[rawId] = rutaNueva;
+    _log.i('[poll] archivo mejorado para $rawId -> $rutaNueva');
+    try {
+      await _downloadCache.actualizarRutaArchivo(trackId, rutaNueva);
+    } catch (e) {
+      debugPrint("[Descargas] $e");
+    }
+    di.sl<CubitReproductor>().registrarArchivoLocal(
+      trackId: trackId,
+      filePath: rutaNueva,
+      providerTrackId: providerTrackId,
+      trackName: meta?.name,
+      artistName: meta?.artist,
+      isrc: meta?.isrc,
     );
   }
 }

@@ -17,8 +17,11 @@ import (
 // cientos de KB; un archivo mayor no es una portada y no se mete en el audio.
 const maxCaratulaBytes = 6 << 20
 
-// tagsSufijo se inserta ANTES de la extensión: `cancion.flac` →
-// `.cancion.tags.partial.flac`.
+// tagsSufijo se inserta ANTES de la extensión, que SIEMPRE queda al final:
+// `cancion.flac` → `.cancion.tags.partial.flac`. El orden importa: tanto los
+// escritores de tags (audio.WriteMetadata) como la verificación de audio
+// reconocen el formato POR SUFIJO, así que un nombre terminado en `.partial`
+// hacía fallar las dos cosas y el archivo etiquetado se descartaba solo.
 const tagsSufijo = ".tags.partial"
 
 // titulosEtiquetables son los contenedores cuyo escritor de tags es nativo
@@ -33,6 +36,38 @@ var (
 	cacheCaratulasMu sync.Mutex
 	cacheCaratulas   = map[string][]byte{}
 )
+
+// yaTieneEtiquetas reporta si el archivo ya trae la metadata que se le escribiría.
+//
+// Exigente a propósito: alcanza con que falte UN campo (o que la carátula no
+// esté incrustada) para etiquetar. Así un archivo que el catálogo describe
+// mejor que las etiquetas que traía se sigue mejorando, y solo se saltea el caso
+// en el que no habría ningún cambio.
+func yaTieneEtiquetas(ruta string, meta *audio.Metadata) bool {
+	actual, err := audio.ReadFileMetadata(ruta)
+	if err != nil {
+		return false
+	}
+	if meta.Title != "" && !mismoTexto(actual.Title, meta.Title) {
+		return false
+	}
+	if meta.Artist != "" && !mismoTexto(actual.Artist, meta.Artist) {
+		return false
+	}
+	if meta.Album != "" && !mismoTexto(actual.Album, meta.Album) {
+		return false
+	}
+	if meta.ISRC != "" && !strings.EqualFold(strings.TrimSpace(actual.ISRC), strings.TrimSpace(meta.ISRC)) {
+		return false
+	}
+	// Sin carátula incrustada siempre vale la pena intentar escribirla.
+	return actual.HasCover
+}
+
+// mismoTexto compara dos etiquetas ignorando espacios de los bordes.
+func mismoTexto(actual, esperado string) bool {
+	return strings.EqualFold(strings.TrimSpace(actual), strings.TrimSpace(esperado))
+}
 
 // etiquetarDescarga escribe las etiquetas del catálogo (título/artista/álbum/
 // ISRC) y la carátula DENTRO del archivo recién descargado.
@@ -64,11 +99,22 @@ func (o *Orchestrator) etiquetarDescarga(res *Result, req Request) {
 	if meta.Title == "" && meta.Artist == "" && meta.Album == "" && meta.ISRC == "" {
 		return
 	}
+	// Archivo que YA trae la metadata del catálogo (los FLAC de los sitios
+	// raspables vienen con título, artista, álbum, ISRC y portada): reescribir
+	// 20 MB para no cambiar nada cuesta tiempo del usuario y expone el archivo
+	// al escritor de tags sin ganancia.
+	if yaTieneEtiquetas(res.FilePath, meta) {
+		return
+	}
 
-	// La copia de trabajo CONSERVA la extensión real (los escritores de tags
-	// eligen el formato por sufijo) y va oculta para que ningún escaneo de la
-	// carpeta de descargas la tome como un archivo más.
-	tmp := filepath.Join(filepath.Dir(res.FilePath), "."+filepath.Base(res.FilePath)+tagsSufijo)
+	// La copia de trabajo CONSERVA la extensión real AL FINAL (los escritores de
+	// tags y la verificación de audio eligen el formato por sufijo) y va oculta
+	// para que ningún escaneo de la carpeta de descargas la tome como un archivo
+	// más.
+	base := filepath.Base(res.FilePath)
+	ext := filepath.Ext(base)
+	tmp := filepath.Join(filepath.Dir(res.FilePath),
+		"."+strings.TrimSuffix(base, ext)+tagsSufijo+ext)
 	if err := copiarArchivo(res.FilePath, tmp); err != nil {
 		log.Printf("[tags] no se pudo copiar %s para etiquetar: %v", res.FilePath, err)
 		return

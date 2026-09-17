@@ -1,6 +1,7 @@
 package audio
 
 import (
+	"encoding/binary"
 	"fmt"
 	"os"
 )
@@ -23,15 +24,20 @@ func readFLAC(path string, meta *Metadata) (*Metadata, error) {
 		return nil, fmt.Errorf("audio: not a FLAC file")
 	}
 
-	// Min block size, max block size, min frame size, max frame size, sample rate,
-	// channels, bits per sample, total samples
-	meta.SampleRate = int(readBits(header[18:21], 20))
-	meta.BitDepth = int(readBits(header[21:22], 5) + 1)
-
-	// Total samples (36 bits at offset 22)
-	totalSamples := readBits(header[22:27], 36)
+	// Los últimos 8 bytes del STREAMINFO empaquetan, en un solo campo: sample
+	// rate (20 bits), canales-1 (3), bits por muestra-1 (5) y TOTAL DE MUESTRAS
+	// (36). Se leen del MISMO entero: la duración son los 36 bits bajos, no un
+	// campo aparte. Leerlos con un desplazamiento propio daba duraciones
+	// absurdas (una canción de 3 minutos figuraba como 49) y rompía cualquier
+	// decisión que dependa del dato.
+	empaquetado := binary.BigEndian.Uint64(header[18:26])
+	meta.SampleRate = int(empaquetado >> 44 & 0xFFFFF)
+	meta.BitDepth = int(empaquetado>>36&0x1F) + 1
+	totalSamples := int64(empaquetado & 0xFFFFFFFFF)
 	if totalSamples > 0 && meta.SampleRate > 0 {
 		meta.DurationMs = int(totalSamples * 1000 / int64(meta.SampleRate))
+		// STREAMINFO declara la cantidad total de muestras: la duración es real.
+		meta.DuracionExacta = true
 	}
 
 	// El bitrate solo se puede calcular con una duración de al menos un segundo:
@@ -40,11 +46,13 @@ func readFLAC(path string, meta *Metadata) (*Metadata, error) {
 	if meta.DurationMs >= 1000 {
 		meta.Bitrate = int(int64(meta.FileSize) * 8 / (int64(meta.DurationMs) / 1000) / 1000)
 	}
+	// Las etiquetas del FLAC viven en los comentarios Vorbis, no en STREAMINFO:
+	// sin esto la metadata salía vacía para cualquier FLAC.
+	leerEtiquetasFLAC(f, meta)
 	return meta, nil
 }
 
 func readMP3(path string, meta *Metadata) (*Metadata, error) {
-	// MP3 ID3v2 header is at the start
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -56,16 +64,25 @@ func readMP3(path string, meta *Metadata) (*Metadata, error) {
 		return nil, err
 	}
 
-	// Check ID3v2 header
+	// Salto del tag ID3v2 (cabecera de 10 bytes + tamaño synchsafe). Sin ID3 el
+	// audio arranca en 0.
+	inicioAudio := int64(0)
 	if string(header[:3]) == "ID3" {
-		// Tag size is synchsafe integer in bytes 6-9
-		tagSize := int(header[6])<<21 | int(header[7])<<14 |
-			int(header[8])<<7 | int(header[9])
-		// Skip to audio data for bitrate estimate
-		// For now, approximate duration from file size at 192kbps
-		estBitrate := 192
-		meta.Bitrate = estBitrate
-		meta.DurationMs = int((meta.FileSize - int64(tagSize)) * 8 / int64(estBitrate) / 1000 * 1000)
+		tagSize := int64(header[6])<<21 | int64(header[7])<<14 |
+			int64(header[8])<<7 | int64(header[9])
+		inicioAudio = 10 + tagSize
+	}
+
+	// Duración REAL (Xing/Info o conteo de frames). Si no se puede afirmar,
+	// queda sin marca y ninguna verificación debe apoyarse en ella: la
+	// estimación por tamaño y bitrate supuesto reportaba 87s para una canción
+	// de 200s y el guard anti-preview tiraba descargas completas.
+	if ms, ok := duracionMP3(f, inicioAudio); ok && ms > 0 {
+		meta.DurationMs = int(ms)
+		meta.DuracionExacta = true
+		if ms >= 1000 {
+			meta.Bitrate = int(meta.FileSize * 8 / (ms / 1000) / 1000)
+		}
 	}
 
 	meta.SampleRate = 44100
@@ -74,14 +91,20 @@ func readMP3(path string, meta *Metadata) (*Metadata, error) {
 }
 
 func readMP4(path string, meta *Metadata) (*Metadata, error) {
-	// MP4/M4A: parse moov → mvhd atom for duration + sample rate
-	// Simplified: estimate from file size at 256kbps
-	estBitrate := 256
-	meta.Bitrate = estBitrate
-	overhead := int64(4096) // header overhead
-	audioBytes := meta.FileSize - overhead
-	if audioBytes > 0 && estBitrate > 0 {
-		meta.DurationMs = int(audioBytes * 8 / int64(estBitrate))
+	// MP4/M4A: duración REAL desde moov→mvhd (timescale + duration). Antes se
+	// estimaba con "tamaño ÷ 256 kbps", que inventaba la duración.
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	if ms, ok := duracionMP4(f); ok && ms > 0 {
+		meta.DurationMs = int(ms)
+		meta.DuracionExacta = true
+		if ms >= 1000 {
+			meta.Bitrate = int(meta.FileSize * 8 / (ms / 1000) / 1000)
+		}
 	}
 	meta.SampleRate = 44100
 	meta.BitDepth = 16
@@ -128,6 +151,8 @@ func readWAV(path string, meta *Metadata) (*Metadata, error) {
 	if meta.FileSize > 44 && meta.SampleRate > 0 && bytesPorMuestra > 0 {
 		audioBytes := meta.FileSize - 44
 		meta.DurationMs = int(audioBytes * 8 / int64(meta.SampleRate) / bytesPorMuestra / 2 * 1000)
+		// PCM sin comprimir: el tamaño ES la duración.
+		meta.DuracionExacta = true
 	}
 	return meta, nil
 }

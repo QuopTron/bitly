@@ -48,6 +48,10 @@ func esProviderUltimoRecurso(name string) bool {
 func (o *Orchestrator) SetDownloadProviderPriority(providerIDs []string) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
+	// El usuario está reordenando/eligiendo fuentes: se olvidan las marcas de
+	// "sin audio", porque puede haber agregado credenciales o reactivado un
+	// catálogo que antes se saltaba.
+	limpiarProvidersSinAudio()
 	if len(providerIDs) == 0 {
 		o.priorityOrder = preferredStreamOrder
 		o.fallbackOrder = construirOrdenFallback(o.providers, preferredStreamOrder)

@@ -90,6 +90,7 @@ Widget _tarjetaCancion(
   final esAmado = c.idsAmados.any(
     (rawId) => normalizarIdTrack(rawId) == normalizarIdTrack(feedItem.id),
   );
+  final datosDescarga = dlCubit.estadoDescargaPara(id);
   final estadoDescarga = _estadoTrackPara(c, feedItem, id);
 
   return Padding(
@@ -112,6 +113,10 @@ Widget _tarjetaCancion(
         }
       },
       estadoDescarga: estadoDescarga,
+      // Reintento en sitio de la cola (se ve en el tooltip del indicador).
+      intentoDescarga: datosDescarga.intento,
+      totalIntentosDescarga: datosDescarga.totalIntentos,
+
       // textScale 1.2 + info/más: mismas dimensiones y acciones que
       // Feed/Búsqueda para que la tarjeta se vea igual en toda la app.
       escalaTexto: 1.2,

@@ -7,6 +7,8 @@
 // ─────────────────────────────────────────────────────────────
 
 import 'package:flutter/material.dart';
+import 'strings/strings_apariencia.dart';
+import 'strings/strings_descargas.dart';
 import 'strings/strings_estadisticas.dart';
 import 'strings/strings_red.dart';
 import 'strings/strings_splash.dart';
@@ -16,6 +18,9 @@ import 'strings/strings_tutorial.dart';
 // Los strings de setup/toda la app se reexportan: quien usa AppLocalizations
 // puede tipar `StringsSetup` sin importar el archivo de strings a mano.
 export 'strings/strings_setup.dart';
+// Los textos de Apariencia se exportan igual: la pestaña de diseño los tipa
+// como StringsApariencia sin importar el archivo a mano.
+export 'strings/strings_apariencia.dart';
 import 'strings/strings_tutorial_interactivo.dart';
 
 class AppLocalizations {
@@ -26,6 +31,8 @@ class AppLocalizations {
   late final StringsTutorialInteractivo tutorialInteractivo;
   late final StringsRed red;
   late final StringsEstadisticas estadisticas;
+  late final StringsDescargas descargas;
+  late final StringsApariencia apariencia;
 
   AppLocalizations(this.locale) {
     final isEn = locale.languageCode == 'en';
@@ -36,6 +43,8 @@ class AppLocalizations {
         isEn ? StringsTutorialInteractivo.en : StringsTutorialInteractivo.es;
     red = isEn ? StringsRed.en : StringsRed.es;
     estadisticas = isEn ? StringsEstadisticas.en : StringsEstadisticas.es;
+    descargas = isEn ? StringsDescargas.en : StringsDescargas.es;
+    apariencia = isEn ? StringsApariencia.en : StringsApariencia.es;
   }
 
   static AppLocalizations of(BuildContext context) {
