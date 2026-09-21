@@ -18,19 +18,20 @@ import '../../../core/cache/estado/estado_like.dart';
 import '../../../core/modelos/feed/item_feed.dart';
 import '../../../core/modelos/feed/seccion_feed.dart';
 import '../../../estado/descargas/cubit_descargas.dart';
-import '../../../estado/like/cubit_like.dart';
+import '../../../estado/like/base/cubit_like.dart';
 import '../../../shared/constantes/constantes_fuente.dart';
 import '../../../shared/tema/colores_app.dart';
 import '../../../shared/utilidades/interaccion/acciones_item.dart';
 import '../../../shared/utilidades/plataforma/deteccion_plataforma.dart';
-import '../../tutorial_interactivo/motor/tutorial_pasos.dart';
+import '../../tutorial_interactivo/motor/pasos/tutorial_pasos.dart';
 import '../bloc/feed_bloc.dart';
 import '../bloc/feed_estado.dart';
 import '../bloc/feed_evento.dart';
 import '../vistas/feed_escritorio.dart';
 import '../vistas/feed_movil.dart';
-import '../widgets/cabecera_feed.dart';
-import '../widgets/contenido_feed.dart';
+import '../vistas/feed_tv.dart';
+import '../widgets/piezas/cabecera_feed.dart';
+import '../widgets/base/contenido_feed.dart';
 
 part 'feed_pagina_helpers.dart';
 part 'feed_pagina_widgets.dart';
@@ -63,6 +64,10 @@ class _PaginaFeedState extends State<PaginaFeed> {
         final cabecera = _construirCabecera(this, state);
         final cuerpo = _construirCuerpo(this, state, secciones, tieneContenido);
 
+        // Tres variantes: TV (panel plano a todo el lienzo), PC y celular.
+        if (usarLayoutTv(context)) {
+          return FeedTv(cabecera: cabecera, cuerpo: cuerpo);
+        }
         if (usarLayoutEscritorio(context)) {
           return FeedEscritorio(cabecera: cabecera, cuerpo: cuerpo);
         }

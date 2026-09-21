@@ -13,6 +13,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../constantes/constantes_fuente.dart';
+import '../../tema/especificaciones/especificaciones_plataforma.dart';
+import '../../utilidades/plataforma/responsive.dart';
 
 part 'acordeon_fuente_panel.dart';
 part 'acordeon_fuente_overlay.dart';
@@ -70,6 +72,9 @@ class _AcordeonFuenteState extends State<AcordeonFuente> {
 
   @override
   Widget build(BuildContext context) {
+    // El botón del selector sigue el tamaño del aparato: en la TV es un
+    // blanco grande para el puntero, en PC y celular queda como estaba.
+    final e = EspecificacionesPlataforma.de(context);
     return Material(
       key: _botonKey,
       color: Colors.transparent,
@@ -77,13 +82,15 @@ class _AcordeonFuenteState extends State<AcordeonFuente> {
         onTap: _alternar,
         customBorder: const CircleBorder(),
         child: Ink(
-          width: 38,
-          height: 38,
+          width: e.altoBotonIcono - 4,
+          height: e.altoBotonIcono - 4,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: widget.onBg.withValues(alpha: _esOscuro ? 0.08 : 0.06),
           ),
-          child: Center(child: _iconoRedondeado(_iconoActual, tamano: 19)),
+          child: Center(
+            child: _iconoRedondeado(_iconoActual, tamano: e.iconoBoton),
+          ),
         ),
       ),
     );

@@ -2,9 +2,9 @@
 // móvil: 3 ítems, selección, taps y modo oscuro. Los rótulos ahora salen de
 // la l10n, así que el test monta el delegate para que resuelvan.
 
-import 'package:bitly/app/inyeccion.dart' as di;
-import 'package:bitly/core/modelos/usuario/preferencias_apariencia.dart';
-import 'package:bitly/features/home/widgets/barra_navegacion_flotante.dart';
+import 'package:bitly/app/inyeccion/inyeccion.dart' as di;
+import 'package:bitly/core/modelos/usuario/preferencias/preferencias_apariencia.dart';
+import 'package:bitly/features/home/widgets/flotante/barra_navegacion_flotante.dart';
 import 'package:bitly/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';

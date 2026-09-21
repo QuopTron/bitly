@@ -7,7 +7,7 @@
 // traduccion_letras_test.dart.
 
 import 'package:bitly/core/base_datos/app_database.dart';
-import 'package:bitly/core/cache/almacenes/cache_traducciones.dart';
+import 'package:bitly/core/cache/almacenes/biblioteca/base/cache_traducciones.dart';
 import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -78,29 +78,4 @@ void main() {
       expect(leida, isNull);
     },
   );
-
-  test('borrarDeCancion limpia solo esa canción', () async {
-    if (!disponible) return;
-    final cache = CacheTraducciones(db);
-    for (final c in ['isrc:uno', 'isrc:dos']) {
-      await cache.guardar(
-        cancion: c,
-        destino: 'en',
-        huella: 'h',
-        idiomaOrigen: 'Spanish',
-        lineas: const ['x'],
-      );
-    }
-
-    await cache.borrarDeCancion('isrc:uno');
-
-    expect(
-      await cache.leer(cancion: 'isrc:uno', destino: 'en', huella: 'h'),
-      isNull,
-    );
-    expect(
-      await cache.leer(cancion: 'isrc:dos', destino: 'en', huella: 'h'),
-      isNotNull,
-    );
-  });
 }

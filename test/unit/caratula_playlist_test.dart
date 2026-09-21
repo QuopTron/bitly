@@ -10,7 +10,7 @@
 
 import 'dart:io';
 
-import 'package:bitly/shared/utilidades/portada/caratula_util.dart';
+import 'package:bitly/shared/utilidades/portada/base/caratula_util.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

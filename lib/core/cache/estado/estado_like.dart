@@ -8,7 +8,7 @@
 
 import 'package:equatable/equatable.dart';
 
-import '../../../shared/utilidades/portada/caratula_util.dart';
+import '../../../shared/utilidades/portada/base/caratula_util.dart';
 
 /// Devuelve [path] solo si es una ruta local de carátula usable.
 ///

@@ -50,6 +50,7 @@ Future<void> _elegirCarpetaSt(_SlideCarpetaAlmacenamientoState st) async {
       });
     }
   } catch (e) {
+    debugPrint('[slide_carpeta_almacenamiento_ruta] $e');
     if (st.mounted) {
       ScaffoldMessenger.of(st.context).showSnackBar(
         SnackBar(

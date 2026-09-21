@@ -19,27 +19,27 @@ import 'package:flutter/services.dart';
 import 'package:logger/logger.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../../app/inyeccion.dart' as di;
-import '../../../shared/utilidades/formato/l10n_servicio.dart';
+import '../../../app/inyeccion/inyeccion.dart' as di;
+import '../../../shared/utilidades/formato/comun/textos/l10n_servicio.dart';
 import '../../../shared/utilidades/modales/mostrar_modal.dart';
-import '../../../shared/widgets/modales/verificacion/dialogo_verificacion.dart';
-import '../../../shared/widgets/modales/verificacion/panel_verificacion_web.dart';
-import '../../backend_go/nucleo/contrato_backend.dart';
-import '../oauth/servidor_callback_escritorio.dart';
+import '../../../shared/widgets/modales/verificacion/dialogo/dialogo_verificacion.dart';
+import '../../../shared/widgets/modales/verificacion/panel/web/panel_verificacion_web.dart';
+import '../../backend_go/nucleo/base/contrato_backend.dart';
+import '../oauth/callback/servidor_callback_escritorio.dart';
 
 // Re-exportado para que los llamadores (y los tests) sigan importando
 // grantVerificacionDeUrl / grantDeCadena desde este library.
-export 'grant_verificacion.dart';
+export 'ui/grant_verificacion.dart';
 
-part 'verificacion_estado.dart';
-part 'verificacion_keepalive.dart';
-part 'verificacion_silenciosa.dart';
-part 'verificacion_navegador.dart';
-part 'verificacion_dialogo.dart';
-part 'verificacion_mostrar.dart';
-part 'verificacion_fuentes.dart';
-part 'verificacion_lote.dart';
-part 'verificacion_ui.dart';
+part 'estado/verificacion_estado.dart';
+part 'estado/verificacion_keepalive.dart';
+part 'estado/verificacion_silenciosa.dart';
+part 'red/verificacion_navegador.dart';
+part 'ui/verificacion_dialogo.dart';
+part 'ui/verificacion_mostrar.dart';
+part 'red/verificacion_fuentes.dart';
+part 'red/verificacion_lote.dart';
+part 'ui/verificacion_ui.dart';
 
 final _logVerificacion = Logger();
 

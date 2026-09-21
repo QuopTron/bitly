@@ -12,6 +12,8 @@ import 'package:flutter/material.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
 import '../../../core/modelos/feed/item_feed.dart';
+import '../../../shared/tema/especificaciones/especificaciones_plataforma.dart';
+import '../../../shared/utilidades/plataforma/responsive.dart';
 import '../../../shared/widgets/tarjetas/portada/imagen_portada.dart';
 
 /// Portada o video visualizador del track con botones de alternancia.
@@ -41,13 +43,22 @@ class AreaPortadaVideo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final lado = (MediaQuery.sizeOf(context).width * 0.76).clamp(0.0, 420.0);
+    // La portada mide con el aparato: en la tele el cuadro, su radio y el
+    // chip de video son más grandes (se mira a tres metros).
+    final r = Responsive(context);
+    final esp = EspecificacionesPlataforma.de(context);
+    final radius = BorderRadius.circular(esp.radioHoja);
+    final chipRadius = BorderRadius.circular(esp.radioTarjeta);
+    final lado = (MediaQuery.sizeOf(context).width * 0.76).clamp(
+      0.0,
+      r.sobre(420, 560),
+    );
     return RepaintBoundary(
       child: GestureDetector(
         onTap: tieneVideo ? onAlternarVideo : null,
         child: Container(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(28),
+            borderRadius: radius,
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: esOscuro ? 0.55 : 0.30),
@@ -57,7 +68,7 @@ class AreaPortadaVideo extends StatelessWidget {
             ],
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(28),
+            borderRadius: radius,
             child: SizedBox(
               width: lado,
               height: lado,
@@ -91,10 +102,12 @@ class AreaPortadaVideo extends StatelessWidget {
                       child: GestureDetector(
                         onTap: onDetenerVideo,
                         child: _chipVideo(
-                          const Icon(
+                          chipRadius,
+                          r.spacingM,
+                          Icon(
                             Icons.image,
                             color: Colors.white,
-                            size: 22,
+                            size: esp.iconoAccion,
                           ),
                         ),
                       ),
@@ -106,10 +119,12 @@ class AreaPortadaVideo extends StatelessWidget {
                       child:
                           videoCargando
                               ? _chipVideo(
-                                const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(
+                                chipRadius,
+                                r.spacingM,
+                                SizedBox(
+                                  width: esp.iconoBoton,
+                                  height: esp.iconoBoton,
+                                  child: const CircularProgressIndicator(
                                     strokeWidth: 2.5,
                                     color: Colors.white,
                                   ),
@@ -118,10 +133,12 @@ class AreaPortadaVideo extends StatelessWidget {
                               : GestureDetector(
                                 onTap: onAlternarVideo,
                                 child: _chipVideo(
-                                  const Icon(
+                                  chipRadius,
+                                  r.spacingM,
+                                  Icon(
                                     Icons.videocam,
                                     color: Colors.white,
-                                    size: 22,
+                                    size: esp.iconoAccion,
                                   ),
                                 ),
                               ),
@@ -136,12 +153,12 @@ class AreaPortadaVideo extends StatelessWidget {
   }
 
   /// Chip flotante del área (videocam / imagen / spinner).
-  Widget _chipVideo(Widget child) {
+  Widget _chipVideo(BorderRadius radius, double padding, Widget child) {
     return Container(
-      padding: const EdgeInsets.all(8),
+      padding: EdgeInsets.all(padding),
       decoration: BoxDecoration(
         color: Colors.black54,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: radius,
         border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
       ),
       child: child,

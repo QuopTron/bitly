@@ -16,25 +16,25 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:go_router/go_router.dart';
 
-import 'app/inyeccion.dart' as di;
-import 'app_helpers.dart';
+import 'app/inyeccion/inyeccion.dart' as di;
+import 'app/base/helpers/app_helpers.dart';
 import 'core/modelos/resultado_enlace.dart';
-import './core/plataforma/sistema/servicio_deep_link.dart';
-import './core/servicios/oauth/servicio_callback_oauth.dart';
-import './core/servicios/proveedores/servicio_enlaces.dart';
-import './core/servicios/verificacion/servicio_verificacion.dart';
+import 'core/plataforma/sistema/enlaces/servicio_deep_link.dart';
+import 'core/servicios/oauth/callback/servicio_callback_oauth.dart';
+import 'core/servicios/proveedores/base/servicio_enlaces.dart';
+import 'core/servicios/verificacion/servicio_verificacion.dart';
 import 'estado/cola/cubit_cola.dart';
-import 'features/setup/bloc/setup_bloc.dart';
+import 'features/setup/bloc/base/setup_bloc.dart';
 import 'features/splash/bloc/splash_bloc.dart';
 import 'l10n/app_localizations.dart';
-import 'app_contenido.dart';
+import 'app/base/raiz/app_contenido.dart';
 
 import 'router/app_router.dart';
 import 'router/route_names.dart';
 import 'shared/tema/envoltorio_color_dinamico.dart';
 
-part 'app_compartido.dart';
-part 'app_vista.dart';
+part 'app/base/raiz/app_compartido.dart';
+part 'app/base/raiz/app_vista.dart';
 
 /// App raíz: tema dinámico + blocs globales + router + deep links.
 class BitlyApp extends StatefulWidget {
@@ -121,7 +121,8 @@ class _BitlyAppState extends State<BitlyApp> with ManejadoresCompartidos {
   String _rutaActual() {
     try {
       return _router.routerDelegate.currentConfiguration.uri.path;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[BitlyAppState] $e');
       return '';
     }
   }

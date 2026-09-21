@@ -13,10 +13,11 @@
 // Parte del flujo: Ajustes → Estadísticas → detalle.
 // ─────────────────────────────────────────────────────────────
 
-import '../../backend_go/nucleo/contrato_backend.dart';
-import '../../../app/inyeccion.dart' as di;
+import '../../backend_go/nucleo/base/contrato_backend.dart';
+import '../../../app/inyeccion/inyeccion.dart' as di;
 import 'filtro_escucha.dart';
 
+import 'package:flutter/foundation.dart';
 /// Caché en memoria de carátulas por id de ítem del historial.
 class CaratulasEscucha {
   final Map<String, String> _cache = {};
@@ -67,7 +68,8 @@ class CaratulasEscucha {
         trackName: fila.nombre,
         artistName: fila.artista,
       );
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[CaratulasEscucha] $e');
       return null;
     }
   }

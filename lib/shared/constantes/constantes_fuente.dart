@@ -30,20 +30,6 @@ const iconosFuente = <String, IconData>{
   'internetarchive': Icons.library_books,
 };
 
-/// Lista de todas las fuentes conocidas.
-const todasLasFuentes = [
-  'deezer',
-  'spotify-web',
-  'spotify',
-  'apple-music',
-  'soundcloud',
-  'amazon',
-  'qobuz-web',
-  'tidal-web',
-  'ytmusic-spotiflac',
-  'internetarchive',
-];
-
 /// Fuentes de RESPALDO: no son catálogos navegables, existen para que el
 /// pipeline consiga el lossless exacto detrás de un ISRC (flac-rescue,
 /// internetarchive, soulseek, redacted) o para traer metadata (musicbrainz).

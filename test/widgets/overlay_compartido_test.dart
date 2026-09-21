@@ -5,12 +5,12 @@
 // pantalla) y que todo funcione sin efectos pesados (gama baja).
 
 import 'package:bitly/core/modelos/feed/item_feed.dart';
-import 'package:bitly/core/plataforma/sistema/servicio_deep_link.dart';
-import 'package:bitly/core/servicios/compartir/datos_compartido.dart';
+import 'package:bitly/core/plataforma/sistema/enlaces/servicio_deep_link.dart';
+import 'package:bitly/core/servicios/compartir/datos/datos_compartido.dart';
 import 'package:bitly/l10n/app_localizations.dart';
-import 'package:bitly/shared/widgets/base/overlay_compartido.dart';
-import 'package:bitly/shared/widgets/base/overlay_compartido_contenido.dart';
-import 'package:bitly/shared/utilidades/plataforma/efectos_app.dart';
+import 'package:bitly/shared/widgets/base/overlay/base/overlay_compartido.dart';
+import 'package:bitly/shared/widgets/base/overlay/contenido/overlay_compartido_contenido.dart';
+import 'package:bitly/shared/utilidades/plataforma/pantalla/efectos_app.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';

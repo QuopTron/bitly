@@ -1,11 +1,10 @@
 // ─────────────────────────────────────────────────────────────
 // playlists_estado.dart — Estado del cubit de playlists: lista de
 // playlists del usuario (ItemPlaylist, versión ligera con conteo de
-// tracks y carátula), el detalle actual (DetallePlaylist con tracks),
-// las stats del usuario y el flag de carga. Incluye la conversión
-// PlaylistDominio → ItemPlaylist.
+// tracks y carátula), las stats del usuario y el flag de carga.
+// Incluye la conversión PlaylistDominio → ItemPlaylist.
 // Se conecta con: cubit_playlists.dart (estado del cubit).
-// Parte del flujo: playlists (Mi Espacio y detalle).
+// Parte del flujo: playlists (Mi Espacio).
 // ─────────────────────────────────────────────────────────────
 
 part of 'cubit_playlists.dart';
@@ -14,30 +13,26 @@ part of 'cubit_playlists.dart';
 class EstadoPlaylists extends Equatable {
   final bool cargando;
   final List<ItemPlaylist> playlists;
-  final DetallePlaylist? detalleActual;
   final EstadisticasUsuario? stats;
 
   const EstadoPlaylists({
     this.cargando = false,
     this.playlists = const [],
-    this.detalleActual,
     this.stats,
   });
 
   EstadoPlaylists copiarCon({
     bool? cargando,
     List<ItemPlaylist>? playlists,
-    DetallePlaylist? detalleActual,
     EstadisticasUsuario? stats,
   }) => EstadoPlaylists(
     cargando: cargando ?? this.cargando,
     playlists: playlists ?? this.playlists,
-    detalleActual: detalleActual ?? this.detalleActual,
     stats: stats ?? this.stats,
   );
 
   @override
-  List<Object?> get props => [cargando, playlists, detalleActual, stats];
+  List<Object?> get props => [cargando, playlists, stats];
 }
 
 /// Item ligero de playlist usado en [EstadoPlaylists.playlists].

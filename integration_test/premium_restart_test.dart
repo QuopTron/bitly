@@ -15,8 +15,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
-import 'package:bitly/core/backend_go/plataformas/backend_android.dart';
-import 'package:bitly/app/inyeccion.dart' as inj;
+import 'package:bitly/core/backend_go/plataformas/android/backend_android.dart';
+import 'package:bitly/app/inyeccion/inyeccion.dart' as inj;
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();

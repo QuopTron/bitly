@@ -12,6 +12,8 @@
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Se usa para leer el código QR del otro aparato al vincular equipos en Ajustes → Conexión.</string>
 	<key>CFBundleName</key>
 	<string>bitly</string>
 	<key>CFBundlePackageType</key>

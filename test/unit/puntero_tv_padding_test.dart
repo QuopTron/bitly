@@ -29,8 +29,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:bitly/shared/utilidades/plataforma/escala_texto.dart';
-import 'package:bitly/shared/utilidades/plataforma/vista_tv.dart';
+import 'package:bitly/shared/utilidades/plataforma/pantalla/escala_texto.dart';
+import 'package:bitly/shared/utilidades/plataforma/tv/vista_tv.dart';
 import 'package:bitly/shared/widgets/tv/puntero_tv.dart';
 
 /// Botón de prueba con etiqueta: guarda CUÁL recibió el clic (y dónde, para

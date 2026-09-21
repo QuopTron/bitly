@@ -8,6 +8,7 @@
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 
+import 'package:flutter/foundation.dart';
 /// Verificador de conectividad.
 class ServicioConectividad {
   static final Connectivity _conectividad = Connectivity();
@@ -17,7 +18,8 @@ class ServicioConectividad {
     try {
       final resultados = await _conectividad.checkConnectivity();
       return resultados.any((r) => r != ConnectivityResult.none);
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[ServicioConectividad] $e');
       return true; // Asumir online ante error (default seguro)
     }
   }

@@ -10,16 +10,17 @@
 // modal SIN providers alrededor, como en la app real.
 // ─────────────────────────────────────────────────────────────
 
-import 'package:bitly/app/inyeccion.dart';
+import 'package:bitly/app/inyeccion/inyeccion.dart';
 import 'package:bitly/core/base_datos/app_database.dart';
-import 'package:bitly/core/cache/almacenes/cache_colecciones.dart';
-import 'package:bitly/core/cache/almacenes/cache_detalle_memoria.dart';
+import 'package:bitly/core/base_datos/daos/biblioteca/colecciones/collections_dao.dart';
+import 'package:bitly/core/cache/almacenes/biblioteca/base/cache_colecciones.dart';
+import 'package:bitly/core/cache/almacenes/musica/cache_detalle_memoria.dart';
 import 'package:bitly/core/modelos/feed/item_feed.dart';
-import 'package:bitly/core/modelos/usuario/preferencias_estilo.dart';
-import 'package:bitly/core/servicios/playlist/editor_playlist.dart';
+import 'package:bitly/core/modelos/usuario/preferencias/preferencias_estilo.dart';
+import 'package:bitly/core/servicios/playlist/editor/editor_playlist.dart';
 import 'package:bitly/estado/cola/cubit_cola.dart';
 import 'package:bitly/l10n/app_localizations.dart';
-import 'package:bitly/shared/widgets/modales/agregar_a/modal_agregar_a.dart';
+import 'package:bitly/shared/widgets/modales/agregar_a/base/modal_agregar_a.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -120,8 +121,10 @@ void main() {
     tester,
   ) async {
     if (!disponible) return;
-    // Base limpia: no hay `col_*` que ofrecer.
-    await colecciones.borrarColeccion(playlistId);
+    // Base limpia: no hay `col_*` que ofrecer. Se borra contra el DAO porque
+    // la app no ofrece "borrar playlist"; acá solo hace falta dejar la base
+    // sin colecciones para el caso "sin playlists creadas".
+    await CollectionsDao(db).removeCollection(playlistId);
     await abrirModal(
       tester,
       const ItemFeed(id: 'x', type: 'track', name: 'Otra canción'),

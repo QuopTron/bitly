@@ -14,27 +14,34 @@ part of 'tutorial_pagina.dart';
 Widget _construirPaso(BuildContext context, Paso paso) {
   final esOscuro = Theme.of(context).brightness == Brightness.dark;
   final colorSuperficie = ColoresApp.enSuperficie(esOscuro);
+  // Cada paso se mide con el aparato: en la tele el ícono y los textos crecen
+  // (a tres metros un ícono de 80 no se ve).
+  final r = Responsive(context);
   return Padding(
-    padding: const EdgeInsets.all(40),
+    padding: EdgeInsets.all(r.sobre(40, 64)),
     child: Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Icon(paso.icono, size: 80, color: ColoresApp.verdeBrillante),
-        const SizedBox(height: 32),
+        Icon(
+          paso.icono,
+          size: r.sobre(80, 120),
+          color: ColoresApp.verdeBrillante,
+        ),
+        SizedBox(height: r.sobre(32, 48)),
         Text(
           paso.titulo,
           style: TextStyle(
-            fontSize: 24,
+            fontSize: r.sobre(24, 34),
             fontWeight: FontWeight.bold,
             color: colorSuperficie,
           ),
           textAlign: TextAlign.center,
         ),
-        const SizedBox(height: 16),
+        SizedBox(height: r.sobre(16, 26)),
         Text(
           paso.descripcion,
           style: TextStyle(
-            fontSize: 16,
+            fontSize: r.sobre(16, 24),
             color: colorSuperficie.withValues(alpha: 0.6),
           ),
           textAlign: TextAlign.center,
@@ -50,6 +57,11 @@ Widget _construirControles(_TutorialPaginaState st, int total) {
   final colorSuperficie = ColoresApp.enSuperficie(esOscuro);
   final loc = AppLocalizations.of(st.context);
   final esUltimo = st._pagina == total - 1;
+  // Indicadores y botón también por aparato: en la tele el botón principal
+  // tiene que ser un blanco grande para el puntero.
+  final r = Responsive(st.context);
+  final esp = EspecificacionesPlataforma.de(st.context);
+  final altoPunto = esp.altoIndicador * 0.34; // 8 en celular
 
   return Column(
     mainAxisSize: MainAxisSize.min,
@@ -59,23 +71,23 @@ Widget _construirControles(_TutorialPaginaState st, int total) {
         children: List.generate(
           total,
           (i) => Container(
-            margin: const EdgeInsets.symmetric(horizontal: 4),
-            width: st._pagina == i ? 24 : 8,
-            height: 8,
+            margin: EdgeInsets.symmetric(horizontal: r.spacingXS),
+            width: st._pagina == i ? r.sobre(24, 36) : altoPunto,
+            height: altoPunto,
             decoration: BoxDecoration(
               color:
                   st._pagina == i
                       ? ColoresApp.verdeBrillante
                       : colorSuperficie.withValues(alpha: 0.25),
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(altoPunto / 2),
             ),
           ),
         ),
       ),
-      const SizedBox(height: 24),
+      SizedBox(height: r.sobre(24, 36)),
       SizedBox(
-        width: 220,
-        height: 48,
+        width: r.sobre(220, 320),
+        height: esp.altoBotonGrande,
         child: ElevatedButton(
           style: ElevatedButton.styleFrom(
             backgroundColor: ColoresApp.verdeBrillante,

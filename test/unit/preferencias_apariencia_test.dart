@@ -4,7 +4,7 @@
 // actual, que los valores se acoten y que sobrevivan al guardado.
 // ─────────────────────────────────────────────────────────────
 
-import 'package:bitly/core/modelos/usuario/preferencias_apariencia.dart';
+import 'package:bitly/core/modelos/usuario/preferencias/preferencias_apariencia.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

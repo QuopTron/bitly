@@ -13,35 +13,35 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../app/inyeccion.dart';
-import '../../../core/backend_go/nucleo/contrato_backend.dart';
-import '../../../core/cache/almacenes/cache_busqueda.dart';
+import '../../../app/inyeccion/inyeccion.dart';
+import '../../../core/backend_go/nucleo/base/contrato_backend.dart';
+import '../../../core/cache/almacenes/musica/cache_busqueda.dart';
 import '../../../core/plataforma/red/servicio_calidad_red.dart';
 import '../../../estado/cola/cubit_cola.dart';
 import '../../../estado/descargas/cubit_descargas.dart';
-import '../../../estado/like/cubit_like.dart';
+import '../../../estado/like/base/cubit_like.dart';
 import '../../../estado/playlists/cubit_playlists.dart';
 import '../../../estado/reproductor/cubit_reproductor.dart';
 import '../../../l10n/app_localizations.dart';
-import '../../../shared/widgets/base/transiciones_pagina.dart';
-import '../../../shared/widgets/reproductor/miniplayer.dart';
-import '../../busqueda/bloc/busqueda_bloc.dart';
-import '../../busqueda/pagina/pagina_busqueda.dart';
+import '../../../shared/widgets/base/comun/transiciones_pagina.dart';
+import '../../../shared/widgets/reproductor/base/miniplayer.dart';
+import '../../busqueda/bloc/base/busqueda_bloc.dart';
+import '../../busqueda/pagina/base/pagina_busqueda.dart';
 import '../../feed/bloc/feed_bloc.dart';
 import '../../feed/bloc/feed_evento.dart';
 import '../../feed/pagina/feed_pagina.dart';
-import '../../mi_espacio/pagina/pagina_mi_espacio.dart';
-import '../../reproductor/pagina/reproductor_pagina.dart';
-import '../../tutorial_interactivo/motor/tutorial_claves.dart';
-import '../../tutorial_interactivo/motor/tutorial_controller.dart';
-import '../../tutorial_interactivo/motor/tutorial_host.dart';
-import '../../tutorial_interactivo/motor/tutorial_provider.dart';
+import '../../mi_espacio/pagina/base/pagina_mi_espacio.dart';
+import '../../reproductor/pagina/base/reproductor_pagina.dart';
+import '../../tutorial_interactivo/motor/base/tutorial_claves.dart';
+import '../../tutorial_interactivo/motor/base/tutorial_controller.dart';
+import '../../tutorial_interactivo/motor/base/tutorial_host.dart';
+import '../../tutorial_interactivo/motor/base/tutorial_provider.dart';
 import 'home_arranque.dart';
 import 'pagina_home.dart';
 
 // El TutorialProvider vive en tutorial_provider.dart; se re-exporta para que
 // quien lea la Home siga encontrándolo por este archivo.
-export '../../tutorial_interactivo/motor/tutorial_provider.dart';
+export '../../tutorial_interactivo/motor/base/tutorial_provider.dart';
 
 /// Ensambla la Home: blocs + cubits + slots → shell.
 class EnsambladorHome extends StatefulWidget {

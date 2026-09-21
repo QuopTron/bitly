@@ -12,9 +12,9 @@ import 'package:flutter/material.dart';
 
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/utilidades/plataforma/responsive.dart';
-import '../../../shared/widgets/base/contenido_con_alto_minimo.dart';
-import '../bloc/setup_estado.dart';
-import '../widgets/comunes/construir_paso.dart';
+import '../../../shared/widgets/base/comun/contenido_con_alto_minimo.dart';
+import '../bloc/base/setup_estado.dart';
+import '../widgets/comunes/base/construir_paso.dart';
 
 /// Variante móvil del flujo de setup.
 class SetupMovil extends StatelessWidget {

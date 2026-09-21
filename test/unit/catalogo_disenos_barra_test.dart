@@ -6,8 +6,9 @@
 // quede sin color, y que el contador de regalos cuente bien.
 // ─────────────────────────────────────────────────────────────
 
-import 'package:bitly/core/modelos/usuario/catalogo_disenos_barra_lista.dart';
-import 'package:bitly/core/modelos/usuario/preferencias_apariencia.dart';
+import 'package:bitly/core/modelos/usuario/disenos/base/catalogo_disenos_barra_lista.dart';
+import 'package:bitly/core/modelos/usuario/dispositivos/dispositivo_conectado.dart';
+import 'package:bitly/core/modelos/usuario/preferencias/preferencias_apariencia.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -153,25 +154,48 @@ void main() {
   });
 
   test('el contador de regalos cuenta solo lo abierto y no abierto', () {
+    // Aparato fijo: el contador es POR APARATO (ver el test de separación),
+    // así que acá se fija uno para que el número sea determinista.
+    const aparato = TipoDispositivo.celu;
     // Con muchas horas y la versión nueva se abre todo menos el regalo.
     final todos =
         catalogoDisenosBarra
-            .where((d) => d.desbloqueo != DesbloqueoBarra.libre)
+            .where(
+              (d) => d.desbloqueo != DesbloqueoBarra.libre && d.seVeEn(aparato),
+            )
             .length;
     expect(
-      regalosDisponibles(horas: 99999, version: 10000, vistos: const {}).length,
+      regalosDisponibles(
+        horas: 99999,
+        version: 10000,
+        vistos: const {},
+        aparato: aparato,
+      ).length,
       todos,
     );
 
     // Al abrir uno, deja de contarse.
     final uno = disenoPorId('paleta_aurora')!.id;
     expect(
-      regalosDisponibles(horas: 99999, version: 10000, vistos: {uno}).length,
+      regalosDisponibles(
+        horas: 99999,
+        version: 10000,
+        vistos: {uno},
+        aparato: aparato,
+      ).length,
       todos - 1,
     );
 
     // Recién arrancando no hay nada para abrir.
-    expect(regalosDisponibles(horas: 0, version: 0, vistos: const {}), isEmpty);
+    expect(
+      regalosDisponibles(
+        horas: 0,
+        version: 0,
+        vistos: const {},
+        aparato: aparato,
+      ),
+      isEmpty,
+    );
   });
 
   test('el cofre se muestra en dos secciones y no pierde ningún diseño', () {
@@ -190,6 +214,57 @@ void main() {
       expect(d.tienePaleta, isFalse, reason: '${d.id} está en Diseños y tiñe');
     }
     expect(disenosCofreBarra.length, greaterThan(1), reason: 'hay secciones');
+  });
+
+  test('los diseños se separan por aparato (TV, PC y celular)', () {
+    // Los que no declaran aparatos se ofrecen en TODOS.
+    for (final a in TipoDispositivo.values) {
+      final ids = disenosParaAparato(a).map((d) => d.id);
+      expect(ids, contains('paleta_regalo_100'), reason: 'el regalo, en $a');
+      expect(ids, contains('pastilla'), reason: 'las formas de siempre, en $a');
+    }
+    // Y los de un aparato no se cuelan en los otros.
+    expect(
+      disenosParaAparato(TipoDispositivo.tv).map((d) => d.id),
+      contains('tv_panel'),
+    );
+    expect(
+      disenosParaAparato(TipoDispositivo.celu).map((d) => d.id),
+      isNot(contains('tv_panel')),
+    );
+    expect(
+      coloresParaAparato(TipoDispositivo.pc).map((d) => d.id),
+      contains('pc_neon'),
+    );
+    expect(
+      coloresParaAparato(TipoDispositivo.tv).map((d) => d.id),
+      isNot(contains('pc_neon')),
+    );
+  });
+
+  test('TV, PC y celular tienen diseños propios, y solo de ellos', () {
+    for (final a in const [
+      TipoDispositivo.tv,
+      TipoDispositivo.pc,
+      TipoDispositivo.celu,
+    ]) {
+      final propios = catalogoDisenosBarra.where((d) => d.aparatos.contains(a));
+      expect(propios, isNotEmpty, reason: '$a no tiene diseños propios');
+      for (final d in propios) {
+        // Un diseño de la TV no se le ofrece a la PC ni al celular.
+        expect(d.aparatos, [a], reason: '${d.id} debería ser solo de $a');
+      }
+    }
+  });
+
+  test('ningún diseño queda inalcanzable en todos los aparatos', () {
+    final vistos = <String>{};
+    for (final a in TipoDispositivo.values) {
+      vistos.addAll(
+        [...disenosParaAparato(a), ...coloresParaAparato(a)].map((d) => d.id),
+      );
+    }
+    expect(vistos.length, catalogoDisenosBarra.length);
   });
 
   test('ningún id se repite (el cofre no muestra duplicados)', () {

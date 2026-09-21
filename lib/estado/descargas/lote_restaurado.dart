@@ -20,6 +20,7 @@ import 'dart:convert';
 import '../../core/cache/estado/estado_descarga.dart';
 import '../../core/servicios/utilidades/utilidades_id.dart';
 
+import 'package:flutter/foundation.dart';
 /// Resultado de verificar un lote guardado: cuántos tracks están de
 /// verdad en disco y si con eso el lote queda completo.
 typedef LoteRestaurado =
@@ -48,7 +49,8 @@ List<String> idsStateKeysDeLote(String trackIdsJson) {
       }
     }
     return ids;
-  } catch (_) {
+  } catch (e) {
+    debugPrint('[lote_restaurado] $e');
     return const [];
   }
 }

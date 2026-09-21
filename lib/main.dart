@@ -20,18 +20,18 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app.dart';
-import 'app/depuracion.dart';
-import 'app/inyeccion.dart';
-import './core/plataforma/sistema/perfil_runtime.dart';
-import './core/plataforma/notificacion/puente_notificacion_media.dart';
-import './core/plataforma/sistema/servicio_deep_link.dart';
-import './core/plataforma/sistema/servicio_foco_audio.dart';
-import './core/plataforma/sistema/servicio_share_intent.dart';
-import './core/servicios/lan/servicio_lan.dart';
-import './features/ajustes/notificaciones/notificaciones_tuerca.dart';
-import './core/servicios/proveedores/servicio_enlaces.dart';
-import './estado/reproductor/cubit_reproductor.dart';
-import './shared/utilidades/plataforma/deteccion_tv.dart';
+import 'app/debug/depuracion.dart';
+import 'app/inyeccion/inyeccion.dart';
+import 'core/plataforma/sistema/base/perfil_runtime.dart';
+import 'core/plataforma/notificacion/base/puente_notificacion_media.dart';
+import 'core/plataforma/sistema/enlaces/servicio_deep_link.dart';
+import 'core/plataforma/sistema/base/servicio_foco_audio.dart';
+import 'core/plataforma/sistema/enlaces/servicio_share_intent.dart';
+import 'core/servicios/lan/servicio/base/servicio_lan.dart';
+import 'features/ajustes/notificaciones/notificaciones_tuerca.dart';
+import 'core/servicios/proveedores/base/servicio_enlaces.dart';
+import 'estado/reproductor/cubit_reproductor.dart';
+import 'shared/utilidades/plataforma/tv/deteccion_tv.dart';
 
 /// Punto de entrada de la app.
 Future<void> main() async {

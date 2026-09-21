@@ -19,7 +19,8 @@ Future<String?> rutaCarpetaPorDefecto() async {
     final bitlyDir = Directory('${dir.path}/Bitly');
     if (!bitlyDir.existsSync()) bitlyDir.createSync(recursive: true);
     return bitlyDir.path;
-  } catch (_) {
+  } catch (e) {
+    debugPrint('[slide_carpeta_almacenamiento_helpers] $e');
     return null;
   }
 }

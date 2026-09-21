@@ -1,0 +1,92 @@
+// ─────────────────────────────────────────────────────────────
+// settings_sheet_google_content.dart — PART de settings_sheet_new.dart: contenido del tile de Google
+// (avatar, estado conectado/desconectado y acciones).
+// Se conecta con: settings_sheet_new.dart (misma library).
+// Parte del flujo: Ajustes → Más (tile de Google).
+// ─────────────────────────────────────────────────────────────
+
+part of '../../settings_sheet_new.dart';
+
+/// Fila de contenido del tile de Google: ícono, textos de estado y el
+/// check / chevron según esté conectado o no.
+class _GoogleTileContent extends StatelessWidget {
+  final bool isConnected;
+  final Color glowColor;
+  final Color onBg;
+  final Responsive r;
+
+  const _GoogleTileContent({
+    required this.isConnected,
+    required this.glowColor,
+    required this.onBg,
+    required this.r,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final glow = glowColor;
+    final g = AppLocalizations.of(context).google;
+
+    return Row(
+      children: [
+        // Google icon
+        Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.1),
+                blurRadius: 8,
+              ),
+            ],
+          ),
+          child: Center(
+            child: Text(
+              'G',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF4285F4),
+              ),
+            ),
+          ),
+        ),
+        SizedBox(width: r.spacingM),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                g.titulo(conectado: isConnected),
+                style: TextStyle(
+                  fontSize: r.subtitleSize - 1,
+                  fontWeight: FontWeight.w600,
+                  color: isConnected ? glow : onBg,
+                ),
+              ),
+              SizedBox(height: 2),
+              Text(
+                g.descripcion(conectado: isConnected),
+                style: TextStyle(
+                  fontSize: r.footerSize - 2,
+                  color: onBg.withValues(alpha: 0.4),
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (isConnected)
+          Icon(Icons.check_circle_rounded, color: glow, size: r.subtitleSize)
+        else
+          Icon(
+            Icons.chevron_right_rounded,
+            color: onBg.withValues(alpha: 0.3),
+            size: r.subtitleSize,
+          ),
+      ],
+    );
+  }
+}

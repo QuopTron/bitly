@@ -6,7 +6,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:bitly/core/cache/estado/estado_descarga.dart';
-import 'package:bitly/core/servicios/descargas/motivos_descarga.dart';
+import 'package:bitly/core/servicios/descargas/plan/motivos_descarga.dart';
 
 void main() {
   group('DatosEstadoDescarga', () {

@@ -33,20 +33,20 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:media_kit/media_kit.dart';
 
-import 'package:bitly/app/inyeccion.dart' as inj;
-import 'package:bitly/core/backend_go/plataformas/backend_android.dart';
-import 'package:bitly/core/cache/almacenes/cache_ajustes.dart';
-import 'package:bitly/core/cache/almacenes/cache_busqueda.dart';
+import 'package:bitly/app/inyeccion/inyeccion.dart' as inj;
+import 'package:bitly/core/backend_go/plataformas/android/backend_android.dart';
+import 'package:bitly/core/cache/almacenes/sistema/cache_ajustes.dart';
+import 'package:bitly/core/cache/almacenes/musica/cache_busqueda.dart';
 import 'package:bitly/core/modelos/feed/item_feed.dart';
 import 'package:bitly/estado/cola/cubit_cola.dart';
 import 'package:bitly/estado/descargas/cubit_descargas.dart';
-import 'package:bitly/estado/like/cubit_like.dart';
+import 'package:bitly/estado/like/base/cubit_like.dart';
 import 'package:bitly/estado/playlists/cubit_playlists.dart';
 import 'package:bitly/estado/reproductor/cubit_reproductor.dart';
-import 'package:bitly/features/busqueda/bloc/busqueda_bloc.dart';
-import 'package:bitly/features/busqueda/bloc/busqueda_evento.dart';
-import 'package:bitly/features/busqueda/pagina/pagina_busqueda.dart';
-import 'package:bitly/features/tutorial_interactivo/motor/tutorial_pasos.dart';
+import 'package:bitly/features/busqueda/bloc/base/busqueda_bloc.dart';
+import 'package:bitly/features/busqueda/bloc/base/busqueda_evento.dart';
+import 'package:bitly/features/busqueda/pagina/base/pagina_busqueda.dart';
+import 'package:bitly/features/tutorial_interactivo/motor/pasos/tutorial_pasos.dart';
 import 'package:bitly/l10n/app_localizations.dart';
 
 /// Pausa de escritura del producto. Si cambia en pagina_busqueda.dart, este

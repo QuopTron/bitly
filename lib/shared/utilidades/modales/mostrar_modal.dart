@@ -145,7 +145,8 @@ Color? barrierDeModal(
 bool esOscuroSeguro(BuildContext context) {
   try {
     return Theme.of(context).brightness == Brightness.dark;
-  } catch (_) {
+  } catch (e) {
+    debugPrint('[mostrar_modal] $e');
     return true;
   }
 }

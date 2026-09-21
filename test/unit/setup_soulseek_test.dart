@@ -12,10 +12,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:bitly/core/servicios/proveedores/servicio_soulseek.dart';
-import 'package:bitly/features/setup/bloc/setup_bloc.dart';
-import 'package:bitly/features/setup/bloc/setup_estado.dart';
-import 'package:bitly/features/setup/bloc/setup_evento.dart';
+import 'package:bitly/core/servicios/proveedores/soulseek/servicio_soulseek.dart';
+import 'package:bitly/features/setup/bloc/base/setup_bloc.dart';
+import 'package:bitly/features/setup/bloc/base/setup_estado.dart';
+import 'package:bitly/features/setup/bloc/eventos/setup_evento.dart';
 
 /// Cliente de Soulseek falso: devuelve lo que el test decide, sin tocar la red.
 class _SoulseekFalso extends ServicioSoulseek {

@@ -6,12 +6,12 @@
 // Monta los widgets REALES (FondoAmbiente y FondoAmbientalReproductor): si
 // alguien vuelve a meter una curva en uno de los dos, acá salta.
 
-import 'package:bitly/app/inyeccion.dart' as di;
-import 'package:bitly/core/modelos/usuario/perfil_rendimiento.dart';
-import 'package:bitly/core/modelos/usuario/preferencias_estilo.dart';
-import 'package:bitly/features/reproductor/pagina/reproductor_pagina.dart';
-import 'package:bitly/shared/widgets/fondos/atenuado_por_nivel.dart';
-import 'package:bitly/shared/widgets/fondos/fondo_ambiente.dart';
+import 'package:bitly/app/inyeccion/inyeccion.dart' as di;
+import 'package:bitly/core/modelos/usuario/perfil/perfil_rendimiento.dart';
+import 'package:bitly/core/modelos/usuario/preferencias/preferencias_estilo.dart';
+import 'package:bitly/features/reproductor/pagina/base/reproductor_pagina.dart';
+import 'package:bitly/shared/widgets/fondos/ambiente/atenuado_por_nivel.dart';
+import 'package:bitly/shared/widgets/fondos/ambiente/fondo_ambiente.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

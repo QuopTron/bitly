@@ -4,7 +4,7 @@
 // cada reintento baje un escalón (y no se quede pidiendo lo mismo que falló) y
 // que NUNCA suba la calidad por encima de lo configurado.
 
-import 'package:bitly/core/servicios/descargas/escalado_calidad.dart';
+import 'package:bitly/core/servicios/descargas/plan/escalado_calidad.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

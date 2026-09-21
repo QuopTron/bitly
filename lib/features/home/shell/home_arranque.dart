@@ -13,9 +13,9 @@ import 'package:flutter/material.dart';
 import '../../../core/modelos/feed/item_feed.dart';
 import '../../../core/servicios/verificacion/servicio_verificacion.dart';
 import '../../../l10n/app_localizations.dart';
-import '../../detalle/comun/navegador_detalle.dart';
-import '../../tutorial_interactivo/motor/tutorial_controller.dart';
-import '../../tutorial_interactivo/motor/tutorial_pasos.dart';
+import '../../detalle/comun/base/navegador_detalle.dart';
+import '../../tutorial_interactivo/motor/base/tutorial_controller.dart';
+import '../../tutorial_interactivo/motor/pasos/tutorial_pasos.dart';
 
 /// Arranca el tutorial con los textos del locale. Los textos salen del locale
 /// (una lista, en el mismo orden que los pasos) y los widgets objetivo se

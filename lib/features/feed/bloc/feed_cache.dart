@@ -24,7 +24,8 @@ Future<void> _cargarFeed(
   DatosCacheFeed? cacheado;
   try {
     cacheado = await cache.cargar();
-  } catch (_) {
+  } catch (e) {
+    debugPrint('[feed_cache] $e');
     cacheado = null;
   }
 

@@ -19,21 +19,23 @@ import 'package:flutter/material.dart';
 
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/tema/colores_app.dart';
-import '../../../shared/utilidades/plataforma/escala_texto.dart';
-import '../motor/modelo_tutorial.dart';
-import '../motor/tutorial_controller.dart';
+import '../../../shared/tema/especificaciones/especificaciones_plataforma.dart';
+import '../../../shared/utilidades/plataforma/pantalla/escala_texto.dart';
+import '../../../shared/utilidades/plataforma/responsive.dart';
+import '../motor/pasos/modelo_tutorial.dart';
+import '../motor/base/tutorial_controller.dart';
 
-part 'tutorial_overlay_estado.dart';
-part 'tutorial_overlay_capas.dart';
-part 'tutorial_overlay_spotlight.dart';
-part 'tutorial_overlay_ubicacion.dart';
-part 'tutorial_overlay_tooltip.dart';
-part 'tutorial_overlay_flecha.dart';
-part 'tutorial_overlay_tarjeta.dart';
-part 'tutorial_overlay_cabecera.dart';
-part 'tutorial_overlay_botones.dart';
-part 'tutorial_overlay_saltar.dart';
-part 'tutorial_overlay_tarjeta_build.dart';
+part 'tarjeta/base/tutorial_overlay_estado.dart';
+part 'capa/tutorial_overlay_capas.dart';
+part 'capa/tutorial_overlay_spotlight.dart';
+part 'capa/tutorial_overlay_ubicacion.dart';
+part 'tarjeta/base/tutorial_overlay_tooltip.dart';
+part 'capa/tutorial_overlay_flecha.dart';
+part 'tarjeta/base/tutorial_overlay_tarjeta.dart';
+part 'tarjeta/piezas/tutorial_overlay_cabecera.dart';
+part 'tarjeta/piezas/tutorial_overlay_botones.dart';
+part 'tarjeta/piezas/tutorial_overlay_saltar.dart';
+part 'tarjeta/piezas/tutorial_overlay_tarjeta_build.dart';
 
 /// Overlay del tutorial interactivo. Se monta una vez en el shell de la Home
 /// (móvil y escritorio); si el tutorial ya se completó, no dibuja nada.

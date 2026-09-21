@@ -6,9 +6,9 @@
 // y sin un test se vuelve a colar que tocar el idioma deje de persistir.
 //
 // Si el entorno no expone SQLite nativo el test se saltea.
-import 'package:bitly/app/inyeccion.dart' as di;
+import 'package:bitly/app/inyeccion/inyeccion.dart' as di;
 import 'package:bitly/core/base_datos/app_database.dart';
-import 'package:bitly/core/cache/almacenes/cache_ajustes.dart';
+import 'package:bitly/core/cache/almacenes/sistema/cache_ajustes.dart';
 // Las partes no se importan suelto: se entra por la library que las une.
 import 'package:bitly/features/ajustes/sheet/settings_sheet_new.dart';
 import 'package:bitly/l10n/app_localizations.dart';

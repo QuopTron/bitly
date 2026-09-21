@@ -28,7 +28,7 @@ extension InicializacionTextos on AppLocalizations {
     apariencia = isEn ? StringsApariencia.en : StringsApariencia.es;
     aparienciaEstilo =
         isEn ? StringsAparienciaEstilo.en : StringsAparienciaEstilo.es;
-    cofre = isEn ? StringsCofrePaletas.en : StringsCofrePaletas.es;
+    cofre = isEn ? cofreEn : cofreEs;
     ajustes = isEn ? StringsAjustes.en : StringsAjustes.es;
     google = isEn ? StringsConexionGoogle.en : StringsConexionGoogle.es;
     soulseek = isEn ? StringsSoulseek.en : StringsSoulseek.es;
@@ -51,5 +51,6 @@ extension InicializacionTextos on AppLocalizations {
     redConexion = isEn ? StringsConexionRed.en : StringsConexionRed.es;
     traspasoConexion = isEn ? StringsTraspaso.en : StringsTraspaso.es;
     rescate = isEn ? StringsRescate.en : StringsRescate.es;
+    fiesta = isEn ? StringsFiesta.en : StringsFiesta.es;
   }
 }

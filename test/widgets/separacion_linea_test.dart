@@ -7,13 +7,13 @@
 // Es lo que evita que la línea se dibuje siempre (arruinando el diseño de
 // fábrica) o que el margen deje de responder al control.
 
-import 'package:bitly/app/inyeccion.dart' as di;
+import 'package:bitly/app/inyeccion/inyeccion.dart' as di;
 import 'package:bitly/core/cache/estado/estado_descarga.dart';
-import 'package:bitly/core/modelos/usuario/perfil_rendimiento.dart';
-import 'package:bitly/core/modelos/usuario/preferencias_apariencia.dart';
-import 'package:bitly/core/modelos/usuario/preferencias_estilo.dart';
+import 'package:bitly/core/modelos/usuario/perfil/perfil_rendimiento.dart';
+import 'package:bitly/core/modelos/usuario/preferencias/preferencias_apariencia.dart';
+import 'package:bitly/core/modelos/usuario/preferencias/preferencias_estilo.dart';
 import 'package:bitly/l10n/app_localizations.dart';
-import 'package:bitly/shared/widgets/tarjetas/track/tarjeta_track.dart';
+import 'package:bitly/shared/widgets/tarjetas/track/base/tarjeta_track.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';

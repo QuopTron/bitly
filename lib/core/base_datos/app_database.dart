@@ -12,28 +12,20 @@ import 'conexion_nativa.dart'
     if (dart.library.js_interop) 'conexion_web.dart'
     as conexion;
 
-import 'tables/settings_table.dart';
-import 'tables/content_tables.dart';
-import 'tables/sources_table.dart';
-import 'tables/favorites_tables.dart';
-import 'tables/collections_table.dart';
-import 'tables/play_history_table.dart';
-import 'tables/download_tables.dart';
-import 'tables/recent_table.dart';
-import 'tables/premium_table.dart';
-import 'tables/artists_tables.dart';
-import 'tables/cache_tables.dart';
+import 'tables/sistema/settings_table.dart';
+import 'tables/musica/base/content_tables.dart';
+import 'tables/usuario/favorites_tables.dart';
+import 'tables/usuario/collections_table.dart';
+import 'tables/musica/historial/play_history_table.dart';
+import 'tables/sistema/download_tables.dart';
+import 'tables/musica/historial/recent_table.dart';
+import 'tables/usuario/premium_table.dart';
+import 'tables/musica/artistas/artists_tables.dart';
+import 'tables/sistema/cache_tables.dart';
 
-import 'daos/settings_dao.dart';
-import 'daos/content_dao.dart';
-import 'daos/favorites_dao.dart';
-import 'daos/collections_dao.dart';
-import 'daos/play_history_dao.dart';
-import 'daos/download_dao.dart';
-import 'daos/recent_dao.dart';
-import 'daos/premium_dao.dart';
-import 'daos/cache_dao.dart';
+import 'daos/descargas/download_dao.dart';
 
+import 'package:flutter/foundation.dart';
 part 'app_database.g.dart';
 
 @DriftDatabase(
@@ -42,8 +34,6 @@ part 'app_database.g.dart';
     Artists,
     Albums,
     Tracks,
-    Sources,
-    Files,
     LovedTracks,
     FavoriteAlbums,
     FavoriteArtists,
@@ -52,12 +42,9 @@ part 'app_database.g.dart';
     CollectionItems,
     PlayHistory,
     PlayAggregates,
-    DownloadQueue,
     DownloadHistory,
     DownloadBatches,
-    HiddenDownloadIds,
     RecentSearches,
-    RecentAccess,
     UserPremium,
     QuotaUsage,
     UserDailyPlays,
@@ -66,23 +53,16 @@ part 'app_database.g.dart';
     JsonCache,
     SimilarArtists,
   ],
-  daos: [
-    SettingsDao,
-    ContentDao,
-    FavoritesDao,
-    CollectionsDao,
-    PlayHistoryDao,
-    DownloadDao,
-    RecentDao,
-    PremiumDao,
-    CacheDao,
-  ],
+  // Solo DownloadDao se usa como getter (`db.downloadDao`); los demás DAOs se
+  // construyen donde hacen falta (`ContentDao(db)`), así que no se declaran
+  // acá: drift generaba para ellos un getter que nadie llamaba.
+  daos: [DownloadDao],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -105,6 +85,31 @@ class AppDatabase extends _$AppDatabase {
         // arranque si la tabla ya no estaba (p. ej. base recién creada).
         await customStatement('DROP TABLE IF EXISTS secret_counters');
         await customStatement('DROP TABLE IF EXISTS secret_unlocks');
+      }
+      if (from < 6) {
+        // Tres tablas que quedaron sin un solo lector ni escritor:
+        //   recent_access  → el historial de reproducción y el de búsquedas
+        //                    ya cubren esos dos usos.
+        //   files          → la biblioteca local se lee por descargas, no
+        //                    por esta tabla, que nunca se llenó.
+        //   download_queue → la cola de descargas vive en memoria (el cubit);
+        //                    solo se persiste el historial y los lotes.
+        //   hidden_download_ids → la app no tiene "ocultar descarga": la
+        //                    feature nunca existió del lado del código.
+        //   sources        → la tabla de "proveedor + id externo" por track
+        //                    nunca tuvo quien la llenara: la fuente de cada
+        //                    resultado viaja con el propio resultado.
+        // Con sus métodos de DAO eliminados, DROP IF EXISTS deja la migración
+        // idempotente y no puede bloquear el arranque.
+        for (final tabla in [
+          'recent_access',
+          'files',
+          'download_queue',
+          'hidden_download_ids',
+          'sources',
+        ]) {
+          await customStatement('DROP TABLE IF EXISTS $tabla');
+        }
       }
     },
   );
@@ -134,7 +139,8 @@ class AppDatabase extends _$AppDatabase {
       await customStatement(
         "UPDATE download_history SET cover_path = '' WHERE cover_path $legacyWhere",
       );
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[AppDatabase] $e');
       // Best-effort: a failed migration must never block app startup.
     }
   }

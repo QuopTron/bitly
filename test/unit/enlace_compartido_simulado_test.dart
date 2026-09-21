@@ -11,9 +11,9 @@
 import 'dart:convert';
 
 import 'package:bitly/core/modelos/feed/item_feed.dart';
-import 'package:bitly/core/servicios/compartir/cifrado_compartir.dart';
-import 'package:bitly/core/servicios/compartir/datos_compartido.dart';
-import 'package:bitly/core/servicios/compartir/servicio_compartir.dart';
+import 'package:bitly/core/servicios/compartir/datos/cifrado_compartir.dart';
+import 'package:bitly/core/servicios/compartir/datos/datos_compartido.dart';
+import 'package:bitly/core/servicios/compartir/base/servicio_compartir.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// La canción que "comparte" el usuario. La carátula es una URL REAL

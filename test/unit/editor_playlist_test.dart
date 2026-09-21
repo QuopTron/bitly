@@ -12,13 +12,13 @@
 // ─────────────────────────────────────────────────────────────
 
 import 'package:bitly/core/base_datos/app_database.dart';
-import 'package:bitly/core/base_datos/daos/collections_dao.dart';
-import 'package:bitly/core/base_datos/daos/content_dao.dart';
-import 'package:bitly/core/cache/almacenes/cache_colecciones.dart';
-import 'package:bitly/core/cache/almacenes/cache_detalle_memoria.dart';
-import 'package:bitly/core/cache/reproduccion/reproduccion_detalle_local.dart';
+import 'package:bitly/core/base_datos/daos/biblioteca/colecciones/collections_dao.dart';
+import 'package:bitly/core/base_datos/daos/contenido/content_dao.dart';
+import 'package:bitly/core/cache/almacenes/biblioteca/base/cache_colecciones.dart';
+import 'package:bitly/core/cache/almacenes/musica/cache_detalle_memoria.dart';
+import 'package:bitly/core/cache/reproduccion/detalle/reproduccion_detalle_local.dart';
 import 'package:bitly/core/modelos/feed/item_feed.dart';
-import 'package:bitly/core/servicios/playlist/editor_playlist.dart';
+import 'package:bitly/core/servicios/playlist/editor/editor_playlist.dart';
 // Solo Value: `isNotNull` de drift choca con el de matcher.
 import 'package:drift/drift.dart' show Value, driftRuntimeOptions;
 import 'package:drift/native.dart';

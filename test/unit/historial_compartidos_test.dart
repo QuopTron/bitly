@@ -1,9 +1,9 @@
 // Tests del historial de compartidos (la parte pura: orden, dedupe, tope y
 // serialización). Es lo que respalda la pestaña Ajustes → Compartidos.
 
-import 'package:bitly/core/servicios/compartir/compartido_recibido.dart';
-import 'package:bitly/core/servicios/compartir/datos_compartido.dart';
-import 'package:bitly/core/servicios/compartir/historial_compartidos_puro.dart';
+import 'package:bitly/core/servicios/compartir/datos/compartido_recibido.dart';
+import 'package:bitly/core/servicios/compartir/datos/datos_compartido.dart';
+import 'package:bitly/core/servicios/compartir/base/historial_compartidos_puro.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 CompartidoRecibido _entrada({

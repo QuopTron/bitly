@@ -4,7 +4,11 @@
 // lista de fuentes con icono + nombre + check de selección y
 // divisores). Entra con fade + slide corto. Las filas usan la
 // clase FilaFuente definida en la library principal.
-// Se conecta con: acordeon_fuente.dart (misma library) + nada más.
+//
+// El alto máximo, el radio y las filas salen del aparato: en la TV el
+// panel es más alto y las filas más grandes (se elige con el puntero).
+// Se conecta con: acordeon_fuente.dart (misma library) +
+// responsive + especificaciones_plataforma.
 // Parte del flujo: búsqueda (selector de extensión).
 // ─────────────────────────────────────────────────────────────
 
@@ -31,6 +35,8 @@ class PanelFuenteFlotante extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final r = Responsive(context);
+    final e = EspecificacionesPlataforma.de(context);
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0, end: 1),
       duration: const Duration(milliseconds: 180),
@@ -48,12 +54,14 @@ class PanelFuenteFlotante extends StatelessWidget {
         elevation: 16,
         color: esOscuro ? const Color(0xFF1E1E1E) : Colors.white,
         shadowColor: Colors.black.withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(e.radioTarjeta + 2),
         clipBehavior: Clip.hardEdge,
         child: Container(
-          decoration: BoxDecoration(borderRadius: BorderRadius.circular(14)),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(e.radioTarjeta + 2),
+          ),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxHeight: 400),
+            constraints: BoxConstraints(maxHeight: r.val(400, 300, 620)),
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -67,7 +75,7 @@ class PanelFuenteFlotante extends StatelessWidget {
                         endIndent: 12,
                         color: onBg.withValues(alpha: esOscuro ? 0.08 : 0.12),
                       ),
-                    _fila(filas[i]),
+                    _fila(context, filas[i]),
                   ],
                 ],
               ),
@@ -78,7 +86,9 @@ class PanelFuenteFlotante extends StatelessWidget {
     );
   }
 
-  Widget _fila(FilaFuente fila) {
+  Widget _fila(BuildContext context, FilaFuente fila) {
+    final r = Responsive(context);
+    final e = EspecificacionesPlataforma.de(context);
     final seleccionada = fuenteSeleccionada == fila.valor;
     return Material(
       color:
@@ -88,20 +98,20 @@ class PanelFuenteFlotante extends StatelessWidget {
       child: InkWell(
         onTap: () => onSeleccionar(fila.valor),
         child: SizedBox(
-          height: 40,
+          height: e.altoTile - 8,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+            padding: EdgeInsets.symmetric(horizontal: r.spacingM),
             child: Row(
               children: [
-                _iconoRedondeadoChico(fila.icono),
-                const SizedBox(width: 12),
+                _iconoRedondeadoChico(fila.icono, e),
+                SizedBox(width: r.spacingM),
                 Expanded(
                   child: Text(
                     fila.etiqueta,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: e.textoEtiqueta + 2,
                       fontWeight:
                           seleccionada ? FontWeight.w700 : FontWeight.w500,
                       color: onBg.withValues(alpha: seleccionada ? 1 : 0.78),
@@ -110,7 +120,7 @@ class PanelFuenteFlotante extends StatelessWidget {
                 ),
                 Icon(
                   seleccionada ? Icons.check_circle : Icons.circle_outlined,
-                  size: 17,
+                  size: e.iconoBoton,
                   color:
                       seleccionada
                           ? onBg
@@ -124,16 +134,20 @@ class PanelFuenteFlotante extends StatelessWidget {
     );
   }
 
-  Widget _iconoRedondeadoChico(IconData icono) {
+  Widget _iconoRedondeadoChico(IconData icono, EspecificacionesPlataforma e) {
     final c = onBg;
     return Container(
-      width: 26,
-      height: 26,
+      width: e.iconoTile,
+      height: e.iconoTile,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: c.withValues(alpha: esOscuro ? 0.1 : 0.08),
       ),
-      child: Icon(icono, size: 15, color: c.withValues(alpha: 0.9)),
+      child: Icon(
+        icono,
+        size: e.iconoTile * 0.6,
+        color: c.withValues(alpha: 0.9),
+      ),
     );
   }
 }

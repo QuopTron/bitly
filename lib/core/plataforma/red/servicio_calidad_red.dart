@@ -63,7 +63,8 @@ class ServicioCalidadRed {
       _subConectividad = Connectivity().onConnectivityChanged.listen(
         (_) => medirAhora(),
       );
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[ServicioCalidadRed] $e');
       // Sin observador de conectividad igual se mide por timer.
     }
     unawaited(medirAhora());

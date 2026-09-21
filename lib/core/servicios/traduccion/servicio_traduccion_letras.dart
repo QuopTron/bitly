@@ -29,7 +29,7 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:translator/translator.dart';
 
-import '../../cache/almacenes/cache_traducciones.dart';
+import '../../cache/almacenes/biblioteca/base/cache_traducciones.dart';
 
 /// Una línea ya traducida y el idioma del que se tradujo.
 typedef ResultadoTraduccionLetras =

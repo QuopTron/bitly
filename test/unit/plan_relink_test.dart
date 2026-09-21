@@ -4,7 +4,7 @@
 // el audio perdido se encuentre por nombre, tallo o id, y que un archivo que no
 // es audio (carátula, .lrc) jamás se tome como el audio del track.
 
-import 'package:bitly/core/servicios/descargas/plan_relink.dart';
+import 'package:bitly/core/servicios/descargas/plan/plan_relink.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

@@ -17,9 +17,9 @@ import 'package:go_router/go_router.dart';
 import '../../../../../l10n/app_localizations.dart';
 import '../../../../../shared/tema/colores_app.dart';
 import '../../../../../shared/utilidades/plataforma/responsive.dart';
-import '../../../../../shared/widgets/vidrio/boton_vidrio.dart';
-import '../../../../../shared/widgets/vidrio/contenedor_vidrio.dart';
-import '../../../bloc/setup_estado.dart';
+import '../../../../../shared/widgets/vidrio/botones/boton_vidrio.dart';
+import '../../../../../shared/widgets/vidrio/base/contenedor_vidrio.dart';
+import '../../../bloc/base/setup_estado.dart';
 
 part 'slide_gracias_widgets.dart';
 part 'slide_gracias_cuerpo.dart';

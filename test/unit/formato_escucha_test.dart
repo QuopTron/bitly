@@ -42,10 +42,4 @@ void main() {
     expect(textoMinutos(60), '1 h');
     expect(textoMinutos(185), '3 h 5 min');
   });
-
-  test('contador de reproducciones en singular y plural', () {
-    expect(textoReproducciones(1), '1 vez');
-    expect(textoReproducciones(0), '0 veces');
-    expect(textoReproducciones(12), '12 veces');
-  });
 }

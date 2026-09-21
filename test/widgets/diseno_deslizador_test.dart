@@ -9,16 +9,16 @@
 //
 // Si el entorno no expone SQLite nativo el test se saltea.
 
-import 'package:bitly/app/inyeccion.dart' as di;
+import 'package:bitly/app/inyeccion/inyeccion.dart' as di;
 import 'package:bitly/core/base_datos/app_database.dart';
-import 'package:bitly/core/cache/almacenes/cache_ajustes.dart';
-import 'package:bitly/core/modelos/usuario/preferencias_apariencia.dart';
-import 'package:bitly/shared/utilidades/formato/apariencia_helper.dart';
+import 'package:bitly/core/cache/almacenes/sistema/cache_ajustes.dart';
+import 'package:bitly/core/modelos/usuario/preferencias/preferencias_apariencia.dart';
+import 'package:bitly/shared/utilidades/formato/apariencia/base/apariencia_helper.dart';
 import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:bitly/shared/utilidades/formato/apariencia_espacios_helper.dart';
+import 'package:bitly/shared/utilidades/formato/apariencia/barras/apariencia_espacios_helper.dart';
 
 void main() {
   late AppDatabase db;

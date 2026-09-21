@@ -9,7 +9,7 @@
 import 'dart:io';
 
 import 'package:bitly/core/cache/estado/estado_like.dart';
-import 'package:bitly/features/mi_espacio/datos/datos_mi_espacio.dart';
+import 'package:bitly/features/mi_espacio/datos/base/datos_mi_espacio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

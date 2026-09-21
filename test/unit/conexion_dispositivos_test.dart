@@ -7,12 +7,12 @@
 // se saltea (los modelos puros igual se prueban aparte).
 
 import 'package:bitly/core/base_datos/app_database.dart';
-import 'package:bitly/core/cache/almacenes/cache_ajustes.dart';
-import 'package:bitly/core/modelos/usuario/dispositivo_conectado.dart';
-import 'package:bitly/core/modelos/usuario/trial_conexion.dart';
-import 'package:bitly/core/servicios/conexion/conexion_almacen.dart';
-import 'package:bitly/core/servicios/conexion/servicio_conexion.dart';
-import 'package:bitly/core/servicios/conexion/servicio_conexion_reglas.dart';
+import 'package:bitly/core/cache/almacenes/sistema/cache_ajustes.dart';
+import 'package:bitly/core/modelos/usuario/dispositivos/dispositivo_conectado.dart';
+import 'package:bitly/core/modelos/usuario/dispositivos/trial_conexion.dart';
+import 'package:bitly/core/servicios/conexion/base/base/conexion_almacen.dart';
+import 'package:bitly/core/servicios/conexion/base/base/servicio_conexion.dart';
+import 'package:bitly/core/servicios/conexion/base/reglas/servicio_conexion_reglas.dart';
 import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';

@@ -12,7 +12,8 @@
 
 import 'package:flutter/material.dart';
 
-import '../../utilidades/plataforma/efectos_app.dart';
+import '../../utilidades/plataforma/pantalla/efectos_app.dart';
+import '../../utilidades/plataforma/responsive.dart';
 
 part 'esqueleto_fila.dart';
 
@@ -128,13 +129,24 @@ class EsqueletoDetalle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // La separación sigue al aparato: en la TV el bloque de carga queda con
+    // el aire del resto de la interfaz, no con un hueco fijo de celular.
+    final r = Responsive(context);
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          EsqueletoCarga(ancho: 180, alto: 180, radioBorde: 90),
-          const SizedBox(height: 24),
-          EsqueletoCarga(ancho: 260, alto: 220, radioBorde: 16),
+          EsqueletoCarga(
+            ancho: r.val(180, 150, 300),
+            alto: r.val(180, 150, 300),
+            radioBorde: 90,
+          ),
+          SizedBox(height: r.spacingXL),
+          EsqueletoCarga(
+            ancho: r.val(260, 210, 420),
+            alto: r.val(220, 180, 360),
+            radioBorde: 16,
+          ),
         ],
       ),
     );

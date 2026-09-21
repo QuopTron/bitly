@@ -3,7 +3,7 @@
 // Se conecta con: ServicioOAuthYouTube (devuelve este resultado).
 // Parte del flujo: Ajustes/Setup → Google.
 
-import 'package:bitly/core/servicios/oauth/servicio_oauth_youtube.dart';
+import 'package:bitly/core/servicios/oauth/base/servicio_oauth_youtube.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

@@ -26,9 +26,9 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
-import 'package:bitly/app/inyeccion.dart' as inj;
-import 'package:bitly/core/backend_go/plataformas/backend_android.dart';
-import 'package:bitly/core/cache/almacenes/cache_ajustes.dart';
+import 'package:bitly/app/inyeccion/inyeccion.dart' as inj;
+import 'package:bitly/core/backend_go/plataformas/android/backend_android.dart';
+import 'package:bitly/core/cache/almacenes/sistema/cache_ajustes.dart';
 import 'package:bitly/features/ajustes/sheet/settings_sheet_new.dart';
 import 'package:bitly/l10n/app_localizations.dart';
 

@@ -17,7 +17,8 @@ Future<DetalleAlbum?> _fetchDetalleAlbum(String albumId, String src) async {
     final json = await sl<BackendService>().fetchAlbumDetail(albumId, src);
     if (json.isEmpty || json == '{}') return null;
     return DetalleAlbum.desdeJson(jsonDecode(json) as Map<String, dynamic>);
-  } catch (_) {
+  } catch (e) {
+    debugPrint('[acciones_item_detalle] $e');
     return null;
   }
 }
@@ -34,7 +35,8 @@ Future<DetallePlaylist?> _fetchDetallePlaylist(
     );
     if (json.isEmpty || json == '{}') return null;
     return DetallePlaylist.desdeJson(jsonDecode(json) as Map<String, dynamic>);
-  } catch (_) {
+  } catch (e) {
+    debugPrint('[acciones_item_detalle] $e');
     return null;
   }
 }

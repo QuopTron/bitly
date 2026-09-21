@@ -4,7 +4,7 @@
 // (sin espacio, carpeta sin permiso, sesión por verificar) solo repite el
 // mismo aviso, y no reintentar un fallo de red deja la canción en rojo para
 // siempre aunque otro intento hubiera funcionado.
-import 'package:bitly/core/servicios/descargas/motivos_descarga.dart';
+import 'package:bitly/core/servicios/descargas/plan/motivos_descarga.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

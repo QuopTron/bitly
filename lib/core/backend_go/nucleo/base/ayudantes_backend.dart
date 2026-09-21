@@ -1,0 +1,90 @@
+// ─────────────────────────────────────────────────────────────
+// ayudantes_backend.dart — Lógica compartida entre las
+// implementaciones del backend (Android/Desktop) para construir y
+// parsear datos sin duplicar código.
+// Se conecta con: backend_go (implementaciones concretas).
+// Parte del flujo: setup (buildSetupData) y parseo de respuestas RPC.
+// ─────────────────────────────────────────────────────────────
+
+import 'dart:convert';
+
+import '../../../modelos/datos_setup.dart';
+import '../../../modelos/feed/item_feed.dart';
+import '../../../modelos/feed/seccion_feed.dart';
+
+import 'package:flutter/foundation.dart';
+/// Helpers estáticos para armar/parsear payloads del backend.
+class AyudantesBackend {
+  /// Arma el payload de setup (datos de configuración inicial).
+  /// Preserva timestamps de trial existentes para que el usuario NO pueda
+  /// extender su trial gratuito reiniciando el setup repetidamente.
+  static Map<String, dynamic> construirDatosSetup({
+    required String locale,
+    required String mode,
+    required String username,
+    String? codigoPremium,
+    String? trialIniciadoEnExistente,
+    String? trialExpiraEnExistente,
+  }) {
+    final datos = <String, dynamic>{
+      'locale': locale,
+      'mode': mode,
+      'username': username,
+      'setup_completed': true,
+      'setup_completed_at': DateTime.now().toIso8601String(),
+    };
+    if (mode == 'free') {
+      datos['trial_started_at'] =
+          trialIniciadoEnExistente ?? DateTime.now().toIso8601String();
+      datos['trial_expires_at'] =
+          trialExpiraEnExistente ??
+          DateTime.now().add(const Duration(hours: 8)).toIso8601String();
+      datos['trial_used'] = true;
+    }
+    if (codigoPremium != null) {
+      datos['premium_code'] = codigoPremium;
+    }
+    return datos;
+  }
+
+  static DatosSetup? parsearDatosSetup(dynamic resultado) {
+    if (resultado == null || resultado == '') return null;
+    final decodificado = jsonDecode(resultado as String);
+    return DatosSetup.desdeJson(decodificado);
+  }
+
+  static List<SeccionFeed> parsearSeccionesFeed(dynamic resultado) {
+    try {
+      if (resultado is String && resultado.isNotEmpty) {
+        final lista = jsonDecode(resultado) as List<dynamic>;
+        return lista
+            .map((e) => SeccionFeed.desdeJson(e as Map<String, dynamic>))
+            .toList();
+      }
+      return [];
+    } catch (e) {
+      debugPrint('[AyudantesBackend] $e');
+      return [];
+    }
+  }
+
+  static List<ItemFeed> parsearResultadosBusqueda(dynamic resultado) {
+    try {
+      if (resultado is String && resultado.isNotEmpty) {
+        final lista = jsonDecode(resultado) as List<dynamic>;
+        return lista
+            .map((e) => ItemFeed.desdeJson(e as Map<String, dynamic>))
+            .toList();
+      }
+      if (resultado is List) {
+        return resultado
+            .map((e) => ItemFeed.desdeJson(e as Map<String, dynamic>))
+            .toList();
+      }
+      return [];
+    } catch (e) {
+      debugPrint('[AyudantesBackend] $e');
+      return [];
+    }
+  }
+}

@@ -76,14 +76,4 @@ class AjustesDescarga {
   }
 
   static const opcionesCalidadAudio = ['flac', 'hifi', 'high', 'medium', 'low'];
-  static const opcionesCalidadVideo = ['720p', '1080p', '480p'];
-  static const opcionesFuenteLetras = [
-    'lrclib',
-    'apple_music',
-    'musixmatch',
-    'genius',
-    'netease',
-    'deezer',
-    'spotify',
-  ];
 }

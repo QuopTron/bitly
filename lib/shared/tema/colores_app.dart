@@ -22,13 +22,10 @@ class ColoresApp {
 
   // ── Modo oscuro: neutro / brillante ──
   static const verdeBrillante = Color(0xFFFFFFFF);
-  static const verdeNeon = Color(0xFFE0E0E0);
-  static const verdePalido = Color(0xFFB0B0B0);
 
   // ── Modo claro: neutro / profundo ──
   static const verdeProfundo = Color(0xFF1A1A1A);
   static const verdeMedio = Color(0xFF333333);
-  static const verdeClaro = Color(0xFF666666);
 
   // ── Fondos ──
   static const fondoOscuro = Color(0xFF000000);
@@ -94,12 +91,6 @@ class ColoresApp {
           : Colors.black.withValues(alpha: 0.5);
 
   // ── Getters dinámicos (estilo Spotify) ──
-
-  /// si no, retorna el fondo estático del tema.
-  static Color fondoDinamico(bool oscuro, Color? acento) {
-    if (acento == null) return fondo(oscuro);
-    return Color.lerp(fondo(oscuro), acento, oscuro ? 0.18 : 0.12)!;
-  }
 
   /// Superficie dinámica: aplica un tinte sutil del color dominante.
   static Color superficieDinamica(bool oscuro, Color? acento) {

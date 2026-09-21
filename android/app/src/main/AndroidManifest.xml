@@ -16,6 +16,11 @@
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
     <!-- Allow installing APKs from within the app (update modal) -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Leer el QR del vínculo entre aparatos (Ajustes → Conexión). La
+         cámara solo se enciende mientras esa pantalla está abierta. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
     <!-- Media playback in background (audio_service): keep the process alive
          while a track is playing and show the media notification. -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />

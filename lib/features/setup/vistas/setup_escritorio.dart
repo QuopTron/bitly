@@ -12,12 +12,12 @@
 import 'package:flutter/material.dart';
 
 import '../../../l10n/app_localizations.dart';
-import '../../../shared/tema/colores_app.dart';
 import '../../../shared/utilidades/plataforma/responsive.dart';
-import '../../../shared/widgets/base/contenido_con_alto_minimo.dart';
-import '../../../shared/widgets/vidrio/contenedor_vidrio.dart';
-import '../bloc/setup_estado.dart';
-import '../widgets/comunes/construir_paso.dart';
+import '../../../shared/widgets/base/comun/contenido_con_alto_minimo.dart';
+import '../../../shared/widgets/vidrio/base/contenedor_vidrio.dart';
+import '../bloc/base/setup_estado.dart';
+import '../widgets/comunes/base/construir_paso.dart';
+import '../widgets/comunes/base/indicador_pasos_setup.dart';
 
 /// Variante de escritorio del flujo de setup.
 class SetupEscritorio extends StatelessWidget {
@@ -38,8 +38,6 @@ class SetupEscritorio extends StatelessWidget {
     required this.mostrarInfo,
   });
 
-  static const _pasosVisibles = 7;
-
   @override
   Widget build(BuildContext context) {
     final onBg = esOscuro ? Colors.white : Colors.black;
@@ -56,7 +54,9 @@ class SetupEscritorio extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _indicadorPasos(onBg),
+              // El indicador es compartido con las variantes de celular y TV
+              // (ver indicador_pasos_setup): antes cada una tenía su copia.
+              IndicadorPasosSetup(paso: state.paso, esOscuro: esOscuro),
               SizedBox(height: r.spacingL),
               // Sin SingleChildScrollView externo: los slides con Expanded/Spacer
               // (Google, carpeta, notificaciones) necesitan altura ACOTADA y
@@ -94,51 +94,5 @@ class SetupEscritorio extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  Widget _indicadorPasos(Color onBg) {
-    final indice = _indicePaso(state.paso);
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        for (var i = 0; i < _pasosVisibles; i++)
-          Container(
-            width: i == indice ? 22 : 8,
-            height: 8,
-            margin: const EdgeInsets.symmetric(horizontal: 3),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(4),
-              color:
-                  i <= indice
-                      ? (esOscuro
-                          ? ColoresApp.verdeBrillante
-                          : ColoresApp.verdeMedio)
-                      : onBg.withValues(alpha: 0.15),
-            ),
-          ),
-      ],
-    );
-  }
-
-  int _indicePaso(PasoSetup paso) {
-    switch (paso) {
-      case PasoSetup.promptReingreso:
-      case PasoSetup.idioma:
-      case PasoSetup.chequeandoExistente:
-        return 0;
-      case PasoSetup.usuario:
-        return 1;
-      case PasoSetup.googleSignIn:
-        return 2;
-      case PasoSetup.modo:
-        return 3;
-      case PasoSetup.carpetaAlmacenamiento:
-        return 4;
-      case PasoSetup.notificaciones:
-        return 5;
-      case PasoSetup.verificacion:
-      case PasoSetup.gracias:
-        return 6;
-    }
   }
 }

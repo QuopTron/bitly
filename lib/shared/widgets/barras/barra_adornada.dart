@@ -17,7 +17,7 @@
 
 import 'package:flutter/material.dart';
 
-import '../../../core/modelos/usuario/catalogo_disenos_barra.dart';
+import '../../../core/modelos/usuario/disenos/base/catalogo_disenos_barra.dart';
 import 'olas_barra.dart';
 import 'sticker_barra.dart';
 

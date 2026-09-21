@@ -13,12 +13,12 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:bitly/features/tutorial_interactivo/motor/modelo_tutorial.dart';
-import 'package:bitly/features/tutorial_interactivo/motor/tutorial_controller.dart';
+import 'package:bitly/features/tutorial_interactivo/motor/pasos/modelo_tutorial.dart';
+import 'package:bitly/features/tutorial_interactivo/motor/base/tutorial_controller.dart';
 import 'package:bitly/features/tutorial_interactivo/overlay/tutorial_overlay.dart';
-import 'package:bitly/features/tutorial_interactivo/motor/tutorial_pasos.dart';
+import 'package:bitly/features/tutorial_interactivo/motor/pasos/tutorial_pasos.dart';
 import 'package:bitly/l10n/app_localizations.dart';
-import 'package:bitly/l10n/strings/strings_tutorial_interactivo.dart';
+import 'package:bitly/l10n/strings/onboarding/pasos/strings_tutorial_interactivo.dart';
 
 /// Textos reconocibles para poder buscarlos en pantalla.
 List<TextoTutorial> textosDePrueba() => [

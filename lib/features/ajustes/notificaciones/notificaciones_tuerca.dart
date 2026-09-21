@@ -21,9 +21,9 @@
 
 import 'package:flutter/foundation.dart';
 
-import '../../../core/servicios/conexion/conexion_novedades.dart';
-import '../../../shared/utilidades/formato/apariencia_helper.dart';
-import '../update/update_service.dart';
+import '../../../core/servicios/conexion/novedades/conexion_novedades.dart';
+import '../../../shared/utilidades/formato/apariencia/base/apariencia_helper.dart';
+import '../update/base/update_service.dart';
 
 /// Cuántas cosas hay sin ver (el número del mininumerito).
 final ValueNotifier<int> notificacionesTuerca = ValueNotifier<int>(0);

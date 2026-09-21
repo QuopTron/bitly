@@ -15,7 +15,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:bitly/shared/utilidades/plataforma/insets_sistema.dart';
+import 'package:bitly/shared/utilidades/plataforma/pantalla/insets_sistema.dart';
 
 void main() {
   group('insetInferiorSistema', () {

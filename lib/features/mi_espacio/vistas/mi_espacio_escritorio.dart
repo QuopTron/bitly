@@ -9,7 +9,9 @@
 
 import 'package:flutter/material.dart';
 
-import '../../../shared/widgets/vidrio/contenedor_vidrio.dart';
+import '../../../shared/tema/especificaciones/especificaciones_plataforma.dart';
+import '../../../shared/utilidades/plataforma/responsive.dart';
+import '../../../shared/widgets/vidrio/base/contenedor_vidrio.dart';
 
 /// Layout escritorio de Mi Espacio (panel centrado 680px).
 class MiEspacioEscritorio extends StatelessWidget {
@@ -24,15 +26,22 @@ class MiEspacioEscritorio extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // El panel de escritorio se mide con el aparato: en una tele el ancho
+    // máximo y el aire crecen, así no queda una columna angosta al medio.
+    final r = Responsive(context);
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 1120),
+        constraints: BoxConstraints(maxWidth: r.sobre(1120, 1400)),
         child: ContenedorVidrio(
-          margin: const EdgeInsets.all(16),
-          borderRadius: 20,
+          margin: EdgeInsets.all(r.sobre(16, 26)),
+          borderRadius: EspecificacionesPlataforma.de(context).radioHoja,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [cabecera, SizedBox(height: 8), Expanded(child: cuerpo)],
+            children: [
+              cabecera,
+              SizedBox(height: r.spacingS),
+              Expanded(child: cuerpo),
+            ],
           ),
         ),
       ),

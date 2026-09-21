@@ -13,8 +13,8 @@ import 'package:flutter/material.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path/path.dart' as p;
 import '../../../l10n/app_localizations.dart';
-import '../../../core/modelos/detalle/detalle_track.dart';
-import '../../../core/servicios/playlist/exportacion_playlist.dart';
+import '../../../core/modelos/detalle/base/detalle_track.dart';
+import '../../../core/servicios/playlist/base/exportacion_playlist.dart';
 
 /// Texto de la SnackBar: resumen de lo exportado o el motivo del fallo, todo
 /// desde l10n (el servicio devuelve códigos, nunca frases armadas).

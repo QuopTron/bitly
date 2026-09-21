@@ -5,8 +5,8 @@
 // Se conecta con: lib/core/plataforma/sistema/deteccion_gama.dart.
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:bitly/core/modelos/usuario/perfil_rendimiento.dart';
-import 'package:bitly/core/plataforma/sistema/deteccion_gama.dart';
+import 'package:bitly/core/modelos/usuario/perfil/perfil_rendimiento.dart';
+import 'package:bitly/core/plataforma/sistema/base/deteccion_gama.dart';
 
 void main() {
   group('gamaSegunCapacidad (móvil)', () {

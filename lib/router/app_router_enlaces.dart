@@ -15,8 +15,8 @@
 // Parte del flujo: enlace entrante → carta compartida.
 // ─────────────────────────────────────────────────────────────
 
-import '../core/plataforma/sistema/servicio_deep_link.dart';
-import '../core/servicios/compartir/servicio_compartir.dart';
+import '../core/plataforma/sistema/enlaces/servicio_deep_link.dart';
+import '../core/servicios/compartir/base/servicio_compartir.dart';
 import 'route_names.dart';
 
 /// Rutas que el router sabe pintar (splash, setup, home, tutorial).

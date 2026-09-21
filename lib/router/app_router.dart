@@ -19,8 +19,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../features/home/shell/ensamblador_home.dart';
-import '../features/setup/pagina_setup.dart';
-import '../features/splash/pagina_splash.dart';
+import '../features/setup/pagina/pagina_setup.dart';
+import '../features/splash/pagina/pagina_splash.dart';
 import '../features/tutorial/pagina/tutorial_pagina.dart';
 import 'app_router_enlaces.dart';
 import 'route_names.dart';

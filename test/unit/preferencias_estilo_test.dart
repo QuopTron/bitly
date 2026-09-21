@@ -11,9 +11,9 @@
 
 import 'dart:math' as math;
 
-import 'package:bitly/core/modelos/usuario/preferencias_estilo.dart';
-import 'package:bitly/core/modelos/usuario/preferencias_estilo_json.dart';
-import 'package:bitly/shared/utilidades/formato/estilo_helper.dart';
+import 'package:bitly/core/modelos/usuario/preferencias/preferencias_estilo.dart';
+import 'package:bitly/core/modelos/usuario/preferencias/preferencias_estilo_json.dart';
+import 'package:bitly/shared/utilidades/formato/comun/formato/estilo_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

@@ -11,6 +11,9 @@
 
 import 'package:flutter/material.dart';
 
+import '../../tema/especificaciones/especificaciones_plataforma.dart';
+import '../../utilidades/plataforma/responsive.dart';
+
 part 'esqueleto_busqueda_sub.dart';
 
 /// Esqueleto que imita el layout de los resultados de búsqueda.
@@ -21,6 +24,7 @@ class EsqueletoBusqueda extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final r = Responsive(context);
     final oscuro = Theme.of(context).brightness == Brightness.dark;
     final base =
         oscuro
@@ -34,18 +38,21 @@ class EsqueletoBusqueda extends StatelessWidget {
     // Vista por defecto (sin chip): cabeceras + tracks + grilla.
     if (tipoSeleccionado == null) {
       return ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: EdgeInsets.symmetric(
+          horizontal: r.spacingM,
+          vertical: r.spacingS,
+        ),
         physics: const NeverScrollableScrollPhysics(),
         children: [
           _EncabezadoSeccion(base: base, brillo: brillo),
-          const SizedBox(height: 8),
+          SizedBox(height: r.spacingS),
           ...List.generate(
             4,
             (_) => _TarjetaTrackEsqueleto(base: base, brillo: brillo),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: r.spacingM),
           _EncabezadoSeccion(base: base, brillo: brillo),
-          const SizedBox(height: 8),
+          SizedBox(height: r.spacingS),
           _GrillaEsqueleto(base: base, brillo: brillo),
         ],
       );

@@ -12,7 +12,7 @@ import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
-import '../../../utilidades/plataforma/efectos_app.dart';
+import '../../../utilidades/plataforma/pantalla/efectos_app.dart';
 
 part 'imagen_portada_helpers.dart';
 

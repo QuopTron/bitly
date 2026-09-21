@@ -9,6 +9,8 @@
 
 import 'package:flutter/material.dart';
 
+import '../../../shared/utilidades/plataforma/responsive.dart';
+
 /// Layout móvil de Mi Espacio (diseño Android actual).
 class MiEspacioMovil extends StatelessWidget {
   final Widget cabecera;
@@ -22,9 +24,16 @@ class MiEspacioMovil extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // La separación cabecera/cuerpo sale de Responsive (crece con la pantalla
+    // y con el aparato), no de un 8 fijo.
+    final r = Responsive(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [cabecera, SizedBox(height: 8), Expanded(child: cuerpo)],
+      children: [
+        cabecera,
+        SizedBox(height: r.spacingS),
+        Expanded(child: cuerpo),
+      ],
     );
   }
 }

@@ -42,9 +42,7 @@ class _PunteroTvState extends State<PunteroTv> with PunteroTvEstado<PunteroTv> {
     super.didChangeDependencies();
     if (!_handlerRegistrado) {
       _handlerRegistrado = true;
-      posCursor = centro();
-      posicionadoCursor = true;
-      HardwareKeyboard.instance.addHandler(alTeclado);
+      initPuntero();
     }
   }
 

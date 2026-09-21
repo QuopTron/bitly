@@ -6,13 +6,13 @@
 // Antes, al primer punto del control, la tarjeta de grilla cambiaba su arte
 // por un fondo sólido del color mezclado (gris): acá queda fijado que no.
 
-import 'package:bitly/app/inyeccion.dart' as di;
-import 'package:bitly/core/modelos/usuario/perfil_rendimiento.dart';
-import 'package:bitly/core/modelos/usuario/preferencias_apariencia.dart';
-import 'package:bitly/core/modelos/usuario/preferencias_estilo.dart';
+import 'package:bitly/app/inyeccion/inyeccion.dart' as di;
+import 'package:bitly/core/modelos/usuario/perfil/perfil_rendimiento.dart';
+import 'package:bitly/core/modelos/usuario/preferencias/preferencias_apariencia.dart';
+import 'package:bitly/core/modelos/usuario/preferencias/preferencias_estilo.dart';
 import 'package:bitly/l10n/app_localizations.dart';
-import 'package:bitly/shared/widgets/fondos/atenuado_por_nivel.dart';
-import 'package:bitly/shared/widgets/tarjetas/grilla/tarjeta_grilla.dart';
+import 'package:bitly/shared/widgets/fondos/ambiente/atenuado_por_nivel.dart';
+import 'package:bitly/shared/widgets/tarjetas/grilla/base/tarjeta_grilla.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';

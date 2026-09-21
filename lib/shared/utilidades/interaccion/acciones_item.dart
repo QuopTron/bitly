@@ -15,19 +15,19 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../app/inyeccion.dart';
-import '../../../core/backend_go/nucleo/contrato_backend.dart';
-import '../../../core/cache/almacenes/cache_ajustes.dart';
-import '../../../core/modelos/detalle/detalle_album.dart';
-import '../../../core/modelos/detalle/detalle_playlist.dart';
-import '../../../core/modelos/detalle/detalle_track.dart';
+import '../../../app/inyeccion/inyeccion.dart';
+import '../../../core/backend_go/nucleo/base/contrato_backend.dart';
+import '../../../core/cache/almacenes/sistema/cache_ajustes.dart';
+import '../../../core/modelos/detalle/contenido/detalle_album.dart';
+import '../../../core/modelos/detalle/contenido/detalle_playlist.dart';
+import '../../../core/modelos/detalle/base/detalle_track.dart';
 import '../../../core/modelos/feed/item_feed.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../estado/descargas/cubit_descargas.dart';
-import '../../../estado/like/cubit_like.dart';
+import '../../../estado/like/base/cubit_like.dart';
 import '../modales/mostrar_modal.dart';
-import '../../widgets/modales/descarga/hoja_opciones_descarga.dart';
-import '../../widgets/modales/agregar_a/modal_agregar_a.dart';
+import '../../widgets/modales/descarga/base/hoja_opciones_descarga.dart';
+import '../../widgets/modales/agregar_a/base/modal_agregar_a.dart';
 import '../../widgets/modales/info_cancion/modal_info_cancion.dart';
 import '../descarga/exportacion_playlist_ui.dart';
 

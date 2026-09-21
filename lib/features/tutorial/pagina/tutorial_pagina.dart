@@ -17,8 +17,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/tema/colores_app.dart';
 import '../../../shared/utilidades/plataforma/deteccion_plataforma.dart';
+import '../../../shared/utilidades/plataforma/responsive.dart';
+import '../../../shared/tema/especificaciones/especificaciones_plataforma.dart';
 import '../vistas/tutorial_escritorio.dart';
 import '../vistas/tutorial_movil.dart';
+import '../vistas/tutorial_tv.dart';
 
 part 'tutorial_pagina_piezas.dart';
 
@@ -87,8 +90,11 @@ class _TutorialPaginaState extends State<TutorialPagina> {
     // Controles: indicadores + botón Siguiente/Empezar.
     final controles = _construirControles(this, pasos.length);
 
-    final usarEscritorio = usarLayoutEscritorio(context);
-    return usarEscritorio
+    // Tres variantes: TV (panel plano y más alto), PC y celular.
+    if (usarLayoutTv(context)) {
+      return TutorialTv(cuerpo: cuerpo, controles: controles);
+    }
+    return usarLayoutEscritorio(context)
         ? TutorialEscritorio(cuerpo: cuerpo, controles: controles)
         : TutorialMovil(cuerpo: cuerpo, controles: controles);
   }

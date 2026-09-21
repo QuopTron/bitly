@@ -10,7 +10,7 @@
 
 import 'dart:io';
 
-import 'package:bitly/shared/utilidades/portada/portada_playlist.dart';
+import 'package:bitly/shared/utilidades/portada/base/portada_playlist.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 

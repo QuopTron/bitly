@@ -2,7 +2,7 @@
 // se entera de que una canción falló y desde donde la puede reintentar, así que
 // se verifica que muestre título, mensaje, motivo y que los botones avisen.
 
-import 'package:bitly/shared/widgets/descargas/tarjeta_aviso_descarga.dart';
+import 'package:bitly/shared/widgets/descargas/tarjeta/tarjeta_aviso_descarga.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

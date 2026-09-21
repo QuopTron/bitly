@@ -288,14 +288,15 @@ core/plataforma/notificacion_media_helpers.dart — mapeos de estado para la not
   acceden si la función del part recibe la instancia (`_conectarNativo(this)`
   y `_onMensajeControl(this, raw)`).
 
-### REGLA DE VISTAS: separación PC / celular (obligatoria de aquí en adelante)
+### REGLA DE VISTAS: separación PC / celular / TV (obligatoria de aquí en adelante)
 
-Toda vista nueva debe separarse en **dos variantes de layout** y un selector:
+Toda vista nueva debe separarse en **TRES variantes de layout** y un selector:
 
 ```
-features/<feature>/pagina_<feature>.dart   → selector: elige según plataforma
+features/<feature>/pagina_<feature>.dart     → selector: elige según plataforma
 features/<feature>/<feature>_movil.dart      → diseño CELULAR (el actual)
-features/<feature>/<feature>_escritorio.dart → diseño PC/escritorio (nuevo)
+features/<feature>/<feature>_escritorio.dart → diseño PC/escritorio
+features/<feature>/<feature>_tv.dart         → diseño TV (control remoto)
 ```
 
 - **Celular (Android/iOS/tablet vertical):** el diseño actual — bottom navbar
@@ -303,18 +304,33 @@ features/<feature>/<feature>_escritorio.dart → diseño PC/escritorio (nuevo)
 - **Escritorio (Windows/Linux/macOS/web/pantallas anchas ≥900px):** diseño de
   escritorio — barra lateral fija de navegación, panel de contenido central
   con IndexedStack (secciones vivas), ancho máximo y layout horizontal.
-- **Selector ÚNICO:** `usarLayoutEscritorio(context)` de
+- **TV (Android TV / Google TV / Fire TV):** navegación ARRIBA con ítems
+  grandes (en una tele no hay hover que marque dónde estás), paneles PLANOS a
+  todo el lienzo —nada de vidrio: el desenfoque se paga en cada frame y a
+  metros no se ve, y en TV ya está apagado por perfil (ver inyeccion_perfil)—,
+  y más aire y tipografía. El lienzo lógico fijo y el puntero del control los
+  pone el arranque (`vista_tv` + `puntero_tv`). El molde de estas vistas es
+  `shared/widgets/paneles/panel_tv.dart`.
+- **Selectores ÚNICOS:** `usarLayoutTv(context)` PRIMERO y después
+  `usarLayoutEscritorio(context)`, los dos de
   `shared/utilidades/deteccion_plataforma.dart` — ninguna vista duplica
-  Platform.is* / MediaQuery.width checks.
+  Platform.is* / MediaQuery.width checks. El orden importa: una tele ancha
+  también entraría en el layout de escritorio.
 - **Slots desacoplados:** los shells reciben las páginas internas como
   parámetros (`buscador`, `feed`, `miEspacio`, `miniPlayer`) para que la
   navegación no dependa de las vistas concretas.
 
-Ya aplicado en: `PaginaHome` → `HomeMovil` (PageView + navbar flotante +
-miniplayer) vs `HomeEscritorio` (sidebar 240px + IndexedStack + miniplayer).
-Las vistas que aún son de una sola variante (p.ej. Splash, Setup, player full
-screen) siguen en `pagina_<x>.dart` y solo se dividen cuando tienen sentido
-las dos variantes.
+Ya aplicado en las SIETE vistas partidas: `PaginaHome` → `HomeTv` (nav arriba
++ IndexedStack + miniplayer ancho) / `HomeEscritorio` (sidebar 240px) /
+`HomeMovil` (PageView + navbar flotante); y lo mismo en Búsqueda, Inicio
+(feed), Mi Espacio, Splash, Setup y Tutorial (`<x>_tv` / `<x>_escritorio` /
+`<x>_movil`).
+
+PENDIENTE: las vistas que todavía son de UNA sola variante no se partieron:
+**detalle (álbum/artista/playlist), reproductor, Ajustes y el tutorial
+interactivo**. Ahí PC y celular comparten el diseño actual; el próximo paso es
+darles su `<x>_tv` con el panel plano y, donde tenga sentido, partir también
+PC/celular.
 
 ### Vistas (features/) — empezando por el Splash
 
@@ -343,22 +359,23 @@ features/splash/ — bloc (estado/evento/bloc) + pagina_splash + widgets (logo, 
   + `EventoSplash` + `LogoPulsante` + `PanelError`, todos ≤150 líneas, con
   nombres en español y cabeceras con flujo. Usa `BackendService.healthCheck()`
   y `CacheAjustes.cargarDatosSetup()` ya migrados.
-- **Excepción a la regla de 150 líneas:** `l10n/strings/strings_setup.dart`
+- **Excepción a la regla de 150 líneas:** `l10n/strings/onboarding/strings_setup.dart`
   (816 líneas) es solo datos de traducción ES/EN, igual que los archivos
   generados por drift.
 - **Limpieza previa:** 8 archivos muertos eliminados de `lib/` (ver arriba).
 
 ### Splash y Setup — doble variante (móvil/escritorio) aplicada
 
-- **Splash dividido en 2 variantes + selector:** `pagina_splash.dart` (selector
-  con la lógica de estado/navegación), `splash_movil.dart` (diseño actual con
-  logo pulsante) y `splash_escritorio.dart` (panel de vidrio centrado, layout
-  horizontal).
+- **Splash dividido en 3 variantes + selector:** `pagina/pagina_splash.dart`
+  (selector con la lógica de estado/navegación), `vistas/splash_movil.dart`
+  (diseño actual con logo pulsante), `vistas/splash_escritorio.dart` (panel de
+  vidrio centrado, layout horizontal) y `vistas/splash_tv.dart` (sin partículas).
 - **Setup completo migrado:** bloc (estado/evento/manejadores/avanzado +
   part de persistencia), 10 slides + sub-widgets en `widgets/`, y la página
-  en 3 archivos: `pagina_setup.dart` (selector + diálogo info + creación del
-  estado), `setup_movil.dart` (AnimatedSwitcher, ancho máx 560px) y
-  `setup_escritorio.dart` (panel vidrio 620px + indicador de pasos).
+  en 4 archivos: `pagina/pagina_setup.dart` (selector + diálogo info + creación
+  del estado), `vistas/setup_movil.dart` (AnimatedSwitcher, ancho máx 560px),
+  `vistas/setup_escritorio.dart` (panel vidrio 620px + indicador de pasos) y
+  `vistas/setup_tv.dart` (panel más ancho).
 - **Globalizado (sin duplicación):** `widgets/construir_paso.dart` — el switch
   de pasos → slide es UNO SOLO, compartido por móvil y escritorio.
 - **Aprendizajes de esta tanda:** (1) un mixin no puede usar un getter de

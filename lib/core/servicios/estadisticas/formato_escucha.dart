@@ -11,7 +11,7 @@
 // Parte del flujo: Ajustes → Estadísticas → detalle.
 // ─────────────────────────────────────────────────────────────
 
-import '../../../l10n/strings/strings_fechas.dart';
+import '../../../l10n/strings/comun/strings_fechas.dart';
 
 /// Texto humano de la última reproducción de un ítem.
 /// [desconocido] es lo que se muestra cuando la fila no trae fecha.
@@ -54,11 +54,3 @@ String textoMinutos(int minutos, {String unidadMin = 'min'}) {
   final resto = minutos % 60;
   return resto == 0 ? '$horas h' : '$horas h $resto $unidadMin';
 }
-
-/// Texto de un contador de reproducciones ("1 vez", "12 veces").
-/// Singular/plural entran por parámetro para poder localizarlos.
-String textoReproducciones(
-  int veces, {
-  String singular = 'vez',
-  String plural = 'veces',
-}) => veces == 1 ? '1 $singular' : '$veces $plural';

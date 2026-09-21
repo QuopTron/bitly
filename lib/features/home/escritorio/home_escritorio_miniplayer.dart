@@ -22,6 +22,12 @@ class _MiniplayerEscritorio extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final esOscuro = Theme.of(context).brightness == Brightness.dark;
+    // La tarjeta flotante mide por aparato: radio de tarjeta del aparato y
+    // márgenes que crecen en pantallas grandes (y en la tele).
+    final r = Responsive(context);
+    final radius = BorderRadius.circular(
+      EspecificacionesPlataforma.de(context).radioTarjeta,
+    );
     return BlocBuilder<CubitCola, EstadoCola>(
       buildWhen:
           (prev, curr) =>
@@ -30,10 +36,15 @@ class _MiniplayerEscritorio extends StatelessWidget {
       builder: (context, cola) {
         if (!cola.tieneActual) return const SizedBox.shrink();
         return Padding(
-          padding: const EdgeInsets.fromLTRB(18, 4, 18, 14),
+          padding: EdgeInsets.fromLTRB(
+            r.sobre(18, 30),
+            r.spacingXS,
+            r.sobre(18, 30),
+            r.sobre(14, 24),
+          ),
           child: DecoratedBox(
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: radius,
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: esOscuro ? 0.45 : 0.14),
@@ -42,10 +53,7 @@ class _MiniplayerEscritorio extends StatelessWidget {
                 ),
               ],
             ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: miniPlayer,
-            ),
+            child: ClipRRect(borderRadius: radius, child: miniPlayer),
           ),
         );
       },

@@ -10,16 +10,16 @@
 // alguien vuelve a depender del árbol de widgets o del estado en RAM.
 // ─────────────────────────────────────────────────────────────
 
-import 'package:bitly/app/inyeccion.dart';
+import 'package:bitly/app/inyeccion/inyeccion.dart';
 import 'package:bitly/core/base_datos/app_database.dart';
-import 'package:bitly/core/cache/almacenes/cache_colecciones.dart';
-import 'package:bitly/core/cache/almacenes/cache_descargas.dart';
-import 'package:bitly/core/cache/almacenes/cache_detalle_memoria.dart';
-import 'package:bitly/core/cache/almacenes/cache_favoritos.dart';
-import 'package:bitly/core/servicios/playlist/editor_playlist.dart';
-import 'package:bitly/core/servicios/playlist/fuentes_playlist.dart';
+import 'package:bitly/core/cache/almacenes/biblioteca/base/cache_colecciones.dart';
+import 'package:bitly/core/cache/almacenes/descargas/cache_descargas.dart';
+import 'package:bitly/core/cache/almacenes/musica/cache_detalle_memoria.dart';
+import 'package:bitly/core/cache/almacenes/biblioteca/favoritos/cache_favoritos.dart';
+import 'package:bitly/core/servicios/playlist/editor/editor_playlist.dart';
+import 'package:bitly/core/servicios/playlist/base/fuentes_playlist.dart';
 import 'package:bitly/l10n/app_localizations.dart';
-import 'package:bitly/shared/widgets/modales/playlist/hoja_playlist.dart';
+import 'package:bitly/shared/widgets/modales/playlist/base/hoja_playlist.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';

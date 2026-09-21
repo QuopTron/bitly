@@ -16,9 +16,6 @@ class Haptico {
   /// TAP medio — play/pause, iniciar descarga.
   static void medio() => HapticFeedback.mediumImpact();
 
-  /// TAP fuerte — descarga completada, long-press.
-  static void fuerte() => HapticFeedback.heavyImpact();
-
   /// Cambio de selección — tabs, scroll a un valor.
   static void seleccion() => HapticFeedback.selectionClick();
 }

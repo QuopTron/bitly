@@ -10,13 +10,13 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/modelos/feed/item_feed.dart';
-import '../../../../core/servicios/compartir/servicio_compartir.dart';
+import '../../../../core/servicios/compartir/base/servicio_compartir.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../utilidades/modales/mostrar_modal.dart';
-import '../../../utilidades/plataforma/insets_sistema.dart';
+import '../../../utilidades/plataforma/pantalla/insets_sistema.dart';
 import '../../../utilidades/plataforma/responsive.dart';
 import '../../tarjetas/portada/imagen_portada.dart';
-import '../../vidrio/fondo_reactivo_portada.dart';
+import '../../vidrio/base/fondo_reactivo_portada.dart';
 
 part 'modal_info_cancion_widgets.dart';
 part 'modal_info_cancion_estilo.dart';

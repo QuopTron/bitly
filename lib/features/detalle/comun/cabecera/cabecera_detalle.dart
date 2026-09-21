@@ -1,0 +1,194 @@
+// ─────────────────────────────────────────────────────────────
+// cabecera_detalle.dart — Marco de la cabecera a pantalla completa del
+// detalle (álbum/playlist/artista): el fondo con la carátula difuminada, la
+// portada, los textos y las acciones se arman UNA vez acá, y el CUERPO se
+// elige por plataforma (ver el selector al final).
+//
+// Parts: _color (color dominante), _imagen (portada/blur), _fondo (capas +
+// retroceso), detalle_movil (cuerpo de celular) y detalle_escritorio (cuerpo
+// de PC). La TV no entra acá: usa detalle_tv.dart, que es otra cosa.
+// Se conecta con: colores_app + responsive + perfil_rendimiento.
+// Parte del flujo: Detalle (marco de la cabecera).
+// ─────────────────────────────────────────────────────────────
+
+import 'dart:async';
+import 'dart:io';
+import 'dart:ui' as ui;
+
+import 'package:flutter/material.dart';
+
+import '../../../../app/inyeccion/inyeccion.dart';
+import '../../../../core/modelos/usuario/perfil/perfil_rendimiento.dart';
+import '../../../../core/modelos/usuario/preferencias/preferencias_estilo.dart';
+import '../../../../shared/utilidades/plataforma/deteccion_plataforma.dart';
+import '../../../../shared/utilidades/plataforma/pantalla/insets_sistema.dart';
+import '../../../../shared/utilidades/formato/comun/formato/estilo_helper.dart';
+import '../../../../shared/utilidades/plataforma/responsive.dart';
+import '../../../../shared/tema/especificaciones/especificaciones_plataforma.dart';
+import '../../../../shared/widgets/vidrio/base/desenfoque_adaptativo.dart';
+
+part 'cabecera_detalle_color.dart';
+part 'cabecera_detalle_imagen.dart';
+part 'cabecera_detalle_fondo.dart';
+part '../vistas/detalle_movil.dart';
+part '../vistas/detalle_escritorio.dart';
+
+/// Cabecera de detalle: fondo blur + portada + acciones + contenido.
+class CabeceraDetalle extends StatefulWidget {
+  final String? coverUrl;
+  final String titulo;
+  final String subtitulo;
+  final String? heroTag;
+  final Widget? acciones;
+  final List<Widget> children;
+  final String? badge;
+  final double? tamanoPortada;
+
+  const CabeceraDetalle({
+    super.key,
+    this.coverUrl,
+    required this.titulo,
+    required this.subtitulo,
+    this.heroTag,
+    this.acciones,
+    this.children = const [],
+    this.badge,
+    this.tamanoPortada,
+  });
+
+  @override
+  State<CabeceraDetalle> createState() => _CabeceraDetalleState();
+}
+
+class _CabeceraDetalleState extends State<CabeceraDetalle>
+    with SingleTickerProviderStateMixin {
+  Color? _colorDominante;
+  String? _ultimaUrlExtraida;
+  late final AnimationController _animCtrl;
+  late final Animation<double> _anim;
+
+  /// Cache global: url → color dominante (evita re-extraer).
+  static final Map<String, Color> _cacheColor = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _animCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+    _anim = CurvedAnimation(parent: _animCtrl, curve: Curves.easeOut);
+    _animCtrl.forward();
+    _cargarColorCacheado();
+  }
+
+  @override
+  void didUpdateWidget(covariant CabeceraDetalle oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.coverUrl != widget.coverUrl) _cargarColorCacheado();
+  }
+
+  @override
+  void dispose() {
+    _animCtrl.dispose();
+    super.dispose();
+  }
+
+  /// Lee el color desde cache o lanza la extracción asíncrona.
+  void _cargarColorCacheado() {
+    final url = widget.coverUrl;
+    if (url == null || url.isEmpty) return;
+    _ultimaUrlExtraida = url;
+    if (_cacheColor.containsKey(url)) {
+      _colorDominante = _cacheColor[url];
+      return;
+    }
+    _extraerColor();
+  }
+
+  Future<void> _extraerColor() async {
+    final url = widget.coverUrl;
+    if (url == null || url.isEmpty) return;
+    try {
+      final color = await _extraerColorDominante(
+        providerPara(url, _esPortadaLocal(widget)),
+      );
+      if (mounted && color != null && _ultimaUrlExtraida == url) {
+        _cacheColor[url] = color;
+        while (_cacheColor.length > 100) {
+          _cacheColor.remove(_cacheColor.keys.first);
+        }
+        setState(() => _colorDominante = color);
+      }
+    } catch (e) {
+      debugPrint("[Feature] $e");
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final esOscuro = Theme.of(context).brightness == Brightness.dark;
+    final anchoPantalla = MediaQuery.sizeOf(context).width;
+    final tamanoPortada =
+        widget.tamanoPortada ?? (anchoPantalla * 0.52).clamp(140.0, 240.0);
+    final barraEstado = MediaQuery.paddingOf(context).top;
+    final colorFondo =
+        esOscuro ? const Color(0xFF0A0A0A) : const Color(0xFFF5F5F5);
+    final acento =
+        _colorDominante ??
+        (esOscuro ? const Color(0xFF1A1A2E) : const Color(0xFFE8E8E8));
+    final efectosPesados =
+        sl<ValueNotifier<PerfilRendimiento>>().value.efectosPesados;
+
+    return AnimatedBuilder(
+      animation: _anim,
+      builder: (context, _) {
+        final t = _anim.value;
+        return Stack(
+          children: [
+            // El fondo reacciona a la intensidad del estilo con cover: sin
+            // escuchar el notifier, sólo se repintaba al hacer scroll.
+            ValueListenableBuilder<PreferenciasEstilo>(
+              valueListenable: sl<ValueNotifier<PreferenciasEstilo>>(),
+              builder:
+                  (context, _, _) => Stack(
+                    children: _capasFondo(
+                      this,
+                      t,
+                      acento,
+                      colorFondo,
+                      efectosPesados,
+                    ),
+                  ),
+            ),
+            _cuerpoDetalle(this, t, acento, tamanoPortada, barraEstado),
+            _botonRetroceso(context, barraEstado),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// Elige el CUERPO de la cabecera: PC → celular.
+///
+/// La TV no llega hasta acá: las páginas usan DetalleTv (detalle_tv.dart)
+/// antes de construir esta cabecera.
+Widget _cuerpoDetalle(
+  _CabeceraDetalleState st,
+  double t,
+  Color acento,
+  double tamanoPortada,
+  double barraEstado,
+) {
+  if (usarLayoutEscritorio(st.context)) {
+    return _contenidoDetalleEscritorio(
+      st,
+      t,
+      acento,
+      tamanoPortada,
+      barraEstado,
+    );
+  }
+  return _contenidoDetalleMovil(st, t, acento, tamanoPortada, barraEstado);
+}

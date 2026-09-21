@@ -5,9 +5,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:bitly/shared/utilidades/plataforma/efectos_app.dart';
-import 'package:bitly/shared/widgets/vidrio/contenedor_vidrio.dart';
-import 'package:bitly/shared/widgets/vidrio/desenfoque_adaptativo.dart';
+import 'package:bitly/shared/utilidades/plataforma/pantalla/efectos_app.dart';
+import 'package:bitly/shared/widgets/vidrio/base/contenedor_vidrio.dart';
+import 'package:bitly/shared/widgets/vidrio/base/desenfoque_adaptativo.dart';
 
 Future<void> _montar(WidgetTester tester, Widget child) async {
   await tester.pumpWidget(

@@ -19,7 +19,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import '../../base_datos/app_database.dart';
-import '../../base_datos/daos/play_history_dao.dart';
+import '../../base_datos/daos/biblioteca/historial/play_history_dao.dart';
 import 'filtro_escucha.dart';
 
 /// Detalle de escucha calculado desde drift local.

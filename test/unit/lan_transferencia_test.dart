@@ -13,11 +13,11 @@ import 'dart:convert';
 import 'dart:io' as io;
 
 import 'package:bitly/core/base_datos/app_database.dart';
-import 'package:bitly/core/cache/almacenes/cache_ajustes.dart';
-import 'package:bitly/core/cache/almacenes/cache_descargas.dart';
-import 'package:bitly/core/servicios/lan/lan_modelos.dart';
-import 'package:bitly/core/servicios/lan/lan_protocolo.dart';
-import 'package:bitly/core/servicios/lan/servicio_lan.dart';
+import 'package:bitly/core/cache/almacenes/sistema/cache_ajustes.dart';
+import 'package:bitly/core/cache/almacenes/descargas/cache_descargas.dart';
+import 'package:bitly/core/servicios/lan/modelos/lan_modelos.dart';
+import 'package:bitly/core/servicios/lan/modelos/lan_protocolo.dart';
+import 'package:bitly/core/servicios/lan/servicio/base/servicio_lan.dart';
 import 'package:crypto/crypto.dart';
 import 'package:drift/drift.dart' show Value, driftRuntimeOptions;
 import 'package:drift/native.dart';

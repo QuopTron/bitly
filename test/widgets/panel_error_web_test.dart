@@ -15,7 +15,7 @@
 // Se conecta con: features/splash/widgets/panel_error.dart + l10n.
 // ─────────────────────────────────────────────────────────────
 
-import 'package:bitly/core/backend_go/nucleo/contrato_backend.dart';
+import 'package:bitly/core/backend_go/nucleo/base/contrato_backend.dart';
 import 'package:bitly/features/splash/bloc/splash_bloc.dart';
 import 'package:bitly/features/splash/bloc/splash_estado.dart';
 import 'package:bitly/features/splash/widgets/panel_error_web.dart';

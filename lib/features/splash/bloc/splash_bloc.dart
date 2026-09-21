@@ -10,10 +10,11 @@
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../core/backend_go/nucleo/contrato_backend.dart';
+import '../../../core/backend_go/nucleo/base/contrato_backend.dart';
 import 'splash_estado.dart';
 import 'splash_evento.dart';
 
+import 'package:flutter/foundation.dart';
 /// Bloc de arranque: verifica que el backend Go responde.
 class SplashBloc extends Bloc<EventoSplash, EstadoSplash> {
   final BackendService _backend;
@@ -42,7 +43,8 @@ class SplashBloc extends Bloc<EventoSplash, EstadoSplash> {
           emit(const EstadoSplash(status: EstatusSplash.conectado));
           return;
         }
-      } catch (_) {
+      } catch (e) {
+        debugPrint('[SplashBloc] $e');
         // Fallo transitorio de init — continúa al siguiente intento.
       }
       if (intento < intentos) {

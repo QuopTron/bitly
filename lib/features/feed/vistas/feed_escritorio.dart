@@ -12,7 +12,7 @@ import 'package:flutter/material.dart';
 
 import '../../../shared/tema/colores_app.dart';
 import '../../../shared/utilidades/plataforma/responsive.dart';
-import '../../../shared/widgets/vidrio/contenedor_vidrio.dart';
+import '../../../shared/widgets/vidrio/base/contenedor_vidrio.dart';
 
 /// Layout de escritorio del feed (panel centrado).
 class FeedEscritorio extends StatelessWidget {

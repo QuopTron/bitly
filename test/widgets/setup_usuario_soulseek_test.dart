@@ -9,8 +9,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:bitly/features/setup/bloc/setup_estado.dart';
-import 'package:bitly/features/setup/widgets/comunes/campo_usuario.dart';
+import 'package:bitly/features/setup/bloc/base/setup_estado.dart';
+import 'package:bitly/features/setup/widgets/comunes/usuario/campo_usuario.dart';
 import 'package:bitly/l10n/app_localizations.dart';
 import 'package:bitly/shared/utilidades/plataforma/responsive.dart';
 

@@ -10,6 +10,8 @@
 
 import 'package:flutter/material.dart';
 
+import '../../../shared/utilidades/plataforma/responsive.dart';
+
 /// Layout móvil del tutorial (diseño Android actual).
 class TutorialMovil extends StatelessWidget {
   final Widget cuerpo;
@@ -24,15 +26,18 @@ class TutorialMovil extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final esOscuro = Theme.of(context).brightness == Brightness.dark;
+    // Las separaciones salen de Responsive, no de un 8/32 fijo: crecen con la
+    // pantalla y con el aparato (en la tele el botón queda más despegado).
+    final r = Responsive(context);
     return Scaffold(
       backgroundColor: esOscuro ? const Color(0xFF121212) : Colors.white,
       body: SafeArea(
         child: Column(
           children: [
             Expanded(child: cuerpo),
-            const SizedBox(height: 8),
+            SizedBox(height: r.spacingS),
             controles,
-            const SizedBox(height: 32),
+            SizedBox(height: r.sobre(32, 48)),
           ],
         ),
       ),

@@ -11,10 +11,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../app/inyeccion.dart';
-import '../../../core/backend_go/nucleo/contrato_backend.dart';
-import '../../../core/cache/almacenes/cache_ajustes.dart';
-import '../../../core/cache/almacenes/cache_feed.dart';
+import '../../../app/inyeccion/inyeccion.dart';
+import '../../../core/backend_go/nucleo/base/contrato_backend.dart';
+import '../../../core/cache/almacenes/sistema/cache_ajustes.dart';
+import '../../../core/cache/almacenes/musica/cache_feed.dart';
 import '../../../core/modelos/feed/seccion_feed.dart';
 import 'feed_estado.dart';
 import 'feed_evento.dart';
@@ -50,7 +50,8 @@ class BlocFeed extends Bloc<EventoFeed, EstadoFeed> {
   ) async {
     try {
       await _backend.downloadItem(event.itemId);
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[BlocFeed] $e');
       // Silencioso: downloadItem guarda el ítem para procesarlo después.
     }
   }

@@ -7,14 +7,14 @@
 // Es el test que evita que vuelva el bug visual: si alguien decide pintar el
 // tinte de una sola vez (o saltear la foto cuando hay color), acá salta.
 
-import 'package:bitly/app/inyeccion.dart' as di;
-import 'package:bitly/core/modelos/usuario/perfil_rendimiento.dart';
-import 'package:bitly/core/modelos/usuario/preferencias_apariencia.dart';
-import 'package:bitly/core/modelos/usuario/preferencias_estilo.dart';
+import 'package:bitly/app/inyeccion/inyeccion.dart' as di;
+import 'package:bitly/core/modelos/usuario/perfil/perfil_rendimiento.dart';
+import 'package:bitly/core/modelos/usuario/preferencias/preferencias_apariencia.dart';
+import 'package:bitly/core/modelos/usuario/preferencias/preferencias_estilo.dart';
 import 'package:bitly/core/cache/estado/estado_descarga.dart';
 import 'package:bitly/l10n/app_localizations.dart';
-import 'package:bitly/shared/widgets/fondos/atenuado_por_nivel.dart';
-import 'package:bitly/shared/widgets/tarjetas/track/tarjeta_track.dart';
+import 'package:bitly/shared/widgets/fondos/ambiente/atenuado_por_nivel.dart';
+import 'package:bitly/shared/widgets/tarjetas/track/base/tarjeta_track.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';

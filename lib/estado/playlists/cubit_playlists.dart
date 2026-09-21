@@ -1,26 +1,24 @@
 // ─────────────────────────────────────────────────────────────
-// cubit_playlists.dart — Cubit de playlists: orquesta la gestión de
-// playlists del usuario vía ServicioDominioPlaylist (crear, cargar
-// lista/stats/detalle, agregar/quitar tracks, actualizar carátula,
-// borrar) y la exportación a archivos M3U/M3U8/CUE/NFO vía
-// ServicioExportacionPlaylist (la playlist actual o una por ID).
+// cubit_playlists.dart — Cubit de playlists: mantiene la LISTA de
+// playlists del usuario y sus stats. Las operaciones sobre una
+// playlist (crear, agregar/quitar canciones, carátula, borrar) las
+// hace la UI contra ServicioEditorPlaylist / ServicioDominioPlaylist;
+// acá solo se recarga la lista después.
 // El estado y ItemPlaylist viven en playlists_estado.dart.
-// Se conecta con: ServicioDominioPlaylist + ServicioExportacionPlaylist.
-// Parte del flujo: playlists (Mi Espacio, detalle y exportar).
+// Se conecta con: ServicioDominioPlaylist.
+// Parte del flujo: playlists (Mi Espacio).
 // ─────────────────────────────────────────────────────────────
 
 import "package:flutter/foundation.dart";
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import '../../core/modelos/detalle/detalle_playlist.dart';
 import '../../core/modelos/playlist/dominio_playlist.dart';
-import '../../core/modelos/usuario/estadisticas_usuario.dart';
-import '../../core/servicios/playlist/exportacion_playlist.dart';
-import '../../core/servicios/playlist/servicio_dominio_playlist.dart';
+import '../../core/modelos/usuario/perfil/estadisticas_usuario.dart';
+import '../../core/servicios/playlist/dominio/servicio_dominio_playlist.dart';
 
 part 'playlists_estado.dart';
 
-/// Cubit de playlists — usa el servicio de dominio y el exportador.
+/// Cubit de playlists — usa el servicio de dominio.
 class CubitPlaylists extends Cubit<EstadoPlaylists> {
   final ServicioDominioPlaylist _servicioDominio;
 
@@ -54,72 +52,4 @@ class CubitPlaylists extends Cubit<EstadoPlaylists> {
       debugPrint("[App] $e");
     }
   }
-
-  /// Crea una playlist nueva. Devuelve su ID o null si falló.
-  /// Agrega un track a una playlist (recarga el detalle si es el actual).
-  Future<void> agregarTrack(String playlistId, String trackId) async {
-    try {
-      await _servicioDominio.agregarTrack(playlistId, trackId);
-      if (state.detalleActual?.id == playlistId) {
-        await cargarDetalle(playlistId);
-      }
-      await cargarPlaylists();
-    } catch (e) {
-      debugPrint("[App] $e");
-    }
-  }
-
-  /// Quita un track de una playlist (recarga el detalle si es el actual).
-  Future<void> quitarTrack(String playlistId, String trackId) async {
-    try {
-      await _servicioDominio.quitarTrack(playlistId, trackId);
-      if (state.detalleActual?.id == playlistId) {
-        await cargarDetalle(playlistId);
-      }
-      await cargarPlaylists();
-    } catch (e) {
-      debugPrint("[App] $e");
-    }
-  }
-
-  /// Carga el detalle completo (con tracks) de una playlist.
-  Future<void> cargarDetalle(String collectionId) async {
-    try {
-      final detalle = await _servicioDominio.getDetalle(collectionId);
-      if (detalle != null) {
-        emit(state.copiarCon(detalleActual: detalle));
-      }
-    } catch (e) {
-      debugPrint("[App] $e");
-    }
-  }
-
-  /// Actualiza la carátula local de una playlist.
-  Future<void> actualizarCaratula(String playlistId, String coverPath) async {
-    try {
-      await _servicioDominio.actualizarCaratula(playlistId, coverPath);
-      await cargarPlaylists();
-    } catch (e) {
-      debugPrint("[App] $e");
-    }
-  }
-
-  /// Borra una playlist y limpia el detalle si estaba abierto.
-  /// Limpia el detalle actual de la UI.
-  /// Exporta la playlist actual (detalle cargado) como archivos.
-  /// Pide el directorio de salida al usuario. null si no hay detalle.
-  Future<ResultadoExportacionPlaylist?> exportarPlaylistActual({
-    String? initialDirectory,
-  }) async {
-    final detalle = state.detalleActual;
-    if (detalle == null || detalle.tracks.isEmpty) return null;
-
-    return ServicioExportacionPlaylist.exportarPlaylist(
-      name: detalle.name,
-      tracks: detalle.tracks,
-      initialDirectory: initialDirectory,
-    );
-  }
-
-  /// Exporta una playlist específica por ID (carga el detalle primero).
 }

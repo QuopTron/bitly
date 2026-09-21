@@ -11,5 +11,9 @@
 	<true/>
 	<key>com.apple.security.network.server</key>
 	<true/>
+	<!-- Leer el QR del vínculo entre aparatos (Ajustes → Conexión): la app
+	     pide la cámara solo mientras esa pantalla está abierta. -->
+	<key>com.apple.security.device.camera</key>
+	<true/>
 </dict>
 </plist>

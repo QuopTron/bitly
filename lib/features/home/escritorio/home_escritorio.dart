@@ -20,10 +20,12 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/cache/estado/estado_cola.dart';
 import '../../../estado/cola/cubit_cola.dart';
 import '../../../shared/tema/colores_app.dart';
-import '../../../shared/widgets/fondos/fondo_ambiente.dart';
-import '../../tutorial_interactivo/motor/tutorial_controller.dart';
+import '../../../shared/utilidades/plataforma/responsive.dart';
+import '../../../shared/tema/especificaciones/especificaciones_plataforma.dart';
+import '../../../shared/widgets/fondos/ambiente/fondo_ambiente.dart';
+import '../../tutorial_interactivo/motor/base/tutorial_controller.dart';
 import '../shell/ensamblador_home.dart';
-import '../widgets/barra_navegacion_lateral.dart';
+import '../widgets/lateral/barra_navegacion_lateral.dart';
 
 part 'home_escritorio_tutorial.dart';
 part 'home_escritorio_miniplayer.dart';

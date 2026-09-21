@@ -12,9 +12,9 @@
 // Prefijado: app_database exporta una tabla llamada `File`.
 import 'dart:io' as io;
 
-import 'package:bitly/app/inyeccion.dart' as di;
+import 'package:bitly/app/inyeccion/inyeccion.dart' as di;
 import 'package:bitly/core/base_datos/app_database.dart';
-import 'package:bitly/features/mi_espacio/datos/datos_mi_espacio.dart';
+import 'package:bitly/features/mi_espacio/datos/base/datos_mi_espacio.dart';
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';

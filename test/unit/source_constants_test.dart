@@ -58,14 +58,6 @@ void main() {
     });
   });
 
-  group('todasLasFuentes', () {
-    test('matches iconosFuente keys', () {
-      for (final src in todasLasFuentes) {
-        expect(iconosFuente, contains(src));
-      }
-    });
-  });
-
   group('fuentesSoloRespaldo', () {
     // Internet Archive y Soulseek no son catálogos navegables: existen para el
     // rescate lossless. Si alguno se ofreciera como fuente de búsqueda, sus
@@ -113,8 +105,10 @@ void main() {
   });
 
   group('etiquetasFuente', () {
-    test('all sources have labels', () {
-      for (final src in todasLasFuentes) {
+    test('cada fuente con ícono tiene etiqueta', () {
+      // El catálogo de ids vivos es iconosFuente: si se agrega una fuente ahí
+      // sin etiqueta, el selector quedaría mostrando el id crudo.
+      for (final src in iconosFuente.keys) {
         expect(etiquetasFuente, containsPair(src, isA<String>()));
       }
     });

@@ -1,0 +1,151 @@
+// ─────────────────────────────────────────────────────────────
+// tarjeta_grilla.dart — Tarjeta de grilla para álbumes, playlists
+// y artistas: portada de fondo borrosa (o gradiente preset) con
+// scrim, portada nítida centrada (circular para artistas), bloque
+// de info siempre visible (acciones + título + subtítulo + contador
+// de reproducciones) y badge de esquina opcional. Los helpers de
+// descarga viven en el part tarjeta_grilla_descarga.dart.
+// Se conecta con: perfil_rendimiento (efectos pesados) +
+// imagen_portada + indicador_descarga + colores_app + responsive.
+// Parte del flujo: feed, búsqueda, mi espacio (álbumes/playlists).
+// ─────────────────────────────────────────────────────────────
+
+import 'dart:math' as math;
+
+import 'package:flutter/material.dart';
+
+import '../../../../../app/inyeccion/inyeccion.dart';
+import '../../../../../core/modelos/usuario/perfil/perfil_rendimiento.dart';
+import '../../../../../core/modelos/usuario/preferencias/preferencias_apariencia.dart';
+import '../../../../../core/modelos/usuario/preferencias/preferencias_estilo.dart';
+import '../../../../../l10n/app_localizations.dart';
+import '../../../../tema/colores_app.dart';
+import '../../../../utilidades/interaccion/haptico.dart';
+import '../../../../utilidades/portada/paleta/paleta_portada.dart';
+import '../../../../utilidades/plataforma/responsive.dart';
+import '../../../../utilidades/formato/comun/formato/estilo_helper.dart';
+import '../../../fondos/ambiente/atenuado_por_nivel.dart';
+import '../../portada/imagen_portada.dart';
+import '../../../indicadores/descarga/indicador_descarga.dart';
+import '../../../vidrio/base/desenfoque_adaptativo.dart';
+import '../../../../utilidades/formato/apariencia/barras/apariencia_espacios_helper.dart';
+
+part '../estados/tarjeta_grilla_descarga.dart';
+part '../visual/tarjeta_grilla_color_wrapper.dart';
+part 'tarjeta_grilla_widgets.dart';
+part 'tarjeta_grilla_info.dart';
+part '../visual/tarjeta_grilla_visual.dart';
+part '../visual/tarjeta_grilla_fondo.dart';
+part '../visual/tarjeta_grilla_placeholder.dart';
+part 'tarjeta_grilla_build.dart';
+
+/// Radio del CONTENEDOR de la card de grilla (fondo + borde), derivado del
+/// control de Redondeo de Ajustes → Apariencia → Diseño. Con el valor de
+/// fábrica del control (14) da los 16 px de siempre y con 0 queda cuadrada:
+/// así la grilla entera pierde la curva, no sólo la portada.
+double _radioContenedorGrilla(BuildContext context) =>
+    AparienciaEspacios.radioCards(context) * 16 / 14;
+
+/// Tarjeta de grilla (álbum/playlist/artista) reutilizada en varias vistas.
+class TarjetaGrilla extends StatelessWidget {
+  final String tipo;
+  final String titulo;
+  final String subtitulo;
+  final String? coverUrl;
+  final VoidCallback? onTap;
+  final bool esAmado;
+  final VoidCallback? onLike;
+  final EstadoDescarga estadoDescarga;
+  final double? progresoDescarga;
+  final VoidCallback? onDescargar;
+  final VoidCallback? onPausar;
+  final VoidCallback? onBorrar;
+  final VoidCallback? onReintentar;
+  final VoidCallback? onMas;
+  final VoidCallback? onExportar;
+  final bool mostrarAnimacionBorrar;
+  final bool mostrarAcciones;
+  final bool accionesHabilitadas;
+  final double escalaTexto;
+
+  /// Insignia opcional en la esquina superior izquierda de la portada
+  /// (p.ej. indicador de origen para items amados/descargados en Mi Espacio).
+  final Widget? insigniaEsquina;
+
+  /// Si mostrar la acción trasera (exportar / más). False en Mi Espacio para
+  /// que las tarjetas de álbum/playlist solo expongan like + descarga.
+  final bool mostrarTerceraAccion;
+
+  /// Si mostrar la acción de descarga. False cuando un item no se puede
+  /// descargar (p.ej. playlist local sin fuente de proveedor).
+  final bool mostrarAccionDescarga;
+  final int contadorReproducciones;
+
+  /// Color dominante extraído del cover. Se usa en modo Spotify para
+  /// teñir el fondo, bordes y sombras de la tarjeta con el color del album.
+  final Color? colorDominante;
+
+  /// Dibuja una línea divisoria a la DERECHA de la celda (modo "unido",
+  /// tipo Spotify): la grilla la pide en todas las columnas menos la última
+  /// para separar cards sin dibujar en el borde externo de la grilla.
+  final bool lineaDerecha;
+
+  const TarjetaGrilla({
+    super.key,
+    required this.tipo,
+    required this.titulo,
+    required this.subtitulo,
+    this.coverUrl,
+    this.onTap,
+    this.esAmado = false,
+    this.onLike,
+    this.estadoDescarga = EstadoDescarga.ninguno,
+    this.progresoDescarga,
+    this.onDescargar,
+    this.onPausar,
+    this.onBorrar,
+    this.onReintentar,
+    this.onMas,
+    this.onExportar,
+    this.mostrarAnimacionBorrar = false,
+    this.mostrarAcciones = true,
+    this.accionesHabilitadas = true,
+    this.escalaTexto = 1.0,
+    this.insigniaEsquina,
+    this.mostrarTerceraAccion = true,
+    this.mostrarAccionDescarga = true,
+    this.contadorReproducciones = 0,
+    this.colorDominante,
+    this.lineaDerecha = false,
+  });
+
+  IconData get _icono {
+    switch (tipo) {
+      case 'album':
+        return Icons.album;
+      case 'playlist':
+        return Icons.queue_music;
+      case 'artist':
+        return Icons.person;
+      default:
+        return Icons.music_note;
+    }
+  }
+
+  bool get _esArtista => tipo == 'artist';
+
+  /// Alto garantizado del bloque de info (acciones + título + subtítulo)
+  /// para que texto e iconos SIEMPRE se vean sin importar el tamaño.
+  double _altoInfo(Responsive r, double ts, bool conAcciones) {
+    var h = r.spacingS; // espacio bajo la portada
+    if (conAcciones) {
+      h += r.footerSize * 1.3 + r.spacingXS;
+    }
+    h += (r.footerSize + 4) * ts * 2 * 1.18; // título (hasta 2 líneas)
+    h += 3 + (r.footerSize + 1) * ts * 1.18; // subtítulo (1 línea)
+    return h;
+  }
+
+  @override
+  Widget build(BuildContext context) => _construirTarjetaGrilla(this, context);
+}

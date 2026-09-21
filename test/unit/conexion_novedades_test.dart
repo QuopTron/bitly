@@ -7,10 +7,10 @@
 // entorno no expone SQLite nativo, se saltea.
 
 import 'package:bitly/core/base_datos/app_database.dart';
-import 'package:bitly/core/cache/almacenes/cache_ajustes.dart';
-import 'package:bitly/core/modelos/usuario/dispositivo_conectado.dart';
-import 'package:bitly/core/servicios/conexion/conexion_novedades.dart';
-import 'package:bitly/core/servicios/conexion/servicio_conexion.dart';
+import 'package:bitly/core/cache/almacenes/sistema/cache_ajustes.dart';
+import 'package:bitly/core/modelos/usuario/dispositivos/dispositivo_conectado.dart';
+import 'package:bitly/core/servicios/conexion/novedades/conexion_novedades.dart';
+import 'package:bitly/core/servicios/conexion/base/base/servicio_conexion.dart';
 import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';

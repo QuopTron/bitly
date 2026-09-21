@@ -5,7 +5,7 @@
 
 import 'package:bitly/core/modelos/logros/niveles_escucha.dart';
 import 'package:bitly/core/modelos/logros/progreso_escucha.dart';
-import 'package:bitly/l10n/strings/strings_niveles.dart';
+import 'package:bitly/l10n/strings/sistema/datos/strings_niveles.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

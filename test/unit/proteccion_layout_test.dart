@@ -14,8 +14,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:bitly/shared/utilidades/plataforma/escala_texto.dart';
-import 'package:bitly/shared/widgets/base/contenido_con_alto_minimo.dart';
+import 'package:bitly/shared/utilidades/plataforma/pantalla/escala_texto.dart';
+import 'package:bitly/shared/widgets/base/comun/contenido_con_alto_minimo.dart';
 
 /// Reporta por texto lo que ve el árbol protegido y contiene una fila que NO
 /// entra en una pantalla angosta: si la protección fallara, Flutter tiraría un

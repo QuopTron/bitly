@@ -13,6 +13,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 
 import 'modelo_calidad_red.dart';
 
+import 'package:flutter/foundation.dart';
 /// Sonda de red: tipo de conexión + latencia real de internet.
 class SondaRed {
   /// Tope de la sonda: por encima de esto la red se considera inutilizable.
@@ -48,6 +49,7 @@ class SondaRed {
       if (res.any((r) => r != ConnectivityResult.none)) return TipoRed.otra;
       return TipoRed.ninguna;
     } catch (e) {
+      debugPrint('[SondaRed] $e');
       // Ante error, asumir que hay red (default seguro).
       return TipoRed.otra;
     }
@@ -65,6 +67,7 @@ class SondaRed {
       reloj.stop();
       return reloj.elapsedMilliseconds;
     } catch (e) {
+      debugPrint('[SondaRed] $e');
       reloj.stop();
       return -1;
     }

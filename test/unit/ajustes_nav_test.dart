@@ -10,7 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 // Las partes no se importan suelto: se entra por la library que las une.
 import 'package:bitly/features/ajustes/sheet/settings_sheet_new.dart';
-import 'package:bitly/features/tutorial_interactivo/motor/tutorial_claves.dart';
+import 'package:bitly/features/tutorial_interactivo/motor/base/tutorial_claves.dart';
 import 'package:bitly/l10n/app_localizations.dart';
 
 /// Pregunta cómo se muestra el menú en un ancho dado.

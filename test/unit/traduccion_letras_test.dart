@@ -11,7 +11,7 @@
 //  · una falla (sin red, bloqueo) devuelve null y la letra sigue andando;
 //  · la segunda vez que se pide lo mismo no se vuelve a llamar al traductor.
 
-import 'package:bitly/core/cache/almacenes/cache_traducciones.dart';
+import 'package:bitly/core/cache/almacenes/biblioteca/base/cache_traducciones.dart';
 import 'package:bitly/core/servicios/traduccion/servicio_traduccion_letras.dart';
 import 'package:flutter_test/flutter_test.dart';
 

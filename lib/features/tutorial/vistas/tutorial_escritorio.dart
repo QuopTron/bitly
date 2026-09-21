@@ -11,7 +11,8 @@
 import 'package:flutter/material.dart';
 
 import '../../../shared/tema/colores_app.dart';
-import '../../../shared/widgets/vidrio/contenedor_vidrio.dart';
+import '../../../shared/utilidades/plataforma/responsive.dart';
+import '../../../shared/widgets/vidrio/base/contenedor_vidrio.dart';
 
 /// Layout escritorio del tutorial: panel centrado con ancho máximo.
 class TutorialEscritorio extends StatelessWidget {
@@ -27,18 +28,24 @@ class TutorialEscritorio extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final esOscuro = Theme.of(context).brightness == Brightness.dark;
+    // El panel se mide con el aparato: en la tele el ancho máximo y el aire
+    // crecen, así no queda una tarjeta chica al medio de la pantalla.
+    final r = Responsive(context);
     return Scaffold(
       backgroundColor: ColoresApp.fondo(esOscuro),
       body: Center(
         child: ContenedorVidrio(
-          padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 40),
+          padding: EdgeInsets.symmetric(
+            horizontal: r.sobre(48, 72),
+            vertical: r.sobre(40, 60),
+          ),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 560),
+            constraints: BoxConstraints(maxWidth: r.sobre(560, 780)),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                SizedBox(height: 320, child: cuerpo),
-                const SizedBox(height: 8),
+                SizedBox(height: r.sobre(320, 460), child: cuerpo),
+                SizedBox(height: r.spacingS),
                 controles,
               ],
             ),
