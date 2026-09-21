@@ -83,15 +83,25 @@ Widget _filaTrackMini(
         activo: cola.shuffle,
         onTap: () => st.context.read<CubitCola>().alternarShuffle(),
       ),
-      _iconoControlMini(st, r, fg, Icons.skip_previous_rounded,
-          tamanoExtra: 3,
-          atenuado: true,
-          onTap: () => st.context.read<CubitReproductor>().anterior()),
+      _iconoControlMini(
+        st,
+        r,
+        fg,
+        Icons.skip_previous_rounded,
+        tamanoExtra: 3,
+        atenuado: true,
+        onTap: () => st.context.read<CubitReproductor>().anterior(),
+      ),
       _botonPlayMini(st, r, fg, player, buffering),
-      _iconoControlMini(st, r, fg, Icons.skip_next_rounded,
-          tamanoExtra: 3,
-          atenuado: true,
-          onTap: () => st.context.read<CubitReproductor>().siguiente()),
+      _iconoControlMini(
+        st,
+        r,
+        fg,
+        Icons.skip_next_rounded,
+        tamanoExtra: 3,
+        atenuado: true,
+        onTap: () => st.context.read<CubitReproductor>().siguiente(),
+      ),
       _iconoControlMini(
         st,
         r,
@@ -124,9 +134,10 @@ Widget _iconoControlMini(
       child: Icon(
         icono,
         size: r.footerSize + 8 + (tamanoExtra ?? 0),
-        color: activo
-            ? fg
-            : atenuado
+        color:
+            activo
+                ? fg
+                : atenuado
                 ? fg.withValues(alpha: 0.5)
                 : fg.withValues(alpha: 0.3),
       ),

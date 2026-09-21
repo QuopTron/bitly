@@ -44,14 +44,11 @@ class ServicioCalidadRed {
   bool _midiendo = false;
   bool _enPrimerPlano = true;
 
-  /// True si la red medida alcanza para precargar de forma especulativa.
-  bool get redAptaParaPrecarga =>
-      estado.value.nivel == NivelRed.buena || estado.value.nivel == NivelRed.excelente;
-
   /// True si la conexión es fija (WiFi/Ethernet) — úsese para precargas
   /// agresivas cuando además la latencia es buena.
   bool get redFija =>
-      estado.value.tipo == TipoRed.wifi || estado.value.tipo == TipoRed.ethernet;
+      estado.value.tipo == TipoRed.wifi ||
+      estado.value.tipo == TipoRed.ethernet;
 
   /// Arranca el monitoreo: primera medición inmediata + timer + escucha de
   /// cambios de conectividad. Idempotente.
@@ -63,7 +60,9 @@ class ServicioCalidadRed {
     WidgetsBinding.instance.addObserver(_observadorCiclo!);
     _timer = Timer.periodic(_intervalo, (_) => medirAhora());
     try {
-      _subConectividad = Connectivity().onConnectivityChanged.listen((_) => medirAhora());
+      _subConectividad = Connectivity().onConnectivityChanged.listen(
+        (_) => medirAhora(),
+      );
     } catch (_) {
       // Sin observador de conectividad igual se mide por timer.
     }

@@ -24,8 +24,9 @@ class EfectosApp {
   EfectosApp._();
 
   /// Si false, ningún widget pinta desenfoques (se usa el color de fondo).
-  static final ValueNotifier<bool> permitirDesenfoque =
-      ValueNotifier<bool>(true);
+  static final ValueNotifier<bool> permitirDesenfoque = ValueNotifier<bool>(
+    true,
+  );
 
   /// Sigma máximo tolerado. 0 = sin desenfoque.
   static final ValueNotifier<double> sigmaMaximo = ValueNotifier<double>(26);
@@ -35,7 +36,10 @@ class EfectosApp {
       permitirDesenfoque.value && sigmaMaximo.value > 0;
 
   /// Aplica el coste visual del perfil activo (lo llama el arranque).
-  static void aplicar({required bool efectosPesados, required double sigmaMax}) {
+  static void aplicar({
+    required bool efectosPesados,
+    required double sigmaMax,
+  }) {
     permitirDesenfoque.value = efectosPesados;
     sigmaMaximo.value = sigmaMax;
   }

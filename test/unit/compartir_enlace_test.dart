@@ -56,8 +56,9 @@ void main() {
     );
 
     test('el enlace lleva los datos y no el nombre en claro', () {
-      final enlace = ServicioCompartir.instance
-          .construirEnlace(DatosCompartido.desdeItem(item, emisor: 'Pablo'));
+      final enlace = ServicioCompartir.instance.construirEnlace(
+        DatosCompartido.desdeItem(item, emisor: 'Pablo'),
+      );
       // El host sale de la constante: es el mismo declarado en el manifest de
       // Android y en el entitlement de iOS (si no coinciden, el enlace no abre
       // la app directo).
@@ -93,7 +94,9 @@ void main() {
         isNotNull,
       );
       expect(
-        ServicioCompartir.instance.leerEnlace('https://otro.com/open?s=$payload'),
+        ServicioCompartir.instance.leerEnlace(
+          'https://otro.com/open?s=$payload',
+        ),
         isNull,
       );
       expect(datos.valido, isTrue);

@@ -16,11 +16,7 @@ class FeedMovil extends StatelessWidget {
   final Widget cabecera;
   final Widget cuerpo;
 
-  const FeedMovil({
-    super.key,
-    required this.cabecera,
-    required this.cuerpo,
-  });
+  const FeedMovil({super.key, required this.cabecera, required this.cuerpo});
 
   @override
   Widget build(BuildContext context) {

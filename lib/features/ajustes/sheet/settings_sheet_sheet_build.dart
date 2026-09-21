@@ -5,9 +5,7 @@
 // Parte del flujo: Ajustes (cuerpo de la hoja).
 // ─────────────────────────────────────────────────────────────
 
-
 part of 'settings_sheet_new.dart';
-
 
 /// Cuerpo del settings sheet: drag handle + perfil compacto + bubble tabs
 /// + contenido (perfil/estadísticas o los 4 tabs). Recibe el estado del
@@ -26,8 +24,6 @@ class _SettingsSheetBody extends StatefulWidget {
   final Responsive r;
   final bool hasTrack;
   final ValueChanged<bool> onThemeChanged;
-  final VoidCallback onLanguageChanged;
-  final ValueChanged<EstiloVisual> onStyleChanged;
   final Future<void> Function() onPremiumChanged;
   final void Function(int index) onTabTap;
 
@@ -45,8 +41,6 @@ class _SettingsSheetBody extends StatefulWidget {
     required this.r,
     required this.hasTrack,
     required this.onThemeChanged,
-    required this.onLanguageChanged,
-    required this.onStyleChanged,
     required this.onPremiumChanged,
     required this.onTabTap,
   });

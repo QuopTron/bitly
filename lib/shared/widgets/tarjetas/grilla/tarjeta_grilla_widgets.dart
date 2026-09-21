@@ -26,6 +26,7 @@ Widget _cuerpoTarjeta(
   double ts,
   bool efectosPesados, {
   Color? colorDominante,
+  double nivel = 0,
 }) {
   final w = constraints.maxWidth;
   final h = constraints.maxHeight;
@@ -47,64 +48,58 @@ Widget _cuerpoTarjeta(
       height: h.isFinite ? h : w + altoInfo + pad,
       clipBehavior: Clip.hardEdge,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
+        // Redondeo personalizable (Ajustes → Apariencia → Diseño): con el
+        // valor de fábrica quedan los 16 px de siempre y con 0 la card entera
+        // queda cuadrada (antes el contenedor seguía curvo aunque bajaras el
+        // control).
+        borderRadius: BorderRadius.circular(_radioContenedorGrilla(context)),
         border: Border.all(
-          color: t.estadoDescarga == EstadoDescarga.completado
-              ? fg.withValues(alpha: 0.2)
-              : acento != null
-                  ? ColoresApp.bordeDinamico(esOscuro, acento)
-                  : ColoresApp.bordeSutil(esOscuro),
+          color:
+              t.estadoDescarga == EstadoDescarga.completado
+                  ? fg.withValues(alpha: 0.2)
+                  : acento == null
+                  ? ColoresApp.bordeSutil(esOscuro)
+                  : EstiloHelper.mezclarColor(
+                    ColoresApp.bordeSutil(esOscuro),
+                    ColoresApp.bordeDinamico(esOscuro, acento),
+                    nivel,
+                  ),
           width: t.estadoDescarga == EstadoDescarga.completado ? 1.0 : 0.6,
         ),
-        boxShadow: t.estadoDescarga == EstadoDescarga.completado
-            ? [
-                BoxShadow(
-                  color: ColoresApp.sombra(esOscuro),
-                  blurRadius: 12,
-                  spreadRadius: 1,
+        boxShadow:
+            t.estadoDescarga == EstadoDescarga.completado
+                ? [
+                  BoxShadow(
+                    color: ColoresApp.sombra(esOscuro),
+                    blurRadius: 12,
+                    spreadRadius: 1,
+                  ),
+                ]
+                : null,
+        // Detrás de la portada: el piso de la card, teñido al mismo ritmo
+        // que el borde para que nada cambie de golpe.
+        color:
+            acento == null
+                ? fondoFallback
+                : EstiloHelper.mezclarColor(
+                  fondoFallback,
+                  ColoresApp.superficieDinamica(esOscuro, acento),
+                  nivel,
                 ),
-              ]
-            : null,
-        color: acento != null
-            ? ColoresApp.superficieDinamica(esOscuro, acento)
-            : fondoFallback,
       ),
       child: Stack(
         fit: StackFit.expand,
         children: [
-          // Portada borrosa de fondo + scrim + gradiente ascendente.
+          // Fondo completo: portada + tinte por intensidad + velo +
+          // gradiente ascendente (tarjeta_grilla_fondo).
           Positioned.fill(
-            child: _fondoTarjeta(t, context, efectosPesados, esOscuro, acento),
-          ),
-          Positioned.fill(
-            child: Container(
-              // En Spotify el fondo ya es el color dominante, el velo es más sutil.
-              color: acento != null
-                  ? ColoresApp.veloDinamico(esOscuro, acento, alpha: 0.20)
-                  : ColoresApp.velo(esOscuro).withValues(alpha: 0.45),
-            ),
-          ),
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.bottomCenter,
-                  end: Alignment.topCenter,
-                  colors: [
-                    acento != null
-                        ? ColoresApp.veloDinamico(esOscuro, acento, alpha: 1.0)
-                        : ColoresApp.velo(esOscuro).withValues(alpha: 1.0),
-                    acento != null
-                        ? ColoresApp.veloDinamico(esOscuro, acento, alpha: 0.65)
-                        : ColoresApp.velo(esOscuro).withValues(alpha: 0.65),
-                    acento != null
-                        ? ColoresApp.veloDinamico(esOscuro, acento, alpha: 0.2)
-                        : ColoresApp.velo(esOscuro).withValues(alpha: 0.2),
-                    Colors.transparent,
-                  ],
-                  stops: const [0.0, 0.35, 0.7, 1.0],
-                ),
-              ),
+            child: _fondoTarjeta(
+              t,
+              context,
+              efectosPesados,
+              esOscuro,
+              acento,
+              nivel,
             ),
           ),
           // Primer plano: portada nítida + bloque de info debajo.

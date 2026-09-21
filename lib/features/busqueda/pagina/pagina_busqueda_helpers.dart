@@ -45,8 +45,14 @@ Map<String, String> _fuentesBusqueda(EstadoBusqueda state) {
     return ordenadas;
   }
   for (final s in const [
-    'deezer', 'spotify-web', 'apple-music', 'soundcloud', 'amazon',
-    'qobuz-web', 'tidal-web', 'ytmusic-spotiflac',
+    'deezer',
+    'spotify-web',
+    'apple-music',
+    'soundcloud',
+    'amazon',
+    'qobuz-web',
+    'tidal-web',
+    'ytmusic-spotiflac',
   ]) {
     if (!esFuenteDeBusqueda(s)) continue;
     ordenadas[s] = nombreFuente(s);
@@ -68,7 +74,10 @@ String? _hintBusqueda(_PaginaBusquedaState st, EstadoBusqueda state) {
 }
 
 bool _fuenteTieneCategoria(EstadoBusqueda state, String fuente, String cat) {
-  return _filtrosPara(state, fuente).any((f) => categoriaBusquedaDe(f.id) == cat);
+  return _filtrosPara(
+    state,
+    fuente,
+  ).any((f) => categoriaBusquedaDe(f.id) == cat);
 }
 
 /// Id del filtro del manifest para la categoría activa (o la categoría).

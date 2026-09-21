@@ -61,14 +61,15 @@ class _ListaDetalle extends StatelessWidget {
       padding: EdgeInsets.fromLTRB(r.spacingM, 0, r.spacingM, r.spacingS),
       itemCount: visibles.length,
       separatorBuilder: (_, _) => SizedBox(height: r.spacingXS * 0.8),
-      itemBuilder: (context, i) => _FilaDetalle(
-        puesto: i + 1,
-        fila: visibles[i],
-        caratula: caratulas[visibles[i].id],
-        glowColor: glowColor,
-        onBg: onBg,
-        r: r,
-      ),
+      itemBuilder:
+          (context, i) => _FilaDetalle(
+            puesto: i + 1,
+            fila: visibles[i],
+            caratula: caratulas[visibles[i].id],
+            glowColor: glowColor,
+            onBg: onBg,
+            r: r,
+          ),
     );
   }
 }

@@ -22,17 +22,16 @@ mixin DescargasTrack on DescargasTrackBatch {
       if (entry.value.estado != EstadoDescarga.completado) continue;
       if (!entry.key.startsWith('track_')) continue;
       // Saltar keys de subtareas (_audio, _lyrics, _video) — solo baseId tiene metadata.
-      if (entry.key.endsWith('_audio') || entry.key.endsWith('_lyrics') ||
+      if (entry.key.endsWith('_audio') ||
+          entry.key.endsWith('_lyrics') ||
           entry.key.endsWith('_video')) {
         continue;
       }
       final meta = _metaTrack[entry.key];
       if (meta != null) {
-        // Preferir la ruta local de carátula (JPG en disco) sobre la URL.
-        final cover =
-            (meta.coverPath != null && meta.coverPath!.isNotEmpty)
-                ? meta.coverPath
-                : meta.coverUrl;
+        // Preferir la ruta local de carátula (JPG en disco) sobre la URL,
+        // pero solo si el archivo sigue existiendo.
+        final cover = mejorCaratula(meta.coverPath, meta.coverUrl);
         result.add(
           ItemFeed(
             id: meta.trackId,

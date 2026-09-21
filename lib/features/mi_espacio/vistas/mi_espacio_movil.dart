@@ -24,11 +24,7 @@ class MiEspacioMovil extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        cabecera,
-        SizedBox(height: 8),
-        Expanded(child: cuerpo),
-      ],
+      children: [cabecera, SizedBox(height: 8), Expanded(child: cuerpo)],
     );
   }
 }

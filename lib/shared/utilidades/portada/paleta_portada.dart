@@ -43,7 +43,8 @@ class PaletaPortada {
   /// oscura o clara (el panel real del karaoke). [fondo] es el color real
   /// detrás del texto; si es null se asume el panel por defecto.
   Color acentoTexto({required bool sobreSuperficieOscura, Color? fondo}) {
-    final bg = fondo ??
+    final bg =
+        fondo ??
         (sobreSuperficieOscura
             ? const Color(0xFF141414)
             : const Color(0xFFF6F6F6));
@@ -63,12 +64,15 @@ class PaletaPortada {
     required int distancia,
     Color? fondo,
   }) {
-    final bg = fondo ??
+    final bg =
+        fondo ??
         (sobreSuperficieOscura
             ? const Color(0xFF141414)
             : const Color(0xFFF6F6F6));
-    final acento =
-        acentoTexto(sobreSuperficieOscura: sobreSuperficieOscura, fondo: bg);
+    final acento = acentoTexto(
+      sobreSuperficieOscura: sobreSuperficieOscura,
+      fondo: bg,
+    );
     final base = mejorNeutro(bg);
     final fuerza = (1.12 - distancia * 0.20).clamp(0.18, 0.82);
     final mezclado = Color.lerp(base, acento, fuerza)!;

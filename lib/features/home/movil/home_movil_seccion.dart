@@ -26,9 +26,10 @@ class _SeccionAnimada extends StatelessWidget {
     return ListenableBuilder(
       listenable: controller,
       builder: (context, _) {
-        final page = controller.hasClients
-            ? (controller.page ?? index.toDouble())
-            : index.toDouble();
+        final page =
+            controller.hasClients
+                ? (controller.page ?? index.toDouble())
+                : index.toDouble();
         final diff = (page - index).abs();
         final opacity = (1.0 - diff * 0.4).clamp(0.0, 1.0);
         final scale = (1.0 - diff * 0.05).clamp(0.9, 1.0);

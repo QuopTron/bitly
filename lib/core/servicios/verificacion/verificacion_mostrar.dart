@@ -30,9 +30,13 @@ mixin VerificacionMostrar
     // Kill-switch absoluto: sin fuentes con sesión firmada, NINGÚN flujo puede
     // abrir el WebView de Cloudflare. Esto cubre cualquier caller nuevo que
     // pueda olvidar el check de fuentesSesionFirmada.
-    debugPrint('[Verificacion] mostrarVerificacion called: extId=$extId fuentes=${ServicioVerificacion.fuentesSesionFirmada}');
+    debugPrint(
+      '[Verificacion] mostrarVerificacion called: extId=$extId fuentes=${ServicioVerificacion.fuentesSesionFirmada}',
+    );
     if (ServicioVerificacion.fuentesSesionFirmada.isEmpty) {
-      debugPrint('[Verificacion] Kill-switch: fuentesSesionFirmada empty → returning null');
+      debugPrint(
+        '[Verificacion] Kill-switch: fuentesSesionFirmada empty → returning null',
+      );
       return null;
     }
     // Solo honrar un skip mientras un run de provisionSignedSessions está
@@ -50,8 +54,10 @@ mixin VerificacionMostrar
     if (Platform.isLinux) {
       final callbackDesktop = ServidorCallbackEscritorio.instance;
       if (!callbackDesktop.estaListo) {
-        _logVerificacion.w('[Verificacion] Servidor callback desktop no '
-            'disponible, omitiendo verificación de $extId');
+        _logVerificacion.w(
+          '[Verificacion] Servidor callback desktop no '
+          'disponible, omitiendo verificación de $extId',
+        );
         _completarPendiente('');
         return null;
       }
@@ -59,7 +65,8 @@ mixin VerificacionMostrar
       try {
         unawaited(_lanzarNavegador(nombreMostrado, urlAuth));
         final grant = await callbackDesktop.esperarGrant(
-            timeout ?? _timeoutGrant);
+          timeout ?? _timeoutGrant,
+        );
         _completarPendiente(grant);
         return grant;
       } finally {
@@ -81,12 +88,16 @@ mixin VerificacionMostrar
     if (intentarAuto) {
       final ctxSilencioso = _navigatorKey?.currentContext;
       if (ctxSilencioso != null) {
-        final grantSilencioso =
-            await _intentarSilencioso(urlAuth, ctxSilencioso);
+        final grantSilencioso = await _intentarSilencioso(
+          urlAuth,
+          ctxSilencioso,
+        );
         if (grantSilencioso != null && grantSilencioso.isNotEmpty) {
           _completarPendiente(grantSilencioso);
-          debugPrint('[Verificacion] AUTO-firmado sin modal ✓ '
-              '(${grantSilencioso.length} chars)');
+          debugPrint(
+            '[Verificacion] AUTO-firmado sin modal ✓ '
+            '(${grantSilencioso.length} chars)',
+          );
           return grantSilencioso;
         }
       }

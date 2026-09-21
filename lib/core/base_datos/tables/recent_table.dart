@@ -23,4 +23,3 @@ class RecentAccess extends Table {
   @override
   Set<Column> get primaryKey => {key};
 }
-

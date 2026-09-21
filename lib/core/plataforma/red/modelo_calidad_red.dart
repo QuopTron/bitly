@@ -34,9 +34,12 @@ class EstadoCalidadRed {
     midiendo: true,
   );
 
-  bool get hayConexion => nivel != NivelRed.desconocido || tipo != TipoRed.ninguna;
-
-  EstadoCalidadRed copiarCon({NivelRed? nivel, TipoRed? tipo, int? latenciaMs, bool? midiendo}) {
+  EstadoCalidadRed copiarCon({
+    NivelRed? nivel,
+    TipoRed? tipo,
+    int? latenciaMs,
+    bool? midiendo,
+  }) {
     return EstadoCalidadRed(
       nivel: nivel ?? this.nivel,
       tipo: tipo ?? this.tipo,

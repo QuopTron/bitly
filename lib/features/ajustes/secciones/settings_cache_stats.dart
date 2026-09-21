@@ -8,8 +8,9 @@
 
 import 'package:flutter/material.dart';
 
+import '../../../l10n/app_localizations.dart';
 import '../../../shared/utilidades/plataforma/responsive.dart';
-import 'settings_cache_piezas.dart';
+import 'settings_cache_piezas.dart';
 import 'settings_cache_selector.dart';
 
 /// Bloque de estadísticas de caché + selector de tamaño.
@@ -22,22 +23,23 @@ Widget cacheStatsBlock({
   required bool saving,
   required ValueChanged<int> onSet,
 }) {
+  final c = AppLocalizations.of(context).cache;
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       statRowCache(
         Icons.download_done,
         '${fmtBytes(stats['total_size_bytes'] as int? ?? 0)} / '
-            '${stats['max_cache_mb'] ?? '?'} MB',
-        'usados',
+        '${stats['max_cache_mb'] ?? '?'} MB',
+        c.usados,
         onBg,
         r,
       ),
       SizedBox(height: r.spacingXS),
       statRowCache(
         Icons.folder_open,
-        '${stats['file_count'] ?? 0} archivos',
-        'en caché',
+        c.archivos(stats['file_count'] as int? ?? 0),
+        c.enCache,
         onBg,
         r,
       ),
@@ -45,7 +47,7 @@ Widget cacheStatsBlock({
       statRowCache(
         Icons.access_time,
         '${stats['estimated_hours'] ?? 0} h',
-        'de audio cacheados',
+        c.deAudio,
         onBg,
         r,
       ),
@@ -61,14 +63,14 @@ Widget cacheStatsBlock({
       statRowCache(
         Icons.shield_outlined,
         '${userLevelLabel(stats['user_level'] as String? ?? 'free')} • '
-            'máx ${stats['level_limit_mb'] ?? 200} MB',
-        'límite del plan',
+        '${c.max} ${stats['level_limit_mb'] ?? 200} MB',
+        c.limitePlan,
         onBg,
         r,
       ),
       SizedBox(height: r.spacingM),
       Text(
-        'Límite de tamaño',
+        c.limiteTitulo,
         style: TextStyle(
           fontSize: r.footerSize,
           color: onBg.withValues(alpha: 0.6),
@@ -85,23 +87,30 @@ Widget cacheStatsBlock({
         onSet: onSet,
       ),
       SizedBox(height: r.spacingXS),
-      Row(children: [
-        Icon(Icons.info_outline,
-            size: r.footerSize - 1, color: onBg.withValues(alpha: 0.35)),
-        const SizedBox(width: 4),
-        Expanded(
-          child: Text(
-            stats['level_limit_mb'] != null
-                ? 'Tu plan permite hasta ${stats['level_limit_mb']} MB '
-                    '(${userLevelLabel(stats['user_level'] as String? ?? 'free')})'
-                : '',
-            style: TextStyle(
-              fontSize: r.footerSize - 2,
-              color: onBg.withValues(alpha: 0.35),
+      Row(
+        children: [
+          Icon(
+            Icons.info_outline,
+            size: r.footerSize - 1,
+            color: onBg.withValues(alpha: 0.35),
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Text(
+              stats['level_limit_mb'] != null
+                  ? c.planPermite(
+                    '${stats['level_limit_mb']}',
+                    userLevelLabel(stats['user_level'] as String? ?? 'free'),
+                  )
+                  : '',
+              style: TextStyle(
+                fontSize: r.footerSize - 2,
+                color: onBg.withValues(alpha: 0.35),
+              ),
             ),
           ),
-        ),
-      ]),
+        ],
+      ),
     ],
   );
 }

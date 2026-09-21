@@ -133,6 +133,18 @@ func (c *Client) resolverPorISRC(isrc string, formatos []string) (string, string
 		}
 	}
 
+	// Canal arcod (ver arcod.go): entrega el FLAC REAL del catálogo de Qobuz
+	// sin cuenta, con soporte de Range, así que sirve para reproducir Y para
+	// descargar. Va antes de los espejos porque los públicos llevan meses sin
+	// cuentas vivas, y después de Qobuz firmado porque aquel es una URL de CDN
+	// de primera mano cuando el usuario tiene credenciales.
+	if len(formatos) > 0 {
+		if enlace, err := c.resolverArcod(isrc, formatos[0]); err == nil {
+			c.guardarCacheTTL(claveCache, enlace, nombreArcod, ttlArcods)
+			return enlace, nombreArcod, nil
+		}
+	}
+
 	if len(espejos) == 0 {
 		return "", "", errors.New("flac-rescue: sin espejos configurados")
 	}
@@ -189,12 +201,19 @@ func (c *Client) guardarFallo(clave string, causa error) error {
 
 // guardarCache memoriza un acierto (y acota el tamaño de la caché).
 func (c *Client) guardarCache(clave, url, espejo string) {
+	c.guardarCacheTTL(clave, url, espejo, cacheTTL)
+}
+
+// guardarCacheTTL es igual que guardarCache pero con vida propia: los enlaces
+// firmados de arcod caducan, así que su TTL es más corto que el de una URL de
+// CDN.
+func (c *Client) guardarCacheTTL(clave, url, espejo string, ttl time.Duration) {
 	c.cacheMu.Lock()
 	defer c.cacheMu.Unlock()
 	if len(c.cache) > maxCache {
 		c.cache = map[string]cacheEntry{}
 	}
-	c.cache[clave] = cacheEntry{url: url, mirror: espejo, expires: time.Now().Add(cacheTTL)}
+	c.cache[clave] = cacheEntry{url: url, mirror: espejo, expires: time.Now().Add(ttl)}
 }
 
 // endpointsDeEspejo arma las URLs a probar para un ISRC y formato, del contrato

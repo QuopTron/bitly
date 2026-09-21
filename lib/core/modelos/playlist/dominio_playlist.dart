@@ -35,8 +35,12 @@ class PlaylistDominio {
       userId: json['user_id'] as String?,
       name: json['name'] as String? ?? '',
       description: json['description'] as String? ?? '',
-      coverUrl: (json['cover_url'] as String?) ?? (json['coverPath'] as String?),
-      trackCount: (json['track_count'] as num?)?.toInt() ?? (json['itemCount'] as num?)?.toInt() ?? 0,
+      coverUrl:
+          (json['cover_url'] as String?) ?? (json['coverPath'] as String?),
+      trackCount:
+          (json['track_count'] as num?)?.toInt() ??
+          (json['itemCount'] as num?)?.toInt() ??
+          0,
       createdAt: _parsearFecha(json['created_at'] ?? json['createdAt']),
       updatedAt: _parsearFecha(json['updated_at'] ?? json['updatedAt']),
     );

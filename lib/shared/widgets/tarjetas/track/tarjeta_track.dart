@@ -12,18 +12,21 @@ import 'package:flutter/material.dart';
 
 import '../../../../app/inyeccion.dart';
 import '../../../../core/modelos/feed/item_feed.dart';
-import '../../../../core/modelos/usuario/estilo_visual.dart';
 import '../../../../estado/cola/cubit_cola.dart';
 import '../../../../core/modelos/usuario/perfil_rendimiento.dart';
+import '../../../../core/modelos/usuario/preferencias_apariencia.dart';
 import '../../../../core/modelos/usuario/preferencias_estilo.dart';
 import '../../../../estado/reproductor/cubit_reproductor.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../tema/colores_app.dart';
 import '../../../utilidades/interaccion/haptico.dart';
 import '../../../utilidades/portada/paleta_portada.dart';
+import '../../../utilidades/formato/estilo_helper.dart';
 import '../../../utilidades/plataforma/responsive.dart';
+import '../../fondos/atenuado_por_nivel.dart';
 import '../portada/imagen_portada.dart';
 import '../../indicadores/indicador_descarga.dart';
+import '../../../utilidades/formato/apariencia_espacios_helper.dart';
 
 part 'tarjeta_track_descarga.dart';
 part 'tarjeta_track_deslizar.dart';
@@ -32,6 +35,42 @@ part 'tarjeta_track_acciones.dart';
 part 'tarjeta_track_fila.dart';
 part 'tarjeta_track_color_wrapper.dart';
 part 'tarjeta_track_fondo.dart';
+
+/// Radio de la card de canción, derivado del control de Redondeo de
+/// Ajustes → Apariencia → Diseño. Con el valor de fábrica del control (14)
+/// da los 18 px de siempre y con 0 queda **cuadrada**: así el redondeo llega
+/// a 0 en TODAS las cards, no sólo en las grillas.
+double _radioCardTrack(BuildContext context) =>
+    AparienciaEspacios.radioCards(context) * 18 / 14;
+
+/// Línea divisoria del modo "unido" (tipo Spotify): aparece sola cuando la
+/// separación vertical llega al extremo (0) y no existe en el diseño de
+/// fábrica. Se mete a cada lado el radio actual de la card, así la línea cae
+/// sobre la parte RECTA de abajo y acompaña las esquinas (y con redondeo 0
+/// simplemente cruza de lado a lado). Cuando está apagada no agrega ni un
+/// widget de layout.
+Widget _conLineaUnida(BuildContext context, Widget child) {
+  final op = AparienciaEspacios.opacidadLineaYCancion(context);
+  if (op <= 0.001) return child;
+  final esOscuro = Theme.of(context).brightness == Brightness.dark;
+  return Column(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      child,
+      Padding(
+        padding: EdgeInsets.symmetric(horizontal: _radioCardTrack(context)),
+        child: Container(
+          key: const ValueKey('linea-separacion'),
+          // Hairline MUY sutil: se siente la separación sin que salte a la
+          // vista (antes era más gruesa y con la opacidad plena quedaba
+          // demasiado blanca).
+          height: 0.5,
+          color: ColoresApp.borde(esOscuro).withValues(alpha: op * 0.45),
+        ),
+      ),
+    ],
+  );
+}
 
 class TarjetaTrack extends StatelessWidget {
   final String titulo;
@@ -99,61 +138,74 @@ class TarjetaTrack extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<EstiloVisual>(
-      valueListenable: sl<ValueNotifier<EstiloVisual>>(),
-      builder: (context, estilo, _) {
-        return ValueListenableBuilder<PreferenciasEstilo>(
-          valueListenable: sl<ValueNotifier<PreferenciasEstilo>>(),
-          builder: (context, prefs, _) {
-            final r = Responsive(context);
-            final loc = AppLocalizations.of(context);
-            final esOscuro = Theme.of(context).brightness == Brightness.dark;
-            final fg = Colors.white;
-            final colorApagado = Colors.white.withValues(alpha: 0.7);
-            final fondoFallback = ColoresApp.superficie(esOscuro);
-            final colorIconoFallback = ColoresApp.enSuperficieApagado(esOscuro);
-            final tamanoIcono = r.footerSize * 1.6 * escalaTexto;
-            final efectosPesados =
-                sl<ValueNotifier<PerfilRendimiento>>().value.efectosPesados;
-            final spotify =
-                estilo == EstiloVisual.spotify && prefs.cardsCancion;
+    // Escucha TAMBIÉN la apariencia: algunas vistas (p. ej. Mi Espacio) no se
+    // reconstruyen con el cambio global, así que la card repinta sola el
+    // margen y la línea al mover el control (antes había que salir y volver).
+    return ValueListenableBuilder<PreferenciasApariencia>(
+      valueListenable: sl<ValueNotifier<PreferenciasApariencia>>(),
+      builder:
+          (context, _, _) => ValueListenableBuilder<PreferenciasEstilo>(
+            valueListenable: sl<ValueNotifier<PreferenciasEstilo>>(),
+            builder: (context, prefs, _) {
+              final r = Responsive(context);
+              final loc = AppLocalizations.of(context);
+              final esOscuro = Theme.of(context).brightness == Brightness.dark;
+              final fg = Colors.white;
+              final colorApagado = Colors.white.withValues(alpha: 0.7);
+              final fondoFallback = ColoresApp.superficie(esOscuro);
+              final colorIconoFallback = ColoresApp.enSuperficieApagado(
+                esOscuro,
+              );
+              final tamanoIcono = r.footerSize * 1.6 * escalaTexto;
+              final efectosPesados =
+                  sl<ValueNotifier<PerfilRendimiento>>().value.efectosPesados;
+              // Intensidad del color del cover en las cards (0 = card del tema).
+              final nivel = prefs.cardsCancion;
 
-            Widget contenido(Color? colorDominante) => _cuerpoTarjetaTrack(
-                  this,
-                  context,
-                  r,
-                  loc,
-                  esOscuro,
-                  fg,
-                  colorApagado,
-                  fondoFallback,
-                  colorIconoFallback,
-                  tamanoIcono,
-                  escalaTexto,
-                  efectosPesados,
-                  colorDominante: colorDominante,
-                );
-
-            if (spotify && colorDominante == null && coverUrl != null) {
-              return _conDeslizarCola(
+              Widget contenido(Color? colorDominante) => _cuerpoTarjetaTrack(
                 this,
                 context,
                 r,
-                _TarjetaTrackColorWrapper(
-                  coverUrl: coverUrl!,
-                  builder: contenido,
+                loc,
+                esOscuro,
+                fg,
+                colorApagado,
+                fondoFallback,
+                colorIconoFallback,
+                tamanoIcono,
+                escalaTexto,
+                efectosPesados,
+                // El color entra como capa de tinte con la opacidad de la
+                // intensidad: la carátula nunca se borra.
+                colorDominante: EstiloHelper.acentoDeTinte(
+                  colorDominante,
+                  nivel,
                 ),
+                nivel: nivel,
               );
-            }
-            return _conDeslizarCola(
-              this,
-              context,
-              r,
-              contenido(spotify ? colorDominante : null),
-            );
-          },
-        );
-      },
+
+              final Widget tarjeta;
+              if (nivel > 0 && colorDominante == null && coverUrl != null) {
+                tarjeta = _conDeslizarCola(
+                  this,
+                  context,
+                  r,
+                  _TarjetaTrackColorWrapper(
+                    coverUrl: coverUrl!,
+                    builder: contenido,
+                  ),
+                );
+              } else {
+                tarjeta = _conDeslizarCola(
+                  this,
+                  context,
+                  r,
+                  contenido(colorDominante),
+                );
+              }
+              return _conLineaUnida(context, tarjeta);
+            },
+          ),
     );
   }
 }

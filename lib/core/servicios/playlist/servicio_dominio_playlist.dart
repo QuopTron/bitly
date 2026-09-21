@@ -33,11 +33,15 @@ class ServicioDominioPlaylist with ServicioDominioPlaylistConsultas {
   final CacheFavoritos _fav;
 
   ServicioDominioPlaylist(this._backend)
-      : _colecciones = di.sl<CacheColecciones>(),
-        _fav = di.sl<CacheFavoritos>();
+    : _colecciones = di.sl<CacheColecciones>(),
+      _fav = di.sl<CacheFavoritos>();
 
   /// Crea una playlist nueva. Devuelve la [PlaylistDominio] creada o null.
-  Future<PlaylistDominio?> crear(String name, {String description = '', String? coverPath}) async {
+  Future<PlaylistDominio?> crear(
+    String name, {
+    String description = '',
+    String? coverPath,
+  }) async {
     final id = await _colecciones.crearColeccion(name, coverPath ?? '');
     if (id == null || id.isEmpty) return null;
     return PlaylistDominio(
@@ -87,7 +91,10 @@ class ServicioDominioPlaylist with ServicioDominioPlaylistConsultas {
   /// Garantiza que una playlist creada tenga carátula: prueba [covers] en
   /// orden, guardando la primera URL resoluble a disco y persistiéndola en la
   /// colección. No-op si ya existe. Devuelve la ruta absoluta persistida o null.
-  Future<String?> garantizarCaratula(String playlistId, List<String?> covers) async {
+  Future<String?> garantizarCaratula(
+    String playlistId,
+    List<String?> covers,
+  ) async {
     try {
       final existente = await _colecciones.getCaratulaPlaylist(playlistId);
       if (existente != null && existente.isNotEmpty) return existente;

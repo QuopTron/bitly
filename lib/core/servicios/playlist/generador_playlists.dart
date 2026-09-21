@@ -40,12 +40,13 @@ class GeneradorPlaylists {
       throw ArgumentError('no tracks for M3U');
     }
 
-    final b = StringBuffer()
-      ..writeln('#EXTM3U')
-      ..writeln('#PLAYLIST: ${config.name}')
-      ..writeln('#GENRE: ${config.genre}')
-      ..writeln('#DATE: ${config.year}')
-      ..writeln();
+    final b =
+        StringBuffer()
+          ..writeln('#EXTM3U')
+          ..writeln('#PLAYLIST: ${config.name}')
+          ..writeln('#GENRE: ${config.genre}')
+          ..writeln('#DATE: ${config.year}')
+          ..writeln();
 
     for (final t in config.tracks) {
       b.writeln('#EXTINF:${t.durationMs ~/ 1000},${t.artist} - ${t.title}');
@@ -65,9 +66,10 @@ class GeneradorPlaylists {
       throw ArgumentError('no tracks for M3U8');
     }
 
-    final b = StringBuffer()
-      ..writeln('#EXTM3U')
-      ..writeln('#PLAYLIST: ${config.name}');
+    final b =
+        StringBuffer()
+          ..writeln('#EXTM3U')
+          ..writeln('#PLAYLIST: ${config.name}');
 
     for (final t in config.tracks) {
       b.writeln('#EXTINF:${t.durationMs ~/ 1000},${t.artist} - ${t.title}');
@@ -88,19 +90,27 @@ class GeneradorPlaylists {
 
     try {
       generados.add(await generarM3U(config));
-    } catch (e) { debugPrint("[Servicio] $e"); }
+    } catch (e) {
+      debugPrint("[Servicio] $e");
+    }
 
     try {
       generados.add(await generarM3U8(config));
-    } catch (e) { debugPrint("[Servicio] $e"); }
+    } catch (e) {
+      debugPrint("[Servicio] $e");
+    }
 
     try {
       generados.add(await generarCUE(config));
-    } catch (e) { debugPrint("[Servicio] $e"); }
+    } catch (e) {
+      debugPrint("[Servicio] $e");
+    }
 
     try {
       generados.add(await generarNFO(config));
-    } catch (e) { debugPrint("[Servicio] $e"); }
+    } catch (e) {
+      debugPrint("[Servicio] $e");
+    }
 
     return generados;
   }

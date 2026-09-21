@@ -1,7 +1,15 @@
 // ─────────────────────────────────────────────────────────────
-// settings_sheet_sheet_build.dart — PART de settings_sheet_new.dart: cuerpo de la hoja — drag handle,
-// settings_sheet_body_state.dart — PART de settings_sheet_new.dart: _SettingsSheetBodyState (movido desde settings_sheet_sheet_build.dart).
-// Se conecta con: settings_sheet_new.dart (misma library).
+// settings_sheet_body_state.dart — PART de settings_sheet_new.dart:
+// _SettingsSheetBodyState, el cuerpo de la hoja de Ajustes: drag handle,
+// perfil compacto, navegación (riel o burbujas) y el contenido.
+//
+// En pantalla ancha el navegador va a la IZQUIERDA del contenido (riel),
+// así las 7 pestañas entran con su nombre completo y el contenido no se
+// aprieta; en celular quedan las burbujas arriba.
+//
+// Se conecta con: settings_sheet_nav.dart (navegación) +
+// settings_sheet_sheet_widgets.dart (contenido).
+// Parte del flujo: Ajustes (cuerpo de la hoja).
 // ─────────────────────────────────────────────────────────────
 
 part of 'settings_sheet_new.dart';
@@ -12,9 +20,40 @@ class _SettingsSheetBodyState extends State<_SettingsSheetBody> {
     final r = widget.r;
     final isDark = widget.isDark;
     final onBg = widget.onBg;
-    final glowColor = widget.glowColor;
     final bg = widget.bg;
     final hasTrack = widget.hasTrack;
+    final ancho = ajustesUsaRiel(context);
+
+    final nav = _NavAjustes(
+      currentIndex: widget.selectedTab,
+      glowColor: widget.glowColor,
+      onBg: onBg,
+      r: r,
+      onTap: widget.onTabTap,
+    );
+
+    // Contenido: perfil/estadísticas cuando no hay pestaña elegida, o los
+    // tabs. La key es el objetivo de los pasos que explican cada pestaña
+    // (el contenido cambia con la pestaña que el tutorial va pidiendo).
+    final contenido = KeyedSubtree(
+      key: keyTutorialAjustesContenido,
+      child: _SettingsTabs(
+        controller: widget.tabController,
+        selectedTab: widget.selectedTab,
+        isDark: isDark,
+        glowColor: widget.glowColor,
+        onBg: onBg,
+        r: r,
+        premium: widget.premium,
+        likedCount: widget.likedCount,
+        downloadedCount: widget.downloadedCount,
+        onThemeChanged: widget.onThemeChanged,
+        onPremiumChanged: widget.onPremiumChanged,
+      ),
+    );
+
+    // Objetivo del tutorial para el paso que explica las pestañas.
+    final navegacion = KeyedSubtree(key: keyTutorialAjustesTabs, child: nav);
 
     Widget sheet = Container(
       // Más alto que la mitad: deja ~20% visible arriba (contexto de la
@@ -52,53 +91,31 @@ class _SettingsSheetBodyState extends State<_SettingsSheetBody> {
             // Compact profile header (always visible)
             _ProfileHeader(
               username: widget.username,
-              glowColor: glowColor,
+              glowColor: widget.glowColor,
               likedCount: widget.likedCount,
               downloadedCount: widget.downloadedCount,
               premium: widget.premium,
             ),
             SizedBox(height: r.spacingM),
-            // Bubble tabs — Apariencia first. Four small circular bubbles
-            // with a tiny label under each; the active one glows. No scroll,
-            // no boxes.
-            // Objetivo del tutorial para el paso que explica las pestañas.
-            KeyedSubtree(
-              key: keyTutorialAjustesTabs,
-              child: _BubbleTabsRow(
-                currentIndex: widget.selectedTab,
-                glowColor: glowColor,
-                onBg: onBg,
-                r: r,
-                onTap: widget.onTabTap,
-              ),
-            ),
-            SizedBox(height: r.spacingS),
-            // Content: profile/stats when no tab selected, tab content
-            // otherwise. La key es el objetivo de los pasos que explican
-            // Descargas, Rendimiento y Más (el contenido cambia con la
-            // pestaña que el tutorial va pidiendo).
             Expanded(
               // El menú de navegación del celular (3 teclas) tapa el borde
               // físico: la hoja se ancla ahí, así que reservamos su alto para
               // que el último botón de cada pestaña nunca quede debajo.
               child: Padding(
                 padding: EdgeInsets.only(bottom: insetInferiorSistema(context)),
-                child: KeyedSubtree(
-                  key: keyTutorialAjustesContenido,
-                  child: _SettingsTabs(
-                    controller: widget.tabController,
-                    selectedTab: widget.selectedTab,
-                    isDark: isDark,
-                    glowColor: glowColor,
-                    premium: widget.premium,
-                    likedCount: widget.likedCount,
-                    downloadedCount: widget.downloadedCount,
-                    onThemeChanged: widget.onThemeChanged,
-                    onLanguageChanged: widget.onLanguageChanged,
-                    onStyleChanged: widget.onStyleChanged,
-                    onPremiumChanged: widget.onPremiumChanged,
-                  ),
-                ),
+                child:
+                    ancho
+                        ? Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [navegacion, Expanded(child: contenido)],
+                        )
+                        : Column(
+                          children: [
+                            navegacion,
+                            SizedBox(height: r.spacingS),
+                            Expanded(child: contenido),
+                          ],
+                        ),
               ),
             ),
           ],

@@ -45,8 +45,10 @@ class SlideModo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final onBg = isDark ? Colors.white : Colors.black;
-    final glowColor = isDark ? ColoresApp.verdeBrillante : ColoresApp.verdeMedio;
-    final trialExpirado = state.tieneDatosExistentes == true &&
+    final glowColor =
+        isDark ? ColoresApp.verdeBrillante : ColoresApp.verdeMedio;
+    final trialExpirado =
+        state.tieneDatosExistentes == true &&
         state.trialExistenteExpirado == true;
 
     return LayoutBuilder(
@@ -96,5 +98,4 @@ class SlideModo extends StatelessWidget {
       },
     );
   }
-
 }

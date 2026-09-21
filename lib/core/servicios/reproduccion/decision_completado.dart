@@ -69,7 +69,8 @@ DecisionCompletado decidirCompletado({
   if (!desdeHttp) return DecisionCompletado.avanzar;
 
   // ── 1) Clip corto: el media dura mucho menos que la canción ────────────
-  final esPreview = durMs > 0 &&
+  final esPreview =
+      durMs > 0 &&
       duracionCatalogoMs >= 60000 &&
       durMs <= duracionCatalogoMs * fraccionPreviewCompletado;
   if (esPreview) {
@@ -89,9 +90,8 @@ DecisionCompletado decidirCompletado({
   // Nunca se devuelve "ignorar" sin poder descartar un fin real: dejar la
   // cola muda es peor que reabrir una vez.
   if (durMs <= 0) {
-    final espurio = posMs <= 0 &&
-        msDesdeOpen >= 0 &&
-        msDesdeOpen < ventanaEventoEspurioMs;
+    final espurio =
+        posMs <= 0 && msDesdeOpen >= 0 && msDesdeOpen < ventanaEventoEspurioMs;
     if (espurio) return DecisionCompletado.ignorar;
     // Murió en el arranque sin duración: reabrir una vez por el respaldo.
     if (posMs <= 0) {

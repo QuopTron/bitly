@@ -15,8 +15,7 @@ part of 'acciones_item.dart';
 /// elegida. Antes descargaba directo sin modal — por eso el usuario no
 /// veía el selector de calidad al descargar álbum/playlist desde el feed,
 /// búsqueda o Mi Espacio.
-Future<void> _iniciarDescargaLote(
-    BuildContext context, ItemFeed item) async {
+Future<void> _iniciarDescargaLote(BuildContext context, ItemFeed item) async {
   final cubit = sl<CubitDescargas>();
   final esOscuro = Theme.of(context).brightness == Brightness.dark;
   final ajustes = await sl<CacheAjustes>().getAjustesDescarga();
@@ -37,40 +36,42 @@ Future<void> _iniciarDescargaLote(
   }
   if (!context.mounted) return;
 
-  await showModalBottomSheet(
+  await mostrarHoja<void>(
     context: context,
     backgroundColor: Colors.transparent,
     isScrollControlled: true,
-    builder: (_) => HojaOpcionesDescarga(
-      item: item,
-      esOscuro: esOscuro,
-      ajustes: ajustes,
-      onCalidadSeleccionada: (calidad) {
-        if (item.type == 'album') {
-          cubit.iniciarDescargaAlbum(
-            item.id,
-            tracks,
-            ajustes: ajustes,
-            source: src,
-            calidadForzada: calidad,
-          );
-        } else {
-          cubit.iniciarDescargaPlaylist(
-            item.id,
-            tracks,
-            ajustes: ajustes,
-            source: src,
-            calidadForzada: calidad,
-          );
-        }
-      },
-    ),
+    builder:
+        (_) => HojaOpcionesDescarga(
+          item: item,
+          esOscuro: esOscuro,
+          ajustes: ajustes,
+          onCalidadSeleccionada: (calidad) {
+            if (item.type == 'album') {
+              cubit.iniciarDescargaAlbum(
+                item.id,
+                tracks,
+                ajustes: ajustes,
+                source: src,
+                calidadForzada: calidad,
+              );
+            } else {
+              cubit.iniciarDescargaPlaylist(
+                item.id,
+                tracks,
+                ajustes: ajustes,
+                source: src,
+                calidadForzada: calidad,
+              );
+            }
+          },
+        ),
   );
 }
 
 /// Exporta álbum/playlist a archivos M3U/CUE/NFO con feedback en SnackBar.
 Future<void> _exportarPlaylist(BuildContext context, ItemFeed item) async {
   final messenger = ScaffoldMessenger.of(context);
+  final acciones = AppLocalizations.of(context).acciones;
   final esAlbum = item.type == 'album';
   final src = item.source ?? '';
   final String nombre;
@@ -78,7 +79,7 @@ Future<void> _exportarPlaylist(BuildContext context, ItemFeed item) async {
   if (esAlbum) {
     final detalle = await _fetchDetalleAlbum(item.id, src);
     if (detalle == null) {
-      _snackError(messenger, esAlbum);
+      _snackError(messenger, acciones.noCargado(esAlbum: esAlbum));
       return;
     }
     nombre = detalle.name;
@@ -86,7 +87,7 @@ Future<void> _exportarPlaylist(BuildContext context, ItemFeed item) async {
   } else {
     final detalle = await _fetchDetallePlaylist(item.id, src);
     if (detalle == null) {
-      _snackError(messenger, esAlbum);
+      _snackError(messenger, acciones.noCargado(esAlbum: esAlbum));
       return;
     }
     nombre = detalle.name;

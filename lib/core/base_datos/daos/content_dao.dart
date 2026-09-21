@@ -9,8 +9,11 @@ import '../tables/sources_table.dart';
 import '../tables/artists_tables.dart';
 
 part 'content_dao.g.dart';
+part 'content_dao_biblioteca.dart';
 
-@DriftAccessor(tables: [Artists, Albums, Tracks, Sources, Files, SimilarArtists])
+@DriftAccessor(
+  tables: [Artists, Albums, Tracks, Sources, Files, SimilarArtists],
+)
 class ContentDao extends DatabaseAccessor<AppDatabase> with _$ContentDaoMixin {
   ContentDao(super.db);
 
@@ -29,6 +32,58 @@ class ContentDao extends DatabaseAccessor<AppDatabase> with _$ContentDaoMixin {
 
   Future<Album?> getAlbum(String id) =>
       (select(albums)..where((t) => t.id.equals(id))).getSingleOrNull();
+
+  /// Álbum por id sin distinguir mayúsculas.
+  ///
+  /// Los ids que viajan en las claves de descarga van normalizados en
+  /// minúsculas, pero la tabla guarda el id tal como lo dio la fuente
+  /// ("5K79FLRUCSysQnVESLcTdb"): comparar exacto perdía el álbum y con él su
+  /// nombre y su carátula.
+  Future<Album?> getAlbumPorIdNormalizado(String id) =>
+      (select(
+        albums,
+      )..where((t) => t.id.lower().equals(id.toLowerCase()))).getSingleOrNull();
+
+  /// Escribe la carátula local del álbum (no inventa la fila si no existe).
+  Future<void> actualizarCaratulaAlbum(
+    String albumId,
+    String coverUrl,
+    String coverPath,
+  ) async {
+    final album = await getAlbumPorIdNormalizado(albumId);
+    if (album == null) return;
+    await (update(albums)..where((t) => t.id.equals(album.id))).write(
+      AlbumsCompanion(
+        coverUrl: coverUrl.isNotEmpty ? Value(coverUrl) : const Value.absent(),
+        coverPath:
+            coverPath.isNotEmpty ? Value(coverPath) : const Value.absent(),
+      ),
+    );
+  }
+
+  /// Escribe la carátula local del track de la biblioteca, por id o por ISRC
+  /// (el id del proveedor puede venir vacío y el ISRC es el que identifica).
+  Future<void> actualizarCaratulaTrack(
+    String trackId,
+    String isrc,
+    String coverUrl,
+    String coverPath,
+  ) async {
+    if (coverUrl.isEmpty && coverPath.isEmpty) return;
+    Track? fila = await getTrack(trackId);
+    if (fila == null && isrc.isNotEmpty) {
+      fila = await getTrackByIsrc(isrc);
+    }
+    if (fila == null) return;
+    final id = fila.id;
+    await (update(tracks)..where((t) => t.id.equals(id))).write(
+      TracksCompanion(
+        coverUrl: coverUrl.isNotEmpty ? Value(coverUrl) : const Value.absent(),
+        coverPath:
+            coverPath.isNotEmpty ? Value(coverPath) : const Value.absent(),
+      ),
+    );
+  }
 
   Future<void> upsertAlbum(AlbumsCompanion entry) =>
       into(albums).insertOnConflictUpdate(entry);
@@ -53,8 +108,7 @@ class ContentDao extends DatabaseAccessor<AppDatabase> with _$ContentDaoMixin {
   Future<List<Track>> searchTracks(String query) {
     final pattern = '%$query%';
     return (select(tracks)
-          ..where((t) =>
-              t.name.like(pattern) | t.isrc.equals(query))
+          ..where((t) => t.name.like(pattern) | t.isrc.equals(query))
           ..limit(20))
         .get();
   }
@@ -64,44 +118,12 @@ class ContentDao extends DatabaseAccessor<AppDatabase> with _$ContentDaoMixin {
   Future<List<Source>> getSources(String trackId) =>
       (select(sources)..where((t) => t.trackId.equals(trackId))).get();
 
-  Future<void> upsertSource(SourcesCompanion entry) =>
-      into(sources).insertOnConflictUpdate(entry);
-
   // ── Files ──
 
   Future<List<File>> getFilesByTrack(String trackId) =>
       (select(files)..where((t) => t.trackId.equals(trackId))).get();
 
-  Future<File?> getFileByPath(String path) =>
-      (select(files)..where((t) => t.filePath.equals(path))).getSingleOrNull();
-
-  Future<void> upsertFile(FilesCompanion entry) =>
-      into(files).insertOnConflictUpdate(entry);
-
   Future<int> getArtistCount() => select(artists).get().then((r) => r.length);
   Future<int> getAlbumCount() => select(albums).get().then((r) => r.length);
   Future<int> getTrackCount() => select(tracks).get().then((r) => r.length);
-
-  // ── Similar Artists ──
-
-  Future<List<SimilarArtist>> getSimilarArtists(String artistId) =>
-      (select(similarArtists)
-            ..where((t) => t.artistId.equals(artistId))
-            ..orderBy([(t) => OrderingTerm.desc(t.similarityScore)]))
-          .get();
-
-  Future<void> upsertSimilarArtist({
-    required String artistId,
-    required String similarArtistId,
-    double score = 0.0,
-  }) => into(similarArtists).insert(SimilarArtistsCompanion(
-    artistId: Value(artistId),
-    similarArtistId: Value(similarArtistId),
-    similarityScore: Value(score),
-    createdAt: Value(DateTime.now()),
-  ), mode: InsertMode.insertOrReplace);
-
-  Future<void> clearSimilarArtists(String artistId) =>
-      (delete(similarArtists)..where((t) => t.artistId.equals(artistId))).go();
 }
-

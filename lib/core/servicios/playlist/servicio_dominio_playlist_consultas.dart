@@ -18,11 +18,6 @@ mixin ServicioDominioPlaylistConsultas {
   CacheFavoritos get _fav;
 
   /// Obtiene una playlist por su ID de colección. null si no existe.
-  Future<PlaylistDominio?> getPorId(String id) async {
-    final detalle = await getDetalle(id);
-    return detalle != null ? _desdeDetalle(detalle) : null;
-  }
-
   /// Obtiene el [DetallePlaylist] completo (con tracks).
   /// Local primero, extensión como respaldo si hay [source].
   Future<DetallePlaylist?> getDetalle(String id, {String? source}) async {
@@ -56,7 +51,9 @@ mixin ServicioDominioPlaylistConsultas {
       final cache = di.sl<CacheDetalle>();
       final json = await cache.getDetallePlaylist(playlistId);
       if (json == null || json.isEmpty || json == '{}') return [];
-      final detalle = DetallePlaylist.desdeJson(jsonDecode(json) as Map<String, dynamic>);
+      final detalle = DetallePlaylist.desdeJson(
+        jsonDecode(json) as Map<String, dynamic>,
+      );
       return detalle.tracks;
     } catch (_) {
       return [];
@@ -69,17 +66,11 @@ mixin ServicioDominioPlaylistConsultas {
       final cache = di.sl<CacheDetalle>();
       final json = await cache.getUserStats();
       if (json == null || json.isEmpty || json == '{}') return null;
-      return EstadisticasUsuario.desdeJson(jsonDecode(json) as Map<String, dynamic>);
+      return EstadisticasUsuario.desdeJson(
+        jsonDecode(json) as Map<String, dynamic>,
+      );
     } catch (_) {
       return null;
     }
   }
-
-  static PlaylistDominio _desdeDetalle(DetallePlaylist d) => PlaylistDominio(
-    id: d.id,
-    name: d.name,
-    trackCount: d.itemCount,
-    createdAt: d.createdAt != null ? DateTime.tryParse(d.createdAt!) : null,
-    updatedAt: d.updatedAt != null ? DateTime.tryParse(d.updatedAt!) : null,
-  );
 }

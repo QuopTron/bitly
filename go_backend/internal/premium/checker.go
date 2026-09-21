@@ -1,7 +1,6 @@
 package premium
 
 import (
-	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -89,7 +88,7 @@ func (c *Checker) SetPremiumConExpiracion(isPremium bool, tier string, expiresAt
 func (c *Checker) ValidateCode(code string) error {
 	code = strings.TrimSpace(code)
 	if code == "" {
-		return fmt.Errorf("código vacío")
+		return nuevoError("codigo_vacio", "código vacío")
 	}
 
 	c.mu.Lock()
@@ -101,10 +100,10 @@ func (c *Checker) ValidateCode(code string) error {
 			continue
 		}
 		if entry.ExpiresAt > 0 && time.Now().Unix() > entry.ExpiresAt {
-			return fmt.Errorf("código expirado")
+			return nuevoError("codigo_expirado", "código expirado")
 		}
 		if entry.MaxUses > 0 && entry.UsedCount >= entry.MaxUses {
-			return fmt.Errorf("el código alcanzó su límite de usos")
+			return nuevoError("limite_de_usos", "el código alcanzó su límite de usos")
 		}
 		c.codes[i].UsedCount++
 		c.status = Status{
@@ -132,8 +131,8 @@ func (c *Checker) ValidateCode(code string) error {
 				return nil
 			}
 		}
-		return fmt.Errorf("formato o firma de código inválido")
+		return nuevoError("formato_invalido", "formato o firma de código inválido")
 	}
 
-	return fmt.Errorf("código desconocido")
+	return nuevoError("codigo_desconocido", "código desconocido")
 }

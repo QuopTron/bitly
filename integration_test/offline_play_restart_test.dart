@@ -27,8 +27,9 @@ import 'package:bitly/app/inyeccion.dart' as inj;
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('offline: track descargado se reproduce tras reinicio sin red',
-      (tester) async {
+  testWidgets('offline: track descargado se reproduce tras reinicio sin red', (
+    tester,
+  ) async {
     MediaKit.ensureInitialized();
     await inj.configurarDependencias();
 
@@ -51,11 +52,17 @@ void main() {
     while (DateTime.now().isBefore(deadline)) {
       await Future<void>.delayed(const Duration(milliseconds: 500));
       state = player.state;
-      if (state.estaReproduciendo || state.estadoReproduccion.name == 'error') break;
+      if (state.estaReproduciendo || state.estadoReproduccion.name == 'error') {
+        break;
+      }
     }
-    expect(state.estadoReproduccion.name, 'reproduciendo',
-        reason: 'track descargado debe reproducirse offline (estado: '
-            '${state.estadoReproduccion.name}, error: ${state.mensajeError})');
+    expect(
+      state.estadoReproduccion.name,
+      'reproduciendo',
+      reason:
+          'track descargado debe reproducirse offline (estado: '
+          '${state.estadoReproduccion.name}, error: ${state.codigoError})',
+    );
 
     // 3. El position debe avanzar: audio real decodificándose, no stall.
     final deadline2 = DateTime.now().add(const Duration(seconds: 30));
@@ -64,8 +71,12 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 500));
       state = player.state;
     }
-    expect(state.posicion.inMilliseconds, greaterThanOrEqualTo(1000),
-        reason: 'el audio debe estar decodificándose offline (position: '
-            '${state.posicion.inMilliseconds}ms)');
+    expect(
+      state.posicion.inMilliseconds,
+      greaterThanOrEqualTo(1000),
+      reason:
+          'el audio debe estar decodificándose offline (position: '
+          '${state.posicion.inMilliseconds}ms)',
+    );
   });
 }

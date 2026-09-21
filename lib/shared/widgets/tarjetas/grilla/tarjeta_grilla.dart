@@ -15,26 +15,36 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../../../app/inyeccion.dart';
-import '../../../../core/modelos/usuario/estilo_visual.dart';
 import '../../../../core/modelos/usuario/perfil_rendimiento.dart';
+import '../../../../core/modelos/usuario/preferencias_apariencia.dart';
 import '../../../../core/modelos/usuario/preferencias_estilo.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../tema/colores_app.dart';
 import '../../../utilidades/interaccion/haptico.dart';
 import '../../../utilidades/portada/paleta_portada.dart';
 import '../../../utilidades/plataforma/responsive.dart';
-import '../../../utilidades/formato/apariencia_helper.dart';
+import '../../../utilidades/formato/estilo_helper.dart';
+import '../../fondos/atenuado_por_nivel.dart';
 import '../portada/imagen_portada.dart';
 import '../../indicadores/indicador_descarga.dart';
 import '../../vidrio/desenfoque_adaptativo.dart';
+import '../../../utilidades/formato/apariencia_espacios_helper.dart';
 
 part 'tarjeta_grilla_descarga.dart';
 part 'tarjeta_grilla_color_wrapper.dart';
 part 'tarjeta_grilla_widgets.dart';
 part 'tarjeta_grilla_info.dart';
 part 'tarjeta_grilla_visual.dart';
+part 'tarjeta_grilla_fondo.dart';
 part 'tarjeta_grilla_placeholder.dart';
 part 'tarjeta_grilla_build.dart';
+
+/// Radio del CONTENEDOR de la card de grilla (fondo + borde), derivado del
+/// control de Redondeo de Ajustes → Apariencia → Diseño. Con el valor de
+/// fábrica del control (14) da los 16 px de siempre y con 0 queda cuadrada:
+/// así la grilla entera pierde la curva, no sólo la portada.
+double _radioContenedorGrilla(BuildContext context) =>
+    AparienciaEspacios.radioCards(context) * 16 / 14;
 
 /// Tarjeta de grilla (álbum/playlist/artista) reutilizada en varias vistas.
 class TarjetaGrilla extends StatelessWidget {
@@ -75,6 +85,11 @@ class TarjetaGrilla extends StatelessWidget {
   /// teñir el fondo, bordes y sombras de la tarjeta con el color del album.
   final Color? colorDominante;
 
+  /// Dibuja una línea divisoria a la DERECHA de la celda (modo "unido",
+  /// tipo Spotify): la grilla la pide en todas las columnas menos la última
+  /// para separar cards sin dibujar en el borde externo de la grilla.
+  final bool lineaDerecha;
+
   const TarjetaGrilla({
     super.key,
     required this.tipo,
@@ -101,6 +116,7 @@ class TarjetaGrilla extends StatelessWidget {
     this.mostrarAccionDescarga = true,
     this.contadorReproducciones = 0,
     this.colorDominante,
+    this.lineaDerecha = false,
   });
 
   IconData get _icono {

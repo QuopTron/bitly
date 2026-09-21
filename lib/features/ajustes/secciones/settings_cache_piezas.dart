@@ -18,28 +18,30 @@ Widget statRowCache(
   Color onBg,
   Responsive r,
 ) {
-  return Row(children: [
-    Icon(icon, size: r.footerSize - 2, color: onBg.withValues(alpha: 0.5)),
-    SizedBox(width: r.spacingS),
-    Expanded(
-      child: RichText(
-        text: TextSpan(
-          style: TextStyle(
-            fontSize: r.footerSize - 1,
-            color: onBg.withValues(alpha: 0.8),
+  return Row(
+    children: [
+      Icon(icon, size: r.footerSize - 2, color: onBg.withValues(alpha: 0.5)),
+      SizedBox(width: r.spacingS),
+      Expanded(
+        child: RichText(
+          text: TextSpan(
+            style: TextStyle(
+              fontSize: r.footerSize - 1,
+              color: onBg.withValues(alpha: 0.8),
+            ),
+            children: [
+              TextSpan(
+                text: value,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              TextSpan(
+                text: '  •  $label',
+                style: TextStyle(color: onBg.withValues(alpha: 0.4)),
+              ),
+            ],
           ),
-          children: [
-            TextSpan(
-              text: value,
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-            TextSpan(
-              text: '  •  $label',
-              style: TextStyle(color: onBg.withValues(alpha: 0.4)),
-            ),
-          ],
         ),
       ),
-    ),
-  ]);
+    ],
+  );
 }

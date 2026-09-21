@@ -32,16 +32,16 @@ class _SoulseekFalso extends ServicioSoulseek {
 }
 
 ResultadoSoulseek _tomado() => const ResultadoSoulseek(
-      ok: false,
-      mensaje: 'ese nombre ya está tomado en la red: elegí otro',
-      motivo: MotivoSoulseek.nombreTomado,
-    );
+  ok: false,
+  mensaje: 'ese nombre ya está tomado en la red: elegí otro',
+  motivo: MotivoSoulseek.nombreTomado,
+);
 
 ResultadoSoulseek _sinRed() => const ResultadoSoulseek(
-      ok: false,
-      mensaje: 'no se pudo conectar al servidor',
-      motivo: MotivoSoulseek.ninguno,
-    );
+  ok: false,
+  mensaje: 'no se pudo conectar al servidor',
+  motivo: MotivoSoulseek.ninguno,
+);
 
 /// Lleva el bloc hasta el paso de nombre y toca Siguiente con [nombre].
 Future<SetupBloc> _llegarAlPasoDeNombre(
@@ -60,13 +60,15 @@ Future<SetupBloc> _llegarAlPasoDeNombre(
 
 void main() {
   test('con el nombre libre el setup avanza y la cuenta queda lista', () async {
-    final falso = _SoulseekFalso(const ResultadoSoulseek(
-      ok: true,
-      mensaje: 'Cuenta conectada y lista para buscar en la red.',
-      usuario: 'pablo_bz',
-      password: 'clave',
-      passwordGenerada: true,
-    ));
+    final falso = _SoulseekFalso(
+      const ResultadoSoulseek(
+        ok: true,
+        mensaje: 'Cuenta conectada y lista para buscar en la red.',
+        usuario: 'pablo_bz',
+        password: 'clave',
+        passwordGenerada: true,
+      ),
+    );
     final bloc = await _llegarAlPasoDeNombre(falso);
     addTearDown(bloc.close);
 
@@ -75,8 +77,11 @@ void main() {
         .timeout(const Duration(seconds: 5));
 
     expect(listo.paso, PasoSetup.googleSignIn);
-    expect(falso.nombresRecibidos, ['pablo_bz'],
-        reason: 'se crea con el nombre que el usuario escribió, no con otro');
+    expect(
+      falso.nombresRecibidos,
+      ['pablo_bz'],
+      reason: 'se crea con el nombre que el usuario escribió, no con otro',
+    );
   });
 
   test('con el nombre TOMADO no avanza y se le pide que elija otro', () async {
@@ -88,18 +93,24 @@ void main() {
         .firstWhere((s) => s.syncSoulseek == SyncSoulseek.fallo)
         .timeout(const Duration(seconds: 5));
 
-    expect(rechazado.paso, PasoSetup.usuario,
-        reason: 'tiene que quedarse en el paso del nombre para corregirlo');
+    expect(
+      rechazado.paso,
+      PasoSetup.usuario,
+      reason: 'tiene que quedarse en el paso del nombre para corregirlo',
+    );
+    // El estado guarda el CÓDIGO del motivo, no un texto: el aviso lo arma la
+    // UI con l10n a partir de `motivoSoulseek`.
     expect(rechazado.motivoSoulseek, 'nombre_tomado');
-    expect(rechazado.mensajeSoulseek, isNotEmpty);
   });
 
   test('un nombre inválido también bloquea', () async {
-    final falso = _SoulseekFalso(const ResultadoSoulseek(
-      ok: false,
-      mensaje: 'no es válido: solo ASCII imprimible',
-      motivo: MotivoSoulseek.nombreInvalido,
-    ));
+    final falso = _SoulseekFalso(
+      const ResultadoSoulseek(
+        ok: false,
+        mensaje: 'no es válido: solo ASCII imprimible',
+        motivo: MotivoSoulseek.nombreInvalido,
+      ),
+    );
     final bloc = await _llegarAlPasoDeNombre(falso, nombre: 'pabloé');
     addTearDown(bloc.close);
 
@@ -120,8 +131,11 @@ void main() {
         .firstWhere((s) => s.syncSoulseek == SyncSoulseek.fallo)
         .timeout(const Duration(seconds: 5));
 
-    expect(fallo.paso, PasoSetup.googleSignIn,
-        reason: 'un fallo de red no puede dejar al usuario pegado en el setup');
+    expect(
+      fallo.paso,
+      PasoSetup.googleSignIn,
+      reason: 'un fallo de red no puede dejar al usuario pegado en el setup',
+    );
     expect(fallo.motivoSoulseek, isEmpty);
   });
 
@@ -135,8 +149,11 @@ void main() {
         .timeout(const Duration(seconds: 5));
 
     expect(rechazado.paso, PasoSetup.usuario);
-    expect(falso.nombresRecibidos, isEmpty,
-        reason: 'sin nombre no se llama al servicio');
+    expect(
+      falso.nombresRecibidos,
+      isEmpty,
+      reason: 'sin nombre no se llama al servicio',
+    );
   });
 
   test('sin pasar por el paso de nombre el alta queda inactiva', () async {

@@ -12,8 +12,13 @@
 part of 'hoja_opciones_descarga.dart';
 
 /// Fila de opción de calidad con radio, badges y detalles.
-Widget _construirOpcion(_HojaOpcionesDescargaState st, Responsive r,
-    String q, Color brillo, Color onBg) {
+Widget _construirOpcion(
+  _HojaOpcionesDescargaState st,
+  Responsive r,
+  String q,
+  Color brillo,
+  Color onBg,
+) {
   final meta = _HojaOpcionesDescargaState._calidades[q]!;
   final seleccionada = st._seleccionada == q;
   final esPorDefecto = q == st.widget.ajustes.calidadAudio;
@@ -34,9 +39,10 @@ Widget _construirOpcion(_HojaOpcionesDescargaState st, Responsive r,
             color: seleccionada ? brillo : onBg.withValues(alpha: 0.07),
             width: seleccionada ? 1.2 : 0.5,
           ),
-          color: seleccionada
-              ? brillo.withValues(alpha: 0.08)
-              : onBg.withValues(alpha: 0.02),
+          color:
+              seleccionada
+                  ? brillo.withValues(alpha: 0.08)
+                  : onBg.withValues(alpha: 0.02),
         ),
         padding: EdgeInsets.all(r.spacingM),
         child: Row(
@@ -132,4 +138,3 @@ Widget _construirOpcion(_HojaOpcionesDescargaState st, Responsive r,
     ),
   );
 }
-

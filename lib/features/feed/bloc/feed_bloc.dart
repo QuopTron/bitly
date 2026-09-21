@@ -8,6 +8,7 @@
 // Parte del flujo: feed de inicio (bloc de la vista).
 // ─────────────────────────────────────────────────────────────
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../app/inyeccion.dart';
@@ -44,7 +45,9 @@ class BlocFeed extends Bloc<EventoFeed, EstadoFeed> {
   }
 
   Future<void> _descargarItem(
-      DescargarItem event, Emitter<EstadoFeed> emit) async {
+    DescargarItem event,
+    Emitter<EstadoFeed> emit,
+  ) async {
     try {
       await _backend.downloadItem(event.itemId);
     } catch (_) {

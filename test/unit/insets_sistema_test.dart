@@ -137,14 +137,15 @@ void main() {
       double leido = -1;
       await tester.pumpWidget(
         MaterialApp(
-          builder: (context, _) => SafeArea(
-            child: Builder(
-              builder: (inner) {
-                leido = insetInferiorSistema(inner);
-                return const SizedBox.shrink();
-              },
-            ),
-          ),
+          builder:
+              (context, _) => SafeArea(
+                child: Builder(
+                  builder: (inner) {
+                    leido = insetInferiorSistema(inner);
+                    return const SizedBox.shrink();
+                  },
+                ),
+              ),
         ),
       );
       expect(leido, 0);

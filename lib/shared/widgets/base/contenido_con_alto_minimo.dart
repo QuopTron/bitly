@@ -45,7 +45,8 @@ class ContenidoConAltoMinimo extends StatelessWidget {
       builder: (context, constraints) {
         // Si ya hay más alto que el mínimo se usa el real (no hay nada que
         // desplazar); si no, se garantiza el mínimo y se permite scroll.
-        final acotado = constraints.hasBoundedHeight && constraints.maxHeight > 0;
+        final acotado =
+            constraints.hasBoundedHeight && constraints.maxHeight > 0;
         final alto =
             acotado ? math.max(constraints.maxHeight, altoMinimo) : altoMinimo;
         return SingleChildScrollView(

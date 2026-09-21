@@ -27,25 +27,42 @@ mixin DescargasColaTrack on DescargasCola {
     // gate, timeout) es quién decide si el reintento en sitio corresponde.
     _falloReintentable = false;
 
-    _log.i('[cola] ▶ START track=$baseId titulo="${track.trackMap['track_title']}" '
-        'cola_restante=${_colaDescargas.length}');
+    _log.i(
+      '[cola] ▶ START track=$baseId titulo="${track.trackMap['track_title']}" '
+      'cola_restante=${_colaDescargas.length}',
+    );
 
     final dl = Map<String, DatosEstadoDescarga>.from(state.descargas);
-    dl[baseId] = const DatosEstadoDescarga(estado: EstadoDescarga.enProgreso, progreso: 0.0);
+    dl[baseId] = const DatosEstadoDescarga(
+      estado: EstadoDescarga.enProgreso,
+      progreso: 0.0,
+    );
     // Marcar el lote al que pertenece este track como en progreso.
     final bk = track.batchKey;
     if (bk != null) {
-      dl[bk] = const DatosEstadoDescarga(estado: EstadoDescarga.enProgreso, progreso: 0.0);
+      dl[bk] = const DatosEstadoDescarga(
+        estado: EstadoDescarga.enProgreso,
+        progreso: 0.0,
+      );
     }
     emit(state.copiarCon(descargas: dl));
 
-    _despacharTrackLote(track.trackMap, track.trackId, track.source, track.ajustes,
-        calidadForzada: track.calidadForzada);
+    _despacharTrackLote(
+      track.trackMap,
+      track.trackId,
+      track.source,
+      track.ajustes,
+      calidadForzada: track.calidadForzada,
+    );
 
     try {
-      await _completadorTrackActual!.future.timeout(const Duration(seconds: 90));
+      await _completadorTrackActual!.future.timeout(
+        const Duration(seconds: 90),
+      );
     } catch (_) {
-      _log.w('[cola] ⏰ TIMEOUT para $baseId tras 90s — evaluando lo que haya en disco');
+      _log.w(
+        '[cola] ⏰ TIMEOUT para $baseId tras 90s — evaluando lo que haya en disco',
+      );
       // NO cancelar el tracker de Go — la descarga puede seguir corriendo;
       // el poll detectará la completación después y la marcará completada.
     }
@@ -60,9 +77,14 @@ mixin DescargasColaTrack on DescargasCola {
     if (state.descargas[baseId]?.estado == EstadoDescarga.enProgreso) {
       final altFile = await _buscarArchivoAlternativo(baseId, '');
       if (altFile != null && altFile.isNotEmpty) {
-        _log.i('[cola] $baseId: archivo en disco tras la señal: $altFile — marcando completado');
+        _log.i(
+          '[cola] $baseId: archivo en disco tras la señal: $altFile — marcando completado',
+        );
         final tdl = Map<String, DatosEstadoDescarga>.from(state.descargas);
-        tdl[baseId] = const DatosEstadoDescarga(estado: EstadoDescarga.completado, progreso: 1.0);
+        tdl[baseId] = const DatosEstadoDescarga(
+          estado: EstadoDescarga.completado,
+          progreso: 1.0,
+        );
         emit(state.copiarCon(descargas: tdl));
       }
     }
@@ -74,7 +96,9 @@ mixin DescargasColaTrack on DescargasCola {
       var fileOk = await _verificarArchivoDescargado(baseId);
       // Esperar un poco por otros proveedores (Apple Music .m4a).
       for (var intento = 1; intento <= 3 && !fileOk; intento++) {
-        _log.i('[cola] $baseId: verificación intento $intento — esperando 3s...');
+        _log.i(
+          '[cola] $baseId: verificación intento $intento — esperando 3s...',
+        );
         await Future<void>.delayed(const Duration(seconds: 3));
         if (state.descargas[baseId]?.estado == EstadoDescarga.completado) {
           fileOk = await _verificarArchivoDescargado(baseId);
@@ -85,7 +109,8 @@ mixin DescargasColaTrack on DescargasCola {
         _log.i('[cola] ✔ DONE track=$baseId');
         return true;
       }
-      _marcarInterrumpido(baseId, 'La descarga no dejó un archivo reproducible');
+      // Solo el CÓDIGO del motivo: la UI arma el texto con l10n.
+      _marcarInterrumpido(baseId, MotivosDescarga.sinArchivo);
       _log.w('[cola] ⚠ archivo faltante/corrupto para $baseId');
       return false;
     }
@@ -102,7 +127,7 @@ mixin DescargasColaTrack on DescargasCola {
           return true;
         }
       }
-      _marcarInterrumpido(baseId, 'El backend no reportó el fin de la descarga');
+      _marcarInterrumpido(baseId, MotivosDescarga.sinFin);
       _log.w('[cola] ⚠ $baseId sin fin reportado por el backend');
       return false;
     }
@@ -111,8 +136,10 @@ mixin DescargasColaTrack on DescargasCola {
     // _falloReintentable (el poll lo calcula del motivo; el gate del plan free
     // y la carpeta inaccesible lo ponen en false porque necesitan al usuario).
     // Antes se forzaba false acá y ningún fallo de proveedor se reintentaba.
-    _log.i('[cola] ⏹ track=$baseId cortado con estado=$estadoActual '
-        '(reintentable=$_falloReintentable)');
+    _log.i(
+      '[cola] ⏹ track=$baseId cortado con estado=$estadoActual '
+      '(reintentable=$_falloReintentable)',
+    );
     return false;
   }
 }

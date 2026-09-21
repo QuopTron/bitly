@@ -31,11 +31,6 @@ double insetInferiorSistema(BuildContext context) {
   return MediaQuery.paddingOf(context).bottom;
 }
 
-/// Alto REAL (en dp) de la barra de estado / notch arriba.
-double insetSuperiorSistema(BuildContext context) {
-  return MediaQuery.paddingOf(context).top;
-}
-
 /// Reserva el inset inferior del sistema alrededor de [child].
 ///
 /// No toca izquierda/derecha/arriba: solo garantiza que nada quede debajo del
@@ -49,9 +44,6 @@ class ReservaInferiorSistema extends StatelessWidget {
   Widget build(BuildContext context) {
     final inset = insetInferiorSistema(context);
     if (inset <= 0) return child;
-    return Padding(
-      padding: EdgeInsets.only(bottom: inset),
-      child: child,
-    );
+    return Padding(padding: EdgeInsets.only(bottom: inset), child: child);
   }
 }

@@ -9,7 +9,10 @@ class DownloadQueue extends Table {
   TextColumn get id => text()();
   TextColumn get trackJson => text()();
   TextColumn? get itemJson => text().nullable()();
-  TextColumn get status => text().customConstraint("NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'downloading', 'completed', 'failed'))")();
+  TextColumn get status =>
+      text().customConstraint(
+        "NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'downloading', 'completed', 'failed'))",
+      )();
   RealColumn get progress => real().nullable()();
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime()();
@@ -62,4 +65,3 @@ class HiddenDownloadIds extends Table {
   @override
   Set<Column> get primaryKey => {downloadId};
 }
-

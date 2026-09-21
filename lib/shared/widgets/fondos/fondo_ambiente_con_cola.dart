@@ -32,7 +32,8 @@ class FondoAmbienteConCola extends StatelessWidget {
         String? cover;
         if (track != null) {
           try {
-            cover = context.read<CubitLikes>().caratulaLocalPara(track) ??
+            cover =
+                context.read<CubitLikes>().caratulaLocalPara(track) ??
                 track.coverUrl;
           } catch (_) {
             cover = track.coverUrl;
@@ -44,9 +45,10 @@ class FondoAmbienteConCola extends StatelessWidget {
             FondoAmbiente(
               coverUrl: cover,
               isDark: Theme.of(context).brightness == Brightness.dark,
-              bgColor: Theme.of(context).brightness == Brightness.dark
-                  ? ColoresApp.fondoOscuro
-                  : ColoresApp.fondoClaro,
+              bgColor:
+                  Theme.of(context).brightness == Brightness.dark
+                      ? ColoresApp.fondoOscuro
+                      : ColoresApp.fondoClaro,
             ),
             child,
           ],

@@ -10,9 +10,11 @@ import (
 // solo con el original. [queryDurationMS] (0 = desconocida) desempata entre
 // candidatos que empatan en título+artista — el caso de YouTube/SoundCloud, que
 // no exponen ISRC y tienen la misma canción subida varias veces con distinta
-// duración (video oficial vs. audio vs. re-subido).
-func matchesRankeados(queryTitle, queryArtist string, queryDurationMS int, results []provider.TrackResult) []provider.TrackResult {
-	ranked := provider.RankOriginalCandidatesDuracion(queryTitle, queryArtist, queryDurationMS, results)
+// duración (video oficial vs. audio vs. re-subido). [queryAlbum] ("" =
+// desconocido) desempata PRIMERO: cuando la misma canción vive en varios discos,
+// el candidato que pertenece al álbum pedido es la grabación pedida.
+func matchesRankeados(queryTitle, queryArtist, queryAlbum string, queryDurationMS int, results []provider.TrackResult) []provider.TrackResult {
+	ranked := provider.RankOriginalCandidatesAlbum(queryTitle, queryArtist, queryAlbum, queryDurationMS, results)
 	if len(results) > 0 && len(ranked) == 0 {
 		log.Printf("[rescue] %q / %q: %d results, sin candidato reproducible. Candidatos:",
 			queryTitle, queryArtist, len(results))

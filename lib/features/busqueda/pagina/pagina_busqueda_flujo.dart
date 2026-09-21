@@ -16,24 +16,26 @@ part of 'pagina_busqueda.dart';
 /// Carga la fuente persistida (o la primera disponible) y la activa.
 Future<void> _cargarFuentePersistida(_PaginaBusquedaState st) async {
   final bloc = st.context.read<BlocBusqueda>();
-  final guardada =
-      await sl<CacheAjustes>().getAjuste(_PaginaBusquedaState._prefKey);
+  final guardada = await sl<CacheAjustes>().getAjuste(
+    _PaginaBusquedaState._prefKey,
+  );
   if (!st.mounted) return;
   final fuentes = _fuentesBusqueda(bloc.state);
   // Solo se restaura una fuente que SIGA siendo buscable. Una instalación
   // vieja pudo guardar "Todas" (id vacío) o un proveedor de respaldo que ya no
   // se ofrece: restaurarlo dejaría la búsqueda apuntando a una fuente fantasma
   // y el usuario vería resultados de Internet Archive sin haberla elegido.
-  final valida = (guardada != null && fuentes.containsKey(guardada))
-      ? guardada
-      : null;
-  final elegida =
-      valida ?? (fuentes.isNotEmpty ? fuentes.keys.first : '');
+  final valida =
+      (guardada != null && fuentes.containsKey(guardada)) ? guardada : null;
+  final elegida = valida ?? (fuentes.isNotEmpty ? fuentes.keys.first : '');
   st._aplicar(() => st._fuente = elegida);
   bloc.add(FuenteBusquedaCambiada(elegida));
 }
 
-Future<void> _guardarFuentePersistida(_PaginaBusquedaState st, String fuente) async {
+Future<void> _guardarFuentePersistida(
+  _PaginaBusquedaState st,
+  String fuente,
+) async {
   await sl<CacheAjustes>().guardarAjuste(_PaginaBusquedaState._prefKey, fuente);
 }
 
@@ -41,12 +43,14 @@ Future<void> _guardarFuentePersistida(_PaginaBusquedaState st, String fuente) as
 void _despacharBusqueda(_PaginaBusquedaState st, String q) {
   final filterId = _idFiltroActivo(st);
   st._armarWatchdog();
-  st.context.read<BlocBusqueda>().add(EjecutarBusqueda(
-        query: q,
-        fuente: st._fuente,
-        tipo: filterId ?? 'tracks',
-        limite: filterId == null ? 25 : _limiteParaTipo(st._tipo!),
-      ));
+  st.context.read<BlocBusqueda>().add(
+    EjecutarBusqueda(
+      query: q,
+      fuente: st._fuente,
+      tipo: filterId ?? 'tracks',
+      limite: filterId == null ? 25 : _limiteParaTipo(st._tipo!),
+    ),
+  );
 }
 
 /// Ejecuta la búsqueda si hay texto en el campo.
@@ -61,8 +65,7 @@ void _onFuenteCambiada(_PaginaBusquedaState st, String fuente) {
   st._aplicar(() {
     st._fuente = fuente;
     final state = st.context.read<BlocBusqueda>().state;
-    if (st._tipo == null ||
-        !_fuenteTieneCategoria(state, fuente, st._tipo!)) {
+    if (st._tipo == null || !_fuenteTieneCategoria(state, fuente, st._tipo!)) {
       st._tipo = 'tracks';
     }
   });
@@ -104,7 +107,8 @@ void _onTextoCambiado(_PaginaBusquedaState st, String valor) {
   // Composición IME en curso: el texto todavía no es lo que el usuario quiso
   // escribir. Se espera al próximo cambio (que llega cuando cierra el IME).
   final valorControlador = st._controlador.value;
-  if (valorControlador.composing.isValid && !valorControlador.composing.isCollapsed) {
+  if (valorControlador.composing.isValid &&
+      !valorControlador.composing.isCollapsed) {
     return;
   }
   st._aplicar(() => st._buscando = true);

@@ -27,8 +27,8 @@ Widget _botonLike(
         },
         child: AnimatedSwitcher(
           duration: const Duration(milliseconds: 250),
-          transitionBuilder: (child, anim) =>
-              ScaleTransition(scale: anim, child: child),
+          transitionBuilder:
+              (child, anim) => ScaleTransition(scale: anim, child: child),
           child: Icon(
             amado ? Icons.favorite_rounded : Icons.favorite_border_rounded,
             key: ValueKey(amado),
@@ -103,16 +103,21 @@ Widget _botonLetras(FilaControlesReproductor f, Color apagado) {
   final r = f.r;
   return GestureDetector(
     onTap: f.letrasCargando ? null : f.onAlternarLetras,
-    child: f.letrasCargando
-        ? SizedBox(
-            width: r.subtitleSize + 4,
-            height: r.subtitleSize + 4,
-            child: CircularProgressIndicator(
-              strokeWidth: 2.5,
-              color: apagado.withValues(alpha: 0.6),
+    child:
+        f.letrasCargando
+            ? SizedBox(
+              width: r.subtitleSize + 4,
+              height: r.subtitleSize + 4,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                color: apagado.withValues(alpha: 0.6),
+              ),
+            )
+            : Icon(
+              Icons.lyrics_outlined,
+              color: apagado,
+              size: r.subtitleSize + 5,
             ),
-          )
-        : Icon(Icons.lyrics_outlined, color: apagado, size: r.subtitleSize + 5),
   );
 }
 

@@ -20,7 +20,9 @@ mixin DescargasCarga on DescargasCargaLotes {
     try {
       await _cargarUserId();
       await _cargarHistorial();
-    } catch (e) { debugPrint("[Descargas] $e"); }
+    } catch (e) {
+      debugPrint("[Descargas] $e");
+    }
     emit(state.copiarCon(cargando: false));
     _empezarPolling();
     _empezarRefreshHistorial();
@@ -34,7 +36,9 @@ mixin DescargasCarga on DescargasCargaLotes {
   Future<void> _cargarUserId() async {
     try {
       await di.sl<CacheAjustes>().cargarDatosSetup();
-    } catch (e) { debugPrint("[Descargas] $e"); }
+    } catch (e) {
+      debugPrint("[Descargas] $e");
+    }
   }
 
   /// Carga [getHistorialDescargas] y [getLotesDescargados] al estado.
@@ -48,12 +52,14 @@ mixin DescargasCarga on DescargasCargaLotes {
     final fps = Set<String>.from(state.huellasDescargadas);
     // El primer elemento de la tupla de tracks es el set de fingerprints
     // internos de la implementación; el merge usa el fps capturado acá.
-    final (_, completadosTracks, cambiadoTracks) = await _cargarHistorialTracks();
+    final (_, completadosTracks, cambiadoTracks) =
+        await _cargarHistorialTracks();
     final (completadosLotes, cambiadoLotes) = await _cargarHistorialLotes();
 
-    final completados = <String, DatosEstadoDescarga>{}
-      ..addAll(completadosTracks)
-      ..addAll(completadosLotes);
+    final completados =
+        <String, DatosEstadoDescarga>{}
+          ..addAll(completadosTracks)
+          ..addAll(completadosLotes);
     final cambiado = cambiadoTracks || cambiadoLotes;
 
     if (cambiado || fps.length != state.huellasDescargadas.length) {

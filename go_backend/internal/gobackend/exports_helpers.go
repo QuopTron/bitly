@@ -1,10 +1,12 @@
 package gobackend
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 
 	core "github.com/zarz/bitly/go_backend/internal/core"
+	"github.com/zarz/bitly/go_backend/internal/premium"
 )
 
 // =========================================================================
@@ -17,6 +19,24 @@ func jsonError(err error) string {
 
 func jsonErrorString(msg string) string {
 	return `{"error":"` + msg + `"}`
+}
+
+// jsonErrorPremium devuelve {ok:false, error, motivo} cuando el error trae un
+// motivo estable (premium), o solo {error} si no lo tiene. El cliente usa el
+// motivo para mostrar un texto localizado en vez del español crudo.
+func jsonErrorPremium(err error) string {
+	respuesta := map[string]interface{}{
+		"ok":    false,
+		"error": err.Error(),
+	}
+	if m := premium.MotivoDeError(err); m != "" {
+		respuesta["motivo"] = m
+	}
+	data, mErr := json.Marshal(respuesta)
+	if mErr != nil {
+		return jsonError(err)
+	}
+	return string(data)
 }
 
 // extensionsDir resolves a writable directory for extension JS, portable across

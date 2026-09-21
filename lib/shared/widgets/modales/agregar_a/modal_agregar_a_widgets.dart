@@ -22,21 +22,26 @@ Widget _vistaPrevia(Responsive r, Color onBg, ItemFeed item) {
             borderRadius: BorderRadius.circular(8),
             color: onBg.withValues(alpha: 0.06),
           ),
-          child: item.coverUrl != null
-              ? ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.network(
-                    item.coverUrl!,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, e, s) => Icon(
-                      Icons.music_note_rounded,
-                      color: onBg.withValues(alpha: 0.3),
-                      size: 20,
+          child:
+              item.coverUrl != null
+                  ? ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.network(
+                      item.coverUrl!,
+                      fit: BoxFit.cover,
+                      errorBuilder:
+                          (_, e, s) => Icon(
+                            Icons.music_note_rounded,
+                            color: onBg.withValues(alpha: 0.3),
+                            size: 20,
+                          ),
                     ),
+                  )
+                  : Icon(
+                    Icons.music_note_rounded,
+                    color: onBg.withValues(alpha: 0.3),
+                    size: 20,
                   ),
-                )
-              : Icon(Icons.music_note_rounded,
-                  color: onBg.withValues(alpha: 0.3), size: 20),
         ),
         SizedBox(width: r.spacingS),
         Expanded(
@@ -72,18 +77,29 @@ Widget _vistaPrevia(Responsive r, Color onBg, ItemFeed item) {
 }
 
 /// Fila de opción táctil con icono y etiqueta.
-Widget _opcion(Responsive r, Color onBg, IconData icono, String etiqueta,
-    VoidCallback onTap) {
+Widget _opcion(
+  Responsive r,
+  Color onBg,
+  IconData icono,
+  String etiqueta,
+  VoidCallback onTap,
+) {
   return Material(
     color: Colors.transparent,
     child: InkWell(
       onTap: onTap,
       child: Padding(
-        padding:
-            EdgeInsets.symmetric(horizontal: r.spacingM + 8, vertical: r.spacingM),
+        padding: EdgeInsets.symmetric(
+          horizontal: r.spacingM + 8,
+          vertical: r.spacingM,
+        ),
         child: Row(
           children: [
-            Icon(icono, size: r.subtitleSize, color: onBg.withValues(alpha: 0.65)),
+            Icon(
+              icono,
+              size: r.subtitleSize,
+              color: onBg.withValues(alpha: 0.65),
+            ),
             SizedBox(width: r.spacingM),
             Text(
               etiqueta,

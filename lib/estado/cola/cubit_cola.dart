@@ -18,7 +18,8 @@ import '../../core/servicios/utilidades/utilidades_id.dart';
 part 'cola_orden_aleatorio.dart';
 part 'cola_navegacion.dart';
 
-class CubitCola extends Cubit<EstadoCola> with ColaOrdenAleatorio, ColaNavegacion {
+class CubitCola extends Cubit<EstadoCola>
+    with ColaOrdenAleatorio, ColaNavegacion {
   CubitCola() : super(const EstadoCola());
 
   void reproducir(ItemFeed item) {
@@ -79,18 +80,24 @@ class CubitCola extends Cubit<EstadoCola> with ColaOrdenAleatorio, ColaNavegacio
     if (items.isEmpty) return;
     _historial.clear();
     _invalidarOrdenShuffle();
-    emit(state.copiarCon(
-      tracks: items,
-      indiceActual: indiceInicio.clamp(0, items.length - 1),
-    ));
+    emit(
+      state.copiarCon(
+        tracks: items,
+        indiceActual: indiceInicio.clamp(0, items.length - 1),
+      ),
+    );
   }
 
   void agregarSiguiente(ItemFeed item) {
     _invalidarOrdenShuffle();
     final tracks = List<ItemFeed>.from(state.tracks);
-    final insertarEn = state.tieneActual ? state.indiceActual + 1 : tracks.length;
+    final insertarEn =
+        state.tieneActual ? state.indiceActual + 1 : tracks.length;
     tracks.insert(insertarEn, item);
-    final idx = state.indiceActual >= insertarEn ? state.indiceActual + 1 : state.indiceActual;
+    final idx =
+        state.indiceActual >= insertarEn
+            ? state.indiceActual + 1
+            : state.indiceActual;
     emit(state.copiarCon(tracks: tracks, indiceActual: idx >= 0 ? idx : 0));
   }
 
@@ -108,7 +115,8 @@ class CubitCola extends Cubit<EstadoCola> with ColaOrdenAleatorio, ColaNavegacio
     if (index < state.indiceActual) {
       nuevoIndice--;
     } else if (index == state.indiceActual) {
-      nuevoIndice = tracks.isEmpty ? -1 : nuevoIndice.clamp(0, tracks.length - 1);
+      nuevoIndice =
+          tracks.isEmpty ? -1 : nuevoIndice.clamp(0, tracks.length - 1);
     }
     emit(state.copiarCon(tracks: tracks, indiceActual: nuevoIndice));
   }
@@ -148,11 +156,13 @@ class CubitCola extends Cubit<EstadoCola> with ColaOrdenAleatorio, ColaNavegacio
   void reemplazarCola(List<ItemFeed> items) {
     _historial.clear();
     _invalidarOrdenShuffle();
-    emit(EstadoCola(
-      tracks: items,
-      indiceActual: items.isNotEmpty ? 0 : -1,
-      modoRepeticion: state.modoRepeticion,
-      shuffle: state.shuffle,
-    ));
+    emit(
+      EstadoCola(
+        tracks: items,
+        indiceActual: items.isNotEmpty ? 0 : -1,
+        modoRepeticion: state.modoRepeticion,
+        shuffle: state.shuffle,
+      ),
+    );
   }
 }

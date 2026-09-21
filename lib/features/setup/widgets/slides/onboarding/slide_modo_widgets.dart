@@ -31,7 +31,10 @@ Widget _avisoTrial(SlideModo w, Color onBg, Color glowColor) => Padding(
     borderRadius: 12,
     borderColor: glowColor.withValues(alpha: 0.2),
     bgColor: glowColor.withValues(alpha: 0.06),
-    padding: EdgeInsets.symmetric(horizontal: w.r.spacingM, vertical: w.r.spacingS),
+    padding: EdgeInsets.symmetric(
+      horizontal: w.r.spacingM,
+      vertical: w.r.spacingS,
+    ),
     child: Row(
       children: [
         Icon(Icons.info_outline, color: glowColor, size: w.r.footerSize + 2),
@@ -55,26 +58,30 @@ Widget _tarjetaFree(BuildContext context, SlideModo w, Color glowColor) =>
       iconColor: ColoresApp.verdeBrillante,
       selected: w.state.modoSeleccionado == 'free',
       onTap: () => context.read<SetupBloc>().add(const SeleccionarModo('free')),
-      onInfoTap: () => w.showInfo(w.loc.setup.free, w.loc.setup.freeDetailedInfo),
+      onInfoTap:
+          () => w.showInfo(w.loc.setup.free, w.loc.setup.freeDetailedInfo),
       glowColor: glowColor,
     );
 
-Widget _tarjetaPremium(BuildContext context, SlideModo w, Color glowColor) =>
-    TarjetaModo(
-      title: w.loc.setup.premium,
-      subtitle: w.loc.setup.premiumInfo,
-      icon: Icons.verified,
-      iconColor: glowColor,
-      selected: w.state.modoSeleccionado == 'premium',
-      onTap: () =>
-          context.read<SetupBloc>().add(const SeleccionarModo('premium')),
-      onInfoTap: () =>
-          w.showInfo(w.loc.setup.premium, w.loc.setup.premiumDetailedInfo),
-      glowColor: glowColor,
-    );
+Widget _tarjetaPremium(
+  BuildContext context,
+  SlideModo w,
+  Color glowColor,
+) => TarjetaModo(
+  title: w.loc.setup.premium,
+  subtitle: w.loc.setup.premiumInfo,
+  icon: Icons.verified,
+  iconColor: glowColor,
+  selected: w.state.modoSeleccionado == 'premium',
+  onTap: () => context.read<SetupBloc>().add(const SeleccionarModo('premium')),
+  onInfoTap:
+      () => w.showInfo(w.loc.setup.premium, w.loc.setup.premiumDetailedInfo),
+  glowColor: glowColor,
+);
 
 Widget _botones(BuildContext context, SlideModo w, Color glowColor) {
-  final nextOk = w.state.modoSeleccionado != null &&
+  final nextOk =
+      w.state.modoSeleccionado != null &&
       !(w.state.modoSeleccionado == 'premium' && !w.state.codigoValido) &&
       !w.state.guardando;
   final bloc = context.read<SetupBloc>();
@@ -96,8 +103,7 @@ Widget _botones(BuildContext context, SlideModo w, Color glowColor) {
           Expanded(
             child: BotonVidrio(
               label: w.loc.setup.next,
-              onPressed:
-                  nextOk ? () => bloc.add(const SiguientePaso()) : null,
+              onPressed: nextOk ? () => bloc.add(const SiguientePaso()) : null,
               isLoading: w.state.guardando,
               height: w.r.continueButtonHeight,
               accent: glowColor,

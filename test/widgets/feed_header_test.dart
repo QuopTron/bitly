@@ -78,8 +78,9 @@ void main() {
       expect(find.textContaining(','), findsNothing);
     });
 
-    testWidgets('shows source accordion when sources are available',
-        (tester) async {
+    testWidgets('shows source accordion when sources are available', (
+      tester,
+    ) async {
       await pumpWithState(
         tester,
         bloc: bloc,
@@ -93,8 +94,9 @@ void main() {
       expect(find.text('Todas las fuentes'), findsNothing);
     });
 
-    testWidgets('hides source accordion when sources are empty',
-        (tester) async {
+    testWidgets('hides source accordion when sources are empty', (
+      tester,
+    ) async {
       await pumpWithState(
         tester,
         bloc: bloc,
@@ -106,8 +108,9 @@ void main() {
       expect(find.text('Todas las fuentes'), findsNothing);
     });
 
-    testWidgets('changing source dispatches FuenteFeedCambiada',
-        (tester) async {
+    testWidgets('changing source dispatches FuenteFeedCambiada', (
+      tester,
+    ) async {
       await pumpWithState(
         tester,
         bloc: bloc,

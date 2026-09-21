@@ -17,10 +17,10 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import '../../../app/inyeccion.dart';
-import '../../../core/modelos/usuario/estilo_visual.dart';
 import '../../../core/modelos/usuario/perfil_rendimiento.dart';
 import '../../../core/modelos/usuario/preferencias_estilo.dart';
 import '../../../shared/utilidades/plataforma/insets_sistema.dart';
+import '../../../shared/utilidades/formato/estilo_helper.dart';
 import '../../../shared/utilidades/plataforma/responsive.dart';
 import '../../../shared/widgets/vidrio/desenfoque_adaptativo.dart';
 
@@ -116,7 +116,9 @@ class _CabeceraDetalleState extends State<CabeceraDetalle>
         }
         setState(() => _colorDominante = color);
       }
-    } catch (e) { debugPrint("[Feature] $e"); }
+    } catch (e) {
+      debugPrint("[Feature] $e");
+    }
   }
 
   @override
@@ -128,7 +130,8 @@ class _CabeceraDetalleState extends State<CabeceraDetalle>
     final barraEstado = MediaQuery.paddingOf(context).top;
     final colorFondo =
         esOscuro ? const Color(0xFF0A0A0A) : const Color(0xFFF5F5F5);
-    final acento = _colorDominante ??
+    final acento =
+        _colorDominante ??
         (esOscuro ? const Color(0xFF1A1A2E) : const Color(0xFFE8E8E8));
     final efectosPesados =
         sl<ValueNotifier<PerfilRendimiento>>().value.efectosPesados;
@@ -139,7 +142,21 @@ class _CabeceraDetalleState extends State<CabeceraDetalle>
         final t = _anim.value;
         return Stack(
           children: [
-            ..._capasFondo(this, t, acento, colorFondo, efectosPesados),
+            // El fondo reacciona a la intensidad del estilo con cover: sin
+            // escuchar el notifier, sólo se repintaba al hacer scroll.
+            ValueListenableBuilder<PreferenciasEstilo>(
+              valueListenable: sl<ValueNotifier<PreferenciasEstilo>>(),
+              builder:
+                  (context, _, _) => Stack(
+                    children: _capasFondo(
+                      this,
+                      t,
+                      acento,
+                      colorFondo,
+                      efectosPesados,
+                    ),
+                  ),
+            ),
             _contenidoDetalle(this, t, acento, tamanoPortada, barraEstado),
             _botonRetroceso(context, barraEstado),
           ],

@@ -34,8 +34,11 @@ void main() {
       );
 
       expect(find.byType(BackdropFilter), findsNothing);
-      expect(find.byType(DesenfoqueAdaptativo), findsOneWidget,
-          reason: 'el widget sigue ahí, pero no aplica blur');
+      expect(
+        find.byType(DesenfoqueAdaptativo),
+        findsOneWidget,
+        reason: 'el widget sigue ahí, pero no aplica blur',
+      );
     });
 
     testWidgets('un desenfoque de hijo devuelve el hijo intacto', (
@@ -78,10 +81,7 @@ void main() {
       EfectosApp.aplicar(efectosPesados: true, sigmaMax: 0);
       await _montar(
         tester,
-        const DesenfoqueHijo(
-          sigma: 40,
-          child: SizedBox(width: 40, height: 40),
-        ),
+        const DesenfoqueHijo(sigma: 40, child: SizedBox(width: 40, height: 40)),
       );
 
       expect(find.byType(ImageFiltered), findsNothing);
@@ -90,10 +90,7 @@ void main() {
     testWidgets('el desenfoque de hijo sí se aplica', (tester) async {
       await _montar(
         tester,
-        const DesenfoqueHijo(
-          sigma: 20,
-          child: SizedBox(width: 40, height: 40),
-        ),
+        const DesenfoqueHijo(sigma: 20, child: SizedBox(width: 40, height: 40)),
       );
 
       expect(find.byType(ImageFiltered), findsOneWidget);

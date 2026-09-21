@@ -31,19 +31,20 @@ mixin ReproductorAutoplay on ReproductorApertura {
       final lista = jsonDecode(json.toString()) as List;
       if (lista.isEmpty) return;
 
-      final similares = lista.map((e) {
-        final m = e as Map<String, dynamic>;
-        return ItemFeed(
-          id: (m['id'] ?? '').toString(),
-          type: 'track',
-          name: (m['name'] ?? '').toString(),
-          artists: (m['artistName'] ?? '').toString(),
-          coverUrl: (m['coverUrl'] ?? '').toString(),
-          albumName: (m['albumName'] ?? '').toString(),
-          isrc: (m['isrc'] ?? '').toString(),
-          source: (m['source'] ?? 'deezer').toString(),
-        );
-      }).toList();
+      final similares =
+          lista.map((e) {
+            final m = e as Map<String, dynamic>;
+            return ItemFeed(
+              id: (m['id'] ?? '').toString(),
+              type: 'track',
+              name: (m['name'] ?? '').toString(),
+              artists: (m['artistName'] ?? '').toString(),
+              coverUrl: (m['coverUrl'] ?? '').toString(),
+              albumName: (m['albumName'] ?? '').toString(),
+              isrc: (m['isrc'] ?? '').toString(),
+              source: (m['source'] ?? 'deezer').toString(),
+            );
+          }).toList();
 
       // Reemplazar toda la cola con tracks similares (modo radio).
       _queueCubit.reemplazarCola(similares);

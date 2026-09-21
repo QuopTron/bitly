@@ -28,9 +28,11 @@ import '../../../../shared/utilidades/plataforma/responsive.dart';
 import '../../../../shared/widgets/esqueletos/esqueleto_busqueda.dart';
 import '../../../../shared/widgets/tarjetas/grilla/tarjeta_grilla.dart';
 import '../../../../shared/widgets/tarjetas/track/tarjeta_track.dart';
-import '../../../../shared/utilidades/formato/apariencia_helper.dart';
 import '../../../../shared/utilidades/formato/estilo_helper.dart';
 import '../../../../core/servicios/compartir/servicio_compartir.dart';
+import '../../bloc/busqueda_estado.dart';
+import '../../../../shared/utilidades/formato/apariencia_espacios_helper.dart';
+import '../../../../shared/utilidades/formato/apariencia_helper.dart';
 
 part 'resultados_busqueda_estados.dart';
 part 'resultados_busqueda_grilla.dart';
@@ -38,6 +40,20 @@ part 'resultados_busqueda_secciones.dart';
 part 'resultados_busqueda_cabeceras.dart';
 part 'resultados_busqueda_tarjetas.dart';
 part 'resultados_busqueda_vistas.dart';
+
+/// Texto del error de búsqueda según su código. El estado nunca guarda el
+/// texto armado: así el aviso sigue el idioma activo y no filtra el mensaje
+/// crudo de la excepción.
+String _textoErrorBusqueda(
+  AppLocalizations loc,
+  ErrorBusqueda error,
+  String fuente,
+) => switch (error) {
+  ErrorBusqueda.verificacion => loc.servicio.busquedaVerificacion(
+    nombreFuente(fuente),
+  ),
+  ErrorBusqueda.fallo => loc.servicio.busquedaFallo,
+};
 
 /// Cuerpo de resultados de la búsqueda.
 class CuerpoResultadosBusqueda extends StatelessWidget {
@@ -48,7 +64,10 @@ class CuerpoResultadosBusqueda extends StatelessWidget {
   final List<ItemFeed> resultados;
   final bool cargando;
   final bool haBuscado;
-  final String? error;
+
+  /// Código del error (no su texto): acá se traduce con l10n.
+  final ErrorBusqueda? error;
+  final String fuenteError;
   final Set<String> idsAmados;
   final Map<String, EstadoDescarga> estadosDescarga;
   final Set<String> huellasDescargadas;
@@ -71,6 +90,7 @@ class CuerpoResultadosBusqueda extends StatelessWidget {
     required this.cargando,
     required this.haBuscado,
     this.error,
+    this.fuenteError = '',
     required this.idsAmados,
     required this.estadosDescarga,
     this.huellasDescargadas = const {},
@@ -98,7 +118,7 @@ class CuerpoResultadosBusqueda extends StatelessWidget {
       return EsqueletoBusqueda(tipoSeleccionado: tipoSeleccionado);
     }
     if (error != null) {
-      return _estadoError(r, error!);
+      return _estadoError(r, _textoErrorBusqueda(loc, error!, fuenteError));
     }
     if (resultados.isEmpty && haBuscado) {
       return _estadoSinResultados(loc, r, onBg);
@@ -118,20 +138,14 @@ class CuerpoResultadosBusqueda extends StatelessWidget {
 
     // Fuente "Todas": agrupa por extensión, cada una con su cabecera.
     if (fuenteSeleccionada.isEmpty) {
-      return _vistaAgrupadaPorFuente(
-        this,
-        context,
-        r,
-        colorBrillo,
-        onBg,
-        loc,
-      );
+      return _vistaAgrupadaPorFuente(this, context, r, colorBrillo, onBg, loc);
     }
 
     // Categoría única activa: solo esa.
-    final items = resultados
-        .where((it) => _categoriaDe(it.type) == tipoSeleccionado)
-        .toList();
+    final items =
+        resultados
+            .where((it) => _categoriaDe(it.type) == tipoSeleccionado)
+            .toList();
     if (items.isEmpty && haBuscado) {
       return _centroSinResultados(loc, r, onBg);
     }
@@ -143,7 +157,8 @@ class CuerpoResultadosBusqueda extends StatelessWidget {
           bottom: r.spacingS + r.val(120, 100, 150),
         ),
         itemCount: items.length,
-        itemBuilder: (context, i) => _tarjetaTrack(this, context, items, items[i]),
+        itemBuilder:
+            (context, i) => _tarjetaTrack(this, context, items, items[i]),
       );
     }
     return _grillaUnica(this, context, r, colorBrillo, onBg, loc, items);

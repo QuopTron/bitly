@@ -81,19 +81,24 @@ class _AvisosDescargaState extends State<AvisosDescarga> {
               padding: const EdgeInsets.only(top: 8, left: 12, right: 12),
               child: AnimatedSwitcher(
                 duration: const Duration(milliseconds: 220),
-                transitionBuilder: (child, anim) => FadeTransition(
-                  opacity: anim,
-                  child: SlideTransition(
-                    position: Tween<Offset>(
-                      begin: const Offset(0, -0.12),
-                      end: Offset.zero,
-                    ).animate(anim),
-                    child: child,
-                  ),
-                ),
-                child: aviso == null
-                    ? const SizedBox.shrink()
-                    : KeyedSubtree(key: ValueKey(_generacion), child: aviso),
+                transitionBuilder:
+                    (child, anim) => FadeTransition(
+                      opacity: anim,
+                      child: SlideTransition(
+                        position: Tween<Offset>(
+                          begin: const Offset(0, -0.12),
+                          end: Offset.zero,
+                        ).animate(anim),
+                        child: child,
+                      ),
+                    ),
+                child:
+                    aviso == null
+                        ? const SizedBox.shrink()
+                        : KeyedSubtree(
+                          key: ValueKey(_generacion),
+                          child: aviso,
+                        ),
               ),
             ),
           ),

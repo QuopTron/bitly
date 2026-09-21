@@ -93,9 +93,13 @@ Widget _tarjetaFallo(
     acento: reintentable ? ColoresApp.advertencia : ColoresApp.error,
     titulo: d.falloTitulo.replaceAll('{titulo}', fallo.titulo),
     mensaje: reintentable ? d.falloAyuda : d.falloAyudaUsuario,
-    motivo: d.falloMotivo.replaceAll('{motivo}', fallo.motivo),
+    motivo: d.falloMotivo.replaceAll(
+      '{motivo}',
+      d.motivoDescarga(fallo.motivo),
+    ),
     onCerrar: st._cubit.confirmarFalloDescarga,
-    acciones: reintentable ? [_accionReintentar(st, d, fallo.baseId)] : const [],
+    acciones:
+        reintentable ? [_accionReintentar(st, d, fallo.baseId)] : const [],
   );
 }
 

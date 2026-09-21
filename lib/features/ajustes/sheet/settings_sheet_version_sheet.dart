@@ -76,7 +76,7 @@ class _VersionSheetState extends State<_VersionSheet> with _VersionSheetLoader {
                   ),
                   SizedBox(width: r.spacingS),
                   Text(
-                    'Versiones',
+                    AppLocalizations.of(context).ajustes.versiones,
                     style: TextStyle(
                       fontSize: r.subtitleSize,
                       fontWeight: FontWeight.w700,
@@ -111,9 +111,7 @@ class _VersionSheetState extends State<_VersionSheet> with _VersionSheetLoader {
                 onDownloadApk: _downloadApk,
               ),
             ),
-            SizedBox(
-              height: r.bottomPadding + insetInferiorSistema(context),
-            ),
+            SizedBox(height: r.bottomPadding + insetInferiorSistema(context)),
           ],
         ),
       ),

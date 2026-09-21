@@ -50,8 +50,7 @@ class AreaPortadaVideo extends StatelessWidget {
             borderRadius: BorderRadius.circular(28),
             boxShadow: [
               BoxShadow(
-                color: Colors.black
-                    .withValues(alpha: esOscuro ? 0.55 : 0.30),
+                color: Colors.black.withValues(alpha: esOscuro ? 0.55 : 0.30),
                 blurRadius: 44,
                 offset: const Offset(0, 14),
               ),
@@ -92,7 +91,11 @@ class AreaPortadaVideo extends StatelessWidget {
                       child: GestureDetector(
                         onTap: onDetenerVideo,
                         child: _chipVideo(
-                          const Icon(Icons.image, color: Colors.white, size: 22),
+                          const Icon(
+                            Icons.image,
+                            color: Colors.white,
+                            size: 22,
+                          ),
                         ),
                       ),
                     ),
@@ -100,20 +103,28 @@ class AreaPortadaVideo extends StatelessWidget {
                     Positioned(
                       top: 10,
                       right: 10,
-                      child: videoCargando
-                          ? _chipVideo(const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2.5,
-                                color: Colors.white,
+                      child:
+                          videoCargando
+                              ? _chipVideo(
+                                const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.5,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              )
+                              : GestureDetector(
+                                onTap: onAlternarVideo,
+                                child: _chipVideo(
+                                  const Icon(
+                                    Icons.videocam,
+                                    color: Colors.white,
+                                    size: 22,
+                                  ),
+                                ),
                               ),
-                            ))
-                          : GestureDetector(
-                              onTap: onAlternarVideo,
-                              child: _chipVideo(const Icon(Icons.videocam,
-                                  color: Colors.white, size: 22)),
-                            ),
                     ),
                 ],
               ),

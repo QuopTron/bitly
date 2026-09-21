@@ -29,9 +29,8 @@ void _enArrastre(_ReproductorPaginaState st, DragUpdateDetails detalles) {
   if (st._animArrastre.isAnimating) return;
   final alto = MediaQuery.sizeOf(st.context).height;
   final siguiente = st._desplazamiento.value + detalles.delta.dy;
-  st._desplazamiento.value = siguiente < 0
-      ? 0
-      : (siguiente > alto * 0.92 ? alto * 0.92 : siguiente);
+  st._desplazamiento.value =
+      siguiente < 0 ? 0 : (siguiente > alto * 0.92 ? alto * 0.92 : siguiente);
 }
 
 /// Termina el arrastre: cierra si pasó el umbral o la velocidad es alta.

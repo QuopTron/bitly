@@ -25,9 +25,10 @@ class _BibliotecaLocalCardState extends State<_BibliotecaLocalCard> {
 
   /// Abre el selector de carpeta y manda la ruta a Go para escanearla.
   Future<void> _importar() async {
+    final b = AppLocalizations.of(context).biblioteca;
     try {
       final carpeta = await FilePicker.getDirectoryPath(
-        dialogTitle: 'Elegí la carpeta con tu música',
+        dialogTitle: b.elegirCarpeta,
       );
       if (carpeta == null || !mounted) return;
 
@@ -41,16 +42,18 @@ class _BibliotecaLocalCardState extends State<_BibliotecaLocalCard> {
 
       setState(() {
         _importando = false;
-        _resumen =
-            '${resultado.archivos} archivos · ${resultado.conIsrc} con ISRC · '
-            '${resultado.guardados} en Mi Espacio';
+        _resumen = b.resumen(
+          resultado.archivos,
+          resultado.conIsrc,
+          resultado.guardados,
+        );
       });
     } catch (e) {
       if (!mounted) return;
       setState(() => _importando = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('No se pudo importar: $e'),
+          content: Text(b.errorImportar(e)),
           backgroundColor: Colors.red.withValues(alpha: 0.8),
         ),
       );
@@ -58,6 +61,11 @@ class _BibliotecaLocalCardState extends State<_BibliotecaLocalCard> {
   }
 
   @override
-  Widget build(BuildContext context) => _construirBibliotecaLocal(context, widget.glowColor, _importando, _resumen, _importar);
-
+  Widget build(BuildContext context) => _construirBibliotecaLocal(
+    context,
+    widget.glowColor,
+    _importando,
+    _resumen,
+    _importar,
+  );
 }

@@ -7,6 +7,7 @@ import '../app_database.dart';
 import '../tables/collections_table.dart';
 
 part 'collections_dao.g.dart';
+part 'collections_dao_items.dart';
 
 @DriftAccessor(tables: [Collections, CollectionItems])
 class CollectionsDao extends DatabaseAccessor<AppDatabase>
@@ -95,6 +96,8 @@ class CollectionsDao extends DatabaseAccessor<AppDatabase>
       (delete(collectionItems)..where(
         (t) => t.collectionId.equals(collectionId) & t.itemId.equals(trackId),
       )).go();
+
+  // Orden, ids y conteos de items → collections_dao_items.dart (part).
 
   Future<int> getCollectionItemsCount() =>
       select(collectionItems).get().then((r) => r.length);

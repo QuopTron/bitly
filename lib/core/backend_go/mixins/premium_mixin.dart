@@ -16,7 +16,11 @@ import '../nucleo/contrato_backend.dart';
 /// Validación premium (vive en el backend Go internal/premium).
 mixin PremiumMixin on BackendService {
   /// Valida un código premium en el backend Go (formato legacy JWT).
-  /// Devuelve null si es válido, o el mensaje de error si no lo es.
+  /// Devuelve null si es válido, o el CÓDIGO del motivo si no lo es.
+  ///
+  /// Devuelve código (no texto) para que la UI lo traduzca: estos códigos son
+  /// los mismos que mapea `StringsPremium.motivo` (Go usa los suyos cuando los
+  /// manda, y acá se completan los que nacen del lado de la app).
   @override
   Future<String?> validatePremiumCode(String code) async {
     try {
@@ -24,14 +28,13 @@ mixin PremiumMixin on BackendService {
       if (raw is String && raw.isNotEmpty) {
         final parsed = jsonDecode(raw);
         if (parsed is Map<String, dynamic>) {
-          final err = parsed['error'];
-          if (err != null) return err.toString();
-          return null;
+          if (parsed['error'] == null) return null;
+          return parsed['motivo'] as String? ?? 'codigo_invalido';
         }
       }
-      return 'Error de validación';
+      return 'error_validacion';
     } catch (_) {
-      return 'No se pudo validar el código';
+      return 'no_validar';
     }
   }
 
@@ -40,7 +43,9 @@ mixin PremiumMixin on BackendService {
   Future<void> setPremiumGithubToken(String token) async {
     try {
       await rpcCall('setPremiumGithubToken', {'token': token});
-    } catch (e) { debugPrint("[Backend] $e"); }
+    } catch (e) {
+      debugPrint("[Backend] $e");
+    }
   }
 
   /// Sincroniza el estado premium guardado en drift hacia el backend Go
@@ -58,6 +63,8 @@ mixin PremiumMixin on BackendService {
         'tier': tier,
         if (expiresAt != null && expiresAt > 0) 'expiresAt': expiresAt,
       });
-    } catch (e) { debugPrint("[Backend] $e"); }
+    } catch (e) {
+      debugPrint("[Backend] $e");
+    }
   }
 }

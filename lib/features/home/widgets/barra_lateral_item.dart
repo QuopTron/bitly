@@ -59,15 +59,19 @@ class _ItemLateralAnimadoState extends State<ItemLateralAnimado> {
               duration: const Duration(milliseconds: 220),
               curve: Curves.easeOutCubic,
               decoration: BoxDecoration(
-                color: sel
-                    ? onBg.withValues(alpha: 0.12)
-                    : _hover
+                color:
+                    sel
+                        ? onBg.withValues(alpha: 0.12)
+                        : _hover
                         ? onBg.withValues(alpha: 0.06)
                         : Colors.transparent,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
                 child: Row(
                   children: [
                     AnimatedContainer(
@@ -88,7 +92,10 @@ class _ItemLateralAnimadoState extends State<ItemLateralAnimado> {
                       child: Icon(
                         widget.item.icon,
                         size: 22,
-                        color: sel ? onBg : onBg.withValues(alpha: _hover ? 0.75 : 0.4),
+                        color:
+                            sel
+                                ? onBg
+                                : onBg.withValues(alpha: _hover ? 0.75 : 0.4),
                       ),
                     ),
                     const SizedBox(width: 14),
@@ -97,7 +104,10 @@ class _ItemLateralAnimadoState extends State<ItemLateralAnimado> {
                         duration: const Duration(milliseconds: 200),
                         curve: Curves.easeOut,
                         style: TextStyle(
-                          color: sel ? onBg : onBg.withValues(alpha: _hover ? 0.8 : 0.55),
+                          color:
+                              sel
+                                  ? onBg
+                                  : onBg.withValues(alpha: _hover ? 0.8 : 0.55),
                           fontSize: 14,
                           fontWeight: sel ? FontWeight.w600 : FontWeight.w400,
                         ),
@@ -108,7 +118,8 @@ class _ItemLateralAnimadoState extends State<ItemLateralAnimado> {
                       duration: const Duration(milliseconds: 200),
                       opacity: sel ? 1 : 0,
                       child: Container(
-                        width: 4, height: 4,
+                        width: 4,
+                        height: 4,
                         decoration: BoxDecoration(
                           color: onBg.withValues(alpha: 0.8),
                           shape: BoxShape.circle,

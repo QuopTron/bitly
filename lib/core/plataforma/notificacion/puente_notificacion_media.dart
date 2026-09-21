@@ -110,17 +110,19 @@ class PuenteNotificacionMedia {
     }
 
     final track = cola.actual;
-    final media = track == null
-        ? <String, dynamic>{'hasCurrent': false}
-        : <String, dynamic>{
-            'hasCurrent': true,
-            'id': track.id,
-            'title': track.name,
-            'artist': track.artists ?? '',
-            'album': track.albumName ?? '',
-            'durationMs': track.durationMs ?? reproductor.duracion.inMilliseconds,
-            'artUri': track.coverUrl,
-          };
+    final media =
+        track == null
+            ? <String, dynamic>{'hasCurrent': false}
+            : <String, dynamic>{
+              'hasCurrent': true,
+              'id': track.id,
+              'title': track.name,
+              'artist': track.artists ?? '',
+              'album': track.albumName ?? '',
+              'durationMs':
+                  track.durationMs ?? reproductor.duracion.inMilliseconds,
+              'artUri': track.coverUrl,
+            };
 
     _puertoEstadoHandler!.send({
       ...media,

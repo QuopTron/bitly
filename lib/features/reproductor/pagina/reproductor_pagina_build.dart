@@ -16,8 +16,7 @@ part of 'reproductor_pagina.dart';
 Widget _buildReproductor(_ReproductorPaginaState st, BuildContext context) {
   final r = Responsive(context);
   final esOscuro = Theme.of(context).brightness == Brightness.dark;
-  final colorFondo =
-      esOscuro ? ColoresApp.fondoOscuro : ColoresApp.fondoClaro;
+  final colorFondo = esOscuro ? ColoresApp.fondoOscuro : ColoresApp.fondoClaro;
 
   return MultiBlocProvider(
     providers: [
@@ -31,7 +30,9 @@ Widget _buildReproductor(_ReproductorPaginaState st, BuildContext context) {
           return Scaffold(
             backgroundColor: colorFondo,
             appBar: AppBar(backgroundColor: Colors.transparent),
-            body: const Center(child: Text('No track selected')),
+            body: Center(
+              child: Text(AppLocalizations.of(context).reproductor.sinTrack),
+            ),
           );
         }
 
@@ -40,30 +41,36 @@ Widget _buildReproductor(_ReproductorPaginaState st, BuildContext context) {
         return BlocBuilder<CubitReproductor, EstadoAudioReproductor>(
           // Ignorar ticks de posición (mpv ~25/s): la barra de seek se
           // suscribe sola y el fondo blur/portada no se reconstruye por tick.
-          buildWhen: (prev, curr) =>
-              prev.duracion != curr.duracion ||
-              prev.estadoReproduccion != curr.estadoReproduccion ||
-              prev.volumen != curr.volumen ||
-              prev.velocidad != curr.velocidad ||
-              prev.mensajeError != curr.mensajeError,
+          buildWhen:
+              (prev, curr) =>
+                  prev.duracion != curr.duracion ||
+                  prev.estadoReproduccion != curr.estadoReproduccion ||
+                  prev.volumen != curr.volumen ||
+                  prev.velocidad != curr.velocidad ||
+                  prev.codigoError != curr.codigoError,
           builder: (context, reproductor) {
             final caratulaResuelta =
                 context.read<CubitLikes>().caratulaLocalPara(track) ??
-                    track.coverUrl;
-            final colorBrillo = esOscuro
-                ? ColoresApp.verdeBrillante
-                : ColoresApp.verdeMedio;
+                track.coverUrl;
+            final colorBrillo =
+                esOscuro ? ColoresApp.verdeBrillante : ColoresApp.verdeMedio;
             final activo = esOscuro ? Colors.white : Colors.black;
 
             final pagina = Scaffold(
               backgroundColor: colorFondo,
               extendBodyBehindAppBar: true,
               appBar: _barraSuperior(
-                  st, context, r, track, activo, colorBrillo),
+                st,
+                context,
+                r,
+                track,
+                activo,
+                colorBrillo,
+              ),
               body: Stack(
                 fit: StackFit.expand,
                 children: [
-                  _FondoAmbiental(
+                  FondoAmbientalReproductor(
                     coverUrl: caratulaResuelta,
                     esOscuro: esOscuro,
                     colorFondo: colorFondo,
@@ -76,18 +83,22 @@ Widget _buildReproductor(_ReproductorPaginaState st, BuildContext context) {
                       child: Column(
                         children: [
                           const Spacer(flex: 1),
-                          _areaPortadaVideo(st, context, r, esOscuro, track,
-                              caratulaResuelta),
+                          _areaPortadaVideo(
+                            st,
+                            context,
+                            r,
+                            esOscuro,
+                            track,
+                            caratulaResuelta,
+                          ),
                           const Spacer(flex: 1),
                           _metadataTrack(context, r, track, activo),
                           const Spacer(flex: 1),
                           _barraSeek(context, r, esOscuro),
                           SizedBox(height: r.spacingM),
-                          _filaControles(
-                              st, context, r, esOscuro, cola, track),
+                          _filaControles(st, context, r, esOscuro, cola, track),
                           SizedBox(height: r.spacingL),
-                          _selectorVelocidad(
-                              context, r, esOscuro, reproductor),
+                          _selectorVelocidad(context, r, esOscuro, reproductor),
                           SizedBox(height: r.spacingXL),
                         ],
                       ),

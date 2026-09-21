@@ -7,6 +7,9 @@ import (
 	"github.com/zarz/bitly/go_backend/internal/streaming"
 )
 
+// El canal sin pérdida (FLAC por ISRC, en paralelo) vive en
+// stream_package_lossless.go.
+
 // streamPackageFallback is the real-playback (AllowFallback=true) fast path of
 // GetStreamPackage: it fails fast on cached failures, tries the preferred
 // full-stream provider, then the multi-provider rescue, then the download
@@ -25,14 +28,19 @@ func streamPackageFallback(params *streamPackageParams) string {
 	// Un veredicto de verificacion del proveedor preferido (su sesion
 	// necesita completarse para streamear). Se recuerda abajo para que el
 	// chance first: a playing song always beats a verification modal.
+	// EL CANAL SIN PÉRDIDA ARRANCA YA, en paralelo con el camino rápido: con
+	// calidad sin pérdida y un ISRC conocido, el FLAC (arcod) tarda ~0,6 s y no
+	// puede quedar esperando a que el camino rápido termine de decidir.
+	chSinPerdida := abrirCanalSinPerdida(params)
 	var preferredVerify *streaming.VerifyRequiredError
 	if streaming.IsFullStreamProvider(params.PreferredProvider) {
-		url, name, err := streaming.StreamQuick(reg, params.PreferredProvider, params.TrackID, params.Quality, params.ISRC, params.SpotifyID, params.DeezerID, params.TidalID, params.QobuzID, params.TrackName, params.ArtistName)
+		url, name, err := streaming.StreamQuick(reg, params.PreferredProvider, params.TrackID, params.Quality, params.ISRC, params.SpotifyID, params.DeezerID, params.TidalID, params.QobuzID, params.TrackName, params.ArtistName, params.DurationMS)
 		if err == nil && url != "" {
 			// Un clip de ~30s NO es reproducir la canción: se descarta el
 			// candidato y el flujo sigue (rescate y, si no, descarga real).
 			if !streaming.EsPreviewStream(url, name, params.DurationMS, params.Quality) {
 				streamFailClear(failKey)
+				url, name = paqueteConElMejorAudio(chSinPerdida, params, url, name)
 				pkg := &streaming.StreamPackage{AudioURL: url, Provider: name, Quality: params.Quality}
 				data, _ := json.Marshal(pkg)
 				return string(data)
@@ -57,12 +65,13 @@ func streamPackageFallback(params *streamPackageParams) string {
 	// another FULL-STREAM provider (deezer/soundcloud/ytmusic/youtube)
 	// may serve the same exact track via its ISRC / cross-provider id in
 	// ~1-2s. Probe them before committing to the slow download pipeline.
-	if url, name, err := streaming.RescueStreamURL(reg, params.Quality, params.ISRC, params.SpotifyID, params.DeezerID, params.TidalID, params.QobuzID, params.TrackName, params.ArtistName); err == nil && url != "" {
+	if url, name, err := streaming.RescueStreamURL(reg, params.Quality, params.ISRC, params.SpotifyID, params.DeezerID, params.TidalID, params.QobuzID, params.TrackName, params.ArtistName, params.AlbumName, params.DurationMS); err == nil && url != "" {
 		// Mismo guard que arriba: si el rescate solo consiguió un clip
 		// (espejo sin cuentas de pago, ítem de muestra de Archive), se cae
 		// a la descarga real en vez de cortar la canción a los 30s.
 		if !streaming.EsPreviewStream(url, name, params.DurationMS, params.Quality) {
 			streamFailClear(failKey)
+			url, name = paqueteConElMejorAudio(chSinPerdida, params, url, name)
 			pkg := &streaming.StreamPackage{AudioURL: url, Provider: name, Quality: params.Quality}
 			data, _ := json.Marshal(pkg)
 			return string(data)

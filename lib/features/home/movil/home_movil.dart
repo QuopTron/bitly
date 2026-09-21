@@ -5,6 +5,7 @@
 // y el miniplayer como slots (seccion animada en home_movil_seccion.dart).
 
 import 'package:flutter/material.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../shared/tema/colores_app.dart';
 import '../../../shared/utilidades/plataforma/insets_sistema.dart';
 import '../../../shared/widgets/fondos/fondo_ambiente.dart';

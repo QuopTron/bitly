@@ -30,11 +30,21 @@ void main() {
 
   group('iconosFuente', () {
     test('contains all known sources', () {
-      expect(iconosFuente.keys, containsAll([
-        'deezer', 'apple-music', 'soundcloud', 'spotify-web',
-        'pandora', 'amazon', 'qobuz-web', 'tidal-web', 'ytmusic-spotiflac',
-        'internetarchive',
-      ]));
+      expect(
+        iconosFuente.keys,
+        containsAll([
+          'deezer',
+          'apple-music',
+          'soundcloud',
+          'spotify-web',
+          'pandora',
+          'amazon',
+          'qobuz-web',
+          'tidal-web',
+          'ytmusic-spotiflac',
+          'internetarchive',
+        ]),
+      );
     });
 
     // 12 fuentes de catálogo + el id agrupado (''). 'youtube' NO es una
@@ -60,19 +70,24 @@ void main() {
     // Internet Archive y Soulseek no son catálogos navegables: existen para el
     // rescate lossless. Si alguno se ofreciera como fuente de búsqueda, sus
     // resultados se mezclarían con los de las extensiones reales.
-    test('Internet Archive, Soulseek y flac-rescue no son fuentes de búsqueda',
-        () {
-      for (final src in const [
-        'internetarchive',
-        'soulseek',
-        'flac-rescue',
-        'redacted',
-        'musicbrainz',
-      ]) {
-        expect(esFuenteDeBusqueda(src), isFalse,
-            reason: '$src no debe ofrecerse como fuente de búsqueda');
-      }
-    });
+    test(
+      'Internet Archive, Soulseek y flac-rescue no son fuentes de búsqueda',
+      () {
+        for (final src in const [
+          'internetarchive',
+          'soulseek',
+          'flac-rescue',
+          'redacted',
+          'musicbrainz',
+        ]) {
+          expect(
+            esFuenteDeBusqueda(src),
+            isFalse,
+            reason: '$src no debe ofrecerse como fuente de búsqueda',
+          );
+        }
+      },
+    );
 
     test('los catálogos reales sí son fuentes de búsqueda', () {
       for (final src in const [
@@ -84,8 +99,11 @@ void main() {
         'tidal-web',
         'ytmusic-spotiflac',
       ]) {
-        expect(esFuenteDeBusqueda(src), isTrue,
-            reason: '$src debe seguir siendo buscable');
+        expect(
+          esFuenteDeBusqueda(src),
+          isTrue,
+          reason: '$src debe seguir siendo buscable',
+        );
       }
     });
 
@@ -109,4 +127,4 @@ void main() {
       expect(etiquetasFuente['spotify-web'], 'Spotify');
     });
   });
-}
+}

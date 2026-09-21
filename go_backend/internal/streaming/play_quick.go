@@ -11,6 +11,7 @@ func StreamQuick(
 	reg *provider.Registry,
 	providerName, trackID, quality, isrc, spotifyID, deezerID, tidalID, qobuzID string,
 	trackName, artistName string,
+	queryDurationMS int,
 ) (string, string, error) {
 	if reg == nil {
 		return "", "", fmt.Errorf("no inicializado")
@@ -48,7 +49,7 @@ func StreamQuick(
 	// wrong/misreported ISRC or a cross-provider id still produces a wrong song,
 	// which is worse than a moment's extra lookup). We never play a similar song.
 	if trackName != "" {
-		id = verificarMatchStream(p, id, trackName, artistName, isrc, authoritative)
+		id = verificarMatchStream(p, id, trackName, artistName, isrc, authoritative, queryDurationMS)
 		if id == "" {
 			return "", "", fmt.Errorf("no se pudo confirmar la cancion original en %s", providerName)
 		}

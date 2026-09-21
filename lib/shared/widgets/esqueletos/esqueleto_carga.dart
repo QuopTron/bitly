@@ -59,12 +59,14 @@ class _EsqueletoCargaState extends State<EsqueletoCarga>
   @override
   Widget build(BuildContext context) {
     final oscuro = Theme.of(context).brightness == Brightness.dark;
-    final base = oscuro
-        ? Colors.white.withValues(alpha: 0.06)
-        : Colors.black.withValues(alpha: 0.05);
-    final brillo = oscuro
-        ? Colors.white.withValues(alpha: 0.12)
-        : Colors.black.withValues(alpha: 0.08);
+    final base =
+        oscuro
+            ? Colors.white.withValues(alpha: 0.06)
+            : Colors.black.withValues(alpha: 0.05);
+    final brillo =
+        oscuro
+            ? Colors.white.withValues(alpha: 0.12)
+            : Colors.black.withValues(alpha: 0.08);
     final estatico = !EfectosApp.permitirDesenfoque.value;
 
     return AnimatedBuilder(
@@ -76,14 +78,15 @@ class _EsqueletoCargaState extends State<EsqueletoCarga>
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(widget.radioBorde),
             color: estatico ? base : null,
-            gradient: estatico
-                ? null
-                : LinearGradient(
-                    begin: Alignment(-1.0 + 2.0 * _ctrl.value, 0),
-                    end: Alignment(-0.5 + 2.0 * _ctrl.value, 0),
-                    colors: [base, brillo, base],
-                    stops: const [0.0, 0.5, 1.0],
-                  ),
+            gradient:
+                estatico
+                    ? null
+                    : LinearGradient(
+                      begin: Alignment(-1.0 + 2.0 * _ctrl.value, 0),
+                      end: Alignment(-0.5 + 2.0 * _ctrl.value, 0),
+                      colors: [base, brillo, base],
+                      stops: const [0.0, 0.5, 1.0],
+                    ),
           ),
         );
       },
@@ -98,12 +101,14 @@ class EsqueletoFeed extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final oscuro = Theme.of(context).brightness == Brightness.dark;
-    final base = oscuro
-        ? Colors.white.withValues(alpha: 0.06)
-        : Colors.black.withValues(alpha: 0.05);
-    final brillo = oscuro
-        ? Colors.white.withValues(alpha: 0.12)
-        : Colors.black.withValues(alpha: 0.08);
+    final base =
+        oscuro
+            ? Colors.white.withValues(alpha: 0.06)
+            : Colors.black.withValues(alpha: 0.05);
+    final brillo =
+        oscuro
+            ? Colors.white.withValues(alpha: 0.12)
+            : Colors.black.withValues(alpha: 0.08);
 
     return ListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -111,11 +116,7 @@ class EsqueletoFeed extends StatelessWidget {
       physics: const NeverScrollableScrollPhysics(),
       itemBuilder: (context, index) {
         final esTrack = index % 3 != 2;
-        return _FilaEsqueleto(
-          esTrack: esTrack,
-          base: base,
-          brillo: brillo,
-        );
+        return _FilaEsqueleto(esTrack: esTrack, base: base, brillo: brillo);
       },
     );
   }
@@ -131,11 +132,7 @@ class EsqueletoDetalle extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          EsqueletoCarga(
-            ancho: 180,
-            alto: 180,
-            radioBorde: 90,
-          ),
+          EsqueletoCarga(ancho: 180, alto: 180, radioBorde: 90),
           const SizedBox(height: 24),
           EsqueletoCarga(ancho: 260, alto: 220, radioBorde: 16),
         ],

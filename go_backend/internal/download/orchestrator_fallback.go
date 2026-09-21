@@ -17,8 +17,16 @@ import (
 // soulseek se suma junto a internetarchive (mismo tier) porque son las dos
 // fuentes que pueden dar FLAC sin pérdida cuando los catálogos fallan; no se
 // reordena el resto, para no cambiar el comportamiento ya medido de las otras.
+//
+// tidal-hifi va pegado a flac-rescue y ANTES de youtube: es la otra fuente
+// EXACTA (confirma el ISRC contra el catálogo de Tidal) que entrega FLAC sin
+// sesión, y su audio llega por descarga segmentada —ver su GetStreamURL—. Con
+// calidad sin pérdida eso es mejor que un re-subido de YouTube; y como el orden
+// solo decide CUÁNDO empieza cada uno (los catálogos con sesión van primero y
+// fallan rápido cuando no la hay), no le quita el turno a nadie que funcione.
 var preferredStreamOrder = []string{
 	"amazon", "deezer", "qobuz-web", "tidal-web", "flac-rescue",
+	"tidal-hifi",
 	"youtube", "ytmusic-spotiflac", "pandora",
 	"soundcloud", "internetarchive", "soulseek", "apple-music", "spotify-web",
 }

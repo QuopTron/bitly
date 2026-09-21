@@ -37,17 +37,18 @@ Widget _construirRaizApp(_BitlyAppState st) {
             GlobalCupertinoLocalizations.delegate,
           ],
           routerConfig: st._router,
-          builder: (context, hijo) => construirContenidoApp(
-            context: context,
-            hijo: hijo,
-            // Mientras la app no salió del splash la carta no se pinta; el
-            // enlace sigue guardado y aparece apenas entra al contenido.
-            linkCompartido: st._appLista ? st._linkCompartido : null,
-            onDismiss: st._descartarCompartido,
-            onPlay: st.reproducirCompartido,
-            onAgregar: st.agregarCompartidoALaCola,
-            hayReproduccion: st.hayReproduccion,
-          ),
+          builder:
+              (context, hijo) => construirContenidoApp(
+                context: context,
+                hijo: hijo,
+                // Mientras la app no salió del splash la carta no se pinta; el
+                // enlace sigue guardado y aparece apenas entra al contenido.
+                linkCompartido: st._appLista ? st._linkCompartido : null,
+                onDismiss: st._descartarCompartido,
+                onPlay: st.reproducirCompartido,
+                onAgregar: st.agregarCompartidoALaCola,
+                hayReproduccion: st.hayReproduccion,
+              ),
         ),
       );
     },

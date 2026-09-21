@@ -35,7 +35,8 @@ Future<DetalleAlbum?> _construirDesdeLote(_AlbumDetallePaginaState st) async {
 
   // Los lotes nuevos guardan objetos {id, name, artist, cover}; los viejos
   // guardan solo state-keys y se resuelven con el historial de descargas.
-  final enriquecido = idsCrudos.isNotEmpty && idsCrudos.first is Map<String, dynamic>;
+  final enriquecido =
+      idsCrudos.isNotEmpty && idsCrudos.first is Map<String, dynamic>;
   Map<String, Map<String, dynamic>>? mapaHistorial;
   if (!enriquecido) {
     final historial =
@@ -53,42 +54,49 @@ Future<DetalleAlbum?> _construirDesdeLote(_AlbumDetallePaginaState st) async {
       final obj = raw as Map<String, dynamic>;
       final stateKey = (obj['id'] ?? '') as String;
       final partes = stateKey.split('_');
-      final idNorm = partes.length >= 3
-          ? partes.sublist(1, partes.length - 1).join('_')
-          : stateKey;
+      final idNorm =
+          partes.length >= 3
+              ? partes.sublist(1, partes.length - 1).join('_')
+              : stateKey;
       final nombre = (obj['name'] ?? '') as String;
-      tracks.add(TrackDetalle(
-        trackId: idNorm,
-        name: nombre.isNotEmpty ? nombre : idNorm,
-        artistName: (obj['artist'] ?? '') as String,
-        coverUrl: (obj['cover'] ?? '') as String,
-        provider: st.widget.source,
-      ));
+      tracks.add(
+        TrackDetalle(
+          trackId: idNorm,
+          name: nombre.isNotEmpty ? nombre : idNorm,
+          artistName: (obj['artist'] ?? '') as String,
+          coverUrl: (obj['cover'] ?? '') as String,
+          provider: st.widget.source,
+        ),
+      );
     } else {
       final stateKey = raw as String;
       final partes = stateKey.split('_');
       if (partes.length < 3) continue;
       final idNorm = partes.sublist(1, partes.length - 1).join('_');
-      final meta = mapaHistorial?[idNorm] ?? mapaHistorial?[stateKey.toLowerCase()];
+      final meta =
+          mapaHistorial?[idNorm] ?? mapaHistorial?[stateKey.toLowerCase()];
       final vivo = sl<CubitDescargas>().metaTrackPara(stateKey);
       final nombreHist = (meta?['track_name'] as String?) ?? '';
       final artistaHist = (meta?['artist_name'] as String?) ?? '';
       final caratulaHist = (meta?['cover_url'] as String?) ?? '';
-      tracks.add(TrackDetalle(
-        trackId: (meta?['id'] as String?) ?? idNorm,
-        name: nombreHist.isNotEmpty
-            ? nombreHist
-            : (vivo?.name.isNotEmpty == true ? vivo!.name : idNorm),
-        durationMs: (meta?['duration'] as num?)?.toInt() ?? 0,
-        isrc: meta?['isrc'] as String? ?? '',
-        coverUrl: caratulaHist.isNotEmpty ? caratulaHist : (vivo?.cover ?? ''),
-        coverPath: (meta?['cover_path'] as String?) ?? '',
-        artistName: artistaHist.isNotEmpty
-            ? artistaHist
-            : (vivo?.artist ?? ''),
-        albumName: (meta?['album_name'] as String?) ?? lote.name,
-        provider: (meta?['providerSource'] as String?) ?? st.widget.source,
-      ));
+      tracks.add(
+        TrackDetalle(
+          trackId: (meta?['id'] as String?) ?? idNorm,
+          name:
+              nombreHist.isNotEmpty
+                  ? nombreHist
+                  : (vivo?.name.isNotEmpty == true ? vivo!.name : idNorm),
+          durationMs: (meta?['duration'] as num?)?.toInt() ?? 0,
+          isrc: meta?['isrc'] as String? ?? '',
+          coverUrl:
+              caratulaHist.isNotEmpty ? caratulaHist : (vivo?.cover ?? ''),
+          coverPath: (meta?['cover_path'] as String?) ?? '',
+          artistName:
+              artistaHist.isNotEmpty ? artistaHist : (vivo?.artist ?? ''),
+          albumName: (meta?['album_name'] as String?) ?? lote.name,
+          provider: (meta?['providerSource'] as String?) ?? st.widget.source,
+        ),
+      );
     }
   }
 

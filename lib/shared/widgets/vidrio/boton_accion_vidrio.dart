@@ -45,9 +45,10 @@ class _BotonAccionVidrioState extends State<BotonAccionVidrio>
       lowerBound: 0,
       upperBound: 1,
     );
-    _escala = Tween(begin: 1.0, end: 0.88).animate(
-      CurvedAnimation(parent: _ctrlEscala, curve: Curves.easeInOut),
-    );
+    _escala = Tween(
+      begin: 1.0,
+      end: 0.88,
+    ).animate(CurvedAnimation(parent: _ctrlEscala, curve: Curves.easeInOut));
   }
 
   @override
@@ -60,21 +61,25 @@ class _BotonAccionVidrioState extends State<BotonAccionVidrio>
   Widget build(BuildContext context) {
     final esOscuro = Theme.of(context).brightness == Brightness.dark;
     final acento =
-        widget.color ?? (esOscuro ? ColoresApp.verdeBrillante : ColoresApp.verdeProfundo);
+        widget.color ??
+        (esOscuro ? ColoresApp.verdeBrillante : ColoresApp.verdeProfundo);
     final habilitado = widget.onTap != null;
 
     final alphaFondo = widget.relleno ? 0.22 : 0.08;
-    final colorFondo = widget.relleno
-        ? acento.withValues(alpha: alphaFondo)
-        : ColoresApp.enSuperficie(esOscuro).withValues(alpha: alphaFondo);
+    final colorFondo =
+        widget.relleno
+            ? acento.withValues(alpha: alphaFondo)
+            : ColoresApp.enSuperficie(esOscuro).withValues(alpha: alphaFondo);
 
-    final colorBorde = widget.relleno
-        ? acento.withValues(alpha: 0.5)
-        : ColoresApp.enSuperficie(esOscuro).withValues(alpha: 0.12);
+    final colorBorde =
+        widget.relleno
+            ? acento.withValues(alpha: 0.5)
+            : ColoresApp.enSuperficie(esOscuro).withValues(alpha: 0.12);
 
-    final colorIcono = widget.relleno
-        ? acento
-        : widget.color ?? ColoresApp.enSuperficie(esOscuro);
+    final colorIcono =
+        widget.relleno
+            ? acento
+            : widget.color ?? ColoresApp.enSuperficie(esOscuro);
 
     return GestureDetector(
       onTapDown: habilitado ? (_) => _ctrlEscala.forward() : null,
@@ -83,8 +88,9 @@ class _BotonAccionVidrioState extends State<BotonAccionVidrio>
       onTap: widget.onTap,
       child: AnimatedBuilder(
         animation: _escala,
-        builder: (context, child) =>
-            Transform.scale(scale: _escala.value, child: child),
+        builder:
+            (context, child) =>
+                Transform.scale(scale: _escala.value, child: child),
         child: Container(
           width: 48,
           height: 48,
@@ -92,27 +98,25 @@ class _BotonAccionVidrioState extends State<BotonAccionVidrio>
             shape: BoxShape.circle,
             color: habilitado ? colorFondo : colorFondo.withValues(alpha: 0.3),
             border: Border.all(
-              color: habilitado
-                  ? colorBorde
-                  : colorBorde.withValues(alpha: 0.3),
+              color:
+                  habilitado ? colorBorde : colorBorde.withValues(alpha: 0.3),
               width: 1.0,
             ),
-            boxShadow: widget.relleno
-                ? [
-                    BoxShadow(
-                      color: acento.withValues(alpha: 0.35),
-                      blurRadius: 20,
-                      spreadRadius: 1,
-                    ),
-                  ]
-                : null,
+            boxShadow:
+                widget.relleno
+                    ? [
+                      BoxShadow(
+                        color: acento.withValues(alpha: 0.35),
+                        blurRadius: 20,
+                        spreadRadius: 1,
+                      ),
+                    ]
+                    : null,
           ),
           child: Icon(
             widget.icono,
             size: 22,
-            color: habilitado
-                ? colorIcono
-                : colorIcono.withValues(alpha: 0.3),
+            color: habilitado ? colorIcono : colorIcono.withValues(alpha: 0.3),
           ),
         ),
       ),

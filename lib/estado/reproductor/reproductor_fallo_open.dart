@@ -18,6 +18,7 @@ mixin ReproductorFalloOpen on ReproductorReporte {
   /// tipo de error (verificación requerida / 429 / offline / genérico) y
   /// abre el modal de verificación del proveedor que la necesita.
   Future<void> _manejarFalloOpen(ItemFeed track) async {
+    final r = L10n.actual.reproductor;
     final raw = _ultimoErrorStream.trim();
     final rawLower = raw.toLowerCase();
     final necesitaVerificacion =
@@ -25,6 +26,9 @@ mixin ReproductorFalloOpen on ReproductorReporte {
         rawLower.contains('verify_required') ||
         rawLower.contains('verification required') ||
         rawLower.contains('verify required');
+    // Primero se decide el CÓDIGO del fallo; el texto para el aviso se arma
+    // desde ese código, así el estado no guarda frases armadas.
+    CodigoErrorReproductor? codigo;
     String? msg;
     if (necesitaVerificacion) {
       final servicio =
@@ -32,34 +36,29 @@ mixin ReproductorFalloOpen on ReproductorReporte {
               ? _ultimoServicioStream
               : (track.source ?? '');
       final nombre = ServicioVerificacion().nombreFuente(servicio);
-      msg =
-          nombre.isNotEmpty
-              ? 'Sesión de $nombre no verificada — completa la verificación '
-                  'para reproducir esta canción.'
-              : 'Sesión no verificada — completa la verificación para '
-                  'reproducir esta canción.';
+      codigo = CodigoErrorReproductor.sesionNoVerificada;
+      msg = nombre.isNotEmpty ? r.sesionDe(nombre) : r.sesionNoVerificada;
       // Refrescar ya la sesión del proveedor que la necesita (p.ej. amazon
       // alcanzado durante fallback).
       unawaited(_verificarServicioParaPlayback(servicio, nombre));
     } else if (raw.contains('429') ||
         rawLower.contains('rate limit') ||
         rawLower.contains('too many')) {
-      msg =
-          'Proveedor temporalmente saturado (429) — inténtalo de nuevo '
-          'en unos segundos.';
+      codigo = CodigoErrorReproductor.proveedorSaturado;
+      msg = r.proveedorSaturado;
     } else if (_ultimoTipoErrorStream.toLowerCase() == 'offline' ||
         rawLower.contains('sin conexión')) {
-      msg =
-          'Sin conexión a internet — descarga esta canción para '
-          'reproducirla sin red.';
+      codigo = CodigoErrorReproductor.sinConexion;
+      msg = r.sinConexion;
     } else if (raw.isNotEmpty) {
-      msg = 'No se pudo obtener un stream original para esta canción.';
+      codigo = CodigoErrorReproductor.sinStream;
+      msg = r.sinStream;
     }
-    if (msg != null) {
+    if (codigo != null && msg != null) {
       emit(
         state.copiarCon(
           estadoReproduccion: EstadoReproduccion.error,
-          mensajeError: msg,
+          codigoError: codigo,
         ),
       );
       if (!necesitaVerificacion) ServicioVerificacion().mostrarAviso(msg);

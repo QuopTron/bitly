@@ -55,7 +55,7 @@ Widget _conDeslizarCola(
       padding: EdgeInsets.only(left: r.spacingL),
       decoration: BoxDecoration(
         color: ColoresApp.verdeBrillante.withValues(alpha: 0.22),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(_radioCardTrack(context)),
       ),
       child: Icon(
         Icons.queue_music_rounded,

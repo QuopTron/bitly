@@ -75,10 +75,7 @@ class _OverlayCompartidoState extends State<OverlayCompartido>
     // Material transparente: sin fondo, sin sombra, pero con el
     // DefaultTextStyle del tema (si no, los textos salen con el
     // subrayado doble amarillo del estilo de aviso de MaterialApp).
-    return Material(
-      type: MaterialType.transparency,
-      child: _carta(context),
-    );
+    return Material(type: MaterialType.transparency, child: _carta(context));
   }
 
   /// El overlay en sí: fondo velado + carta animada.

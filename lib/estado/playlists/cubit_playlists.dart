@@ -37,10 +37,10 @@ class CubitPlaylists extends Cubit<EstadoPlaylists> {
   Future<void> cargarPlaylists() async {
     try {
       final dominios = await _servicioDominio.getPorUsuario();
-      emit(state.copiarCon(
-        playlists: dominios.map(_dominioAItem).toList(),
-      ));
-    } catch (e) { debugPrint("[App] $e"); }
+      emit(state.copiarCon(playlists: dominios.map(_dominioAItem).toList()));
+    } catch (e) {
+      debugPrint("[App] $e");
+    }
   }
 
   /// Carga las stats del usuario (conteos, nivel, progreso).
@@ -50,37 +50,36 @@ class CubitPlaylists extends Cubit<EstadoPlaylists> {
       if (stats != null) {
         emit(state.copiarCon(stats: stats));
       }
-    } catch (e) { debugPrint("[App] $e"); }
+    } catch (e) {
+      debugPrint("[App] $e");
+    }
   }
 
   /// Crea una playlist nueva. Devuelve su ID o null si falló.
-  Future<String?> crearPlaylist(String name, {String? coverPath}) async {
-    try {
-      final dominio = await _servicioDominio.crear(name, coverPath: coverPath);
-      if (dominio != null) {
-        await cargarPlaylists();
-        return dominio.id;
-      }
-    } catch (e) { debugPrint("[App] $e"); }
-    return null;
-  }
-
   /// Agrega un track a una playlist (recarga el detalle si es el actual).
   Future<void> agregarTrack(String playlistId, String trackId) async {
     try {
       await _servicioDominio.agregarTrack(playlistId, trackId);
-      if (state.detalleActual?.id == playlistId) await cargarDetalle(playlistId);
+      if (state.detalleActual?.id == playlistId) {
+        await cargarDetalle(playlistId);
+      }
       await cargarPlaylists();
-    } catch (e) { debugPrint("[App] $e"); }
+    } catch (e) {
+      debugPrint("[App] $e");
+    }
   }
 
   /// Quita un track de una playlist (recarga el detalle si es el actual).
   Future<void> quitarTrack(String playlistId, String trackId) async {
     try {
       await _servicioDominio.quitarTrack(playlistId, trackId);
-      if (state.detalleActual?.id == playlistId) await cargarDetalle(playlistId);
+      if (state.detalleActual?.id == playlistId) {
+        await cargarDetalle(playlistId);
+      }
       await cargarPlaylists();
-    } catch (e) { debugPrint("[App] $e"); }
+    } catch (e) {
+      debugPrint("[App] $e");
+    }
   }
 
   /// Carga el detalle completo (con tracks) de una playlist.
@@ -90,7 +89,9 @@ class CubitPlaylists extends Cubit<EstadoPlaylists> {
       if (detalle != null) {
         emit(state.copiarCon(detalleActual: detalle));
       }
-    } catch (e) { debugPrint("[App] $e"); }
+    } catch (e) {
+      debugPrint("[App] $e");
+    }
   }
 
   /// Actualiza la carátula local de una playlist.
@@ -98,21 +99,13 @@ class CubitPlaylists extends Cubit<EstadoPlaylists> {
     try {
       await _servicioDominio.actualizarCaratula(playlistId, coverPath);
       await cargarPlaylists();
-    } catch (e) { debugPrint("[App] $e"); }
+    } catch (e) {
+      debugPrint("[App] $e");
+    }
   }
 
   /// Borra una playlist y limpia el detalle si estaba abierto.
-  Future<void> borrarPlaylist(String playlistId) async {
-    try {
-      await _servicioDominio.borrar(playlistId);
-      emit(state.copiarCon(detalleActual: null));
-      await cargarPlaylists();
-    } catch (e) { debugPrint("[App] $e"); }
-  }
-
   /// Limpia el detalle actual de la UI.
-  void limpiarDetalle() => emit(state.copiarCon(detalleActual: null));
-
   /// Exporta la playlist actual (detalle cargado) como archivos.
   /// Pide el directorio de salida al usuario. null si no hay detalle.
   Future<ResultadoExportacionPlaylist?> exportarPlaylistActual({
@@ -129,14 +122,4 @@ class CubitPlaylists extends Cubit<EstadoPlaylists> {
   }
 
   /// Exporta una playlist específica por ID (carga el detalle primero).
-  Future<ResultadoExportacionPlaylist?> exportarPlaylistPorId(
-      String playlistId,
-      {String? initialDirectory}) async {
-    try {
-      await cargarDetalle(playlistId);
-      return exportarPlaylistActual(initialDirectory: initialDirectory);
-    } catch (_) {
-      return const ResultadoExportacionPlaylist(error: 'No se pudo cargar la playlist');
-    }
-  }
 }

@@ -71,7 +71,8 @@ class PerfilRendimiento {
   /// la app en un Helio G. Gama media móvil → 12 (barato y se ve bien).
   double get sigmaDesenfoque {
     if (!efectosPesados) return 0;
-    final movil = !kIsWeb &&
+    final movil =
+        !kIsWeb &&
         (defaultTargetPlatform == TargetPlatform.android ||
             defaultTargetPlatform == TargetPlatform.iOS);
     if (nivel == NivelRendimiento.medio) return movil ? 12 : 32;

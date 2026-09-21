@@ -12,7 +12,7 @@
 part of 'cubit_reproductor.dart';
 
 mixin ReproductorPreloadVecinos on ReproductorVideoFondo {
-/// Tope de vecinos a precargar según la calidad de red medida.
+  /// Tope de vecinos a precargar según la calidad de red medida.
   ///
   /// - **Excelente**: se respeta el valor del perfil, incluso en datos
   ///   móviles (la red sobra y el usuario gana fluidez).
@@ -38,6 +38,7 @@ mixin ReproductorPreloadVecinos on ReproductorVideoFondo {
         return 0;
     }
   }
+
   /// Pre-resuelve URLs de stream de tracks próximos y anteriores de la cola
   /// para que siguiente/anterior sea instantáneo. Con shuffle precarga
   /// candidatos aleatorios (solo WiFi); secuencial, vecinos en orden. El
@@ -128,7 +129,9 @@ mixin ReproductorPreloadVecinos on ReproductorVideoFondo {
     if (normId == claveActual) return;
     if (_resolveLocalUri(siguiente) != null) return; // ya local
     final cacheado = _cacheUrlStream[_claveCacheStream(normId)];
-    if (cacheado != null && cacheado.conRespaldo && !_urlStreamVieja(cacheado)) {
+    if (cacheado != null &&
+        cacheado.conRespaldo &&
+        !_urlStreamVieja(cacheado)) {
       return; // ya resuelto
     }
     _programarPrefetch(siguiente, conRespaldo: true);

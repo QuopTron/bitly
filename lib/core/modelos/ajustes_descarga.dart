@@ -70,7 +70,8 @@ class AjustesDescarga {
       letrasHabilitadas: letrasHabilitadas ?? this.letrasHabilitadas,
       fuenteLetras: fuenteLetras ?? this.fuenteLetras,
       descargaRapida: descargaRapida ?? this.descargaRapida,
-      ttlArchivosLocalesSegundos: ttlArchivosLocalesSegundos ?? this.ttlArchivosLocalesSegundos,
+      ttlArchivosLocalesSegundos:
+          ttlArchivosLocalesSegundos ?? this.ttlArchivosLocalesSegundos,
     );
   }
 

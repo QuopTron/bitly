@@ -14,7 +14,7 @@ part of 'cubit_reproductor.dart';
 
 mixin ReproductorPlayerErrores on ReproductorLocales {
   void _manejarErrorPlayer(String error) {
-// Mientras se recupera de un fallo de decode O se cambia de track,
+    // Mientras se recupera de un fallo de decode O se cambia de track,
     // ignorar errores residuales del media que se está deteniendo; si no,
     // un switch local↔stream rápido cuenta 3 errores y mata el track nuevo.
     if (_recuperando || _switchPendiente) return;
@@ -43,9 +43,7 @@ mixin ReproductorPlayerErrores on ReproductorLocales {
           // Serializado: stop encolado para no pisar un open en vuelo.
           unawaited(_enColaPlayer(() => _player.detener()));
           if (!isClosed) {
-            emit(
-              state.copiarCon(estadoReproduccion: EstadoReproduccion.error),
-            );
+            emit(state.copiarCon(estadoReproduccion: EstadoReproduccion.error));
           }
           return;
         }

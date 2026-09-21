@@ -40,11 +40,15 @@ class _ProfileStatsViewState extends State<_ProfileStatsView> {
     try {
       final stats = await sl<ReproduccionCache>().getStatsPerfil();
       if (mounted) _stats = stats;
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[Stats] no se pudo leer el perfil de escucha: $e');
+    }
     try {
       final top = await sl<ReproduccionStats>().getTopTracksConNombres(5);
       if (mounted) _topTracks = top;
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[Stats] no se pudieron leer los temas más escuchados: $e');
+    }
     // Load trial remaining time for free users
     try {
       final setup = await sl<CacheAjustes>().cargarDatosSetup();
@@ -59,11 +63,20 @@ class _ProfileStatsViewState extends State<_ProfileStatsView> {
           } else {
             final h = diff.inHours;
             final m = (diff.inMinutes % 60);
-            if (mounted) _trialRemaining = '${h}h ${m}m restantes';
+            if (mounted) {
+              final loc = AppLocalizations.of(context);
+              _trialRemaining = loc.ajustes.trialRestante(
+                h,
+                m,
+                en: loc.locale.languageCode == 'en',
+              );
+            }
           }
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[Stats] no se pudo leer el restante de la prueba: $e');
+    }
     if (mounted) setState(() => _loading = false);
   }
 

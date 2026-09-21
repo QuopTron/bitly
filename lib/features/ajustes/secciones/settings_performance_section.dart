@@ -25,13 +25,19 @@ class SettingsPerformanceSection extends StatefulWidget {
   final Color onBg;
   final Color glowColor;
 
-  const SettingsPerformanceSection({super.key, required this.onBg, required this.glowColor});
+  const SettingsPerformanceSection({
+    super.key,
+    required this.onBg,
+    required this.glowColor,
+  });
 
   @override
-  State<SettingsPerformanceSection> createState() => _SettingsPerformanceSectionState();
+  State<SettingsPerformanceSection> createState() =>
+      _SettingsPerformanceSectionState();
 }
 
-class _SettingsPerformanceSectionState extends State<SettingsPerformanceSection> {
+class _SettingsPerformanceSectionState
+    extends State<SettingsPerformanceSection> {
   NivelRendimiento _nivel = NivelRendimiento.medio;
 
   @override
@@ -80,33 +86,67 @@ class _SettingsPerformanceSectionState extends State<SettingsPerformanceSection>
     final r = Responsive(context);
     final loc = AppLocalizations.of(context);
     final perfiles = [
-      (NivelRendimiento.bajo, loc.setup.perfLow, loc.setup.perfLowDesc, Icons.battery_1_bar),
-      (NivelRendimiento.medio, loc.setup.perfMedium, loc.setup.perfMediumDesc, Icons.balance),
-      (NivelRendimiento.alto, loc.setup.perfHigh, loc.setup.perfHighDesc, Icons.rocket_launch),
+      (
+        NivelRendimiento.bajo,
+        loc.setup.perfLow,
+        loc.setup.perfLowDesc,
+        Icons.battery_1_bar,
+      ),
+      (
+        NivelRendimiento.medio,
+        loc.setup.perfMedium,
+        loc.setup.perfMediumDesc,
+        Icons.balance,
+      ),
+      (
+        NivelRendimiento.alto,
+        loc.setup.perfHigh,
+        loc.setup.perfHighDesc,
+        Icons.rocket_launch,
+      ),
     ];
 
     return ContenedorVidrio(
-      borderRadius: 16, borderColor: widget.onBg.withValues(alpha: 0.08),
+      borderRadius: 16,
+      borderColor: widget.onBg.withValues(alpha: 0.08),
       bgColor: widget.onBg.withValues(alpha: 0.03),
       margin: EdgeInsets.symmetric(horizontal: r.spacingM),
       padding: EdgeInsets.all(r.spacingM),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(loc.setup.performanceProfile,
-          style: TextStyle(fontSize: r.subtitleSize + 1, fontWeight: FontWeight.w600, color: widget.onBg)),
-        SizedBox(height: r.spacingM),
-        ...perfiles.map((p) => Padding(
-          padding: EdgeInsets.only(bottom: r.spacingS),
-          child: _opcion(p.$1, p.$2, p.$3, p.$4, r),
-        )),
-        SizedBox(height: r.spacingS),
-        AudioSegundoPlanoRow(onBg: widget.onBg, glowColor: widget.glowColor),
-      ]),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            loc.setup.performanceProfile,
+            style: TextStyle(
+              fontSize: r.subtitleSize + 1,
+              fontWeight: FontWeight.w600,
+              color: widget.onBg,
+            ),
+          ),
+          SizedBox(height: r.spacingM),
+          ...perfiles.map(
+            (p) => Padding(
+              padding: EdgeInsets.only(bottom: r.spacingS),
+              child: _opcion(p.$1, p.$2, p.$3, p.$4, r),
+            ),
+          ),
+          SizedBox(height: r.spacingS),
+          AudioSegundoPlanoRow(onBg: widget.onBg, glowColor: widget.glowColor),
+        ],
+      ),
     );
   }
 
-  Widget _opcion(NivelRendimiento nivel, String label, String desc, IconData icon, Responsive r) {
+  Widget _opcion(
+    NivelRendimiento nivel,
+    String label,
+    String desc,
+    IconData icon,
+    Responsive r,
+  ) {
     final seleccionado = _nivel == nivel;
-    final color = seleccionado ? widget.glowColor : widget.onBg.withValues(alpha: 0.5);
+    final color =
+        seleccionado ? widget.glowColor : widget.onBg.withValues(alpha: 0.5);
     return InkWell(
       key: ValueKey('perf_${nivel.clave}'),
       onTap: () => _aplicar(nivel),
@@ -115,19 +155,52 @@ class _SettingsPerformanceSectionState extends State<SettingsPerformanceSection>
         padding: EdgeInsets.all(r.spacingS),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: seleccionado ? widget.glowColor.withValues(alpha: 0.6) : widget.onBg.withValues(alpha: 0.1)),
-          color: seleccionado ? widget.glowColor.withValues(alpha: 0.1) : Colors.transparent,
+          border: Border.all(
+            color:
+                seleccionado
+                    ? widget.glowColor.withValues(alpha: 0.6)
+                    : widget.onBg.withValues(alpha: 0.1),
+          ),
+          color:
+              seleccionado
+                  ? widget.glowColor.withValues(alpha: 0.1)
+                  : Colors.transparent,
         ),
-        child: Row(children: [
-          Icon(icon, size: r.subtitleSize + 4, color: color),
-          SizedBox(width: r.spacingS),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(label, style: TextStyle(fontSize: r.subtitleSize + 1, fontWeight: FontWeight.w600, color: widget.onBg)),
-            SizedBox(height: 2),
-            Text(desc, style: TextStyle(fontSize: r.footerSize - 2, color: widget.onBg.withValues(alpha: 0.5))),
-          ])),
-          if (seleccionado) Icon(Icons.check_circle, size: r.subtitleSize, color: widget.glowColor),
-        ]),
+        child: Row(
+          children: [
+            Icon(icon, size: r.subtitleSize + 4, color: color),
+            SizedBox(width: r.spacingS),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: r.subtitleSize + 1,
+                      fontWeight: FontWeight.w600,
+                      color: widget.onBg,
+                    ),
+                  ),
+                  SizedBox(height: 2),
+                  Text(
+                    desc,
+                    style: TextStyle(
+                      fontSize: r.footerSize - 2,
+                      color: widget.onBg.withValues(alpha: 0.5),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (seleccionado)
+              Icon(
+                Icons.check_circle,
+                size: r.subtitleSize,
+                color: widget.glowColor,
+              ),
+          ],
+        ),
       ),
     );
   }

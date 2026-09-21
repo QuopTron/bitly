@@ -17,6 +17,7 @@
 
 import 'package:flutter/material.dart';
 
+import '../../../../l10n/app_localizations.dart';
 import '../../../utilidades/plataforma/deteccion_plataforma.dart';
 import 'panel_verificacion_web.dart';
 
@@ -40,5 +41,12 @@ class DialogoVerificacion extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) => _construirDialogo(context, nombreMostrado, urlAuth, alObtenerGrant, alCancelar, alUsarNavegador);
+  Widget build(BuildContext context) => _construirDialogo(
+    context,
+    nombreMostrado,
+    urlAuth,
+    alObtenerGrant,
+    alCancelar,
+    alUsarNavegador,
+  );
 }

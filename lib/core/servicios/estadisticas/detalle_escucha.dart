@@ -37,15 +37,14 @@ class DetalleEscucha {
     if (agregados.isEmpty) return const [];
 
     final nombres = await _historial.getLatestNames();
-    final minutos = tipo == TipoEscucha.canciones ? await _minutosPorItem() : {};
+    final minutos =
+        tipo == TipoEscucha.canciones ? await _minutosPorItem() : {};
 
     return agregados.map((a) {
       final datos = nombres[a.itemId];
       return FilaEscucha(
         id: a.itemId,
-        nombre: (datos?.name ?? '').trim().isEmpty
-            ? a.itemId
-            : datos!.name,
+        nombre: (datos?.name ?? '').trim().isEmpty ? a.itemId : datos!.name,
         artista: datos?.artist ?? '',
         reproducciones: a.playCount ?? 0,
         minutos: minutos[a.itemId] ?? 0,

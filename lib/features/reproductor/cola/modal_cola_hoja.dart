@@ -8,9 +8,7 @@
 // Parte del flujo: reproductor (modal de cola, hoja).
 // ─────────────────────────────────────────────────────────────
 
-
 part of 'modal_cola.dart';
-
 
 class _HojaCola extends StatelessWidget {
   final bool mostrarVideo;
@@ -25,9 +23,8 @@ class _HojaCola extends StatelessWidget {
     final basePanel =
         esOscuro ? const Color(0xFF141414) : const Color(0xFFF6F6F6);
     final fg = mejorNeutro(basePanel);
-    final colorBrillo = esOscuro
-        ? ColoresApp.verdeBrillante
-        : ColoresApp.verdeMedio;
+    final colorBrillo =
+        esOscuro ? ColoresApp.verdeBrillante : ColoresApp.verdeMedio;
 
     return BlocBuilder<CubitCola, EstadoCola>(
       builder: (context, cola) {
@@ -40,25 +37,24 @@ class _HojaCola extends StatelessWidget {
           height: altoHoja,
           decoration: BoxDecoration(
             color: basePanel,
-            borderRadius:
-                const BorderRadius.vertical(top: Radius.circular(26)),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
           ),
           clipBehavior: Clip.antiAlias,
           child: Stack(
             children: [
               // ── Fondo: video en vivo O carátula desenfocada ───────
               Positioned.fill(
-                child: mostrarVideo && videoController != null
-                    ? TexturaVideoFondo(controller: videoController!)
-                    : _fondoCaratulaCola(caratula, esOscuro),
+                child:
+                    mostrarVideo && videoController != null
+                        ? TexturaVideoFondo(controller: videoController!)
+                        : _fondoCaratulaCola(caratula, esOscuro),
               ),
-              // Velo de tema: filas legibles sobre cualquier arte.
-              Positioned.fill(
-                child: _VeloColaEstilo(
-                  esOscuro: esOscuro,
-                  caratula: caratula,
+              // Velo de tema SOLO sobre el video: el fondo de carátula ya
+              // trae el suyo dentro del widget compartido.
+              if (mostrarVideo && videoController != null)
+                Positioned.fill(
+                  child: _VeloColaEstilo(esOscuro: esOscuro, caratula: null),
                 ),
-              ),
               Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -69,9 +65,10 @@ class _HojaCola extends StatelessWidget {
                   Divider(height: 1, color: fg.withValues(alpha: 0.12)),
                   // ── Lista de tracks ──────────────────────────────────
                   Flexible(
-                    child: cola.tracks.isEmpty
-                        ? _estadoVacioCola(r, colorBrillo, fg)
-                        : _listaCola(context, r, cola, fg, colorBrillo),
+                    child:
+                        cola.tracks.isEmpty
+                            ? _estadoVacioCola(context, r, colorBrillo, fg)
+                            : _listaCola(context, r, cola, fg, colorBrillo),
                   ),
                 ],
               ),
@@ -91,7 +88,9 @@ class _HojaCola extends StatelessWidget {
       if (cola.tracks.isNotEmpty) {
         return cola.tracks.first.coverUrl;
       }
-    } catch (e) { debugPrint("[Feature] $e"); }
+    } catch (e) {
+      debugPrint("[Feature] $e");
+    }
     return null;
   }
 }

@@ -43,11 +43,13 @@ mixin LikeCarga on AccionesLike {
       }
     }
 
-    emit(state.copiarCon(
-      huellasAmadas: huellas,
-      todosAmados: items,
-      cargando: false,
-    ));
+    emit(
+      state.copiarCon(
+        huellasAmadas: huellas,
+        todosAmados: items,
+        cargando: false,
+      ),
+    );
   }
 
   Future<void> _cargarTracks(Map<String, DatosItemAmado> items) async {

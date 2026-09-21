@@ -57,11 +57,7 @@ Widget _portadaCuadrada(
   final reserva = ColoredBox(
     color: cs.surfaceContainerHighest,
     child: Center(
-      child: Icon(
-        _iconoTipo(w),
-        size: lado * 0.4,
-        color: cs.onSurfaceVariant,
-      ),
+      child: Icon(_iconoTipo(w), size: lado * 0.4, color: cs.onSurfaceVariant),
     ),
   );
   return ClipRRect(
@@ -69,18 +65,19 @@ Widget _portadaCuadrada(
     child: SizedBox(
       width: lado,
       height: lado,
-      child: (cover != null && cover.isNotEmpty)
-          // Ancho/alto acotan el decode al tamaño real de la carta (menos
-          // RAM) y ante un error se cae a la reserva, no a una caja vacía.
-          ? ImagenPortada(
-              coverUrl: cover,
-              ancho: lado,
-              alto: lado,
-              radioBorde: radio,
-              fondoFallback: cs.surfaceContainerHighest,
-              fallback: reserva,
-            )
-          : reserva,
+      child:
+          (cover != null && cover.isNotEmpty)
+              // Ancho/alto acotan el decode al tamaño real de la carta (menos
+              // RAM) y ante un error se cae a la reserva, no a una caja vacía.
+              ? ImagenPortada(
+                coverUrl: cover,
+                ancho: lado,
+                alto: lado,
+                radioBorde: radio,
+                fondoFallback: cs.surfaceContainerHighest,
+                fallback: reserva,
+              )
+              : reserva,
     ),
   );
 }

@@ -47,11 +47,9 @@ void abrirDetalleAlbum(
   Navigator.push(
     context,
     RutaDesvanecerSubir(
-      pagina: _envolverDetalle(AlbumDetallePagina(
-        albumId: id,
-        source: fuente,
-        coverUrl: coverUrl,
-      )),
+      pagina: _envolverDetalle(
+        AlbumDetallePagina(albumId: id, source: fuente, coverUrl: coverUrl),
+      ),
     ),
   );
 }
@@ -67,12 +65,14 @@ void abrirDetallePlaylist(
   Navigator.push(
     context,
     RutaDesvanecerSubir(
-      pagina: _envolverDetalle(PlaylistDetallePagina(
-        collectionId: id,
-        playlistName: nombre,
-        source: fuente,
-        coverUrl: coverUrl,
-      )),
+      pagina: _envolverDetalle(
+        PlaylistDetallePagina(
+          collectionId: id,
+          playlistName: nombre,
+          source: fuente,
+          coverUrl: coverUrl,
+        ),
+      ),
     ),
   );
 }
@@ -87,11 +87,13 @@ void abrirDetalleArtista(
   Navigator.push(
     context,
     RutaDesvanecerSubir(
-      pagina: _envolverDetalle(ArtistaDetallePagina(
-        artistId: id,
-        artistName: nombre,
-        source: fuente ?? '',
-      )),
+      pagina: _envolverDetalle(
+        ArtistaDetallePagina(
+          artistId: id,
+          artistName: nombre,
+          source: fuente ?? '',
+        ),
+      ),
     ),
   );
 }

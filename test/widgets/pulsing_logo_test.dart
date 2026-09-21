@@ -8,13 +8,14 @@ void main() {
     Widget buildTest({required double pulseValue, required bool isDark}) {
       return MaterialApp(
         home: Builder(
-          builder: (context) => Scaffold(
-            body: LogoPulsante(
-              pulse: AlwaysStoppedAnimation(pulseValue),
-              r: Responsive(context),
-              isDark: isDark,
-            ),
-          ),
+          builder:
+              (context) => Scaffold(
+                body: LogoPulsante(
+                  pulse: AlwaysStoppedAnimation(pulseValue),
+                  r: Responsive(context),
+                  isDark: isDark,
+                ),
+              ),
         ),
       );
     }
@@ -47,4 +48,3 @@ void main() {
     });
   });
 }
-

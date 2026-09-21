@@ -52,7 +52,13 @@ Future<void> _intentarBusqueda(
     if (gen == 0) {
       // Streaming realmente no disponible — cae a búsqueda no-streaming.
       await _terminarBusqueda(
-          bloc, event.query, event.fuente, event.tipo, event.limite, emit);
+        bloc,
+        event.query,
+        event.fuente,
+        event.tipo,
+        event.limite,
+        emit,
+      );
       return;
     }
 
@@ -74,11 +80,13 @@ Future<void> _intentarBusqueda(
           // Oculta el spinner apenas llega el PRIMER lote de resultados — no
           // espera a que todos los proveedores terminen. Hace la búsqueda
           // sentir instantánea mientras el resto sigue llegando en background.
-          emit(bloc.state.copiarCon(
-            resultados: poll.items,
-            cargando: false,
-            haBuscado: true,
-          ));
+          emit(
+            bloc.state.copiarCon(
+              resultados: poll.items,
+              cargando: false,
+              haBuscado: true,
+            ),
+          );
         }
 
         if (poll.done) {
@@ -94,21 +102,29 @@ Future<void> _intentarBusqueda(
               fuenteUnica &&
               elapsedMs < 3500 &&
               !bloc.isClosed) {
-            _log.i('[busqueda] Primer resultado vacío rápido para '
-                '${event.fuente} (${elapsedMs}ms) — reintentando');
+            _log.i(
+              '[busqueda] Primer resultado vacío rápido para '
+              '${event.fuente} (${elapsedMs}ms) — reintentando',
+            );
             await Future<void>.delayed(const Duration(milliseconds: 350));
             if (bloc.isClosed) return;
-            await _intentarBusqueda(bloc, event, emit, permitirReintento: false);
+            await _intentarBusqueda(
+              bloc,
+              event,
+              emit,
+              permitirReintento: false,
+            );
             return;
           }
           await _cachearYFinalizar(
-              bloc,
-              event.query,
-              event.fuente,
-              event.tipo,
-              event.limite,
-              poll.items,
-              emit);
+            bloc,
+            event.query,
+            event.fuente,
+            event.tipo,
+            event.limite,
+            poll.items,
+            emit,
+          );
           return;
         }
       } catch (_) {
@@ -116,13 +132,18 @@ Future<void> _intentarBusqueda(
       }
     }
 
-    if (!backendTermino && ultimosItems.isEmpty && permitirReintento && !bloc.isClosed) {
+    if (!backendTermino &&
+        ultimosItems.isEmpty &&
+        permitirReintento &&
+        !bloc.isClosed) {
       // Ventana expirada con NADA y el backend nunca dijo done: el primer
       // intento compitió por congestión (o el backend solo necesitaba
       // calentar). Reintenta desde cero — para entonces la cola del puente ya
       // drenó y este intento termina a velocidad normal.
-      _log.i('[busqueda] Ventana expirada sin resultados para '
-          '${event.fuente} — reintentando');
+      _log.i(
+        '[busqueda] Ventana expirada sin resultados para '
+        '${event.fuente} — reintentando',
+      );
       await _intentarBusqueda(bloc, event, emit, permitirReintento: false);
       return;
     }
@@ -131,15 +152,20 @@ Future<void> _intentarBusqueda(
     // (proveedor lento). Muestra lo que llegó. Un timeout NO es un "sin
     // resultados" real: no cachear el parcial como final (haría que el
     // próximo intento devuelva al instante con nada).
-    emit(bloc.state.copiarCon(
-      resultados: ultimosItems,
-      cargando: false,
-      haBuscado: true,
-    ));
+    emit(
+      bloc.state.copiarCon(
+        resultados: ultimosItems,
+        cargando: false,
+        haBuscado: true,
+      ),
+    );
   } catch (e) {
-    emit(bloc.state.copiarCon(
-      cargando: false,
-      error: e.toString(),
-    ));
+    emit(
+      bloc.state.copiarCon(
+        cargando: false,
+        error: ErrorBusqueda.fallo,
+        fuenteError: event.fuente,
+      ),
+    );
   }
 }

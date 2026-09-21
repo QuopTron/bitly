@@ -48,7 +48,4 @@ class TutorialPaso {
     required this.descripcion,
     this.icono,
   });
-
-  /// Si el paso se explica dentro de la hoja de ajustes.
-  bool get enAjustes => pestanaAjustes != null;
 }

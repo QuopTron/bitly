@@ -32,21 +32,18 @@ class IniciarSyncSoulseek extends EventoSetup {
 /// corregir el usuario ANTES de seguir: si no, llegaría al final del setup con
 /// una cuenta que no existe y sin saber por qué. Cualquier otro fallo —sin
 /// internet, servidor lleno— no bloquea nada.
+///
+/// No lleva texto: el aviso lo arma la UI con l10n a partir de [motivo].
 class SoulseekSyncCompletada extends EventoSetup {
   final bool ok;
-  final String mensaje;
   final String motivo;
 
-  const SoulseekSyncCompletada({
-    required this.ok,
-    this.mensaje = '',
-    this.motivo = '',
-  });
+  const SoulseekSyncCompletada({required this.ok, this.motivo = ''});
 
   /// El usuario puede resolverlo eligiendo otro nombre.
   bool get problemaDeNombre =>
       motivo == 'nombre_tomado' || motivo == 'nombre_invalido';
 
   @override
-  List<Object?> get props => [ok, mensaje, motivo];
+  List<Object?> get props => [ok, motivo];
 }

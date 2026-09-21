@@ -12,7 +12,6 @@ import "package:flutter/foundation.dart";
 import 'dart:async';
 import 'dart:io';
 
-
 import 'package:flutter/services.dart';
 
 import '../../servicios/compartir/datos_compartido.dart';
@@ -58,7 +57,9 @@ class ServicioDeepLink {
           _linkPendiente = datos;
         }
       }
-    } catch (e) { debugPrint("[App] $e"); }
+    } catch (e) {
+      debugPrint("[App] $e");
+    }
   }
 
   /// Guarda un enlace para cuando la raíz de la app lo consuma (lo usa el
@@ -110,12 +111,7 @@ class ServicioDeepLink {
       // app lo resuelve contra Go en vez de buscar por nombre.
       final enlace = uri.queryParameters['url'] ?? '';
       if (id.isEmpty && query.isEmpty && enlace.isEmpty) return null;
-      return DatosDeepLink(
-        type: type,
-        id: id,
-        query: query,
-        url: enlace,
-      );
+      return DatosDeepLink(type: type, id: id, query: query, url: enlace);
     } catch (_) {
       return null;
     }

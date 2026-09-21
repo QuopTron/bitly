@@ -11,12 +11,22 @@
 /// extensión puede ser la carátula o un sidecar de letras: nunca reemplaza
 /// al audio de una fila del historial.
 const Set<String> extensionesAudioDescarga = {
-  '.flac', '.mp3', '.m4a', '.aac', '.opus', '.ogg', '.wav', '.mp4',
+  '.flac',
+  '.mp3',
+  '.m4a',
+  '.aac',
+  '.opus',
+  '.ogg',
+  '.wav',
+  '.mp4',
 };
 
 /// Extensiones de imagen que se aceptan como carátula reubicada.
 const Set<String> extensionesImagenDescarga = {
-  '.jpg', '.jpeg', '.png', '.webp',
+  '.jpg',
+  '.jpeg',
+  '.png',
+  '.webp',
 };
 
 /// Nombre final de una ruta ("/a/b/c.flac" → "c.flac"). Acepta `/` y `\`.
@@ -113,7 +123,8 @@ class ArchivosEnCarpeta {
     // Si la carátula estaba DENTRO de la carpeta de descargas (y no en la
     // caché de carátulas de la app), se rescata el cover de la carpeta nueva.
     final carpetaVieja = carpetaDeRuta(rutaAudioVieja);
-    if (carpetaVieja.isEmpty || carpetaDeRuta(rutaCaratulaVieja) != carpetaVieja) {
+    if (carpetaVieja.isEmpty ||
+        carpetaDeRuta(rutaCaratulaVieja) != carpetaVieja) {
       return '';
     }
     final talloAudio = talloDe(nombreDeRuta(rutaAudioVieja).toLowerCase());

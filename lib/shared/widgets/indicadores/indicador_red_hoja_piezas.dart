@@ -11,15 +11,15 @@ part of 'indicador_red.dart';
 
 /// Manija superior de la hoja.
 Widget manijaHojaRed(Responsive r, Color onBg) => Center(
-      child: Container(
-        width: r.val(36, 28, 46),
-        height: 4,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(4),
-          color: onBg.withValues(alpha: 0.18),
-        ),
-      ),
-    );
+  child: Container(
+    width: r.val(36, 28, 46),
+    height: 4,
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(4),
+      color: onBg.withValues(alpha: 0.18),
+    ),
+  ),
+);
 
 /// Fila etiqueta/valor de la hoja.
 Widget filaDatoHojaRed({

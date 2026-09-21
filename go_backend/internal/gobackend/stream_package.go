@@ -15,9 +15,12 @@ type streamPackageParams struct {
 	FetchLyrics       string `json:"fetchLyrics"`
 	TrackName         string `json:"trackName"`
 	ArtistName        string `json:"artistName"`
-	ISRC              string `json:"isrc"`
-	DurationMS        int    `json:"durationMs"`
-	AllowFallback     bool   `json:"allowFallback"`
+	// AlbumName desempata versiones de la misma canción que viven en discos
+	// distintos (original vs. recopilatorio vs. "remix album").
+	AlbumName     string `json:"album"`
+	ISRC          string `json:"isrc"`
+	DurationMS    int    `json:"durationMs"`
+	AllowFallback bool   `json:"allowFallback"`
 	// Cross-provider ids from detail views (album/artist/playlist). Detail
 	// Canciones carry estos so cualquier extension puede resolve immediately mediante
 	// CheckAvailability instead of a slow name search.
@@ -52,7 +55,7 @@ func GetStreamPackage(payload string) string {
 		return streamPackageFallback(&params)
 	}
 
-	pkg, err := streaming.GetStreamPackage(reg, lyricsClient, params.PreferredProvider, params.TrackID, params.Quality, fetchL, params.TrackName, params.ArtistName, params.ISRC, params.SpotifyID, params.DeezerID, params.TidalID, params.QobuzID)
+	pkg, err := streaming.GetStreamPackage(reg, lyricsClient, params.PreferredProvider, params.TrackID, params.Quality, fetchL, params.TrackName, params.ArtistName, params.AlbumName, params.ISRC, params.SpotifyID, params.DeezerID, params.TidalID, params.QobuzID, params.DurationMS)
 	if err != nil && !params.AllowFallback {
 		// Background preloads (feed/queue prefetch) skip the download fallback
 		// so they don't trigger full audio downloads for every non-streamable

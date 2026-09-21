@@ -95,9 +95,10 @@ Widget _botonAviso(
       ),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(10),
-        color: a.destacada
-            ? t.acento.withValues(alpha: 0.16)
-            : onBg.withValues(alpha: 0.06),
+        color:
+            a.destacada
+                ? t.acento.withValues(alpha: 0.16)
+                : onBg.withValues(alpha: 0.06),
       ),
       child: Text(
         a.texto,

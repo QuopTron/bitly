@@ -14,7 +14,8 @@ func GetStreamPackage(
 	reg *provider.Registry,
 	lyricsClient *lyrics.Client,
 	preferredProvider, trackID, quality string,
-	fetchLyrics bool, trackName, artistName, isrc, spotifyID, deezerID, tidalID, qobuzID string,
+	fetchLyrics bool, trackName, artistName, albumName, isrc, spotifyID, deezerID, tidalID, qobuzID string,
+	durationMs int,
 ) (*StreamPackage, error) {
 	if reg == nil {
 		return nil, fmt.Errorf("no inicializado")
@@ -39,6 +40,39 @@ func GetStreamPackage(
 			artistName = track.Artist
 		}
 	}
+	// Identidad para el RESCATE: la del proveedor cuando la metadata llegó a
+	// tiempo y, si no, la del propio PEDIDO. La metadata se acota por presupuesto
+	// (ver play_metadata_limite.go) y puede volver vacía sin que eso signifique
+	// "sin identidad": la UI ya manda el ISRC/los ids. Sin este fallback, una
+	// extensión lenta se llevaba por delante la fase exacta por ISRC y el rescate
+	// FLAC. `track` queda intacto a propósito: más abajo es lo que llena pkg.Track
+	// con los datos ricos (portada, álbum) del proveedor ganador.
+	trackIdentidad := track
+	if trackIdentidad == nil && (isrc != "" || spotifyID != "" || deezerID != "" || tidalID != "" || qobuzID != "") {
+		trackIdentidad = &provider.TrackResult{
+			ID:        quitarPrefijoConocido(trackID),
+			Title:     trackName,
+			Artist:    artistName,
+			Album:     albumName,
+			ISRC:      isrc,
+			SpotifyID: spotifyID,
+			DeezerID:  deezerID,
+			TidalID:   tidalID,
+			QobuzID:   qobuzID,
+			Provider:  preferredProvider,
+			Duration:  durationMs,
+		}
+	}
+	// El álbum del pedido también sirve cuando la metadata SÍ llegó pero el
+	// proveedor no lo expone: el ranking por nombre prefiere la toma del disco
+	// pedido en vez de la de un recopilatorio. Se copia la estructura a propósito
+	// —`track` es el objeto cacheado y lo que llena pkg.Track: mutarlo acá
+	// ensuciaría la metadata que ve la UI.
+	if trackIdentidad != nil && trackIdentidad.Album == "" && albumName != "" {
+		copia := *trackIdentidad
+		copia.Album = albumName
+		trackIdentidad = &copia
+	}
 
 	streamURL := ""
 	streamProvider := ""
@@ -54,7 +88,7 @@ func GetStreamPackage(
 	}
 
 	if streamURL == "" {
-		url, prov, attempted, verified := rescueStream(reg, track, trackName, artistName, quality)
+		url, prov, attempted, verified := rescueStream(reg, trackIdentidad, trackName, artistName, quality)
 		if url != "" {
 			streamURL = url
 			streamProvider = prov

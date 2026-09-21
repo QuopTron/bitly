@@ -58,8 +58,8 @@ class InputUsuarioNombre extends StatelessWidget {
               ),
               style: TextStyle(color: onBg, fontSize: r.subtitleSize),
               textCapitalization: TextCapitalization.words,
-              onChanged: (val) =>
-                  context.read<SetupBloc>().add(UsuarioCambiado(val)),
+              onChanged:
+                  (val) => context.read<SetupBloc>().add(UsuarioCambiado(val)),
             ),
           ),
           _dado(context),
@@ -70,7 +70,8 @@ class InputUsuarioNombre extends StatelessWidget {
 
   Widget _dado(BuildContext context) {
     return GestureDetector(
-      onTap: () => context.read<SetupBloc>().add(const GenerarNombreAleatorio()),
+      onTap:
+          () => context.read<SetupBloc>().add(const GenerarNombreAleatorio()),
       child: Container(
         margin: const EdgeInsets.all(4),
         padding: EdgeInsets.all(r.spacingS),

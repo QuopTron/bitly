@@ -24,7 +24,8 @@ mixin ReproductorVideoFondo on ReproductorVideoDescarga {
       }
     }
     if (track.name.isNotEmpty && (track.artists ?? '').isNotEmpty) {
-      final stem = '${_sanitizarNombre(track.artists!)} - '
+      final stem =
+          '${_sanitizarNombre(track.artists!)} - '
           '${_sanitizarNombre(track.name)}';
       for (final ext in extsVideo) {
         final ruta = '$_rutaDescargas\\$stem.$ext';
@@ -74,9 +75,10 @@ mixin ReproductorVideoFondo on ReproductorVideoDescarga {
         'tidal_id': track.tidalId ?? '',
         'qobuz_id': track.qobuzId ?? '',
       };
-      final res = await di.sl<BackendService>().rpcCall('resolveVisualizerUrl', {
-        'request': jsonEncode(estrategia),
-      });
+      final res = await di.sl<BackendService>().rpcCall(
+        'resolveVisualizerUrl',
+        {'request': jsonEncode(estrategia)},
+      );
       final data = _decodeRpcResult(res);
       final url = (data?['url'] ?? '').toString();
       if (url.isEmpty) return null;
@@ -92,7 +94,9 @@ mixin ReproductorVideoFondo on ReproductorVideoDescarga {
         if (!await File(fp).exists()) {
           unawaited(_downloadUrlAArchivo(url, fp));
         }
-      } catch (e) { debugPrint("[App] $e"); }
+      } catch (e) {
+        debugPrint("[App] $e");
+      }
       return url;
     } catch (_) {
       return null;

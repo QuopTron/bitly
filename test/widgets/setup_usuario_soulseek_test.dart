@@ -32,14 +32,15 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: Builder(
-            builder: (context) => CampoUsuario(
-              state: EstadoSetup(usuario: usuario),
-              loc: idioma ?? loc,
-              r: Responsive(context),
-              onBg: Colors.white,
-              glowColor: Colors.green,
-              controller: TextEditingController(text: usuario),
-            ),
+            builder:
+                (context) => CampoUsuario(
+                  state: EstadoSetup(usuario: usuario),
+                  loc: idioma ?? loc,
+                  r: Responsive(context),
+                  onBg: Colors.white,
+                  glowColor: Colors.green,
+                  controller: TextEditingController(text: usuario),
+                ),
           ),
         ),
       ),
@@ -67,9 +68,7 @@ void main() {
       await montar(tester, const Size(360, 640), idioma: en);
 
       expect(
-        find.text(
-          'Continuing creates your Soulseek account with this name',
-        ),
+        find.text('Continuing creates your Soulseek account with this name'),
         findsOneWidget,
       );
     });
@@ -82,9 +81,7 @@ void main() {
       await montar(tester, const Size(430, 932));
     });
 
-    testWidgets('no se desborda en pantalla grande (1440x900)', (
-      tester,
-    ) async {
+    testWidgets('no se desborda en pantalla grande (1440x900)', (tester) async {
       await montar(tester, const Size(1440, 900));
     });
 

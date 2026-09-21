@@ -31,9 +31,9 @@ class ReproduccionDetalleLocal
   final CollectionsDao _colecciones;
 
   ReproduccionDetalleLocal(AppDatabase db)
-      : _contenido = ContentDao(db),
-        _historial = PlayHistoryDao(db),
-        _colecciones = CollectionsDao(db);
+    : _contenido = ContentDao(db),
+      _historial = PlayHistoryDao(db),
+      _colecciones = CollectionsDao(db);
 
   // ── Artista (ver reproduccion_detalle_artista_local.dart) ──
 
@@ -47,18 +47,23 @@ class ReproduccionDetalleLocal
     final tracksAlbum = await _contenido.getTracksByAlbum(albumId);
     final artista = await _contenido.getArtist(album.artistId);
 
-    final tracks = tracksAlbum.map((t) => TrackDetalle(
-      trackId: t.id,
-      name: t.name,
-      durationMs: t.durationMs ?? 0,
-      trackNumber: t.trackNumber ?? 0,
-      isrc: t.isrc ?? '',
-      coverUrl: t.coverUrl,
-      coverPath: t.coverPath,
-      artistName: artista?.name,
-      albumName: album.name,
-      provider: t.source,
-    )).toList();
+    final tracks =
+        tracksAlbum
+            .map(
+              (t) => TrackDetalle(
+                trackId: t.id,
+                name: t.name,
+                durationMs: t.durationMs ?? 0,
+                trackNumber: t.trackNumber ?? 0,
+                isrc: t.isrc ?? '',
+                coverUrl: t.coverUrl,
+                coverPath: t.coverPath,
+                artistName: artista?.name,
+                albumName: album.name,
+                provider: t.source,
+              ),
+            )
+            .toList();
 
     return DetalleAlbum(
       id: album.id,

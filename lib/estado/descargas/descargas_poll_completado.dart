@@ -165,9 +165,8 @@ mixin DescargasPollCompletado on DescargasPollPersistir {
     final meta = _metaTrack[stateKey];
     final trackId =
         meta != null && meta.trackId.isNotEmpty ? meta.trackId : rawId;
-    final providerTrackId = rawId.endsWith('_audio')
-        ? rawId.substring(0, rawId.length - 6)
-        : rawId;
+    final providerTrackId =
+        rawId.endsWith('_audio') ? rawId.substring(0, rawId.length - 6) : rawId;
     _rutasPersistidasPorItem[rawId] = rutaNueva;
     _log.i('[poll] archivo mejorado para $rawId -> $rutaNueva');
     try {

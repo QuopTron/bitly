@@ -13,7 +13,10 @@ part of 'feed_bloc.dart';
 
 /// Carga el feed: cache primero, refresh en background después.
 Future<void> _cargarFeed(
-    BlocFeed bloc, CargarFeed event, Emitter<EstadoFeed> emit) async {
+  BlocFeed bloc,
+  CargarFeed event,
+  Emitter<EstadoFeed> emit,
+) async {
   final cache = sl<CacheFeed>();
   final setup = await sl<CacheAjustes>().cargarDatosSetup();
 
@@ -26,41 +29,41 @@ Future<void> _cargarFeed(
   }
 
   if (cacheado != null && cacheado.secciones.isNotEmpty) {
-    emit(bloc.state.copiarCon(
-      secciones: cacheado.secciones,
-      usuario: setup?.username ?? bloc.state.usuario,
-      fuenteSeleccionada:
-          bloc._fuenteValida(cacheado.secciones, cacheado.fuenteSeleccionada),
-      cargando: false,
-      error: null,
-    ));
+    emit(
+      bloc.state.copiarCon(
+        secciones: cacheado.secciones,
+        usuario: setup?.username ?? bloc.state.usuario,
+        fuenteSeleccionada: bloc._fuenteValida(
+          cacheado.secciones,
+          cacheado.fuenteSeleccionada,
+        ),
+        cargando: false,
+      ),
+    );
   } else {
-    emit(bloc.state.copiarCon(cargando: true, error: null));
+    emit(bloc.state.copiarCon(cargando: true));
   }
 
   // 2. Refrescar desde el backend en background, sin vaciar lo visible.
   try {
     final secciones = await bloc._backend.getHomeFeed();
     if (emit.isDone) return;
-    final valida =
-        bloc._fuenteValida(secciones, bloc.state.fuenteSeleccionada);
-    emit(bloc.state.copiarCon(
-      secciones: secciones,
-      usuario: setup?.username ?? '',
-      fuenteSeleccionada: valida,
-      cargando: false,
-      error: null,
-    ));
+    final valida = bloc._fuenteValida(secciones, bloc.state.fuenteSeleccionada);
+    emit(
+      bloc.state.copiarCon(
+        secciones: secciones,
+        usuario: setup?.username ?? '',
+        fuenteSeleccionada: valida,
+        cargando: false,
+      ),
+    );
     // 3. Persistir el feed exitoso para la próxima recuperación.
     await cache.guardar(secciones, valida);
   } catch (e) {
     if (emit.isDone) return;
-    // 4. En fallo conservar lo restaurado; solo mostrar error sin contenido.
-    emit(bloc.state.copiarCon(
-      cargando: false,
-      error: cacheado != null && cacheado.secciones.isNotEmpty
-          ? null
-          : e.toString(),
-    ));
+    // 4. En fallo se conserva lo restaurado: el estado no guarda texto, así
+    // que el motivo solo queda en el log.
+    debugPrint('[feed] refresco del feed falló: $e');
+    emit(bloc.state.copiarCon(cargando: false));
   }
 }

@@ -15,7 +15,9 @@ class EstadoAudioReproductor extends Equatable {
   final Duration duracion;
 
   double get progreso =>
-      duracion.inMilliseconds > 0 ? posicion.inMilliseconds / duracion.inMilliseconds : 0.0;
+      duracion.inMilliseconds > 0
+          ? posicion.inMilliseconds / duracion.inMilliseconds
+          : 0.0;
 
   final double volumen;
 
@@ -25,12 +27,13 @@ class EstadoAudioReproductor extends Equatable {
 
   final EstadoReproduccion estadoReproduccion;
 
-  /// Razón legible de por qué la reproducción se atascó/falló, visible en la
-  /// UI (p.ej. "Sesión de Deezer no verificada") para que un fallo de
-  /// resolución no sea silencioso.
-  final String? mensajeError;
+  /// CÓDIGO de por qué la reproducción falló (null = sin fallo). El estado no
+  /// guarda texto: quien lo muestre lo traduce con l10n, así el motivo sigue el
+  /// idioma activo en vez de quedar congelado en el que falló.
+  final CodigoErrorReproductor? codigoError;
 
-  bool get estaReproduciendo => estadoReproduccion == EstadoReproduccion.reproduciendo;
+  bool get estaReproduciendo =>
+      estadoReproduccion == EstadoReproduccion.reproduciendo;
 
   const EstadoAudioReproductor({
     this.posicion = Duration.zero,
@@ -38,7 +41,7 @@ class EstadoAudioReproductor extends Equatable {
     this.volumen = 1.0,
     this.velocidad = 1.0,
     this.estadoReproduccion = EstadoReproduccion.pausado,
-    this.mensajeError,
+    this.codigoError,
   });
 
   EstadoAudioReproductor copiarCon({
@@ -47,17 +50,38 @@ class EstadoAudioReproductor extends Equatable {
     double? volumen,
     double? velocidad,
     EstadoReproduccion? estadoReproduccion,
-    String? mensajeError,
-  }) =>
-      EstadoAudioReproductor(
-        posicion: posicion ?? this.posicion,
-        duracion: duracion ?? this.duracion,
-        volumen: volumen ?? this.volumen,
-        velocidad: velocidad ?? this.velocidad,
-        estadoReproduccion: estadoReproduccion ?? this.estadoReproduccion,
-        mensajeError: mensajeError ?? this.mensajeError,
-      );
+    CodigoErrorReproductor? codigoError,
+  }) => EstadoAudioReproductor(
+    posicion: posicion ?? this.posicion,
+    duracion: duracion ?? this.duracion,
+    volumen: volumen ?? this.volumen,
+    velocidad: velocidad ?? this.velocidad,
+    estadoReproduccion: estadoReproduccion ?? this.estadoReproduccion,
+    codigoError: codigoError ?? this.codigoError,
+  );
 
   @override
-  List<Object?> get props => [posicion, duracion, volumen, velocidad, estadoReproduccion, mensajeError];
+  List<Object?> get props => [
+    posicion,
+    duracion,
+    volumen,
+    velocidad,
+    estadoReproduccion,
+    codigoError,
+  ];
+}
+
+/// Por qué falló la resolución de un track. Código, no texto: la UI lo traduce.
+enum CodigoErrorReproductor {
+  /// La fuente exige verificación (Cloudflare/sesión firmada) antes de sonar.
+  sesionNoVerificada,
+
+  /// El proveedor está saturado (429).
+  proveedorSaturado,
+
+  /// No hay conexión y no hay copia descargada.
+  sinConexion,
+
+  /// Se agotaron las fuentes sin un stream original utilizable.
+  sinStream,
 }

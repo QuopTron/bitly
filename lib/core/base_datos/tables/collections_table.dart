@@ -22,9 +22,11 @@ class Collections extends Table {
 
 @TableIndex(name: 'idx_col_items_collection_id', columns: {#collectionId})
 class CollectionItems extends Table {
-  TextColumn get collectionId => text().references(Collections, #id, onDelete: KeyAction.cascade)();
+  TextColumn get collectionId =>
+      text().references(Collections, #id, onDelete: KeyAction.cascade)();
   TextColumn get itemId => text()();
-  TextColumn? get trackId => text().references(Tracks, #id, onDelete: KeyAction.setNull).nullable()();
+  TextColumn? get trackId =>
+      text().references(Tracks, #id, onDelete: KeyAction.setNull).nullable()();
   TextColumn? get itemJson => text().nullable()();
   DateTimeColumn get addedAt => dateTime()();
   IntColumn get position => integer().nullable()();
@@ -32,4 +34,3 @@ class CollectionItems extends Table {
   @override
   Set<Column> get primaryKey => {collectionId, itemId};
 }
-

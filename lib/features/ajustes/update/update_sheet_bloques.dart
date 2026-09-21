@@ -15,10 +15,12 @@ Widget _cabeceraActualizacion(
   Color sobreFondo,
   Color apagado,
 ) {
+  final u = AppLocalizations.of(st.context).update;
   final tamano = st._formatearBytes(st.widget.info.apkSize);
-  final etiquetaVersion = tamano.isNotEmpty
-      ? 'v${st.widget.info.version}  •  $tamano'
-      : 'v${st.widget.info.version}';
+  final etiquetaVersion =
+      tamano.isNotEmpty
+          ? 'v${st.widget.info.version}  •  $tamano'
+          : 'v${st.widget.info.version}';
 
   return Column(
     mainAxisSize: MainAxisSize.min,
@@ -40,9 +42,7 @@ Widget _cabeceraActualizacion(
       Padding(
         padding: EdgeInsets.symmetric(horizontal: r.spacingXL),
         child: Text(
-          st._descargando
-              ? 'Descargando actualización...'
-              : 'Hay una nueva actualización',
+          st._descargando ? u.descargando : u.disponible,
           style: TextStyle(
             fontSize: r.titleSize,
             fontWeight: FontWeight.bold,
@@ -66,7 +66,7 @@ Widget _cabeceraActualizacion(
         builder: (context, snapshot) {
           final actual = snapshot.data?.version ?? '...';
           return Text(
-            'Versión actual: $actual',
+            u.versionActual(actual),
             style: TextStyle(fontSize: r.footerSize, color: apagado),
           );
         },
@@ -83,6 +83,7 @@ Widget _progresoActualizacion(
   Color sobreFondo,
   Color apagado,
 ) {
+  final u = AppLocalizations.of(st.context).update;
   return Padding(
     padding: EdgeInsets.symmetric(horizontal: r.spacingXL),
     child: Column(
@@ -100,7 +101,7 @@ Widget _progresoActualizacion(
         Text(
           st._progreso > 0
               ? '${(st._progreso * 100).toStringAsFixed(0)}%'
-              : 'Preparando...',
+              : u.preparando,
           style: TextStyle(fontSize: r.footerSize, color: apagado),
         ),
       ],

@@ -3,7 +3,13 @@
 
 part of 'modal_cola.dart';
 
-Widget _estadoVacioCola(Responsive r, Color colorBrillo, Color fg) {
+Widget _estadoVacioCola(
+  BuildContext context,
+  Responsive r,
+  Color colorBrillo,
+  Color fg,
+) {
+  final c = AppLocalizations.of(context).reproductor;
   return Center(
     child: Column(
       mainAxisSize: MainAxisSize.min,
@@ -11,17 +17,20 @@ Widget _estadoVacioCola(Responsive r, Color colorBrillo, Color fg) {
         Icon(Icons.queue_music, size: 56, color: fg.withValues(alpha: 0.2)),
         const SizedBox(height: 12),
         Text(
-          'Cola vacía',
+          c.colaVacia,
           style: TextStyle(
-              fontSize: r.subtitleSize,
-              fontWeight: FontWeight.w600,
-              color: fg),
+            fontSize: r.subtitleSize,
+            fontWeight: FontWeight.w600,
+            color: fg,
+          ),
         ),
         const SizedBox(height: 4),
         Text(
-          'Reproduce una canción para empezar',
+          c.colaEmpieza,
           style: TextStyle(
-              fontSize: r.footerSize, color: fg.withValues(alpha: 0.5)),
+            fontSize: r.footerSize,
+            color: fg.withValues(alpha: 0.5),
+          ),
         ),
       ],
     ),

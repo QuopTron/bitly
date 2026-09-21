@@ -63,20 +63,20 @@ Future<void> _montar(
 
 /// Ancho real de la placa de la carta (borde redondeado a 18).
 Finder _placaCarta() => find.byWidgetPredicate(
-      (w) =>
-          w is Container &&
-          w.decoration is BoxDecoration &&
-          (w.decoration as BoxDecoration).borderRadius ==
-              BorderRadius.circular(18),
-    );
+  (w) =>
+      w is Container &&
+      w.decoration is BoxDecoration &&
+      (w.decoration as BoxDecoration).borderRadius == BorderRadius.circular(18),
+);
 
 Finder _findFondo() => find.byType(FondoCompartido);
 
 void main() {
   tearDown(EfectosApp.reiniciar);
 
-  testWidgets('la carta muestra emisor, ISRC, canción y artista',
-      (tester) async {
+  testWidgets('la carta muestra emisor, ISRC, canción y artista', (
+    tester,
+  ) async {
     await _montar(tester);
     expect(find.text('Compartido por Pablo'), findsOneWidget);
     expect(find.text('USUM71703861'), findsOneWidget);
@@ -103,8 +103,9 @@ void main() {
     expect(omitido, isTrue);
   });
 
-  testWidgets('con algo sonando dice Agregar a la cola y encola',
-      (tester) async {
+  testWidgets('con algo sonando dice Agregar a la cola y encola', (
+    tester,
+  ) async {
     var agregado = false;
     var reproducido = false;
     await _montar(
@@ -120,8 +121,9 @@ void main() {
     expect(reproducido, isFalse);
   });
 
-  testWidgets('en gama baja se dibuja igual (sin efectos pesados)',
-      (tester) async {
+  testWidgets('en gama baja se dibuja igual (sin efectos pesados)', (
+    tester,
+  ) async {
     EfectosApp.aplicar(efectosPesados: false, sigmaMax: 0);
     await _montar(tester);
     expect(find.text('Todo de Ti'), findsOneWidget);
@@ -131,8 +133,9 @@ void main() {
     expect(find.text('Reproducir'), findsOneWidget);
   });
 
-  testWidgets('sin blur (gama baja) el fondo se vela mucho más',
-      (tester) async {
+  testWidgets('sin blur (gama baja) el fondo se vela mucho más', (
+    tester,
+  ) async {
     EfectosApp.aplicar(efectosPesados: false, sigmaMax: 0);
     await _montar(tester);
     final velo = tester.widget<ColoredBox>(
@@ -163,8 +166,9 @@ void main() {
     expect(find.byType(BackdropFilter), findsWidgets);
   });
 
-  testWidgets('el fondo queda fuera del contenido que se anima',
-      (tester) async {
+  testWidgets('el fondo queda fuera del contenido que se anima', (
+    tester,
+  ) async {
     await _montar(tester);
     // El fondo lo pinta el OVERLAY (estático), no el contenido: así no se
     // reconstruye en cada frame mientras la carta cae.
@@ -184,8 +188,9 @@ void main() {
     );
   });
 
-  testWidgets('los textos no heredan el estilo de aviso de MaterialApp',
-      (tester) async {
+  testWidgets('los textos no heredan el estilo de aviso de MaterialApp', (
+    tester,
+  ) async {
     await _montar(tester);
     // MaterialApp pinta un subrayado DOBLE amarillo (fallback style) en
     // los textos que no están dentro de un Material. La carta se monta en
@@ -215,8 +220,9 @@ void main() {
     expect((centroCarta - pantalla / 2).abs(), lessThan(2));
   });
 
-  testWidgets('sin carátula la carta igual se ve (reserva, no caja vacía)',
-      (tester) async {
+  testWidgets('sin carátula la carta igual se ve (reserva, no caja vacía)', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       MaterialApp(
         localizationsDelegates: const [
@@ -251,8 +257,9 @@ void main() {
     expect(find.byIcon(Icons.music_note_rounded), findsWidgets);
   });
 
-  testWidgets('en tema oscuro la carta usa los colores del tema',
-      (tester) async {
+  testWidgets('en tema oscuro la carta usa los colores del tema', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       MaterialApp(
         theme: ThemeData.dark(),
@@ -299,7 +306,12 @@ void main() {
             id: 'p1',
             query: 'Mix',
             compartido: DatosCompartido.desdeItem(
-              const ItemFeed(id: 'p1', type: 'playlist', name: 'Mix', owner: 'Pablo'),
+              const ItemFeed(
+                id: 'p1',
+                type: 'playlist',
+                name: 'Mix',
+                owner: 'Pablo',
+              ),
               emisor: 'Pablo',
             ),
           ),
@@ -327,8 +339,7 @@ void main() {
     expect(find.text('Reproducir'), findsOneWidget);
   });
 
-  testWidgets('un álbum usa la tarjeta de grilla con su tipo',
-      (tester) async {
+  testWidgets('un álbum usa la tarjeta de grilla con su tipo', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         localizationsDelegates: const [

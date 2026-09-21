@@ -21,17 +21,23 @@ import '../mixins/sesiones_firmadas_mixin.dart';
 
 /// Agrega todos los mixins RPC por dominio. Las subclases concretas deben
 /// implementar [rpcCall].
-mixin RpcBackendMixin on BackendService,
-    AjustesMixin,
-    FeedBusquedaMixin,
-    AccionesMixin,
-    DetalleMixin,
-    InfraMixin,
-    PremiumMixin,
-    EditorEtiquetasMixin,
-    EnlacesMixin,
-    IsrcMixin,
-    SesionesFirmadasMixin {
+mixin RpcBackendMixin
+    on
+        BackendService,
+        AjustesMixin,
+        FeedBusquedaMixin,
+        AccionesMixin,
+        DetalleMixin,
+        InfraMixin,
+        PremiumMixin,
+        EditorEtiquetasMixin,
+        EnlacesMixin,
+        IsrcMixin,
+        SesionesFirmadasMixin {
   @override
-  Future<dynamic> rpcCall(String method, [Map<String, dynamic>? params, Duration? timeout]);
+  Future<dynamic> rpcCall(
+    String method, [
+    Map<String, dynamic>? params,
+    Duration? timeout,
+  ]);
 }

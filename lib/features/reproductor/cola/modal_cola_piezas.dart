@@ -23,6 +23,7 @@ Widget _cabeceraCola(
 ) {
   final total = cola.tracks.length;
   final proximos = cola.tieneActual ? total - cola.indiceActual - 1 : total;
+  final c = AppLocalizations.of(context).reproductor;
   return Padding(
     padding: EdgeInsets.symmetric(horizontal: r.spacingXL),
     child: Row(
@@ -30,7 +31,7 @@ Widget _cabeceraCola(
         Icon(Icons.queue_music, size: r.subtitleSize + 2, color: colorBrillo),
         SizedBox(width: r.spacingS),
         Text(
-          'Cola ($total)',
+          c.colaTitulo(total),
           style: TextStyle(
             fontSize: r.subtitleSize + 1,
             fontWeight: FontWeight.bold,
@@ -49,9 +50,10 @@ Widget _cabeceraCola(
           if (cola.modoRepeticion != ModoRepeticion.ninguno) ...[
             SizedBox(width: r.spacingXS),
             ChipModoCola(
-              icono: cola.modoRepeticion == ModoRepeticion.uno
-                  ? Icons.repeat_one_rounded
-                  : Icons.repeat_rounded,
+              icono:
+                  cola.modoRepeticion == ModoRepeticion.uno
+                      ? Icons.repeat_one_rounded
+                      : Icons.repeat_rounded,
               etiqueta:
                   cola.modoRepeticion == ModoRepeticion.uno ? 'One' : 'All',
               r: r,
@@ -62,7 +64,7 @@ Widget _cabeceraCola(
         const Spacer(),
         if (proximos > 0)
           Text(
-            '$proximos próximos',
+            c.colaProximos(proximos),
             style: TextStyle(
               fontSize: r.footerSize,
               color: fg.withValues(alpha: 0.5),
@@ -91,17 +93,17 @@ Widget _listaCola(
       Haptico.medio();
       cubit.reordenar(viejo, nuevo);
     },
-    proxyDecorator: (child, index, animation) => Material(
-      elevation: 4,
-      borderRadius: BorderRadius.circular(12),
-      color: Colors.transparent,
-      child: child,
-    ),
+    proxyDecorator:
+        (child, index, animation) => Material(
+          elevation: 4,
+          borderRadius: BorderRadius.circular(12),
+          color: Colors.transparent,
+          child: child,
+        ),
     itemBuilder: (context, index) {
       final track = cola.tracks[index];
       final esActual = cola.tieneActual && index == cola.indiceActual;
-      final esReproducida =
-          cola.tieneActual && index < cola.indiceActual;
+      final esReproducida = cola.tieneActual && index < cola.indiceActual;
 
       return FilaTrackCola(
         key: ValueKey('cola_${track.id}'),
@@ -112,13 +114,14 @@ Widget _listaCola(
         index: index,
         esActual: esActual,
         esReproducida: esReproducida,
-        onTap: esActual
-            ? null
-            : () {
-                Haptico.tap();
-                cubit.irA(index);
-                Navigator.pop(context);
-              },
+        onTap:
+            esActual
+                ? null
+                : () {
+                  Haptico.tap();
+                  cubit.irA(index);
+                  Navigator.pop(context);
+                },
         onQuitar: () {
           Haptico.tap();
           cubit.eliminar(index);

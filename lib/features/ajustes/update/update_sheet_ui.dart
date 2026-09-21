@@ -62,7 +62,8 @@ Widget _construirHojaActualizacion(
             if (!st._descargando && info.body.isNotEmpty)
               _notasActualizacion(st, r, sobreFondo, borde),
             SizedBox(height: r.spacingXL),
-            if (!st._descargando) _botonesActualizacion(st, context, r, apagado),
+            if (!st._descargando)
+              _botonesActualizacion(st, context, r, apagado),
             // + menú de navegación del sistema: los botones van al pie de la
             // hoja, que se ancla al borde físico de la pantalla.
             SizedBox(height: r.spacingM + insetInferiorSistema(context)),

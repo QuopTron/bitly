@@ -68,8 +68,10 @@ class _HostBusqueda extends StatelessWidget {
         BlocProvider<CubitPlaylists>.value(value: inj.sl<CubitPlaylists>()),
         BlocProvider<CubitReproductor>.value(value: inj.sl<CubitReproductor>()),
         BlocProvider<BlocBusqueda>(
-          create: (_) => BlocBusqueda(BackendAndroid(), inj.sl<CacheBusqueda>())
-            ..add(const FuenteBusquedaCambiada('deezer')),
+          create:
+              (_) =>
+                  BlocBusqueda(BackendAndroid(), inj.sl<CacheBusqueda>())
+                    ..add(const FuenteBusquedaCambiada('deezer')),
         ),
       ],
       child: const Scaffold(body: PaginaBusqueda()),
@@ -115,8 +117,11 @@ Future<List<ItemFeed>> _buscar(
     type: type,
     limit: 25,
   );
-  expect(gen, greaterThan(0),
-      reason: 'el backend debe aceptar la búsqueda (source="$source")');
+  expect(
+    gen,
+    greaterThan(0),
+    reason: 'el backend debe aceptar la búsqueda (source="$source")',
+  );
 
   var items = <ItemFeed>[];
   for (var i = 0; i < 150; i++) {
@@ -154,7 +159,11 @@ void main() {
 
       // Abrir el selector de extensiones (vive en la barra de búsqueda).
       final trigger = find.byKey(keyTutorialFuente);
-      expect(trigger, findsOneWidget, reason: 'debe estar el selector de fuente');
+      expect(
+        trigger,
+        findsOneWidget,
+        reason: 'debe estar el selector de fuente',
+      );
       await tester.tap(trigger);
       await tester.pumpAndSettle();
 
@@ -192,23 +201,36 @@ void main() {
     'buscar en una extensión devuelve resultados SOLO de ESA extensión',
     (tester) async {
       final backend = BackendAndroid();
-      expect(await backend.healthCheck(), isTrue,
-          reason: 'el backend Go debe inicializarse dentro del APK');
+      expect(
+        await backend.healthCheck(),
+        isTrue,
+        reason: 'el backend Go debe inicializarse dentro del APK',
+      );
 
       // Las fuentes salen del backend, no de una lista escrita a mano: si
       // mañana cambia cuál es la primaria, el test sigue apuntando a una real.
       final config = await backend.getSearchConfig();
       final candidatas =
           config.map((c) => c.source).where((s) => s.isNotEmpty).toList();
-      expect(candidatas, isNotEmpty,
-          reason: 'el backend debe exponer sus fuentes de búsqueda');
+      expect(
+        candidatas,
+        isNotEmpty,
+        reason: 'el backend debe exponer sus fuentes de búsqueda',
+      );
 
       // Y ninguna candidata puede ser un proveedor de respaldo.
       for (final s in candidatas) {
         expect(
           s.toLowerCase(),
-          isNot(anyOf('internetarchive', 'soulseek', 'flac-rescue', 'redacted',
-              'musicbrainz')),
+          isNot(
+            anyOf(
+              'internetarchive',
+              'soulseek',
+              'flac-rescue',
+              'redacted',
+              'musicbrainz',
+            ),
+          ),
           reason: '$s no debería estar en la config de búsqueda',
         );
       }
@@ -234,10 +256,14 @@ void main() {
         await tester.pump(const Duration(milliseconds: 500));
       }
 
-      expect(fuente, isNotNull,
-          reason: 'ninguna extensión devolvió resultados para la misma '
-              'consulta; revisá la red del emulador o la traducción de filtros '
-              '(extensiones probadas: $candidatas)');
+      expect(
+        fuente,
+        isNotNull,
+        reason:
+            'ninguna extensión devolvió resultados para la misma '
+            'consulta; revisá la red del emulador o la traducción de filtros '
+            '(extensiones probadas: $candidatas)',
+      );
 
       final tracks = items.where((it) => it.type == 'track').toList();
       expect(tracks, isNotEmpty, reason: 'deben llegar canciones');
@@ -257,66 +283,73 @@ void main() {
       for (final it in items) {
         expect(
           (it.source ?? '').toLowerCase(),
-          isNot(anyOf('internetarchive', 'soulseek', 'flac-rescue', 'redacted')),
-          reason: 'un proveedor de respaldo se coló en la búsqueda: ${it.source}',
+          isNot(
+            anyOf('internetarchive', 'soulseek', 'flac-rescue', 'redacted'),
+          ),
+          reason:
+              'un proveedor de respaldo se coló en la búsqueda: ${it.source}',
         );
       }
 
       // Dedupe: el mismo ISRC no puede aparecer dos veces.
-      final isrcs = tracks
-          .map((t) => (t.isrc ?? '').trim().toUpperCase())
-          .where((i) => i.isNotEmpty)
-          .toList();
-      expect(isrcs.length, isrcs.toSet().length,
-          reason: 'hay ISRC repetidos: el dedupe no está funcionando');
-    },
-  );
-
-  testWidgets(
-    'la búsqueda espera a que el usuario termine de escribir',
-    (tester) async {
-      final backend = BackendAndroid();
-      await inj.sl<CacheAjustes>().guardarAjuste('search_source', 'deezer');
-
-      await tester.pumpWidget(_appDePrueba());
-      await tester.pumpAndSettle();
-      await _bombear(tester, veces: 20);
-
-      final campo = find.byType(TextField);
-      expect(campo, findsOneWidget, reason: 'debe estar el campo de búsqueda');
-
-      // Generación ANTES de escribir: el número solo cambia cuando sale una
-      // búsqueda nueva, así que es la forma de observar el debounce sin red.
-      final antes = (await backend.getSearchStreamResults()).generation;
-
-      // Escritura PAUSADA: cada tecla con menos de la pausa de escritura de la
-      // anterior. Con el debounce viejo (150ms) ya habría salido una búsqueda
-      // por cada letra.
-      final pasoTecla = _pausaEscritura ~/ 2; // bien por debajo de la pausa
-      for (final texto in const ['D', 'Da', 'Daf', 'Daft']) {
-        await tester.enterText(campo, texto);
-        await tester.pump(pasoTecla);
-      }
-
-      final durante = (await backend.getSearchStreamResults()).generation;
+      final isrcs =
+          tracks
+              .map((t) => (t.isrc ?? '').trim().toUpperCase())
+              .where((i) => i.isNotEmpty)
+              .toList();
       expect(
-        durante,
-        antes,
-        reason: 'no debe salir ninguna búsqueda mientras el usuario escribe '
-            '(generación $antes → $durante)',
-      );
-
-      // Ahora sí: se soltó el teclado. Pasada la pausa, la búsqueda sale.
-      var despues = durante;
-      for (var i = 0; i < 30 && despues == durante; i++) {
-        await tester.pump(const Duration(milliseconds: 100));
-        despues = (await backend.getSearchStreamResults()).generation;
-      }
-      expect(
-        despues,
-        isNot(antes),
-        reason: 'pasada la pausa de escritura la búsqueda debe salir',
+        isrcs.length,
+        isrcs.toSet().length,
+        reason: 'hay ISRC repetidos: el dedupe no está funcionando',
       );
     },
   );
+
+  testWidgets('la búsqueda espera a que el usuario termine de escribir', (
+    tester,
+  ) async {
+    final backend = BackendAndroid();
+    await inj.sl<CacheAjustes>().guardarAjuste('search_source', 'deezer');
+
+    await tester.pumpWidget(_appDePrueba());
+    await tester.pumpAndSettle();
+    await _bombear(tester, veces: 20);
+
+    final campo = find.byType(TextField);
+    expect(campo, findsOneWidget, reason: 'debe estar el campo de búsqueda');
+
+    // Generación ANTES de escribir: el número solo cambia cuando sale una
+    // búsqueda nueva, así que es la forma de observar el debounce sin red.
+    final antes = (await backend.getSearchStreamResults()).generation;
+
+    // Escritura PAUSADA: cada tecla con menos de la pausa de escritura de la
+    // anterior. Con el debounce viejo (150ms) ya habría salido una búsqueda
+    // por cada letra.
+    final pasoTecla = _pausaEscritura ~/ 2; // bien por debajo de la pausa
+    for (final texto in const ['D', 'Da', 'Daf', 'Daft']) {
+      await tester.enterText(campo, texto);
+      await tester.pump(pasoTecla);
+    }
+
+    final durante = (await backend.getSearchStreamResults()).generation;
+    expect(
+      durante,
+      antes,
+      reason:
+          'no debe salir ninguna búsqueda mientras el usuario escribe '
+          '(generación $antes → $durante)',
+    );
+
+    // Ahora sí: se soltó el teclado. Pasada la pausa, la búsqueda sale.
+    var despues = durante;
+    for (var i = 0; i < 30 && despues == durante; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+      despues = (await backend.getSearchStreamResults()).generation;
+    }
+    expect(
+      despues,
+      isNot(antes),
+      reason: 'pasada la pausa de escritura la búsqueda debe salir',
+    );
+  });
 }

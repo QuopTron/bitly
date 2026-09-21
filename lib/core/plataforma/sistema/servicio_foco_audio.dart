@@ -80,9 +80,11 @@ class ServicioFocoAudio {
       // Refleja el estado real de reproducción en la sesión: el foco se
       // mantiene mientras reproduce y se libera al pausar.
       _controlador?.streamReproduciendo.listen((reproduciendo) {
-        unawaited(reproduciendo
-            ? sesion.setActive(true).catchError((_) => false)
-            : sesion.setActive(false).catchError((_) => false));
+        unawaited(
+          reproduciendo
+              ? sesion.setActive(true).catchError((_) => false)
+              : sesion.setActive(false).catchError((_) => false),
+        );
       });
     } catch (_) {
       // audio_session no disponible en esta plataforma — la reproducción
@@ -128,7 +130,8 @@ class ServicioFocoAudio {
     } else {
       // Foco recuperado. Reanuda si estábamos pausados por interrupción
       // transitoria (no por pérdida permanente).
-      final debeReanudar = _pausadoPorInterrupcion &&
+      final debeReanudar =
+          _pausadoPorInterrupcion &&
           evento.type != AudioInterruptionType.unknown;
       _pausadoPorInterrupcion = false;
       if (debeReanudar && !controlador.estaReproduciendoAhora) {

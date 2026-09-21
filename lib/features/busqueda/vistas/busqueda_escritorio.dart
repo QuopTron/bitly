@@ -39,7 +39,9 @@ class BusquedaEscritorio extends StatelessWidget {
         constraints: const BoxConstraints(maxWidth: 1120),
         child: Padding(
           padding: EdgeInsets.symmetric(
-              horizontal: r.spacingXL, vertical: r.spacingL),
+            horizontal: r.spacingXL,
+            vertical: r.spacingL,
+          ),
           child: ContenedorVidrio(
             borderRadius: 20,
             borderColor: onBg.withValues(alpha: 0.08),

@@ -13,7 +13,8 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   group('enlaceEnTexto detecta enlaces de música', () {
     test('Spotify con parámetro si', () {
-      const url = 'https://open.spotify.com/track/3h5T5JypYU7huFiVYhv1dr?si=f1d4f0f8ba624400';
+      const url =
+          'https://open.spotify.com/track/3h5T5JypYU7huFiVYhv1dr?si=f1d4f0f8ba624400';
       expect(ServicioEnlaces.enlaceEnTexto(url), url);
     });
 
@@ -45,7 +46,8 @@ void main() {
     });
 
     test('enlace dentro de un texto compartido', () {
-      const texto = 'Escuchá esto https://open.spotify.com/track/3h5T5JypYU7huFiVYhv1dr?si=abc y decime';
+      const texto =
+          'Escuchá esto https://open.spotify.com/track/3h5T5JypYU7huFiVYhv1dr?si=abc y decime';
       expect(
         ServicioEnlaces.enlaceEnTexto(texto),
         'https://open.spotify.com/track/3h5T5JypYU7huFiVYhv1dr?si=abc',
@@ -54,7 +56,9 @@ void main() {
 
     test('host sin esquema', () {
       expect(
-        ServicioEnlaces.enlaceEnTexto('open.spotify.com/track/3h5T5JypYU7huFiVYhv1dr'),
+        ServicioEnlaces.enlaceEnTexto(
+          'open.spotify.com/track/3h5T5JypYU7huFiVYhv1dr',
+        ),
         'open.spotify.com/track/3h5T5JypYU7huFiVYhv1dr',
       );
     });
@@ -62,7 +66,10 @@ void main() {
 
   group('enlaceEnTexto NO confunde búsquedas normales', () {
     test('nombre de canción', () {
-      expect(ServicioEnlaces.enlaceEnTexto('Rick Astley - Never Gonna Give You Up'), isNull);
+      expect(
+        ServicioEnlaces.enlaceEnTexto('Rick Astley - Never Gonna Give You Up'),
+        isNull,
+      );
     });
 
     test('nombre con la palabra spotify', () {
@@ -70,7 +77,10 @@ void main() {
     });
 
     test('URL que no es de música', () {
-      expect(ServicioEnlaces.enlaceEnTexto('https://www.google.com/search?q=musica'), isNull);
+      expect(
+        ServicioEnlaces.enlaceEnTexto('https://www.google.com/search?q=musica'),
+        isNull,
+      );
     });
 
     test('vacío', () {

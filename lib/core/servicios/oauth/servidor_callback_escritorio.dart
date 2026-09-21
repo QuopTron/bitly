@@ -24,7 +24,8 @@ part 'servidor_callback_escritorio_helpers.dart';
 class ServidorCallbackEscritorio {
   ServidorCallbackEscritorio._();
 
-  static final ServidorCallbackEscritorio instance = ServidorCallbackEscritorio._();
+  static final ServidorCallbackEscritorio instance =
+      ServidorCallbackEscritorio._();
 
   HttpServer? _servidor;
   Completer<String?>? _pendiente;
@@ -65,10 +66,14 @@ class ServidorCallbackEscritorio {
       try {
         final cuerpo = await utf8.decoder.bind(request).join();
         grant = _extraerDelCuerpo(cuerpo);
-      } catch (e) { debugPrint("[OAuth] error: $e"); }
+      } catch (e) {
+        debugPrint("[OAuth] error: $e");
+      }
     }
 
-    _debugLog('grant extraído: ${grant == null ? 'null' : 'OK (${grant.length} chars)'}');
+    _debugLog(
+      'grant extraído: ${grant == null ? 'null' : 'OK (${grant.length} chars)'}',
+    );
 
     if (grant != null && grant.isNotEmpty) {
       // Responder antes de completar para que la pestaña cierre limpio.
@@ -83,7 +88,9 @@ class ServidorCallbackEscritorio {
     }
 
     // ignore: avoid_print
-    debugPrint('[Verificacion] loopback recibió petición sin grant: $urlCompleta');
+    debugPrint(
+      '[Verificacion] loopback recibió petición sin grant: $urlCompleta',
+    );
     request.response
       ..statusCode = HttpStatus.badRequest
       ..write('missing grant');

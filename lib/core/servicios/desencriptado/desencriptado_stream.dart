@@ -65,12 +65,13 @@ Future<ResultadoDesencriptadoStream> desencriptarArchivoMovKey({
   String? extensionSalida,
   String? directorioSalida,
   String? nombreBaseSalida,
-}) =>
-    _serializado(() => _desencriptarMovKeyDesbloqueado(
-          rutaOrigen: rutaOrigen,
-          clave: clave,
-          formatoEntrada: formatoEntrada,
-          extensionSalida: extensionSalida,
-          directorioSalida: directorioSalida,
-          nombreBaseSalida: nombreBaseSalida,
-        ));
+}) => _serializado(
+  () => _desencriptarMovKeyDesbloqueado(
+    rutaOrigen: rutaOrigen,
+    clave: clave,
+    formatoEntrada: formatoEntrada,
+    extensionSalida: extensionSalida,
+    directorioSalida: directorioSalida,
+    nombreBaseSalida: nombreBaseSalida,
+  ),
+);

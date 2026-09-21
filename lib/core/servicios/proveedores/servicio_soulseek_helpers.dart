@@ -20,6 +20,21 @@ String _limpiarMensaje(String? crudo) {
       : texto;
 }
 
+/// Mensaje localizado del rechazo según el motivo accionable. Sin motivo
+/// (error técnico de Go) se muestra un aviso genérico localizado en vez del
+/// texto crudo del backend.
+String _mensajeRechazo(MotivoSoulseek motivo) {
+  final s = L10n.actual.servicio;
+  switch (motivo) {
+    case MotivoSoulseek.nombreTomado:
+      return s.soulseekNombreTomado;
+    case MotivoSoulseek.nombreInvalido:
+      return s.soulseekNombreInvalido;
+    case MotivoSoulseek.ninguno:
+      return s.soulseekNoConectar;
+  }
+}
+
 /// Traduce el motivo que manda Go. Un valor desconocido cae a [ninguno] a
 /// propósito: la UI nunca debe bloquear al usuario por un motivo que no
 /// entiende.

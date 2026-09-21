@@ -15,8 +15,11 @@ mixin LikeCaratulas on AccionesLike {
   /// Guarda la carátula vía el backend y devuelve su ruta local absoluta
   /// (usable por Image.file en todas las plataformas, Android incluido).
   @override
-  Future<String?> _guardarCaratula(String coverUrl) async {
-    final ruta = await backend.saveCover(coverUrl);
+  Future<String?> _guardarCaratula(
+    String coverUrl, {
+    List<String> keys = const [],
+  }) async {
+    final ruta = await backend.saveCover(coverUrl, keys: keys);
     if (ruta != null && ruta.isNotEmpty) return ruta;
     return null;
   }
@@ -42,10 +45,21 @@ mixin LikeCaratulas on AccionesLike {
           if (caratulaLocal != null && caratulaLocal.isNotEmpty) {
             rutaCaratula = caratulaLocal;
           } else {
-            rutaCaratula = await _guardarCaratula(item.coverUrl!);
+            rutaCaratula = await _guardarCaratula(
+              item.coverUrl!,
+              keys: clavesCaratula(
+                isrc: item.isrc,
+                trackId: item.id,
+                nombre: item.name,
+                artista: item.artists,
+              ),
+            );
           }
         } else {
-          rutaCaratula = await _guardarCaratula(item.coverUrl!);
+          rutaCaratula = await _guardarCaratula(
+            item.coverUrl!,
+            keys: clavesCaratula(trackId: item.id, nombre: item.name),
+          );
         }
         if (rutaCaratula != null && rutaCaratula.isNotEmpty) break;
       } catch (_) {

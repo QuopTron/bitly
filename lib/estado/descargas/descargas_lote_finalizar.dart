@@ -15,6 +15,16 @@ part of 'cubit_descargas.dart';
 
 /// Finalización y persistencia de lotes. Mixin aplicado en CubitDescargas.
 mixin DescargasLoteFinalizar on DescargasEstado {
+  /// Implementado por [DescargasLoteCaratula] (mixin combinado después en
+  /// CubitDescargas): resuelve nombre y carátula de un lote completado.
+  @protected
+  Future<_DatosCaratulaLote> _resolverDatosLote({
+    required String itemType,
+    required String itemId,
+    required List<String> trackIds,
+    _DatosLote? batchData,
+  });
+
   /// Persiste un lote completado y refresca los caches.
   Future<void> _finalizarLoteCompletado(
     String batchKey,
@@ -31,31 +41,43 @@ mixin DescargasLoteFinalizar on DescargasEstado {
     final src = parts.last;
     final itemId = parts.sublist(1, parts.length - 1).join('_');
     final batchData = _datosLote[batchKey];
-    final batchName =
-        (batchData?.tracks.isNotEmpty == true)
-            ? (batchData!.tracks.first['album_name'] as String? ?? '')
-            : '';
-    final batchCover =
-        (batchData?.tracks.isNotEmpty == true)
-            ? (batchData!.tracks.first['cover_url'] as String? ?? '')
-            : '';
-    // Guardar la carátula del lote en local para persistencia offline.
-    // Reintentar 3 veces con backoff exponencial (igual que tracks únicos).
-    String batchCoverPath = '';
-    if (batchCover.isNotEmpty) {
+    // Nombre y carátula con fallbacks: _datosLote puede estar vacío cuando el
+    // lote terminó de a un track suelto, y antes eso dejaba el álbum sin
+    // nombre y sin portada en la BD (tarjeta gris para siempre).
+    final resuelto = await _resolverDatosLote(
+      itemType: itemType,
+      itemId: itemId,
+      trackIds: trackIds,
+      batchData: batchData,
+    );
+    final batchName = resuelto.nombre;
+    final batchCover = resuelto.coverUrl;
+    // Reusar la carátula que ya está en disco (el like o un track del lote ya
+    // la bajó) y, si no hay, bajarla con 3 intentos y backoff exponencial.
+    String batchCoverPath = resuelto.coverPath;
+    if (batchCoverPath.isEmpty && batchCover.isNotEmpty) {
       for (var intento = 0; intento < 3; intento++) {
-        try {
-          final saved = await _backend.saveCover(batchCover);
-          if (saved != null && saved.isNotEmpty) {
-            batchCoverPath = saved;
-            break;
-          }
-        } catch (e) {
-          debugPrint("[Descargas] $e");
+        final saved = await _backend.saveCover(
+          batchCover,
+          keys: clavesCaratula(
+            trackId: itemId,
+            nombre: batchName,
+            artista:
+                batchData?.tracks.isNotEmpty == true
+                    ? (batchData!.tracks.first['artist_name'] as String?)
+                    : null,
+          ),
+        );
+        if (saved != null && saved.isNotEmpty) {
+          batchCoverPath = saved;
+          break;
         }
         if (intento < 2) {
           await Future<void>.delayed(Duration(seconds: 1 << intento));
         }
+      }
+      if (batchCoverPath.isEmpty) {
+        _log.w('[Descargas] sin carátula local para el lote $batchKey');
       }
     }
     _metaLote[batchKey] = _MetaLote(
@@ -75,6 +97,13 @@ mixin DescargasLoteFinalizar on DescargasEstado {
       trackIds: trackIds,
       coverUrl: batchCover,
       coverPath: batchCoverPath,
+    );
+    // La biblioteca local (tabla albums) es lo que leen las vistas de detalle
+    // al abrir el álbum sin red: se le deja la misma carátula.
+    await _contentLote.actualizarCaratulaAlbum(
+      itemId,
+      batchCover,
+      batchCoverPath,
     );
     di.sl<CacheBiblioteca>().invalidarTodo();
     // Invalidar el detalle para que álbum/playlist recarguen con datos frescos.

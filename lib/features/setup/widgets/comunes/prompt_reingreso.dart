@@ -39,7 +39,8 @@ class PromptReingreso extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final onBg = isDark ? Colors.white : Colors.black;
-    final glowColor = isDark ? ColoresApp.verdeBrillante : ColoresApp.verdeMedio;
+    final glowColor =
+        isDark ? ColoresApp.verdeBrillante : ColoresApp.verdeMedio;
 
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: r.spacingXL),
@@ -86,18 +87,20 @@ class PromptReingreso extends StatelessWidget {
           const Spacer(),
           BotonVidrio(
             label: loc.setup.yes,
-            onPressed: () => context
-                .read<SetupBloc>()
-                .add(const AceptarDatosExistentes(true)),
+            onPressed:
+                () => context.read<SetupBloc>().add(
+                  const AceptarDatosExistentes(true),
+                ),
             height: r.continueButtonHeight,
             accent: glowColor,
           ),
           SizedBox(height: r.spacingM),
           BotonVidrio(
             label: loc.setup.no,
-            onPressed: () => context
-                .read<SetupBloc>()
-                .add(const AceptarDatosExistentes(false)),
+            onPressed:
+                () => context.read<SetupBloc>().add(
+                  const AceptarDatosExistentes(false),
+                ),
             height: r.continueButtonHeight,
             accent: glowColor,
           ),

@@ -105,7 +105,8 @@ class _PlaceholderShimmerState extends State<_PlaceholderShimmer>
 
   @override
   Widget build(BuildContext context) {
-    final base = widget.colorFondo ??
+    final base =
+        widget.colorFondo ??
         (Theme.of(context).brightness == Brightness.dark
             ? const Color(0xFF1A1A1A)
             : const Color(0xFFE8E8E8));
@@ -136,11 +137,7 @@ class _PlaceholderShimmerState extends State<_PlaceholderShimmer>
             gradient: LinearGradient(
               begin: Alignment(-1.0 + 2.0 * t, 0),
               end: Alignment(-0.5 + 2.0 * t, 0),
-              colors: [
-                base,
-                base.withValues(alpha: 0.5),
-                base,
-              ],
+              colors: [base, base.withValues(alpha: 0.5), base],
             ),
           ),
         );

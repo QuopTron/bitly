@@ -19,11 +19,13 @@ class PlayHistory extends Table {
 @TableIndex(name: 'idx_play_agg_type_count', columns: {#type, #playCount})
 class PlayAggregates extends Table {
   TextColumn get itemId => text()();
-  TextColumn get type => text().customConstraint("NOT NULL CHECK(type IN ('track', 'album', 'artist'))")();
+  TextColumn get type =>
+      text().customConstraint(
+        "NOT NULL CHECK(type IN ('track', 'album', 'artist'))",
+      )();
   IntColumn get playCount => integer().nullable()();
   DateTimeColumn? get lastPlayedAt => dateTime().nullable()();
 
   @override
   Set<Column> get primaryKey => {itemId};
 }
-

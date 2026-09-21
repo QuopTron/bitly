@@ -25,6 +25,16 @@ class StringsDescargas {
   final String reinicioMensaje;
   final String a11yCerrar;
 
+  /// Motivo entendible por código de fallo (ver `MotivosDescarga` en
+  /// core/servicios/descargas/motivos_descarga.dart). El motivo crudo del
+  /// backend nunca se muestra: se elige uno de estos por su código.
+  final Map<String, String> motivosDescarga;
+  final String motivoDesconocido;
+
+  /// Texto del motivo que corresponde a [clave].
+  String motivoDescarga(String clave) =>
+      motivosDescarga[clave] ?? motivoDesconocido;
+
   const StringsDescargas({
     required this.falloTitulo,
     required this.falloMotivo,
@@ -41,6 +51,8 @@ class StringsDescargas {
     required this.reinicioTitulo,
     required this.reinicioMensaje,
     required this.a11yCerrar,
+    required this.motivosDescarga,
+    required this.motivoDesconocido,
   });
 
   static const es = StringsDescargas(
@@ -58,8 +70,20 @@ class StringsDescargas {
     gateTitulo: 'Descargas en pausa',
     decryptTitulo: 'No se pudo descifrar una descarga',
     reinicioTitulo: 'Se reinició el motor de descargas',
-    reinicioMensaje: 'Las descargas en curso se cortaron. Puedes reintentarlas.',
+    reinicioMensaje:
+        'Las descargas en curso se cortaron. Puedes reintentarlas.',
     a11yCerrar: 'Cerrar el aviso',
+    motivosDescarga: {
+      'espacio': 'No queda espacio libre en el dispositivo',
+      'permiso': 'La carpeta de destino no permite escribir',
+      'verificacion': 'La fuente pidió verificar la sesión',
+      'premium': 'Esa calidad necesita una cuenta de pago',
+      'carpeta': 'La carpeta de descargas no está disponible',
+      'red': 'Se cortó la conexión durante la descarga',
+      'sin_archivo': 'La descarga no dejó un archivo reproducible',
+      'sin_fin': 'El backend no reportó el fin de la descarga',
+    },
+    motivoDesconocido: 'La fuente no pudo entregar el archivo',
   );
 
   static const en = StringsDescargas(
@@ -79,5 +103,16 @@ class StringsDescargas {
     reinicioTitulo: 'Download engine restarted',
     reinicioMensaje: 'Downloads in progress were cut off. You can retry them.',
     a11yCerrar: 'Dismiss notice',
+    motivosDescarga: {
+      'espacio': 'Not enough free space left on the device',
+      'permiso': "The destination folder isn't writable",
+      'verificacion': 'The source asked to verify the session',
+      'premium': 'That quality needs a paid account',
+      'carpeta': "The downloads folder isn't available",
+      'red': 'The connection dropped during the download',
+      'sin_archivo': "The download didn't leave a playable file",
+      'sin_fin': "The backend didn't report the download's end",
+    },
+    motivoDesconocido: "The source couldn't deliver the file",
   );
 }

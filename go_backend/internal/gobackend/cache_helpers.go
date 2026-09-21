@@ -21,6 +21,11 @@ func statsDir(dir string) (bytes int64, count int) {
 			if e.IsDir() {
 				continue
 			}
+			// index.json no es una carátula: contarlo inflaría el tamaño y el
+			// conteo que ve el usuario en Ajustes.
+			if e.Name() == archivoIndicePortadas {
+				continue
+			}
 			count++
 			if info, err := e.Info(); err == nil {
 				bytes += info.Size()
@@ -68,7 +73,7 @@ func limiteEviccionPortadas(dir string, limitMB int) {
 	var files []f
 	var total int64
 	for _, e := range entries {
-		if e.IsDir() {
+		if e.IsDir() || e.Name() == archivoIndicePortadas {
 			continue
 		}
 		info, err := e.Info()
@@ -91,6 +96,9 @@ func limiteEviccionPortadas(dir string, limitMB int) {
 		}
 		if os.Remove(files[i].path) == nil {
 			total -= files[i].size
+			// La clave que apuntaba a esta carátula queda muerta: se olvida
+			// ahora en vez de dejar que el próximo lookup haga un stat fallido.
+			olvidarArchivoPortada(dir, filepath.Base(files[i].path))
 		}
 	}
 }

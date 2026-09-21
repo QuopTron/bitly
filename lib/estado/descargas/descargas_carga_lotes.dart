@@ -56,17 +56,18 @@ mixin DescargasCargaLotes on DescargasCargaLotesCaratulas {
         final nombre = (m['name'] ?? '') as String;
         final itemType = (m['item_type'] ?? '') as String;
         final itemId = (m['item_id'] ?? '') as String;
-        if (nombre.isNotEmpty) {
-          final cover = _coverDeLote(m, idStrings);
-          _metaLote[batchKey] = _MetaLote(
-            nombre,
-            itemType,
-            itemId,
-            source,
-            coverUrl: cover.url,
-            coverPath: cover.path,
-          );
-        }
+        // El lote se registra SIEMPRE, aunque el nombre venga vacío (fila
+        // escrita al empezar la descarga): antes ese caso lo dejaba fuera del
+        // mapa y la tarjeta quedaba sin carátula ni forma de adoptarla.
+        final cover = _coverDeLote(m, idStrings);
+        _metaLote[batchKey] = _MetaLote(
+          nombre,
+          itemType,
+          itemId,
+          source,
+          coverUrl: cover.url,
+          coverPath: cover.path,
+        );
         // Mapa inverso: trackId → batchKey y _batchTrackIds. Los lotes
         // parciales también entran: así el poll puede elevarlos a
         // completado cuando se bajan los tracks que faltaban.
@@ -88,6 +89,7 @@ mixin DescargasCargaLotes on DescargasCargaLotesCaratulas {
     _ultimoTimestampLotes = DateTime.now().toUtc().toIso8601String();
 
     if (await _backfillCaratulasDeLotes(mapaTrackALote)) cambiado = true;
+    if (await _backfillLotesDesdeBiblioteca()) cambiado = true;
     return (completados, cambiado);
   }
 

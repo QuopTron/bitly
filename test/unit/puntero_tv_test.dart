@@ -70,8 +70,11 @@ void main() {
       await tester.pump();
 
       final movido = tester.getCenter(find.byKey(PunteroTv.claveCursor));
-      expect(movido, const Offset(424, 300),
-          reason: 'la flecha debe mover el cursor 24px a la derecha');
+      expect(
+        movido,
+        const Offset(424, 300),
+        reason: 'la flecha debe mover el cursor 24px a la derecha',
+      );
     });
 
     testWidgets('OK hace clic de mouse donde está el cursor', (tester) async {
@@ -88,18 +91,21 @@ void main() {
       await tester.pump(const Duration(milliseconds: 120));
 
       expect(clics, hasLength(1));
-      expect(dispositivos, [PointerDeviceKind.mouse],
-          reason: 'el clic debe ser de mouse, no un toque sintético');
+      expect(dispositivos, [
+        PointerDeviceKind.mouse,
+      ], reason: 'el clic debe ser de mouse, no un toque sintético');
       expect(
         clics.single,
         tester.getCenter(find.byKey(PunteroTv.claveCursor)),
-        reason: 'el clic tiene que caer donde se dibuja el cursor, '
+        reason:
+            'el clic tiene que caer donde se dibuja el cursor, '
             'que era exactamente el bug de "presiona otra card"',
       );
     });
 
-    testWidgets('la rueda (canal +) hace scroll sin mover el cursor',
-        (tester) async {
+    testWidgets('la rueda (canal +) hace scroll sin mover el cursor', (
+      tester,
+    ) async {
       final clics = <Offset>[];
       final dispositivos = <PointerDeviceKind>[];
       await tester.pumpWidget(
@@ -114,8 +120,9 @@ void main() {
       expect(clics, isEmpty);
     });
 
-    testWidgets('con un campo de texto enfocado el puntero sigue mandando',
-        (tester) async {
+    testWidgets('con un campo de texto enfocado el puntero sigue mandando', (
+      tester,
+    ) async {
       // En TV el cursor es la única forma de moverse: el foco de un campo de
       // texto no puede dejarlo "apagado" (era la causa del desfase).
       final clics = <Offset>[];
@@ -183,16 +190,18 @@ void main() {
   });
 
   group('lienzo de diseño de TV', () {
-    testWidgets('siempre entrega el mismo ancho lógico, sin importar el DPI',
-        (tester) async {
+    testWidgets('siempre entrega el mismo ancho lógico, sin importar el DPI', (
+      tester,
+    ) async {
       Future<void> probar(Size fisico) async {
         tester.view.physicalSize = fisico;
         tester.view.devicePixelRatio = 1.0;
         await tester.pumpWidget(
           MaterialApp(
             home: Builder(
-              builder: (context) =>
-                  vistaDisenoTv(context: context, child: const _SondaTv()),
+              builder:
+                  (context) =>
+                      vistaDisenoTv(context: context, child: const _SondaTv()),
             ),
           ),
         );
@@ -205,8 +214,11 @@ void main() {
         Size(960, 540),
       ]) {
         await probar(fisico);
-        expect(find.text('ancho:1280.0 alto:720.0'), findsOneWidget,
-            reason: 'el layout no debe depender del DPI del televisor');
+        expect(
+          find.text('ancho:1280.0 alto:720.0'),
+          findsOneWidget,
+          reason: 'el layout no debe depender del DPI del televisor',
+        );
       }
 
       tester.view.reset();
@@ -222,8 +234,9 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Builder(
-            builder: (context) =>
-                vistaDisenoTv(context: context, child: const _SondaTv()),
+            builder:
+                (context) =>
+                    vistaDisenoTv(context: context, child: const _SondaTv()),
           ),
         ),
       );

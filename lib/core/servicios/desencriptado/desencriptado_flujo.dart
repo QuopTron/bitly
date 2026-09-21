@@ -21,19 +21,30 @@ Future<ResultadoDesencriptadoStream> _desencriptarMovKeyDesbloqueado({
 }) async {
   final archivoOrigen = File(rutaOrigen);
   if (!await archivoOrigen.exists()) {
-    return const ResultadoDesencriptadoStream(exito: false, salida: 'origen no encontrado');
+    return const ResultadoDesencriptadoStream(
+      exito: false,
+      salida: 'origen no encontrado',
+    );
   }
 
   final extPreferida = _resolverExtensionPreferida(extensionSalida);
-  final demuxer = (formatoEntrada ?? '').trim().isNotEmpty ? formatoEntrada!.trim() : 'mov';
+  final demuxer =
+      (formatoEntrada ?? '').trim().isNotEmpty ? formatoEntrada!.trim() : 'mov';
   final dir = directorioSalida ?? archivoOrigen.parent.path;
   final nombreOrigen = archivoOrigen.uri.pathSegments.last;
-  final nombreBase = (nombreBaseSalida ?? nombreOrigen).replaceFirst(RegExp(r'\.[^.]+$'), '');
-  String rutaSalida(String ext) => '$dir${Platform.pathSeparator}$nombreBase.dec$ext';
+  final nombreBase = (nombreBaseSalida ?? nombreOrigen).replaceFirst(
+    RegExp(r'\.[^.]+$'),
+    '',
+  );
+  String rutaSalida(String ext) =>
+      '$dir${Platform.pathSeparator}$nombreBase.dec$ext';
 
   final claves = _candidatosClaveDesencriptado(clave);
   if (claves.isEmpty) {
-    return const ResultadoDesencriptadoStream(exito: false, salida: 'sin clave usable');
+    return const ResultadoDesencriptadoStream(
+      exito: false,
+      salida: 'sin clave usable',
+    );
   }
 
   String? ultimaSalidaFfmpeg;
@@ -138,12 +149,16 @@ Future<ResultadoDesencriptadoStream> _desencriptarMovKeyDesbloqueado({
     try {
       final f = File(rutaSalida(ext));
       if (await f.exists()) await f.delete();
-    } catch (e) { debugPrint("[Desencriptado] error: $e"); }
+    } catch (e) {
+      debugPrint("[Desencriptado] error: $e");
+    }
   }
   // Incluye el último error de ffmpeg + qué es el archivo realmente (ftyp=
   // cifrado válido, fLaC=plano, "<!"=página de error, tamaño=truncado).
   return ResultadoDesencriptadoStream(
     exito: false,
-    salida: ultimaSalidaFfmpeg ?? 'decrypt falló: ${await _huellaArchivo(rutaOrigen)}',
+    salida:
+        ultimaSalidaFfmpeg ??
+        'decrypt falló: ${await _huellaArchivo(rutaOrigen)}',
   );
 }

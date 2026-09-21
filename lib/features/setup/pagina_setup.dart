@@ -21,6 +21,7 @@ import 'bloc/setup_bloc.dart';
 import 'bloc/setup_estado.dart';
 import 'bloc/setup_evento.dart';
 import './vistas/setup_escritorio.dart';
+import '../../shared/utilidades/modales/mostrar_modal.dart';
 import './vistas/setup_movil.dart';
 
 /// Página del setup: elige el layout según la plataforma.
@@ -49,31 +50,34 @@ class _PaginaSetupState extends State<PaginaSetup> {
   void _mostrarInfo(String titulo, String mensaje) {
     if (!mounted) return;
     final esOscuro = Theme.of(context).brightness == Brightness.dark;
-    showDialog(
+    mostrarDialogo<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: esOscuro ? const Color(0xFF1A1A1A) : Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(
-          titulo,
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: esOscuro ? Colors.white : Colors.black,
+      builder:
+          (ctx) => AlertDialog(
+            backgroundColor: esOscuro ? const Color(0xFF1A1A1A) : Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            title: Text(
+              titulo,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: esOscuro ? Colors.white : Colors.black,
+              ),
+            ),
+            content: Text(
+              mensaje,
+              style: TextStyle(
+                color: esOscuro ? Colors.white70 : Colors.black87,
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: Text(AppLocalizations.of(ctx).setup.continueText),
+              ),
+            ],
           ),
-        ),
-        content: Text(
-          mensaje,
-          style: TextStyle(
-            color: esOscuro ? Colors.white70 : Colors.black87,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(AppLocalizations.of(ctx).setup.continueText),
-          ),
-        ],
-      ),
     );
   }
 
@@ -82,7 +86,8 @@ class _PaginaSetupState extends State<PaginaSetup> {
     final loc = AppLocalizations.of(context);
     final r = Responsive(context);
     final esOscuro = Theme.of(context).brightness == Brightness.dark;
-    final colorFondo = esOscuro ? ColoresApp.fondoOscuro : ColoresApp.fondoClaro;
+    final colorFondo =
+        esOscuro ? ColoresApp.fondoOscuro : ColoresApp.fondoClaro;
     final colorBrillo =
         esOscuro ? ColoresApp.verdeBrillante : ColoresApp.verdeMedio;
 

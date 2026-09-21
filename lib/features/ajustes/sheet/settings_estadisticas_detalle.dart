@@ -26,8 +26,10 @@ Future<void> mostrarDetalleEscucha(
   BuildContext context, {
   required Color glowColor,
 }) {
-  return showModalBottomSheet<void>(
+  // `sobreHoja`: sale desde el resumen de Ajustes y tapa esa hoja.
+  return mostrarHoja<void>(
     context: context,
+    sobreHoja: true,
     backgroundColor: Colors.transparent,
     isScrollControlled: true,
     builder: (_) => _DetalleEscuchaSheet(glowColor: glowColor),
@@ -37,7 +39,6 @@ Future<void> mostrarDetalleEscucha(
 /// Hoja de detalle: filtros arriba, lista abajo.
 class _DetalleEscuchaSheet extends StatefulWidget {
   final Color glowColor;
-
   const _DetalleEscuchaSheet({required this.glowColor});
 
   @override
@@ -81,8 +82,7 @@ class _DetalleEscuchaSheetState extends State<_DetalleEscuchaSheet> {
     }
   }
 
-  /// Cambia de tipo y recarga solo cuando cambia el tipo: rango y orden se
-  /// aplican en memoria, sin volver a leer la base.
+  /// Cambia de tipo y recarga solo con el tipo: rango y orden van en memoria.
   void _cambiarTipo(TipoEscucha tipo) {
     if (tipo == _tipo) return;
     setState(() => _tipo = tipo);
@@ -94,11 +94,7 @@ class _DetalleEscuchaSheetState extends State<_DetalleEscuchaSheet> {
     final r = Responsive(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final onBg = ColoresApp.enSuperficie(isDark);
-    final visibles = aplicarFiltroEscucha(
-      _filas,
-      rango: _rango,
-      orden: _orden,
-    );
+    final visibles = aplicarFiltroEscucha(_filas, rango: _rango, orden: _orden);
 
     return Container(
       // Compacta a propósito: deja ver la pantalla de atrás y se siente como

@@ -25,6 +25,7 @@ class _SoulseekCard extends StatelessWidget {
     final r = Responsive(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final onBg = ColoresApp.enSuperficie(isDark);
+    final s = AppLocalizations.of(context).soulseek;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -34,7 +35,7 @@ class _SoulseekCard extends StatelessWidget {
             Icon(Icons.hub_rounded, color: glowColor, size: r.subtitleSize),
             SizedBox(width: r.spacingS),
             Text(
-              'Soulseek',
+              s.titulo,
               style: TextStyle(
                 fontSize: r.subtitleSize,
                 fontWeight: FontWeight.w700,
@@ -45,8 +46,7 @@ class _SoulseekCard extends StatelessWidget {
         ),
         SizedBox(height: 4),
         Text(
-          'Música en FLAC compartida entre usuarios. Sin invitación, sin pago '
-          'y sin cuentas de otros servicios.',
+          s.cardDesc,
           style: TextStyle(
             fontSize: r.footerSize - 1,
             color: onBg.withValues(alpha: 0.5),

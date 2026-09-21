@@ -32,7 +32,9 @@ mixin ReproductorStreamProxy on ReproductorStream {
         _baseProxyStream = base;
         return base;
       }
-    } catch (e) { debugPrint("[App] $e"); }
+    } catch (e) {
+      debugPrint("[App] $e");
+    }
     return null;
   }
 
@@ -59,7 +61,8 @@ mixin ReproductorStreamProxy on ReproductorStream {
     try {
       final uri = Uri.parse(url);
       final host = uri.host.toLowerCase();
-      final esYoutube = host.endsWith('googlevideo.com') ||
+      final esYoutube =
+          host.endsWith('googlevideo.com') ||
           host.endsWith('youtube.com') ||
           host.endsWith('ytimg.com');
       if (!esYoutube) return null;
@@ -69,39 +72,46 @@ mixin ReproductorStreamProxy on ReproductorStream {
       String? origin;
       String? referer;
       if (c.startsWith('ANDROID_VR') || c == 'ANDROID') {
-        ua = c.startsWith('ANDROID_VR')
-            ? 'com.google.android.apps.youtube.vr.oculus/1.65.10 (Linux; U; '
-                  'Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip'
-            : 'com.google.android.youtube/20.02.30 (Linux; U; Android 11) gzip';
+        ua =
+            c.startsWith('ANDROID_VR')
+                ? 'com.google.android.apps.youtube.vr.oculus/1.65.10 (Linux; U; '
+                    'Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip'
+                : 'com.google.android.youtube/20.02.30 (Linux; U; Android 11) gzip';
       } else if (c.startsWith('IOS')) {
-        ua = 'com.google.ios.youtube/21.02.3 (iPhone16,2; U; CPU iOS 18_3_2 '
-              'like Mac OS X)';
+        ua =
+            'com.google.ios.youtube/21.02.3 (iPhone16,2; U; CPU iOS 18_3_2 '
+            'like Mac OS X)';
       } else if (c == 'MWEB') {
-        ua = 'Mozilla/5.0 (iPad; CPU OS 16_7_10 like Mac OS X) '
-              'AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/'
-              '15E148 Safari/604.1,gzip(gfe)';
+        ua =
+            'Mozilla/5.0 (iPad; CPU OS 16_7_10 like Mac OS X) '
+            'AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/'
+            '15E148 Safari/604.1,gzip(gfe)';
         origin = 'https://www.youtube.com';
         referer = 'https://www.youtube.com/';
       } else if (c == 'WEB_REMIX') {
-        ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
-              '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+        ua =
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+            '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
         origin = 'https://music.youtube.com';
         referer = 'https://music.youtube.com/';
       } else if (c == 'WEB_EMBEDDED_PLAYER' || c == 'WEB') {
-        ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
-              '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+        ua =
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+            '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
         origin = 'https://www.youtube.com';
         referer = 'https://www.youtube.com/';
       } else if (c == 'TVHTML5' || c == 'TVHTML5_SIMPLY_EMBEDDED_PLAYER') {
-        ua = c == 'TVHTML5'
-            ? 'Mozilla/5.0 (SMART-TV; LINUX; Tizen 6.5) AppleWebKit/537.36 '
-                  '(KHTML, like Gecko) Version/6.5 TV Safari/537.36'
-            : 'Mozilla/5.0 (ChromiumStylePlatform) Cobalt/Version';
+        ua =
+            c == 'TVHTML5'
+                ? 'Mozilla/5.0 (SMART-TV; LINUX; Tizen 6.5) AppleWebKit/537.36 '
+                    '(KHTML, like Gecko) Version/6.5 TV Safari/537.36'
+                : 'Mozilla/5.0 (ChromiumStylePlatform) Cobalt/Version';
         origin = 'https://www.youtube.com';
         referer = 'https://www.youtube.com/tv';
       } else {
-        ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
-              '(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
+        ua =
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+            '(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
       }
       return {
         'User-Agent': ua,
@@ -124,9 +134,10 @@ mixin ReproductorStreamProxy on ReproductorStream {
     }
     try {
       final m = RegExp(r'[?&]clen=(\d+)').firstMatch(url);
-      final probeFin = (m != null && int.parse(m.group(1)!) > 0)
-          ? (int.parse(m.group(1)!) - 1).toString()
-          : '3145727'; // ~3MB: pasado todo gate observado cuando falta clen
+      final probeFin =
+          (m != null && int.parse(m.group(1)!) > 0)
+              ? (int.parse(m.group(1)!) - 1).toString()
+              : '3145727'; // ~3MB: pasado todo gate observado cuando falta clen
       final res = await http
           .get(
             Uri.parse(url),

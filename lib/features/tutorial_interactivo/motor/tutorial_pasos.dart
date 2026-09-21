@@ -116,10 +116,12 @@ final List<_Definicion> _pasos = [
     pestanaAjustes: PestanaAjustes.rendimiento,
     icono: Icons.speed_rounded,
   ),
+  // La pestaña Cuenta: tu plan, la prueba y Google (antes destacaba "Más"
+  // porque todo eso vivía adentro).
   _Definicion(
-    'ajustesMas',
+    'ajustesCuenta',
     key: keyTutorialAjustesContenido,
-    pestanaAjustes: PestanaAjustes.mas,
+    pestanaAjustes: PestanaAjustes.cuenta,
     icono: Icons.workspace_premium_rounded,
   ),
 ];

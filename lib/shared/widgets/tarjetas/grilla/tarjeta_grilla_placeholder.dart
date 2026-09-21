@@ -32,7 +32,11 @@ LinearGradient _gradientePlaceholderDe(BuildContext context) {
   );
 }
 
-Widget _iconoPlaceholderDe(TarjetaGrilla t, double tamano, BuildContext context) {
+Widget _iconoPlaceholderDe(
+  TarjetaGrilla t,
+  double tamano,
+  BuildContext context,
+) {
   final esOscuro = Theme.of(context).brightness == Brightness.dark;
   final c = ColoresApp.enSuperficie(esOscuro);
   return Container(
@@ -55,9 +59,10 @@ Widget _iconoPlaceholderDe(TarjetaGrilla t, double tamano, BuildContext context)
 
 Widget _portadaGradienteDe(TarjetaGrilla t, String coverUrl, double tamano) {
   final idx = int.tryParse(coverUrl.replaceFirst('gradient:', '')) ?? 0;
-  final colores = idx >= 0 && idx < _gradientesPreset.length
-      ? _gradientesPreset[idx]
-      : _gradientesPreset[0];
+  final colores =
+      idx >= 0 && idx < _gradientesPreset.length
+          ? _gradientesPreset[idx]
+          : _gradientesPreset[0];
   return Container(
     width: tamano,
     height: tamano,
@@ -69,8 +74,11 @@ Widget _portadaGradienteDe(TarjetaGrilla t, String coverUrl, double tamano) {
       ),
     ),
     child: Center(
-      child: Icon(Icons.music_note_rounded,
-          color: Colors.white.withValues(alpha: 0.7), size: tamano * 0.4),
+      child: Icon(
+        Icons.music_note_rounded,
+        color: Colors.white.withValues(alpha: 0.7),
+        size: tamano * 0.4,
+      ),
     ),
   );
 }

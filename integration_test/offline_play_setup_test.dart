@@ -36,8 +36,12 @@ Future<String> generarWavLocal(String path, {int seconds = 3}) async {
   final bytes = BytesBuilder();
 
   void writeStr(String s) => bytes.add(s.codeUnits);
-  void writeU32(int v) =>
-      bytes.add([v & 0xFF, (v >> 8) & 0xFF, (v >> 16) & 0xFF, (v >> 24) & 0xFF]);
+  void writeU32(int v) => bytes.add([
+    v & 0xFF,
+    (v >> 8) & 0xFF,
+    (v >> 16) & 0xFF,
+    (v >> 24) & 0xFF,
+  ]);
   void writeU16(int v) => bytes.add([v & 0xFF, (v >> 8) & 0xFF]);
 
   writeStr('RIFF');
@@ -69,8 +73,9 @@ Future<String> generarWavLocal(String path, {int seconds = 3}) async {
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('offline: descarga local se reproduce online y queda en drift',
-      (tester) async {
+  testWidgets('offline: descarga local se reproduce online y queda en drift', (
+    tester,
+  ) async {
     MediaKit.ensureInitialized();
     await inj.configurarDependencias();
     final backend = BackendAndroid();
@@ -81,7 +86,9 @@ void main() {
 
     // 2. Crear el archivo de audio "descargado" en el dir de descargas.
     final docs = await getApplicationDocumentsDirectory();
-    final wavPath = await generarWavLocal('${docs.path}/Bitly/offline_test_1.wav');
+    final wavPath = await generarWavLocal(
+      '${docs.path}/Bitly/offline_test_1.wav',
+    );
     expect(File(wavPath).existsSync(), isTrue, reason: 'el WAV debe existir');
 
     // 3. Registrar en drift igual que una descarga real.
@@ -93,7 +100,9 @@ void main() {
       service: 'ytmusic-spotiflac',
       duration: 3000,
     );
-    final saved = await inj.sl<CacheDescargas>().getRutaArchivoPorId('offline_test_1');
+    final saved = await inj.sl<CacheDescargas>().getRutaArchivoPorId(
+      'offline_test_1',
+    );
     expect(saved, wavPath, reason: 'drift debe recordar el archivo descargado');
 
     // 4. Reproducir con el pipeline real (proceso online).
@@ -115,11 +124,17 @@ void main() {
     while (DateTime.now().isBefore(deadline)) {
       await Future<void>.delayed(const Duration(milliseconds: 500));
       state = player.state;
-      if (state.estaReproduciendo || state.estadoReproduccion.name == 'error') break;
+      if (state.estaReproduciendo || state.estadoReproduccion.name == 'error') {
+        break;
+      }
     }
-    expect(state.estadoReproduccion.name, 'reproduciendo',
-        reason: 'debe reproducir el archivo local (estado: '
-            '${state.estadoReproduccion.name}, error: ${state.mensajeError})');
+    expect(
+      state.estadoReproduccion.name,
+      'reproduciendo',
+      reason:
+          'debe reproducir el archivo local (estado: '
+          '${state.estadoReproduccion.name}, error: ${state.codigoError})',
+    );
 
     // 5. Esperar a que el position avance (>1s) = audio decodificado real.
     final deadline2 = DateTime.now().add(const Duration(seconds: 30));
@@ -128,9 +143,13 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 500));
       state = player.state;
     }
-    expect(state.posicion.inMilliseconds, greaterThanOrEqualTo(1000),
-        reason: 'el audio debe estar decodificándose (position: '
-            '${state.posicion.inMilliseconds}ms)');
+    expect(
+      state.posicion.inMilliseconds,
+      greaterThanOrEqualTo(1000),
+      reason:
+          'el audio debe estar decodificándose (position: '
+          '${state.posicion.inMilliseconds}ms)',
+    );
 
     // Dejar el track registrado en drift para el Test B (reinicio offline).
   });

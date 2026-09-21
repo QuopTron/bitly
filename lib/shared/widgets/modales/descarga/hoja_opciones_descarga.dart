@@ -18,20 +18,17 @@ import '../../../../app/inyeccion.dart';
 import '../../../../core/backend_go/nucleo/contrato_backend.dart';
 import '../../../../core/cache/almacenes/cache_ajustes.dart';
 import '../../../../core/modelos/ajustes_descarga.dart';
-import '../../../../core/modelos/usuario/estilo_visual.dart';
 import '../../../../core/modelos/feed/item_feed.dart';
-import '../../../../core/modelos/usuario/preferencias_estilo.dart';
-import '../../../../estado/cola/cubit_cola.dart';
 import '../../../../estado/descargas/cubit_descargas.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../tema/colores_app.dart';
 import '../../../utilidades/descarga/estrategia_descarga.dart';
 import '../../../utilidades/formato/formato_tamano.dart';
-import '../../../utilidades/portada/paleta_portada.dart';
 import '../../../utilidades/plataforma/insets_sistema.dart';
+import '../../../utilidades/modales/mostrar_modal.dart';
 import '../../../utilidades/plataforma/responsive.dart';
 import '../../vidrio/contenedor_vidrio.dart';
-import '../../vidrio/desenfoque_adaptativo.dart';
+import '../../vidrio/fondo_reactivo_portada.dart';
 
 part 'hoja_opciones_descarga_cuerpo.dart';
 part 'hoja_opciones_descarga_estado.dart';
@@ -48,8 +45,8 @@ Future<void> mostrarOpcionesDescarga(
   AjustesDescarga? ajustesDescarga,
   bool ignorarDescargaRapida = false,
 }) async {
-  final ajustes = ajustesDescarga ??
-      await sl<CacheAjustes>().getAjustesDescarga();
+  final ajustes =
+      ajustesDescarga ?? await sl<CacheAjustes>().getAjustesDescarga();
   if (!context.mounted) return;
 
   if (ajustes.descargaRapida && !ignorarDescargaRapida) {
@@ -57,15 +54,16 @@ Future<void> mostrarOpcionesDescarga(
     return;
   }
 
-  showModalBottomSheet(
+  mostrarHoja<void>(
     context: context,
     backgroundColor: Colors.transparent,
     isScrollControlled: true,
-    builder: (_) => HojaOpcionesDescarga(
-      item: item,
-      esOscuro: esOscuro,
-      ajustes: ajustes,
-    ),
+    builder:
+        (_) => HojaOpcionesDescarga(
+          item: item,
+          esOscuro: esOscuro,
+          ajustes: ajustes,
+        ),
   );
 }
 

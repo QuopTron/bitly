@@ -32,8 +32,16 @@ const iconosFuente = <String, IconData>{
 
 /// Lista de todas las fuentes conocidas.
 const todasLasFuentes = [
-  'deezer', 'spotify-web', 'spotify', 'apple-music', 'soundcloud',
-  'amazon', 'qobuz-web', 'tidal-web', 'ytmusic-spotiflac', 'internetarchive',
+  'deezer',
+  'spotify-web',
+  'spotify',
+  'apple-music',
+  'soundcloud',
+  'amazon',
+  'qobuz-web',
+  'tidal-web',
+  'ytmusic-spotiflac',
+  'internetarchive',
 ];
 
 /// Fuentes de RESPALDO: no son catálogos navegables, existen para que el
@@ -89,11 +97,22 @@ String nombreFuente(String id) => etiquetasFuente[id] ?? formatearId(id);
 /// "albums") a la categoría canónica usada para agrupar resultados.
 String categoriaBusquedaDe(String filterId) {
   switch (filterId.toLowerCase()) {
-    case 'track': case 'tracks': case 'song': case 'songs': return 'tracks';
-    case 'artist': case 'artists': return 'artists';
-    case 'album': case 'albums': return 'albums';
-    case 'playlist': case 'playlists': return 'playlists';
-    default: return filterId;
+    case 'track':
+    case 'tracks':
+    case 'song':
+    case 'songs':
+      return 'tracks';
+    case 'artist':
+    case 'artists':
+      return 'artists';
+    case 'album':
+    case 'albums':
+      return 'albums';
+    case 'playlist':
+    case 'playlists':
+      return 'playlists';
+    default:
+      return filterId;
   }
 }
 
@@ -101,17 +120,26 @@ String categoriaBusquedaDe(String filterId) {
 /// cuando el manifest lo deja vacío (p.ej. amazon).
 IconData iconoFiltroBusqueda(String icon, String categoria) {
   switch (icon) {
-    case 'music': return Icons.music_note;
-    case 'album': return Icons.album;
-    case 'artist': return Icons.person;
-    case 'playlist': return Icons.playlist_play;
+    case 'music':
+      return Icons.music_note;
+    case 'album':
+      return Icons.album;
+    case 'artist':
+      return Icons.person;
+    case 'playlist':
+      return Icons.playlist_play;
     default:
       switch (categoria) {
-        case 'tracks': return Icons.music_note;
-        case 'artists': return Icons.person;
-        case 'albums': return Icons.album;
-        case 'playlists': return Icons.playlist_play;
-        default: return Icons.search;
+        case 'tracks':
+          return Icons.music_note;
+        case 'artists':
+          return Icons.person;
+        case 'albums':
+          return Icons.album;
+        case 'playlists':
+          return Icons.playlist_play;
+        default:
+          return Icons.search;
       }
   }
 }

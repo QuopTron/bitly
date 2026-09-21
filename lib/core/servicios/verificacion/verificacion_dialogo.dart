@@ -4,7 +4,8 @@
 // DialogoVerificacion, el timer de timeout, el puente con el
 // servidor loopback de Windows y el fallback al navegador.
 // Se conecta con: servicio_verificacion.dart (misma library) +
-// dialogo_verificacion + servidor_callback_escritorio.
+// dialogo_verificacion + servidor_callback_escritorio + mostrar_modal
+// (velo que tapa la hoja si hay una abierta).
 // Parte del flujo: verificación de sesiones (challenge visible).
 // ─────────────────────────────────────────────────────────────
 
@@ -26,8 +27,10 @@ mixin VerificacionDialogo on VerificacionNavegador {
     final callbackDesktop = ServidorCallbackEscritorio.instance;
 
     _timeout = Timer(timeout, () {
-      _logVerificacion.w('[Verificacion] Verificación agotó el tiempo tras '
-          '${timeout.inMinutes} min');
+      _logVerificacion.w(
+        '[Verificacion] Verificación agotó el tiempo tras '
+        '${timeout.inMinutes} min',
+      );
       _completarPendiente('');
       // Pop solo de la ruta del dialog Y solo mientras el dialog esté abierto.
       // Un Navigator.pop() ciego al timeout puede popear la última página del
@@ -47,16 +50,22 @@ mixin VerificacionDialogo on VerificacionNavegador {
 
     _dialogoAbierto = true;
     try {
-      await showDialog<void>(
+      // Este aviso no lo pide el usuario: puede saltar con una hoja abierta
+      // (letra, cola, ajustes). [hayModalAbierto] hace que el velo tape esa
+      // hoja en vez de dejarla asomando detrás del diálogo.
+      await mostrarDialogo<void>(
         context: ctx,
+        sobreModal: hayModalAbierto,
         barrierDismissible: false,
         builder: (dialogCtx) {
           dialogNav = Navigator.of(dialogCtx);
 
           void terminar(String? grant) {
             _completarPendiente(grant);
-            debugPrint('[Verificacion] terminar($grant) mounted=${dialogCtx.mounted} '
-                'canPop=${dialogCtx.mounted ? Navigator.of(dialogCtx).canPop() : false}');
+            debugPrint(
+              '[Verificacion] terminar($grant) mounted=${dialogCtx.mounted} '
+              'canPop=${dialogCtx.mounted ? Navigator.of(dialogCtx).canPop() : false}',
+            );
             if (dialogCtx.mounted) Navigator.of(dialogCtx).pop();
           }
 
@@ -68,8 +77,14 @@ mixin VerificacionDialogo on VerificacionNavegador {
           if (Platform.isWindows && callbackDesktop.estaListo) {
             unawaited(() async {
               final grant = await callbackDesktop.esperarGrant(timeout);
-              debugPrint('[Verificacion] loopback esperó grant → '
-                  '${grant == null ? 'null' : grant.isNotEmpty ? 'OK' : 'vacío'}');
+              debugPrint(
+                '[Verificacion] loopback esperó grant → '
+                '${grant == null
+                    ? 'null'
+                    : grant.isNotEmpty
+                    ? 'OK'
+                    : 'vacío'}',
+              );
               if (grant != null && grant.isNotEmpty) {
                 _completarPendiente(grant);
                 if (dialogCtx.mounted && Navigator.of(dialogCtx).canPop()) {

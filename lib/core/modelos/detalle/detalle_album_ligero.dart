@@ -25,13 +25,14 @@ class DetalleAlbumLigero {
     this.playCount = 0,
   });
 
-  factory DetalleAlbumLigero.desdeJson(Map<String, dynamic> json) => DetalleAlbumLigero(
-    albumId: json['albumId'] as String? ?? '',
-    name: json['name'] as String? ?? '',
-    coverUrl: json['coverUrl'] as String?,
-    coverPath: json['coverPath'] as String?,
-    releaseDate: json['releaseDate'] as String?,
-    totalTracks: (json['totalTracks'] as num?)?.toInt() ?? 0,
-    playCount: (json['playCount'] as num?)?.toInt() ?? 0,
-  );
+  factory DetalleAlbumLigero.desdeJson(Map<String, dynamic> json) =>
+      DetalleAlbumLigero(
+        albumId: json['albumId'] as String? ?? '',
+        name: json['name'] as String? ?? '',
+        coverUrl: json['coverUrl'] as String?,
+        coverPath: json['coverPath'] as String?,
+        releaseDate: json['releaseDate'] as String?,
+        totalTracks: (json['totalTracks'] as num?)?.toInt() ?? 0,
+        playCount: (json['playCount'] as num?)?.toInt() ?? 0,
+      );
 }

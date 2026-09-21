@@ -51,22 +51,14 @@ class _ListaCompartidos extends StatelessWidget {
               ),
             ),
             if (items.isNotEmpty)
-              TextButton(
-                onPressed: onBorrar,
-                child: Text(l.compartidosBorrar),
-              ),
+              TextButton(onPressed: onBorrar, child: Text(l.compartidosBorrar)),
           ],
         ),
         if (items.isEmpty)
           _vacio(r, l.compartidosVacio)
         else
           for (final entrada in items) ...[
-            _filaCompartido(
-              context,
-              r,
-              entrada,
-              onTap: () => onTocar(entrada),
-            ),
+            _filaCompartido(context, r, entrada, onTap: () => onTocar(entrada)),
             SizedBox(height: r.spacingS),
           ],
       ],

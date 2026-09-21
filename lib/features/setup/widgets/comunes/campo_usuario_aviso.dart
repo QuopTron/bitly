@@ -85,12 +85,14 @@ class AvisoEstadoUsuario extends StatelessWidget {
   Widget build(BuildContext context) {
     final creando = state.syncSoulseek == SyncSoulseek.creando;
     final motivo = state.motivoSoulseek;
-    final bloqueado = state.syncSoulseek == SyncSoulseek.fallo &&
+    final bloqueado =
+        state.syncSoulseek == SyncSoulseek.fallo &&
         (motivo == 'nombre_tomado' || motivo == 'nombre_invalido');
 
-    final Color color = bloqueado
-        ? Colors.red.shade400
-        : onBg.withValues(alpha: creando ? 0.55 : 0.45);
+    final Color color =
+        bloqueado
+            ? Colors.red.shade400
+            : onBg.withValues(alpha: creando ? 0.55 : 0.45);
     final String texto = switch (motivo) {
       'nombre_tomado' => loc.setup.soulseekNameTaken,
       'nombre_invalido' => loc.setup.soulseekNameInvalid,

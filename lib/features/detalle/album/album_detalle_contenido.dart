@@ -30,56 +30,65 @@ List<Widget> _construirContenido(
 
   // Barra de progreso cuando el lote está en curso.
   if (d.estadoLote == EstadoDescarga.enProgreso) {
-    widgets.add(Padding(
-      padding: EdgeInsets.only(bottom: r.spacingS),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(3),
-            child: LinearProgressIndicator(
-              value: d.total > 0 ? d.descargados / d.total : 0,
-              minHeight: 4,
-              backgroundColor: colorBrillo.withValues(alpha: 0.1),
-              valueColor: AlwaysStoppedAnimation<Color>(colorBrillo),
+    widgets.add(
+      Padding(
+        padding: EdgeInsets.only(bottom: r.spacingS),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(3),
+              child: LinearProgressIndicator(
+                value: d.total > 0 ? d.descargados / d.total : 0,
+                minHeight: 4,
+                backgroundColor: colorBrillo.withValues(alpha: 0.1),
+                valueColor: AlwaysStoppedAnimation<Color>(colorBrillo),
+              ),
             ),
-          ),
-          SizedBox(height: 4),
-          Text(
-            '${d.descargados} / ${d.total} ${loc.setup.miSpaceSongCount}',
-            style: TextStyle(
-              fontSize: r.footerSize - 1,
-              color: colorBrillo.withValues(alpha: 0.7),
+            SizedBox(height: 4),
+            Text(
+              '${d.descargados} / ${d.total} ${loc.setup.miSpaceSongCount}',
+              style: TextStyle(
+                fontSize: r.footerSize - 1,
+                color: colorBrillo.withValues(alpha: 0.7),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ));
+    );
   }
 
   // Banner de solo-descargados sin red.
   if (!st._estaEnLinea) {
-    widgets.add(Container(
-      margin: EdgeInsets.symmetric(horizontal: r.spacingS),
-      padding: EdgeInsets.symmetric(horizontal: r.spacingS, vertical: 6),
-      decoration: BoxDecoration(
-        color: colorSuperficie.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(Icons.cloud_off,
-            size: r.footerSize - 2,
-            color: colorSuperficie.withValues(alpha: 0.4)),
-        SizedBox(width: 6),
-        Text(
-          '${loc.setup.downloaded} ${loc.setup.miSpaceSongs.toLowerCase()}',
-          style: TextStyle(
-            fontSize: r.footerSize - 1,
-            color: colorSuperficie.withValues(alpha: 0.4),
-          ),
+    widgets.add(
+      Container(
+        margin: EdgeInsets.symmetric(horizontal: r.spacingS),
+        padding: EdgeInsets.symmetric(horizontal: r.spacingS, vertical: 6),
+        decoration: BoxDecoration(
+          color: colorSuperficie.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(8),
         ),
-      ]),
-    ));
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.cloud_off,
+              size: r.footerSize - 2,
+              color: colorSuperficie.withValues(alpha: 0.4),
+            ),
+            SizedBox(width: 6),
+            Text(
+              '${loc.setup.downloaded} ${loc.setup.miSpaceSongs.toLowerCase()}',
+              style: TextStyle(
+                fontSize: r.footerSize - 1,
+                color: colorSuperficie.withValues(alpha: 0.4),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   // Lista de tracks visibles.
@@ -89,28 +98,34 @@ List<Widget> _construirContenido(
     final esAmado = likedCubit.estaAmado(item);
     void play() => sl<CubitCola>().reproducirConContexto(d.items, item);
     // Sin padding horizontal: la tarjeta ya trae su margen lateral.
-    widgets.add(Padding(
-      padding: EdgeInsets.symmetric(vertical: r.spacingXS * 0.5),
-      child: TarjetaTrack(
-        item: item,
-        titulo: item.name,
-        subtitulo: (item.artists?.isNotEmpty == true)
-            ? item.artists!
-            : ((album.artistName?.isNotEmpty == true)
-                ? album.artistName!
-                : ''),
-        coverUrl: caratulaItem,
-        esAmado: esAmado,
-        readyKey: normalizarIdTrack(item.id),
-        escalaTexto: 1.2,
-        onLike: () => likedCubit.alternarLike(item),
-        estadoDescarga: dlCubit.estadoDescargaPara(clave).estado,
-        onDescargar: () => mostrarOpcionesDescarga(context, item, esOscuro),
-        onBorrar: () => dlCubit.borrarDescargaTrack(item.id, d.src),
-        onTap: play,
-        onCompartir: () => ServicioCompartir.instance.compartir(item),
+    widgets.add(
+      Padding(
+        // El eje Y de Ajustes → Diseño escala el hueco entre canciones.
+        padding: EdgeInsets.symmetric(
+          vertical: r.spacingXS * 0.5 * AparienciaEspacios.espacioY(context),
+        ),
+        child: TarjetaTrack(
+          item: item,
+          titulo: item.name,
+          subtitulo:
+              (item.artists?.isNotEmpty == true)
+                  ? item.artists!
+                  : ((album.artistName?.isNotEmpty == true)
+                      ? album.artistName!
+                      : ''),
+          coverUrl: caratulaItem,
+          esAmado: esAmado,
+          readyKey: normalizarIdTrack(item.id),
+          escalaTexto: 1.2,
+          onLike: () => likedCubit.alternarLike(item),
+          estadoDescarga: dlCubit.estadoDescargaPara(clave).estado,
+          onDescargar: () => mostrarOpcionesDescarga(context, item, esOscuro),
+          onBorrar: () => dlCubit.borrarDescargaTrack(item.id, d.src),
+          onTap: play,
+          onCompartir: () => ServicioCompartir.instance.compartir(item),
+        ),
       ),
-    ));
+    );
   }
   return widgets;
 }

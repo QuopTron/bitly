@@ -29,8 +29,12 @@ Future<bool> _pareceMediaDesencriptada(String ruta) async {
     }
     if (head.length < 4) return false;
     String ascii(int x) => String.fromCharCode(x);
-    final magic4 = ascii(head[0]) + ascii(head[1]) + ascii(head[2]) + ascii(head[3]);
-    if (magic4 == 'fLaC' || magic4 == 'ID3' || magic4 == 'OggS' || magic4 == 'RIFF') {
+    final magic4 =
+        ascii(head[0]) + ascii(head[1]) + ascii(head[2]) + ascii(head[3]);
+    if (magic4 == 'fLaC' ||
+        magic4 == 'ID3' ||
+        magic4 == 'OggS' ||
+        magic4 == 'RIFF') {
       return true;
     }
     // MP4/MOV: acepta si tiene caja ftyp Y NO es marca CENC-encrypted
@@ -39,7 +43,11 @@ Future<bool> _pareceMediaDesencriptada(String ruta) async {
     final asciis = head.map(ascii).join('');
     if (asciis.contains('ftyp')) {
       if (asciis.contains('cmfc') || asciis.contains('cenc')) return false;
-      if (asciis.contains('sinf') || asciis.contains('enca') || asciis.contains('encv')) return false;
+      if (asciis.contains('sinf') ||
+          asciis.contains('enca') ||
+          asciis.contains('encv')) {
+        return false;
+      }
       return true;
     }
     // Payload binario desconocido con contenido — darle el beneficio de la
@@ -57,7 +65,9 @@ Future<bool> _esperarArchivo(String ruta, {int intentos = 12}) async {
     try {
       final f = File(ruta);
       if (await f.exists() && (await f.length()) > 0) return true;
-    } catch (e) { debugPrint("[Desencriptado] error: $e"); }
+    } catch (e) {
+      debugPrint("[Desencriptado] error: $e");
+    }
     await Future<void>.delayed(const Duration(milliseconds: 250));
   }
   return false;
@@ -75,7 +85,9 @@ Future<ResultadoDesencriptadoStream> _ejecutarDecrypt(
     String salida = '';
     try {
       salida = (await sesion.getOutput() ?? '').trim();
-    } catch (e) { debugPrint("[Desencriptado] error: $e"); }
+    } catch (e) {
+      debugPrint("[Desencriptado] error: $e");
+    }
     final flusheado = await _esperarArchivo(rutaSalida);
     if (flusheado && await _pareceMediaDesencriptada(rutaSalida)) {
       return ResultadoDesencriptadoStream(
@@ -126,16 +138,29 @@ List<String> _construirArgsDecrypt({
   } else if (rutaSalida.toLowerCase().endsWith('.flac')) {
     overrideMuxer = <String>['-f', 'flac'];
   } else if (rutaSalida.toLowerCase().endsWith('.mp4') ||
-      rutaSalida.toLowerCase().endsWith('.m4a') || rutaSalida.toLowerCase().endsWith('.aac')) {
+      rutaSalida.toLowerCase().endsWith('.m4a') ||
+      rutaSalida.toLowerCase().endsWith('.aac')) {
     // .m4a/.aac son ISO-BMFF — usar mp4, NO ipod (ipod rechaza FLAC).
     overrideMuxer = <String>['-f', 'mp4'];
   } else {
     overrideMuxer = <String>['-f', 'ipod'];
   }
   return <String>[
-    '-nostdin', '-hide_banner', '-v', 'error', '-decryption_key', clave,
-    '-f', demuxer, '-i', rutaEntrada,
+    '-nostdin',
+    '-hide_banner',
+    '-v',
+    'error',
+    '-decryption_key',
+    clave,
+    '-f',
+    demuxer,
+    '-i',
+    rutaEntrada,
     if (soloAudio) ...<String>['-map', '0:a'],
-    '-c', 'copy', ...overrideMuxer, '-y', rutaSalida,
+    '-c',
+    'copy',
+    ...overrideMuxer,
+    '-y',
+    rutaSalida,
   ];
 }

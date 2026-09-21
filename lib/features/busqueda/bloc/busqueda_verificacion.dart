@@ -55,7 +55,8 @@ Future<void> _cachearYFinalizar(
 
   if (resultados.isEmpty && _fuentesVerificarAlVacio.contains(fuente)) {
     final ultimo = bloc._ultimoIntentoVerificacion[fuente];
-    final enCooldown = ultimo != null &&
+    final enCooldown =
+        ultimo != null &&
         DateTime.now().difference(ultimo) < BlocBusqueda._cooldownVerificacion;
     final sesionUsable = await _sesionFuenteUsable(bloc, fuente);
     if (!enCooldown && !sesionUsable) {
@@ -66,12 +67,15 @@ Future<void> _cachearYFinalizar(
           _log.i('[busqueda] Verificación OK — reintentando búsqueda');
           resultados = await _buscarTodo(bloc, query, fuente, tipo, limite);
         case _ResultadoVerificacion.fallida:
-          emit(bloc.state.copiarCon(
-            cargando: false,
-            haBuscado: true,
-            error: 'Verificación requerida para ${nombreFuente(fuente)}. '
-                'Ábrela desde Configuración y reintenta.',
-          ));
+          emit(
+            bloc.state.copiarCon(
+              cargando: false,
+              haBuscado: true,
+              // Solo el código: la UI arma el texto con l10n.
+              error: ErrorBusqueda.verificacion,
+              fuenteError: fuente,
+            ),
+          );
           return;
         case _ResultadoVerificacion.noNecesaria:
           break;
@@ -86,12 +90,14 @@ Future<void> _cachearYFinalizar(
 
   final recientes = _agregarReciente(bloc.state.busquedasRecientes, query);
   unawaited(bloc._cacheBusqueda.guardarBusquedaReciente(query));
-  emit(bloc.state.copiarCon(
-    resultados: resultados,
-    cargando: false,
-    haBuscado: true,
-    busquedasRecientes: recientes,
-  ));
+  emit(
+    bloc.state.copiarCon(
+      resultados: resultados,
+      cargando: false,
+      haBuscado: true,
+      busquedasRecientes: recientes,
+    ),
+  );
 }
 
 /// Búsqueda de fallback cuando el streaming no está disponible.
@@ -106,12 +112,22 @@ Future<void> _terminarBusqueda(
   try {
     final resultados = await _buscarTodo(bloc, query, fuente, tipo, limite);
     await _cachearYFinalizar(
-        bloc, query, fuente, tipo, limite, resultados, emit);
+      bloc,
+      query,
+      fuente,
+      tipo,
+      limite,
+      resultados,
+      emit,
+    );
   } catch (e) {
-    emit(bloc.state.copiarCon(
-      cargando: false,
-      error: e.toString(),
-    ));
+    emit(
+      bloc.state.copiarCon(
+        cargando: false,
+        error: ErrorBusqueda.fallo,
+        fuenteError: fuente,
+      ),
+    );
   }
 }
 
@@ -137,7 +153,9 @@ Future<_ResultadoVerificacion> _verificarFuente(
       nombreFuente(fuente),
       url,
     );
-    return ok ? _ResultadoVerificacion.verificada : _ResultadoVerificacion.fallida;
+    return ok
+        ? _ResultadoVerificacion.verificada
+        : _ResultadoVerificacion.fallida;
   } catch (e) {
     _log.e('[busqueda] Error de verificación para $fuente: $e');
     return _ResultadoVerificacion.fallida;

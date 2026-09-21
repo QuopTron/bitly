@@ -37,7 +37,13 @@ class _PintorBarraProgreso extends CustomPainter {
     final centroY = size.height / 2;
     final topeTrack = centroY - altoTrack / 2;
     final rectTrack = RRect.fromLTRBXY(
-        0, topeTrack, size.width, topeTrack + altoTrack, 2, 2);
+      0,
+      topeTrack,
+      size.width,
+      topeTrack + altoTrack,
+      2,
+      2,
+    );
 
     // Track inactivo.
     final pincelInactivo = Paint()..color = colorInactivo;
@@ -45,10 +51,11 @@ class _PintorBarraProgreso extends CustomPainter {
 
     // Track activo con gradiente.
     if (progreso > 0) {
-      final pincelActivo = Paint()
-        ..shader = LinearGradient(
-          colors: [colorActivo, colorActivo.withValues(alpha: 0.4)],
-        ).createShader(Rect.fromLTWH(0, 0, pulgarX, size.height));
+      final pincelActivo =
+          Paint()
+            ..shader = LinearGradient(
+              colors: [colorActivo, colorActivo.withValues(alpha: 0.4)],
+            ).createShader(Rect.fromLTWH(0, 0, pulgarX, size.height));
       canvas.drawRRect(
         RRect.fromLTRBXY(0, topeTrack, pulgarX, topeTrack + altoTrack, 2, 2),
         pincelActivo,
@@ -57,19 +64,27 @@ class _PintorBarraProgreso extends CustomPainter {
 
     // Glow detrás del pulgar.
     if (radioGlow > 0) {
-      final pincelGlow = Paint()
-        ..color = colorGlow.withValues(alpha: 0.25)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, radioGlow);
+      final pincelGlow =
+          Paint()
+            ..color = colorGlow.withValues(alpha: 0.25)
+            ..maskFilter = MaskFilter.blur(BlurStyle.normal, radioGlow);
       canvas.drawCircle(
-          Offset(pulgarX, centroY), radioPulgar + radioGlow * 0.5, pincelGlow);
+        Offset(pulgarX, centroY),
+        radioPulgar + radioGlow * 0.5,
+        pincelGlow,
+      );
     }
 
     // Pulgar con punto interior.
     final pincelPulgar = Paint()..color = colorPulgar;
     canvas.drawCircle(Offset(pulgarX, centroY), radioPulgar, pincelPulgar);
-    final pincelInterior = Paint()..color = colorInactivo.withValues(alpha: 0.4);
+    final pincelInterior =
+        Paint()..color = colorInactivo.withValues(alpha: 0.4);
     canvas.drawCircle(
-        Offset(pulgarX, centroY), radioPulgar * 0.35, pincelInterior);
+      Offset(pulgarX, centroY),
+      radioPulgar * 0.35,
+      pincelInterior,
+    );
   }
 
   @override

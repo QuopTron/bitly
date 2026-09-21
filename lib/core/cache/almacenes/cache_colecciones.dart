@@ -7,6 +7,7 @@
 
 import '../../base_datos/app_database.dart';
 import '../../base_datos/daos/collections_dao.dart';
+import '../../modelos/playlist/playlist_propia.dart';
 
 /// Caché local de colecciones (playlists del usuario).
 class CacheColecciones {
@@ -22,6 +23,23 @@ class CacheColecciones {
   Future<void> quitarTrackColeccion(String collectionId, String trackId) =>
       _dao.removeTrack(collectionId, trackId);
 
+  /// Ids de los tracks de la colección, en el orden guardado.
+  Future<List<String>> getTrackIdsColeccion(String collectionId) =>
+      _dao.getTrackIds(collectionId);
+
+  /// Deja los items de la colección en [itemIds] (orden incluido).
+  Future<void> reordenarItemsColeccion(
+    String collectionId,
+    List<String> itemIds,
+  ) => _dao.reordenarItems(collectionId, itemIds);
+
+  /// Nombre + carátula de una colección ya existente.
+  Future<void> actualizarDatosColeccion(
+    String collectionId,
+    String name,
+    String coverPath,
+  ) => _dao.updateCollection(collectionId, name, coverPath);
+
   Future<void> actualizarCaratulaColeccion(
     String collectionId,
     String coverPath,
@@ -34,4 +52,20 @@ class CacheColecciones {
       _dao.removeCollection(collectionId);
 
   Future<List<Collection>> getTodasLasPlaylists() => _dao.getAllPlaylists();
+
+  /// Playlists CREADAS por el usuario (`col_*`) con su portada y cuántas
+  /// canciones tienen: lo que se ofrece al agregar a una playlist.
+  Future<List<PlaylistPropia>> getPlaylistsPropias() async {
+    final colecciones = await _dao.getAllPlaylists();
+    final conteos = await _dao.getConteosPorColeccion();
+    return colecciones.map((c) {
+      final portada = c.coverPath ?? '';
+      return PlaylistPropia(
+        id: c.id,
+        nombre: c.name,
+        portada: portada.isEmpty ? null : portada,
+        canciones: conteos[c.id] ?? 0,
+      );
+    }).toList();
+  }
 }

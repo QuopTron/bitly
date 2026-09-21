@@ -53,9 +53,7 @@ Widget acotarEscalaTexto({
 
 /// Escala de texto del sistema ya acotada al rango soportado.
 TextScaler _escalaAcotada(BuildContext context) {
-  return MediaQuery.of(
-    context,
-  ).textScaler.clamp(
+  return MediaQuery.of(context).textScaler.clamp(
     minScaleFactor: escalaTextoMinima,
     maxScaleFactor: escalaTextoMaxima,
   );
@@ -65,10 +63,7 @@ TextScaler _escalaAcotada(BuildContext context) {
 /// sistema. Se aplica una sola vez, en el `builder` de MaterialApp, así que
 /// vale para todas las pantallas (setup, home, reproductor, ajustes, modales)
 /// sin que ninguna tenga que acordarse.
-Widget protegerLayout({
-  required BuildContext context,
-  required Widget child,
-}) {
+Widget protegerLayout({required BuildContext context, required Widget child}) {
   final mq = MediaQuery.of(context);
   final conEscala = mq.copyWith(textScaler: _escalaAcotada(context));
 
@@ -89,11 +84,7 @@ Widget protegerLayout({
       child: FittedBox(
         fit: BoxFit.contain,
         alignment: Alignment.topLeft,
-        child: SizedBox(
-          width: anchoLogicoMinimo,
-          height: alto,
-          child: child,
-        ),
+        child: SizedBox(width: anchoLogicoMinimo, height: alto, child: child),
       ),
     ),
   );

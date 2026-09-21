@@ -32,7 +32,11 @@ mixin SesionesKeepaliveMixin on BackendService {
   @override
   Future<Map<String, dynamic>> keepAliveSignedSessions() async {
     try {
-      final resultado = await rpcCall('keepAliveSignedSessions', null, const Duration(seconds: 10));
+      final resultado = await rpcCall(
+        'keepAliveSignedSessions',
+        null,
+        const Duration(seconds: 10),
+      );
       return _decodificarMapaEstado(resultado);
     } catch (e) {
       _logKeepalive.w('[sesiones] keepAliveSignedSessions error: $e');

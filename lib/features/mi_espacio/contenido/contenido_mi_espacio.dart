@@ -27,12 +27,15 @@ import '../../../shared/utilidades/plataforma/responsive.dart';
 import '../../../shared/widgets/modales/descarga/hoja_opciones_descarga.dart';
 import '../../../shared/widgets/modales/agregar_a/modal_agregar_a.dart';
 import '../../../shared/widgets/modales/info_cancion/modal_info_cancion.dart';
+import '../../../shared/widgets/modales/playlist/hoja_playlist.dart';
 import '../../../shared/widgets/tarjetas/grilla/tarjeta_grilla.dart';
 import '../../../shared/widgets/tarjetas/track/tarjeta_track.dart';
-import '../../../shared/utilidades/formato/apariencia_helper.dart';
 import '../../../shared/utilidades/formato/estilo_helper.dart';
+import '../../../shared/utilidades/portada/caratula_util.dart';
 import '../modelos_item.dart';
 import '../../../core/servicios/compartir/servicio_compartir.dart';
+import '../../../shared/utilidades/formato/apariencia_espacios_helper.dart';
+import '../../../shared/utilidades/formato/apariencia_helper.dart';
 
 part 'contenido_mi_espacio_canciones.dart';
 part 'contenido_mi_espacio_grilla.dart';

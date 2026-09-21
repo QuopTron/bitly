@@ -49,7 +49,7 @@ class _ReleaseDownloadButton extends StatelessWidget {
         ),
         child: Center(
           child: Text(
-            'Descargar',
+            AppLocalizations.of(context).update.descargar,
             style: TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.w700,

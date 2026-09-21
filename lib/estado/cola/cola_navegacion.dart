@@ -72,7 +72,9 @@ mixin ColaNavegacion on ColaOrdenAleatorio {
       // MISMO siguiente, no en otro al azar.
       while (_historial.isNotEmpty) {
         final ultimo = _historial.removeLast();
-        if (ultimo >= 0 && ultimo < state.tracks.length && ultimo != state.indiceActual) {
+        if (ultimo >= 0 &&
+            ultimo < state.tracks.length &&
+            ultimo != state.indiceActual) {
           final pos = _ordenShuffle.indexOf(ultimo);
           if (pos >= 0) _posShuffle = pos;
           emit(state.copiarCon(indiceActual: ultimo));

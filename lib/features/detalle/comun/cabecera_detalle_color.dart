@@ -37,7 +37,9 @@ Future<Color?> _extraerColorDominante(ImageProvider provider) async {
     try {
       final w = image.width;
       final h = image.height;
-      final byteData = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+      final byteData = await image.toByteData(
+        format: ui.ImageByteFormat.rawRgba,
+      );
       if (byteData == null) return null;
       final data = byteData.buffer.asUint8List();
       int rSum = 0, gSum = 0, bSum = 0, count = 0;

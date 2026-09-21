@@ -12,8 +12,12 @@
 part of 'hoja_opciones_descarga.dart';
 
 /// Cabecera del ítem a descargar (nombre + artista + icono).
-Widget _cabeceraItem(_HojaOpcionesDescargaState st, Responsive r,
-    Color onBg, Color brillo) {
+Widget _cabeceraItem(
+  _HojaOpcionesDescargaState st,
+  Responsive r,
+  Color onBg,
+  Color brillo,
+) {
   return Padding(
     padding: EdgeInsets.symmetric(horizontal: r.spacingXL),
     child: Row(
@@ -54,8 +58,13 @@ Widget _cabeceraItem(_HojaOpcionesDescargaState st, Responsive r,
 }
 
 /// Banner de info cuando hay video/letras activadas en ajustes.
-Widget _bannerInfo(_HojaOpcionesDescargaState st, Responsive r,
-    AppLocalizations loc, Color onBg, Color brillo) {
+Widget _bannerInfo(
+  _HojaOpcionesDescargaState st,
+  Responsive r,
+  AppLocalizations loc,
+  Color onBg,
+  Color brillo,
+) {
   final conVideo = st.widget.ajustes.videoHabilitado;
   final conLetras = st.widget.ajustes.letrasHabilitadas;
   return Padding(
@@ -75,8 +84,8 @@ Widget _bannerInfo(_HojaOpcionesDescargaState st, Responsive r,
               conVideo && conLetras
                   ? '${loc.setup.videoDownload} + ${loc.setup.lyricsDownload} (${loc.setup.settings})'
                   : conVideo
-                      ? '${loc.setup.videoDownload} (${loc.setup.settings})'
-                      : '${loc.setup.lyricsDownload} (${loc.setup.settings})',
+                  ? '${loc.setup.videoDownload} (${loc.setup.settings})'
+                  : '${loc.setup.lyricsDownload} (${loc.setup.settings})',
               style: TextStyle(
                 fontSize: r.footerSize - 1,
                 color: onBg.withValues(alpha: 0.5),
@@ -90,11 +99,17 @@ Widget _bannerInfo(_HojaOpcionesDescargaState st, Responsive r,
 }
 
 /// Botón principal de descargar con la calidad elegida.
-Widget _botonDescargar(_HojaOpcionesDescargaState st, Responsive r,
-    AppLocalizations loc, Color onBg, Color brillo) {
-  final etiqueta = st._seleccionada != null
-      ? '${loc.setup.downloaded}  ${_HojaOpcionesDescargaState._calidades[st._seleccionada]!.etiqueta}'
-      : loc.setup.downloaded;
+Widget _botonDescargar(
+  _HojaOpcionesDescargaState st,
+  Responsive r,
+  AppLocalizations loc,
+  Color onBg,
+  Color brillo,
+) {
+  final etiqueta =
+      st._seleccionada != null
+          ? '${loc.setup.downloaded}  ${_HojaOpcionesDescargaState._calidades[st._seleccionada]!.etiqueta}'
+          : loc.setup.downloaded;
   return Padding(
     padding: EdgeInsets.symmetric(horizontal: r.spacingXL),
     child: SizedBox(
@@ -105,7 +120,9 @@ Widget _botonDescargar(_HojaOpcionesDescargaState st, Responsive r,
         style: ElevatedButton.styleFrom(
           backgroundColor: brillo,
           foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
           elevation: 0,
         ),
         child: Row(
@@ -115,7 +132,10 @@ Widget _botonDescargar(_HojaOpcionesDescargaState st, Responsive r,
             SizedBox(width: r.spacingXS),
             Text(
               etiqueta,
-              style: TextStyle(fontSize: r.subtitleSize, fontWeight: FontWeight.w700),
+              style: TextStyle(
+                fontSize: r.subtitleSize,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ],
         ),
@@ -130,8 +150,13 @@ Widget _separador(Responsive r, Color onBg) {
 }
 
 /// Badge pequeño (LOSSLESS / por defecto).
-Widget _badge(Responsive r, Color fondo, String texto, Color colorTexto,
-    {bool oscuro = false}) {
+Widget _badge(
+  Responsive r,
+  Color fondo,
+  String texto,
+  Color colorTexto, {
+  bool oscuro = false,
+}) {
   return Container(
     padding: EdgeInsets.symmetric(horizontal: oscuro ? 5 : 4, vertical: 1),
     decoration: BoxDecoration(

@@ -190,7 +190,7 @@ func TestVerificarMatchStreamReSubidoNoSeAceptaSoloPorISRC(t *testing.T) {
 	sc := &verifStubProvider{name: "soundcloud", track: &provider.TrackResult{
 		ID: "1", Title: "Otro Remix Random", Artist: "Dj Random", ISRC: isrc,
 	}}
-	if got := verificarMatchStream(sc, "1", "Mi Cancion", "Artista Real", isrc, true); got != "" {
+	if got := verificarMatchStream(sc, "1", "Mi Cancion", "Artista Real", isrc, true, 0); got != "" {
 		t.Fatalf("verificarMatchStream aceptó un re-subido por el ISRC: %q", got)
 	}
 }
@@ -203,7 +203,7 @@ func TestVerificarMatchStreamAceptaRescatePorISRC(t *testing.T) {
 	fr := &verifStubProvider{name: "flac-rescue", track: &provider.TrackResult{
 		ID: isrc, Title: isrc, ISRC: isrc, Provider: "flac-rescue",
 	}}
-	if got := verificarMatchStream(fr, isrc, "Mi Cancion", "Artista Real", isrc, true); got != isrc {
+	if got := verificarMatchStream(fr, isrc, "Mi Cancion", "Artista Real", isrc, true, 0); got != isrc {
 		t.Fatalf("verificarMatchStream rechazó el rescate por ISRC: %q", got)
 	}
 }
@@ -213,7 +213,7 @@ func TestVerificarMatchStreamISRCDistinto(t *testing.T) {
 	deezer := &verifStubProvider{name: "deezer", track: &provider.TrackResult{
 		ID: "1", Title: "Mi Cancion", Artist: "Artista Real", ISRC: "OTRO0000001",
 	}}
-	if got := verificarMatchStream(deezer, "1", "Mi Cancion", "Artista Real", "USRC17607839", true); got != "" {
+	if got := verificarMatchStream(deezer, "1", "Mi Cancion", "Artista Real", "USRC17607839", true, 0); got != "" {
 		t.Fatalf("verificarMatchStream aceptó un ISRC distinto: %q", got)
 	}
 }
@@ -225,7 +225,34 @@ func TestVerificarMatchStreamCatalogoConMismoISRC(t *testing.T) {
 	deezer := &verifStubProvider{name: "deezer", track: &provider.TrackResult{
 		ID: "1", Title: "Mi Cancion (Album Version)", Artist: "Artista Real", ISRC: isrc,
 	}}
-	if got := verificarMatchStream(deezer, "1", "Mi Cancion", "Artista Real", isrc, true); got != "1" {
+	if got := verificarMatchStream(deezer, "1", "Mi Cancion", "Artista Real", isrc, true, 0); got != "1" {
 		t.Fatalf("verificarMatchStream rechazó un catálogo con el ISRC exacto: %q", got)
+	}
+}
+
+// El título y el artista pueden coincidir y aun así ser OTRA grabación: el
+// remix extendido, el directo o el corte de otro álbum. La duración del pedido
+// (que la app ya manda desde búsqueda/detalle) es el último filtro, y en la
+// reproducción no se miraba — por eso podía sonar la versión equivocada.
+func TestVerificarMatchStreamRechazaDuracionDistinta(t *testing.T) {
+	dur := func(ms int) *provider.TrackResult {
+		return &provider.TrackResult{
+			ID: "1", Title: "Mi Cancion", Artist: "Artista Real", Duration: ms,
+		}
+	}
+	// El pedido dura 3:20 (200000 ms); el candidato es la versión de 6:00.
+	largo := &verifStubProvider{name: "deezer", track: dur(360000)}
+	if got := verificarMatchStream(largo, "1", "Mi Cancion", "Artista Real", "", true, 200000); got != "" {
+		t.Fatalf("aceptó una duración distinta (extendida/directo): %q", got)
+	}
+	// La misma duración sí pasa.
+	justo := &verifStubProvider{name: "deezer", track: dur(201000)}
+	if got := verificarMatchStream(justo, "1", "Mi Cancion", "Artista Real", "", true, 200000); got != "1" {
+		t.Fatalf("rechazó la duración correcta: %q", got)
+	}
+	// Sin duración en el pedido no se puede desempatar: se acepta (0 = desconocida).
+	sinDato := &verifStubProvider{name: "deezer", track: dur(360000)}
+	if got := verificarMatchStream(sinDato, "1", "Mi Cancion", "Artista Real", "", true, 0); got != "1" {
+		t.Fatalf("con duración desconocida debía aceptar: %q", got)
 	}
 }

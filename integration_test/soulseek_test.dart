@@ -49,16 +49,17 @@ class _HostAjustes extends StatelessWidget {
     return Scaffold(
       body: Center(
         child: Builder(
-          builder: (context) => FilledButton(
-            onPressed: () => showSettingsSheet(
-              context,
-              username: 'tester',
-              isDark: true,
-              onThemeChanged: (_) {},
-              onLanguageChanged: () {},
-            ),
-            child: const Text('Abrir ajustes'),
-          ),
+          builder:
+              (context) => FilledButton(
+                onPressed:
+                    () => showSettingsSheet(
+                      context,
+                      username: 'tester',
+                      isDark: true,
+                      onThemeChanged: (_) {},
+                    ),
+                child: const Text('Abrir ajustes'),
+              ),
         ),
       ),
     );
@@ -160,8 +161,11 @@ void main() {
       for (final r in [noAscii, largo, vacio]) {
         final texto = r.toString();
         expect(texto, contains('"ok":false'));
-        expect(texto, contains('"motivo":"nombre_invalido"'),
-            reason: 'el backend debe marcar el motivo accionable: $texto');
+        expect(
+          texto,
+          contains('"motivo":"nombre_invalido"'),
+          reason: 'el backend debe marcar el motivo accionable: $texto',
+        );
       }
     },
   );
@@ -227,10 +231,7 @@ void main() {
     (tester) async {
       final cache = inj.sl<CacheAjustes>();
       await cache.guardarAjuste('soulseek_usuario', 'pablo_bz');
-      await cache.guardarAjuste(
-        'soulseek_password',
-        'ClaveDePrueba1234567890',
-      );
+      await cache.guardarAjuste('soulseek_password', 'ClaveDePrueba1234567890');
       addTearDown(() async {
         await cache.guardarAjuste('soulseek_usuario', '');
         await cache.guardarAjuste('soulseek_password', '');

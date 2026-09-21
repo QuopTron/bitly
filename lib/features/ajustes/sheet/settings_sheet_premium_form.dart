@@ -11,7 +11,9 @@ class _PremiumCodeForm extends StatelessWidget {
   final TextEditingController controller;
   final bool sending;
   final bool activated;
-  final String? errorMsg;
+
+  /// CÓDIGO del motivo del error; acá se traduce con l10n.
+  final String? errorCodigo;
   final Color glowColor;
   final Color onBg;
   final Responsive r;
@@ -21,7 +23,7 @@ class _PremiumCodeForm extends StatelessWidget {
     required this.controller,
     required this.sending,
     required this.activated,
-    required this.errorMsg,
+    required this.errorCodigo,
     required this.glowColor,
     required this.onBg,
     required this.r,
@@ -65,10 +67,10 @@ class _PremiumCodeForm extends StatelessWidget {
             ),
           ),
         ),
-        if (errorMsg != null) ...[
+        if (errorCodigo != null) ...[
           SizedBox(height: r.spacingS),
           Text(
-            errorMsg!,
+            AppLocalizations.of(context).premium.motivo(errorCodigo!),
             style: TextStyle(color: Colors.redAccent, fontSize: r.footerSize),
           ),
         ],
@@ -97,7 +99,7 @@ class _PremiumCodeForm extends StatelessWidget {
                           Icon(Icons.check_circle_rounded, size: 22),
                           SizedBox(width: 8),
                           Text(
-                            'Premium activado',
+                            AppLocalizations.of(context).premium.activado,
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w700,
@@ -115,7 +117,7 @@ class _PremiumCodeForm extends StatelessWidget {
                         ),
                       )
                       : Text(
-                        'Activar',
+                        AppLocalizations.of(context).premium.activar,
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w700,

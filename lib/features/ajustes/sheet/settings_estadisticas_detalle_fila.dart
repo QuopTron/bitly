@@ -39,7 +39,11 @@ class _FilaDetalle extends StatelessWidget {
     final s = AppLocalizations.of(context).estadisticas;
     final lado = r.subtitleSize * 1.9;
     final minutos = textoMinutos(fila.minutos, unidadMin: s.minutos);
-    final ultima = textoUltimaVez(fila.ultimaVez, desconocido: s.sinFecha);
+    final ultima = textoUltimaVez(
+      fila.ultimaVez,
+      desconocido: s.sinFecha,
+      fechas: AppLocalizations.of(context).fechas,
+    );
     // El subtítulo deja lo importante adelante: artista, cuándo y minutos.
     final subtitulo = [
       if (fila.artista.isNotEmpty) fila.artista,

@@ -12,14 +12,17 @@
 import 'package:flutter/material.dart';
 
 import '../../../l10n/app_localizations.dart';
+import '../../../shared/tema/colores_app.dart';
 import '../../../shared/utilidades/plataforma/responsive.dart';
 import '../../../shared/widgets/indicadores/indicador_red.dart';
+import '../../ajustes/notificaciones/notificaciones_tuerca.dart';
 import '../../ajustes/sheet/settings_sheet_new.dart';
 import '../../home/shell/ensamblador_home.dart';
 import '../../tutorial_interactivo/motor/tutorial_controller.dart';
 import '../../tutorial_interactivo/motor/tutorial_pasos.dart';
 
 part 'perfil_mi_espacio_avatar.dart';
+part 'tuerca_ajustes.dart';
 part 'perfil_mi_espacio_piezas.dart';
 part 'perfil_mi_espacio_tutorial.dart';
 
@@ -35,7 +38,6 @@ class PerfilMiEspacio extends StatefulWidget {
   final Color onBg;
   final Color colorBrillo;
   final ValueChanged<bool>? onTemaCambiado;
-  final VoidCallback? onIdiomaCambiado;
 
   const PerfilMiEspacio({
     super.key,
@@ -49,7 +51,6 @@ class PerfilMiEspacio extends StatefulWidget {
     required this.onBg,
     required this.colorBrillo,
     this.onTemaCambiado,
-    this.onIdiomaCambiado,
   });
 
   @override

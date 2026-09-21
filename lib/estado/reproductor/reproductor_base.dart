@@ -65,7 +65,7 @@ mixin ReproductorBase on Cubit<EstadoAudioReproductor> {
   /// Volumen intencional del usuario (0.0–1.0). Las animaciones de crossfade
   /// modifican el volumen real de mpv sin tocar este valor, así la
   /// configuración del usuario nunca se pierde entre tracks.
-  double _volumenUsuario = 1.0;
+  final double _volumenUsuario = 1.0;
 
   /// IDs normalizados listos para reproducir al instante (stream ya resuelto o
   /// archivo local disponible). Respaldan el indicador "ready" de las tarjetas.

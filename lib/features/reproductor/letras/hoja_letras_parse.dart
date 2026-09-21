@@ -33,7 +33,14 @@ void _parsear(_HojaLetrasState st) {
     var texto = recortada.replaceAll(regexTiempo, '').trim();
     if (texto.isEmpty) continue;
 
-    // Enhanced LRC: tags inline `<mm:ss.xx>word` → karaoke por palabra.
+    // Enhanced LRC: tags inline `<mm:ss.xx>word` → karaoke por palabra/sílaba.
+    //
+    // Los segmentos se guardan TAL CUAL (sin trim): quitando los tags de la
+    // línea cruda queda exactamente la concatenación de los segmentos, así que
+    // al pintarlos seguidos el texto sale idéntico al de la letra — con los
+    // espacios que traiga la fuente. Apple Music manda SÍLABAS ("Ho", "la ",
+    // "mun"), y recortarlas e inyectar un espacio entre cada una escribía
+    // "Ho la  mun".
     final regexInline = RegExp(r'<(\d{1,2}:\d{2}(?:\.\d{1,3})?)>');
     final palabras = <(Duration, String)>[];
     final partes = texto.split(regexInline);
@@ -46,22 +53,23 @@ void _parsear(_HojaLetrasState st) {
       for (var i = 0; i < partes.length - 1; i += 2) {
         final tag = partes[i + 1].trim();
         if (tag.isEmpty) continue;
-        final palabra = partes[i].trim();
-        if (palabra.isNotEmpty) {
-          palabras.add((primerTiempo, palabra));
+        if (partes[i].isNotEmpty) {
+          palabras.add((primerTiempo, partes[i]));
         }
         primerTiempo = _parsearTag(tag);
       }
-      final cola = partes.last.trim();
+      final cola = partes.last;
       if (cola.isNotEmpty) palabras.add((primerTiempo, cola));
       texto = texto.replaceAll(regexInline, '').trim();
     }
 
-    st._lineas.add(_KLine(
-      Duration(minutes: minutos, seconds: segundos, milliseconds: millis),
-      texto,
-      palabras,
-    ));
+    st._lineas.add(
+      _KLine(
+        Duration(minutes: minutos, seconds: segundos, milliseconds: millis),
+        texto,
+        palabras,
+      ),
+    );
   }
   if (st._lineas.isNotEmpty) {
     st._lineas.sort((a, b) => a.tiempo.compareTo(b.tiempo));
@@ -80,8 +88,14 @@ String _quitarLrc(String lrc) {
     if (RegExp(r'^\[\d{2}:\d{2}\.\d{2,3}\]$').hasMatch(recortada)) {
       continue;
     }
+    // También las marcas inline `<mm:ss.xx>` de palabra/sílaba: sin esto, una
+    // letra con karaoke por palabra se veía cruda ("<00:12>Hola") cuando el
+    // renderizador cae al texto plano.
     final texto =
-        recortada.replaceAll(RegExp(r'\[\d{2}:\d{2}\.\d{2,3}\]'), '').trim();
+        recortada
+            .replaceAll(RegExp(r'\[\d{2}:\d{2}\.\d{2,3}\]'), '')
+            .replaceAll(RegExp(r'<\d{1,2}:\d{2}(?:\.\d{1,3})?>'), '')
+            .trim();
     if (texto.isNotEmpty) salida.add(texto);
   }
   return salida.join('\n');

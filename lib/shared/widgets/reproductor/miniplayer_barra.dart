@@ -42,9 +42,10 @@ class _BarraProgresoAnimadaState extends State<_BarraProgresoAnimada>
       vsync: this,
       duration: const Duration(milliseconds: 1200),
     );
-    _pulsoAnim = Tween<double>(begin: 0.6, end: 1.0).animate(
-      CurvedAnimation(parent: _pulsoCtrl, curve: Curves.easeInOut),
-    );
+    _pulsoAnim = Tween<double>(
+      begin: 0.6,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _pulsoCtrl, curve: Curves.easeInOut));
     if (widget.reproduciendo) _pulsoCtrl.repeat(reverse: true);
   }
 

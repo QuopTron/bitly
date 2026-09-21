@@ -29,6 +29,7 @@ class _PremiumCardWidget extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final onBg = ColoresApp.enSuperficie(isDark);
     final isPremium = premium?.esPremium ?? false;
+    final t = AppLocalizations.of(context).ajustes;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -44,7 +45,7 @@ class _PremiumCardWidget extends StatelessWidget {
             ),
             SizedBox(width: r.spacingS),
             Text(
-              'Cuenta',
+              t.premiumCuentaTitulo,
               style: TextStyle(
                 fontSize: r.subtitleSize,
                 fontWeight: FontWeight.w700,
@@ -55,9 +56,7 @@ class _PremiumCardWidget extends StatelessWidget {
         ),
         SizedBox(height: 4),
         Text(
-          isPremium
-              ? 'Tienes Premium: descargas ilimitadas para siempre.'
-              : 'Modo Free: acceso a descargas gratis por 8 horas desde tu primera activacion.',
+          isPremium ? t.premiumActivoDesc : t.freeDesc,
           style: TextStyle(
             fontSize: r.footerSize - 1,
             color: onBg.withValues(alpha: 0.5),

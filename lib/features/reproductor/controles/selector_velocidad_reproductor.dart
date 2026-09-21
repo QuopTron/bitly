@@ -49,8 +49,7 @@ class SelectorVelocidadReproductor extends StatelessWidget {
             ),
             const Spacer(),
             GestureDetector(
-              onTap: () =>
-                  context.read<CubitReproductor>().setVelocidad(1.0),
+              onTap: () => context.read<CubitReproductor>().setVelocidad(1.0),
               child: Text(
                 estado.velocidad == 1.0
                     ? '1.0×'
@@ -58,8 +57,7 @@ class SelectorVelocidadReproductor extends StatelessWidget {
                 style: TextStyle(
                   fontSize: r.footerSize,
                   fontWeight: FontWeight.w600,
-                  color:
-                      estado.velocidad == 1.0 ? activo : inactivo,
+                  color: estado.velocidad == 1.0 ? activo : inactivo,
                 ),
               ),
             ),
@@ -73,8 +71,7 @@ class SelectorVelocidadReproductor extends StatelessWidget {
               if (s != velocidades.first) const SizedBox(width: 4),
               Expanded(
                 child: GestureDetector(
-                  onTap: () =>
-                      context.read<CubitReproductor>().setVelocidad(s),
+                  onTap: () => context.read<CubitReproductor>().setVelocidad(s),
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 180),
                     curve: Curves.easeOut,
@@ -85,21 +82,24 @@ class SelectorVelocidadReproductor extends StatelessWidget {
                               ? activo
                               : Colors.transparent)
                           .withValues(
-                              alpha: estado.velocidad == s ? 0.12 : 0.0),
+                            alpha: estado.velocidad == s ? 0.12 : 0.0,
+                          ),
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
-                        color: estado.velocidad == s
-                            ? activo.withValues(alpha: 0.3)
-                            : activo.withValues(alpha: 0.12),
+                        color:
+                            estado.velocidad == s
+                                ? activo.withValues(alpha: 0.3)
+                                : activo.withValues(alpha: 0.12),
                       ),
                     ),
                     child: Text(
                       '${_formatearVelocidad(s)}×',
                       style: TextStyle(
                         fontSize: r.footerSize - 1,
-                        fontWeight: estado.velocidad == s
-                            ? FontWeight.w700
-                            : FontWeight.w500,
+                        fontWeight:
+                            estado.velocidad == s
+                                ? FontWeight.w700
+                                : FontWeight.w500,
                         color: estado.velocidad == s ? activo : inactivo,
                       ),
                     ),
@@ -115,7 +115,9 @@ class SelectorVelocidadReproductor extends StatelessWidget {
 
   /// Formatea 1.0 → 1, 1.25 → 1.25, 0.75 → 0.75.
   String _formatearVelocidad(double v) {
-    return v.toStringAsFixed(2).replaceAll(RegExp(r'0+$'), '').replaceAll(
-        RegExp(r'\.$'), '');
+    return v
+        .toStringAsFixed(2)
+        .replaceAll(RegExp(r'0+$'), '')
+        .replaceAll(RegExp(r'\.$'), '');
   }
 }

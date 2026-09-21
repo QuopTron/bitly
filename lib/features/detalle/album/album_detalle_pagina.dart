@@ -29,12 +29,15 @@ import '../../../l10n/app_localizations.dart';
 import '../../../shared/tema/colores_app.dart';
 import '../../../shared/utilidades/descarga/estrategia_descarga.dart';
 import '../../../shared/utilidades/plataforma/responsive.dart';
+import '../../../shared/utilidades/portada/caratula_util.dart';
 import '../../../shared/widgets/vidrio/boton_accion_vidrio.dart';
+import '../../../shared/utilidades/modales/mostrar_modal.dart';
 import '../../../shared/widgets/modales/descarga/hoja_opciones_descarga.dart';
 import '../../../shared/widgets/tarjetas/track/tarjeta_track.dart';
 import '../comun/cabecera_detalle.dart';
 import '../comun/esqueleto_detalle.dart';
 import '../../../core/servicios/compartir/servicio_compartir.dart';
+import '../../../shared/utilidades/formato/apariencia_espacios_helper.dart';
 
 part 'album_detalle_carga.dart';
 part 'album_detalle_calculos.dart';
@@ -44,15 +47,16 @@ part 'album_detalle_estados.dart';
 part 'album_detalle_lote.dart';
 
 /// Datos calculados de la vista de álbum (compartidos entre parts).
-typedef DatosVistaAlbum = ({
-  String src,
-  EstadoDescarga estadoLote,
-  int descargados,
-  int total,
-  bool todosDescargados,
-  String? caratula,
-  List<ItemFeed> items,
-});
+typedef DatosVistaAlbum =
+    ({
+      String src,
+      EstadoDescarga estadoLote,
+      int descargados,
+      int total,
+      bool todosDescargados,
+      String? caratula,
+      List<ItemFeed> items,
+    });
 
 /// Detalle de álbum: id, fuente y carátula opcional de entrada.
 class AlbumDetallePagina extends StatefulWidget {
@@ -114,7 +118,13 @@ class _AlbumDetallePaginaState extends State<AlbumDetallePagina> {
     final album = _album!;
     final likedCubit = context.watch<CubitLikes>();
     final dlCubit = context.watch<CubitDescargas>();
-    final datos = _calcularDatosVista(this, context, album, likedCubit, dlCubit);
+    final datos = _calcularDatosVista(
+      this,
+      context,
+      album,
+      likedCubit,
+      dlCubit,
+    );
     _caratulaAlbumResuelta = datos.caratula;
 
     // Pre-calentar streams de los primeros tracks visibles (arranque rápido).
@@ -123,13 +133,15 @@ class _AlbumDetallePaginaState extends State<AlbumDetallePagina> {
       sl<CubitReproductor>().precachearContexto(datos.items, limit: 3);
     }
 
-    final esAlbumAmado = likedCubit.estaAmado(ItemFeed(
-      id: album.id,
-      type: 'album',
-      name: album.name,
-      artists: album.artistName,
-      coverUrl: datos.caratula,
-    ));
+    final esAlbumAmado = likedCubit.estaAmado(
+      ItemFeed(
+        id: album.id,
+        type: 'album',
+        name: album.name,
+        artists: album.artistName,
+        coverUrl: datos.caratula,
+      ),
+    );
 
     return Scaffold(
       backgroundColor: colorFondo,
@@ -140,10 +152,20 @@ class _AlbumDetallePaginaState extends State<AlbumDetallePagina> {
         heroTag: 'album_${album.id}',
         badge: _construirBadge(datos, album, loc),
         acciones: _filaAcciones(
-          this, context, datos, album, esAlbumAmado, likedCubit,
+          this,
+          context,
+          datos,
+          album,
+          esAlbumAmado,
+          likedCubit,
         ),
         children: _construirContenido(
-          this, context, datos, album, likedCubit, dlCubit,
+          this,
+          context,
+          datos,
+          album,
+          likedCubit,
+          dlCubit,
         ),
       ),
     );

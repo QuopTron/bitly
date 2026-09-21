@@ -15,67 +15,106 @@ mixin LikeSyncTracks on AccionesLike {
   /// Fetch del detalle de álbum a Go y guarda los tracks con carátulas en la
   /// base de contenido (respaldo del like de álbum).
   @override
-  Future<void> sincronizarTracksAlbum(String albumId, String source, String artistName, {String? coverUrlPadre}) async {
+  Future<void> sincronizarTracksAlbum(
+    String albumId,
+    String source,
+    String artistName, {
+    String? coverUrlPadre,
+  }) async {
     String? caratulaSincronizada;
     try {
       final json = await backend.fetchAlbumDetail(albumId, source);
       if (json.isEmpty || json == '{}') return;
-      final detalle = DetalleAlbum.desdeJson(jsonDecode(json) as Map<String, dynamic>);
+      final detalle = DetalleAlbum.desdeJson(
+        jsonDecode(json) as Map<String, dynamic>,
+      );
       await _pb.sincronizarDetalleAlbum(detalle, fuente: source);
       for (final t in detalle.tracks) {
-        final cover = t.coverUrl?.isNotEmpty == true ? t.coverUrl : coverUrlPadre;
+        final cover =
+            t.coverUrl?.isNotEmpty == true ? t.coverUrl : coverUrlPadre;
         if (cover != null && cover.isNotEmpty) {
-          final ruta = await _guardarCaratula(cover);
+          final ruta = await _guardarCaratula(
+            cover,
+            keys: clavesCaratula(
+              isrc: t.isrc,
+              trackId: t.trackId,
+              nombre: t.name,
+              artista: t.artistName,
+            ),
+          );
           if (ruta != null) {
             caratulaSincronizada ??= ruta;
-            await _contentDao.upsertTrack(TracksCompanion(
-              id: Value(t.trackId),
-              name: Value(t.name),
-              artistId: Value(t.trackId),
-              coverPath: Value(ruta),
-              durationMs: Value(t.durationMs),
-              trackNumber: Value(t.trackNumber),
-              isrc: Value(t.isrc),
-              source: Value(t.provider ?? source),
-              createdAt: Value(DateTime.now()),
-            ));
+            await _contentDao.upsertTrack(
+              TracksCompanion(
+                id: Value(t.trackId),
+                name: Value(t.name),
+                artistId: Value(t.trackId),
+                coverPath: Value(ruta),
+                durationMs: Value(t.durationMs),
+                trackNumber: Value(t.trackNumber),
+                isrc: Value(t.isrc),
+                source: Value(t.provider ?? source),
+                createdAt: Value(DateTime.now()),
+              ),
+            );
           }
         }
       }
-    } catch (e) { debugPrint("[App] $e"); }
+    } catch (e) {
+      debugPrint("[App] $e");
+    }
     _rellenarCaratulaLocal(albumId, caratulaSincronizada);
   }
 
   /// Fetch del detalle de playlist a Go y guarda los tracks con carátulas.
   @override
-  Future<void> sincronizarTracksPlaylist(String playlistId, String source, {String? coverUrlPadre}) async {
+  Future<void> sincronizarTracksPlaylist(
+    String playlistId,
+    String source, {
+    String? coverUrlPadre,
+  }) async {
     String? caratulaSincronizada;
     try {
       final json = await backend.fetchPlaylistDetail(playlistId, source);
       if (json.isEmpty || json == '{}') return;
-      final detalle = DetallePlaylist.desdeJson(jsonDecode(json) as Map<String, dynamic>);
+      final detalle = DetallePlaylist.desdeJson(
+        jsonDecode(json) as Map<String, dynamic>,
+      );
       await _pb.sincronizarDetallePlaylist(detalle, fuente: source);
       for (final t in detalle.tracks) {
-        final cover = t.coverUrl?.isNotEmpty == true ? t.coverUrl : coverUrlPadre;
+        final cover =
+            t.coverUrl?.isNotEmpty == true ? t.coverUrl : coverUrlPadre;
         if (cover != null && cover.isNotEmpty) {
-          final ruta = await _guardarCaratula(cover);
+          final ruta = await _guardarCaratula(
+            cover,
+            keys: clavesCaratula(
+              isrc: t.isrc,
+              trackId: t.trackId,
+              nombre: t.name,
+              artista: t.artistName,
+            ),
+          );
           if (ruta != null) {
             caratulaSincronizada ??= ruta;
-            await _contentDao.upsertTrack(TracksCompanion(
-              id: Value(t.trackId),
-              name: Value(t.name),
-              artistId: Value(t.trackId),
-              coverPath: Value(ruta),
-              durationMs: Value(t.durationMs),
-              trackNumber: Value(t.trackNumber),
-              isrc: Value(t.isrc),
-              source: Value(t.provider ?? source),
-              createdAt: Value(DateTime.now()),
-            ));
+            await _contentDao.upsertTrack(
+              TracksCompanion(
+                id: Value(t.trackId),
+                name: Value(t.name),
+                artistId: Value(t.trackId),
+                coverPath: Value(ruta),
+                durationMs: Value(t.durationMs),
+                trackNumber: Value(t.trackNumber),
+                isrc: Value(t.isrc),
+                source: Value(t.provider ?? source),
+                createdAt: Value(DateTime.now()),
+              ),
+            );
           }
         }
       }
-    } catch (e) { debugPrint("[App] $e"); }
+    } catch (e) {
+      debugPrint("[App] $e");
+    }
     _rellenarCaratulaLocal(playlistId, caratulaSincronizada);
   }
 
@@ -85,7 +124,9 @@ mixin LikeSyncTracks on AccionesLike {
   void _rellenarCaratulaLocal(String id, String? coverPath) {
     if (coverPath == null || coverPath.isEmpty) return;
     final actual = state.todosAmados[id];
-    if (actual == null || (actual.rutaCaratulaLocal?.isNotEmpty == true)) return;
+    if (actual == null || (actual.rutaCaratulaLocal?.isNotEmpty == true)) {
+      return;
+    }
     final nuevosItems = Map<String, DatosItemAmado>.from(state.todosAmados);
     nuevosItems[id] = actual.copiarCon(rutaCaratulaLocal: coverPath);
     emit(state.copiarCon(todosAmados: nuevosItems));

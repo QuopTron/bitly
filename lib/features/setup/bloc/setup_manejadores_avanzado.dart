@@ -21,13 +21,32 @@ mixin ManejadoresSetupAvanzado on ManejadoresSetup {
     Emitter<EstadoSetup> emit,
   ) async {
     if (state.codigoPremium.trim().isEmpty) return;
-    emit(state.copiarCon(validandoCodigo: true, codigoValido: false, errorCodigo: null));
-    final error = await inj.sl<BackendService>()
-        .validatePremiumCode(state.codigoPremium.trim());
+    emit(
+      state.copiarCon(
+        validandoCodigo: true,
+        codigoValido: false,
+        errorCodigo: null,
+      ),
+    );
+    final error = await inj.sl<BackendService>().validatePremiumCode(
+      state.codigoPremium.trim(),
+    );
     if (error == null) {
-      emit(state.copiarCon(validandoCodigo: false, codigoValido: true, errorCodigo: null));
+      emit(
+        state.copiarCon(
+          validandoCodigo: false,
+          codigoValido: true,
+          errorCodigo: null,
+        ),
+      );
     } else {
-      emit(state.copiarCon(validandoCodigo: false, codigoValido: false, errorCodigo: error));
+      emit(
+        state.copiarCon(
+          validandoCodigo: false,
+          codigoValido: false,
+          errorCodigo: error,
+        ),
+      );
     }
   }
 
@@ -50,33 +69,41 @@ mixin ManejadoresSetupAvanzado on ManejadoresSetup {
       final data = await inj.sl<CacheAjustes>().cargarDatosSetup();
       // Un token OAuth de Google guardado (de una sesión previa) significa
       // que el usuario ya conectó: se refleja en el slide y se salta el login.
-      final tokenGuardado = (await inj.sl<CacheAjustes>()
-                  .getAjuste('ytmusic-spotiflac_oauthAccessToken') ??
-              '')
-          .trim();
+      final tokenGuardado =
+          (await inj.sl<CacheAjustes>().getAjuste(
+                    'ytmusic-spotiflac_oauthAccessToken',
+                  ) ??
+                  '')
+              .trim();
       final googleConectado = tokenGuardado.isNotEmpty;
       if (data != null && data.setupCompletado) {
         notifierIdioma.value = Locale(data.locale);
-        emit(state.copiarCon(
-          paso: PasoSetup.promptReingreso,
-          tieneDatosExistentes: true,
-          googleConectado: googleConectado,
-          idiomaExistente: data.locale,
-          modoExistente: data.mode,
-          usuarioExistente: data.username,
-          trialExistenteExpirado: data.trialExpirado,
-          trialExistenteIniciadoEn: data.trialIniciadoEn,
-          trialExistenteExpiraEn: data.trialExpiraEn,
-        ));
+        emit(
+          state.copiarCon(
+            paso: PasoSetup.promptReingreso,
+            tieneDatosExistentes: true,
+            googleConectado: googleConectado,
+            idiomaExistente: data.locale,
+            modoExistente: data.mode,
+            usuarioExistente: data.username,
+            trialExistenteExpirado: data.trialExpirado,
+            trialExistenteIniciadoEn: data.trialIniciadoEn,
+            trialExistenteExpiraEn: data.trialExpiraEn,
+          ),
+        );
       } else {
-        emit(state.copiarCon(
-          paso: PasoSetup.idioma,
-          tieneDatosExistentes: false,
-          googleConectado: googleConectado,
-        ));
+        emit(
+          state.copiarCon(
+            paso: PasoSetup.idioma,
+            tieneDatosExistentes: false,
+            googleConectado: googleConectado,
+          ),
+        );
       }
     } catch (_) {
-      emit(state.copiarCon(paso: PasoSetup.idioma, tieneDatosExistentes: false));
+      emit(
+        state.copiarCon(paso: PasoSetup.idioma, tieneDatosExistentes: false),
+      );
     }
   }
 
@@ -88,17 +115,18 @@ mixin ManejadoresSetupAvanzado on ManejadoresSetup {
       if (state.idiomaExistente != null) {
         notifierIdioma.value = Locale(state.idiomaExistente!);
       }
-      emit(state.copiarCon(
-        continuarConExistentes: true,
-        paso: PasoSetup.gracias,
-      ));
+      emit(
+        state.copiarCon(continuarConExistentes: true, paso: PasoSetup.gracias),
+      );
     } else {
-      emit(state.copiarCon(
-        continuarConExistentes: false,
-        idiomaSeleccionado: state.idiomaExistente ?? state.idiomaSeleccionado,
-        usuario: state.usuarioExistente ?? '',
-        paso: PasoSetup.idioma,
-      ));
+      emit(
+        state.copiarCon(
+          continuarConExistentes: false,
+          idiomaSeleccionado: state.idiomaExistente ?? state.idiomaSeleccionado,
+          usuario: state.usuarioExistente ?? '',
+          paso: PasoSetup.idioma,
+        ),
+      );
     }
   }
 
@@ -111,6 +139,8 @@ mixin ManejadoresSetupAvanzado on ManejadoresSetup {
     // Guarda el setup con el código premium (si aplica) y continúa a los
     // tutoriales (feed/search) que ya cargan con las fuentes verificadas.
     await _persistirSetup(state);
-    emit(state.copiarCon(guardando: false, paso: PasoSetup.carpetaAlmacenamiento));
+    emit(
+      state.copiarCon(guardando: false, paso: PasoSetup.carpetaAlmacenamiento),
+    );
   }
 }

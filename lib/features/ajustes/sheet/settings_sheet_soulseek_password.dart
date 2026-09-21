@@ -31,6 +31,7 @@ class _SoulseekPasswordRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final s = AppLocalizations.of(context).soulseek;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -44,9 +45,7 @@ class _SoulseekPasswordRow extends StatelessWidget {
             SizedBox(width: r.spacingS),
             Expanded(
               child: Text(
-                revelada
-                    ? 'Guardala: Soulseek no tiene recuperación'
-                    : 'Contraseña guardada',
+                revelada ? s.passRevelada : s.passGuardada,
                 style: TextStyle(
                   fontSize: r.footerSize - 1,
                   color: onBg.withValues(alpha: 0.45),
@@ -56,7 +55,7 @@ class _SoulseekPasswordRow extends StatelessWidget {
             TextButton(
               onPressed: onToggle,
               child: Text(
-                revelada ? 'Ocultar' : 'Ver',
+                s.botonPassword(revelada: revelada),
                 style: TextStyle(fontSize: r.footerSize, color: glow),
               ),
             ),

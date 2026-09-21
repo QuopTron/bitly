@@ -61,14 +61,17 @@ mixin ReproductorStreamPipeline on ReproductorStreamProxy {
     required bool esPreload,
   }) async {
     try {
-      final resultado =
-          await di.sl<BackendService>().rpcCall('getStreamPackage', {
+      final resultado = await di.sl<BackendService>().rpcCall('getStreamPackage', {
         'preferredProvider': track.source ?? '',
         'trackID': track.id,
         'quality': await _calidadStreamEfectiva(_calidadAudio),
         'fetchLyrics': 'false',
         'trackName': name,
         'artistName': track.artists ?? '',
+        // El álbum desempata versiones de la misma canción en discos distintos
+        // (original vs. recopilatorio vs. "remix album") cuando hay que resolver
+        // por nombre: sin él podía sonar la toma de otro álbum.
+        'album': track.albumName ?? '',
         'isrc': track.isrc ?? '',
         'durationMs': track.durationMs,
         // Ids cross-proveedor (tracks de detalle) para que el backend resuelva

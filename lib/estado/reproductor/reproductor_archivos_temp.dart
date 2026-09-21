@@ -33,7 +33,9 @@ mixin ReproductorArchivosTemp on ReproductorStreamResolve {
       final path = Uri.parse(fileUri).toFilePath();
       final file = File(path);
       if (await file.exists()) await file.delete();
-    } catch (e) { debugPrint("[App] $e"); }
+    } catch (e) {
+      debugPrint("[App] $e");
+    }
   }
 
   /// Borra un archivo temp de stream por ID normalizado.
@@ -46,6 +48,8 @@ mixin ReproductorArchivosTemp on ReproductorStreamResolve {
         final file = File('${cacheDir.path}$sep$idNormalizado.$ext');
         if (await file.exists()) await file.delete();
       }
-    } catch (e) { debugPrint("[App] $e"); }
+    } catch (e) {
+      debugPrint("[App] $e");
+    }
   }
 }

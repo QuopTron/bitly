@@ -46,7 +46,11 @@ class _DownloadQualityCardState extends State<_DownloadQualityCard> {
         videoHabilitado: s.videoHabilitado,
         letrasHabilitadas: s.letrasHabilitadas,
       );
-    } catch (_) {}
+    } catch (e) {
+      // Los ajustes YA quedaron guardados: si esto falla, la sesión en curso
+      // los toma al próximo arranque. Se deja dicho para poder diagnosticarlo.
+      debugPrint('[Ajustes] el reproductor no tomó la calidad en caliente: $e');
+    }
   }
 
   @override
@@ -71,6 +75,14 @@ class _DownloadQualityCardState extends State<_DownloadQualityCard> {
             onBg,
             r,
             widget.glowColor,
+          ),
+          // Ayuda corta: mismo estilo que el resto de Ajustes.
+          Text(
+            loc.setup.audioQualityHelp,
+            style: TextStyle(
+              fontSize: r.footerSize - 2,
+              color: onBg.withValues(alpha: 0.4),
+            ),
           ),
           SizedBox(height: r.spacingXS),
           _downloadDropdownRow(
@@ -116,7 +128,8 @@ class _DownloadQualityCardState extends State<_DownloadQualityCard> {
             icon: Icons.lyrics_rounded,
             label: loc.setup.lyricsDownload,
             value: _settings.letrasHabilitadas,
-            onChanged: (v) => _update(_settings.copiarCon(letrasHabilitadas: v)),
+            onChanged:
+                (v) => _update(_settings.copiarCon(letrasHabilitadas: v)),
             glowColor: widget.glowColor,
             onBg: onBg,
           ),

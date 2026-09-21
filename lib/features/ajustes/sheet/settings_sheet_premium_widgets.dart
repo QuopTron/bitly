@@ -52,7 +52,7 @@ class _PremiumSheetHeader extends StatelessWidget {
         ),
         SizedBox(height: r.spacingM),
         Text(
-          'Activar Premium',
+          AppLocalizations.of(context).premium.activarTitulo,
           style: TextStyle(
             fontSize: r.titleSize,
             fontWeight: FontWeight.w800,
@@ -61,7 +61,7 @@ class _PremiumSheetHeader extends StatelessWidget {
         ),
         SizedBox(height: r.spacingXS),
         Text(
-          'Ingresa tu codigo para desbloquear descargas ilimitadas',
+          AppLocalizations.of(context).premium.activarDescripcion,
           style: TextStyle(
             fontSize: r.footerSize,
             color: onBg.withValues(alpha: 0.5),

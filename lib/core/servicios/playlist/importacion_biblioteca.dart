@@ -38,8 +38,8 @@ class ImportacionBiblioteca {
   final CacheDescargas _descargas;
 
   ImportacionBiblioteca({BackendService? backend, CacheDescargas? descargas})
-      : _backend = backend ?? sl<BackendService>(),
-        _descargas = descargas ?? sl<CacheDescargas>();
+    : _backend = backend ?? sl<BackendService>(),
+      _descargas = descargas ?? sl<CacheDescargas>();
 
   /// Escanea [directorio] en Go y guarda cada canción en la biblioteca.
   /// Al terminar refresca el cubit de descargas para que Mi Espacio la liste.
@@ -59,7 +59,9 @@ class ImportacionBiblioteca {
     // Refresca Mi Espacio con lo recién importado.
     try {
       await sl<CubitDescargas>().initialize();
-    } catch (e) { debugPrint("[Servicio] $e"); }
+    } catch (e) {
+      debugPrint("[Servicio] $e");
+    }
 
     return ResultadoImportacion(
       archivos: _entero(respuesta['archivos']),

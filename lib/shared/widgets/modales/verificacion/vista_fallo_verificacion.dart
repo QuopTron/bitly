@@ -9,6 +9,8 @@
 
 import 'package:flutter/material.dart';
 
+import '../../../../l10n/app_localizations.dart';
+
 /// Vista de fallo del captcha con botón de reintento.
 class VistaFalloVerificacion extends StatelessWidget {
   final bool esOscuro;
@@ -22,6 +24,7 @@ class VistaFalloVerificacion extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final v = AppLocalizations.of(context).verificacion;
     final colorTexto = esOscuro ? Colors.white : Colors.black;
     return Center(
       child: Padding(
@@ -32,7 +35,7 @@ class VistaFalloVerificacion extends StatelessWidget {
             Icon(Icons.cloud_off, size: 48, color: Colors.redAccent),
             const SizedBox(height: 12),
             Text(
-              'No se pudo cargar la verificación',
+              v.falloTitulo,
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 15,
@@ -42,7 +45,7 @@ class VistaFalloVerificacion extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'Toca "Abrir en el navegador" para completar el captcha.',
+              v.falloAyuda,
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 13,
@@ -53,7 +56,7 @@ class VistaFalloVerificacion extends StatelessWidget {
             OutlinedButton.icon(
               onPressed: alReintentar,
               icon: const Icon(Icons.refresh, size: 18),
-              label: const Text('Reintentar'),
+              label: Text(v.reintentar),
             ),
           ],
         ),

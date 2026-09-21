@@ -25,6 +25,7 @@ class _GoogleTileContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final glow = glowColor;
+    final g = AppLocalizations.of(context).google;
 
     return Row(
       children: [
@@ -59,7 +60,7 @@ class _GoogleTileContent extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                isConnected ? 'Google conectado' : 'Conectar con Google',
+                g.titulo(conectado: isConnected),
                 style: TextStyle(
                   fontSize: r.subtitleSize - 1,
                   fontWeight: FontWeight.w600,
@@ -68,9 +69,7 @@ class _GoogleTileContent extends StatelessWidget {
               ),
               SizedBox(height: 2),
               Text(
-                isConnected
-                    ? 'Tu cuenta de Google esta conectada'
-                    : 'Mejora la calidad del streaming',
+                g.descripcion(conectado: isConnected),
                 style: TextStyle(
                   fontSize: r.footerSize - 2,
                   color: onBg.withValues(alpha: 0.4),

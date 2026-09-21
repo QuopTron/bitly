@@ -23,23 +23,18 @@ class ResultadoEnlace {
   const ResultadoEnlace({required this.item, this.tracks = const []});
 
   /// true cuando el enlace apunta a algo que se reproduce en lista.
-  bool get esColeccion => tracks.isNotEmpty;
-
   /// Tracks listos para la cola: la colección o, si es una canción, ella misma.
-  List<ItemFeed> get paraReproducir =>
-      tracks.isNotEmpty ? tracks : [item];
+  List<ItemFeed> get paraReproducir => tracks.isNotEmpty ? tracks : [item];
 
   factory ResultadoEnlace.desdeJson(Map<String, dynamic> json) {
     final crudos = json['tracks'];
-    final tracks = crudos is List
-        ? crudos
-            .whereType<Map>()
-            .map((e) => ItemFeed.desdeJson(Map<String, dynamic>.from(e)))
-            .toList()
-        : <ItemFeed>[];
-    return ResultadoEnlace(
-      item: ItemFeed.desdeJson(json),
-      tracks: tracks,
-    );
+    final tracks =
+        crudos is List
+            ? crudos
+                .whereType<Map>()
+                .map((e) => ItemFeed.desdeJson(Map<String, dynamic>.from(e)))
+                .toList()
+            : <ItemFeed>[];
+    return ResultadoEnlace(item: ItemFeed.desdeJson(json), tracks: tracks);
   }
 }

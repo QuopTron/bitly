@@ -45,7 +45,7 @@ class BackendAndroid extends BackendService
         PremiumMixin,
         EditorEtiquetasMixin,
         EnlacesMixin,
-    IsrcMixin,
+        IsrcMixin,
         SesionesFirmadasMixin,
         SesionesAccionesMixin,
         SesionesKeepaliveMixin,
@@ -54,13 +54,17 @@ class BackendAndroid extends BackendService
   bool _inicializado = false;
 
   @override
-  Future<dynamic> rpcCall(String method, [Map<String, dynamic>? params, Duration? timeout]) async {
+  Future<dynamic> rpcCall(
+    String method, [
+    Map<String, dynamic>? params,
+    Duration? timeout,
+  ]) async {
     // Timeout defensivo para que un RPC colgado de Go nunca congele la UI.
     // Los llamadores legítimamente largos (stream de FLAC completo) pasan
     // un timeout mayor explícitamente.
-    return _canal.invokeMethod(method, params ?? {}).timeout(
-      timeout ?? const Duration(seconds: 60),
-    );
+    return _canal
+        .invokeMethod(method, params ?? {})
+        .timeout(timeout ?? const Duration(seconds: 60));
   }
 
   @override
@@ -75,19 +79,27 @@ class BackendAndroid extends BackendService
         // primer intento falla. El lado nativo espera hasta 120s por el init
         // real de Go, así que el timeout Dart debe ser al menos eso.
         await _canal
-            .invokeMethod('initGoBackend', {'app_data_dir': dir.path, 'ytdlp_path': rutaYtDlp})
+            .invokeMethod('initGoBackend', {
+              'app_data_dir': dir.path,
+              'ytdlp_path': rutaYtDlp,
+            })
             .timeout(const Duration(seconds: 125));
         await setPremiumGithubToken(tokenGithub);
         final dirExt = '${dir.path}/extensions';
         await _garantizarExtensiones(dirExt);
         await _canal
-            .invokeMethod('initExtensionSystem', {'extensions_dir': dirExt, 'data_dir': '${dir.path}/ext_data'})
+            .invokeMethod('initExtensionSystem', {
+              'extensions_dir': dirExt,
+              'data_dir': '${dir.path}/ext_data',
+            })
             .timeout(const Duration(seconds: 30));
         try {
           await _canal
               .invokeMethod('loadExtensionsFromDir', {'dir_path': dirExt})
               .timeout(const Duration(seconds: 30));
-        } catch (e) { debugPrint("[Backend] $e"); }
+        } catch (e) {
+          debugPrint("[Backend] $e");
+        }
 
         await _sincronizarArranqueGo(this);
         _inicializado = true;

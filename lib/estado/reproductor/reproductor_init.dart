@@ -49,7 +49,9 @@ mixin ReproductorInit on ReproductorListenerCola {
           _cacheUrlStream[entry.key] = _StreamCacheado(url, true, exp);
         }
       }
-    } catch (e) { debugPrint("[App] $e"); }
+    } catch (e) {
+      debugPrint("[App] $e");
+    }
   }
 
   @override
@@ -71,7 +73,9 @@ mixin ReproductorInit on ReproductorListenerCola {
         count++;
       }
       await prefs.setString(_claveCachePersistente, jsonEncode(map));
-    } catch (e) { debugPrint("[App] $e"); }
+    } catch (e) {
+      debugPrint("[App] $e");
+    }
   }
 
   /// Refleja la calidad del perfil de rendimiento seleccionado en el
@@ -115,7 +119,9 @@ mixin ReproductorInit on ReproductorListenerCola {
       _calidadVideo = ajustes.calidadVideo;
       _videoHabilitado = ajustes.videoHabilitado;
       _letrasHabilitadas = ajustes.letrasHabilitadas;
-      _ttlArchivosLocales = Duration(seconds: ajustes.ttlArchivosLocalesSegundos);
+      _ttlArchivosLocales = Duration(
+        seconds: ajustes.ttlArchivosLocalesSegundos,
+      );
     } catch (_) {
       // Si falla la carga inicial, igual marcamos _listo para no bloquear la
       // reproducción. El streaming usará defaults (flac / 720p).

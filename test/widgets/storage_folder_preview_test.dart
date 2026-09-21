@@ -4,7 +4,9 @@ import 'package:bitly/features/setup/widgets/tarjetas/vista_previa_carpeta.dart'
 
 void main() {
   group('VistaPreviaCarpeta', () {
-    testWidgets('shows folder icon and selectedLabel when hasPath', (tester) async {
+    testWidgets('shows folder icon and selectedLabel when hasPath', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -27,7 +29,9 @@ void main() {
       expect(find.text('/storage/music'), findsOneWidget);
     });
 
-    testWidgets('shows folder_open icon and noFolderLabel when !hasPath', (tester) async {
+    testWidgets('shows folder_open icon and noFolderLabel when !hasPath', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -92,4 +96,3 @@ void main() {
     });
   });
 }
-

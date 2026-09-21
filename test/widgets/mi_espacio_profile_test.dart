@@ -5,7 +5,11 @@ import 'package:bitly/l10n/app_localizations.dart';
 
 void main() {
   group('PerfilMiEspacio', () {
-    Widget buildTest({required String username, int loved = 0, int playlists = 0}) {
+    Widget buildTest({
+      required String username,
+      int loved = 0,
+      int playlists = 0,
+    }) {
       return MaterialApp(
         localizationsDelegates: const [AppLocalizations.delegate],
         home: Scaffold(
@@ -42,7 +46,9 @@ void main() {
     });
 
     testWidgets('shows song and playlist counts', (tester) async {
-      await tester.pumpWidget(buildTest(username: 'User', loved: 5, playlists: 3));
+      await tester.pumpWidget(
+        buildTest(username: 'User', loved: 5, playlists: 3),
+      );
       await tester.pump();
 
       expect(find.textContaining('5 songs'), findsOneWidget);
@@ -63,4 +69,3 @@ void main() {
     });
   });
 }
-

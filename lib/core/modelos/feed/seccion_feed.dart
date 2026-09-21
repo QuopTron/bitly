@@ -28,14 +28,17 @@ class SeccionFeed {
       source: json['source'] as String? ?? '',
       displayName: json['display_name'] as String? ?? '',
       title: json['title'] as String? ?? '',
-      items: rawItems.map((e) => ItemFeed.desdeJson(e as Map<String, dynamic>)).toList(),
+      items:
+          rawItems
+              .map((e) => ItemFeed.desdeJson(e as Map<String, dynamic>))
+              .toList(),
     );
   }
 
   Map<String, dynamic> aJson() => {
-        'source': source,
-        'display_name': displayName,
-        'title': title,
-        'items': items.map((e) => e.aJson()).toList(),
-      };
+    'source': source,
+    'display_name': displayName,
+    'title': title,
+    'items': items.map((e) => e.aJson()).toList(),
+  };
 }

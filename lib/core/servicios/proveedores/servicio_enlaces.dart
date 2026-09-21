@@ -57,12 +57,14 @@ class ServicioEnlaces {
     final datos = ServicioCompartir.instance.leerEnlace(texto.trim());
     if (datos != null) {
       _textoPendiente = null;
-      ServicioDeepLink.instance.emitir(DatosDeepLink(
-        type: datos.tipo,
-        id: datos.isrc,
-        query: datos.nombre,
-        compartido: datos,
-      ));
+      ServicioDeepLink.instance.emitir(
+        DatosDeepLink(
+          type: datos.tipo,
+          id: datos.isrc,
+          query: datos.nombre,
+          compartido: datos,
+        ),
+      );
       return;
     }
     final enlace = enlaceEnTexto(texto);

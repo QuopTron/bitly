@@ -72,8 +72,7 @@ mixin ReproductorApertura on ReproductorAperturaHelpers {
         _claveTrackAbierto = null;
         final nombre = ServicioVerificacion().nombreFuente(track.source ?? '');
         ServicioVerificacion().mostrarAviso(
-          'Sesión de $nombre no verificada — completa la verificación '
-          'para reproducir esta canción.',
+          L10n.actual.reproductor.sesionDe(nombre),
         );
         return;
       }

@@ -93,7 +93,10 @@ class _SoulseekSheetVisual extends StatelessWidget {
                   child: SizedBox(
                     width: 18,
                     height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: glow),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: glow,
+                    ),
                   ),
                 )
               else
@@ -111,9 +114,7 @@ class _SoulseekSheetVisual extends StatelessWidget {
                   onSiguiente: onSiguiente,
                   onToggleRevelada: onToggleRevelada,
                 ),
-              SizedBox(
-                height: r.bottomPadding + insetInferiorSistema(context),
-              ),
+              SizedBox(height: r.bottomPadding + insetInferiorSistema(context)),
             ],
           ),
         ),

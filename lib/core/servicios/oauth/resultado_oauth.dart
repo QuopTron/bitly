@@ -18,11 +18,7 @@ class ResultadoOAuth {
   final String state;
   final String error;
 
-  const ResultadoOAuth({
-    this.code = '',
-    this.state = '',
-    this.error = '',
-  });
+  const ResultadoOAuth({this.code = '', this.state = '', this.error = ''});
 
   bool get ok => code.isNotEmpty;
   bool get esError => error.isNotEmpty;

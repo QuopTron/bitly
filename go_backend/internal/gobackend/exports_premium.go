@@ -23,7 +23,7 @@ func ValidatePremiumCode(payload string) string {
 		return `{"error":"no inicializado"}`
 	}
 	if err := premiumChecker.ValidateAppCode(params.Code); err != nil {
-		return jsonError(err)
+		return jsonErrorPremium(err)
 	}
 	data, _ := json.Marshal(premiumChecker.Status())
 	return string(data)
@@ -81,7 +81,7 @@ func CheckDownloadAllowed() string {
 		return `{"error":"no inicializado"}`
 	}
 	if err := premiumChecker.CheckDownloadAllowed(); err != nil {
-		return jsonError(err)
+		return jsonErrorPremium(err)
 	}
 	return `{"ok":true}`
 }

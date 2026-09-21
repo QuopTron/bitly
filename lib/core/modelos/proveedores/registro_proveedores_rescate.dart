@@ -16,10 +16,8 @@
 // Se conecta con: registro_proveedores.dart (spread en `proveedoresTodos`)
 // → config_proveedor.dart → ServicioCredencialesProveedor →
 // setExtensionSettings("flac-rescue").
-// Parte del flujo: Ajustes → Credenciales → Rescate de audio.
+// Parte del flujo: arranque de la app (credenciales → extensiones).
 // ─────────────────────────────────────────────────────────────
-
-import 'package:flutter/material.dart';
 
 import 'config_proveedor.dart';
 
@@ -28,49 +26,14 @@ const List<ConfigProveedor> proveedoresRescate = [
   ConfigProveedor(
     id: 'flac-rescue',
     nombreMostrado: 'Rescate de audio (FLAC/MP3)',
-    icon: Icons.health_and_safety,
-    campos: [
-      CampoProveedor(
-        key: 'mirrors',
-        label: 'Espejos (opcional: ya vienen configurados)',
-        hint: 'Servicios que convierten un ISRC en audio. Se prueban EN PARALELO '
-            'y gana el más rápido (un espejo caído ya no retrasa al que sí '
-            'tiene la canción). Ejemplo: https://dzr.tabs-vs-spaces.wtf\n'
-            'Si uno deja de funcionar, pega otro aquí: no hace falta actualizar '
-            'la app.',
-        multiline: true,
-      ),
-      CampoProveedor(
-        key: 'format',
-        label: 'Formato preferido',
-        hint: 'FLAC (mejor calidad), MP3_320 o MP3_128. Si el espejo ya no tiene '
-            'el formato pedido, se baja automáticamente al siguiente.',
-      ),
-      CampoProveedor(
-        key: 'origin',
-        label: 'Origen permitido (opcional)',
-        hint: 'Algunos espejos solo responden si la petición viene de su propia '
-            'web. Déjalo vacío salvo que un espejo pida otro origen.',
-      ),
-      CampoProveedor(
-        key: 'qobuz_keys_url',
-        label: 'Origen de claves Qobuz (opcional: la app ya trae uno)',
-        hint: 'URL (o varias separadas por coma) que publican app_id y '
-            'app_secret de Qobuz. Se prueban EN PARALELO y gana la primera que '
-            'responda. Si las claves rotan, la app las refresca sola: no tenés '
-            'que volver a pegarlas. Si lo dejás vacío, se usa el origen que la '
-            'app trae de fábrica; si pegás algo, lo tuyo manda.',
-      ),
-      CampoProveedor(
-        key: 'sitios',
-        label: 'Sitios raspables de FLAC (vienen encendidos)',
-        hint: 'Páginas que entregan el FLAC real sin cuenta y sin pedirte nada: '
-            'se consultan solas, por detrás, cuando ninguna otra fuente tiene la '
-            'calidad sin pérdida. Dejalas encendidas; si querés apagarlas, '
-            'escribí off. También podés limitarlas a una lista separada por '
-            'comas (ejemplo: https://superflac.com).',
-        multiline: true,
-      ),
+    claves: [
+      'mirrors', // Espejos que convierten un ISRC en audio.
+      'format', // FLAC / MP3_320 / MP3_128 (baja solo si no está).
+      'origin', // Origen permitido que exigen algunos espejos.
+      'qobuz_keys_url', // Origen de claves app_id/app_secret de Qobuz.
+      'sitios', // Sitios raspables de FLAC (superflac, arcod, etc.).
+      'arcod', // URL propia del canal sin pérdida (o 'off').
+      'arcod_token', // Sesión de una instancia arcod con cuenta.
     ],
   ),
 ];

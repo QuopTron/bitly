@@ -38,7 +38,11 @@ class IndicadorDescarga extends StatelessWidget {
   Widget build(BuildContext context) {
     if (estado == EstadoDescarga.enProgreso) {
       if (progreso != null && progreso! > 0) {
-        return _PuntoProgreso(tamano: tamano, color: _color, progreso: progreso!);
+        return _PuntoProgreso(
+          tamano: tamano,
+          color: _color,
+          progreso: progreso!,
+        );
       }
       return _PuntoPulsante(tamano: tamano, color: _color);
     }
@@ -53,15 +57,16 @@ class IndicadorDescarga extends StatelessWidget {
       decoration: BoxDecoration(
         color: _color,
         shape: BoxShape.circle,
-        boxShadow: tieneGlow
-            ? [
-                BoxShadow(
-                  color: _color.withValues(alpha: 0.5),
-                  blurRadius: tamano * 1.5,
-                  spreadRadius: tamano * 0.3,
-                ),
-              ]
-            : null,
+        boxShadow:
+            tieneGlow
+                ? [
+                  BoxShadow(
+                    color: _color.withValues(alpha: 0.5),
+                    blurRadius: tamano * 1.5,
+                    spreadRadius: tamano * 0.3,
+                  ),
+                ]
+                : null,
       ),
     );
   }

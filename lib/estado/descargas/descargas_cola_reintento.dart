@@ -36,6 +36,7 @@ mixin DescargasColaReintento on DescargasReintentar {
   bool _falloReintentable = false;
 
   /// Marca [baseId] como interrumpido con un motivo visible para la UI.
+  /// [motivo] es el CÓDIGO del motivo (ver `MotivosDescarga`), no su texto.
   /// [reintentable] distingue un fallo de red/proveedor (vale reintentar solo)
   /// de uno que necesita al usuario (gate del plan free, carpeta sin permiso):
   /// reintentar el segundo solo repetiría el mismo aviso.
@@ -61,29 +62,35 @@ mixin DescargasColaReintento on DescargasReintentar {
   String _tituloDeTrack(String baseId, _TrackEnCola track) {
     final meta = _metaTrack[baseId];
     if (meta != null && meta.name.trim().isNotEmpty) return meta.name.trim();
-    final titulo = (track.trackMap['title'] ?? track.trackMap['name'] ?? '')
-        .toString()
-        .trim();
+    final titulo =
+        (track.trackMap['title'] ?? track.trackMap['name'] ?? '')
+            .toString()
+            .trim();
     return titulo.isEmpty ? baseId : titulo;
   }
 
   /// Publica el aviso único de fallo definitivo: la canción se quedó sin
-  /// reintentos y sin archivo. Guarda DATOS (título + motivo) y la UI arma el
-  /// texto con l10n; antes el motivo moría dentro del mapa de estados y el
-  /// usuario solo veía la tarjeta en rojo sin saber por qué.
+  /// reintentos y sin archivo. Guarda DATOS (título + código de motivo) y la UI
+  /// arma el texto con l10n; antes el motivo moría dentro del mapa de estados y
+  /// el usuario solo veía la tarjeta en rojo sin saber por qué.
+  ///
+  /// El texto crudo del backend NO se guarda —solo su código— porque salía en
+  /// español aunque la app estuviera en inglés: ese detalle queda en el log de
+  /// la rama que detectó el fallo.
   void _avisarFalloDefinitivo(
     String baseId,
     _TrackEnCola track,
     String motivo, {
     bool necesitaUsuario = false,
   }) {
-    final limpio = motivo.trim();
+    final clave = normalizarMotivoDescarga(motivo);
+    _log.w('[cola] ✖ $baseId falló sin reintentos — motivo=$clave');
     emit(
       state.copiarCon(
         falloDescarga: FalloDescarga(
           baseId: baseId,
           titulo: _tituloDeTrack(baseId, track),
-          motivo: limpio.isEmpty ? 'unknown' : limpio,
+          motivo: clave,
           necesitaUsuario: necesitaUsuario,
         ),
       ),

@@ -30,7 +30,8 @@ class EstadoSetup extends Equatable {
   final String? trialExistenteIniciadoEn;
   final String? trialExistenteExpiraEn;
   final SyncSoulseek syncSoulseek;
-  final String mensajeSoulseek;
+
+  /// Código del motivo (vacío = sin problema): la UI arma el texto con l10n.
   final String motivoSoulseek;
 
   const EstadoSetup({
@@ -53,7 +54,6 @@ class EstadoSetup extends Equatable {
     this.trialExistenteIniciadoEn,
     this.trialExistenteExpiraEn,
     this.syncSoulseek = SyncSoulseek.inactivo,
-    this.mensajeSoulseek = '',
     this.motivoSoulseek = '',
   });
 
@@ -77,59 +77,55 @@ class EstadoSetup extends Equatable {
     String? trialExistenteIniciadoEn,
     String? trialExistenteExpiraEn,
     SyncSoulseek? syncSoulseek,
-    String? mensajeSoulseek,
     String? motivoSoulseek,
-  }) =>
-      EstadoSetup(
-        paso: paso ?? this.paso,
-        idiomaSeleccionado: idiomaSeleccionado ?? this.idiomaSeleccionado,
-        usuario: usuario ?? this.usuario,
-        googleConectado: googleConectado ?? this.googleConectado,
-        modoSeleccionado: modoSeleccionado ?? this.modoSeleccionado,
-        codigoPremium: codigoPremium ?? this.codigoPremium,
-        guardando: guardando ?? this.guardando,
-        validandoCodigo: validandoCodigo ?? this.validandoCodigo,
-        codigoValido: codigoValido ?? this.codigoValido,
-        errorCodigo: errorCodigo,
-        tieneDatosExistentes: tieneDatosExistentes ?? this.tieneDatosExistentes,
-        continuarConExistentes:
-            continuarConExistentes ?? this.continuarConExistentes,
-        modoExistente: modoExistente ?? this.modoExistente,
-        idiomaExistente: idiomaExistente ?? this.idiomaExistente,
-        usuarioExistente: usuarioExistente ?? this.usuarioExistente,
-        trialExistenteExpirado:
-            trialExistenteExpirado ?? this.trialExistenteExpirado,
-        trialExistenteIniciadoEn:
-            trialExistenteIniciadoEn ?? this.trialExistenteIniciadoEn,
-        trialExistenteExpiraEn:
-            trialExistenteExpiraEn ?? this.trialExistenteExpiraEn,
-        syncSoulseek: syncSoulseek ?? this.syncSoulseek,
-        mensajeSoulseek: mensajeSoulseek ?? this.mensajeSoulseek,
-        motivoSoulseek: motivoSoulseek ?? this.motivoSoulseek,
-      );
+  }) => EstadoSetup(
+    paso: paso ?? this.paso,
+    idiomaSeleccionado: idiomaSeleccionado ?? this.idiomaSeleccionado,
+    usuario: usuario ?? this.usuario,
+    googleConectado: googleConectado ?? this.googleConectado,
+    modoSeleccionado: modoSeleccionado ?? this.modoSeleccionado,
+    codigoPremium: codigoPremium ?? this.codigoPremium,
+    guardando: guardando ?? this.guardando,
+    validandoCodigo: validandoCodigo ?? this.validandoCodigo,
+    codigoValido: codigoValido ?? this.codigoValido,
+    errorCodigo: errorCodigo,
+    tieneDatosExistentes: tieneDatosExistentes ?? this.tieneDatosExistentes,
+    continuarConExistentes:
+        continuarConExistentes ?? this.continuarConExistentes,
+    modoExistente: modoExistente ?? this.modoExistente,
+    idiomaExistente: idiomaExistente ?? this.idiomaExistente,
+    usuarioExistente: usuarioExistente ?? this.usuarioExistente,
+    trialExistenteExpirado:
+        trialExistenteExpirado ?? this.trialExistenteExpirado,
+    trialExistenteIniciadoEn:
+        trialExistenteIniciadoEn ?? this.trialExistenteIniciadoEn,
+    trialExistenteExpiraEn:
+        trialExistenteExpiraEn ?? this.trialExistenteExpiraEn,
+    syncSoulseek: syncSoulseek ?? this.syncSoulseek,
+    motivoSoulseek: motivoSoulseek ?? this.motivoSoulseek,
+  );
 
   @override
   List<Object?> get props => [
-        paso,
-        idiomaSeleccionado,
-        usuario,
-        googleConectado,
-        modoSeleccionado,
-        codigoPremium,
-        guardando,
-        validandoCodigo,
-        codigoValido,
-        errorCodigo,
-        tieneDatosExistentes,
-        continuarConExistentes,
-        modoExistente,
-        idiomaExistente,
-        usuarioExistente,
-        trialExistenteExpirado,
-        trialExistenteIniciadoEn,
-        trialExistenteExpiraEn,
-        syncSoulseek,
-        mensajeSoulseek,
-        motivoSoulseek,
-      ];
+    paso,
+    idiomaSeleccionado,
+    usuario,
+    googleConectado,
+    modoSeleccionado,
+    codigoPremium,
+    guardando,
+    validandoCodigo,
+    codigoValido,
+    errorCodigo,
+    tieneDatosExistentes,
+    continuarConExistentes,
+    modoExistente,
+    idiomaExistente,
+    usuarioExistente,
+    trialExistenteExpirado,
+    trialExistenteIniciadoEn,
+    trialExistenteExpiraEn,
+    syncSoulseek,
+    motivoSoulseek,
+  ];
 }

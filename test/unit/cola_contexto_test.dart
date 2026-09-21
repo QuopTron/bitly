@@ -47,8 +47,11 @@ void main() {
         _track('x', name: 'Otra', artists: 'Nadie'),
         _track('y', name: 'Tema', artists: 'Artista'),
       ];
-      final cola = CubitCola()
-        ..reproducirConContexto(items, _track('z', name: 'Tema', artists: 'Artista'));
+      final cola =
+          CubitCola()..reproducirConContexto(
+            items,
+            _track('z', name: 'Tema', artists: 'Artista'),
+          );
       expect(cola.state.actual?.id, 'y');
     });
 

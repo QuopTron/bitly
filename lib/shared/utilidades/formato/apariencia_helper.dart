@@ -1,15 +1,22 @@
-// apariencia_helper.dart — Helper de las preferencias de DISEÑO: leerlas
-// desde cualquier widget (grillas, cards, miniplayer) y cambiarlas desde
-// Ajustes. Evita que cada archivo importe el notifier + la caché.
+// apariencia_helper.dart — Helper BASE de las preferencias de DISEÑO: leerlas
+// desde cualquier widget y cambiarlas desde Ajustes. Evita que cada archivo
+// importe el notifier + la caché.
 //
-// Los valores salen de `ValueNotifier<PreferenciasApariencia>` (registrado
-// en la inyección y cargado al arrancar), así tocar un control en Ajustes
+// Los valores salen de `ValueNotifier<PreferenciasApariencia>` (registrado en
+// la inyección y cargado al arrancar), así tocar un control en Ajustes
 // repinta la app entera sin reiniciar.
+//
+// Lo que se ajusta se reparte en dos helpers, para que cada archivo haga una
+// sola cosa: apariencia_espacios_helper.dart (cards y grillas) y
+// apariencia_barras_helper.dart (navbar, miniplayer y las paletas del cofre).
 
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../../app/inyeccion.dart';
 import '../../../core/cache/almacenes/cache_ajustes.dart';
+import '../../../core/cache/reproduccion/reproduccion_stats.dart';
+import '../../../core/modelos/usuario/catalogo_disenos_barra_lista.dart';
 import '../../../core/modelos/usuario/preferencias_apariencia.dart';
 
 /// Acceso a las preferencias de diseño del usuario.
@@ -24,29 +31,30 @@ class AparienciaHelper {
   static ValueNotifier<PreferenciasApariencia> notifier() =>
       sl<ValueNotifier<PreferenciasApariencia>>();
 
-  /// Separación horizontal entre cards, como multiplicador del diseño base.
-  static double espacioX(BuildContext context) => actual(context).espacioX;
+  /// Cuántos REGALOS del cofre se pueden abrir ahora y todavía no se
+  /// abrieron. Lo mantiene [refrescarRegalos] y lo pinta el mininumerito de
+  /// Ajustes; vive acá para que la burbuja y el cofre nunca muestren números
+  /// distintos.
+  static final ValueNotifier<int> regalos = ValueNotifier<int>(0);
 
-  /// Separación vertical entre cards.
-  static double espacioY(BuildContext context) => actual(context).espacioY;
-
-  /// Redondeo de las cards de grilla.
-  static double radioCards(BuildContext context) => actual(context).radioCards;
-
-  /// Borde elegido para el reproductor (navbar/miniplayer).
-  static BordeMiniplayer borde(BuildContext context) =>
-      actual(context).bordeMiniplayer;
-
-  /// Opacidad y grosor del borde del reproductor según lo elegido. Con
-  /// `sinBorde` devuelve grosor 0: la barra no dibuja contorno.
-  static (double opacidad, double grosor) trazoBorde(BuildContext context) {
-    switch (borde(context)) {
-      case BordeMiniplayer.sinBorde:
-        return (0, 0);
-      case BordeMiniplayer.suave:
-        return (0.10, 0.5);
-      case BordeMiniplayer.marcado:
-        return (0.22, 1.0);
+  /// Recalcula [regalos] leyendo las horas de escucha y la versión de la app.
+  /// Es best-effort: si algo falla deja el número como estaba (nunca rompe la
+  /// apertura de Ajustes).
+  static Future<void> refrescarRegalos() async {
+    try {
+      final stats = await sl<ReproduccionStats>().getStatsUsuario();
+      final pkg = await PackageInfo.fromPlatform();
+      // Mismo dato que usan los niveles: el tiempo escuchado total.
+      final horas = stats.totalTiempoReproducidoMs ~/ 3600000;
+      final actuales = notifier().value.regalosVistos.toSet();
+      regalos.value =
+          regalosDisponibles(
+            horas: horas,
+            version: versionEnNumero(pkg.version),
+            vistos: actuales,
+          ).length;
+    } catch (e) {
+      debugPrint('[Apariencia] no se pudo contar los regalos: $e');
     }
   }
 
@@ -55,22 +63,6 @@ class AparienciaHelper {
     notifier().value = prefs;
     sl<CacheAjustes>().guardarPreferenciasApariencia(prefs);
   }
-
-  /// Cambia el borde del reproductor.
-  static void cambiarBorde(BuildContext context, BordeMiniplayer borde) =>
-      cambiar(context, actual(context).copiarCon(bordeMiniplayer: borde));
-
-  /// Cambia la separación horizontal de las grillas.
-  static void cambiarEspacioX(BuildContext context, double valor) =>
-      cambiar(context, actual(context).copiarCon(espacioX: valor));
-
-  /// Cambia la separación vertical de las grillas.
-  static void cambiarEspacioY(BuildContext context, double valor) =>
-      cambiar(context, actual(context).copiarCon(espacioY: valor));
-
-  /// Cambia el redondeo de las cards.
-  static void cambiarRadio(BuildContext context, double valor) =>
-      cambiar(context, actual(context).copiarCon(radioCards: valor));
 
   /// Vuelve al diseño de fábrica.
   static void restablecer(BuildContext context) =>

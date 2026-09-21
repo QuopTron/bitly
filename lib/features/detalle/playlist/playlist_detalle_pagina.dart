@@ -29,12 +29,16 @@ import '../../../shared/tema/colores_app.dart';
 import '../../../shared/utilidades/descarga/estrategia_descarga.dart';
 import '../../../shared/utilidades/descarga/exportacion_playlist_ui.dart';
 import '../../../shared/utilidades/plataforma/responsive.dart';
+import '../../../shared/utilidades/portada/caratula_util.dart';
 import '../../../shared/widgets/vidrio/boton_accion_vidrio.dart';
+import '../../../shared/utilidades/modales/mostrar_modal.dart';
 import '../../../shared/widgets/modales/descarga/hoja_opciones_descarga.dart';
+import '../../../shared/widgets/modales/playlist/hoja_playlist.dart';
 import '../../../shared/widgets/tarjetas/track/tarjeta_track.dart';
 import '../comun/cabecera_detalle.dart';
 import '../comun/esqueleto_detalle.dart';
 import '../../../core/servicios/compartir/servicio_compartir.dart';
+import '../../../shared/utilidades/formato/apariencia_espacios_helper.dart';
 
 part 'playlist_detalle_batch.dart';
 part 'playlist_detalle_carga.dart';
@@ -45,16 +49,17 @@ part 'playlist_detalle_estados.dart';
 part 'playlist_detalle_lote.dart';
 
 /// Datos calculados de la vista de playlist (compartidos entre parts).
-typedef DatosVistaPlaylist = ({
-  String src,
-  EstadoDescarga estadoLote,
-  int descargados,
-  int total,
-  bool todosDescargados,
-  bool hayArchivosLocales,
-  String? caratula,
-  List<ItemFeed> items,
-});
+typedef DatosVistaPlaylist =
+    ({
+      String src,
+      EstadoDescarga estadoLote,
+      int descargados,
+      int total,
+      bool todosDescargados,
+      bool hayArchivosLocales,
+      String? caratula,
+      List<ItemFeed> items,
+    });
 
 /// Detalle de playlist: id, nombre, fuente y carátula opcional.
 class PlaylistDetallePagina extends StatefulWidget {
@@ -102,22 +107,29 @@ class _PlaylistDetallePaginaState extends State<PlaylistDetallePagina> {
 
     if (_cargando) {
       return Scaffold(
-          backgroundColor: colorFondo,
-          appBar: AppBar(title: Text(loc.setup.searchPlaylists)),
-          body: const EsqueletoDetalle());
+        backgroundColor: colorFondo,
+        appBar: AppBar(title: Text(loc.setup.searchPlaylists)),
+        body: const EsqueletoDetalle(),
+      );
     }
     if (_playlist == null) {
       return Scaffold(
-          backgroundColor: colorFondo,
-          appBar: AppBar(title: Text(loc.setup.searchPlaylists)),
-          body: _estadoVacioPlaylist(this, context));
+        backgroundColor: colorFondo,
+        appBar: AppBar(title: Text(loc.setup.searchPlaylists)),
+        body: _estadoVacioPlaylist(this, context),
+      );
     }
 
     final playlist = _playlist!;
     final likedCubit = context.watch<CubitLikes>();
     final dlCubit = context.watch<CubitDescargas>();
-    final datos =
-        _calcularDatosPlaylist(this, context, playlist, likedCubit, dlCubit);
+    final datos = _calcularDatosPlaylist(
+      this,
+      context,
+      playlist,
+      likedCubit,
+      dlCubit,
+    );
     _caratulaResuelta = datos.caratula;
 
     // Pre-calentar streams de los primeros tracks visibles (arranque rápido).
@@ -126,12 +138,14 @@ class _PlaylistDetallePaginaState extends State<PlaylistDetallePagina> {
       sl<CubitReproductor>().precachearContexto(datos.items, limit: 3);
     }
 
-    final esPlaylistAmada = likedCubit.estaAmado(ItemFeed(
-      id: playlist.id,
-      type: 'playlist',
-      name: playlist.name,
-      coverUrl: datos.caratula,
-    ));
+    final esPlaylistAmada = likedCubit.estaAmado(
+      ItemFeed(
+        id: playlist.id,
+        type: 'playlist',
+        name: playlist.name,
+        coverUrl: datos.caratula,
+      ),
+    );
 
     return Scaffold(
       backgroundColor: colorFondo,
@@ -142,9 +156,21 @@ class _PlaylistDetallePaginaState extends State<PlaylistDetallePagina> {
         heroTag: 'playlist_${playlist.id}',
         badge: _construirBadgePlaylist(datos, playlist, loc),
         acciones: _filaAccionesPlaylist(
-            this, context, datos, playlist, esPlaylistAmada, likedCubit),
+          this,
+          context,
+          datos,
+          playlist,
+          esPlaylistAmada,
+          likedCubit,
+        ),
         children: _construirContenidoPlaylist(
-            this, context, datos, playlist, likedCubit, dlCubit),
+          this,
+          context,
+          datos,
+          playlist,
+          likedCubit,
+          dlCubit,
+        ),
       ),
     );
   }

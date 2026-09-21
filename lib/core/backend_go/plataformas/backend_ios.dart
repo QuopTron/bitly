@@ -40,7 +40,7 @@ class BackendIOS extends BackendService
         PremiumMixin,
         EditorEtiquetasMixin,
         EnlacesMixin,
-    IsrcMixin,
+        IsrcMixin,
         SesionesFirmadasMixin,
         SesionesAccionesMixin,
         SesionesKeepaliveMixin,
@@ -49,25 +49,35 @@ class BackendIOS extends BackendService
   bool _inicializado = false;
 
   @override
-  Future<dynamic> rpcCall(String method, [Map<String, dynamic>? params, Duration? timeout]) async {
-    return _canal.invokeMethod(method, params ?? {}).timeout(
-      timeout ?? const Duration(seconds: 60),
-    );
+  Future<dynamic> rpcCall(
+    String method, [
+    Map<String, dynamic>? params,
+    Duration? timeout,
+  ]) async {
+    return _canal
+        .invokeMethod(method, params ?? {})
+        .timeout(timeout ?? const Duration(seconds: 60));
   }
 
   @override
   Future<bool> healthCheck() async {
     try {
       if (!_inicializado) {
-        final dir = await _canal.invokeMethod('getApplicationDocumentsDirectory');
+        final dir = await _canal.invokeMethod(
+          'getApplicationDocumentsDirectory',
+        );
         await _canal.invokeMethod('initGoBackend', {'app_data_dir': dir});
         await setPremiumGithubToken(tokenGithub);
-        await _canal.invokeMethod('loadExtensionsFromDir', {'dir_path': '$dir/extensions'});
+        await _canal.invokeMethod('loadExtensionsFromDir', {
+          'dir_path': '$dir/extensions',
+        });
 
         // Sincroniza la config guardada a la config en memoria de Go.
         try {
           final rutaDesc = await di.sl<CacheAjustes>().getRutaDescargas();
-          if (rutaDesc != null && rutaDesc.isNotEmpty) await syncDownloadDir(rutaDesc);
+          if (rutaDesc != null && rutaDesc.isNotEmpty) {
+            await syncDownloadDir(rutaDesc);
+          }
           final datosSetup = await di.sl<CacheAjustes>().cargarDatosSetup();
           if (datosSetup != null) {
             await syncBackendConfig(mode: datosSetup.mode);
@@ -82,7 +92,9 @@ class BackendIOS extends BackendService
           // Empuja el perfil de rendimiento ahora que Go está arriba (antes
           // podría bloquear el bridge y colgar el splash).
           await di.empujarPerfilRendimientoABackend();
-        } catch (e) { debugPrint("[Backend] $e"); }
+        } catch (e) {
+          debugPrint("[Backend] $e");
+        }
 
         _inicializado = true;
       }

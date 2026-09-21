@@ -32,7 +32,9 @@ mixin ReproductorStream on ReproductorEstadoCache {
     if (resultado is String && resultado.isNotEmpty) {
       try {
         final decodificado = jsonDecode(resultado);
-        return decodificado is Map ? Map<String, dynamic>.from(decodificado) : null;
+        return decodificado is Map
+            ? Map<String, dynamic>.from(decodificado)
+            : null;
       } catch (_) {
         return null;
       }

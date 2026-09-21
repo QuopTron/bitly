@@ -7,8 +7,6 @@
 // Parte del flujo: Mi Espacio → Estadísticas y perfil.
 // ─────────────────────────────────────────────────────────────
 
-import 'dart:convert';
-
 import '../../base_datos/app_database.dart';
 import '../../base_datos/daos/collections_dao.dart';
 import '../../base_datos/daos/content_dao.dart';
@@ -27,11 +25,11 @@ class ReproduccionStats {
   final ContentDao _contenido;
 
   ReproduccionStats(AppDatabase db)
-      : _descargas = DownloadDao(db),
-        _favoritos = FavoritesDao(db),
-        _historial = PlayHistoryDao(db),
-        _colecciones = CollectionsDao(db),
-        _contenido = ContentDao(db);
+    : _descargas = DownloadDao(db),
+      _favoritos = FavoritesDao(db),
+      _historial = PlayHistoryDao(db),
+      _colecciones = CollectionsDao(db),
+      _contenido = ContentDao(db);
 
   /// Stats del usuario con totales, nivel y progreso.
   Future<EstadisticasUsuario> getStatsUsuario() async {
@@ -62,23 +60,6 @@ class ReproduccionStats {
       siguienteNivel: datosNivel['nextLevel'] as int? ?? 1,
       progreso: datosNivel['progress'] as double? ?? 0.0,
     );
-  }
-
-  /// [getStatsUsuario] como JSON string (compatibilidad con BackendService).
-  Future<String> getStatsUsuarioJSON() async {
-    final stats = await getStatsUsuario();
-    return jsonEncode({
-      'totalDownloads': stats.totalDescargas,
-      'totalLikes': stats.totalLikes,
-      'totalPlaybackMs': stats.totalTiempoReproducidoMs,
-      'totalPlaylistTracks': stats.totalTracksPlaylist,
-      'totalTracks': stats.totalTracks,
-      'totalAlbums': stats.totalAlbums,
-      'totalArtists': stats.totalArtistas,
-      'level': stats.nivel,
-      'nextLevel': stats.siguienteNivel,
-      'progress': stats.progreso,
-    });
   }
 
   /// Tracks más reproducidos con títulos/artistas reales (del historial

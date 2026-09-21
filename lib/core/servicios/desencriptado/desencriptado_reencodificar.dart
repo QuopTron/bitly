@@ -28,42 +28,52 @@ Future<ResultadoDesencriptadoStream> _reencodificarFallbacks({
   // para .m4a que rechaza codec FLAC.
   if (!res.exito && extPreferida == '.flac') {
     final rutaOut = rutaSalida('.flac');
-    res = await _ejecutarDecrypt(
-      <String>[
-        '-nostdin',
-        '-hide_banner',
-        '-v', 'error',
-        '-decryption_key', candidata,
-        '-f', demuxer,
-        '-i', rutaOrigen,
-        '-map', '0:a',
-        '-c:a', 'flac',
-        '-f', 'flac',
-        '-y', rutaOut,
-      ],
+    res = await _ejecutarDecrypt(<String>[
+      '-nostdin',
+      '-hide_banner',
+      '-v',
+      'error',
+      '-decryption_key',
+      candidata,
+      '-f',
+      demuxer,
+      '-i',
+      rutaOrigen,
+      '-map',
+      '0:a',
+      '-c:a',
+      'flac',
+      '-f',
+      'flac',
+      '-y',
       rutaOut,
-    );
+    ], rutaOut);
   }
 
   // Re-encode a .m4a como último recurso (FLAC re-codificado en contenedor
   // MP4). DEBE usar -f mp4 (no ipod) porque ipod rechaza codec FLAC.
   if (!res.exito && extPreferida == '.flac') {
     final rutaOut = rutaSalida('.m4a');
-    res = await _ejecutarDecrypt(
-      <String>[
-        '-nostdin',
-        '-hide_banner',
-        '-v', 'error',
-        '-decryption_key', candidata,
-        '-f', demuxer,
-        '-i', rutaOrigen,
-        '-map', '0:a',
-        '-c:a', 'flac',
-        '-f', 'mp4',
-        '-y', rutaOut,
-      ],
+    res = await _ejecutarDecrypt(<String>[
+      '-nostdin',
+      '-hide_banner',
+      '-v',
+      'error',
+      '-decryption_key',
+      candidata,
+      '-f',
+      demuxer,
+      '-i',
+      rutaOrigen,
+      '-map',
+      '0:a',
+      '-c:a',
+      'flac',
+      '-f',
+      'mp4',
+      '-y',
       rutaOut,
-    );
+    ], rutaOut);
   }
 
   // Opción nuclear: decrypt a .mp4 temporal primero (copy, siempre funciona
@@ -84,41 +94,49 @@ Future<ResultadoDesencriptadoStream> _reencodificarFallbacks({
     if (resTmp.exito && await File(tmpMp4).exists()) {
       // Re-encode del MP4 desencriptado temporal a .flac
       var rutaOut = rutaSalida('.flac');
-      res = await _ejecutarDecrypt(
-        <String>[
-          '-nostdin',
-          '-hide_banner',
-          '-v', 'error',
-          '-i', tmpMp4,
-          '-map', '0:a',
-          '-c:a', 'flac',
-          '-f', 'flac',
-          '-y', rutaOut,
-        ],
+      res = await _ejecutarDecrypt(<String>[
+        '-nostdin',
+        '-hide_banner',
+        '-v',
+        'error',
+        '-i',
+        tmpMp4,
+        '-map',
+        '0:a',
+        '-c:a',
+        'flac',
+        '-f',
+        'flac',
+        '-y',
         rutaOut,
-      );
+      ], rutaOut);
       // Si el re-encode a .flac también falló, intentar .m4a
       if (!res.exito) {
         rutaOut = rutaSalida('.m4a');
-        res = await _ejecutarDecrypt(
-          <String>[
-            '-nostdin',
-            '-hide_banner',
-            '-v', 'error',
-            '-i', tmpMp4,
-            '-map', '0:a',
-            '-c:a', 'flac',
-            '-f', 'mp4',
-            '-y', rutaOut,
-          ],
+        res = await _ejecutarDecrypt(<String>[
+          '-nostdin',
+          '-hide_banner',
+          '-v',
+          'error',
+          '-i',
+          tmpMp4,
+          '-map',
+          '0:a',
+          '-c:a',
+          'flac',
+          '-f',
+          'mp4',
+          '-y',
           rutaOut,
-        );
+        ], rutaOut);
       }
     }
     // Limpiar el archivo temporal
     try {
       await File(tmpMp4).delete();
-    } catch (e) { debugPrint("[Desencriptado] error: $e"); }
+    } catch (e) {
+      debugPrint("[Desencriptado] error: $e");
+    }
   }
 
   // AAC re-encode fallback: cuando FLAC copy y FLAC re-encode fallan (p.ej.
@@ -127,19 +145,28 @@ Future<ResultadoDesencriptadoStream> _reencodificarFallbacks({
   // no tener archivo.
   if (!res.exito) {
     final rutaOut = rutaSalida('.m4a');
-    res = await _ejecutarDecrypt(
-      <String>[
-        '-nostdin', '-hide_banner', '-v', 'error',
-        '-decryption_key', candidata,
-        '-f', demuxer,
-        '-i', rutaOrigen,
-        '-map', '0:a',
-        '-c:a', 'aac', '-b:a', '256k',
-        '-f', 'ipod',
-        '-y', rutaOut,
-      ],
+    res = await _ejecutarDecrypt(<String>[
+      '-nostdin',
+      '-hide_banner',
+      '-v',
+      'error',
+      '-decryption_key',
+      candidata,
+      '-f',
+      demuxer,
+      '-i',
+      rutaOrigen,
+      '-map',
+      '0:a',
+      '-c:a',
+      'aac',
+      '-b:a',
+      '256k',
+      '-f',
+      'ipod',
+      '-y',
       rutaOut,
-    );
+    ], rutaOut);
   }
 
   return res;

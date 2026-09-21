@@ -32,7 +32,10 @@ Widget _bannerExistente(SlideUsuario w, Color onBg, Color glowColor) {
     borderRadius: 12,
     borderColor: glowColor.withValues(alpha: 0.2),
     bgColor: glowColor.withValues(alpha: 0.06),
-    padding: EdgeInsets.symmetric(horizontal: w.r.spacingM, vertical: w.r.spacingS),
+    padding: EdgeInsets.symmetric(
+      horizontal: w.r.spacingM,
+      vertical: w.r.spacingS,
+    ),
     child: Row(
       children: [
         Icon(Icons.info_outline, color: glowColor, size: w.r.footerSize + 2),
@@ -58,8 +61,8 @@ Widget _botones(BuildContext context, SlideUsuario w, Color glowColor) {
           Expanded(
             child: BotonVidrio(
               label: w.loc.setup.back,
-              onPressed: () =>
-                  context.read<SetupBloc>().add(const PasoAnterior()),
+              onPressed:
+                  () => context.read<SetupBloc>().add(const PasoAnterior()),
               height: w.r.continueButtonHeight,
               accent: glowColor,
             ),
@@ -71,10 +74,12 @@ Widget _botones(BuildContext context, SlideUsuario w, Color glowColor) {
               // Se bloquea mientras se crea la cuenta de Soulseek: sin eso, el
               // usuario podría avanzar mientras el nombre todavía se está
               // verificando y el rechazo llegaría tarde, en otro paso.
-              onPressed: w.state.usuario.trim().isNotEmpty &&
-                      w.state.syncSoulseek != SyncSoulseek.creando
-                  ? () => context.read<SetupBloc>().add(const SiguientePaso())
-                  : null,
+              onPressed:
+                  w.state.usuario.trim().isNotEmpty &&
+                          w.state.syncSoulseek != SyncSoulseek.creando
+                      ? () =>
+                          context.read<SetupBloc>().add(const SiguientePaso())
+                      : null,
               height: w.r.continueButtonHeight,
               accent: glowColor,
             ),

@@ -34,9 +34,12 @@ class ResultadoSoulseek {
 
   String get motivoClave {
     switch (motivo) {
-      case MotivoSoulseek.nombreTomado: return 'nombre_tomado';
-      case MotivoSoulseek.nombreInvalido: return 'nombre_invalido';
-      case MotivoSoulseek.ninguno: return '';
+      case MotivoSoulseek.nombreTomado:
+        return 'nombre_tomado';
+      case MotivoSoulseek.nombreInvalido:
+        return 'nombre_invalido';
+      case MotivoSoulseek.ninguno:
+        return '';
     }
   }
 }

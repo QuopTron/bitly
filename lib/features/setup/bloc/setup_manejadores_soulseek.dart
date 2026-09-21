@@ -34,24 +34,23 @@ mixin ManejadoresSoulseekSetup on Bloc<EventoSetup, EstadoSetup> {
       if (nombre.isEmpty) {
         // Sin nombre no se inventa uno: se le pide al usuario.
         if (isClosed) return;
-        add(const SoulseekSyncCompletada(
-          ok: false,
-          mensaje: 'escribí un nombre de usuario',
-          motivo: 'nombre_invalido',
-        ));
+        add(const SoulseekSyncCompletada(ok: false, motivo: 'nombre_invalido'));
         return;
       }
       final resultado = await servicioSoulseek.crearOConectar(nombre);
       if (isClosed) return;
-      add(SoulseekSyncCompletada(
-        ok: resultado.ok,
-        mensaje: resultado.mensaje,
-        motivo: resultado.ok ? '' : resultado.motivoClave,
-      ));
+      add(
+        SoulseekSyncCompletada(
+          ok: resultado.ok,
+          motivo: resultado.ok ? '' : resultado.motivoClave,
+        ),
+      );
     } catch (e) {
       if (isClosed) return;
-      // Falla del puente/red: no es algo que el usuario deba corregir.
-      add(SoulseekSyncCompletada(ok: false, mensaje: 'Error: $e'));
+      // Falla del puente/red: no es algo que el usuario deba corregir, así que
+      // no lleva motivo (el setup no se bloquea) pero sí queda en el log.
+      debugPrint('[setup] alta en Soulseek falló: $e');
+      add(const SoulseekSyncCompletada(ok: false));
     }
   }
 
@@ -59,14 +58,16 @@ mixin ManejadoresSoulseekSetup on Bloc<EventoSetup, EstadoSetup> {
     SoulseekSyncCompletada event,
     Emitter<EstadoSetup> emit,
   ) {
-    emit(state.copiarCon(
-      syncSoulseek: event.ok ? SyncSoulseek.listo : SyncSoulseek.fallo,
-      mensajeSoulseek: event.mensaje,
-      motivoSoulseek: event.motivo,
-      // Solo se avanza si no queda nada que el usuario deba corregir.
-      paso: (event.ok || !event.problemaDeNombre)
-          ? PasoSetup.googleSignIn
-          : state.paso,
-    ));
+    emit(
+      state.copiarCon(
+        syncSoulseek: event.ok ? SyncSoulseek.listo : SyncSoulseek.fallo,
+        motivoSoulseek: event.motivo,
+        // Solo se avanza si no queda nada que el usuario deba corregir.
+        paso:
+            (event.ok || !event.problemaDeNombre)
+                ? PasoSetup.googleSignIn
+                : state.paso,
+      ),
+    );
   }
 }

@@ -31,31 +31,31 @@ class PerfilRuntime {
   });
 
   const PerfilRuntime.bajo()
-      : this._(
-          nivel: NivelRendimientoRuntime.bajo,
-          tamanoMaximoCacheImagenes: 120,
-          tamanoMaximoCacheBytes: 24 << 20,
-          deshabilitarOverscroll: true,
-          habilitarBlurFondo: false,
-        );
+    : this._(
+        nivel: NivelRendimientoRuntime.bajo,
+        tamanoMaximoCacheImagenes: 120,
+        tamanoMaximoCacheBytes: 24 << 20,
+        deshabilitarOverscroll: true,
+        habilitarBlurFondo: false,
+      );
 
   const PerfilRuntime.estandar()
-      : this._(
-          nivel: NivelRendimientoRuntime.estandar,
-          tamanoMaximoCacheImagenes: 240,
-          tamanoMaximoCacheBytes: 60 << 20,
-          deshabilitarOverscroll: false,
-          habilitarBlurFondo: false,
-        );
+    : this._(
+        nivel: NivelRendimientoRuntime.estandar,
+        tamanoMaximoCacheImagenes: 240,
+        tamanoMaximoCacheBytes: 60 << 20,
+        deshabilitarOverscroll: false,
+        habilitarBlurFondo: false,
+      );
 
   const PerfilRuntime.alto()
-      : this._(
-          nivel: NivelRendimientoRuntime.alto,
-          tamanoMaximoCacheImagenes: 320,
-          tamanoMaximoCacheBytes: 80 << 20,
-          deshabilitarOverscroll: false,
-          habilitarBlurFondo: true,
-        );
+    : this._(
+        nivel: NivelRendimientoRuntime.alto,
+        tamanoMaximoCacheImagenes: 320,
+        tamanoMaximoCacheBytes: 80 << 20,
+        deshabilitarOverscroll: false,
+        habilitarBlurFondo: true,
+      );
 
   static PerfilRuntime? desdeNivel(String nivel) => switch (nivel) {
     'low' => const PerfilRuntime.bajo(),
@@ -99,11 +99,6 @@ PerfilRuntime segmentoPorGama(NivelRendimiento nivel) => switch (nivel) {
   NivelRendimiento.alto => const PerfilRuntime.alto(),
   NivelRendimiento.medio => const PerfilRuntime.estandar(),
 };
-
-/// Guarda el nivel del perfil de runtime en SharedPreferences.
-Future<void> guardarPerfilRuntime(SharedPreferences prefs, PerfilRuntime perfil) async {
-  await prefs.setString(_claveNivelPerfilRuntime, perfil.claveNivel);
-}
 
 /// Configura el caché de imágenes según el perfil de runtime.
 void configurarCacheImagenes(PerfilRuntime perfil) {

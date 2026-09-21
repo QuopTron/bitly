@@ -23,10 +23,4 @@ class CacheBusqueda {
   Future<void> limpiarBusquedasRecientes() => _dao.clearSearches();
 
   // ── Accesos recientes ──────────────────────────────────────
-
-  Future<void> upsertAccesoReciente(String key, String json) =>
-      _dao.upsertAccess(key, json);
-
-  Future<void> quitarAccesoReciente(String key) => _dao.removeAccess(key);
-  Future<void> limpiarAccesosRecientes() => _dao.clearAccess();
 }

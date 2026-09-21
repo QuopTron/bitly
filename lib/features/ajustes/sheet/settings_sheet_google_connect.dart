@@ -15,15 +15,14 @@ Future<void> _connectGoogle(
   Future<void> Function() onRecheck,
 ) async {
   try {
-    final msg = await ServicioOAuthYouTube().conectar(context);
+    final resultado = await ServicioOAuthYouTube().conectar(context);
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(msg),
+          content: Text(resultado.mensaje),
+          // El color sale del booleano, no del texto: no depende del idioma.
           backgroundColor:
-              msg.startsWith('Sesion de YouTube conectada')
-                  ? Colors.green.shade700
-                  : Colors.red.shade700,
+              resultado.ok ? Colors.green.shade700 : Colors.red.shade700,
           behavior: SnackBarBehavior.floating,
           duration: const Duration(seconds: 3),
         ),
@@ -32,9 +31,11 @@ Future<void> _connectGoogle(
     }
   } catch (e) {
     if (context.mounted) {
+      final g = AppLocalizations.of(context).google;
+      final en = Localizations.localeOf(context).languageCode == 'en';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error al conectar: $e'),
+          content: Text(g.errorConexion(e, en: en)),
           backgroundColor: Colors.red.shade700,
           behavior: SnackBarBehavior.floating,
         ),

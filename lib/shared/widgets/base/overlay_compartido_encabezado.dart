@@ -50,12 +50,7 @@ Widget _chipEmisor(
 ) {
   final lado = r.footerSize + 12;
   return Container(
-    padding: EdgeInsets.only(
-      left: 3,
-      right: r.spacingM,
-      top: 3,
-      bottom: 3,
-    ),
+    padding: EdgeInsets.only(left: 3, right: r.spacingM, top: 3, bottom: 3),
     decoration: BoxDecoration(
       color: cs.onSurface.withValues(alpha: 0.07),
       borderRadius: BorderRadius.circular(20),

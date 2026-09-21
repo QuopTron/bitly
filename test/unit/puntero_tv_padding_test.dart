@@ -65,7 +65,11 @@ class _Blanco extends StatelessWidget {
 
 /// Reproduce el montaje de app.dart para TV: lienzo de diseño + protección de
 /// layout + puntero POR ENCIMA (píxeles reales).
-Widget _appTvReal({required List<String> clics, required List<Offset> puntos, required Widget cuadricula}) {
+Widget _appTvReal({
+  required List<String> clics,
+  required List<Offset> puntos,
+  required Widget cuadricula,
+}) {
   return MaterialApp(
     builder: (context, hijo) {
       Widget contenido = hijo ?? const SizedBox.shrink();
@@ -127,7 +131,8 @@ void main() {
       expect(
         cursor.dx,
         lessThan(960.0),
-        reason: 'el cursor tiene que haberse movido a la izquierda (quedó en '
+        reason:
+            'el cursor tiene que haberse movido a la izquierda (quedó en '
             '$cursor sobre una pantalla de 1920x1080)',
       );
 
@@ -137,7 +142,8 @@ void main() {
       expect(
         clics,
         ['IZQUIERDA'],
-        reason: 'con el cursor sobre el bloque izquierdo, el clic tiene que '
+        reason:
+            'con el cursor sobre el bloque izquierdo, el clic tiene que '
             'activar ESE bloque (era el "clic falso" reportado)',
       );
       // Y exactamente donde se ve el cursor: no "cerca", ahí.
@@ -213,11 +219,7 @@ void main() {
         _appTvReal(
           clics: clics,
           puntos: puntos,
-          cuadricula: _Blanco(
-            etiqueta: 'UNICO',
-            clics: clics,
-            puntos: puntos,
-          ),
+          cuadricula: _Blanco(etiqueta: 'UNICO', clics: clics, puntos: puntos),
         ),
       );
 
@@ -237,8 +239,9 @@ void main() {
 
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.pump(const Duration(milliseconds: 120));
-      expect(clics, ['UNICO'],
-          reason: 'en la esquina el clic tiene que seguir sirviendo');
+      expect(clics, [
+        'UNICO',
+      ], reason: 'en la esquina el clic tiene que seguir sirviendo');
       expect((puntos.single - cursor).distance, lessThan(0.5));
     });
   });

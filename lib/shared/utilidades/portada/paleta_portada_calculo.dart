@@ -89,16 +89,18 @@ Future<PaletaPortada?> _calcularDesdeBytes(Uint8List bytes) async {
 
     Color vibrante;
     if (vCount > count * 0.03) {
-      vibrante =
-          Color.fromARGB(255, vR ~/ vCount, vG ~/ vCount, vB ~/ vCount);
+      vibrante = Color.fromARGB(255, vR ~/ vCount, vG ~/ vCount, vB ~/ vCount);
     } else if (midCount > 0) {
       // Carátula desaturada: sube la saturación del tono medio.
       final mid = Color.fromARGB(
-          255, midR ~/ midCount, midG ~/ midCount, midB ~/ midCount);
+        255,
+        midR ~/ midCount,
+        midG ~/ midCount,
+        midB ~/ midCount,
+      );
       final hsl = HSLColor.fromColor(mid);
-      vibrante = hsl
-          .withSaturation((hsl.saturation + 0.25).clamp(0.0, 0.6))
-          .toColor();
+      vibrante =
+          hsl.withSaturation((hsl.saturation + 0.25).clamp(0.0, 0.6)).toColor();
     } else {
       vibrante = dominante;
     }

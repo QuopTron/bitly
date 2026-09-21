@@ -21,18 +21,24 @@ Widget _construirPaso(BuildContext context, Paso paso) {
       children: [
         Icon(paso.icono, size: 80, color: ColoresApp.verdeBrillante),
         const SizedBox(height: 32),
-        Text(paso.titulo,
-            style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: colorSuperficie),
-            textAlign: TextAlign.center),
+        Text(
+          paso.titulo,
+          style: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            color: colorSuperficie,
+          ),
+          textAlign: TextAlign.center,
+        ),
         const SizedBox(height: 16),
-        Text(paso.descripcion,
-            style: TextStyle(
-                fontSize: 16,
-                color: colorSuperficie.withValues(alpha: 0.6)),
-            textAlign: TextAlign.center),
+        Text(
+          paso.descripcion,
+          style: TextStyle(
+            fontSize: 16,
+            color: colorSuperficie.withValues(alpha: 0.6),
+          ),
+          textAlign: TextAlign.center,
+        ),
       ],
     ),
   );
@@ -50,17 +56,21 @@ Widget _construirControles(_TutorialPaginaState st, int total) {
     children: [
       Row(
         mainAxisAlignment: MainAxisAlignment.center,
-        children: List.generate(total, (i) => Container(
-              margin: const EdgeInsets.symmetric(horizontal: 4),
-              width: st._pagina == i ? 24 : 8,
-              height: 8,
-              decoration: BoxDecoration(
-                color: st._pagina == i
-                    ? ColoresApp.verdeBrillante
-                    : colorSuperficie.withValues(alpha: 0.25),
-                borderRadius: BorderRadius.circular(4),
-              ),
-            )),
+        children: List.generate(
+          total,
+          (i) => Container(
+            margin: const EdgeInsets.symmetric(horizontal: 4),
+            width: st._pagina == i ? 24 : 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color:
+                  st._pagina == i
+                      ? ColoresApp.verdeBrillante
+                      : colorSuperficie.withValues(alpha: 0.25),
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+        ),
       ),
       const SizedBox(height: 24),
       SizedBox(
@@ -72,8 +82,7 @@ Widget _construirControles(_TutorialPaginaState st, int total) {
             foregroundColor: Colors.white,
           ),
           onPressed: () => st._siguiente(total),
-          child: Text(
-              esUltimo ? loc.tutorial.empezar : loc.tutorial.siguiente),
+          child: Text(esUltimo ? loc.tutorial.empezar : loc.tutorial.siguiente),
         ),
       ),
     ],

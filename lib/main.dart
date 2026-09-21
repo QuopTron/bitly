@@ -10,6 +10,7 @@
 // Parte del flujo: arranque (primer código que corre la app).
 // ─────────────────────────────────────────────────────────────
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -26,6 +27,8 @@ import './core/plataforma/notificacion/puente_notificacion_media.dart';
 import './core/plataforma/sistema/servicio_deep_link.dart';
 import './core/plataforma/sistema/servicio_foco_audio.dart';
 import './core/plataforma/sistema/servicio_share_intent.dart';
+import './core/servicios/lan/servicio_lan.dart';
+import './features/ajustes/notificaciones/notificaciones_tuerca.dart';
 import './core/servicios/proveedores/servicio_enlaces.dart';
 import './estado/reproductor/cubit_reproductor.dart';
 import './shared/utilidades/plataforma/deteccion_tv.dart';
@@ -69,10 +72,14 @@ Future<void> main() async {
       for (final f in stale) {
         try {
           await f.delete();
-        } catch (e) { debugPrint("[App] $e"); }
+        } catch (e) {
+          debugPrint("[App] $e");
+        }
       }
     }
-  } catch (e) { debugPrint("[App] $e"); }
+  } catch (e) {
+    debugPrint("[App] $e");
+  }
 
   // media_kit DEBE inicializarse antes de crear cualquier Player.
   // En web no existe (su backend es libmpv nativo): el arranque sigue sin él.
@@ -112,7 +119,15 @@ Future<void> main() async {
 
     // Pausa automática cuando otra app toma el audio. Después de GetIt.
     await ServicioFocoAudio.instance.init();
+
+    // Vínculo entre aparatos de la misma red (prestarse la biblioteca
+    // descargada sin servidor). Nunca tira: si la red no está, la app sigue.
+    await sl<ServicioLan>().iniciar();
   }
+
+  // Aviso de la tuerca (Ajustes): regalos del cofre + novedades de Conexión +
+  // versión nueva. Sin esperar: consulta de red, no puede frenar el arranque.
+  unawaited(refrescarNotificacionesTuerca());
 
   runApp(const BitlyApp());
 }

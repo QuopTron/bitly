@@ -32,10 +32,7 @@ const double anchoDisenoTv = 1280;
 ///
 /// Presenta a la app un tamaño lógico fijo y la escala para llenar la pantalla:
 /// el diseño deja de depender del DPI reportado por el televisor.
-Widget vistaDisenoTv({
-  required BuildContext context,
-  required Widget child,
-}) {
+Widget vistaDisenoTv({required BuildContext context, required Widget child}) {
   if (!esSmartTV(context)) return child;
 
   final real = MediaQuery.of(context);
@@ -62,11 +59,7 @@ Widget vistaDisenoTv({
         // El alto ya respeta el aspecto real, así que llenar no deforma.
         fit: BoxFit.fill,
         clipBehavior: Clip.hardEdge,
-        child: SizedBox(
-          width: anchoDisenoTv,
-          height: alto,
-          child: child,
-        ),
+        child: SizedBox(width: anchoDisenoTv, height: alto, child: child),
       ),
     ),
   );

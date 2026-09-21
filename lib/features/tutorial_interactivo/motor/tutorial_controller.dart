@@ -110,11 +110,6 @@ class TutorialController extends ChangeNotifier {
     }
   }
 
-  /// Salta el paso actual y va al siguiente (o completa si es el último).
-  void saltarPaso() {
-    siguiente();
-  }
-
   /// Salta todo el tutorial y lo marca como completado.
   Future<void> saltarTodo() async {
     _completado = true;

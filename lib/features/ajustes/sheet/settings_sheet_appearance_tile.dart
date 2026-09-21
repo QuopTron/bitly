@@ -39,7 +39,10 @@ class _ThemeTile extends StatelessWidget {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 220),
           curve: Curves.easeOutCubic,
-          padding: EdgeInsets.symmetric(vertical: r.spacingL, horizontal: r.spacingM),
+          padding: EdgeInsets.symmetric(
+            vertical: r.spacingL,
+            horizontal: r.spacingM,
+          ),
           decoration: BoxDecoration(
             gradient:
                 selected

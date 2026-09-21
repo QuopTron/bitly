@@ -75,15 +75,18 @@ mixin VerificacionKeepalive on VerificacionEstado {
     // Nada que refrescar mientras la lista de fuentes con sesión firmada esté
     // vacía (ver ServicioVerificacion.fuentesSesionFirmada).
     if (ServicioVerificacion.fuentesSesionFirmada.isEmpty) return;
-    if (!_appEnUso || _keepaliveCorriendo || _dialogoAbierto || _pendiente != null) {
+    if (!_appEnUso ||
+        _keepaliveCorriendo ||
+        _dialogoAbierto ||
+        _pendiente != null) {
       return;
     }
     _keepaliveCorriendo = true;
     try {
       final backend = di.sl<BackendService>();
-      final resultados = await backend
-          .keepAliveSignedSessions()
-          .timeout(const Duration(seconds: 8));
+      final resultados = await backend.keepAliveSignedSessions().timeout(
+        const Duration(seconds: 8),
+      );
       final refrescadas = <String>[];
       resultados.forEach((fuente, estado) {
         if (estado is Map && estado['refreshed'] == true) {

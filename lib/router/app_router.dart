@@ -33,42 +33,43 @@ class AppRouter {
   const AppRouter({this.navigatorKey, this.navigatorObservers});
 
   GoRouter get router => GoRouter(
-        navigatorKey: navigatorKey,
-        observers: navigatorObservers,
-        initialLocation: RouteNames.splash.path,
-        // Enlaces de fuera (compartidos, PWA, navegador): se resuelven a una
-        // ruta conocida en vez de romper el router con la URL entera.
-        redirect: (_, estado) =>
-            destinoDeLocationExterna(estado.uri.toString()),
-        // Red de seguridad: si alguna vez ninguna ruta coincide, se entra al
-        // home en lugar de mostrar la pantalla de error con la URL.
-        errorBuilder: (_, _) => const EnsambladorHome(),
-        routes: [
-          GoRoute(
-            path: RouteNames.splash.path,
-            name: 'splash',
-            builder: (_, _) => const PaginaSplash(),
-          ),
-          GoRoute(
-            path: RouteNames.setup.path,
-            name: 'setup',
-            pageBuilder: (_, _) => CustomTransitionPage(
+    navigatorKey: navigatorKey,
+    observers: navigatorObservers,
+    initialLocation: RouteNames.splash.path,
+    // Enlaces de fuera (compartidos, PWA, navegador): se resuelven a una
+    // ruta conocida en vez de romper el router con la URL entera.
+    redirect: (_, estado) => destinoDeLocationExterna(estado.uri.toString()),
+    // Red de seguridad: si alguna vez ninguna ruta coincide, se entra al
+    // home en lugar de mostrar la pantalla de error con la URL.
+    errorBuilder: (_, _) => const EnsambladorHome(),
+    routes: [
+      GoRoute(
+        path: RouteNames.splash.path,
+        name: 'splash',
+        builder: (_, _) => const PaginaSplash(),
+      ),
+      GoRoute(
+        path: RouteNames.setup.path,
+        name: 'setup',
+        pageBuilder:
+            (_, _) => CustomTransitionPage(
               key: const ValueKey('setup'),
               child: const PaginaSetup(),
-              transitionsBuilder: (_, animacion, _, hijo) =>
-                  FadeTransition(opacity: animacion, child: hijo),
+              transitionsBuilder:
+                  (_, animacion, _, hijo) =>
+                      FadeTransition(opacity: animacion, child: hijo),
             ),
-          ),
-          GoRoute(
-            path: RouteNames.home.path,
-            name: 'home',
-            builder: (_, _) => const EnsambladorHome(),
-          ),
-          GoRoute(
-            path: RouteNames.tutorial.path,
-            name: 'tutorial',
-            builder: (_, _) => const TutorialPagina(),
-          ),
-        ],
-      );
+      ),
+      GoRoute(
+        path: RouteNames.home.path,
+        name: 'home',
+        builder: (_, _) => const EnsambladorHome(),
+      ),
+      GoRoute(
+        path: RouteNames.tutorial.path,
+        name: 'tutorial',
+        builder: (_, _) => const TutorialPagina(),
+      ),
+    ],
+  );
 }

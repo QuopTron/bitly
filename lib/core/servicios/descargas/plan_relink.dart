@@ -62,7 +62,10 @@ PlanRelink planificarRelink({
       if (nueva.isNotEmpty) rutas[entrada.id] = nueva;
     }
     if (entrada.caratula.isEmpty || existe(entrada.caratula)) continue;
-    final nuevaCaratula = carpeta.buscarCaratula(entrada.caratula, entrada.ruta);
+    final nuevaCaratula = carpeta.buscarCaratula(
+      entrada.caratula,
+      entrada.ruta,
+    );
     if (nuevaCaratula.isNotEmpty) caratulas[entrada.id] = nuevaCaratula;
   }
   return PlanRelink(rutas: rutas, caratulas: caratulas);

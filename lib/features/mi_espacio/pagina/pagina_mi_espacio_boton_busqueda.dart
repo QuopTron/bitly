@@ -36,13 +36,15 @@ class _BotonBusquedaToggle extends StatelessWidget {
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: activo
-                ? onBg.withValues(alpha: 0.15)
-                : onBg.withValues(alpha: 0.05),
+            color:
+                activo
+                    ? onBg.withValues(alpha: 0.15)
+                    : onBg.withValues(alpha: 0.05),
             border: Border.all(
-              color: activo
-                  ? onBg.withValues(alpha: 0.4)
-                  : onBg.withValues(alpha: 0.1),
+              color:
+                  activo
+                      ? onBg.withValues(alpha: 0.4)
+                      : onBg.withValues(alpha: 0.1),
               width: activo ? 1.0 : 0.6,
             ),
           ),

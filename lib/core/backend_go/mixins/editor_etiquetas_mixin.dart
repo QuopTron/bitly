@@ -31,7 +31,10 @@ mixin EditorEtiquetasMixin on BackendService {
   }
 
   @override
-  Future<bool> writeFileMetadata(String filePath, Map<String, String> meta) async {
+  Future<bool> writeFileMetadata(
+    String filePath,
+    Map<String, String> meta,
+  ) async {
     try {
       final resultado = await rpcCall('writeFileMetadata', {
         'filePath': filePath,

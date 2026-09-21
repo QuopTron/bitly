@@ -18,8 +18,11 @@ Future<void> _showPicker({
   required Color onBg,
   required Responsive r,
 }) async {
-  final selected = await showModalBottomSheet<String>(
+  // `sobreHoja`: el selector de calidad sale desde Ajustes: tapa la hoja de
+  // abajo para que no se vean dos modales.
+  final selected = await mostrarHoja<String>(
     context: context,
+    sobreHoja: true,
     backgroundColor: Colors.transparent,
     builder: (sheetCtx) {
       final isDark = Theme.of(sheetCtx).brightness == Brightness.dark;

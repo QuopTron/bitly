@@ -24,6 +24,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:http/http.dart' as http;
@@ -49,6 +50,7 @@ import '../../core/plataforma/sistema/servicio_foco_audio.dart';
 import '../../core/servicios/desencriptado/desencriptado_stream.dart';
 import '../../core/servicios/utilidades/huella_item.dart';
 import '../../core/servicios/verificacion/servicio_verificacion.dart';
+import '../../shared/utilidades/formato/l10n_servicio.dart';
 import '../../core/servicios/utilidades/utilidades_id.dart';
 import '../cola/cubit_cola.dart';
 

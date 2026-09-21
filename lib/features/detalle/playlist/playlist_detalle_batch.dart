@@ -17,59 +17,63 @@ Future<void> _descargarPlaylistCompleta(_PlaylistDetallePaginaState st) async {
   final dlCubit = st.context.read<CubitDescargas>();
   final esOscuro = Theme.of(st.context).brightness == Brightness.dark;
   final ajustes = await sl<CacheAjustes>().getAjustesDescarga();
-  final src = st.widget.source.isNotEmpty
-      ? st.widget.source
-      : (playlist.tracks.first.provider ?? '');
+  final src =
+      st.widget.source.isNotEmpty
+          ? st.widget.source
+          : (playlist.tracks.first.provider ?? '');
   final caratula = st._caratulaResuelta ?? st.widget.coverUrl;
 
   // Solo tracks que aún no están completados (misma verificación que el
   // conteo del badge: id+fuente o ISRC de otra extensión).
-  final tracks = playlist.tracks
-      .where(
-        (t) =>
-            !dlCubit.trackDescargado(t.trackId, source: src, isrc: t.isrc),
-      )
-      .map((t) => <String, dynamic>{
-            'track_id': t.trackId,
-            'track_title': t.name,
-            'artist_name': t.artistName ?? '',
-            'album_name': t.albumName ?? '',
-            'source': src,
-            'isrc': t.isrc,
-            'duration_ms': t.durationMs,
-            'cover_url': (t.coverUrl?.isNotEmpty == true)
-                ? t.coverUrl!
-                : caratula,
-          })
-      .toList();
+  final tracks =
+      playlist.tracks
+          .where(
+            (t) =>
+                !dlCubit.trackDescargado(t.trackId, source: src, isrc: t.isrc),
+          )
+          .map(
+            (t) => <String, dynamic>{
+              'track_id': t.trackId,
+              'track_title': t.name,
+              'artist_name': t.artistName ?? '',
+              'album_name': t.albumName ?? '',
+              'source': src,
+              'isrc': t.isrc,
+              'duration_ms': t.durationMs,
+              'cover_url':
+                  (t.coverUrl?.isNotEmpty == true) ? t.coverUrl! : caratula,
+            },
+          )
+          .toList();
 
   if (tracks.isEmpty || !st.mounted) return;
 
   // Hoja de opciones en modo batch: la calidad elegida inicia el lote.
-  await showModalBottomSheet(
+  await mostrarHoja<void>(
     context: st.context,
     backgroundColor: Colors.transparent,
     isScrollControlled: true,
-    builder: (_) => HojaOpcionesDescarga(
-      item: ItemFeed(
-        id: playlist.id,
-        type: 'playlist',
-        name: playlist.name,
-        coverUrl: caratula,
-        source: src,
-      ),
-      esOscuro: esOscuro,
-      ajustes: ajustes,
-      onCalidadSeleccionada: (calidad) {
-        dlCubit.iniciarDescargaPlaylist(
-          playlist.id,
-          tracks,
+    builder:
+        (_) => HojaOpcionesDescarga(
+          item: ItemFeed(
+            id: playlist.id,
+            type: 'playlist',
+            name: playlist.name,
+            coverUrl: caratula,
+            source: src,
+          ),
+          esOscuro: esOscuro,
           ajustes: ajustes,
-          source: src,
-          calidadForzada: calidad,
-        );
-      },
-    ),
+          onCalidadSeleccionada: (calidad) {
+            dlCubit.iniciarDescargaPlaylist(
+              playlist.id,
+              tracks,
+              ajustes: ajustes,
+              source: src,
+              calidadForzada: calidad,
+            );
+          },
+        ),
   );
 }
 

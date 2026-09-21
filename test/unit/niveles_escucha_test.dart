@@ -5,6 +5,7 @@
 
 import 'package:bitly/core/modelos/logros/niveles_escucha.dart';
 import 'package:bitly/core/modelos/logros/progreso_escucha.dart';
+import 'package:bitly/l10n/strings/strings_niveles.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -35,10 +36,18 @@ void main() {
       expect(techo, greaterThanOrEqualTo(35040));
     });
 
-    test('cada nivel tiene su premio', () {
-      for (final n in nivelesEscucha) {
-        expect(n.premio.trim(), isNotEmpty);
-        expect(n.nombre.trim(), isNotEmpty);
+    test('cada nivel tiene su nombre y su premio (en la l10n)', () {
+      // Nombres y premios viven en la l10n, indexados por la posición del
+      // nivel: deben existir para TODOS los umbrales y en ambos idiomas.
+      for (final strings in [StringsNiveles.es, StringsNiveles.en]) {
+        expect(strings.nombres.length, nivelesEscucha.length);
+        expect(strings.premios.length, nivelesEscucha.length);
+        for (final nombre in strings.nombres) {
+          expect(nombre.trim(), isNotEmpty);
+        }
+        for (final premio in strings.premios) {
+          expect(premio.trim(), isNotEmpty);
+        }
       }
     });
   });

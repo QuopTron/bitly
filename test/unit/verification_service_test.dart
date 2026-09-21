@@ -26,15 +26,18 @@ void main() {
         ),
         isNull,
       );
-      expect(grantVerificacionDeUrl('https://api.zarz.moe/v2/bootstrap'),
-          isNull);
-      expect(grantVerificacionDeUrl('spotiflac://other-route?grant=x'),
-          isNull);
+      expect(
+        grantVerificacionDeUrl('https://api.zarz.moe/v2/bootstrap'),
+        isNull,
+      );
+      expect(grantVerificacionDeUrl('spotiflac://other-route?grant=x'), isNull);
     });
 
     test('retorna null si falta el parametro grant', () {
-      expect(grantVerificacionDeUrl('spotiflac://session-grant?cb_version=v2'),
-          isNull);
+      expect(
+        grantVerificacionDeUrl('spotiflac://session-grant?cb_version=v2'),
+        isNull,
+      );
       expect(grantVerificacionDeUrl('spotiflac://session-grant'), isNull);
     });
 
@@ -55,23 +58,25 @@ void main() {
       );
     });
 
-    test('URL con query malformada (? en vez de & cuando el cb ya traía query)',
-        () {
-      // La página concatena `?grant=` a un callback que ya tiene `?cb_version`:
-      // el parseo estricto por Uri no ve el parámetro grant, el regex sí.
-      expect(
-        grantDeCadena(
-          'http://127.0.0.1:62721/session-grant?cb_version=v2grant?grant=gr_mal',
-        ),
-        'gr_mal',
-      );
-      expect(
-        grantDeCadena(
-          'spotiflac://session-grant?cb_version=v2grant?grant=gr_mal2',
-        ),
-        'gr_mal2',
-      );
-    });
+    test(
+      'URL con query malformada (? en vez de & cuando el cb ya traía query)',
+      () {
+        // La página concatena `?grant=` a un callback que ya tiene `?cb_version`:
+        // el parseo estricto por Uri no ve el parámetro grant, el regex sí.
+        expect(
+          grantDeCadena(
+            'http://127.0.0.1:62721/session-grant?cb_version=v2grant?grant=gr_mal',
+          ),
+          'gr_mal',
+        );
+        expect(
+          grantDeCadena(
+            'spotiflac://session-grant?cb_version=v2grant?grant=gr_mal2',
+          ),
+          'gr_mal2',
+        );
+      },
+    );
 
     test('token pelado (la página postea solo el código)', () {
       expect(grantDeCadena('gr_peladoABC'), 'gr_peladoABC');
@@ -79,22 +84,28 @@ void main() {
     });
 
     test('parámetro code/token también se acepta', () {
-      expect(grantDeCadena('http://127.0.0.1:1/session-grant?code=gr_code'),
-          'gr_code');
+      expect(
+        grantDeCadena('http://127.0.0.1:1/session-grant?code=gr_code'),
+        'gr_code',
+      );
       expect(grantDeCadena('https://x/session-grant?token=gr_tok'), 'gr_tok');
     });
 
     test('cadena con URL completa bien formada', () {
       expect(
-        grantDeCadena('spotiflac://session-grant?cb_version=v2grant&grant=gr_x'),
+        grantDeCadena(
+          'spotiflac://session-grant?cb_version=v2grant&grant=gr_x',
+        ),
         'gr_x',
       );
     });
 
     test('no confunde URLs ajenas ni cadenas vacías', () {
       expect(grantDeCadena(''), isNull);
-      expect(grantDeCadena('https://api.zarz.moe/v2/challenge?id=chl_1'),
-          isNull);
+      expect(
+        grantDeCadena('https://api.zarz.moe/v2/challenge?id=chl_1'),
+        isNull,
+      );
       expect(grantDeCadena('hola mundo con espacios'), isNull);
     });
   });

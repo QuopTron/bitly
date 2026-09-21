@@ -60,25 +60,26 @@ mixin VerificacionSilenciosa on VerificacionKeepalive {
     // lo saca del viewport visible (clipBehavior: none) manteniéndolo vivo
     // para que Turnstile managed se auto-resuelva sin mostrar nada.
     entrada = OverlayEntry(
-      builder: (_) => Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Positioned(
-            left: -10000,
-            top: -10000,
-            width: 656,
-            height: 640,
-            child: IgnorePointer(
-              child: PanelVerificacionWeb(
-                urlAuth: urlAuth,
-                alObtenerGrant: terminar,
-                colorCarga: Colors.transparent,
-                esOscuro: true,
+      builder:
+          (_) => Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Positioned(
+                left: -10000,
+                top: -10000,
+                width: 656,
+                height: 640,
+                child: IgnorePointer(
+                  child: PanelVerificacionWeb(
+                    urlAuth: urlAuth,
+                    alObtenerGrant: terminar,
+                    colorCarga: Colors.transparent,
+                    esOscuro: true,
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
-        ],
-      ),
     );
     Overlay.of(ctx, rootOverlay: true).insert(entrada);
 
@@ -115,12 +116,12 @@ mixin VerificacionSilenciosa on VerificacionKeepalive {
         final grant = await _intentarSilencioso(url, ctx);
         if (grant == null || grant.isEmpty) continue;
         final ok = await backend.completeSignedSessionGrant(extId, grant);
-        _logVerificacion.i(
-            '[Verificacion] re-intento silencioso $extId → $ok');
+        _logVerificacion.i('[Verificacion] re-intento silencioso $extId → $ok');
         if (ok) _necesitaVerificacion.remove(extId);
       } catch (e) {
         _logVerificacion.w(
-            '[Verificacion] re-intento silencioso $extId error: $e');
+          '[Verificacion] re-intento silencioso $extId error: $e',
+        );
       }
     }
   }

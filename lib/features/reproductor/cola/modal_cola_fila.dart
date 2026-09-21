@@ -53,9 +53,10 @@ class FilaTrackCola extends StatelessWidget {
                 width: 3,
               ),
             ),
-            color: esActual
-                ? colorBrillo.withValues(alpha: 0.10)
-                : (index.isOdd ? fg.withValues(alpha: 0.03) : null),
+            color:
+                esActual
+                    ? colorBrillo.withValues(alpha: 0.10)
+                    : (index.isOdd ? fg.withValues(alpha: 0.03) : null),
             borderRadius: BorderRadius.circular(10),
           ),
           child: Row(

@@ -87,11 +87,7 @@ Widget _filaAvatar(PerfilMiEspacio p, BuildContext context) {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                Icons.favorite,
-                size: r.footerSize,
-                color: p.colorBrillo,
-              ),
+              Icon(Icons.favorite, size: r.footerSize, color: p.colorBrillo),
               SizedBox(width: 4),
               Text(
                 '${p.cancionesAmadas}',
@@ -110,32 +106,18 @@ Widget _filaAvatar(PerfilMiEspacio p, BuildContext context) {
         child: IndicadorRed(onBg: p.onBg),
       ),
       if (p.onTemaCambiado != null)
-        GestureDetector(
-          onTap: () => showSettingsSheet(
-            context,
-            username: p.username,
-            isDark: Theme.of(context).brightness == Brightness.dark,
-            onThemeChanged: p.onTemaCambiado!,
-            onLanguageChanged: p.onIdiomaCambiado ?? () {},
-            likedCount: '${p.cancionesAmadas}',
-            downloadedCount: '${p.descargadosCount}',
-          ),
-          child: Padding(
-            padding: EdgeInsets.only(left: r.spacingS),
-            child: Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: p.onBg.withValues(alpha: 0.06),
-                borderRadius: BorderRadius.circular(10),
+        _TuercaAjustes(
+          onBg: p.onBg,
+          r: r,
+          onTap:
+              () => showSettingsSheet(
+                context,
+                username: p.username,
+                isDark: Theme.of(context).brightness == Brightness.dark,
+                onThemeChanged: p.onTemaCambiado!,
+                likedCount: '${p.cancionesAmadas}',
+                downloadedCount: '${p.descargadosCount}',
               ),
-              child: Icon(
-                Icons.settings,
-                size: r.footerSize + 2,
-                color: p.onBg.withValues(alpha: 0.5),
-              ),
-            ),
-          ),
         ),
     ],
   );

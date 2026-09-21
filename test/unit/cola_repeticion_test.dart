@@ -11,9 +11,9 @@ import 'package:bitly/estado/cola/cubit_cola.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 List<ItemFeed> _tracks(int n) => List.generate(
-      n,
-      (i) => ItemFeed(id: 't$i', type: 'track', name: 'Tema $i', source: 'test'),
-    );
+  n,
+  (i) => ItemFeed(id: 't$i', type: 'track', name: 'Tema $i', source: 'test'),
+);
 
 void main() {
   group('Cola sin shuffle', () {
@@ -27,9 +27,10 @@ void main() {
     });
 
     test('con repetición de toda la cola vuelve al principio', () {
-      final cola = CubitCola()
-        ..reproducirLista(_tracks(3))
-        ..setModoRepeticionStr('all');
+      final cola =
+          CubitCola()
+            ..reproducirLista(_tracks(3))
+            ..setModoRepeticionStr('all');
       cola.siguiente();
       cola.siguiente();
       expect(cola.siguiente(), isTrue);
@@ -37,9 +38,10 @@ void main() {
     });
 
     test('anterior en la primera canción con repetición va a la última', () {
-      final cola = CubitCola()
-        ..reproducirLista(_tracks(3))
-        ..setModoRepeticionStr('all');
+      final cola =
+          CubitCola()
+            ..reproducirLista(_tracks(3))
+            ..setModoRepeticionStr('all');
       expect(cola.state.indiceActual, 0);
       cola.anterior();
       expect(cola.state.indiceActual, 2);
@@ -48,9 +50,10 @@ void main() {
 
   group('Cola con shuffle', () {
     test('sin repetición pasa por TODAS las canciones y después termina', () {
-      final cola = CubitCola()
-        ..reproducirLista(_tracks(6))
-        ..setShuffle(true);
+      final cola =
+          CubitCola()
+            ..reproducirLista(_tracks(6))
+            ..setShuffle(true);
       final vistas = <int>{cola.state.indiceActual};
       // 5 avances = las 6 canciones exactamente una vez.
       for (var i = 0; i < 5; i++) {
@@ -67,10 +70,11 @@ void main() {
     });
 
     test('con repetición de toda la cola sigue sonando (nueva vuelta)', () {
-      final cola = CubitCola()
-        ..reproducirLista(_tracks(4))
-        ..setShuffle(true)
-        ..setModoRepeticionStr('all');
+      final cola =
+          CubitCola()
+            ..reproducirLista(_tracks(4))
+            ..setShuffle(true)
+            ..setModoRepeticionStr('all');
       for (var i = 0; i < 12; i++) {
         expect(cola.siguiente(), isTrue, reason: 'avance ${i + 1}');
       }
@@ -78,10 +82,11 @@ void main() {
     });
 
     test('el shuffle no rompe el repeat de una sola canción', () {
-      final cola = CubitCola()
-        ..reproducirLista(_tracks(3))
-        ..setShuffle(true)
-        ..setModoRepeticionStr('one');
+      final cola =
+          CubitCola()
+            ..reproducirLista(_tracks(3))
+            ..setShuffle(true)
+            ..setModoRepeticionStr('one');
       // Con repeat-one el replay del tema lo hace el player al terminar; el
       // avance manual sigue funcionando y la cola nunca se agota.
       for (var i = 0; i < 8; i++) {
@@ -90,9 +95,10 @@ void main() {
     });
 
     test('volver atrás y avanzar cae en la MISMA canción', () {
-      final cola = CubitCola()
-        ..reproducirLista(_tracks(8))
-        ..setShuffle(true);
+      final cola =
+          CubitCola()
+            ..reproducirLista(_tracks(8))
+            ..setShuffle(true);
       cola.siguiente();
       final segunda = cola.state.indiceActual;
       cola.siguiente();
@@ -102,9 +108,10 @@ void main() {
     });
 
     test('agregar un tema a la cola rebaraja sin trabarse', () {
-      final cola = CubitCola()
-        ..reproducirLista(_tracks(3))
-        ..setShuffle(true);
+      final cola =
+          CubitCola()
+            ..reproducirLista(_tracks(3))
+            ..setShuffle(true);
       cola.agregarAlFinal(ItemFeed(id: 'nuevo', type: 'track', name: 'Nuevo'));
       expect(cola.state.tracks.length, 4);
       expect(cola.siguiente(), isTrue);

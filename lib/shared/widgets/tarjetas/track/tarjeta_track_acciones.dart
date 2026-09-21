@@ -22,34 +22,41 @@ Widget _insigniaListoDe(
     left: r.spacingS,
     child: ValueListenableBuilder<Set<String>>(
       valueListenable: sl<CubitReproductor>().tracksListos,
-      builder: (context, listos, _) => listos.contains(t.readyKey)
-          ? Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: ColoresApp.sombra(esOscuro).withValues(alpha: 0.55),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.bolt,
-                    size: r.footerSize - 2,
-                    color: fg.withValues(alpha: 0.8),
-                  ),
-                  SizedBox(width: 3),
-                  Text(
-                    loc.setup.readyBadge,
-                    style: TextStyle(
-                      fontSize: r.footerSize - 3,
-                      fontWeight: FontWeight.w700,
-                      color: fg.withValues(alpha: 0.9),
+      builder:
+          (context, listos, _) =>
+              listos.contains(t.readyKey)
+                  ? Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
                     ),
-                  ),
-                ],
-              ),
-            )
-          : const SizedBox.shrink(),
+                    decoration: BoxDecoration(
+                      color: ColoresApp.sombra(
+                        esOscuro,
+                      ).withValues(alpha: 0.55),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.bolt,
+                          size: r.footerSize - 2,
+                          color: fg.withValues(alpha: 0.8),
+                        ),
+                        SizedBox(width: 3),
+                        Text(
+                          loc.setup.readyBadge,
+                          style: TextStyle(
+                            fontSize: r.footerSize - 3,
+                            fontWeight: FontWeight.w700,
+                            color: fg.withValues(alpha: 0.9),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                  : const SizedBox.shrink(),
     ),
   );
 }
@@ -84,9 +91,10 @@ Widget _clusterAccionesDe(
         t,
         loc,
         IndicadorDescarga(
-          estado: t.mostrarAnimacionBorrar
-              ? EstadoDescarga.completado
-              : t.estadoDescarga,
+          estado:
+              t.mostrarAnimacionBorrar
+                  ? EstadoDescarga.completado
+                  : t.estadoDescarga,
           tamano: 10,
         ),
       ),
@@ -101,14 +109,16 @@ Widget _clusterAccionesDe(
           },
           child: AnimatedSwitcher(
             duration: const Duration(milliseconds: 250),
-            transitionBuilder: (child, anim) =>
-                ScaleTransition(scale: anim, child: child),
-          child: Icon(
-            t.esAmado ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-            key: ValueKey(t.esAmado),
-            color: t.esAmado ? ColoresApp.error : fg.withValues(alpha: 0.6),
-            size: tamanoIcono,
-          ),
+            transitionBuilder:
+                (child, anim) => ScaleTransition(scale: anim, child: child),
+            child: Icon(
+              t.esAmado
+                  ? Icons.favorite_rounded
+                  : Icons.favorite_border_rounded,
+              key: ValueKey(t.esAmado),
+              color: t.esAmado ? ColoresApp.error : fg.withValues(alpha: 0.6),
+              size: tamanoIcono,
+            ),
           ),
         ),
       ),
@@ -117,8 +127,11 @@ Widget _clusterAccionesDe(
         message: _tooltipDescarga(t, loc),
         child: GestureDetector(
           onTap: _accionDescargaDe(t),
-          child: Icon(_iconoDescargaDe(t), size: tamanoIcono,
-              color: _colorIconoDescargaDe(t, esOscuro)),
+          child: Icon(
+            _iconoDescargaDe(t),
+            size: tamanoIcono,
+            color: _colorIconoDescargaDe(t, esOscuro),
+          ),
         ),
       ),
       SizedBox(width: r.spacingXS),
@@ -136,7 +149,11 @@ Widget _clusterAccionesDe(
         label: loc.setup.a11yInfo,
         child: GestureDetector(
           onTap: t.onInfo,
-          child: Icon(Icons.info_outline, size: tamanoIcono, color: colorApagado),
+          child: Icon(
+            Icons.info_outline,
+            size: tamanoIcono,
+            color: colorApagado,
+          ),
         ),
       ),
       SizedBox(width: r.spacingXS),
@@ -145,8 +162,11 @@ Widget _clusterAccionesDe(
         label: loc.setup.a11yMore,
         child: GestureDetector(
           onTap: t.onMas,
-          child: Icon(Icons.more_horiz, size: tamanoIcono + 2,
-              color: fg.withValues(alpha: 0.5)),
+          child: Icon(
+            Icons.more_horiz,
+            size: tamanoIcono + 2,
+            color: fg.withValues(alpha: 0.5),
+          ),
         ),
       ),
       if (t.onEditarEtiquetas != null) ...[

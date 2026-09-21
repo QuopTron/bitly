@@ -49,9 +49,7 @@ Widget _bloqueInfoDe(
           fontSize: r.footerSize * ts,
           fontWeight: FontWeight.w400,
           color: colorApagado,
-          shadows: [
-            Shadow(color: ColoresApp.sombra(esOscuro), blurRadius: 4),
-          ],
+          shadows: [Shadow(color: ColoresApp.sombra(esOscuro), blurRadius: 4)],
         ),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
@@ -96,17 +94,20 @@ Widget _filaAccionesDe(TarjetaGrilla t, BuildContext context, Responsive r) {
           onTap: () {
             Haptico.medio();
             t.onLike?.call();
-          },            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 250),
-              transitionBuilder: (child, anim) =>
-                  ScaleTransition(scale: anim, child: child),
-              child: Icon(
-                t.esAmado ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                key: ValueKey(t.esAmado),
-                color: t.esAmado ? ColoresApp.error : fg.withValues(alpha: 0.8),
-                size: tamanoIcono,
-              ),
+          },
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 250),
+            transitionBuilder:
+                (child, anim) => ScaleTransition(scale: anim, child: child),
+            child: Icon(
+              t.esAmado
+                  ? Icons.favorite_rounded
+                  : Icons.favorite_border_rounded,
+              key: ValueKey(t.esAmado),
+              color: t.esAmado ? ColoresApp.error : fg.withValues(alpha: 0.8),
+              size: tamanoIcono,
             ),
+          ),
         ),
       ),
       if (!t._esArtista && t.mostrarAccionDescarga)
@@ -123,8 +124,11 @@ Widget _filaAccionesDe(TarjetaGrilla t, BuildContext context, Responsive r) {
               message: _tooltipDescarga(t, loc),
               child: GestureDetector(
                 onTap: _accionDescargaDe(t),
-                child: Icon(_iconoDescargaDe(t), size: tamanoIcono,
-                    color: _colorIconoDescargaDe(t, esOscuro)),
+                child: Icon(
+                  _iconoDescargaDe(t),
+                  size: tamanoIcono,
+                  color: _colorIconoDescargaDe(t, esOscuro),
+                ),
               ),
             ),
           ],

@@ -33,13 +33,12 @@ class EstadoCola extends Equatable {
     int? indiceActual,
     ModoRepeticion? modoRepeticion,
     bool? shuffle,
-  }) =>
-      EstadoCola(
-        tracks: tracks ?? this.tracks,
-        indiceActual: indiceActual ?? this.indiceActual,
-        modoRepeticion: modoRepeticion ?? this.modoRepeticion,
-        shuffle: shuffle ?? this.shuffle,
-      );
+  }) => EstadoCola(
+    tracks: tracks ?? this.tracks,
+    indiceActual: indiceActual ?? this.indiceActual,
+    modoRepeticion: modoRepeticion ?? this.modoRepeticion,
+    shuffle: shuffle ?? this.shuffle,
+  );
 
   @override
   List<Object?> get props => [tracks, indiceActual, modoRepeticion, shuffle];

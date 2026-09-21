@@ -22,7 +22,8 @@
 String? grantVerificacionDeUrl(String url) {
   final uri = Uri.tryParse(url);
   if (uri == null) return null;
-  final esLoopback = (uri.host == '127.0.0.1' ||
+  final esLoopback =
+      (uri.host == '127.0.0.1' ||
           uri.host == 'localhost' ||
           uri.host == '[::1]') &&
       uri.path == '/session-grant';
@@ -51,8 +52,9 @@ String? grantDeCadena(String cadena) {
   // (b) URL malformada o query con `grant`/`code`/`token` en cualquier parte
   // de la cadena (regex tolerante a `?` en vez de `&`, a URLs rotas y a
   // cuerpos form-encoded que empiezan directo con `grant=`).
-  final m = RegExp('(?:^|[?&])(?:grant|code|token)=([^&\\s"\']+)')
-      .firstMatch(t);
+  final m = RegExp(
+    '(?:^|[?&])(?:grant|code|token)=([^&\\s"\']+)',
+  ).firstMatch(t);
   if (m != null) {
     final valor = Uri.decodeComponent(m.group(1)!.trim());
     if (valor.isNotEmpty) return valor;

@@ -103,6 +103,4 @@ mixin ReproductorAperturaHelpers on ReproductorFalloOpen {
 
     unawaited(Future<void>.delayed(const Duration(seconds: 8), checkStall));
   }
-
-
 }

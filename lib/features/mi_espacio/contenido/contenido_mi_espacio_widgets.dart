@@ -49,7 +49,7 @@ Widget _botonMini(
   );
 }
 
-/// Botón de crear playlist (con el diálogo compartido).
+/// Botón de crear playlist (con la hoja compartida de playlist).
 Widget _botonCrear(
   ContenidoMiEspacio c,
   BuildContext context,
@@ -59,7 +59,7 @@ Widget _botonCrear(
   final loc = AppLocalizations.of(context);
   return GestureDetector(
     onTap: () async {
-      await mostrarCrearPlaylist(context);
+      await mostrarHojaPlaylist(context);
       c.onCreatePlaylist?.call();
     },
     child: Container(
@@ -103,10 +103,10 @@ Widget? _insigniaOrigen(BuildContext context, Item item) {
     OrigenItem.amado => (Icons.favorite, Colors.redAccent, null),
     OrigenItem.descargado => (Icons.download, const Color(0xFF4CAF50), null),
     OrigenItem.propio => (
-        Icons.person_pin,
-        const Color(0xFF4CAF50),
-        AppLocalizations.of(context).setup.miSpaceOwned,
-      ),
+      Icons.person_pin,
+      const Color(0xFF4CAF50),
+      AppLocalizations.of(context).setup.miSpaceOwned,
+    ),
     OrigenItem.ninguno => (Icons.music_note, Colors.white70, null),
   };
   return Container(

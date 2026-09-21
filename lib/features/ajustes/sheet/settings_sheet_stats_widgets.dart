@@ -108,7 +108,7 @@ class _StatsTierBanner extends StatelessWidget {
                 Row(
                   children: [
                     Text(
-                      'Free',
+                      loc.ajustes.planFree,
                       style: TextStyle(
                         fontSize: r.subtitleSize - 1,
                         fontWeight: FontWeight.w700,
@@ -128,7 +128,7 @@ class _StatsTierBanner extends StatelessWidget {
                 SizedBox(height: 2),
                 Text(
                   expired
-                      ? 'Tu periodo de descarga gratis ha expirado. Activa Premium para descargar ilimitado.'
+                      ? loc.ajustes.premiumActivarExpirado
                       : loc.setup.freeInfo,
                   style: TextStyle(
                     fontSize: r.footerSize,

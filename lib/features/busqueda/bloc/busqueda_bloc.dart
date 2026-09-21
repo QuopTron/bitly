@@ -44,7 +44,7 @@ class BlocBusqueda extends Bloc<EventoBusqueda, EstadoBusqueda> {
   int _generacionStream = 0;
 
   BlocBusqueda(this._backend, this._cacheBusqueda)
-      : super(const EstadoBusqueda()) {
+    : super(const EstadoBusqueda()) {
     _cargarRecientes();
     _cargarConfigBusqueda();
 
@@ -65,26 +65,36 @@ class BlocBusqueda extends Bloc<EventoBusqueda, EstadoBusqueda> {
     });
 
     on<EjecutarBusqueda>((event, emit) async {
-      emit(state.copiarCon(
-        cargando: true,
-        error: null,
-        query: event.query,
-        fuente: event.fuente,
-      ));
+      emit(
+        state.copiarCon(
+          cargando: true,
+          error: null,
+          query: event.query,
+          fuente: event.fuente,
+        ),
+      );
 
-      final clave =
-          _claveCache(event.query, event.fuente, event.tipo, event.limite);
+      final clave = _claveCache(
+        event.query,
+        event.fuente,
+        event.tipo,
+        event.limite,
+      );
       final hit = _cacheResultados[clave];
       if (hit != null) {
         final ttl = hit.resultados.isEmpty ? _ttlVacio : _ttlBusqueda;
         if (DateTime.now().difference(hit.en) < ttl) {
-          emit(state.copiarCon(
-            resultados: hit.resultados,
-            cargando: false,
-            haBuscado: true,
-            busquedasRecientes:
-                _agregarReciente(state.busquedasRecientes, event.query),
-          ));
+          emit(
+            state.copiarCon(
+              resultados: hit.resultados,
+              cargando: false,
+              haBuscado: true,
+              busquedasRecientes: _agregarReciente(
+                state.busquedasRecientes,
+                event.query,
+              ),
+            ),
+          );
           return;
         }
         _cacheResultados.remove(clave);
@@ -116,13 +126,15 @@ class BlocBusqueda extends Bloc<EventoBusqueda, EstadoBusqueda> {
     });
 
     on<LimpiarBusqueda>((event, emit) {
-      emit(state.copiarCon(
-        query: '',
-        resultados: const [],
-        cargando: false,
-        error: null,
-        haBuscado: false,
-      ));
+      emit(
+        state.copiarCon(
+          query: '',
+          resultados: const [],
+          cargando: false,
+          error: null,
+          haBuscado: false,
+        ),
+      );
     });
 
     // Watchdog de la página: corta el spinner cuando un intento se pasó del
@@ -141,11 +153,12 @@ class BlocBusqueda extends Bloc<EventoBusqueda, EstadoBusqueda> {
   }
 
   void _cargarConfigBusqueda() {
-    _backend.getSearchConfig().then((lista) {
-      if (isClosed) return;
-      add(ConfigBusquedaCargada({
-        for (final c in lista) c.source: c,
-      }));
-    }).catchError((_) {});
+    _backend
+        .getSearchConfig()
+        .then((lista) {
+          if (isClosed) return;
+          add(ConfigBusquedaCargada({for (final c in lista) c.source: c}));
+        })
+        .catchError((_) {});
   }
 }

@@ -25,8 +25,11 @@ import (
 //	}
 //
 // The Go lyrics client only knows line-level LRC + plain text, so we convert
-// here: each timed line becomes `[MM:SS.cc]<clean text>` (inline word markers
-// stripped so the karaoke UI never renders raw `<00:12>`), and translation /
+// here: each timed line becomes `[MM:SS.cc]` + the line text. Las marcas inline
+// `<MM:SS.cc>` de cada palabra/sílaba SE CONSERVAN (enhanced LRC): el modal
+// karaoke de la app las resalta una por una. Antes se borraban, así que una
+// fuente que SÍ traía el tiempo de cada palabra caía al barrido uniforme por
+// caracteres — se perdía el karaoke real sin ganar nada. Translation /
 // romanization blocks (emitted with a sentinel 999999999 start) are dropped —
 // the player's synced-LRC renderer has no place for them.
 
@@ -106,11 +109,17 @@ func extLyricsResultToLyrics(res interface{}) (*lyrics.Lyrics, error) {
 		if text == "" {
 			continue
 		}
+		// Con tiempos por palabra la línea viaja CON sus marcas; el texto plano
+		// sigue sin ellas (es lo que se muestra cuando no hay nada sincronizado).
+		linea := text
+		if conMarcas, ok := marcarPalabras(line.Words); ok {
+			linea = conMarcas
+		}
 		t := time.Duration(line.StartTimeMs) * time.Millisecond
 		mm := t / time.Minute
 		ss := (t % time.Minute) / time.Second
 		cc := (t % time.Second) / (10 * time.Millisecond)
-		synced = append(synced, fmt.Sprintf("[%02d:%02d.%02d]%s", mm, ss, cc, text))
+		synced = append(synced, fmt.Sprintf("[%02d:%02d.%02d]%s", mm, ss, cc, linea))
 		plainParts = append(plainParts, text)
 	}
 	if len(synced) == 0 {
@@ -126,6 +135,28 @@ func extLyricsResultToLyrics(res interface{}) (*lyrics.Lyrics, error) {
 		out.PlainLyrics = strings.Join(plainParts, "\n")
 	}
 	return out, nil
+}
+
+// marcarPalabras devuelve el texto de la línea CONSERVANDO las marcas inline de
+// palabra/sílaba (`<MM:SS.cc>`) y el segundo valor indica si las tiene. Sirve
+// para el LRC enriquecido del karaoke: el renderizador de la app resalta cada
+// palabra en su tiempo (y cae al barrido uniforme cuando no hay marcas, así que
+// conservarlas nunca empeora una línea sin ellas).
+//
+// El bloque de coros `[bg:...]` —que la extensión agrega DESPUÉS de un salto de
+// línea— se descarta igual que en el texto limpio: sus marcas son de voces de
+// fondo y no deben pisar el resaltado de la voz principal.
+func marcarPalabras(words string) (string, bool) {
+	main := words
+	if idx := strings.IndexByte(main, '\n'); idx >= 0 {
+		main = main[:idx]
+	}
+	if !inlineWordMarker.MatchString(main) {
+		return "", false
+	}
+	main = strings.ReplaceAll(main, "[bg:", " ")
+	main = strings.ReplaceAll(main, "]", " ")
+	return strings.TrimSpace(main), true
 }
 
 // cleanLyricWords drops enhanced-LRC word markers (`<MM:SS.cc>`) and the

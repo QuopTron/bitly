@@ -6,8 +6,8 @@
 
 import 'package:flutter/material.dart';
 
+import '../../../l10n/app_localizations.dart';
 import '../../../shared/utilidades/plataforma/responsive.dart';
-
 
 // Selector de límite de caché en MB. `stats` trae el límite del plan y el
 /// valor actual; `onSet` avisa cuando el usuario elige otro tamaño.
@@ -20,22 +20,25 @@ Widget cacheSizeSelector({
   required bool saving,
   required ValueChanged<int> onSet,
 }) {
+  final c = AppLocalizations.of(context).cache;
   final levelLimit = stats['level_limit_mb'] as int? ?? 200;
   final currentMb = stats['max_cache_mb'] as int? ?? 200;
   final options = cacheSizeOptions(levelLimit);
   // Si el valor guardado ya no está (p.ej. bajó el límite del plan), usamos
   // la opción válida más cercana para no romper el dropdown.
-  final valorSeguro = options.contains(currentMb)
-      ? currentMb
-      : options.isEmpty
+  final valorSeguro =
+      options.contains(currentMb)
+          ? currentMb
+          : options.isEmpty
           ? 200
           : options.reduce(
-              (a, b) => (a - currentMb).abs() <= (b - currentMb).abs() ? a : b,
-            );
+            (a, b) => (a - currentMb).abs() <= (b - currentMb).abs() ? a : b,
+          );
 
-  final dropdownBg = Theme.of(context).brightness == Brightness.dark
-      ? const Color(0xFF1A1A1A)
-      : const Color(0xFFF5F5F5);
+  final dropdownBg =
+      Theme.of(context).brightness == Brightness.dark
+          ? const Color(0xFF1A1A1A)
+          : const Color(0xFFF5F5F5);
 
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
@@ -45,45 +48,51 @@ Widget cacheSizeSelector({
         key: ValueKey('cache_mb_$valorSeguro'),
         initialValue: valorSeguro,
         dropdownColor: dropdownBg,
-        items: options.map((mb) {
-          final isMax = mb >= levelLimit;
-          return DropdownMenuItem(
-            value: mb,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  '$mb MB',
-                  style: TextStyle(
-                    fontSize: r.subtitleSize - 1,
-                    color: onBg,
-                    fontWeight: mb == valorSeguro
-                        ? FontWeight.w700
-                        : FontWeight.normal,
-                  ),
+        items:
+            options.map((mb) {
+              final isMax = mb >= levelLimit;
+              return DropdownMenuItem(
+                value: mb,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '$mb MB',
+                      style: TextStyle(
+                        fontSize: r.subtitleSize - 1,
+                        color: onBg,
+                        fontWeight:
+                            mb == valorSeguro
+                                ? FontWeight.w700
+                                : FontWeight.normal,
+                      ),
+                    ),
+                    if (isMax) ...[
+                      const SizedBox(width: 6),
+                      Icon(
+                        Icons.star,
+                        size: r.footerSize - 2,
+                        color: glowColor.withValues(alpha: 0.7),
+                      ),
+                      const SizedBox(width: 3),
+                      Text(
+                        c.max,
+                        style: TextStyle(
+                          fontSize: r.footerSize - 2,
+                          color: glowColor,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
-                if (isMax) ...[
-                  const SizedBox(width: 6),
-                  Icon(
-                    Icons.star,
-                    size: r.footerSize - 2,
-                    color: glowColor.withValues(alpha: 0.7),
-                  ),
-                  const SizedBox(width: 3),
-                  Text(
-                    'máx',
-                    style: TextStyle(fontSize: r.footerSize - 2, color: glowColor),
-                  ),
-                ],
-              ],
-            ),
-          );
-        }).toList(),
-        onChanged: saving
-            ? null
-            : (v) {
-                if (v != null && v != currentMb) onSet(v);
-              },
+              );
+            }).toList(),
+        onChanged:
+            saving
+                ? null
+                : (v) {
+                  if (v != null && v != currentMb) onSet(v);
+                },
         decoration: InputDecoration(
           isDense: true,
           contentPadding: EdgeInsets.symmetric(
@@ -110,9 +119,14 @@ List<int> cacheSizeOptions(int limit) {
   if (limit <= 200) {
     return base.where((v) => v <= limit).toList();
   }
-  return [...base, 1000, 1500, 2048, 3072, 4096]
-      .where((v) => v <= limit)
-      .toList();
+  return [
+    ...base,
+    1000,
+    1500,
+    2048,
+    3072,
+    4096,
+  ].where((v) => v <= limit).toList();
 }
 
 /// Etiqueta del nivel de plan (Free/Premium/Lifetime).

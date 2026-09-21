@@ -24,6 +24,9 @@ class StringsSplash {
   /// Etiqueta del botón que lleva a la página de descargas de la app nativa.
   final String webDownloadApp;
 
+  /// Lema que acompaña al logo en el splash de escritorio.
+  final String lema;
+
   const StringsSplash({
     required this.retry,
     required this.backendNotResponding,
@@ -32,6 +35,7 @@ class StringsSplash {
     required this.webNeedsServerBody,
     required this.webUseAppHint,
     required this.webDownloadApp,
+    required this.lema,
   });
 
   static const es = StringsSplash(
@@ -47,6 +51,7 @@ class StringsSplash {
         'Si no instalaste el servidor, esta web todavía no es para vos. Usá la '
         'app:',
     webDownloadApp: 'Descargar la app',
+    lema: 'Tu música, todas tus fuentes.',
   );
 
   static const en = StringsSplash(
@@ -62,5 +67,6 @@ class StringsSplash {
         "Haven't installed the server? Then this web version is not for you "
         'yet. Use the app:',
     webDownloadApp: 'Download the app',
+    lema: 'Your music, all your sources.',
   );
 }

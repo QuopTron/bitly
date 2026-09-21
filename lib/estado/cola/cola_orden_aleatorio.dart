@@ -67,7 +67,8 @@ mixin ColaOrdenAleatorio on Cubit<EstadoCola> {
   /// al entrar en shuffle, cuando cambió la lista o al terminar una vuelta con
   /// repetición activa.
   int _avanzarEnOrden(int actual) {
-    final rearmar = !_ordenValido || _ordenShuffle.length != state.tracks.length;
+    final rearmar =
+        !_ordenValido || _ordenShuffle.length != state.tracks.length;
     if (rearmar) {
       _ordenShuffle = _permutacion(actual);
       _posShuffle = 0;
@@ -92,7 +93,8 @@ mixin ColaOrdenAleatorio on Cubit<EstadoCola> {
   /// adelante (es el que ya está sonando), así el arranque no repite el tema
   /// actual ni pierde la primera posición.
   List<int> _permutacion(int primero) {
-    final indices = List<int>.generate(state.tracks.length, (i) => i)..shuffle();
+    final indices = List<int>.generate(state.tracks.length, (i) => i)
+      ..shuffle();
     if (primero < 0 || !indices.contains(primero)) return indices;
     final inicio = indices.indexOf(primero);
     final ordenado = <int>[indices[inicio]];
@@ -100,5 +102,4 @@ mixin ColaOrdenAleatorio on Cubit<EstadoCola> {
     ordenado.addAll(indices.where((i) => i != primero));
     return ordenado;
   }
-
 }

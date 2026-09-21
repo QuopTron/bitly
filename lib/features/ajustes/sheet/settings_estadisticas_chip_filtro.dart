@@ -41,14 +41,16 @@ class _ChipFiltro extends StatelessWidget {
             vertical: r.spacingXS,
           ),
           decoration: BoxDecoration(
-            color: activo
-                ? glowColor.withValues(alpha: 0.18)
-                : onBg.withValues(alpha: 0.05),
+            color:
+                activo
+                    ? glowColor.withValues(alpha: 0.18)
+                    : onBg.withValues(alpha: 0.05),
             borderRadius: BorderRadius.circular(999),
             border: Border.all(
-              color: activo
-                  ? glowColor.withValues(alpha: 0.5)
-                  : onBg.withValues(alpha: 0.08),
+              color:
+                  activo
+                      ? glowColor.withValues(alpha: 0.5)
+                      : onBg.withValues(alpha: 0.08),
             ),
           ),
           child: Center(
@@ -106,10 +108,7 @@ class _FilaFiltro extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              children: chips,
-            ),
+            child: ListView(scrollDirection: Axis.horizontal, children: chips),
           ),
         ],
       ),

@@ -58,12 +58,6 @@ bool esPantallaAncha(BuildContext context) {
   return width >= anchoMinimoEscritorio;
 }
 
-/// True en pantallas medianas (tablet vertical / ventana pequeña).
-bool esPantallaTablet(BuildContext context) {
-  final width = MediaQuery.sizeOf(context).width;
-  return width >= anchoMinimoTablet && width < anchoMinimoEscritorio;
-}
-
 /// True en Smart TV (Android TV, Google TV, Fire TV Stick).
 ///
 /// Manda lo que dice el SISTEMA ([esTelevisor]): es lo único confiable en TVs

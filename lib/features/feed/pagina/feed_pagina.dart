@@ -51,21 +51,20 @@ class _PaginaFeedState extends State<PaginaFeed> {
   Widget build(BuildContext context) {
     return BlocBuilder<BlocFeed, EstadoFeed>(
       builder: (context, state) {
-        final secciones = state.fuenteSeleccionada.isEmpty
-            ? state.secciones
-            : state.secciones
-                .where((s) => s.source == state.fuenteSeleccionada)
-                .toList();
+        final secciones =
+            state.fuenteSeleccionada.isEmpty
+                ? state.secciones
+                : state.secciones
+                    .where((s) => s.source == state.fuenteSeleccionada)
+                    .toList();
         final tieneContenido =
             secciones.isNotEmpty && secciones.any((s) => s.items.isNotEmpty);
 
         final cabecera = _construirCabecera(this, state);
-        final cuerpo = _construirCuerpo(
-            this, state, secciones, tieneContenido);
+        final cuerpo = _construirCuerpo(this, state, secciones, tieneContenido);
 
         if (usarLayoutEscritorio(context)) {
-          return FeedEscritorio(
-              cabecera: cabecera, cuerpo: cuerpo);
+          return FeedEscritorio(cabecera: cabecera, cuerpo: cuerpo);
         }
         return FeedMovil(cabecera: cabecera, cuerpo: cuerpo);
       },

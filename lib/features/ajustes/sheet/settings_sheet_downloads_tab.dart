@@ -29,6 +29,8 @@ class _DownloadsTab extends StatelessWidget {
           SettingsStorageSection(onBg: onBg, glowColor: glowColor, loc: loc),
           SizedBox(height: r.spacingS),
           _DownloadQualityCard(glowColor: glowColor),
+          SizedBox(height: r.spacingS),
+          _DownloadRescateCard(glowColor: glowColor),
           // No download priority section — the app handles provider
           // ordering internally.
         ],

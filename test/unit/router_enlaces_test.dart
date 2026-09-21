@@ -33,10 +33,9 @@ void main() {
   });
 
   test('la ruta relativa /open?s=... (web) también entra al home', () {
-    final relativa = Uri.parse(enlace).toString().replaceFirst(
-          'https://${ServicioCompartir.host}',
-          '',
-        );
+    final relativa = Uri.parse(
+      enlace,
+    ).toString().replaceFirst('https://${ServicioCompartir.host}', '');
     expect(relativa, startsWith('/open?s='));
     expect(destinoDeLocationExterna(relativa), RouteNames.home.path);
   });
@@ -58,7 +57,10 @@ void main() {
 
   test('un enlace desconocido va al home igual (sin pantalla de error)', () {
     expect(destinoDeLocationExterna('/open?s=basura'), RouteNames.home.path);
-    expect(destinoDeLocationExterna('https://otro-sitio.test/x'), RouteNames.home.path);
+    expect(
+      destinoDeLocationExterna('https://otro-sitio.test/x'),
+      RouteNames.home.path,
+    );
     expect(destinoDeLocationExterna('/cualquier/cosa'), RouteNames.home.path);
   });
 

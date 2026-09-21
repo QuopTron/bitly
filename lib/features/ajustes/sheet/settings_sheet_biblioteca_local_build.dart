@@ -10,99 +10,103 @@
 
 part of 'settings_sheet_new.dart';
 
-Widget _construirBibliotecaLocal(BuildContext context, Color glowColor, bool importando, String? resumen, VoidCallback importar) {
-    final r = Responsive(context);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final onBg = ColoresApp.enSuperficie(isDark);
+Widget _construirBibliotecaLocal(
+  BuildContext context,
+  Color glowColor,
+  bool importando,
+  String? resumen,
+  VoidCallback importar,
+) {
+  final r = Responsive(context);
+  final isDark = Theme.of(context).brightness == Brightness.dark;
+  final onBg = ColoresApp.enSuperficie(isDark);
+  final b = AppLocalizations.of(context).biblioteca;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(
-              Icons.library_music_rounded,
-              color: glowColor,
-              size: r.subtitleSize,
-            ),
-            SizedBox(width: r.spacingS),
-            Text(
-              'Música local',
-              style: TextStyle(
-                fontSize: r.subtitleSize,
-                fontWeight: FontWeight.w700,
-                color: onBg,
-              ),
-            ),
-          ],
-        ),
-        SizedBox(height: 4),
-        Text(
-          'Importá tu música propia (compras de Amazon, archivos de iTunes Match, '
-          'FLAC sueltos). Se indexa por ISRC para que la app la reconozca y no la '
-          'vuelva a descargar.',
-          style: TextStyle(
-            fontSize: r.footerSize - 1,
-            color: onBg.withValues(alpha: 0.5),
-            height: 1.3,
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Row(
+        children: [
+          Icon(
+            Icons.library_music_rounded,
+            color: glowColor,
+            size: r.subtitleSize,
           ),
-        ),
-        SizedBox(height: r.spacingS),
-        GestureDetector(
-          onTap: importando ? null : importar,
-          child: Container(
-            width: double.infinity,
-            padding: EdgeInsets.symmetric(
-              horizontal: r.spacingM,
-              vertical: r.spacingM,
-            ),
-            decoration: BoxDecoration(
-              color: onBg.withValues(alpha: 0.06),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: onBg.withValues(alpha: 0.1)),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (importando)
-                  SizedBox(
-                    width: r.subtitleSize,
-                    height: r.subtitleSize,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: glowColor,
-                    ),
-                  )
-                else
-                  Icon(
-                    Icons.create_new_folder_rounded,
-                    size: r.subtitleSize + 2,
-                    color: glowColor,
-                  ),
-                SizedBox(width: r.spacingS),
-                Text(
-                  importando ? 'Importando…' : 'Importar carpeta',
-                  style: TextStyle(
-                    fontSize: r.subtitleSize,
-                    fontWeight: FontWeight.w600,
-                    color: onBg.withValues(alpha: 0.8),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        if (resumen != null) ...[
-          SizedBox(height: r.spacingXS),
+          SizedBox(width: r.spacingS),
           Text(
-            'Importado: $resumen',
+            b.titulo,
             style: TextStyle(
-              fontSize: r.footerSize - 1,
-              color: glowColor.withValues(alpha: 0.9),
+              fontSize: r.subtitleSize,
+              fontWeight: FontWeight.w700,
+              color: onBg,
             ),
           ),
         ],
+      ),
+      SizedBox(height: 4),
+      Text(
+        b.descripcion,
+        style: TextStyle(
+          fontSize: r.footerSize - 1,
+          color: onBg.withValues(alpha: 0.5),
+          height: 1.3,
+        ),
+      ),
+      SizedBox(height: r.spacingS),
+      GestureDetector(
+        onTap: importando ? null : importar,
+        child: Container(
+          width: double.infinity,
+          padding: EdgeInsets.symmetric(
+            horizontal: r.spacingM,
+            vertical: r.spacingM,
+          ),
+          decoration: BoxDecoration(
+            color: onBg.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: onBg.withValues(alpha: 0.1)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (importando)
+                SizedBox(
+                  width: r.subtitleSize,
+                  height: r.subtitleSize,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: glowColor,
+                  ),
+                )
+              else
+                Icon(
+                  Icons.create_new_folder_rounded,
+                  size: r.subtitleSize + 2,
+                  color: glowColor,
+                ),
+              SizedBox(width: r.spacingS),
+              Text(
+                importando ? b.importando : b.importarCarpeta,
+                style: TextStyle(
+                  fontSize: r.subtitleSize,
+                  fontWeight: FontWeight.w600,
+                  color: onBg.withValues(alpha: 0.8),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      if (resumen != null) ...[
+        SizedBox(height: r.spacingXS),
+        Text(
+          b.importado(resumen),
+          style: TextStyle(
+            fontSize: r.footerSize - 1,
+            color: glowColor.withValues(alpha: 0.9),
+          ),
+        ),
       ],
-    );
-  
+    ],
+  );
 }

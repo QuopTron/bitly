@@ -37,8 +37,7 @@ class UpdateService {
   static Map<String, dynamic>? elegirAsset(
     List<dynamic> assets,
     String version,
-  ) =>
-      UpdateAssets.elegirAsset(assets, version);
+  ) => UpdateAssets.elegirAsset(assets, version);
 
   /// URL directa de descarga del asset correcto para [version].
   static String? urlDescarga(List<dynamic> assets, String version) =>
@@ -48,8 +47,10 @@ class UpdateService {
   /// nueva que la instalada (si no, null).
   Future<UpdateInfo?> checkForUpdate() async {
     try {
-      final response =
-          await http.get(Uri.parse(releaseUrl), headers: _cabeceras);
+      final response = await http.get(
+        Uri.parse(releaseUrl),
+        headers: _cabeceras,
+      );
       if (response.statusCode != 200) return null;
 
       final json = jsonDecode(response.body);

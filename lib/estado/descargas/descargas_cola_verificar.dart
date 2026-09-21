@@ -131,20 +131,4 @@ mixin DescargasColaVerificar on DescargasCarga {
     );
     _procesarColaDescargas();
   }
-
-  /// Devuelve la ruta local de un track descargado, o null si no existe.
-  Future<String?> obtenerRutaTrack(String trackId, String source) async {
-    final normalizedId = normalizarId(trackId);
-    final audioId = 'track_${normalizedId}_$source';
-    final meta = _metaTrack[audioId];
-    final idsAProbar = <String>{};
-    if (meta != null && meta.trackId.isNotEmpty) idsAProbar.add(meta.trackId);
-    idsAProbar.add(normalizedId);
-    if (trackId.isNotEmpty) idsAProbar.add(trackId);
-    for (final id in idsAProbar) {
-      final ruta = await _downloadCache.getRutaArchivoPorId(id);
-      if (ruta != null && ruta.isNotEmpty) return ruta;
-    }
-    return null;
-  }
 }

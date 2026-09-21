@@ -18,6 +18,9 @@ class DatosEstadoDescarga {
   /// escribe quien corta la descarga (poll, gate, carpeta) y lo muestra la UI:
   /// antes existía el campo pero ninguna vista lo leía, así que una descarga
   /// fallida quedaba en rojo sin decir por qué.
+  /// CÓDIGO del motivo del fallo del track (ver `MotivosDescarga`), no el texto
+  /// crudo del backend: el aviso al usuario lo traduce con l10n, y el mensaje
+  /// original queda en el log de la rama que detectó el fallo.
   final String? mensajeError;
 
   /// Reintento en sitio ya consumido (0 = el intento original) y cuántos hay
@@ -49,7 +52,9 @@ class FalloDescarga {
   /// Qué falló, tal como el usuario lo reconoce (título de la canción).
   final String titulo;
 
-  /// Motivo técnico que devolvió el backend/proveedor (no traducible).
+  /// CÓDIGO del motivo del fallo (ver `MotivosDescarga`), no el texto crudo:
+  /// la UI lo traduce con l10n. El mensaje original del backend queda en el
+  /// log, porque mostrarlo salía en español aunque la app estuviera en inglés.
   final String motivo;
 
   /// true si el corte pide una acción del usuario (carpeta sin permiso, sesión
@@ -119,21 +124,24 @@ class EstadoCubitDescargas extends Equatable {
     bool limpiarGateBloqueado = false,
     FalloDescarga? falloDescarga,
     bool limpiarFalloDescarga = false,
-  }) =>
-      EstadoCubitDescargas(
-        descargas: descargas ?? this.descargas,
-        huellasDescargadas: huellasDescargadas ?? this.huellasDescargadas,
-        cargando: cargando ?? this.cargando,
-        backendReiniciado: backendReiniciado ?? this.backendReiniciado,
-        errorDesencriptado: limpiarErrorDesencriptado ? null : (errorDesencriptado ?? this.errorDesencriptado),
-        carpetaPerdida: limpiarCarpetaPerdida ? false : (carpetaPerdida ?? this.carpetaPerdida),
-        gateDescargaBloqueado: limpiarGateBloqueado
+  }) => EstadoCubitDescargas(
+    descargas: descargas ?? this.descargas,
+    huellasDescargadas: huellasDescargadas ?? this.huellasDescargadas,
+    cargando: cargando ?? this.cargando,
+    backendReiniciado: backendReiniciado ?? this.backendReiniciado,
+    errorDesencriptado:
+        limpiarErrorDesencriptado
+            ? null
+            : (errorDesencriptado ?? this.errorDesencriptado),
+    carpetaPerdida:
+        limpiarCarpetaPerdida ? false : (carpetaPerdida ?? this.carpetaPerdida),
+    gateDescargaBloqueado:
+        limpiarGateBloqueado
             ? null
             : (gateDescargaBloqueado ?? this.gateDescargaBloqueado),
-        falloDescarga: limpiarFalloDescarga
-            ? null
-            : (falloDescarga ?? this.falloDescarga),
-      );
+    falloDescarga:
+        limpiarFalloDescarga ? null : (falloDescarga ?? this.falloDescarga),
+  );
 
   @override
   List<Object?> get props => [

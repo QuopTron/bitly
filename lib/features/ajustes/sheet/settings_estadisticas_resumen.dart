@@ -39,8 +39,11 @@ class _ResumenEscucha extends StatelessWidget {
       (Icons.schedule_rounded, s.resumenHoras, '${milisegundos ~/ 3600000}'),
       (Icons.music_note_rounded, s.resumenTemas, '${datos?.totalTracks ?? 0}'),
       (Icons.person_rounded, s.resumenArtistas, '${datos?.totalArtistas ?? 0}'),
-      (Icons.download_rounded, s.resumenDescargas,
-          '${datos?.totalDescargas ?? 0}'),
+      (
+        Icons.download_rounded,
+        s.resumenDescargas,
+        '${datos?.totalDescargas ?? 0}',
+      ),
     ];
     // Tocar el resumen abre el DETALLE con filtros: los cuatro números son la
     // puerta a "todo lo que escuché", no el final del camino.

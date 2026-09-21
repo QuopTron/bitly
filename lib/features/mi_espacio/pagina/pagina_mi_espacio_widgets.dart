@@ -15,7 +15,11 @@ part of 'pagina_mi_espacio.dart';
 /// [hayReintentables] = hay descargas cortadas que se pueden reintentar (lotes
 /// o canciones sueltas); [interrumpidas] = cuántas son, para el texto.
 Widget _construirCabecera(
-    _PaginaMiEspacioState st, Color onBg, bool hayReintentables, int interrumpidas) {
+  _PaginaMiEspacioState st,
+  Color onBg,
+  bool hayReintentables,
+  int interrumpidas,
+) {
   final estadoLike = st.context.watch<CubitLikes>().state;
   final stats = st.context.watch<CubitPlaylists>().state.stats;
 
@@ -36,7 +40,6 @@ Widget _construirCabecera(
         onBg: onBg,
         colorBrillo: onBg,
         onTemaCambiado: (v) => _onTemaCambiado(st, v),
-        onIdiomaCambiado: () => _onIdiomaCambiado(st),
       ),
       SizedBox(height: 12),
       if (hayReintentables) _bannerReintentar(st.context, onBg, interrumpidas),

@@ -57,12 +57,25 @@ class DesenfoqueHijo extends StatelessWidget {
   final double sigma;
   final Widget child;
 
-  const DesenfoqueHijo({super.key, required this.sigma, required this.child});
+  /// Tope propio de esta superficie. Null = el tope del perfil de rendimiento.
+  ///
+  /// Lo usan los fondos con el control de estilo: el sigma del perfil es el del
+  /// diseño de fábrica (intensidad 0) y el efecto necesita un margen por encima
+  /// para desenfocar la carátula mientras se disuelve. El apagado en gama baja
+  /// sigue siendo el mismo: ahí no hay desenfoque, con tope o sin él.
+  final double? tope;
+
+  const DesenfoqueHijo({
+    super.key,
+    required this.sigma,
+    required this.child,
+    this.tope,
+  });
 
   @override
   Widget build(BuildContext context) {
     if (!EfectosApp.permitirDesenfoque.value) return child;
-    final efectivo = math.min(sigma, EfectosApp.sigmaMaximo.value);
+    final efectivo = math.min(sigma, tope ?? EfectosApp.sigmaMaximo.value);
     if (efectivo <= 0) return child;
     return ImageFiltered(
       imageFilter: ImageFilter.blur(sigmaX: efectivo, sigmaY: efectivo),

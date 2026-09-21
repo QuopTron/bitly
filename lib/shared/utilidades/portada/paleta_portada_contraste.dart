@@ -39,9 +39,10 @@ Color garantizarContraste(Color color, Color fondo, {double ratioMin = 4.0}) {
   final irClaro = lumFondo < 0.5; // panel oscuro → texto claro
   var claridad = hsl.lightness;
   for (var i = 0; i < 24; i++) {
-    claridad = irClaro
-        ? math.min(1.0, claridad + 0.045)
-        : math.max(0.0, claridad - 0.045);
+    claridad =
+        irClaro
+            ? math.min(1.0, claridad + 0.045)
+            : math.max(0.0, claridad - 0.045);
     final candidato = hsl.withLightness(claridad).toColor();
     if (relacionContraste(candidato, fondo) >= ratioMin) return candidato;
   }

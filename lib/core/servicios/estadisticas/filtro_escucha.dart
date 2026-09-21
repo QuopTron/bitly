@@ -23,23 +23,17 @@ enum RangoEscucha {
 
   /// Desde cuándo cuenta este rango (null = sin límite).
   DateTime? desde(DateTime ahora) => switch (this) {
-        RangoEscucha.hoy => DateTime(ahora.year, ahora.month, ahora.day),
-        RangoEscucha.sieteDias => ahora.subtract(const Duration(days: 7)),
-        RangoEscucha.treintaDias => ahora.subtract(const Duration(days: 30)),
-        RangoEscucha.unAnio => DateTime(ahora.year - 1, ahora.month, ahora.day),
-        RangoEscucha.todo => null,
-      };
+    RangoEscucha.hoy => DateTime(ahora.year, ahora.month, ahora.day),
+    RangoEscucha.sieteDias => ahora.subtract(const Duration(days: 7)),
+    RangoEscucha.treintaDias => ahora.subtract(const Duration(days: 30)),
+    RangoEscucha.unAnio => DateTime(ahora.year - 1, ahora.month, ahora.day),
+    RangoEscucha.todo => null,
+  };
 }
 
 /// Cómo se ordena la lista. Las etiquetas las pone la UI
 /// (`estadisticas.orden*`).
-enum OrdenEscucha {
-  masReproducidas,
-  menosReproducidas,
-  recientes,
-  az,
-  za,
-}
+enum OrdenEscucha { masReproducidas, menosReproducidas, recientes, az, za }
 
 /// Tipo de contenido del detalle (los mismos cubos que guarda la app).
 enum TipoEscucha {
@@ -85,15 +79,17 @@ List<FilaEscucha> aplicarFiltroEscucha(
   DateTime? ahora,
 }) {
   final desde = rango.desde(ahora ?? DateTime.now());
-  final visibles = desde == null
-      ? List<FilaEscucha>.from(filas)
-      : filas
-          .where((f) => f.ultimaVez == null || !f.ultimaVez!.isBefore(desde))
-          .toList();
+  final visibles =
+      desde == null
+          ? List<FilaEscucha>.from(filas)
+          : filas
+              .where(
+                (f) => f.ultimaVez == null || !f.ultimaVez!.isBefore(desde),
+              )
+              .toList();
 
-  int porNombre(FilaEscucha a, FilaEscucha b) => a.nombre
-      .toLowerCase()
-      .compareTo(b.nombre.toLowerCase());
+  int porNombre(FilaEscucha a, FilaEscucha b) =>
+      a.nombre.toLowerCase().compareTo(b.nombre.toLowerCase());
 
   switch (orden) {
     case OrdenEscucha.masReproducidas:
@@ -101,8 +97,10 @@ List<FilaEscucha> aplicarFiltroEscucha(
     case OrdenEscucha.menosReproducidas:
       visibles.sort((a, b) => a.reproducciones.compareTo(b.reproducciones));
     case OrdenEscucha.recientes:
-      visibles.sort((a, b) => (b.ultimaVez ?? DateTime(0))
-          .compareTo(a.ultimaVez ?? DateTime(0)));
+      visibles.sort(
+        (a, b) =>
+            (b.ultimaVez ?? DateTime(0)).compareTo(a.ultimaVez ?? DateTime(0)),
+      );
     case OrdenEscucha.az:
       visibles.sort(porNombre);
     case OrdenEscucha.za:

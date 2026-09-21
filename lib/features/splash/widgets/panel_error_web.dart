@@ -40,17 +40,21 @@ class PanelErrorWeb extends StatelessWidget {
     try {
       await launchUrl(
         Uri.parse(_urlReleases),
-        mode: kIsWeb
-            ? LaunchMode.platformDefault
-            : LaunchMode.externalApplication,
+        mode:
+            kIsWeb
+                ? LaunchMode.platformDefault
+                : LaunchMode.externalApplication,
       );
-    } catch (e) { debugPrint("[Feature] $e"); }
+    } catch (e) {
+      debugPrint("[Feature] $e");
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final onBg = isDark ? Colors.white : Colors.black;
-    final glowColor = isDark ? ColoresApp.verdeBrillante : ColoresApp.verdeMedio;
+    final glowColor =
+        isDark ? ColoresApp.verdeBrillante : ColoresApp.verdeMedio;
     final borde = onBg.withValues(alpha: 0.12);
 
     return ConstrainedBox(
@@ -64,7 +68,8 @@ class PanelErrorWeb extends StatelessWidget {
             loc.splash.webNeedsServerTitle,
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: onBg, fontSize: r.subtitleSize + 2,
+              color: onBg,
+              fontSize: r.subtitleSize + 2,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -76,7 +81,8 @@ class PanelErrorWeb extends StatelessWidget {
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: onBg.withValues(alpha: 0.65),
-                fontSize: r.subtitleSize, height: 1.45,
+                fontSize: r.subtitleSize,
+                height: 1.45,
               ),
             ),
           ),
@@ -84,7 +90,8 @@ class PanelErrorWeb extends StatelessWidget {
           _buildNativeAppBox(r, glowColor, onBg, borde),
           SizedBox(height: r.spacingM),
           TextButton(
-            onPressed: () => context.read<SplashBloc>().add(const ChequearBackend()),
+            onPressed:
+                () => context.read<SplashBloc>().add(const ChequearBackend()),
             child: Text(
               loc.splash.retry,
               style: TextStyle(
@@ -98,7 +105,12 @@ class PanelErrorWeb extends StatelessWidget {
     );
   }
 
-  Widget _buildNativeAppBox(Responsive r, Color glowColor, Color onBg, Color borde) {
+  Widget _buildNativeAppBox(
+    Responsive r,
+    Color glowColor,
+    Color onBg,
+    Color borde,
+  ) {
     return Container(
       margin: EdgeInsets.symmetric(horizontal: r.spacingL),
       padding: EdgeInsets.all(r.spacingM + 2),
@@ -114,7 +126,8 @@ class PanelErrorWeb extends StatelessWidget {
             textAlign: TextAlign.center,
             style: TextStyle(
               color: onBg.withValues(alpha: 0.75),
-              fontSize: r.subtitleSize, height: 1.35,
+              fontSize: r.subtitleSize,
+              height: 1.35,
             ),
           ),
           SizedBox(height: r.spacingM),
@@ -124,13 +137,17 @@ class PanelErrorWeb extends StatelessWidget {
             child: ElevatedButton.icon(
               onPressed: _abrirDescargas,
               icon: Icon(Icons.download_rounded, size: r.subtitleSize + 4),
-              label: Text(loc.splash.webDownloadApp,
-                style: const TextStyle(fontWeight: FontWeight.w600)),
+              label: Text(
+                loc.splash.webDownloadApp,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: glowColor,
                 foregroundColor: isDark ? Colors.black : Colors.white,
                 elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(22),
+                ),
               ),
             ),
           ),
@@ -138,7 +155,10 @@ class PanelErrorWeb extends StatelessWidget {
           SelectableText(
             _urlReleases,
             textAlign: TextAlign.center,
-            style: TextStyle(color: onBg.withValues(alpha: 0.45), fontSize: r.footerSize),
+            style: TextStyle(
+              color: onBg.withValues(alpha: 0.45),
+              fontSize: r.footerSize,
+            ),
           ),
         ],
       ),

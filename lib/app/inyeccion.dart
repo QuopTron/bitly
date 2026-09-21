@@ -1,6 +1,7 @@
 // inyeccion.dart — Registro central de dependencias (GetIt): valores
 // core, base de datos, caches, backend Go, servicios y cubits/blocs.
 
+import 'dart:async';
 import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -24,17 +25,22 @@ import '../core/cache/almacenes/cache_busqueda.dart';
 import '../core/cache/almacenes/cache_biblioteca.dart';
 import '../core/cache/almacenes/cache_colecciones.dart';
 import '../core/cache/almacenes/cache_feed.dart';
+import '../core/cache/almacenes/cache_traducciones.dart';
 import '../core/cache/reproduccion/reproduccion_cache.dart';
 import '../core/cache/reproduccion/reproduccion_stats.dart';
 import '../core/servicios/estadisticas/caratulas_escucha.dart';
 import '../core/servicios/estadisticas/detalle_escucha.dart';
+import '../core/servicios/traduccion/servicio_traduccion_letras.dart';
 import '../core/cache/reproduccion/reproduccion_detalle_local.dart';
 import '../core/cache/reproduccion/reproduccion_sync.dart';
-import '../core/modelos/usuario/estilo_visual.dart';
 import '../core/modelos/usuario/perfil_rendimiento.dart';
 import '../core/modelos/usuario/preferencias_apariencia.dart';
 import '../core/modelos/usuario/preferencias_estilo.dart';
+import '../core/servicios/playlist/editor_playlist.dart';
+import '../core/servicios/playlist/fuentes_playlist.dart';
 import '../core/servicios/playlist/servicio_dominio_playlist.dart';
+import '../core/servicios/conexion/servicio_conexion.dart';
+import '../core/servicios/lan/servicio_lan.dart';
 import '../features/setup/bloc/setup_bloc.dart';
 import '../features/splash/bloc/splash_bloc.dart';
 import '../estado/cola/cubit_cola.dart';
@@ -55,9 +61,6 @@ Future<void> configurarDependencias() async {
   );
   sl.registerLazySingleton<ValueNotifier<ThemeMode>>(
     () => ValueNotifier(ThemeMode.dark),
-  );
-  sl.registerLazySingleton<ValueNotifier<EstiloVisual>>(
-    () => ValueNotifier(EstiloVisual.clasico),
   );
   sl.registerLazySingleton<ValueNotifier<PreferenciasEstilo>>(
     () => ValueNotifier(const PreferenciasEstilo()),
@@ -85,12 +88,15 @@ Future<void> configurarDependencias() async {
   sl.registerLazySingleton<CacheBusqueda>(() => CacheBusqueda(db));
   sl.registerLazySingleton<CacheBiblioteca>(() => CacheBiblioteca(db));
   sl.registerLazySingleton<CacheColecciones>(() => CacheColecciones(db));
+  sl.registerLazySingleton<AlmacenTraducciones>(() => CacheTraducciones(db));
   sl.registerLazySingleton<CacheFeed>(() => CacheFeed(db));
   sl.registerLazySingleton<ReproduccionCache>(() => ReproduccionCache(db));
   sl.registerLazySingleton<ReproduccionStats>(() => ReproduccionStats(db));
   sl.registerLazySingleton<DetalleEscucha>(() => DetalleEscucha(db));
   sl.registerLazySingleton<CaratulasEscucha>(CaratulasEscucha.new);
-  sl.registerLazySingleton<ReproduccionDetalleLocal>(() => ReproduccionDetalleLocal(db));
+  sl.registerLazySingleton<ReproduccionDetalleLocal>(
+    () => ReproduccionDetalleLocal(db),
+  );
   sl.registerLazySingleton<ReproduccionSync>(() => ReproduccionSync(db));
 
   // ── 4. Backend (plataforma) ───────────────────────────────
@@ -128,4 +134,3 @@ Future<void> configurarDependencias() async {
   // Servicios de dominio, cubits/blocs globales y navegación.
   registrarServiciosYEstado(backend);
 }
-

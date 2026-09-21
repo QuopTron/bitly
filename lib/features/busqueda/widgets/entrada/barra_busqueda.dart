@@ -67,29 +67,31 @@ class _BarraBusquedaState extends State<BarraBusqueda> {
         textInputAction: TextInputAction.search,
         style: TextStyle(fontSize: r.subtitleSize + 3, color: onBg),
         decoration: InputDecoration(
-          hintText: widget.hintTexto ??
-              AppLocalizations.of(context).setup.searchHint,
+          hintText:
+              widget.hintTexto ?? AppLocalizations.of(context).setup.searchHint,
           hintStyle: TextStyle(
             fontSize: r.subtitleSize + 3,
             color: onBg.withValues(alpha: 0.3),
           ),
           border: InputBorder.none,
-          prefixIcon: widget.triggerFuente ??
+          prefixIcon:
+              widget.triggerFuente ??
               Icon(
                 Icons.search,
                 size: r.footerSize + 5,
                 color: onBg.withValues(alpha: 0.5),
               ),
-          suffixIcon: widget.controlador.text.isNotEmpty
-              ? GestureDetector(
-                  onTap: widget.onLimpiar,
-                  child: Icon(
-                    Icons.clear,
-                    size: r.footerSize + 5,
-                    color: onBg.withValues(alpha: 0.3),
-                  ),
-                )
-              : null,
+          suffixIcon:
+              widget.controlador.text.isNotEmpty
+                  ? GestureDetector(
+                    onTap: widget.onLimpiar,
+                    child: Icon(
+                      Icons.clear,
+                      size: r.footerSize + 5,
+                      color: onBg.withValues(alpha: 0.3),
+                    ),
+                  )
+                  : null,
         ),
       ),
     );

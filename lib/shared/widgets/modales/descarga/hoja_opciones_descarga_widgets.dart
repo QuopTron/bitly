@@ -33,7 +33,9 @@ Widget _cabeceraSeccion(Responsive r, String titulo, Color onBg) {
           ),
         ),
         SizedBox(width: r.spacingM),
-        Expanded(child: Divider(color: onBg.withValues(alpha: 0.06), height: 1)),
+        Expanded(
+          child: Divider(color: onBg.withValues(alpha: 0.06), height: 1),
+        ),
       ],
     ),
   );
@@ -68,22 +70,24 @@ class _BotonRadio<T> extends StatelessWidget {
                 seleccionado ? colorActivo : Colors.grey.withValues(alpha: 0.4),
             width: 2,
           ),
-          color: seleccionado
-              ? colorActivo.withValues(alpha: 0.15)
-              : Colors.transparent,
+          color:
+              seleccionado
+                  ? colorActivo.withValues(alpha: 0.15)
+                  : Colors.transparent,
         ),
-        child: seleccionado
-            ? Center(
-                child: Container(
-                  width: 10,
-                  height: 10,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: colorActivo,
+        child:
+            seleccionado
+                ? Center(
+                  child: Container(
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: colorActivo,
+                    ),
                   ),
-                ),
-              )
-            : null,
+                )
+                : null,
       ),
     );
   }

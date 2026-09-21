@@ -20,7 +20,7 @@ func intentarStream(reg *provider.Registry, name, trackID string, track *provide
 	// streaming it. Some extensions' getDownloadUrl resolves a name-based
 	// lookup that can return a live version even when the ID looks correct.
 	if track != nil && track.Title != "" && trackID != "" {
-		if vID := verificarMatchStream(p, trackID, track.Title, track.Artist, track.ISRC, true); vID == "" {
+		if vID := verificarMatchStream(p, trackID, track.Title, track.Artist, track.ISRC, true, track.Duration); vID == "" {
 			// trackID doesn't match the queried song — skip the direct path
 			// and let the ISRC path below find the correct version.
 		} else {
@@ -66,7 +66,7 @@ func intentarStream(reg *provider.Registry, name, trackID string, track *provide
 	if track != nil && track.ID != "" && track.ID != trackID {
 		verifiedID := track.ID
 		if track.Title != "" {
-			if vID := verificarMatchStream(p, track.ID, track.Title, track.Artist, track.ISRC, false); vID != "" {
+			if vID := verificarMatchStream(p, track.ID, track.Title, track.Artist, track.ISRC, false, track.Duration); vID != "" {
 				verifiedID = vID
 			} else {
 				verifiedID = "" // track.ID is a live/remix — skip
@@ -99,7 +99,7 @@ func intentarStream(reg *provider.Registry, name, trackID string, track *provide
 			// serviria una cancion distinta. verificarMatchStream re-obtiene el id
 			// resuelto y lo rechaza ante ISRC distinto o fuerza titulo+artista debil.
 			if track.Title != "" {
-				if verified := verificarMatchStream(p, trackByISRC.ID, track.Title, track.Artist, track.ISRC, true); verified == "" {
+				if verified := verificarMatchStream(p, trackByISRC.ID, track.Title, track.Artist, track.ISRC, true, track.Duration); verified == "" {
 					return "", fmt.Errorf("stream de %s no es la cancion solicitada", name)
 				}
 			}

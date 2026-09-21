@@ -23,10 +23,7 @@ Widget _icono(_SlideGraciasState st, Color onBg, Color glowColor) {
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       ),
-      border: Border.all(
-        color: glowColor.withValues(alpha: 0.3),
-        width: 1.5,
-      ),
+      border: Border.all(color: glowColor.withValues(alpha: 0.3), width: 1.5),
       boxShadow: [
         BoxShadow(
           color: glowColor.withValues(alpha: 0.15),

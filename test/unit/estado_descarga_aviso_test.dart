@@ -6,6 +6,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:bitly/core/cache/estado/estado_descarga.dart';
+import 'package:bitly/core/servicios/descargas/motivos_descarga.dart';
 
 void main() {
   group('DatosEstadoDescarga', () {
@@ -16,15 +17,18 @@ void main() {
       expect(d.esReintento, isFalse);
     });
 
-    test('guarda el motivo del fallo y el intento en curso', () {
+    test('guarda el CÓDIGO del motivo y el intento en curso', () {
+      // El estado nunca guarda el texto crudo del backend: guarda el código
+      // que la UI traduce, así el aviso sigue el idioma activo.
       const d = DatosEstadoDescarga(
         estado: EstadoDescarga.interrumpido,
-        mensajeError: 'no space left on device',
+        mensajeError: MotivosDescarga.espacio,
         intento: 2,
         totalIntentos: 3,
       );
       expect(d.esReintento, isTrue);
-      expect(d.mensajeError, contains('no space'));
+      expect(d.mensajeError, MotivosDescarga.espacio);
+      expect(d.mensajeError, isNot(contains(' ')));
     });
   });
 
@@ -32,7 +36,7 @@ void main() {
     const fallo = FalloDescarga(
       baseId: 'track_abc_ytmusic-spotiflac',
       titulo: 'Blinding Lights',
-      motivo: 'sin stream disponible',
+      motivo: MotivosDescarga.sinArchivo,
     );
 
     test('copiarCon publica el aviso de fallo', () {

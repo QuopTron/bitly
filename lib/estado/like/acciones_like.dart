@@ -20,11 +20,13 @@ mixin AccionesLike on Cubit<EstadoLikes> {
   ReproduccionSync get _pb => di.sl<ReproduccionSync>();
 
   ContentDao? _daoContenido;
-  ContentDao get _contentDao => _daoContenido ??= ContentDao(di.sl<AppDatabase>());
+  ContentDao get _contentDao =>
+      _daoContenido ??= ContentDao(di.sl<AppDatabase>());
 
   /// Implementado por [LikeCaratulas] (mixin combinado en CubitLikes).
+  /// [keys] indexa la portada para que una descarga del mismo track la reúse.
   @protected
-  Future<String?> _guardarCaratula(String coverUrl);
+  Future<String?> _guardarCaratula(String coverUrl, {List<String> keys});
 
   /// Implementado por [LikeCaratulas].
   @protected
@@ -36,11 +38,20 @@ mixin AccionesLike on Cubit<EstadoLikes> {
 
   /// Implementado por [AccionesLikeQuitar].
   @protected
-  Future<void> sincronizarTracksAlbum(String albumId, String source, String artistName, {String? coverUrlPadre});
+  Future<void> sincronizarTracksAlbum(
+    String albumId,
+    String source,
+    String artistName, {
+    String? coverUrlPadre,
+  });
 
   /// Implementado por [AccionesLikeQuitar].
   @protected
-  Future<void> sincronizarTracksPlaylist(String playlistId, String source, {String? coverUrlPadre});
+  Future<void> sincronizarTracksPlaylist(
+    String playlistId,
+    String source, {
+    String? coverUrlPadre,
+  });
 
   Future<void> alternarLike(ItemFeed item) async {
     final fp = huellaItem(item);
@@ -78,7 +89,9 @@ mixin AccionesLike on Cubit<EstadoLikes> {
       isrc: item.isrc,
     );
 
-    emit(state.copiarCon(huellasAmadas: nuevasHuellas, todosAmados: nuevosItems));
+    emit(
+      state.copiarCon(huellasAmadas: nuevasHuellas, todosAmados: nuevosItems),
+    );
 
     _invalidarCacheDetalle(item.id, item.type);
     await _persistirLike(item);

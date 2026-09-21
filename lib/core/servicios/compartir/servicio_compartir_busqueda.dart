@@ -20,10 +20,11 @@ Future<ResultadoEnlace?> _resolverCompartido(DatosCompartido datos) async {
     item = await backend.resolverIsrc(datos.isrc);
   }
   if (item == null) {
-    final consulta = [datos.nombre, datos.artista]
-        .where((e) => e.trim().isNotEmpty)
-        .join(' ')
-        .trim();
+    final consulta =
+        [
+          datos.nombre,
+          datos.artista,
+        ].where((e) => e.trim().isNotEmpty).join(' ').trim();
     if (consulta.isEmpty) return null;
     final resultados = await backend.search(
       query: consulta,
@@ -31,9 +32,10 @@ Future<ResultadoEnlace?> _resolverCompartido(DatosCompartido datos) async {
       limit: 10,
     );
     if (resultados.isEmpty) return null;
-    item = datos.tipo == 'track'
-        ? _mejorCandidato(resultados, datos)
-        : resultados.first;
+    item =
+        datos.tipo == 'track'
+            ? _mejorCandidato(resultados, datos)
+            : resultados.first;
   }
   return ResultadoEnlace(item: item);
 }
@@ -48,8 +50,8 @@ ItemFeed _mejorCandidato(List<ItemFeed> resultados, DatosCompartido datos) {
   }
   for (final r in resultados) {
     final coincideNombre = normalizarTexto(r.name) == nombre;
-    final coincideArtista = artista.isEmpty ||
-        normalizarTexto(r.artists ?? '').contains(artista);
+    final coincideArtista =
+        artista.isEmpty || normalizarTexto(r.artists ?? '').contains(artista);
     if (coincideNombre && coincideArtista) return r;
   }
   return resultados.first;

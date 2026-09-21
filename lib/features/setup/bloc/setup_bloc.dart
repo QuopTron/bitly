@@ -26,8 +26,8 @@ class SetupBloc extends Bloc<EventoSetup, EstadoSetup>
   /// contra la red y el servidor de Soulseek, así que sin esto no se puede
   /// verificar que un nombre tomado BLOQUEA el paso en vez de dejarlo pasar.
   SetupBloc(this._notifierIdioma, {ServicioSoulseek? soulseek})
-      : _soulseek = soulseek ?? ServicioSoulseek(),
-        super(const EstadoSetup()) {
+    : _soulseek = soulseek ?? ServicioSoulseek(),
+      super(const EstadoSetup()) {
     on<SeleccionarIdioma>(onSeleccionarIdioma$);
     on<SiguientePaso>(onSiguientePaso$);
     on<PasoAnterior>(onPasoAnterior$);

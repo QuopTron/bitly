@@ -42,6 +42,19 @@ class _SoulseekForm extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) => _construirFormularioSoulseek(context, nombreCtrl, cargando, conectada, propuestaDeLaApp, revelada, password, mensaje, glow, onBg, r, onSiguiente, onToggleRevelada);
-
+  Widget build(BuildContext context) => _construirFormularioSoulseek(
+    context,
+    nombreCtrl,
+    cargando,
+    conectada,
+    propuestaDeLaApp,
+    revelada,
+    password,
+    mensaje,
+    glow,
+    onBg,
+    r,
+    onSiguiente,
+    onToggleRevelada,
+  );
 }

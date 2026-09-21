@@ -6,7 +6,12 @@ import (
 	"github.com/zarz/bitly/go_backend/internal/provider"
 )
 
-func verificarMatchStream(p provider.Provider, id, queryTitle, queryArtist, isrc string, authoritative bool) string {
+// verificarMatchStream confirma que [id] es la canción PEDIDA antes de
+// transmitirla. [queryDurationMS] (0 = desconocida) es el último filtro: un
+// remix, un directo o una versión extendida con el título parecido dura
+// distinto que el corte pedido, y hasta ahora la reproducción NO miraba la
+// duración (la descarga sí) — por eso podía sonar la versión equivocada.
+func verificarMatchStream(p provider.Provider, id, queryTitle, queryArtist, isrc string, authoritative bool, queryDurationMS int) string {
 	if queryTitle == "" && isrc == "" {
 		return id
 	}
@@ -40,6 +45,11 @@ func verificarMatchStream(p provider.Provider, id, queryTitle, queryArtist, isrc
 		return id
 	}
 	if _, ok := provider.OriginalStrength(queryTitle, queryArtist, *t); ok {
+		if !provider.DuracionCoincide(queryDurationMS, t.Duration) {
+			// Título/artista coinciden pero dura otra cosa: es la versión
+			// equivocada (directo, extendida, remix sin marcador en el título).
+			return ""
+		}
 		return id
 	}
 	// El propio registro del proveedor puede exponer un ISRC: re-resolver via la

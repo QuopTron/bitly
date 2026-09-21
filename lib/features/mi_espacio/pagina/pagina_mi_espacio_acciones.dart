@@ -19,15 +19,6 @@ void _onTemaCambiado(_PaginaMiEspacioState st, bool esOscuro) {
   sl<CacheAjustes>().guardarTema(modo == ThemeMode.dark ? 'dark' : 'light');
 }
 
-/// Alterna el idioma global (ES/EN) y lo persiste.
-void _onIdiomaCambiado(_PaginaMiEspacioState st) {
-  final actual = sl<ValueNotifier<Locale>>().value;
-  final siguiente =
-      actual.languageCode == 'es' ? const Locale('en') : const Locale('es');
-  sl<ValueNotifier<Locale>>().value = siguiente;
-  sl<CacheAjustes>().guardarIdioma(siguiente.languageCode);
-}
-
 /// Da like a un ítem (toggle).
 void _onLike(_PaginaMiEspacioState st, Item item) {
   if (item.idReal.isEmpty) return;
@@ -91,8 +82,8 @@ Future<void> _onCrearPlaylistDesdeDescargados(_PaginaMiEspacioState st) async {
       if (trackId.isNotEmpty) {
         await servicio.agregarTrack(creada.id, trackId);
       }
-      final cover = (m['coverUrl'] ?? m['cover_url'] ?? m['coverPath'] ?? '')
-          .toString();
+      final cover =
+          (m['coverUrl'] ?? m['cover_url'] ?? m['coverPath'] ?? '').toString();
       if (cover.isNotEmpty) caratulas.add(cover);
     }
     await servicio.garantizarCaratula(creada.id, caratulas);
@@ -104,7 +95,9 @@ Future<void> _onCrearPlaylistDesdeDescargados(_PaginaMiEspacioState st) async {
         '${loc.setup.miSpacePlaylist} "$nombre" ${loc.setup.downloaded}',
       );
     }
-  } catch (e) { debugPrint("[Feature] $e"); }
+  } catch (e) {
+    debugPrint("[Feature] $e");
+  }
 }
 
 /// Descarga por lote (álbum/playlist) con la acción globalizada.
@@ -122,8 +115,7 @@ void _onBorrarLote(_PaginaMiEspacioState st, Item item) {
 /// Reintenta los tracks fallidos de un lote.
 void _onReintentarLote(_PaginaMiEspacioState st, Item item) {
   final tipo = item.tipo == TipoItem.album ? 'album' : 'playlist';
-  final batchKey =
-      '${tipo}_${normalizarIdTrack(item.idReal)}_${item.fuente}';
+  final batchKey = '${tipo}_${normalizarIdTrack(item.idReal)}_${item.fuente}';
   st.context.read<CubitDescargas>().reintentarTracksFallidosLote(batchKey);
 }
 

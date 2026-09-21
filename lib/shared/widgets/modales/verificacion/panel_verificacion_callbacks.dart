@@ -27,7 +27,9 @@ void _dispararGrant(_PanelVerificacionWebState st, String grant) {
   if (st._grantDisparado) return;
   st._grantDisparado = true;
   st._timerCarga?.cancel();
-  debugPrint('[Verificacion] GRANT capturado en WebView ($grant) → alObtenerGrant');
+  debugPrint(
+    '[Verificacion] GRANT capturado en WebView ($grant) → alObtenerGrant',
+  );
   st.widget.alObtenerGrant(grant);
 }
 
@@ -60,12 +62,15 @@ void _paginaTerminoDeCargar(_PanelVerificacionWebState st, String url) {
 /// onWebResourceError: solo fallo para errores del frame principal.
 void _errorRecursoWeb(_PanelVerificacionWebState st, WebResourceError error) {
   if (error.isForMainFrame != false) {
-    _logPanel.e('[Verificacion] Error WebView: '
-        '${error.description} code=${error.errorCode} url=${error.url}');
+    _logPanel.e(
+      '[Verificacion] Error WebView: '
+      '${error.description} code=${error.errorCode} url=${error.url}',
+    );
 
     // El redirect spotiflac:// reporta ERR_UNKNOWN_URL_SCHEME (varía por
     // dispositivo); el delegado de navegación ya capturó el grant.
-    final esErrorScheme = error.errorCode == -10 ||
+    final esErrorScheme =
+        error.errorCode == -10 ||
         error.description.toUpperCase().contains('UNKNOWN_URL_SCHEME') ||
         (error.url ?? '').startsWith('spotiflac://');
     if (!esErrorScheme) {

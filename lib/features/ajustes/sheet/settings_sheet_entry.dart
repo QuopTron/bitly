@@ -9,15 +9,36 @@
 
 part of 'settings_sheet_new.dart';
 
-// Tab order: Apariencia first (live color), then Descargas, Rendimiento, Más.
-// Top-level para que los part files (p.ej. _BubbleTab) puedan leerlo.
-final List<({IconData icon, String label})> _bubbleTabs = [
-  (icon: Icons.palette_outlined, label: 'Apariencia'),
-  (icon: Icons.download_rounded, label: 'Descargas'),
-  (icon: Icons.speed_rounded, label: 'Rendimiento'),
-  (icon: Icons.insights_rounded, label: 'Estadísticas'),
-  (icon: Icons.more_horiz, label: 'Más'),
+// Orden de las pestañas: Apariencia primero (se toca un ajuste, no se mira un
+// tablero), después Descargas, Rendimiento, Estadísticas y —las que antes
+// vivían apretadas dentro de "Más"— Cuenta, Proveedores y Conexión; Más queda
+// última. El orden de íconos y de `StringsAjustes.pestanas` es el mismo.
+//
+// Acá van SOLO los íconos: las etiquetas salen de `StringsAjustes.pestanas`
+// (mismo orden) para que se traduzcan. Es top-level para que los part files
+// (p.ej. _BubbleTab y el riel lateral) puedan leerlo.
+/// Pestaña de APARIENCIA: es la primera y es donde vive el cofre de diseños,
+/// así que su burbuja es la que lleva el mininumerito de regalos.
+const int _indiceApariencia = 0;
+
+/// Pestaña de CONEXIÓN: su burbuja lleva el mininumerito de novedades (el
+/// regalo de la prueba de 9 h y los aparatos sin vincular).
+const int _indiceConexion = 6;
+
+final List<IconData> _iconosPestanas = [
+  Icons.palette_outlined,
+  Icons.download_rounded,
+  Icons.speed_rounded,
+  Icons.insights_rounded,
+  Icons.workspace_premium_outlined,
+  Icons.hub_outlined,
+  Icons.devices_rounded,
+  Icons.more_horiz,
 ];
+
+/// Cantidad de pestañas del menú de Ajustes (burbujas en celular, riel en
+/// pantalla ancha). TabController y tutorial la usan como largo.
+int get cantidadPestanasAjustes => _iconosPestanas.length;
 
 /// Reacts to the current queue + playback: when a track is loaded (and has a
 /// cover) the sheet gets tinted with the cover's dominant color via a blurred
@@ -31,14 +52,13 @@ Future<void> showSettingsSheet(
   required String username,
   required bool isDark,
   required ValueChanged<bool> onThemeChanged,
-  required VoidCallback onLanguageChanged,
   String likedCount = '0',
   String downloadedCount = '0',
   TutorialController? tutorial,
 }) {
   // Devuelve el Future de la ruta: quien la abre sabe cuándo se cerró (el
   // tutorial lo necesita para no cerrar algo que el usuario ya cerró).
-  return showModalBottomSheet<void>(
+  return mostrarHoja<void>(
     context: context,
     backgroundColor: Colors.transparent,
     isScrollControlled: true,
@@ -49,7 +69,6 @@ Future<void> showSettingsSheet(
             username: username,
             isDark: isDark,
             onThemeChanged: onThemeChanged,
-            onLanguageChanged: onLanguageChanged,
             likedCount: likedCount,
             downloadedCount: downloadedCount,
             tutorial: tutorial,
@@ -65,7 +84,6 @@ class SettingsSheet extends StatefulWidget {
   final String username;
   final bool isDark;
   final ValueChanged<bool> onThemeChanged;
-  final VoidCallback onLanguageChanged;
   final String likedCount;
   final String downloadedCount;
 
@@ -78,7 +96,6 @@ class SettingsSheet extends StatefulWidget {
     required this.username,
     required this.isDark,
     required this.onThemeChanged,
-    required this.onLanguageChanged,
     this.likedCount = '0',
     this.downloadedCount = '0',
     this.tutorial,

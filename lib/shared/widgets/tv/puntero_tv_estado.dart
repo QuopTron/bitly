@@ -158,7 +158,8 @@ mixin PunteroTvEstado<T extends StatefulWidget> on State<T> {
 
   void _mover(Offset delta) {
     final ahora = DateTime.now();
-    final seguido = _ultimaTecla != null &&
+    final seguido =
+        _ultimaTecla != null &&
         ahora.difference(_ultimaTecla!).inMilliseconds < 600;
     _repeticion = seguido ? (_repeticion + 1).clamp(0, 20) : 0;
     _ultimaTecla = ahora;
@@ -166,14 +167,19 @@ mixin PunteroTvEstado<T extends StatefulWidget> on State<T> {
     final factor = 1 + _repeticion * 0.16;
     final t = _tamano;
     final nueva = Offset(
-      (posCursor.dx + delta.dx * factor)
-          .clamp(_margenBorde, t.width - _margenBorde),
-      (posCursor.dy + delta.dy * factor)
-          .clamp(_margenBorde, t.height - _margenBorde),
+      (posCursor.dx + delta.dx * factor).clamp(
+        _margenBorde,
+        t.width - _margenBorde,
+      ),
+      (posCursor.dy + delta.dy * factor).clamp(
+        _margenBorde,
+        t.height - _margenBorde,
+      ),
     );
     setState(() => posCursor = nueva);
     _emisor.hover();
   }
+
   /// Inicializa posición y handler de teclado.
   void initPuntero() {
     posCursor = centro();

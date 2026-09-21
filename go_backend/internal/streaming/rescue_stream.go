@@ -24,6 +24,17 @@ func duracionQuery(track *provider.TrackResult) int {
 	return track.Duration
 }
 
+// albumQuery devuelve el álbum del pedido cuando se conoce ("" si no). El
+// ranking por nombre lo usa para preferir la toma del disco pedido: la misma
+// canción vive en el álbum original, en un recopilatorio y en un "remix album",
+// y sin este dato podía sonar la versión de otro disco.
+func albumQuery(track *provider.TrackResult) string {
+	if track == nil {
+		return ""
+	}
+	return track.Album
+}
+
 func rescueStream(reg *provider.Registry, track *provider.TrackResult, trackName, artistName, quality string) (url, prov string, attempted []string, verified bool) {
 	inicioTotal := time.Now()
 	// Instrumentación de LATENCIA: cada fase termina cuando vence su presupuesto
@@ -36,16 +47,24 @@ func rescueStream(reg *provider.Registry, track *provider.TrackResult, trackName
 	}()
 	// Fuentes sin ISRC (YouTube, SoundCloud, re-subidos): derivar el ISRC de un
 	// catálogo que SÍ lo publica habilita la fase exacta por ISRC y el rescate
-	// FLAC, sin pedirle nada al usuario y sin sesión. Es best-effort y cacheado:
-	// si no se confirma, todo sigue igual (búsqueda por nombre).
+	// FLAC, sin pedirle nada al usuario y sin sesión. Es best-effort y cacheado.
+	//
+	// Corre EN PARALELO con las búsquedas: antes era un paso SERIAL de hasta 4s
+	// que se ejecutaba ANTES de que arrancara cualquier fase, así que un track sin
+	// ISRC pagaba esos segundos enteros en cada tap. Cuando el ISRC llega, habilita
+	// la fase exacta en pleno vuelo; si la búsqueda por nombre ya trajo el audio,
+	// no se espera nunca (ver el cosechador de fases).
+	chISRC := make(chan string, 1)
+	rastreandoISRC := false
 	if track != nil && track.ISRC == "" && trackName != "" && artistName != "" {
-		if isrc := provider.DerivarISRC(reg, trackName, artistName, duracionQuery(track)); isrc != "" {
-			copia := *track
-			copia.ISRC = isrc
-			track = &copia
-		}
+		rastreandoISRC = true
+		dur := duracionQuery(track)
+		go func() { chISRC <- provider.DerivarISRC(reg, trackName, artistName, dur) }()
 	}
-	names := ordenProvidersStreaming(reg)
+	// Sin pérdida, las fuentes que pueden entregarlo van primero (y con un turno
+	// extra): es la única forma de que su resultado gane por política en vez de
+	// quedar salteado por falta de slot. Ver ordenProvidersStreamingCalidad.
+	names := ordenProvidersStreamingCalidad(reg, quality)
 	// Un proveedor que tiene la cancion exacta pero necesita su sesion
 	// verificada se RECUERDA, nunca es fatal: la siguiente fase (busqueda por
 	// nombre) aun puede encontrar la cancion en un proveedor que no indexa
@@ -80,7 +99,7 @@ func rescueStream(reg *provider.Registry, track *provider.TrackResult, trackName
 				if err != nil || len(results) == 0 {
 					return "", false
 				}
-				cands := matchesRankeados(trackName, artistName, duracionQuery(track), results)
+				cands := matchesRankeados(trackName, artistName, albumQuery(track), duracionQuery(track), results)
 				// Con ISRC conocido, la candidata que lo declara va primero: entre
 				// subidas con el mismo título, la que coincide con la identidad
 				// exacta es la grabación pedida.
@@ -129,54 +148,93 @@ func rescueStream(reg *provider.Registry, track *provider.TrackResult, trackName
 		}()
 	}
 
-	// Phase 1: la GRABACIÓN EXACTA por ISRC. Ahora la atiende prácticamente solo
+	// FASE 1: la GRABACIÓN EXACTA por ISRC. Ahora la atiende prácticamente solo
 	// flac-rescue (su índice ES el ISRC): los catálogos salieron del audio, así
 	// que ya no hay un deezer/qobuz que resuelva por ISRC sin cuenta.
 	//
-	// Por eso el presupuesto bajó de 8s a 3s: si flac-rescue tiene el FLAC lo
-	// resuelve en 1-2s, y si no lo tiene, esperar más solo retrasa lo que la fase
-	// de nombre (que corre en paralelo) ya tiene listo. Un resultado suyo sigue
-	// ganando: es identidad exacta y sin pérdida.
-	if track != nil && track.ISRC != "" {
-		inicioFase := time.Now()
-		u, provName, v := carreraPorConfianzaCalidad(reg, names, 3*time.Second, 2, func(name string, p provider.Provider) (string, bool) {
-			trackByISRC, err := p.GetTrackByISRC(track.ISRC)
-			if err != nil || trackByISRC == nil || trackByISRC.ID == "" {
-				return "", false
-			}
-			// Even an ISRC-resolved candidate is verified against the queried
-			// title/artist when we have them: an extension whose ISRC search
-			// silently falls back to a name search (e.g. SoundCloud re-uploads
-			// or a wrong mapping) must never serve an unrelated song.
-			if trackName != "" && verificarMatchStream(p, trackByISRC.ID, trackName, artistName, track.ISRC, true) == "" {
-				return "", false
-			}
-			return rescueProviderUnaVez(p, trackByISRC.ID, quality)
-		}, quality)
-		log.Printf("[rescue] fase 1 (ISRC) %.0fms -> prov=%q url=%v verify=%v",
-			float64(time.Since(inicioFase).Microseconds())/1000, provName, u != "", v)
-		if v && verifyName == "" {
-			verifyName = provName
+	// Por eso el presupuesto es de 3s: si flac-rescue tiene el FLAC lo resuelve en
+	// 1-2s, y si no lo tiene, esperar más solo retrasa lo que la fase de nombre
+	// (que corre en paralelo) ya tiene listo. Un resultado suyo sigue ganando: es
+	// identidad exacta y sin pérdida.
+	//
+	// Se lanza en su PROPIA goroutine para poder COSECHARLA junto a la fase de
+	// nombre: antes se esperaba la fase 1 COMPLETA —hasta 3s— antes de mirar la
+	// otra, así que un tema que el canal exacto no tiene pagaba el presupuesto
+	// entero aunque el stream ya estuviera servido (medido: 3s de un tap de 3,7s).
+	chExacto := make(chan resultadoFase, 1)
+	exactoLanzado, exactoPendiente := false, false
+	lanzarFaseExacta := func() {
+		if exactoLanzado || track == nil || track.ISRC == "" {
+			return
 		}
-		if u != "" {
-			return u, provName, nil, false
-		}
-		attempted = append(attempted, names...)
+		exactoLanzado, exactoPendiente = true, true
+		isrcExacto := track.ISRC
+		go func() {
+			inicioFase := time.Now()
+			u, provName, v := carreraPorConfianzaCalidad(reg, names, 3*time.Second, workersRescate(quality), func(name string, p provider.Provider) (string, bool) {
+				trackByISRC, err := p.GetTrackByISRC(isrcExacto)
+				if err != nil || trackByISRC == nil || trackByISRC.ID == "" {
+					return "", false
+				}
+				// Even an ISRC-resolved candidate is verified against the queried
+				// title/artist when we have them: an extension whose ISRC search
+				// silently falls back to a name search (e.g. SoundCloud re-uploads
+				// or a wrong mapping) must never serve an unrelated song.
+				if trackName != "" && verificarMatchStream(p, trackByISRC.ID, trackName, artistName, isrcExacto, true, duracionQuery(track)) == "" {
+					return "", false
+				}
+				return rescueProviderUnaVez(p, trackByISRC.ID, quality)
+			}, quality)
+			log.Printf("[rescue] fase 1 (ISRC) %.0fms -> prov=%q url=%v verify=%v",
+				float64(time.Since(inicioFase).Microseconds())/1000, provName, u != "", v)
+			chExacto <- resultadoFase{u, provName, v}
+		}()
 	}
+	lanzarFaseExacta()
 
-	// Recoge lo que resolvió la fase de nombre, que viene corriendo en paralelo
-	// desde el principio (ver arriba). Un match suyo que necesite verificación de
-	// sesión se recuerda igual que el de la fase exacta: nunca es fatal mientras
-	// algo pueda sonar.
-	if trackName != "" && artistName != "" {
-		r := <-chNombre
-		if r.verify && verifyName == "" {
-			verifyName = r.prov
+	// COSECHADOR: gana la primera fase que consiga una URL. Un veredicto de
+	// verificación (sesión firmada pendiente) se RECUERDA sin cortar nada — la otra
+	// fase todavía puede hacer sonar la canción. Solo se sigue esperando mientras
+	// quede alguna fuente viva: si la derivación del ISRC todavía corre, de ella
+	// puede nacer la fase exacta (y con ella el FLAC), pero si la búsqueda por
+	// nombre ya trajo el audio se sale sin esperarla.
+	nombrePendiente := trackName != "" && artistName != ""
+	urlFinal, provFinal := "", ""
+	for urlFinal == "" && (exactoPendiente || nombrePendiente || rastreandoISRC) {
+		select {
+		case r := <-chExacto:
+			exactoPendiente = false
+			if r.verify && verifyName == "" {
+				verifyName = r.prov
+			}
+			if r.url != "" {
+				urlFinal, provFinal = r.url, r.prov
+			} else {
+				attempted = append(attempted, names...)
+			}
+		case r := <-chNombre:
+			nombrePendiente = false
+			if r.verify && verifyName == "" {
+				verifyName = r.prov
+			}
+			if r.url != "" {
+				urlFinal, provFinal = r.url, r.prov
+			} else {
+				attempted = append(attempted, names...)
+			}
+		case isrcDerivado := <-chISRC:
+			rastreandoISRC = false
+			if isrcDerivado != "" && track != nil && track.ISRC == "" {
+				copia := *track
+				copia.ISRC = isrcDerivado
+				track = &copia
+				// El ISRC habilita la fase exacta (y el rescate FLAC) en pleno vuelo.
+				lanzarFaseExacta()
+			}
 		}
-		if r.url != "" {
-			return r.url, r.prov, nil, false
-		}
-		attempted = append(attempted, names...)
+	}
+	if urlFinal != "" {
+		return urlFinal, provFinal, nil, false
 	}
 	// Última oportunidad antes de declarar el fallo: el video OFICIAL de la
 	// pista. Ya viene corriendo desde el arranque, así que en el caso normal ya

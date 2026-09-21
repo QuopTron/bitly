@@ -42,7 +42,10 @@ class DetalleAlbum {
       releaseDate: json['releaseDate'] as String?,
       albumType: json['albumType'] as String?,
       totalTracks: (json['totalTracks'] as num?)?.toInt() ?? 0,
-      tracks: rawTracks.map((e) => TrackDetalle.desdeJson(e as Map<String, dynamic>)).toList(),
+      tracks:
+          rawTracks
+              .map((e) => TrackDetalle.desdeJson(e as Map<String, dynamic>))
+              .toList(),
     );
   }
 }

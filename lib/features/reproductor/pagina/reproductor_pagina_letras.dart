@@ -30,7 +30,7 @@ void _alternarLetras(_ReproductorPaginaState st, BuildContext ctx) {
   }
   // Nada precargado — rescatar las LRC bajo demanda.
   st._letrasCargando = true;
-    st.repintar();
+  st.repintar();
   cubit.obtenerLetrasBajoDemanda(track).then((texto) {
     if (!st.mounted) return;
     st._letrasCargando = false;
@@ -39,9 +39,9 @@ void _alternarLetras(_ReproductorPaginaState st, BuildContext ctx) {
       abrirHoja(texto);
     } else if (ctx.mounted) {
       ScaffoldMessenger.of(ctx).showSnackBar(
-        const SnackBar(
-          content: Text('Sin letras para esta canción'),
-          duration: Duration(seconds: 2),
+        SnackBar(
+          content: Text(AppLocalizations.of(ctx).reproductor.sinLetras),
+          duration: const Duration(seconds: 2),
           behavior: SnackBarBehavior.floating,
         ),
       );

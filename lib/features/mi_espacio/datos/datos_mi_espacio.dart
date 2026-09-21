@@ -11,8 +11,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../app/inyeccion.dart';
+import '../../../core/base_datos/app_database.dart';
+import '../../../core/base_datos/daos/content_dao.dart';
 import '../../../core/cache/almacenes/cache_ajustes.dart';
 import '../../../core/cache/almacenes/cache_colecciones.dart';
+import '../../../shared/utilidades/portada/caratula_util.dart';
 import '../../../core/cache/estado/estado_descarga.dart';
 import '../../../core/cache/estado/estado_like.dart';
 import '../../../estado/descargas/cubit_descargas.dart';
@@ -23,6 +26,8 @@ import '../modelos_item.dart';
 
 part 'datos_mi_espacio_items.dart';
 part 'datos_mi_espacio_items2.dart';
+part 'datos_mi_espacio_biblioteca.dart';
+part 'datos_mi_espacio_acciones.dart';
 
 /// Playlists propias (drift) — con insignia "propia".
 Future<List<Item>> cargarPlaylistsPropias() async {
@@ -61,21 +66,26 @@ String _normalizarNombre(String n) =>
     n.toLowerCase().trim().replaceAll(RegExp(r'\s+'), ' ');
 
 /// Ítems de la pestaña [pestana] combinando likes + descargas.
+/// [biblioteca] es el índice local (nombre + carátula) que actúa como
+/// último respaldo para que ninguna tarjeta quede gris ni sin título;
+/// por defecto usa el índice ya cargado por la página.
 List<Item> itemsParaPestana(
   EstadoLikes estadoLike,
   int pestana,
   List<Item> playlistsCreadas, {
   CubitDescargas? cubitDescargas,
+  Map<String, DatoBiblioteca>? biblioteca,
 }) {
+  final bib = biblioteca ?? bibliotecaLocal;
   switch (pestana) {
     case 0:
-      return _itemsCanciones(estadoLike, cubitDescargas);
+      return _itemsCanciones(estadoLike, cubitDescargas, bib);
     case 1:
-      return _itemsPlaylists(estadoLike, playlistsCreadas, cubitDescargas);
+      return _itemsPlaylists(estadoLike, playlistsCreadas, cubitDescargas, bib);
     case 2:
-      return _itemsAlbumes(estadoLike, cubitDescargas);
+      return _itemsAlbumes(estadoLike, cubitDescargas, bib);
     case 3:
-      return _itemsArtistas(estadoLike);
+      return _itemsArtistas(estadoLike, bib);
     default:
       return [];
   }
@@ -95,57 +105,4 @@ String mensajeVacio(AppLocalizations loc, int pestana) {
     default:
       return '';
   }
-}
-
-/// Quita el like de un ítem de la pestaña [pestana].
-void quitarLikeItem(Item item, BuildContext context, int pestana) {
-  if (item.idReal.isEmpty) return;
-  final tipo = tipoParaPestana(pestana);
-  context.read<CubitLikes>().quitarLikePorId(
-    item.idReal,
-    tipo,
-    item.titulo,
-    item.subtitulo,
-    item.coverUrl,
-  );
-}
-
-/// Tipo de ítem (string) según la pestaña activa.
-String tipoParaPestana(int pestana) {
-  switch (pestana) {
-    case 0:
-      return 'track';
-    case 1:
-      return 'playlist';
-    case 2:
-      return 'album';
-    case 3:
-      return 'artist';
-    default:
-      return '';
-  }
-}
-
-/// Contador de canciones amadas + descargadas con la misma dedup
-/// que itemsParaPestana (para la insignia del perfil).
-int contarTracks(EstadoLikes estado, {CubitDescargas? cubitDescargas}) {
-  final vistosId = <String>{};
-  final vistosClave = <String>{};
-  for (final i in estado.todosAmados.values.where((i) => i.type == 'track')) {
-    vistosId.add(normalizarIdTrack(i.id));
-    vistosClave.add('${_normalizarNombre(i.name)}|${_normalizarNombre(i.artists ?? '')}');
-  }
-  var count = vistosId.length;
-  if (cubitDescargas != null) {
-    for (final t in cubitDescargas.tracksCompletados) {
-      final normId = normalizarIdTrack(t.id);
-      final clave = '${_normalizarNombre(t.name)}|${_normalizarNombre(t.artists ?? '')}';
-      if (!vistosId.contains(normId) && !vistosClave.contains(clave)) {
-        vistosId.add(normId);
-        vistosClave.add(clave);
-        count++;
-      }
-    }
-  }
-  return count;
 }

@@ -90,6 +90,34 @@ type Client struct {
 	sitiosMu sync.RWMutex
 	sitios   []sitioFLAC
 
+	// idsArcods memoriza ISRC → id de pista del canal arcod (ver arcod.go): su
+	// catálogo es el de Qobuz, así que el id de una grabación no cambia.
+	idsArcodsMu sync.Mutex
+	idsArcods   map[string]string
+
+	// arcodBase es la dirección del canal arcod. Es un campo (y no la constante)
+	// para poder apuntarlo a una instancia PROPIA desde Ajustes y a un servidor
+	// de prueba en los tests.
+	arcodBase string
+	// arcodActivo apaga el canal por ajuste, sin tocar el resto del rescate.
+	arcodActivo bool
+	// arcodToken es el Bearer opcional de esa instancia (ver arcod_acceso.go).
+	arcodToken string
+	// arcodConfMu protege la configuración del canal, que Ajustes cambia en
+	// caliente mientras otra goroutine resuelve un rescate.
+	arcodConfMu sync.RWMutex
+	// puertaArcod es la puerta del stream que funcionó (ver arcod_stream.go):
+	// recordarla evita probar las otras en cada canción.
+	puertaArcodMu sync.Mutex
+	puertaArcod   string
+	// arcodEstado lleva el presupuesto de invitado y el backoff del canal (ver
+	// arcod_cuota.go): sin él, un pool de tokens vacío se pagaba en cada
+	// reproducción.
+	arcodEstadoMu   sync.Mutex
+	arcodFallos     int
+	arcodPausaHasta time.Time
+	arcodCuota      cuotaArcod
+
 	// Canal "Qobuz firmado" (ver qobuz_firmado.go): credenciales con las que se
 	// firma la petición a la API de Qobuz. Vacías = canal apagado (estado por
 	// defecto: sin ellas no se paga ni una petición).
@@ -119,13 +147,16 @@ type cacheEntry struct {
 // NewClient crea el provider con la configuración por defecto.
 func NewClient() *Client {
 	return &Client{
-		mirrors:    append([]string(nil), defaultMirrors...),
-		origin:     defaultOrigin,
-		formato:    "FLAC",
-		http:       &http.Client{Timeout: timeoutPorPedido},
-		cache:      map[string]cacheEntry{},
-		sinCuentas: map[string]time.Time{},
-		sitios:     append([]sitioFLAC(nil), sitiosConocidos...),
+		mirrors:     append([]string(nil), defaultMirrors...),
+		origin:      defaultOrigin,
+		formato:     "FLAC",
+		http:        &http.Client{Timeout: timeoutPorPedido},
+		cache:       map[string]cacheEntry{},
+		sinCuentas:  map[string]time.Time{},
+		sitios:      append([]sitioFLAC(nil), sitiosConocidos...),
+		idsArcods:   map[string]string{},
+		arcodBase:   baseArcod,
+		arcodActivo: arcodPorDefecto,
 	}
 }
 
@@ -180,6 +211,7 @@ func (c *Client) SetSettings(settings map[string]string) {
 	}
 	c.aplicarAjustesEspejos(settings)
 	c.habilitarSitios(settings)
+	c.aplicarAjusteArcod(settings)
 	c.SetSettingsQobuz(settings)
 }
 

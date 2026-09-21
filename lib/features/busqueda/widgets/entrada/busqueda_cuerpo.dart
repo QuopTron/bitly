@@ -17,6 +17,7 @@ import '../../../../core/cache/estado/estado_like.dart';
 import '../../../../core/modelos/feed/item_feed.dart';
 import '../../../../estado/descargas/cubit_descargas.dart';
 import '../../../../estado/like/cubit_like.dart';
+import '../../bloc/busqueda_estado.dart';
 import '../resultados/resultados_busqueda.dart';
 import 'busqueda_pegar_url.dart';
 import 'busqueda_recientes.dart';
@@ -28,7 +29,10 @@ class CuerpoBusqueda extends StatelessWidget {
   final List<ItemFeed> resultados;
   final bool cargando;
   final bool haBuscado;
-  final String? error;
+
+  /// Código del error (lo traduce el cuerpo de resultados).
+  final ErrorBusqueda? error;
+  final String fuenteError;
   final bool mostrarResultados;
   final bool mostrarRecientes;
   final List<String> busquedasRecientes;
@@ -54,6 +58,7 @@ class CuerpoBusqueda extends StatelessWidget {
     required this.cargando,
     required this.haBuscado,
     this.error,
+    this.fuenteError = '',
     required this.mostrarResultados,
     required this.mostrarRecientes,
     required this.busquedasRecientes,
@@ -76,12 +81,16 @@ class CuerpoBusqueda extends StatelessWidget {
     return BlocSelector<CubitLikes, EstadoLikes, Set<String>>(
       selector: (estado) => estado.huellasAmadas,
       builder: (context, idsAmados) {
-        return BlocSelector<CubitDescargas, EstadoCubitDescargas,
-            SnapshotDescargasBusqueda>(
-          selector: (dl) => SnapshotDescargasBusqueda(
-            dl.descargas.map((k, v) => MapEntry(k, v.estado)),
-            dl.huellasDescargadas,
-          ),
+        return BlocSelector<
+          CubitDescargas,
+          EstadoCubitDescargas,
+          SnapshotDescargasBusqueda
+        >(
+          selector:
+              (dl) => SnapshotDescargasBusqueda(
+                dl.descargas.map((k, v) => MapEntry(k, v.estado)),
+                dl.huellasDescargadas,
+              ),
           builder: (context, snap) {
             if (mostrarResultados) {
               return CuerpoResultadosBusqueda(
@@ -91,6 +100,7 @@ class CuerpoBusqueda extends StatelessWidget {
                 cargando: cargando,
                 haBuscado: haBuscado,
                 error: error,
+                fuenteError: fuenteError,
                 idsAmados: idsAmados,
                 estadosDescarga: snap.estados,
                 huellasDescargadas: snap.huellas,
@@ -102,8 +112,7 @@ class CuerpoBusqueda extends StatelessWidget {
                 onExportarPlaylist: onExportarPlaylist,
                 onMostrarInfo: onMostrarInfo,
                 onMostrarMas: onMostrarMas,
-                onNavegarItem: onNavegarItem ??
-                    (_) {},
+                onNavegarItem: onNavegarItem ?? (_) {},
               );
             }
             if (mostrarRecientes) {

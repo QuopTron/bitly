@@ -72,14 +72,16 @@ String? _extraerDelCuerpo(String cuerpo) {
 /// los print/debugPrint no son visibles.
 void _debugLog(String mensaje) {
   try {
-    final base = Platform.environment['APPDATA'] ??
+    final base =
+        Platform.environment['APPDATA'] ??
         Platform.environment['LOCALAPPDATA'] ??
         '';
     if (base.isEmpty) return;
     final dir = Directory('$base${Platform.pathSeparator}Bitly');
     if (!dir.existsSync()) dir.createSync(recursive: true);
-    final archivo =
-        File('${dir.path}${Platform.pathSeparator}verificacion_loopback.log');
+    final archivo = File(
+      '${dir.path}${Platform.pathSeparator}verificacion_loopback.log',
+    );
     final linea = '[${DateTime.now().toIso8601String()}] $mensaje\n';
     archivo.writeAsStringSync(linea, mode: FileMode.append);
   } catch (e) {

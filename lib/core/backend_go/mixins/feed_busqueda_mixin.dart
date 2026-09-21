@@ -20,7 +20,9 @@ mixin FeedBusquedaMixin on BackendService {
   @override
   Future<List<SeccionFeed>> getHomeFeed({String locale = 'en'}) async {
     try {
-      return AyudantesBackend.parsearSeccionesFeed(await rpcCall('getHomeFeed', {'locale': locale}));
+      return AyudantesBackend.parsearSeccionesFeed(
+        await rpcCall('getHomeFeed', {'locale': locale}),
+      );
     } catch (_) {
       return [];
     }
@@ -33,7 +35,9 @@ mixin FeedBusquedaMixin on BackendService {
       if (resultado is List) return resultado.map((e) => e.toString()).toList();
       if (resultado is String && resultado.isNotEmpty) {
         final decodificado = jsonDecode(resultado);
-        if (decodificado is List) return decodificado.map((e) => e.toString()).toList();
+        if (decodificado is List) {
+          return decodificado.map((e) => e.toString()).toList();
+        }
       }
       return [];
     } catch (_) {
@@ -65,11 +69,18 @@ mixin FeedBusquedaMixin on BackendService {
     }
   }
 
-  Future<List<ItemFeed>> _ejecutarBusqueda(String query, String source, String type, int limit) async {
+  Future<List<ItemFeed>> _ejecutarBusqueda(
+    String query,
+    String source,
+    String type,
+    int limit,
+  ) async {
     final params = <String, dynamic>{'query': query, 'limit': limit};
     if (source.isNotEmpty) params['source'] = source;
     if (type.isNotEmpty) params['type'] = type;
-    return AyudantesBackend.parsearResultadosBusqueda(await rpcCall('search', params));
+    return AyudantesBackend.parsearResultadosBusqueda(
+      await rpcCall('search', params),
+    );
   }
 
   // ── Búsqueda en streaming ──────────────────────────────
@@ -105,11 +116,23 @@ mixin FeedBusquedaMixin on BackendService {
         final items = AyudantesBackend.parsearResultadosBusqueda(raw['items']);
         final done = raw['done'] == true;
         final gen = (raw['generation'] as num?)?.toInt() ?? 0;
-        return ResultadosBusquedaStream(items: items, done: done, generation: gen);
+        return ResultadosBusquedaStream(
+          items: items,
+          done: done,
+          generation: gen,
+        );
       }
-      return const ResultadosBusquedaStream(items: [], done: true, generation: 0);
+      return const ResultadosBusquedaStream(
+        items: [],
+        done: true,
+        generation: 0,
+      );
     } catch (_) {
-      return const ResultadosBusquedaStream(items: [], done: true, generation: 0);
+      return const ResultadosBusquedaStream(
+        items: [],
+        done: true,
+        generation: 0,
+      );
     }
   }
 
@@ -119,7 +142,11 @@ mixin FeedBusquedaMixin on BackendService {
       final resultado = await rpcCall('getSearchConfig');
       final raw = resultado is String ? jsonDecode(resultado) : resultado;
       if (raw is List) {
-        return raw.map((e) => ConfigBusquedaFuente.desdeJson(e as Map<String, dynamic>)).toList();
+        return raw
+            .map(
+              (e) => ConfigBusquedaFuente.desdeJson(e as Map<String, dynamic>),
+            )
+            .toList();
       }
       return [];
     } catch (_) {

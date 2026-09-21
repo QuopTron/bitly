@@ -22,12 +22,14 @@ class EsqueletoBusqueda extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final oscuro = Theme.of(context).brightness == Brightness.dark;
-    final base = oscuro
-        ? Colors.white.withValues(alpha: 0.06)
-        : Colors.black.withValues(alpha: 0.05);
-    final brillo = oscuro
-        ? Colors.white.withValues(alpha: 0.12)
-        : Colors.black.withValues(alpha: 0.08);
+    final base =
+        oscuro
+            ? Colors.white.withValues(alpha: 0.06)
+            : Colors.black.withValues(alpha: 0.05);
+    final brillo =
+        oscuro
+            ? Colors.white.withValues(alpha: 0.12)
+            : Colors.black.withValues(alpha: 0.08);
 
     // Vista por defecto (sin chip): cabeceras + tracks + grilla.
     if (tipoSeleccionado == null) {
@@ -38,7 +40,9 @@ class EsqueletoBusqueda extends StatelessWidget {
           _EncabezadoSeccion(base: base, brillo: brillo),
           const SizedBox(height: 8),
           ...List.generate(
-              4, (_) => _TarjetaTrackEsqueleto(base: base, brillo: brillo)),
+            4,
+            (_) => _TarjetaTrackEsqueleto(base: base, brillo: brillo),
+          ),
           const SizedBox(height: 16),
           _EncabezadoSeccion(base: base, brillo: brillo),
           const SizedBox(height: 8),
@@ -53,7 +57,9 @@ class EsqueletoBusqueda extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         physics: const NeverScrollableScrollPhysics(),
         children: List.generate(
-            6, (_) => _TarjetaTrackEsqueleto(base: base, brillo: brillo)),
+          6,
+          (_) => _TarjetaTrackEsqueleto(base: base, brillo: brillo),
+        ),
       );
     }
 

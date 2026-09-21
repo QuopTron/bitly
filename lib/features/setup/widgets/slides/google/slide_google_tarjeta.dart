@@ -14,7 +14,10 @@ Widget _tarjetaInfo(_SlideGoogleState st, Color onBg, Color glowColor) {
   final filas = [
     (
       Icons.bolt,
-      st._t('Streams más rápidos y sin errores 403', 'Faster streams and no 403 errors'),
+      st._t(
+        'Streams más rápidos y sin errores 403',
+        'Faster streams and no 403 errors',
+      ),
       st._t(
         'Con sesión, YouTube trata tu app como cuenta autenticada y deja de '
             'bloquear los streams anónimos.',

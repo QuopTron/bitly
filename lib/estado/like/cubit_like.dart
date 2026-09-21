@@ -18,6 +18,7 @@ import 'package:flutter/foundation.dart' show debugPrint, protected;
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../app/inyeccion.dart' as di;
+import '../../core/backend_go/mixins/infra_mixin.dart';
 import '../../core/backend_go/nucleo/contrato_backend.dart';
 import '../../core/base_datos/app_database.dart';
 import '../../core/base_datos/daos/content_dao.dart';
@@ -67,7 +68,10 @@ class CubitLikes extends Cubit<EstadoLikes>
       await cargarFavoritos();
       _inicializado = true;
     } catch (e) {
-      emit(state.copiarCon(cargando: false, error: e.toString()));
+      // El estado no guarda texto: el motivo queda en el log y los likes
+      // simplemente quedan sin cargar (se reintenta al reabrir).
+      debugPrint('[likes] no se pudieron cargar los favoritos: $e');
+      emit(state.copiarCon(cargando: false));
     }
   }
 
@@ -96,20 +100,21 @@ class CubitLikes extends Cubit<EstadoLikes>
   String? caratulaLocalPara(ItemFeed item) {
     // 1. Carátula local del like (la más específica).
     final fp = huellaItem(item);
-    final coincidente = state.todosAmados.values.where((v) {
-      final feedItem = ItemFeed(
-        id: v.id,
-        type: v.type,
-        name: v.name,
-        artists: v.artists,
-        coverUrl: v.coverUrl,
-        albumName: v.albumName,
-        durationMs: v.durationMs,
-        isrc: v.isrc,
-        source: v.source,
-      );
-      return huellaItem(feedItem) == fp;
-    }).firstOrNull;
+    final coincidente =
+        state.todosAmados.values.where((v) {
+          final feedItem = ItemFeed(
+            id: v.id,
+            type: v.type,
+            name: v.name,
+            artists: v.artists,
+            coverUrl: v.coverUrl,
+            albumName: v.albumName,
+            durationMs: v.durationMs,
+            isrc: v.isrc,
+            source: v.source,
+          );
+          return huellaItem(feedItem) == fp;
+        }).firstOrNull;
     final likeLocal = limpiarRutaCaratulaLocal(coincidente?.rutaCaratulaLocal);
     if (likeLocal != null && likeLocal.isNotEmpty) return likeLocal;
 
@@ -123,12 +128,15 @@ class CubitLikes extends Cubit<EstadoLikes>
         );
         if (dlCover != null && dlCover.isNotEmpty) return dlCover;
       } else if (item.type == 'album' || item.type == 'playlist') {
-        final batchKey = '${item.type}_${normalizarId(item.id)}_'
+        final batchKey =
+            '${item.type}_${normalizarId(item.id)}_'
             '${item.source ?? ''}';
         final batchCover = descargas.caratulaLotePara(batchKey);
         if (batchCover.isNotEmpty) return batchCover;
       }
-    } catch (e) { debugPrint("[App] $e"); }
+    } catch (e) {
+      debugPrint("[App] $e");
+    }
 
     // 3. Fallback a la URL de red original.
     return item.coverUrl;

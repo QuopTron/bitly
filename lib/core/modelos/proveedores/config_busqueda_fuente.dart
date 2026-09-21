@@ -56,8 +56,12 @@ class ConfigBusquedaFuente {
       primary: json['primary'] as bool? ?? false,
       thumbnailRatio: json['thumbnailRatio'] as String? ?? '',
       placeholder: json['placeholder'] as String? ?? '',
-      filters: (json['filters'] as List?)
-              ?.map((e) => ConfigFiltroBusqueda.desdeJson(e as Map<String, dynamic>))
+      filters:
+          (json['filters'] as List?)
+              ?.map(
+                (e) =>
+                    ConfigFiltroBusqueda.desdeJson(e as Map<String, dynamic>),
+              )
               .toList() ??
           const [],
     );

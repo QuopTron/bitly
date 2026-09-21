@@ -25,7 +25,11 @@ Widget _icono(_SlideVerificacionState st, Color onBg) => Container(
   ),
 );
 
-Widget _listaProveedores(_SlideVerificacionState st, Color onBg, Color glowColor) {
+Widget _listaProveedores(
+  _SlideVerificacionState st,
+  Color onBg,
+  Color glowColor,
+) {
   return Padding(
     padding: EdgeInsets.symmetric(horizontal: st.widget.r.spacingXL),
     child: ContenedorVidrio(
@@ -84,9 +88,10 @@ Widget _filaProveedor(
             nombreMostrado,
             style: TextStyle(
               fontSize: st.widget.r.footerSize,
-              color: estado == _EstadoProveedor.verificado
-                  ? onBg.withValues(alpha: 0.8)
-                  : onBg.withValues(alpha: 0.5),
+              color:
+                  estado == _EstadoProveedor.verificado
+                      ? onBg.withValues(alpha: 0.8)
+                      : onBg.withValues(alpha: 0.5),
             ),
           ),
         ),
@@ -94,10 +99,7 @@ Widget _filaProveedor(
           SizedBox(
             width: st.widget.r.footerSize,
             height: st.widget.r.footerSize,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: glowColor,
-            ),
+            child: CircularProgressIndicator(strokeWidth: 2, color: glowColor),
           ),
       ],
     ),
@@ -112,9 +114,10 @@ Widget _acciones(_SlideVerificacionState st, Color onBg, Color glowColor) {
   return Padding(
     padding: EdgeInsets.symmetric(horizontal: st.widget.r.spacingXL),
     child: BotonVidrio(
-      label: puedeContinuar
-          ? st.widget.loc.setup.continueText
-          : st.widget.loc.setup.verificationStart,
+      label:
+          puedeContinuar
+              ? st.widget.loc.setup.continueText
+              : st.widget.loc.setup.verificationStart,
       onPressed: () {
         if (!st._verificacionIniciada) {
           unawaited(_iniciarVerificacionSt(st));

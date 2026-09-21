@@ -15,6 +15,8 @@ import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 
+import '../../../shared/utilidades/formato/l10n_servicio.dart';
+
 /// Página de consentimiento de Google dentro de una WebView embebida.
 class PaginaWebViewOAuth extends StatefulWidget {
   final String authUrl;
@@ -49,15 +51,16 @@ class _PaginaWebViewOAuthState extends State<PaginaWebViewOAuth> {
   @override
   void initState() {
     super.initState();
-    _controlador = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onPageStarted: _onUrlChange,
-          onWebResourceError: (_) {},
-        ),
-      )
-      ..loadRequest(Uri.parse(widget.authUrl));
+    _controlador =
+        WebViewController()
+          ..setJavaScriptMode(JavaScriptMode.unrestricted)
+          ..setNavigationDelegate(
+            NavigationDelegate(
+              onPageStarted: _onUrlChange,
+              onWebResourceError: (_) {},
+            ),
+          )
+          ..loadRequest(Uri.parse(widget.authUrl));
 
     // UA tipo Chrome para que el consentimiento se renderice en la WebView.
     // En Android se usa el UA móvil; en Windows/Linux se usa el de escritorio
@@ -96,7 +99,7 @@ class _PaginaWebViewOAuthState extends State<PaginaWebViewOAuth> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Conectar con Google'),
+        title: Text(L10n.actual.google.tituloWebView),
         backgroundColor: const Color(0xFF1A1A2E),
         foregroundColor: Colors.white,
         leading: IconButton(

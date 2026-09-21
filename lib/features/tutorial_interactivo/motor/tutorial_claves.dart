@@ -42,7 +42,7 @@ final keyTutorialMiniplayer = GlobalKey();
 /// Cabecera del perfil en Mi Espacio (desde ahí se abren los ajustes).
 final keyTutorialAjustes = GlobalKey();
 
-/// Fila de burbujas de la hoja de ajustes (las 4 pestañas).
+/// Fila de burbujas de la hoja de ajustes (todas las pestañas).
 final keyTutorialAjustesTabs = GlobalKey();
 
 /// Área de contenido de la hoja de ajustes (cambia con cada pestaña).
@@ -58,6 +58,16 @@ class PestanaAjustes {
   /// Estadísticas + compartidos.
   static const int estadisticas = 3;
 
-  /// Más (última desde que Estadísticas tiene su propia burbuja).
-  static const int mas = 4;
+  /// Tu plan, la prueba y Google (antes dentro de Más).
+  static const int cuenta = 4;
+
+  /// Soulseek y la biblioteca local (antes dentro de Más).
+  static const int proveedores = 5;
+
+  /// Los aparatos de la cuenta y la prueba de la conexión multi.
+  static const int conexion = 6;
+
+  /// Más (reporte, caché y versión). Es la última desde que Cuenta,
+  /// Proveedores y Conexión salieron de ahí.
+  static const int mas = 7;
 }

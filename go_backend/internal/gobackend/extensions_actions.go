@@ -6,6 +6,7 @@ import (
 	"github.com/zarz/bitly/go_backend/internal/extensions"
 	"github.com/zarz/bitly/go_backend/internal/provider"
 	"github.com/zarz/bitly/go_backend/internal/provider/flacrescue"
+	"github.com/zarz/bitly/go_backend/internal/provider/youtube"
 )
 
 func ReinitializeExtension(payload string) string {
@@ -31,6 +32,19 @@ func ReinitializeExtension(payload string) string {
 			if p := reg.Get("flac-rescue"); p != nil {
 				if fc, ok := p.(*flacrescue.Client); ok {
 					fc.SetSettings(settings)
+				}
+			}
+		}
+		return `{"ok":true}`
+	}
+	// youtube también es NATIVO: el guardado de la instancia propia de cobalt
+	// (Ajustes → Descargas → Avanzado) tiene que verse al instante, sin
+	// esperar a un reinicio.
+	if params.ExtensionID == "youtube" {
+		if reg != nil {
+			if p := reg.Get("youtube"); p != nil {
+				if yc, ok := p.(*youtube.Client); ok {
+					yc.SetSettings(settings)
 				}
 			}
 		}

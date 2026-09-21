@@ -28,7 +28,9 @@ mixin SesionesFirmadasMixin on BackendService {
   @override
   Future<String> getPendingVerificationUrl(String extensionId) async {
     try {
-      final resultado = await rpcCall('getPendingVerificationUrl', {'extension_id': extensionId});
+      final resultado = await rpcCall('getPendingVerificationUrl', {
+        'extension_id': extensionId,
+      });
       return _extraerUrlAuth(resultado);
     } catch (_) {
       return '';
@@ -38,7 +40,9 @@ mixin SesionesFirmadasMixin on BackendService {
   @override
   Future<String> triggerExtensionVerification(String extensionId) async {
     try {
-      final resultado = await rpcCall('triggerExtensionVerification', {'extension_id': extensionId});
+      final resultado = await rpcCall('triggerExtensionVerification', {
+        'extension_id': extensionId,
+      });
       return _extraerUrlAuth(resultado);
     } catch (_) {
       return '';
@@ -76,26 +80,36 @@ mixin SesionesFirmadasMixin on BackendService {
   Future<EstadoSesionFirmada> getSignedSessionStatus(String extensionId) async {
     // Devuelve el caché si sigue fresco (evita golpear el backend).
     final cacheado = _cacheEstadoFirmado[extensionId];
-    if (cacheado != null && DateTime.now().difference(cacheado.$2) < _ttlCacheEstadoFirmado) {
+    if (cacheado != null &&
+        DateTime.now().difference(cacheado.$2) < _ttlCacheEstadoFirmado) {
       return cacheado.$1;
     }
     try {
-      final resultado = await rpcCall('getSignedSessionStatus', {'extension_id': extensionId}, const Duration(seconds: 10));
+      final resultado = await rpcCall('getSignedSessionStatus', {
+        'extension_id': extensionId,
+      }, const Duration(seconds: 10));
       EstadoSesionFirmada estado;
       if (resultado is Map) {
-        estado = EstadoSesionFirmada.desdeJson(Map<String, dynamic>.from(resultado));
+        estado = EstadoSesionFirmada.desdeJson(
+          Map<String, dynamic>.from(resultado),
+        );
       } else if (resultado is String && resultado.isNotEmpty) {
         final decodificado = jsonDecode(resultado);
-        estado = (decodificado is Map)
-            ? EstadoSesionFirmada.desdeJson(Map<String, dynamic>.from(decodificado))
-            : const EstadoSesionFirmada();
+        estado =
+            (decodificado is Map)
+                ? EstadoSesionFirmada.desdeJson(
+                  Map<String, dynamic>.from(decodificado),
+                )
+                : const EstadoSesionFirmada();
       } else {
         estado = const EstadoSesionFirmada();
       }
       _cacheEstadoFirmado[extensionId] = (estado, DateTime.now());
       return estado;
     } catch (e) {
-      _logSesiones.w('[sesiones] getSignedSessionStatus error para $extensionId: $e');
+      _logSesiones.w(
+        '[sesiones] getSignedSessionStatus error para $extensionId: $e',
+      );
       return const EstadoSesionFirmada();
     }
   }

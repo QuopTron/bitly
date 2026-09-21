@@ -27,9 +27,10 @@ import '../../../shared/utilidades/plataforma/responsive.dart';
 import '../../../shared/widgets/esqueletos/esqueleto_carga.dart';
 import '../../../shared/widgets/tarjetas/grilla/tarjeta_grilla.dart';
 import '../../../shared/widgets/tarjetas/track/tarjeta_track.dart';
-import '../../../shared/utilidades/formato/apariencia_helper.dart';
 import '../../../shared/utilidades/formato/estilo_helper.dart';
 import '../../../core/servicios/compartir/servicio_compartir.dart';
+import '../../../shared/utilidades/formato/apariencia_espacios_helper.dart';
+import '../../../shared/utilidades/formato/apariencia_helper.dart';
 
 part 'contenido_feed_estado.dart';
 part 'contenido_feed_grillas.dart';

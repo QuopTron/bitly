@@ -48,8 +48,9 @@ class SetupMovil extends StatelessWidget {
               duration: const Duration(milliseconds: 400),
               switchInCurve: Curves.easeInOut,
               switchOutCurve: Curves.easeInOut,
-              transitionBuilder: (child, animation) =>
-                  FadeTransition(opacity: animation, child: child),
+              transitionBuilder:
+                  (child, animation) =>
+                      FadeTransition(opacity: animation, child: child),
               child: SizedBox(
                 key: ValueKey(state.paso),
                 width: anchoMax,

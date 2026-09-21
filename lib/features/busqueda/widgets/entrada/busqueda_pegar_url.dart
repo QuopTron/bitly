@@ -30,8 +30,11 @@ class VistaPegarUrl extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.link,
-                size: r.titleSize * 1.5, color: onBg.withValues(alpha: 0.15)),
+            Icon(
+              Icons.link,
+              size: r.titleSize * 1.5,
+              color: onBg.withValues(alpha: 0.15),
+            ),
             SizedBox(height: r.spacingM),
             Text(
               loc.setup.searchPasteHint,
@@ -61,11 +64,18 @@ class VistaPegarUrl extends StatelessWidget {
       borderRadius: 20,
       borderColor: onBg.withValues(alpha: 0.1),
       bgColor: onBg.withValues(alpha: 0.04),
-      padding: EdgeInsets.symmetric(horizontal: r.spacingM, vertical: r.spacingXS),
+      padding: EdgeInsets.symmetric(
+        horizontal: r.spacingM,
+        vertical: r.spacingXS,
+      ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icono, size: r.footerSize + 2, color: onBg.withValues(alpha: 0.6)),
+          Icon(
+            icono,
+            size: r.footerSize + 2,
+            color: onBg.withValues(alpha: 0.6),
+          ),
           SizedBox(width: r.spacingXS),
           Text(
             etiqueta,

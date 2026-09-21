@@ -48,53 +48,62 @@ class ChipsTipoBusqueda extends StatelessWidget {
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
-          children: filtros.map((f) {
-            final cat = categoriaBusquedaDe(f.id);
-            final sel = tipoSeleccionado == cat;
-            return Padding(
-              padding: EdgeInsets.only(right: r.spacingXS),
-              child: GestureDetector(
-                onTap: () => onTipoCambiado(cat),
-                child: ContenedorVidrio(
-                  borderRadius: 22,
-                  borderColor: sel
-                      ? onBg.withValues(alpha: 0.2)
-                      : onBg.withValues(alpha: 0.08),
-                  bgColor:
-                      sel ? onBg.withValues(alpha: 0.1) : Colors.transparent,
-                  padding: EdgeInsets.symmetric(
-                    horizontal: r.spacingM + 2,
-                    vertical: r.spacingXS + 2,
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        iconoFiltroBusqueda(f.icon, cat),
-                        size: r.footerSize + 3,
-                        color: sel ? onBg : onBg.withValues(alpha: 0.5),
+          children:
+              filtros.map((f) {
+                final cat = categoriaBusquedaDe(f.id);
+                final sel = tipoSeleccionado == cat;
+                return Padding(
+                  padding: EdgeInsets.only(right: r.spacingXS),
+                  child: GestureDetector(
+                    onTap: () => onTipoCambiado(cat),
+                    child: ContenedorVidrio(
+                      borderRadius: 22,
+                      borderColor:
+                          sel
+                              ? onBg.withValues(alpha: 0.2)
+                              : onBg.withValues(alpha: 0.08),
+                      bgColor:
+                          sel
+                              ? onBg.withValues(alpha: 0.1)
+                              : Colors.transparent,
+                      padding: EdgeInsets.symmetric(
+                        horizontal: r.spacingM + 2,
+                        vertical: r.spacingXS + 2,
                       ),
-                      SizedBox(width: r.spacingXS),
-                      Text(
-                        _etiquetaTipo(cat, f.label, loc),
-                        style: TextStyle(
-                          fontSize: r.subtitleSize,
-                          color: sel ? onBg : onBg.withValues(alpha: 0.55),
-                          fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
-                        ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            iconoFiltroBusqueda(f.icon, cat),
+                            size: r.footerSize + 3,
+                            color: sel ? onBg : onBg.withValues(alpha: 0.5),
+                          ),
+                          SizedBox(width: r.spacingXS),
+                          Text(
+                            _etiquetaTipo(cat, f.label, loc),
+                            style: TextStyle(
+                              fontSize: r.subtitleSize,
+                              color: sel ? onBg : onBg.withValues(alpha: 0.55),
+                              fontWeight:
+                                  sel ? FontWeight.w700 : FontWeight.w500,
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
-                ),
-              ),
-            );
-          }).toList(),
+                );
+              }).toList(),
         ),
       ),
     );
   }
 
-  String _etiquetaTipo(String cat, String etiquetaManifest, AppLocalizations loc) {
+  String _etiquetaTipo(
+    String cat,
+    String etiquetaManifest,
+    AppLocalizations loc,
+  ) {
     if (etiquetaManifest.isNotEmpty) return etiquetaManifest;
     switch (cat) {
       case 'tracks':

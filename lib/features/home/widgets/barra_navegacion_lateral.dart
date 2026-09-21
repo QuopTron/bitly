@@ -12,6 +12,7 @@
 
 import 'package:flutter/material.dart';
 
+import '../../../l10n/app_localizations.dart';
 import '../../../shared/tema/colores_app.dart';
 import '../../../shared/widgets/vidrio/contenedor_vidrio.dart';
 import 'barra_lateral_item.dart';
@@ -32,15 +33,20 @@ class BarraNavegacionLateral extends StatelessWidget {
     required this.onTap,
   });
 
-  static const _items = [
-    ItemLateral(Icons.search_rounded, 'Buscar'),
-    ItemLateral(Icons.home_rounded, 'Inicio'),
-    ItemLateral(Icons.grid_view_rounded, 'Mi Espacio'),
+  static const _icons = [
+    Icons.search_rounded,
+    Icons.home_rounded,
+    Icons.grid_view_rounded,
   ];
 
   @override
   Widget build(BuildContext context) {
     final onBg = ColoresApp.enSuperficie(isDark);
+    final nav = AppLocalizations.of(context).nav;
+    final items = [
+      for (var i = 0; i < _icons.length; i++)
+        ItemLateral(_icons[i], nav.pestanas[i]),
+    ];
 
     return SizedBox(
       width: anchoBarraLateral,
@@ -75,9 +81,9 @@ class BarraNavegacionLateral extends StatelessWidget {
             const SizedBox(height: 28),
             // Secciones de navegación (hover + indicador animado).
             ...List.generate(
-              _items.length,
-              (i) =>              ItemLateralAnimado(
-                item: _items[i],
+              items.length,
+              (i) => ItemLateralAnimado(
+                item: items[i],
                 seleccionado: currentIndex == i,
                 onBg: onBg,
                 onTap: () => onTap(i),
@@ -90,4 +96,3 @@ class BarraNavegacionLateral extends StatelessWidget {
     );
   }
 }
-

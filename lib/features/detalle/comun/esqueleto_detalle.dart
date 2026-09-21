@@ -33,10 +33,7 @@ class EsqueletoDetalle extends StatelessWidget {
             ),
           ),
           SizedBox(height: 24),
-          EsqueletoCarga(
-            ancho: r.val(200, 240, 280),
-            alto: 16,
-          ),
+          EsqueletoCarga(ancho: r.val(200, 240, 280), alto: 16),
         ],
       ),
     );

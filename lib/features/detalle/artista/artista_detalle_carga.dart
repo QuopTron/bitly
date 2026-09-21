@@ -48,19 +48,24 @@ Future<void> _cargarDetalleArtista(_ArtistaDetallePaginaState st) async {
     try {
       var json = await cache.getDetalleArtista(st.widget.artistId);
       if (json == null || json.isEmpty || json == '{}') {
-        final jsonRemoto =
-            await backend.fetchArtistDetail(st.widget.artistId, st.widget.source);
+        final jsonRemoto = await backend.fetchArtistDetail(
+          st.widget.artistId,
+          st.widget.source,
+        );
         if (jsonRemoto.isNotEmpty && jsonRemoto != '{}') {
           json = jsonRemoto;
           await cache.guardarDetalleArtista(st.widget.artistId, jsonRemoto);
         }
       }
       if (json != null && json.isNotEmpty && json != '{}') {
-        detalle =
-            DetalleArtista.desdeJson(jsonDecode(json) as Map<String, dynamic>);
+        detalle = DetalleArtista.desdeJson(
+          jsonDecode(json) as Map<String, dynamic>,
+        );
         memoria.setArtista(st.widget.artistId, detalle);
       }
-    } catch (e) { debugPrint("[Feature] $e"); }
+    } catch (e) {
+      debugPrint("[Feature] $e");
+    }
   }
 
   // 4) Nada encontrado: marcar error si quedó null.
@@ -81,16 +86,24 @@ Future<void> _refrescarArtista(
   BackendService backend,
 ) async {
   try {
-    final json = await backend.fetchArtistDetail(st.widget.artistId, st.widget.source);
+    final json = await backend.fetchArtistDetail(
+      st.widget.artistId,
+      st.widget.source,
+    );
     if (json.isEmpty || json == '{}') return;
-    final fresco =
-        DetalleArtista.desdeJson(jsonDecode(json) as Map<String, dynamic>);
+    final fresco = DetalleArtista.desdeJson(
+      jsonDecode(json) as Map<String, dynamic>,
+    );
     sl<CacheDetalleMemoria>().setArtista(st.widget.artistId, fresco);
-    await sl<ReproduccionSync>()
-        .sincronizarDetalleArtista(fresco, fuente: st.widget.source);
+    await sl<ReproduccionSync>().sincronizarDetalleArtista(
+      fresco,
+      fuente: st.widget.source,
+    );
     await cache.guardarDetalleArtista(st.widget.artistId, json);
     st._artista = fresco;
     st._error = false;
     st.repintar();
-  } catch (e) { debugPrint("[Feature] $e"); }
+  } catch (e) {
+    debugPrint("[Feature] $e");
+  }
 }

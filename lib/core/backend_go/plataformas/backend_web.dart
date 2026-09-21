@@ -57,7 +57,7 @@ class BackendWeb extends BackendService
         PremiumMixin,
         EditorEtiquetasMixin,
         EnlacesMixin,
-    IsrcMixin,
+        IsrcMixin,
         SesionesFirmadasMixin,
         SesionesAccionesMixin,
         SesionesKeepaliveMixin,
@@ -70,8 +70,8 @@ class BackendWeb extends BackendService
   int _contadorId = 1;
 
   BackendWeb({Uri? baseUrl, http.Client? cliente})
-      : baseUrl = baseUrl ?? _endpointPorDefecto(),
-        _cliente = cliente ?? http.Client();
+    : baseUrl = baseUrl ?? _endpointPorDefecto(),
+      _cliente = cliente ?? http.Client();
 
   /// Resuelve el endpoint. Permite apuntar a otro host con
   /// `?backend=http://127.0.0.1:8080/rpc` (útil si la web se sirve
@@ -98,14 +98,29 @@ class BackendWeb extends BackendService
   }
 
   @override
-  Future<dynamic> rpcCall(String method, [Map<String, dynamic>? params, Duration? timeout]) async {
-    final body = jsonEncode({'jsonrpc': '2.0', 'id': _contadorId++, 'method': method, 'params': params ?? {}});
+  Future<dynamic> rpcCall(
+    String method, [
+    Map<String, dynamic>? params,
+    Duration? timeout,
+  ]) async {
+    final body = jsonEncode({
+      'jsonrpc': '2.0',
+      'id': _contadorId++,
+      'method': method,
+      'params': params ?? {},
+    });
     final res = await _cliente
-        .post(baseUrl, headers: {'Content-Type': 'application/json'}, body: body)
+        .post(
+          baseUrl,
+          headers: {'Content-Type': 'application/json'},
+          body: body,
+        )
         .timeout(timeout ?? const Duration(seconds: 60));
     final decodificado = jsonDecode(res.body);
     if (decodificado is! Map) throw Exception('Respuesta RPC inesperada');
-    if (decodificado['error'] != null) throw Exception(decodificado['error'] ?? 'Error RPC');
+    if (decodificado['error'] != null) {
+      throw Exception(decodificado['error'] ?? 'Error RPC');
+    }
     return decodificado['result'];
   }
 
@@ -126,13 +141,17 @@ class BackendWeb extends BackendService
           tier: premium.tier,
           expiresAt: premium.premiumHasta,
         );
-      } catch (e) { debugPrint("[Backend] $e"); }
+      } catch (e) {
+        debugPrint("[Backend] $e");
+      }
 
       // Perfil de rendimiento (concurrencia/buffer) ahora que el servidor
       // respondió.
       try {
         await di.empujarPerfilRendimientoABackend();
-      } catch (e) { debugPrint("[Backend] $e"); }
+      } catch (e) {
+        debugPrint("[Backend] $e");
+      }
 
       return true;
     } catch (_) {

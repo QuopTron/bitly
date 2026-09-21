@@ -26,23 +26,30 @@ Widget _construirCabecera(_PaginaFeedState st, EstadoFeed state) {
 }
 
 /// Cuerpo del feed con selectores de like y descargas.
-Widget _construirCuerpo(_PaginaFeedState st, EstadoFeed state,
-    List<SeccionFeed> secciones, bool tieneContenido) {
+Widget _construirCuerpo(
+  _PaginaFeedState st,
+  EstadoFeed state,
+  List<SeccionFeed> secciones,
+  bool tieneContenido,
+) {
   final esOscuro = Theme.of(st.context).brightness == Brightness.dark;
   final onBg = ColoresApp.enSuperficie(esOscuro);
   final colorBrillo =
       esOscuro ? ColoresApp.verdeBrillante : ColoresApp.verdeMedio;
 
   return BlocBuilder<CubitLikes, EstadoLikes>(
-    buildWhen: (prev, next) =>
-        prev.huellasAmadas != next.huellasAmadas,
+    buildWhen: (prev, next) => prev.huellasAmadas != next.huellasAmadas,
     builder: (context, estadoLike) {
-      return BlocSelector<CubitDescargas, EstadoCubitDescargas,
-          SnapshotDescargasFeed>(
-        selector: (dl) => SnapshotDescargasFeed(
-          dl.descargas.map((k, v) => MapEntry(k, v.estado)),
-          dl.huellasDescargadas,
-        ),
+      return BlocSelector<
+        CubitDescargas,
+        EstadoCubitDescargas,
+        SnapshotDescargasFeed
+      >(
+        selector:
+            (dl) => SnapshotDescargasFeed(
+              dl.descargas.map((k, v) => MapEntry(k, v.estado)),
+              dl.huellasDescargadas,
+            ),
         builder: (context, snap) {
           // El feed es el primer objetivo del tutorial: el KeyedSubtree le da
           // el GlobalKey con el que el overlay calcula el agujero. Va acá (una
@@ -69,8 +76,8 @@ Widget _construirCuerpo(_PaginaFeedState st, EstadoFeed state,
               onMostrarInfo: _mostrarInfo,
               onMostrarMas: _mostrarMas,
               onNavegarItem: st.widget.onNavegarItem ?? (_) {},
-              onRefrescar: () =>
-                  st.context.read<BlocFeed>().add(const CargarFeed()),
+              onRefrescar:
+                  () => st.context.read<BlocFeed>().add(const CargarFeed()),
             ),
           );
         },

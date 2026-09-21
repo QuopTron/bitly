@@ -2,7 +2,7 @@
 // playlists_estado.dart — Estado del cubit de playlists: lista de
 // playlists del usuario (ItemPlaylist, versión ligera con conteo de
 // tracks y carátula), el detalle actual (DetallePlaylist con tracks),
-// las stats del usuario y flags de carga/error. Incluye la conversión
+// las stats del usuario y el flag de carga. Incluye la conversión
 // PlaylistDominio → ItemPlaylist.
 // Se conecta con: cubit_playlists.dart (estado del cubit).
 // Parte del flujo: playlists (Mi Espacio y detalle).
@@ -16,14 +16,12 @@ class EstadoPlaylists extends Equatable {
   final List<ItemPlaylist> playlists;
   final DetallePlaylist? detalleActual;
   final EstadisticasUsuario? stats;
-  final String? error;
 
   const EstadoPlaylists({
     this.cargando = false,
     this.playlists = const [],
     this.detalleActual,
     this.stats,
-    this.error,
   });
 
   EstadoPlaylists copiarCon({
@@ -31,18 +29,15 @@ class EstadoPlaylists extends Equatable {
     List<ItemPlaylist>? playlists,
     DetallePlaylist? detalleActual,
     EstadisticasUsuario? stats,
-    String? error,
-  }) =>
-      EstadoPlaylists(
-        cargando: cargando ?? this.cargando,
-        playlists: playlists ?? this.playlists,
-        detalleActual: detalleActual ?? this.detalleActual,
-        stats: stats ?? this.stats,
-        error: error,
-      );
+  }) => EstadoPlaylists(
+    cargando: cargando ?? this.cargando,
+    playlists: playlists ?? this.playlists,
+    detalleActual: detalleActual ?? this.detalleActual,
+    stats: stats ?? this.stats,
+  );
 
   @override
-  List<Object?> get props => [cargando, playlists, detalleActual, stats, error];
+  List<Object?> get props => [cargando, playlists, detalleActual, stats];
 }
 
 /// Item ligero de playlist usado en [EstadoPlaylists.playlists].
@@ -61,21 +56,21 @@ class ItemPlaylist {
   });
 
   factory ItemPlaylist.desdeJson(Map<String, dynamic> json) => ItemPlaylist(
-        id: json['id'] as String? ?? '',
-        name: json['name'] as String? ?? '',
-        coverPath: json['coverPath'] as String?,
-        createdAt: json['createdAt'] as String?,
-        updatedAt: json['updatedAt'] as String?,
-        itemCount: (json['itemCount'] as num?)?.toInt() ?? 0,
-      );
+    id: json['id'] as String? ?? '',
+    name: json['name'] as String? ?? '',
+    coverPath: json['coverPath'] as String?,
+    createdAt: json['createdAt'] as String?,
+    updatedAt: json['updatedAt'] as String?,
+    itemCount: (json['itemCount'] as num?)?.toInt() ?? 0,
+  );
 }
 
 /// Convierte un [PlaylistDominio] a un [ItemPlaylist] para el estado.
 ItemPlaylist _dominioAItem(PlaylistDominio d) => ItemPlaylist(
-      id: d.id,
-      name: d.name,
-      coverPath: d.coverUrl,
-      createdAt: d.createdAt?.toIso8601String(),
-      updatedAt: d.updatedAt?.toIso8601String(),
-      itemCount: d.trackCount,
-    );
+  id: d.id,
+  name: d.name,
+  coverPath: d.coverUrl,
+  createdAt: d.createdAt?.toIso8601String(),
+  updatedAt: d.updatedAt?.toIso8601String(),
+  itemCount: d.trackCount,
+);

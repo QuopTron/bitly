@@ -22,12 +22,8 @@ import '../../core/servicios/utilidades/utilidades_id.dart';
 
 /// Resultado de verificar un lote guardado: cuántos tracks están de
 /// verdad en disco y si con eso el lote queda completo.
-typedef LoteRestaurado = ({
-  bool completo,
-  double progreso,
-  int listos,
-  int total,
-});
+typedef LoteRestaurado =
+    ({bool completo, double progreso, int listos, int total});
 
 /// ¿Es una clave que puede ser un lote de colección (álbum o playlist)?
 /// La cola de singles persiste su key interna ('_singles'), que no es
@@ -105,9 +101,13 @@ LoteRestaurado evaluarLoteRestaurado(
 /// Estado que corresponde a un lote restaurado: verde solo si está
 /// completo; parcial queda en [EstadoDescarga.ninguno] con su progreso
 /// (la UI muestra "2 / 17 descargado" y deja descargar el resto).
-DatosEstadoDescarga estadoDeLoteRestaurado(LoteRestaurado r) => r.completo
-    ? const DatosEstadoDescarga(
-        estado: EstadoDescarga.completado,
-        progreso: 1.0,
-      )
-    : DatosEstadoDescarga(estado: EstadoDescarga.ninguno, progreso: r.progreso);
+DatosEstadoDescarga estadoDeLoteRestaurado(LoteRestaurado r) =>
+    r.completo
+        ? const DatosEstadoDescarga(
+          estado: EstadoDescarga.completado,
+          progreso: 1.0,
+        )
+        : DatosEstadoDescarga(
+          estado: EstadoDescarga.ninguno,
+          progreso: r.progreso,
+        );

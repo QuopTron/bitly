@@ -20,6 +20,8 @@ import 'package:logger/logger.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../app/inyeccion.dart' as di;
+import '../../../shared/utilidades/formato/l10n_servicio.dart';
+import '../../../shared/utilidades/modales/mostrar_modal.dart';
 import '../../../shared/widgets/modales/verificacion/dialogo_verificacion.dart';
 import '../../../shared/widgets/modales/verificacion/panel_verificacion_web.dart';
 import '../../backend_go/nucleo/contrato_backend.dart';
@@ -88,7 +90,9 @@ class ServicioVerificacion
     _navigatorKey = navigatorKey;
     _canalGrant.setMethodCallHandler((call) async {
       if (call.method == 'onSessionGrant') {
-        _logVerificacion.i('[Verificacion] Grant de sesión recibido por deep link');
+        _logVerificacion.i(
+          '[Verificacion] Grant de sesión recibido por deep link',
+        );
         _completarPendiente((call.arguments as String? ?? '').trim());
       }
       return null;
@@ -118,9 +122,9 @@ class ServicioVerificacion
     _deshabilitado = false;
     _necesitaVerificacion.clear();
     try {
-      final resultados = await backend
-          .provisionSignedSessions()
-          .timeout(const Duration(seconds: 15));
+      final resultados = await backend.provisionSignedSessions().timeout(
+        const Duration(seconds: 15),
+      );
       _keepaliveAlgunaVezExitoso = true;
       for (final fuente in fuentesSesionFirmada) {
         final estado = resultados[fuente];

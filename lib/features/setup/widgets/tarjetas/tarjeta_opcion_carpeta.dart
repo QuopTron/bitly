@@ -45,13 +45,13 @@ class TarjetaOpcionCarpeta extends StatelessWidget {
         curve: Curves.easeOutCubic,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(14),
-          color: selected
-              ? glowColor.withValues(alpha: 0.08)
-              : Colors.transparent,
+          color:
+              selected ? glowColor.withValues(alpha: 0.08) : Colors.transparent,
           border: Border.all(
-            color: selected
-                ? glowColor.withValues(alpha: 0.4)
-                : onBg.withValues(alpha: 0.08),
+            color:
+                selected
+                    ? glowColor.withValues(alpha: 0.4)
+                    : onBg.withValues(alpha: 0.08),
             width: selected ? 1.2 : 0.6,
           ),
         ),
@@ -61,9 +61,10 @@ class TarjetaOpcionCarpeta extends StatelessWidget {
             Container(
               padding: EdgeInsets.all(r.spacingXS),
               decoration: BoxDecoration(
-                color: selected
-                    ? glowColor.withValues(alpha: 0.12)
-                    : onBg.withValues(alpha: 0.04),
+                color:
+                    selected
+                        ? glowColor.withValues(alpha: 0.12)
+                        : onBg.withValues(alpha: 0.04),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(

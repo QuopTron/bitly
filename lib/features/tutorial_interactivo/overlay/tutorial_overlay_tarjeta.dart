@@ -30,6 +30,10 @@ class _TarjetaPaso extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => _construirTarjetaPaso(
-        context, paso, controller, esOscuro, avisarOtraVista);
-
+    context,
+    paso,
+    controller,
+    esOscuro,
+    avisarOtraVista,
+  );
 }

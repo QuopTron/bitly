@@ -56,10 +56,11 @@ Widget _construirCuerpo(_PaginaMiEspacioState st, Color onBg) {
                     child: _BotonBusquedaToggle(
                       activo: st._mostrarBusqueda,
                       onBg: onBg,
-                      onTap: () => st._aplicar(() {
-                        st._mostrarBusqueda = !st._mostrarBusqueda;
-                        if (!st._mostrarBusqueda) st._textoBusqueda = '';
-                      }),
+                      onTap:
+                          () => st._aplicar(() {
+                            st._mostrarBusqueda = !st._mostrarBusqueda;
+                            if (!st._mostrarBusqueda) st._textoBusqueda = '';
+                          }),
                     ),
                   ),
               ],
@@ -70,14 +71,15 @@ Widget _construirCuerpo(_PaginaMiEspacioState st, Color onBg) {
               curve: Curves.easeInOut,
               child: AnimatedSwitcher(
                 duration: const Duration(milliseconds: 250),
-                child: busquedaVisible
-                    ? BarraBusquedaMiEspacio(
-                        key: const ValueKey('busqueda'),
-                        onBusquedaCambiada: st._onBusquedaCambiada,
-                        onBg: onBg,
-                        hintText: loc.setup.searchHint,
-                      )
-                    : const SizedBox.shrink(),
+                child:
+                    busquedaVisible
+                        ? BarraBusquedaMiEspacio(
+                          key: const ValueKey('busqueda'),
+                          onBusquedaCambiada: st._onBusquedaCambiada,
+                          onBg: onBg,
+                          hintText: loc.setup.searchHint,
+                        )
+                        : const SizedBox.shrink(),
               ),
             ),
             // Filtros de orden: solo con la búsqueda desplegada.
@@ -86,14 +88,15 @@ Widget _construirCuerpo(_PaginaMiEspacioState st, Color onBg) {
               curve: Curves.easeInOut,
               child: AnimatedSwitcher(
                 duration: const Duration(milliseconds: 250),
-                child: busquedaVisible
-                    ? ControlesOrdenMiEspacio(
-                        key: const ValueKey('filtros'),
-                        filtros: st._filtros,
-                        onFiltrosCambiados: st._onFiltrosCambiados,
-                        onBg: onBg,
-                      )
-                    : const SizedBox.shrink(),
+                child:
+                    busquedaVisible
+                        ? ControlesOrdenMiEspacio(
+                          key: const ValueKey('filtros'),
+                          filtros: st._filtros,
+                          onFiltrosCambiados: st._onFiltrosCambiados,
+                          onBg: onBg,
+                        )
+                        : const SizedBox.shrink(),
               ),
             ),
             SizedBox(height: 2),
@@ -125,13 +128,14 @@ Widget _construirCuerpo(_PaginaMiEspacioState st, Color onBg) {
                 ),
                 huellasDescargadas: estadoDl.huellasDescargadas,
                 contadoresReproduccion: st._contadoresReproduccion,
-                onQuitarLike: (item) => quitarLikeItem(
-                  item,
-                  st.context,
-                  st._pestanaSeleccionada,
-                ),
+                onQuitarLike:
+                    (item) => quitarLikeItem(
+                      item,
+                      st.context,
+                      st._pestanaSeleccionada,
+                    ),
                 onLike: (item) => _onLike(st, item),
-                onItemTap: (item) => st._onItemTap(item),
+                onItemTap: (item) => _onItemTap(st, item),
                 onCreatePlaylist: () => _onCrearPlaylist(st),
                 onCreateDesdeAmados: () => _onCrearPlaylistDesdeAmados(st),
                 onCreateDesdeDescargados:

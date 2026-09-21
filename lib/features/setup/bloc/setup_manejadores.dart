@@ -32,12 +32,18 @@ part 'setup_manejadores_soulseek.dart';
 mixin ManejadoresSetup on Bloc<EventoSetup, EstadoSetup> {
   ValueNotifier<Locale> get notifierIdioma;
 
-  void onSeleccionarIdioma$(SeleccionarIdioma event, Emitter<EstadoSetup> emit) {
+  void onSeleccionarIdioma$(
+    SeleccionarIdioma event,
+    Emitter<EstadoSetup> emit,
+  ) {
     notifierIdioma.value = Locale(event.locale);
     emit(state.copiarCon(idiomaSeleccionado: event.locale));
   }
 
-  Future<void> onSiguientePaso$(SiguientePaso event, Emitter<EstadoSetup> emit) async {
+  Future<void> onSiguientePaso$(
+    SiguientePaso event,
+    Emitter<EstadoSetup> emit,
+  ) async {
     switch (state.paso) {
       case PasoSetup.idioma:
         emit(state.copiarCon(paso: PasoSetup.usuario));
@@ -105,29 +111,33 @@ mixin ManejadoresSetup on Bloc<EventoSetup, EstadoSetup> {
     GenerarNombreAleatorio event,
     Emitter<EstadoSetup> emit,
   ) {
-    final nombre = nombresAleatorios[
-        DateTime.now().millisecondsSinceEpoch % nombresAleatorios.length];
+    final nombre =
+        nombresAleatorios[DateTime.now().millisecondsSinceEpoch %
+            nombresAleatorios.length];
     emit(state.copiarCon(usuario: nombre));
   }
 
   void onSeleccionarModo$(SeleccionarModo event, Emitter<EstadoSetup> emit) {
-    emit(state.copiarCon(
-      modoSeleccionado: event.modo,
-      codigoValido: false,
-      errorCodigo: null,
-      codigoPremium: '',
-    ));
+    emit(
+      state.copiarCon(
+        modoSeleccionado: event.modo,
+        codigoValido: false,
+        errorCodigo: null,
+        codigoPremium: '',
+      ),
+    );
   }
 
   void onCodigoPremiumCambiado$(
     CodigoPremiumCambiado event,
     Emitter<EstadoSetup> emit,
   ) {
-    emit(state.copiarCon(
-      codigoPremium: event.codigo,
-      codigoValido: false,
-      errorCodigo: null,
-    ));
+    emit(
+      state.copiarCon(
+        codigoPremium: event.codigo,
+        codigoValido: false,
+        errorCodigo: null,
+      ),
+    );
   }
-
 }

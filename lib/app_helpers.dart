@@ -16,7 +16,6 @@ import 'core/cache/almacenes/cache_ajustes.dart';
 import 'core/modelos/resultado_enlace.dart';
 import 'core/servicios/compartir/datos_compartido.dart';
 import 'core/servicios/compartir/servicio_compartir.dart';
-import 'core/modelos/usuario/estilo_visual.dart';
 import 'core/modelos/usuario/preferencias_apariencia.dart';
 import 'core/modelos/usuario/preferencias_estilo.dart';
 import 'core/plataforma/sistema/servicio_deep_link.dart';
@@ -30,21 +29,22 @@ part 'app_helpers_compartido.dart';
 /// con el alta y baja de listeners en un solo lugar.
 class NotificadoresAjustesApp {
   NotificadoresAjustesApp()
-      : locale = di.sl<ValueNotifier<Locale>>(),
-        themeMode = di.sl<ValueNotifier<ThemeMode>>(),
-        estiloVisual = di.sl<ValueNotifier<EstiloVisual>>(),
-        preferenciasEstilo = di.sl<ValueNotifier<PreferenciasEstilo>>(),
-        preferenciasApariencia =
-            di.sl<ValueNotifier<PreferenciasApariencia>>();
+    : locale = di.sl<ValueNotifier<Locale>>(),
+      themeMode = di.sl<ValueNotifier<ThemeMode>>(),
+      preferenciasEstilo = di.sl<ValueNotifier<PreferenciasEstilo>>(),
+      preferenciasApariencia = di.sl<ValueNotifier<PreferenciasApariencia>>();
 
   final ValueNotifier<Locale> locale;
   final ValueNotifier<ThemeMode> themeMode;
-  final ValueNotifier<EstiloVisual> estiloVisual;
   final ValueNotifier<PreferenciasEstilo> preferenciasEstilo;
   final ValueNotifier<PreferenciasApariencia> preferenciasApariencia;
 
-  Iterable<Listenable> get _todos =>
-      [locale, themeMode, estiloVisual, preferenciasEstilo, preferenciasApariencia];
+  Iterable<Listenable> get _todos => [
+    locale,
+    themeMode,
+    preferenciasEstilo,
+    preferenciasApariencia,
+  ];
 
   /// Registra el mismo callback en los cuatro notificadores.
   void suscribir(VoidCallback onCambio) {
@@ -76,10 +76,6 @@ Future<void> cargarAjustesGuardadosApp({
     final localeGuardado = await cache.getAjuste('locale');
     if (localeGuardado != null && estaMontado()) {
       ajustes.locale.value = Locale(localeGuardado);
-    }
-    final estiloGuardado = await cache.getEstiloVisual();
-    if (estiloGuardado != null && estaMontado()) {
-      ajustes.estiloVisual.value = EstiloVisualExt.desdeClave(estiloGuardado);
     }
     final prefsGuardadas = await cache.getPreferenciasEstilo();
     if (estaMontado()) ajustes.preferenciasEstilo.value = prefsGuardadas;
@@ -130,7 +126,9 @@ void reproducirEnlaceApp({
     return;
   }
   final enArranque =
-      ruta.isEmpty || ruta == RouteNames.splash.path || ruta == RouteNames.setup.path;
+      ruta.isEmpty ||
+      ruta == RouteNames.splash.path ||
+      ruta == RouteNames.setup.path;
   if (enArranque || ruta == RouteNames.home.path) return;
   try {
     router.go(RouteNames.home.path);
@@ -138,4 +136,3 @@ void reproducirEnlaceApp({
     debugPrint('[Enlaces] no se pudo ir al home: $e');
   }
 }
-

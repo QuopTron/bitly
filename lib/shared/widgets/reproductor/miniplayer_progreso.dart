@@ -28,15 +28,17 @@ class _FilaProgresoAutonoma extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<CubitReproductor, EstadoAudioReproductor>(
-      buildWhen: (prev, curr) =>
-          prev.posicion != curr.posicion ||
-          prev.duracion != curr.duracion ||
-          prev.estadoReproduccion != curr.estadoReproduccion,
+      buildWhen:
+          (prev, curr) =>
+              prev.posicion != curr.posicion ||
+              prev.duracion != curr.duracion ||
+              prev.estadoReproduccion != curr.estadoReproduccion,
       builder: (context, player) {
         final totalMs = player.duracion.inMilliseconds;
-        final progreso = totalMs > 0
-            ? (player.posicion.inMilliseconds / totalMs).clamp(0.0, 1.0)
-            : 0.0;
+        final progreso =
+            totalMs > 0
+                ? (player.posicion.inMilliseconds / totalMs).clamp(0.0, 1.0)
+                : 0.0;
         return RepaintBoundary(
           child: Padding(
             padding: const EdgeInsets.only(top: 0),
@@ -54,8 +56,10 @@ class _FilaProgresoAutonoma extends StatelessWidget {
                     progreso: progreso,
                     reproduciendo: player.estaReproduciendo,
                     color: fg,
-                    alSoltar: (v) =>
-                        st.context.read<CubitReproductor>().buscarAProgreso(v),
+                    alSoltar:
+                        (v) => st.context
+                            .read<CubitReproductor>()
+                            .buscarAProgreso(v),
                   ),
                 ),
                 Text(

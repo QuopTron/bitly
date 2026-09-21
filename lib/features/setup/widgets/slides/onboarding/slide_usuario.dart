@@ -43,8 +43,10 @@ class SlideUsuario extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final onBg = isDark ? Colors.white : Colors.black;
-    final glowColor = isDark ? ColoresApp.verdeBrillante : ColoresApp.verdeMedio;
-    final tieneExistente = state.tieneDatosExistentes == true &&
+    final glowColor =
+        isDark ? ColoresApp.verdeBrillante : ColoresApp.verdeMedio;
+    final tieneExistente =
+        state.tieneDatosExistentes == true &&
         state.continuarConExistentes == false &&
         (state.usuarioExistente ?? '').isNotEmpty;
 

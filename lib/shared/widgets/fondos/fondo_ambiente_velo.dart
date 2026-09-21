@@ -3,12 +3,13 @@
 // dominante del cover y lo muestra como fondo sólido en modo
 // Spotify. Transición animada al cambiar de canción.
 //
-// Se conecta con: fondo_ambiente.dart (lo monta como capa 2).
+// Se conecta con: fondo_ambiente.dart (lo monta como capa 2) + estilo_helper.
 // Parte del flujo: Home → fondo ambiente.
 // ─────────────────────────────────────────────────────────────
 
 import 'package:flutter/material.dart';
 
+import '../../utilidades/formato/estilo_helper.dart';
 import '../../utilidades/portada/paleta_portada.dart';
 
 /// Velo que muestra el color dominante del cover como fondo.
@@ -47,15 +48,22 @@ class _VeloDinamicoState extends State<VeloDinamico> {
     try {
       final paleta = await paletaParaPortada(widget.coverUrl);
       if (mounted) setState(() => _acento = paleta?.dominante);
-    } catch (e) { debugPrint("[Widget] $e"); }
+    } catch (e) {
+      debugPrint("[Widget] $e");
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final colorBase = _acento ?? widget.defaultBg;
-    final colorFinal = Color.lerp(
-      widget.defaultBg, colorBase, widget.isDark ? 0.45 : 0.30,
-    )!;
+    // El color del cover se pinta con presencia (estilo_helper): mezclado
+    // apagado quedaba casi igual que la carátula de abajo y el control de
+    // opacidad no se notaba.
+    final colorFinal = EstiloHelper.colorDeCover(
+      colorBase,
+      widget.defaultBg,
+      mezcla: widget.isDark ? 0.58 : 0.45,
+    );
     return AnimatedContainer(
       duration: const Duration(milliseconds: 400),
       curve: Curves.easeOutCubic,

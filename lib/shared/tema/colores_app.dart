@@ -95,7 +95,6 @@ class ColoresApp {
 
   // ── Getters dinámicos (estilo Spotify) ──
 
-  /// Fondo dinámico: si hay acento, usa un velo del color dominante;
   /// si no, retorna el fondo estático del tema.
   static Color fondoDinamico(bool oscuro, Color? acento) {
     if (acento == null) return fondo(oscuro);
@@ -126,20 +125,6 @@ class ColoresApp {
   static Color sombraDinamica(bool oscuro, Color? acento) {
     if (acento == null) return sombra(oscuro);
     return Color.lerp(sombra(oscuro), acento, 0.3)!;
-  }
-
-  /// Gradiente de fondo para cards: usa el color dominante como base.
-  static LinearGradient gradienteDinamico(bool oscuro, Color? acento,
-      {double alphaBase = 1.0, double alphaTop = 0.2}) {
-    final colorBase = acento ?? (oscuro ? superficieOscura : superficieClara);
-    return LinearGradient(
-      begin: Alignment.bottomCenter,
-      end: Alignment.topCenter,
-      colors: [
-        colorBase.withValues(alpha: alphaBase),
-        colorBase.withValues(alpha: alphaTop),
-      ],
-    );
   }
 
   // ── Estados ──

@@ -28,10 +28,15 @@ void main() {
 
       final client = HttpClient();
       final request = await client
-          .getUrl(Uri.parse(
-              'http://127.0.0.1:$port/session-grant?cb_version=v2grant&grant=gr_test123'))
+          .getUrl(
+            Uri.parse(
+              'http://127.0.0.1:$port/session-grant?cb_version=v2grant&grant=gr_test123',
+            ),
+          )
           .timeout(const Duration(seconds: 5));
-      final response = await request.close().timeout(const Duration(seconds: 5));
+      final response = await request.close().timeout(
+        const Duration(seconds: 5),
+      );
       final body = await response.transform(utf8.decoder).join();
       client.close();
 
@@ -52,10 +57,16 @@ void main() {
 
       final client = HttpClient();
       final request = await client
-          .getUrl(Uri.parse('http://127.0.0.1:$port/session-grant'
-              '?cb_version=v2grant?grant=gr_malformado'))
+          .getUrl(
+            Uri.parse(
+              'http://127.0.0.1:$port/session-grant'
+              '?cb_version=v2grant?grant=gr_malformado',
+            ),
+          )
           .timeout(const Duration(seconds: 5));
-      final response = await request.close().timeout(const Duration(seconds: 5));
+      final response = await request.close().timeout(
+        const Duration(seconds: 5),
+      );
       await response.drain<void>();
       client.close();
 
@@ -71,11 +82,14 @@ void main() {
       final future = server.esperarGrant(const Duration(seconds: 5));
 
       final client = HttpClient();
-      final request =
-          await client.postUrl(Uri.parse('http://127.0.0.1:$port/session-grant'));
+      final request = await client.postUrl(
+        Uri.parse('http://127.0.0.1:$port/session-grant'),
+      );
       request.headers.contentType = ContentType.json;
       request.write('{"grant":"gr_desde_body"}');
-      final response = await request.close().timeout(const Duration(seconds: 5));
+      final response = await request.close().timeout(
+        const Duration(seconds: 5),
+      );
       await response.drain<void>();
       client.close();
 
@@ -89,11 +103,14 @@ void main() {
       final port = server.puerto!;
 
       final client = HttpClient();
-      final request =
-          await client.postUrl(Uri.parse('http://127.0.0.1:$port/session-grant'));
+      final request = await client.postUrl(
+        Uri.parse('http://127.0.0.1:$port/session-grant'),
+      );
       request.headers.contentType = ContentType.json;
       request.write('{"ok":true,"mensaje":"hola"}');
-      final response = await request.close().timeout(const Duration(seconds: 5));
+      final response = await request.close().timeout(
+        const Duration(seconds: 5),
+      );
       await response.drain<void>();
       client.close();
 

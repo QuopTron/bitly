@@ -41,5 +41,7 @@ Future<void> empujarPerfilRendimientoABackend() async {
       downloadConcurrency: perfil.concurrenciaDescargas,
       streamChunkSize: perfil.tamanoChunkStreaming,
     );
-  } catch (e) { debugPrint("[App] $e"); }
+  } catch (e) {
+    debugPrint("[App] $e");
+  }
 }

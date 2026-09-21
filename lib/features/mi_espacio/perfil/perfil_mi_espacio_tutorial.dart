@@ -50,7 +50,6 @@ extension _AjustesDelTutorial on _PerfilMiEspacioState {
       username: w.username,
       isDark: Theme.of(context).brightness == Brightness.dark,
       onThemeChanged: w.onTemaCambiado ?? (_) {},
-      onLanguageChanged: w.onIdiomaCambiado ?? () {},
       likedCount: '${w.cancionesAmadas}',
       downloadedCount: '${w.descargadosCount}',
       tutorial: tutorial,

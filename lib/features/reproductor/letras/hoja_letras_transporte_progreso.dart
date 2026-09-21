@@ -41,9 +41,13 @@ Widget _filaProgreso(
               thumbColor: fg.withValues(alpha: 0.8),
             ),
             child: Slider(
-              value: total > 0
-                  ? (reproductor.posicion.inMilliseconds / total).clamp(0.0, 1.0)
-                  : 0.0,
+              value:
+                  total > 0
+                      ? (reproductor.posicion.inMilliseconds / total).clamp(
+                        0.0,
+                        1.0,
+                      )
+                      : 0.0,
               onChangeEnd: (v) => sl<CubitReproductor>().buscarAProgreso(v),
               onChanged: (_) {},
             ),

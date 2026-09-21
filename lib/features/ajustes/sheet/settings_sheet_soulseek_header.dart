@@ -25,6 +25,7 @@ class _SoulseekSheetHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final s = AppLocalizations.of(context).soulseek;
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: r.spacingM),
       child: Row(
@@ -36,7 +37,7 @@ class _SoulseekSheetHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Soulseek',
+                  s.titulo,
                   style: TextStyle(
                     fontSize: r.subtitleSize,
                     fontWeight: FontWeight.w700,
@@ -45,9 +46,7 @@ class _SoulseekSheetHeader extends StatelessWidget {
                 ),
                 const SizedBox(height: 1),
                 Text(
-                  conectada
-                      ? 'Cuenta conectada'
-                      : 'Sin mail, sin captcha, sin invitación',
+                  conectada ? s.estadoConectada : s.estadoDesconectada,
                   style: TextStyle(
                     fontSize: r.footerSize - 2,
                     color: onBg.withValues(alpha: 0.45),

@@ -8,13 +8,7 @@
 // ─────────────────────────────────────────────────────────────
 
 /// Modo de ordenamiento de la lista.
-enum ModoOrden {
-  az,
-  azInvertido,
-  masEscuchados,
-  porArtista,
-  nuevos,
-}
+enum ModoOrden { az, azInvertido, masEscuchados, porArtista, nuevos }
 
 /// Filtros activos para Mi Espacio.
 class FiltrosMiEspacio {
@@ -45,6 +39,8 @@ class FiltrosMiEspacio {
   }
 
   bool get hayFiltros =>
-      soloAmados || soloDescargados || soloConPlaylist ||
+      soloAmados ||
+      soloDescargados ||
+      soloConPlaylist ||
       modoOrden != ModoOrden.az;
 }

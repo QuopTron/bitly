@@ -33,7 +33,7 @@ class _GoogleConnectionCard extends StatelessWidget {
             ),
             SizedBox(width: r.spacingS),
             Text(
-              'Google',
+              AppLocalizations.of(context).ajustes.googleTitulo,
               style: TextStyle(
                 fontSize: r.subtitleSize,
                 fontWeight: FontWeight.w700,
@@ -44,7 +44,7 @@ class _GoogleConnectionCard extends StatelessWidget {
         ),
         SizedBox(height: 4),
         Text(
-          'Conecta tu cuenta de Google para mejorar la calidad del streaming y obtener contenido personalizado.',
+          AppLocalizations.of(context).ajustes.googleAyuda,
           style: TextStyle(
             fontSize: r.footerSize - 1,
             color: onBg.withValues(alpha: 0.5),

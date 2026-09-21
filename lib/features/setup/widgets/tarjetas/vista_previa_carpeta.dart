@@ -42,12 +42,12 @@ class VistaPreviaCarpeta extends StatelessWidget {
       padding: EdgeInsets.symmetric(horizontal: r.spacingL),
       child: ContenedorVidrio(
         borderRadius: 14,
-        borderColor: tieneRuta
-            ? glowColor.withValues(alpha: 0.3)
-            : onBg.withValues(alpha: 0.08),
-        bgColor: tieneRuta
-            ? glowColor.withValues(alpha: 0.04)
-            : Colors.transparent,
+        borderColor:
+            tieneRuta
+                ? glowColor.withValues(alpha: 0.3)
+                : onBg.withValues(alpha: 0.08),
+        bgColor:
+            tieneRuta ? glowColor.withValues(alpha: 0.04) : Colors.transparent,
         padding: EdgeInsets.all(r.spacingM),
         child: Row(
           children: [
@@ -56,16 +56,15 @@ class VistaPreviaCarpeta extends StatelessWidget {
               padding: EdgeInsets.all(r.spacingS),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: tieneRuta
-                    ? glowColor.withValues(alpha: 0.15)
-                    : onBg.withValues(alpha: 0.04),
+                color:
+                    tieneRuta
+                        ? glowColor.withValues(alpha: 0.15)
+                        : onBg.withValues(alpha: 0.04),
               ),
               child: Icon(
                 tieneRuta ? Icons.folder : Icons.folder_open,
                 size: r.titleSize,
-                color: tieneRuta
-                    ? glowColor
-                    : onBg.withValues(alpha: 0.3),
+                color: tieneRuta ? glowColor : onBg.withValues(alpha: 0.3),
               ),
             ),
             SizedBox(width: r.spacingM),
@@ -78,9 +77,8 @@ class VistaPreviaCarpeta extends StatelessWidget {
                     style: TextStyle(
                       fontSize: r.footerSize,
                       fontWeight: FontWeight.w600,
-                      color: tieneRuta
-                          ? glowColor
-                          : onBg.withValues(alpha: 0.3),
+                      color:
+                          tieneRuta ? glowColor : onBg.withValues(alpha: 0.3),
                     ),
                   ),
                   SizedBox(height: 2),

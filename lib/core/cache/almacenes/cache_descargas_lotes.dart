@@ -46,6 +46,15 @@ extension CacheDescargasLotes on CacheDescargas {
     String coverPath,
   ) => _dao.updateTrackCover(id, coverUrl, coverPath);
 
+  /// Backfill de carátula de un lote (álbum/playlist) ya guardado.
+  /// El lote pudo persistirse sin carátula y resolverla después: sin esto la
+  /// tarjeta volvía a verse gris en el próximo arranque.
+  Future<void> actualizarCaratulaLote(
+    String batchKey,
+    String coverUrl,
+    String coverPath,
+  ) => _dao.updateBatchCover(batchKey, coverUrl, coverPath);
+
   /// Re-vincula el historial con los archivos que hoy viven en [nuevaCarpeta].
   ///
   /// Por qué existe: si el usuario MUEVE o cambia la carpeta de descargas, las

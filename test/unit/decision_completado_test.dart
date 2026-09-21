@@ -15,31 +15,36 @@ DecisionCompletado _decidir({
   int msDesdeOpen = 10000,
   bool previewIntentado = false,
   bool muertoIntentado = false,
-}) =>
-    decidirCompletado(
-      desdeHttp: desdeHttp,
-      durMs: durMs,
-      posMs: posMs,
-      duracionCatalogoMs: catalogoMs,
-      msDesdeOpen: msDesdeOpen,
-      yaSeIntentoPreview: previewIntentado,
-      yaSeIntentoStreamMuerto: muertoIntentado,
-    );
+}) => decidirCompletado(
+  desdeHttp: desdeHttp,
+  durMs: durMs,
+  posMs: posMs,
+  duracionCatalogoMs: catalogoMs,
+  msDesdeOpen: msDesdeOpen,
+  yaSeIntentoPreview: previewIntentado,
+  yaSeIntentoStreamMuerto: muertoIntentado,
+);
 
 void main() {
   test('fin normal: la cola avanza', () {
-    expect(_decidir(durMs: 200000, posMs: 200000, catalogoMs: 200000),
-        DecisionCompletado.avanzar);
+    expect(
+      _decidir(durMs: 200000, posMs: 200000, catalogoMs: 200000),
+      DecisionCompletado.avanzar,
+    );
   });
 
   test('un archivo local siempre avanza (sin falsos positivos)', () {
-    expect(_decidir(desdeHttp: false, durMs: 30000, catalogoMs: 200000),
-        DecisionCompletado.avanzar);
+    expect(
+      _decidir(desdeHttp: false, durMs: 30000, catalogoMs: 200000),
+      DecisionCompletado.avanzar,
+    );
   });
 
   test('clip de 30s se reabre una vez y después avanza', () {
-    expect(_decidir(durMs: 30000, posMs: 30000, catalogoMs: 200000),
-        DecisionCompletado.reabrirMismo);
+    expect(
+      _decidir(durMs: 30000, posMs: 30000, catalogoMs: 200000),
+      DecisionCompletado.reabrirMismo,
+    );
     expect(
       _decidir(
         durMs: 30000,
@@ -52,8 +57,10 @@ void main() {
   });
 
   test('stream truncado se reabre una vez y después avanza', () {
-    expect(_decidir(durMs: 200000, posMs: 40000, catalogoMs: 200000),
-        DecisionCompletado.reabrirMismo);
+    expect(
+      _decidir(durMs: 200000, posMs: 40000, catalogoMs: 200000),
+      DecisionCompletado.reabrirMismo,
+    );
     expect(
       _decidir(
         durMs: 200000,
@@ -65,34 +72,39 @@ void main() {
     );
   });
 
-  test('sin duración y en la posición 0 tras open: evento espurio, se ignora',
-      () {
-    expect(_decidir(durMs: 0, posMs: 0, msDesdeOpen: 500),
-        DecisionCompletado.ignorar);
-  });
+  test(
+    'sin duración y en la posición 0 tras open: evento espurio, se ignora',
+    () {
+      expect(
+        _decidir(durMs: 0, posMs: 0, msDesdeOpen: 500),
+        DecisionCompletado.ignorar,
+      );
+    },
+  );
 
-  test('sin duración y en la posición 0 mucho después: se reabre, no se traba',
-      () {
-    expect(_decidir(durMs: 0, posMs: 0, msDesdeOpen: 9000),
-        DecisionCompletado.reabrirMismo);
-    expect(
-      _decidir(
-        durMs: 0,
-        posMs: 0,
-        msDesdeOpen: 9000,
-        muertoIntentado: true,
-      ),
-      DecisionCompletado.avanzar,
-    );
-  });
+  test(
+    'sin duración y en la posición 0 mucho después: se reabre, no se traba',
+    () {
+      expect(
+        _decidir(durMs: 0, posMs: 0, msDesdeOpen: 9000),
+        DecisionCompletado.reabrirMismo,
+      );
+      expect(
+        _decidir(durMs: 0, posMs: 0, msDesdeOpen: 9000, muertoIntentado: true),
+        DecisionCompletado.avanzar,
+      );
+    },
+  );
 
   test('sin duración pero con audio reproducido: avanza (radio/live)', () {
     expect(_decidir(durMs: 0, posMs: 30000), DecisionCompletado.avanzar);
   });
 
   test('sin duración y sin saber cuándo abrió: se reabre, nunca se ignora', () {
-    expect(_decidir(durMs: 0, posMs: 0, msDesdeOpen: -1),
-        DecisionCompletado.reabrirMismo);
+    expect(
+      _decidir(durMs: 0, posMs: 0, msDesdeOpen: -1),
+      DecisionCompletado.reabrirMismo,
+    );
   });
 
   test('ningún caso de cola con más canciones termina en pausa', () {

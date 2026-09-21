@@ -8,10 +8,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: BotonVidrio(
-              label: 'Continue',
-              onPressed: () {},
-            ),
+            body: BotonVidrio(label: 'Continue', onPressed: () {}),
           ),
         ),
       );
@@ -24,10 +21,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: BotonVidrio(
-              label: 'Tap me',
-              onPressed: () => pressed = true,
-            ),
+            body: BotonVidrio(label: 'Tap me', onPressed: () => pressed = true),
           ),
         ),
       );
@@ -105,12 +99,7 @@ void main() {
     testWidgets('is tappable when onPressed is provided', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
-          home: Scaffold(
-            body: BotonVidrio(
-              label: 'Enabled',
-              onPressed: () {},
-            ),
-          ),
+          home: Scaffold(body: BotonVidrio(label: 'Enabled', onPressed: () {})),
         ),
       );
 
@@ -122,11 +111,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: BotonVidrio(
-              label: 'Tall',
-              onPressed: () {},
-              height: 60,
-            ),
+            body: BotonVidrio(label: 'Tall', onPressed: () {}, height: 60),
           ),
         ),
       );
@@ -136,4 +121,3 @@ void main() {
     });
   });
 }
-

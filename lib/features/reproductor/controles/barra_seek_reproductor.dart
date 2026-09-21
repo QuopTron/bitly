@@ -31,9 +31,9 @@ class BarraSeekReproductor extends StatelessWidget {
   Widget build(BuildContext context) {
     final fg = esOscuro ? Colors.white : Colors.black;
     return BlocBuilder<CubitReproductor, EstadoAudioReproductor>(
-      buildWhen: (prev, curr) =>
-          prev.posicion != curr.posicion ||
-          prev.duracion != curr.duracion,
+      buildWhen:
+          (prev, curr) =>
+              prev.posicion != curr.posicion || prev.duracion != curr.duracion,
       builder: (context, estado) {
         final duracion = estado.duracion;
         final posicion = estado.posicion;
@@ -53,8 +53,8 @@ class BarraSeekReproductor extends StatelessWidget {
               ),
               child: Slider(
                 value: estado.progreso.clamp(0.0, 1.0),
-                onChanged: (v) =>
-                    context.read<CubitReproductor>().buscarAProgreso(v),
+                onChanged:
+                    (v) => context.read<CubitReproductor>().buscarAProgreso(v),
               ),
             ),
             Padding(

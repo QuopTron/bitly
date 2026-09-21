@@ -3,35 +3,45 @@
 // estadísticas: cómo se dice "cuándo fue la última vez" en lenguaje
 // humano (hoy / ayer / hace 3 días / 12 sep 2026) y cómo se muestra el
 // tiempo escuchado (min/h). Se puede testear sin UI ni base de datos.
+//
+// Los textos de fecha llegan por parámetro ([fechas]): si no se pasa,
+// cae a español. Así sigue siendo pura y el idioma lo decide quien pinta.
 // Se conecta con: settings_estadisticas_detalle_fila.dart (lo pinta y le
-// pasa las unidades localizadas de AppLocalizations).
+// pasa las unidades y las fechas localizadas de AppLocalizations).
 // Parte del flujo: Ajustes → Estadísticas → detalle.
 // ─────────────────────────────────────────────────────────────
 
-const List<String> _mesesCortos = [
-  'ene', 'feb', 'mar', 'abr', 'may', 'jun',
-  'jul', 'ago', 'sep', 'oct', 'nov', 'dic',
-];
+import '../../../l10n/strings/strings_fechas.dart';
 
 /// Texto humano de la última reproducción de un ítem.
 /// [desconocido] es lo que se muestra cuando la fila no trae fecha.
-String textoUltimaVez(DateTime? cuando, {DateTime? ahora, String desconocido = 'sin fecha'}) {
+/// [fechas] aporta los textos relativos (hoy/ayer/hace N…); sin él, español.
+String textoUltimaVez(
+  DateTime? cuando, {
+  DateTime? ahora,
+  String desconocido = 'sin fecha',
+  StringsFechas? fechas,
+}) {
   if (cuando == null) return desconocido;
+  final f = fechas ?? StringsFechas.es;
   final hoy = ahora ?? DateTime.now();
-  final dias = DateTime(hoy.year, hoy.month, hoy.day)
-      .difference(DateTime(cuando.year, cuando.month, cuando.day))
-      .inDays;
+  final dias =
+      DateTime(
+        hoy.year,
+        hoy.month,
+        hoy.day,
+      ).difference(DateTime(cuando.year, cuando.month, cuando.day)).inDays;
 
-  if (dias <= 0) return 'hoy';
-  if (dias == 1) return 'ayer';
-  if (dias < 7) return 'hace $dias días';
-  if (dias < 14) return 'hace 1 semana';
-  if (dias < 31) return 'hace ${dias ~/ 7} semanas';
-  if (dias < 60) return 'hace 1 mes';
-  if (dias < 365) return 'hace ${dias ~/ 30} meses';
-  if (dias < 730) return 'hace 1 año';
+  if (dias <= 0) return f.hoy;
+  if (dias == 1) return f.ayer;
+  if (dias < 7) return f.haceDias(dias);
+  if (dias < 14) return f.haceUnaSemana;
+  if (dias < 31) return f.haceSemanas(dias ~/ 7);
+  if (dias < 60) return f.haceUnMes;
+  if (dias < 365) return f.haceMeses(dias ~/ 30);
+  if (dias < 730) return f.haceUnAnio;
   // Más de dos años: la fecha exacta es más útil que "hace 3 años".
-  return '${cuando.day} ${_mesesCortos[cuando.month - 1]} ${cuando.year}';
+  return '${cuando.day} ${f.mesCorto(cuando.month)} ${cuando.year}';
 }
 
 /// Texto del tiempo escuchado: minutos y, si pasa la hora, también horas.
@@ -51,5 +61,4 @@ String textoReproducciones(
   int veces, {
   String singular = 'vez',
   String plural = 'veces',
-}) =>
-    veces == 1 ? '1 $singular' : '$veces $plural';
+}) => veces == 1 ? '1 $singular' : '$veces $plural';

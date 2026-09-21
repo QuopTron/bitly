@@ -27,6 +27,22 @@ class CacheDescargas {
 
   Future<String> getHistorialDescargas({String? desde}) async {
     final items = await _dao.getHistory(since: desde);
+    return _historialJson(items);
+  }
+
+  /// Historial COMPLETO, sin el tope de 100 filas de [getHistorialDescargas].
+  ///
+  /// Lo usa el armado de playlists ("Agregar descargadas"): con el tope, el
+  /// usuario con cientos de descargas solo veía las últimas 100.
+  Future<String> getHistorialCompleto() async {
+    final items = await _dao.getAllHistory();
+    // `getAllHistory` no ordena: el más reciente primero, como el historial.
+    items.sort((a, b) => b.downloadedAt.compareTo(a.downloadedAt));
+    return _historialJson(items);
+  }
+
+  /// Mapa común de una fila del historial (lo que consumen los cubits).
+  String _historialJson(List<DownloadHistoryData> items) {
     final lista =
         items
             .map(

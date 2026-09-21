@@ -21,7 +21,6 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"strings"
 	"time"
 )
@@ -41,11 +40,11 @@ var appValidWords = map[string]bool{"pablo": true, "pabol": true, "flox": true}
 func validarEstructuraApp(code string) error {
 	code = strings.TrimSpace(code)
 	if code == "" {
-		return fmt.Errorf("Código vacío")
+		return nuevoError("codigo_vacio", "Código vacío")
 	}
 	parts := strings.Split(code, ".")
 	if len(parts) != 2 {
-		return fmt.Errorf("Formato inválido")
+		return nuevoError("formato_invalido", "Formato inválido")
 	}
 	dataB64, sigB64 := parts[0], parts[1]
 
@@ -59,25 +58,25 @@ func validarEstructuraApp(code string) error {
 	}
 	raw, err := base64.StdEncoding.DecodeString(dataNorm)
 	if err != nil {
-		return fmt.Errorf("Error decodificando datos")
+		return nuevoError("datos_ilegibles", "Error decodificando datos")
 	}
 	var payload struct {
 		Palabra string `json:"p"`
 		Expira  int64  `json:"e"`
 	}
 	if err := json.Unmarshal(raw, &payload); err != nil {
-		return fmt.Errorf("Error parseando JSON")
+		return nuevoError("payload_ilegible", "Error parseando JSON")
 	}
 	word := strings.ToLower(payload.Palabra)
 	if !appValidWords[word] {
-		return fmt.Errorf("Palabra no autorizada")
+		return nuevoError("palabra_no_autorizada", "Palabra no autorizada")
 	}
 	if time.Now().Unix() > payload.Expira {
-		return fmt.Errorf("Código expirado")
+		return nuevoError("codigo_expirado", "Código expirado")
 	}
 	expected := generarFirmaApp(dataB64 + "." + word)
 	if sigB64 != expected {
-		return fmt.Errorf("Firma inválida")
+		return nuevoError("firma_invalida", "Firma inválida")
 	}
 	return nil
 }

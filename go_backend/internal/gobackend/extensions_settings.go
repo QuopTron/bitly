@@ -8,6 +8,7 @@ import (
 
 	"github.com/zarz/bitly/go_backend/internal/provider/flacrescue"
 	"github.com/zarz/bitly/go_backend/internal/provider/soulseek"
+	"github.com/zarz/bitly/go_backend/internal/provider/youtube"
 	"github.com/zarz/bitly/go_backend/internal/sessionpool"
 )
 
@@ -40,6 +41,17 @@ func SetExtensionSettings(payload string) string {
 		if p := reg.Get("flac-rescue"); p != nil {
 			if fc, ok := p.(*flacrescue.Client); ok {
 				fc.SetSettings(settings)
+			}
+		}
+	}
+
+	// Caso especial: youtube es un provider nativo. Recibe la instancia
+	// propia de cobalt (respaldo de descarga cuando yt-dlp falla); sin URL
+	// queda apagado y no abre ninguna conexión.
+	if params.ExtensionID == "youtube" && reg != nil {
+		if p := reg.Get("youtube"); p != nil {
+			if yc, ok := p.(*youtube.Client); ok {
+				yc.SetSettings(settings)
 			}
 		}
 	}

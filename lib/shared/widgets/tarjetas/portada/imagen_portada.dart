@@ -96,7 +96,8 @@ class ImagenPortada extends StatelessWidget {
 
   Widget _construirImagen(BuildContext context) {
     if (rutaLocal != null && rutaLocal!.isNotEmpty) {
-      if (rutaLocal!.startsWith('http://') || rutaLocal!.startsWith('https://')) {
+      if (rutaLocal!.startsWith('http://') ||
+          rutaLocal!.startsWith('https://')) {
         return imagenDesdeUrl(
           rutaLocal,
           ancho: ancho,
@@ -127,11 +128,7 @@ class ImagenPortada extends StatelessWidget {
 
   Widget _fallbackPorDefecto(BuildContext context) {
     if (fondoFallback != null) {
-      return Container(
-        width: ancho,
-        height: alto,
-        color: fondoFallback,
-      );
+      return Container(width: ancho, height: alto, color: fondoFallback);
     }
     return const SizedBox.shrink();
   }

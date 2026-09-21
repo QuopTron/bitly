@@ -54,19 +54,19 @@ class DatosCompartido {
 
   /// Ítem listo para la tarjeta del overlay.
   ItemFeed get comoItem => ItemFeed(
-        id: isrc.isNotEmpty ? isrc : nombre,
-        type: tipo,
-        name: nombre,
-        artists: artista.isEmpty ? null : artista,
-        coverUrl: caratula.isEmpty ? null : caratula,
-        albumName: album.isEmpty ? null : album,
-        durationMs: duracionMs > 0 ? duracionMs : null,
-        isrc: isrc.isEmpty ? null : isrc,
-        spotifyId: spotifyId.isEmpty ? null : spotifyId,
-        deezerId: deezerId.isEmpty ? null : deezerId,
-        tidalId: tidalId.isEmpty ? null : tidalId,
-        qobuzId: qobuzId.isEmpty ? null : qobuzId,
-      );
+    id: isrc.isNotEmpty ? isrc : nombre,
+    type: tipo,
+    name: nombre,
+    artists: artista.isEmpty ? null : artista,
+    coverUrl: caratula.isEmpty ? null : caratula,
+    albumName: album.isEmpty ? null : album,
+    durationMs: duracionMs > 0 ? duracionMs : null,
+    isrc: isrc.isEmpty ? null : isrc,
+    spotifyId: spotifyId.isEmpty ? null : spotifyId,
+    deezerId: deezerId.isEmpty ? null : deezerId,
+    tidalId: tidalId.isEmpty ? null : tidalId,
+    qobuzId: qobuzId.isEmpty ? null : qobuzId,
+  );
 
   /// Toma la identidad del ítem que el usuario compartió.
   factory DatosCompartido.desdeItem(ItemFeed item, {String emisor = ''}) =>

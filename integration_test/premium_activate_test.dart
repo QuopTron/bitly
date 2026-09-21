@@ -28,8 +28,7 @@ import 'package:bitly/app/inyeccion.dart' as inj;
 /// base64url sin padding → HMAC-SHA256(dataB64.palabra, secret) → base64url.
 String generarCodigoPremium(String word, int expiresAt) {
   final payload = jsonEncode({'p': word, 'e': expiresAt});
-  final dataB64 =
-      base64Url.encode(utf8.encode(payload)).replaceAll('=', '');
+  final dataB64 = base64Url.encode(utf8.encode(payload)).replaceAll('=', '');
   final hmac = Hmac(sha256, utf8.encode('bitly_secret_key_v1'));
   final sig = base64Url
       .encode(hmac.convert(utf8.encode('$dataB64.$word')).bytes)
@@ -40,8 +39,9 @@ String generarCodigoPremium(String word, int expiresAt) {
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('premium: activar código válido y gate permite descargas',
-      (tester) async {
+  testWidgets('premium: activar código válido y gate permite descargas', (
+    tester,
+  ) async {
     await inj.configurarDependencias();
     final backend = BackendAndroid();
 
@@ -53,10 +53,16 @@ void main() {
     await backend.setPremiumGithubToken('');
 
     // 3. Código válido con palabra autorizada, expira en ~2030.
-    final expiresAt = DateTime.now().add(const Duration(days: 365)).millisecondsSinceEpoch ~/ 1000;
+    final expiresAt =
+        DateTime.now().add(const Duration(days: 365)).millisecondsSinceEpoch ~/
+        1000;
     final code = generarCodigoPremium('pablo', expiresAt);
     final error = await backend.validatePremiumCode(code);
-    expect(error, isNull, reason: 'código válido no debe devolver error: $error');
+    expect(
+      error,
+      isNull,
+      reason: 'código válido no debe devolver error: $error',
+    );
 
     // 4. Persistir en drift igual que hace la app tras validar.
     await inj.sl<CachePremium>().activarPremium(code);
@@ -66,7 +72,10 @@ void main() {
 
     // 5. Gate de descargas en Go debe permitir.
     final gate = await backend.rpcCall('checkDownloadAllowed');
-    expect(gate.toString(), contains('"ok":true'),
-        reason: 'gate debe permitir descargas con premium activo: $gate');
+    expect(
+      gate.toString(),
+      contains('"ok":true'),
+      reason: 'gate debe permitir descargas con premium activo: $gate',
+    );
   });
 }

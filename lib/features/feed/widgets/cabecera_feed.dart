@@ -39,9 +39,10 @@ class CabeceraFeed extends StatelessWidget {
     final r = Responsive(context);
     final state = context.watch<BlocFeed>().state;
     final hora = DateTime.now().hour;
-    final saludo = hora < 12
-        ? loc.setup.feedGoodMorning
-        : hora < 18
+    final saludo =
+        hora < 12
+            ? loc.setup.feedGoodMorning
+            : hora < 18
             ? loc.setup.feedGoodAfternoon
             : loc.setup.feedGoodEvening;
     final tieneNombre = state.usuario.isNotEmpty;
@@ -89,8 +90,8 @@ class CabeceraFeed extends StatelessWidget {
               fuenteSeleccionada: state.fuenteSeleccionada,
               onBg: onBg,
               colorBrillo: onBg,
-              onCambiada: (v) =>
-                  context.read<BlocFeed>().add(FuenteFeedCambiada(v)),
+              onCambiada:
+                  (v) => context.read<BlocFeed>().add(FuenteFeedCambiada(v)),
             ),
           ],
         ],

@@ -93,20 +93,22 @@ mixin DescargasPollFallido on DescargasTrack {
       final count = (_fallidosSinArchivoCount[rawId] ?? 0) + 1;
       _fallidosSinArchivoCount[rawId] = count;
       if (count >= _maxPollFallidosSinArchivo) {
+        final crudo = (p['error'] ?? p['errorType'] ?? '').toString();
         _log.w(
-          '[poll] $rawId: Go reporta failed tras $count polls — sin archivo, abandonando',
+          '[poll] $rawId: Go reporta failed tras $count polls — sin archivo, '
+          'abandonando (detalle: ${crudo.isEmpty ? "sin detalle" : crudo})',
         );
         _fallidosSinArchivoCount.remove(rawId);
         // Habilitar el reintento EN SITIO de la cola salvo que el motivo pida
         // al usuario (sin espacio, permiso, verificación): antes la cola
         // avanzaba y la canción quedaba en rojo sin un segundo intento.
-        _falloReintentable = falloDescargaReintentable(
-          (p['error'] ?? p['errorType'] ?? '').toString(),
-        );
+        _falloReintentable = falloDescargaReintentable(crudo);
         dl[stateKey] = DatosEstadoDescarga(
           estado: EstadoDescarga.interrumpido,
           progreso: 0.0,
-          mensajeError: (p['error'] ?? '').toString(),
+          // El estado guarda el CÓDIGO del motivo; el texto crudo queda arriba,
+          // en el log.
+          mensajeError: claveMotivoDescarga(crudo),
         );
         _completadosPersistidos.add(rawId);
         _senializarTrackTerminado(stateKey);
@@ -121,13 +123,15 @@ mixin DescargasPollFallido on DescargasTrack {
       }
       return true;
     }
-    _falloReintentable = falloDescargaReintentable(
-      (p['error'] ?? p['errorType'] ?? '').toString(),
+    final crudo = (p['error'] ?? p['errorType'] ?? '').toString();
+    _log.w(
+      '[poll] $rawId: interrumpido (detalle: ${crudo.isEmpty ? "sin detalle" : crudo})',
     );
+    _falloReintentable = falloDescargaReintentable(crudo);
     dl[stateKey] = DatosEstadoDescarga(
       estado: EstadoDescarga.interrumpido,
       progreso: 0.0,
-      mensajeError: (p['error'] ?? '').toString(),
+      mensajeError: claveMotivoDescarga(crudo),
     );
     _iniciadosEn.remove(stateKey);
     _senializarTrackTerminado(stateKey);

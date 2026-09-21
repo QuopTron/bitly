@@ -13,6 +13,7 @@ part of 'settings_sheet_new.dart';
 /// Ficha de un nivel: revelada si ya se alcanzó, oculta si no.
 class _FichaNivel extends StatelessWidget {
   final NivelEscucha nivel;
+  final int index;
   final bool abierto;
   final Color glowColor;
   final Color onBg;
@@ -20,6 +21,7 @@ class _FichaNivel extends StatelessWidget {
 
   const _FichaNivel({
     required this.nivel,
+    required this.index,
     required this.abierto,
     required this.glowColor,
     required this.onBg,
@@ -28,12 +30,12 @@ class _FichaNivel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final n = AppLocalizations.of(context).niveles;
     return Container(
       width: r.width * 0.42,
       padding: EdgeInsets.all(r.spacingS),
       decoration: BoxDecoration(
-        color:
-            abierto ? glowColor.withValues(alpha: 0.10) : Colors.transparent,
+        color: abierto ? glowColor.withValues(alpha: 0.10) : Colors.transparent,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color:
@@ -54,7 +56,7 @@ class _FichaNivel extends StatelessWidget {
               SizedBox(width: r.spacingXS),
               Expanded(
                 child: Text(
-                  abierto ? nivel.nombre : '???',
+                  abierto ? n.nombre(index) : '???',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -78,7 +80,7 @@ class _FichaNivel extends StatelessWidget {
           SizedBox(height: r.spacingXS),
           Text(
             // El premio queda oculto hasta desbloquearlo.
-            abierto ? nivel.premio : 'Premio oculto',
+            abierto ? n.premio(index) : n.premioOculto,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(

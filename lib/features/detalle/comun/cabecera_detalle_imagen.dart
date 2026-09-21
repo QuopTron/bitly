@@ -22,8 +22,7 @@ Widget _imgPortada(_CabeceraDetalleState st, double size) {
   final url = st.widget.coverUrl;
   if (url == null || url.isEmpty) return _placeholder(st.context, size);
   if (_esPortadaLocal(st.widget)) {
-    final path =
-        url.startsWith('file://') ? Uri.parse(url).toFilePath() : url;
+    final path = url.startsWith('file://') ? Uri.parse(url).toFilePath() : url;
     return Image.file(
       File(path),
       fit: BoxFit.cover,
@@ -45,8 +44,7 @@ Widget _fondoBlur(_CabeceraDetalleState st) {
   final url = st.widget.coverUrl;
   if (url == null || url.isEmpty) return const SizedBox.shrink();
   if (_esPortadaLocal(st.widget)) {
-    final path =
-        url.startsWith('file://') ? Uri.parse(url).toFilePath() : url;
+    final path = url.startsWith('file://') ? Uri.parse(url).toFilePath() : url;
     return Image.file(
       File(path),
       fit: BoxFit.cover,

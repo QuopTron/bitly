@@ -26,12 +26,18 @@ class _PremiumActivationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context).ajustes;
+    final expirado = trialRemaining == 'EXPIRADO';
+
     return GestureDetector(
+      // `sobreHoja`: la activación se abre desde dentro de Ajustes y tapa la
+      // hoja de abajo (si no, se veían dos modales).
       onTap:
           isPremium
               ? null
-              : () => showModalBottomSheet(
+              : () => mostrarHoja<void>(
                 context: context,
+                sobreHoja: true,
                 backgroundColor: Colors.transparent,
                 isScrollControlled: true,
                 builder:
@@ -78,7 +84,7 @@ class _PremiumActivationCard extends StatelessWidget {
                   Row(
                     children: [
                       Text(
-                        isPremium ? 'Premium activo' : 'Free',
+                        isPremium ? t.premiumActivo : t.planFree,
                         style: TextStyle(
                           fontSize: r.subtitleSize - 1,
                           fontWeight: FontWeight.w600,
@@ -94,19 +100,16 @@ class _PremiumActivationCard extends StatelessWidget {
                           ),
                           decoration: BoxDecoration(
                             color:
-                                trialRemaining == 'EXPIRADO'
+                                expirado
                                     ? Colors.redAccent.withValues(alpha: 0.2)
                                     : glowColor.withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
-                            trialRemaining!,
+                            expirado ? t.trialExpirado : trialRemaining!,
                             style: TextStyle(
                               fontSize: r.footerSize - 3,
-                              color:
-                                  trialRemaining == 'EXPIRADO'
-                                      ? Colors.redAccent
-                                      : glowColor,
+                              color: expirado ? Colors.redAccent : glowColor,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
@@ -117,10 +120,10 @@ class _PremiumActivationCard extends StatelessWidget {
                   SizedBox(height: 2),
                   Text(
                     isPremium
-                        ? 'Cuenta con todos los beneficios'
-                        : (trialRemaining == 'EXPIRADO'
-                            ? 'Activa Premium para descargar ilimitado'
-                            : 'Toca para activar un codigo premium'),
+                        ? t.premiumBeneficios
+                        : (expirado
+                            ? t.premiumActivarExpirado
+                            : t.premiumActivar),
                     style: TextStyle(
                       fontSize: r.footerSize - 2,
                       color: onBg.withValues(alpha: 0.4),

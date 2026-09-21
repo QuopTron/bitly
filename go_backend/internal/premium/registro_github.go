@@ -29,27 +29,27 @@ var httpClientApp = &http.Client{Timeout: 10 * time.Second}
 // código. Sin token no se puede verificar el registro.
 func verificarEnRegistro(code, token string) error {
 	if token == "" {
-		return fmt.Errorf("No se pudo verificar el código en el registro")
+		return nuevoError("registro_no_verificado", "No se pudo verificar el código en el registro")
 	}
 	codes, err := fetchCodesJSON(token)
 	if err != nil {
-		return fmt.Errorf("No se pudo verificar el código en el registro")
+		return nuevoError("registro_no_verificado", "No se pudo verificar el código en el registro")
 	}
 	status, ok := codes[code]
 	if !ok {
-		return fmt.Errorf("Código no encontrado en el registro")
+		return nuevoError("codigo_no_encontrado", "Código no encontrado en el registro")
 	}
 	switch status {
 	case "activo":
 		return nil
 	case "usado":
-		return fmt.Errorf("Código ya usado")
+		return nuevoError("codigo_usado", "Código ya usado")
 	case "cancelado":
-		return fmt.Errorf("Código cancelado")
+		return nuevoError("codigo_cancelado", "Código cancelado")
 	case "libre":
-		return fmt.Errorf("Código liberado")
+		return nuevoError("codigo_liberado", "Código liberado")
 	default:
-		return fmt.Errorf("Estado desconocido: %s", status)
+		return nuevoError("estado_desconocido", fmt.Sprintf("Estado desconocido: %s", status))
 	}
 }
 

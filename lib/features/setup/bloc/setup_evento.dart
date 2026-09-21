@@ -113,9 +113,11 @@ class AceptarDatosExistentes extends EventoSetup {
 }
 
 /// Notifica que la verificación de fuentes terminó (éxito o error).
+///
+/// Solo lleva si salió bien: el resultado del fallo se avisa en el slide, así
+/// que no hace falta cargar texto en el evento.
 class VerificacionCompletada extends EventoSetup {
   final bool exito;
-  final String? error;
 
-  const VerificacionCompletada({this.exito = true, this.error});
+  const VerificacionCompletada({this.exito = true});
 }

@@ -30,7 +30,9 @@ mixin ReproductorPreload on ReproductorPreloadVecinos {
       if (agregados >= tope) break;
       if (track.type != 'track') continue;
       if (track.name.trim().isEmpty) continue;
-      if (_cacheUrlStream.containsKey(_claveCacheStream(normalizarId(track.id)))) {
+      if (_cacheUrlStream.containsKey(
+        _claveCacheStream(normalizarId(track.id)),
+      )) {
         continue;
       }
       if (_resolveLocalUri(track) != null) continue;
@@ -38,6 +40,4 @@ mixin ReproductorPreload on ReproductorPreloadVecinos {
       agregados++;
     }
   }
-
-
 }

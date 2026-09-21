@@ -44,19 +44,38 @@ mixin DescargasPollPersistir on DescargasPollFinalizar {
     final trackCoverUrl = meta?.coverUrl;
     String? coverPath;
     if (trackCoverUrl != null && trackCoverUrl.isNotEmpty) {
+      // Las claves dejan la portada encontrable por isrc/id/nombre: si el
+      // usuario ya la tenía por un like, no se baja dos veces.
+      final claves = clavesCaratula(
+        isrc: isrc,
+        trackId: trackId,
+        nombre: trackName,
+        artista: artistName,
+      );
       for (var intento = 0; intento < 3; intento++) {
-        try {
-          final coverPathResult = await _backend.saveCover(trackCoverUrl);
-          if (coverPathResult != null && coverPathResult.isNotEmpty) {
-            coverPath = coverPathResult;
-            break;
-          }
-        } catch (_) {
-          coverPath = null;
+        final coverPathResult = await _backend.saveCover(
+          trackCoverUrl,
+          keys: claves,
+        );
+        if (coverPathResult != null && coverPathResult.isNotEmpty) {
+          coverPath = coverPathResult;
+          break;
         }
         if (intento < 2) {
           await Future<void>.delayed(Duration(seconds: 1 << intento));
         }
+      }
+      if (coverPath == null || coverPath.isEmpty) {
+        _log.w('[Descargas] sin carátula local para $trackName');
+      } else {
+        // La biblioteca local (tabla tracks) es lo que leen las vistas de
+        // detalle/artista sin red: se le deja la misma portada.
+        await _contentLote.actualizarCaratulaTrack(
+          trackId,
+          isrc,
+          trackCoverUrl,
+          coverPath,
+        );
       }
       if (coverPath != null && coverPath.isNotEmpty && meta != null) {
         _metaTrack[stateKey] = _InfoTrack(

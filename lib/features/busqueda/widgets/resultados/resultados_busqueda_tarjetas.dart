@@ -68,9 +68,8 @@ Widget _tarjetaTrack(
     onLike: () => cuerpo.onAlternarLike(id, item),
     estadoDescarga: _estadoDescargaTrack(cuerpo, huella, id, item.isrc),
     onDescargar: () => cuerpo.onIniciarDescarga(item),
-    onBorrar: cuerpo.onBorrarTrack != null
-        ? () => cuerpo.onBorrarTrack!(item)
-        : null,
+    onBorrar:
+        cuerpo.onBorrarTrack != null ? () => cuerpo.onBorrarTrack!(item) : null,
     onInfo: () => cuerpo.onMostrarInfo(context, item),
     onMas: () => cuerpo.onMostrarMas(context, item),
     onTap: play,

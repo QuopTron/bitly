@@ -36,7 +36,10 @@ class DetallePlaylist {
       createdAt: json['createdAt'] as String?,
       updatedAt: json['updatedAt'] as String?,
       itemCount: (json['itemCount'] as num?)?.toInt() ?? 0,
-      tracks: rawTracks.map((e) => TrackDetalle.desdeJson(e as Map<String, dynamic>)).toList(),
+      tracks:
+          rawTracks
+              .map((e) => TrackDetalle.desdeJson(e as Map<String, dynamic>))
+              .toList(),
     );
   }
 }

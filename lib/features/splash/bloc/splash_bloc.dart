@@ -35,9 +35,9 @@ class SplashBloc extends Bloc<EventoSplash, EstadoSplash> {
     const intentos = 3;
     for (var intento = 1; intento <= intentos; intento++) {
       try {
-        final ok = await _backend
-            .healthCheck()
-            .timeout(const Duration(seconds: 30));
+        final ok = await _backend.healthCheck().timeout(
+          const Duration(seconds: 30),
+        );
         if (ok) {
           emit(const EstadoSplash(status: EstatusSplash.conectado));
           return;
@@ -49,9 +49,7 @@ class SplashBloc extends Bloc<EventoSplash, EstadoSplash> {
         await Future<void>.delayed(Duration(milliseconds: 500 * intento));
       }
     }
-    emit(const EstadoSplash(
-      status: EstatusSplash.error,
-      error: 'Backend no responde',
-    ));
+    // Sin texto en el estado: el aviso lo arma la vista con l10n.
+    emit(const EstadoSplash(status: EstatusSplash.error));
   }
 }

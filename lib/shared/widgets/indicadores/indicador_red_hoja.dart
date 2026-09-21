@@ -11,7 +11,7 @@ part of 'indicador_red.dart';
 
 /// Abre la hoja de detalle del estado de red.
 Future<void> mostrarHojaEstadoRed(BuildContext context) {
-  return showModalBottomSheet<void>(
+  return mostrarHoja<void>(
     context: context,
     backgroundColor: Colors.transparent,
     isScrollControlled: true,
@@ -53,7 +53,11 @@ class _HojaEstadoRed extends StatelessWidget {
                 SizedBox(height: r.spacingM),
                 Row(
                   children: [
-                    Icon(iconoTipoRed(estado), size: r.titleSize * 1.3, color: color),
+                    Icon(
+                      iconoTipoRed(estado),
+                      size: r.titleSize * 1.3,
+                      color: color,
+                    ),
                     SizedBox(width: r.spacingS),
                     Expanded(
                       child: Column(
@@ -90,9 +94,10 @@ class _HojaEstadoRed extends StatelessWidget {
                   r: r,
                   onBg: onBg,
                   etiqueta: loc.red.latencyLabel,
-                  valor: estado.latenciaMs >= 0
-                      ? '${estado.latenciaMs} ms'
-                      : loc.red.unavailable,
+                  valor:
+                      estado.latenciaMs >= 0
+                          ? '${estado.latenciaMs} ms'
+                          : loc.red.unavailable,
                 ),
                 filaDatoHojaRed(
                   r: r,

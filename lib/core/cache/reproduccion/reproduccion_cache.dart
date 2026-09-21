@@ -23,8 +23,8 @@ class ReproduccionCache {
   final PremiumDao _premium;
 
   ReproduccionCache(AppDatabase db)
-      : _historial = PlayHistoryDao(db),
-        _premium = PremiumDao(db);
+    : _historial = PlayHistoryDao(db),
+      _premium = PremiumDao(db);
 
   /// Registra un play en las tablas drift locales:
   /// 1. Inserta en `play_history`

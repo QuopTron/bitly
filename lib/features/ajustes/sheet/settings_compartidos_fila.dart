@@ -34,15 +34,16 @@ Widget _filaCompartido(
             child: SizedBox(
               width: 46,
               height: 46,
-              child: datos.caratula.isNotEmpty
-                  ? imagenDesdeUrl(datos.caratula)
-                  : ColoredBox(
-                      color: Colors.white.withValues(alpha: 0.06),
-                      child: const Icon(
-                        Icons.music_note_rounded,
-                        color: Colors.white54,
+              child:
+                  datos.caratula.isNotEmpty
+                      ? imagenDesdeUrl(datos.caratula)
+                      : ColoredBox(
+                        color: Colors.white.withValues(alpha: 0.06),
+                        child: const Icon(
+                          Icons.music_note_rounded,
+                          color: Colors.white54,
+                        ),
                       ),
-                    ),
             ),
           ),
           SizedBox(width: r.spacingM),
@@ -103,9 +104,12 @@ Widget _filaCompartido(
 /// Fecha corta: hoy / ayer / dd/mm.
 String _fechaCorta(DateTime fecha) {
   final ahora = DateTime.now();
-  final dias = DateTime(ahora.year, ahora.month, ahora.day)
-      .difference(DateTime(fecha.year, fecha.month, fecha.day))
-      .inDays;
+  final dias =
+      DateTime(
+        ahora.year,
+        ahora.month,
+        ahora.day,
+      ).difference(DateTime(fecha.year, fecha.month, fecha.day)).inDays;
   if (dias <= 0) return 'hoy';
   if (dias == 1) return 'ayer';
   final d = fecha.day.toString().padLeft(2, '0');

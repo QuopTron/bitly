@@ -86,7 +86,7 @@ class _ThemePicker extends StatelessWidget {
           ),
           SizedBox(height: r.spacingXS),
           Text(
-            'El cambio se aplica al instante en todas las vistas.',
+            loc.apariencia.temaAyuda,
             style: TextStyle(
               fontSize: r.footerSize - 2,
               color: onBg.withValues(alpha: 0.4),

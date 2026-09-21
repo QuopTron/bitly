@@ -15,7 +15,9 @@ void _downloadApk(String url, String version) async {
     final resp = await http.get(Uri.parse(url));
     await file.writeAsBytes(resp.bodyBytes);
     await OpenFilex.open(file.path);
-  } catch (e) { debugPrint("[Feature] $e"); }
+  } catch (e) {
+    debugPrint("[Feature] $e");
+  }
 }
 
 /// Limpia el markdown del changelog para mostrarlo como texto plano.

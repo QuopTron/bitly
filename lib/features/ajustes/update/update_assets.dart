@@ -52,7 +52,8 @@ class UpdateAssets {
     final env = Platform.environment;
     final valor =
         '${env['PROCESSOR_ARCHITECTURE'] ?? ''} '
-        '${env['PROCESSOR_ARCHITEW6432'] ?? ''}'.toUpperCase();
+                '${env['PROCESSOR_ARCHITEW6432'] ?? ''}'
+            .toUpperCase();
     if (valor.contains('ARM64') || valor.contains('AARCH64')) return 'arm64';
     if (valor.contains('AMD64') ||
         valor.contains('X64') ||
@@ -120,9 +121,10 @@ class UpdateAssets {
 
     // Fallback por extensión + palabra clave de arquitectura.
     final ext = plataforma == 'windows' ? '.exe' : '.apk';
-    final claves = plataforma == 'windows'
-        ? [arquitectura.contains('arm') ? 'arm64' : 'x64']
-        : <String>[];
+    final claves =
+        plataforma == 'windows'
+            ? [arquitectura.contains('arm') ? 'arm64' : 'x64']
+            : <String>[];
     for (final a in assets) {
       final n = ((a['name'] as String?) ?? '').toLowerCase();
       if (!n.endsWith(ext)) continue;

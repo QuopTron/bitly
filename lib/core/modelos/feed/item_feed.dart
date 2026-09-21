@@ -20,6 +20,7 @@ class ItemFeed {
   final int? totalTracks;
   final String? owner;
   final String? isrc;
+
   /// Ids cross-proveedor que llevan los tracks de detalle (álbum/artista/
   /// playlist) para que la reproducción resuelva en CUALQUIER extensión vía
   /// CheckAvailability en vez de una búsqueda lenta por nombre.
@@ -71,22 +72,22 @@ class ItemFeed {
   }
 
   Map<String, dynamic> aJson() => {
-        'id': id,
-        'type': type,
-        'name': name,
-        'artists': artists,
-        'cover_url': coverUrl,
-        'source': source,
-        'album_id': albumId,
-        'album_name': albumName,
-        'duration_ms': durationMs,
-        'release_date': releaseDate,
-        'total_tracks': totalTracks,
-        'owner': owner,
-        'isrc': isrc,
-        'spotify_id': spotifyId,
-        'deezer_id': deezerId,
-        'tidal_id': tidalId,
-        'qobuz_id': qobuzId,
-      };
+    'id': id,
+    'type': type,
+    'name': name,
+    'artists': artists,
+    'cover_url': coverUrl,
+    'source': source,
+    'album_id': albumId,
+    'album_name': albumName,
+    'duration_ms': durationMs,
+    'release_date': releaseDate,
+    'total_tracks': totalTracks,
+    'owner': owner,
+    'isrc': isrc,
+    'spotify_id': spotifyId,
+    'deezer_id': deezerId,
+    'tidal_id': tidalId,
+    'qobuz_id': qobuzId,
+  };
 }

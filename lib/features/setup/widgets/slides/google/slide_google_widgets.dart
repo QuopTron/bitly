@@ -38,15 +38,17 @@ Widget _botonConectar(_SlideGoogleState st, Color glowColor) {
       height: st.widget.r.continueButtonHeight,
       width: double.infinity,
       child: BotonVidrio(
-        label: st._conectando
-            ? st._t('Conectando…', 'Connecting…')
-            : st._t('Iniciar sesión con Google', 'Sign in with Google'),
+        label:
+            st._conectando
+                ? st._t('Conectando…', 'Connecting…')
+                : st._t('Iniciar sesión con Google', 'Sign in with Google'),
         onPressed: st._conectando ? null : () => st._conectar(st.context),
         height: st.widget.r.continueButtonHeight,
         accent: glowColor,
-        icon: st._conectando
-            ? const Icon(Icons.hourglass_top, size: 22)
-            : const LogoGoogle(tamano: 20),
+        icon:
+            st._conectando
+                ? const Icon(Icons.hourglass_top, size: 22)
+                : const LogoGoogle(tamano: 20),
       ),
     ),
   );
@@ -93,8 +95,8 @@ Widget _botones(_SlideGoogleState st, BuildContext context, Color glowColor) {
           Expanded(
             child: BotonVidrio(
               label: st.widget.loc.setup.back,
-              onPressed: () =>
-                  context.read<SetupBloc>().add(const PasoAnterior()),
+              onPressed:
+                  () => context.read<SetupBloc>().add(const PasoAnterior()),
               height: st.widget.r.continueButtonHeight,
               accent: glowColor,
             ),
@@ -103,8 +105,8 @@ Widget _botones(_SlideGoogleState st, BuildContext context, Color glowColor) {
           Expanded(
             child: BotonVidrio(
               label: st.widget.loc.setup.next,
-              onPressed: () =>
-                  context.read<SetupBloc>().add(const SiguientePaso()),
+              onPressed:
+                  () => context.read<SetupBloc>().add(const SiguientePaso()),
               height: st.widget.r.continueButtonHeight,
               accent: glowColor,
             ),

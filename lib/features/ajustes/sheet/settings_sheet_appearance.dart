@@ -15,15 +15,11 @@ class _AppearanceTab extends StatelessWidget {
   final bool isDark;
   final Color glowColor;
   final ValueChanged<bool> onThemeChanged;
-  final VoidCallback onLanguageChanged;
-  final ValueChanged<EstiloVisual> onStyleChanged;
 
   const _AppearanceTab({
     required this.isDark,
     required this.glowColor,
     required this.onThemeChanged,
-    required this.onLanguageChanged,
-    required this.onStyleChanged,
   });
 
   @override
@@ -32,7 +28,6 @@ class _AppearanceTab extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final onBg = ColoresApp.enSuperficie(isDark);
     final loc = AppLocalizations.of(context);
-    final estiloActual = EstiloHelper.actual(context);
 
     return SingleChildScrollView(
       padding: EdgeInsets.all(r.spacingL),
@@ -49,32 +44,23 @@ class _AppearanceTab extends StatelessWidget {
             onThemeChanged: onThemeChanged,
           ),
           SizedBox(height: r.spacingS),
-          // ── Visual style — Clásico / Spotify + granular ──
-          _StylePicker(
-            estiloActual: estiloActual,
-            glowColor: glowColor,
-            onBg: onBg,
-            r: r,
-            loc: loc,
-            onStyleChanged: onStyleChanged,
-          ),
+          // ── Estilo con cover — un control, de Normal a Spotify ──
+          _StylePicker(glowColor: glowColor, onBg: onBg, r: r, loc: loc),
           SizedBox(height: r.spacingS),
-          // ── Diseño personalizable (borde, separación y redondeo) ──
-          _DisenoCard(
-            glowColor: glowColor,
-            onBg: onBg,
-            r: r,
-            loc: loc,
-          ),
+          // ── Barras (esquinas de arriba del navbar/miniplayer + cofre) ──
+          _BarrasCard(glowColor: glowColor, onBg: onBg, r: r, loc: loc),
+          SizedBox(height: r.spacingS),
+          // ── Diseño personalizable (separación y redondeo de las cards) ──
+          _DisenoCard(glowColor: glowColor, onBg: onBg, r: r, loc: loc),
           SizedBox(height: r.spacingS),
           // ── Language ──
           SettingsLanguageSection(
             onBg: onBg,
             glowColor: glowColor,
             loc: loc,
-            onTap: onLanguageChanged,
-            currentLanguage:
-                loc.locale.languageCode == 'es' ? 'Español' : 'English',
+            // Abre el selector: el idioma lo aplica y lo guarda la hoja misma
+            // (IdiomaHelper), y el notifier repinta la app con el locale nuevo.
+            onTap: () => abrirSelectorIdioma(context),
           ),
         ],
       ),

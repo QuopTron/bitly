@@ -7,11 +7,7 @@ void main() {
     testWidgets('renders child widget', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
-          home: Scaffold(
-            body: ContenedorVidrio(
-              child: const Text('Hello'),
-            ),
-          ),
+          home: Scaffold(body: ContenedorVidrio(child: const Text('Hello'))),
         ),
       );
 
@@ -97,4 +93,3 @@ void main() {
     });
   });
 }
-

@@ -25,22 +25,23 @@ Widget _botonPlayMini(
         color: fg.withValues(alpha: 0.12),
       ),
       child: Center(
-        child: buffering
-            ? SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.6,
-                  color: fg.withValues(alpha: 0.7),
+        child:
+            buffering
+                ? SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.6,
+                    color: fg.withValues(alpha: 0.7),
+                  ),
+                )
+                : Icon(
+                  player.estaReproduciendo
+                      ? Icons.pause_rounded
+                      : Icons.play_arrow_rounded,
+                  color: fg,
+                  size: 28,
                 ),
-              )
-            : Icon(
-                player.estaReproduciendo
-                    ? Icons.pause_rounded
-                    : Icons.play_arrow_rounded,
-                color: fg,
-                size: 28,
-              ),
       ),
     ),
   );

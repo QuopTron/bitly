@@ -29,13 +29,22 @@ mixin DetalleMixin on BackendService {
   @override
   Future<String> fetchAlbumDetail(String albumId, String source) async {
     try {
-      final json = await rpcCall('fetchAlbumDetail', {'album_id': albumId, 'source': source}) as String;
+      final json =
+          await rpcCall('fetchAlbumDetail', {
+                'album_id': albumId,
+                'source': source,
+              })
+              as String;
       if (json.isNotEmpty && json != '{}') {
         try {
-          final detalle = DetalleAlbum.desdeJson(jsonDecode(json) as Map<String, dynamic>);
+          final detalle = DetalleAlbum.desdeJson(
+            jsonDecode(json) as Map<String, dynamic>,
+          );
           await _pb.sincronizarDetalleAlbum(detalle, fuente: source);
           await _c.invalidarAlbum(albumId);
-        } catch (_) {/* el sync es best-effort */}
+        } catch (_) {
+          /* el sync es best-effort */
+        }
       }
       return json;
     } catch (_) {
@@ -46,13 +55,22 @@ mixin DetalleMixin on BackendService {
   @override
   Future<String> fetchPlaylistDetail(String collectionId, String source) async {
     try {
-      final json = await rpcCall('fetchPlaylistDetail', {'collection_id': collectionId, 'source': source}) as String;
+      final json =
+          await rpcCall('fetchPlaylistDetail', {
+                'collection_id': collectionId,
+                'source': source,
+              })
+              as String;
       if (json.isNotEmpty && json != '{}') {
         try {
-          final detalle = DetallePlaylist.desdeJson(jsonDecode(json) as Map<String, dynamic>);
+          final detalle = DetallePlaylist.desdeJson(
+            jsonDecode(json) as Map<String, dynamic>,
+          );
           await _pb.sincronizarDetallePlaylist(detalle, fuente: source);
           await _c.invalidarPlaylist(collectionId);
-        } catch (_) {/* el sync es best-effort */}
+        } catch (_) {
+          /* el sync es best-effort */
+        }
       }
       return json;
     } catch (_) {
@@ -63,15 +81,24 @@ mixin DetalleMixin on BackendService {
   @override
   Future<String> fetchArtistDetail(String artistId, String source) async {
     try {
-      final json = await rpcCall('fetchArtistDetail', {'artist_id': artistId, 'source': source}) as String;
+      final json =
+          await rpcCall('fetchArtistDetail', {
+                'artist_id': artistId,
+                'source': source,
+              })
+              as String;
       // Sincroniza los datos de la extensión a drift local para uso offline.
       if (json.isNotEmpty && json != '{}') {
         try {
-          final detalle = DetalleArtista.desdeJson(jsonDecode(json) as Map<String, dynamic>);
+          final detalle = DetalleArtista.desdeJson(
+            jsonDecode(json) as Map<String, dynamic>,
+          );
           await _pb.sincronizarDetalleArtista(detalle, fuente: source);
           // Invalida DetailCache para que el próximo getArtistDetail use datos frescos.
           await _c.invalidarArtista(artistId);
-        } catch (_) {/* el sync es best-effort */}
+        } catch (_) {
+          /* el sync es best-effort */
+        }
       }
       return json;
     } catch (_) {

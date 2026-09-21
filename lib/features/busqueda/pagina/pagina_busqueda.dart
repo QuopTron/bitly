@@ -124,11 +124,18 @@ class _PaginaBusquedaState extends State<PaginaBusqueda> {
           final barra = _construirBarra(this, state);
           final chips = _construirChips(this, state);
           final cuerpo = _construirCuerpo(
-              this, state, mostrarResultados, mostrarRecientes);
+            this,
+            state,
+            mostrarResultados,
+            mostrarRecientes,
+          );
 
           if (usarLayoutEscritorio(context)) {
             return BusquedaEscritorio(
-                barra: barra, chips: chips, cuerpo: cuerpo);
+              barra: barra,
+              chips: chips,
+              cuerpo: cuerpo,
+            );
           }
           return BusquedaMovil(barra: barra, chips: chips, cuerpo: cuerpo);
         },

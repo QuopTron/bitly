@@ -60,7 +60,11 @@ class TarjetaInfoCuenta extends StatelessWidget {
           if (state.trialExistenteExpirado)
             _fila(Icons.warning_amber, loc.setup.trialExpired, color: glowColor)
           else if (state.modoExistente == 'free')
-            _fila(Icons.timer_outlined, loc.setup.trialActive, color: glowColor),
+            _fila(
+              Icons.timer_outlined,
+              loc.setup.trialActive,
+              color: glowColor,
+            ),
         ],
       ),
     );

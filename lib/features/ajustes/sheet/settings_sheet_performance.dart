@@ -18,6 +18,7 @@ class _PerformanceTab extends StatelessWidget {
     final onBg = ColoresApp.enSuperficie(
       Theme.of(context).brightness == Brightness.dark,
     );
+    final loc = AppLocalizations.of(context);
 
     return SingleChildScrollView(
       padding: EdgeInsets.all(r.spacingL),
@@ -31,7 +32,7 @@ class _PerformanceTab extends StatelessWidget {
               Icon(Icons.speed_rounded, color: glowColor, size: r.subtitleSize),
               SizedBox(width: r.spacingS),
               Text(
-                'Rendimiento',
+                loc.setup.performanceProfile,
                 style: TextStyle(
                   fontSize: r.subtitleSize,
                   fontWeight: FontWeight.w700,
@@ -42,7 +43,7 @@ class _PerformanceTab extends StatelessWidget {
           ),
           SizedBox(height: 4),
           Text(
-            'Equilibra calidad de audio y consumo de datos según tu dispositivo y conexión.',
+            loc.setup.performanceHelp,
             style: TextStyle(
               fontSize: r.footerSize - 1,
               color: onBg.withValues(alpha: 0.5),

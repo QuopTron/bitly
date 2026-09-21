@@ -19,9 +19,10 @@ void _aviso(
   ScaffoldMessenger.of(st.context).showSnackBar(
     SnackBar(
       content: Text(texto, style: const TextStyle(color: Colors.white)),
-      backgroundColor: error
-          ? Colors.red.withValues(alpha: 0.8)
-          : st.widget.glowColor.withValues(alpha: 0.9),
+      backgroundColor:
+          error
+              ? Colors.red.withValues(alpha: 0.8)
+              : st.widget.glowColor.withValues(alpha: 0.9),
       behavior: SnackBarBehavior.floating,
     ),
   );
@@ -55,6 +56,15 @@ Widget _seccionAlmacenamiento(_SettingsStorageSectionState st) {
                 Text(
                   st.widget.loc.setup.downloadFolder,
                   style: TextStyle(fontSize: r.subtitleSize, color: onBg),
+                ),
+                // Ayuda corta: qué hace esta carpeta (mismo estilo que el
+                // resto de Ajustes).
+                Text(
+                  st.widget.loc.setup.storageDesc,
+                  style: TextStyle(
+                    fontSize: r.footerSize - 2,
+                    color: onBg.withValues(alpha: 0.4),
+                  ),
                 ),
                 if (ruta != null && ruta.isNotEmpty) ...[
                   SizedBox(height: 2),

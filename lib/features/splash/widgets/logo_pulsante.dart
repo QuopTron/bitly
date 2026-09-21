@@ -27,10 +27,12 @@ class LogoPulsante extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final glowColor = isDark ? ColoresApp.verdeBrillante : ColoresApp.verdeMedio;
-    final logo = isDark
-        ? 'assets/images/logoBitlyOscuro.png'
-        : 'assets/images/logoBitlyClaro.png';
+    final glowColor =
+        isDark ? ColoresApp.verdeBrillante : ColoresApp.verdeMedio;
+    final logo =
+        isDark
+            ? 'assets/images/logoBitlyOscuro.png'
+            : 'assets/images/logoBitlyClaro.png';
 
     return AnimatedBuilder(
       animation: pulse,
@@ -40,7 +42,9 @@ class LogoPulsante extends StatelessWidget {
           padding: EdgeInsets.all(r.circlePadding),
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: ColoresApp.verdeOscuro.withValues(alpha: isDark ? 0.3 : 0.05),
+            color: ColoresApp.verdeOscuro.withValues(
+              alpha: isDark ? 0.3 : 0.05,
+            ),
             border: Border.all(
               color: glowColor.withValues(alpha: pulse.value * 0.3),
               width: 1.5,

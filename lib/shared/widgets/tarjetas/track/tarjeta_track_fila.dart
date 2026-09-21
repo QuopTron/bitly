@@ -36,35 +36,36 @@ Widget _filaContenidoTrack(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(10),
               color: t.coverUrl == null ? fondoFallback : null,
-              border: Border.all(
-                color: ColoresApp.borde(esOscuro),
-                width: 0.5,
-              ),
-              boxShadow: efectosPesados
-                  ? [
-                      BoxShadow(
-                        color: ColoresApp.sombra(esOscuro).withValues(alpha: 0.4),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ]
-                  : null,
+              border: Border.all(color: ColoresApp.borde(esOscuro), width: 0.5),
+              boxShadow:
+                  efectosPesados
+                      ? [
+                        BoxShadow(
+                          color: ColoresApp.sombra(
+                            esOscuro,
+                          ).withValues(alpha: 0.4),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ]
+                      : null,
             ),
-            child: t.coverUrl != null
-                ? imagenDesdeUrl(
-                    t.coverUrl,
-                    ajuste: BoxFit.cover,
-                    fallback: Icon(
+            child:
+                t.coverUrl != null
+                    ? imagenDesdeUrl(
+                      t.coverUrl,
+                      ajuste: BoxFit.cover,
+                      fallback: Icon(
+                        Icons.music_note,
+                        color: colorIconoFallback,
+                        size: 34,
+                      ),
+                    )
+                    : Icon(
                       Icons.music_note,
                       color: colorIconoFallback,
                       size: 34,
                     ),
-                  )
-                : Icon(
-                    Icons.music_note,
-                    color: colorIconoFallback,
-                    size: 34,
-                  ),
           ),
         ),
         SizedBox(width: r.spacingS),

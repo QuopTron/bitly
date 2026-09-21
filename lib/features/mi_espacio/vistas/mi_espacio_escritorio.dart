@@ -32,11 +32,7 @@ class MiEspacioEscritorio extends StatelessWidget {
           borderRadius: 20,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              cabecera,
-              SizedBox(height: 8),
-              Expanded(child: cuerpo),
-            ],
+            children: [cabecera, SizedBox(height: 8), Expanded(child: cuerpo)],
           ),
         ),
       ),

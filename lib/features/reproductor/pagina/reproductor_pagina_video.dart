@@ -23,7 +23,7 @@ Future<void> _alternarVideo(
   }
   if (st._videoCargando) return;
   st._videoCargando = true;
-    st.repintar();
+  st.repintar();
   try {
     String? videoUrl = sl<CubitReproductor>().urlVideoPrecargado;
     videoUrl ??= _resolverVideoLocal(track, dirDescargas);
@@ -31,7 +31,10 @@ Future<void> _alternarVideo(
       // Sin precarga ni archivo local: buscar bajo demanda solo con red.
       if (!await ServicioConectividad.estaEnLinea()) {
         if (st.mounted) {
-          _snackVideo(st.context, 'Sin conexión y sin video descargado');
+          _snackVideo(
+            st.context,
+            AppLocalizations.of(st.context).reproductor.videoSinConexion,
+          );
         }
         return;
       }
@@ -42,7 +45,10 @@ Future<void> _alternarVideo(
     }
     if (videoUrl == null || videoUrl.isEmpty) {
       if (st.mounted) {
-        _snackVideo(st.context, 'No se pudo obtener el video visualizador');
+        _snackVideo(
+          st.context,
+          AppLocalizations.of(st.context).reproductor.videoNoObtenido,
+        );
       }
       return;
     }
@@ -67,7 +73,10 @@ Future<void> _alternarVideo(
       _SesionVideo.url = null;
       _SesionVideo.trackKey = null;
       if (st.mounted) {
-        _snackVideo(st.context, 'No se pudo reproducir el video visualizador');
+        _snackVideo(
+          st.context,
+          AppLocalizations.of(st.context).reproductor.videoNoReproducido,
+        );
       }
     }
   } finally {
@@ -88,9 +97,7 @@ void _armarSuscripcionLoopVideo(_ReproductorPaginaState st) {
 /// Reabre el reproductor ya en modo video si se minimizó con el visualizador
 /// encendido (mismo track). Fire-and-forget: si la URL murió, cae a portada.
 Future<void> _restaurarSesionVideo(_ReproductorPaginaState st) async {
-  if (!st.mounted ||
-      !_SesionVideo.habilitada ||
-      _SesionVideo.url == null) {
+  if (!st.mounted || !_SesionVideo.habilitada || _SesionVideo.url == null) {
     return;
   }
   final cola = sl<CubitCola>().state;
@@ -135,7 +142,7 @@ void _detenerVideoParaPortada(_ReproductorPaginaState st) {
   _SesionVideo.trackKey = null;
   st._videoPlayer.stop();
   if (st.mounted) st._mostrarVideo = false;
-    st.repintar();
+  st.repintar();
 }
 
 /// SnackBar flotante con un mensaje del video visualizador.

@@ -31,7 +31,8 @@ mixin ReproductorLocales on ReproductorCompletado {
 
         for (final e in list) {
           final m = e as Map<String, dynamic>;
-          final tid = (m['id'] ?? m['trackId'] ?? m['track_id'] ?? '').toString();
+          final tid =
+              (m['id'] ?? m['trackId'] ?? m['track_id'] ?? '').toString();
           final fp = (m['filePath'] ?? m['file_path'] ?? '') as String;
           if (tid.isNotEmpty && fp.isNotEmpty && await File(fp).exists()) {
             _archivosLocales[tid] = fp;
@@ -90,6 +91,8 @@ mixin ReproductorLocales on ReproductorCompletado {
 
       _archivosLocalesCargadosEn = DateTime.now();
       _ultimoTimestampCarga = DateTime.now().toUtc().toIso8601String();
-    } catch (e) { debugPrint("[App] $e"); }
+    } catch (e) {
+      debugPrint("[App] $e");
+    }
   }
 }

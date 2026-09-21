@@ -23,8 +23,10 @@ Future<void> showReportDialog(BuildContext context, Color glowColor) async {
   var sending = false;
   var sent = false;
 
-  await showDialog<void>(
+  // `sobreModal`: el reporte sale desde dentro de la hoja de Ajustes.
+  await mostrarDialogo<void>(
     context: context,
+    sobreModal: true,
     builder: (ctx) {
       return StatefulBuilder(
         builder: (ctx, setModalState) {

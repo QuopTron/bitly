@@ -63,7 +63,8 @@ mixin VerificacionFuentes on VerificacionMostrar, VerificacionSilenciosa {
       return await backend.completeSignedSessionGrant(extId, grant);
     } catch (e) {
       _logVerificacion.w(
-          '[Verificacion] verificarFuenteSilenciosa $extId error: $e');
+        '[Verificacion] verificarFuenteSilenciosa $extId error: $e',
+      );
       return false;
     }
   }

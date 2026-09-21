@@ -38,12 +38,19 @@ class ListaBusquedasRecientes extends StatelessWidget {
 
     return ListView(
       padding: EdgeInsets.fromLTRB(
-          r.spacingS, r.spacingM, r.spacingS, r.spacingS + r.val(120, 100, 150)),
+        r.spacingS,
+        r.spacingM,
+        r.spacingS,
+        r.spacingS + r.val(120, 100, 150),
+      ),
       children: [
         Row(
           children: [
-            Icon(Icons.history,
-                size: r.footerSize + 4, color: onBg.withValues(alpha: 0.5)),
+            Icon(
+              Icons.history,
+              size: r.footerSize + 4,
+              color: onBg.withValues(alpha: 0.5),
+            ),
             SizedBox(width: r.spacingXS),
             Text(
               loc.setup.recentSearches,
@@ -67,43 +74,51 @@ class ListaBusquedasRecientes extends StatelessWidget {
           ],
         ),
         SizedBox(height: r.spacingM),
-        ...busquedas.map((q) => Padding(
-              padding: EdgeInsets.only(bottom: r.spacingXS),
-              child: GestureDetector(
-                onTap: () => onBusquedaTocada(q),
-                child: ContenedorVidrio(
-                  borderRadius: 12,
-                  borderColor: onBg.withValues(alpha: 0.06),
-                  bgColor: onBg.withValues(alpha: 0.02),
-                  padding: EdgeInsets.symmetric(
-                      horizontal: r.spacingM, vertical: r.spacingS),
-                  child: Row(
-                    children: [
-                      Icon(Icons.search,
-                          size: r.footerSize + 4,
-                          color: onBg.withValues(alpha: 0.3)),
-                      SizedBox(width: r.spacingM),
-                      Expanded(
-                        child: Text(
-                          q,
-                          style: TextStyle(
-                            fontSize: r.subtitleSize,
-                            color: onBg.withValues(alpha: 0.7),
-                          ),
-                          overflow: TextOverflow.ellipsis,
+        ...busquedas.map(
+          (q) => Padding(
+            padding: EdgeInsets.only(bottom: r.spacingXS),
+            child: GestureDetector(
+              onTap: () => onBusquedaTocada(q),
+              child: ContenedorVidrio(
+                borderRadius: 12,
+                borderColor: onBg.withValues(alpha: 0.06),
+                bgColor: onBg.withValues(alpha: 0.02),
+                padding: EdgeInsets.symmetric(
+                  horizontal: r.spacingM,
+                  vertical: r.spacingS,
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.search,
+                      size: r.footerSize + 4,
+                      color: onBg.withValues(alpha: 0.3),
+                    ),
+                    SizedBox(width: r.spacingM),
+                    Expanded(
+                      child: Text(
+                        q,
+                        style: TextStyle(
+                          fontSize: r.subtitleSize,
+                          color: onBg.withValues(alpha: 0.7),
                         ),
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      GestureDetector(
-                        onTap: () => onQuitar(q),
-                        child: Icon(Icons.close,
-                            size: r.footerSize,
-                            color: onBg.withValues(alpha: 0.2)),
+                    ),
+                    GestureDetector(
+                      onTap: () => onQuitar(q),
+                      child: Icon(
+                        Icons.close,
+                        size: r.footerSize,
+                        color: onBg.withValues(alpha: 0.2),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
-            )),
+            ),
+          ),
+        ),
       ],
     );
   }

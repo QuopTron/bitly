@@ -63,8 +63,6 @@ class CacheDetalle {
 
   Future<String?> getUserStats() => _obtenerSiFresco(_claveStats);
 
-  Future<void> setUserStats(String json) => _dao.set(_claveStats, json);
-
   Future<void> invalidarUserStats() => _dao.remove(_claveStats);
 
   /// Cálculo de nivel + progreso del usuario (migrado de Go).
@@ -91,9 +89,15 @@ class CacheDetalle {
   }
 
   static int _nivelCrudo(int descargas, int likes, int reproduccionMs) {
-    if (descargas >= 1000 && likes >= 500 && reproduccionMs >= 360000000) return 6;
-    if (descargas >= 500 && likes >= 200 && reproduccionMs >= 180000000) return 5;
-    if (descargas >= 200 && likes >= 100 && reproduccionMs >= 72000000) return 4;
+    if (descargas >= 1000 && likes >= 500 && reproduccionMs >= 360000000) {
+      return 6;
+    }
+    if (descargas >= 500 && likes >= 200 && reproduccionMs >= 180000000) {
+      return 5;
+    }
+    if (descargas >= 200 && likes >= 100 && reproduccionMs >= 72000000) {
+      return 4;
+    }
     if (descargas >= 100 && likes >= 50 && reproduccionMs >= 36000000) return 3;
     if (descargas >= 50 && likes >= 20 && reproduccionMs >= 10800000) return 2;
     if (descargas >= 10) return 1;
@@ -121,7 +125,9 @@ class CacheDetalle {
     double progreso = 0;
     if (rd > 0) progreso += (descargas < rd ? descargas : rd) / rd * 0.4;
     if (rl > 0) progreso += (likes < rl ? likes : rl) / rl * 0.3;
-    if (rp > 0) progreso += (reproduccionMs < rp ? reproduccionMs : rp) / rp * 0.3;
+    if (rp > 0) {
+      progreso += (reproduccionMs < rp ? reproduccionMs : rp) / rp * 0.3;
+    }
     return progreso > 1.0 ? 1.0 : progreso;
   }
 

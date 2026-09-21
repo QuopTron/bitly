@@ -30,9 +30,8 @@ class ChipFiltroMiEspacio extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = activo
-        ? onBg.withValues(alpha: 0.8)
-        : onBg.withValues(alpha: 0.35);
+    final color =
+        activo ? onBg.withValues(alpha: 0.8) : onBg.withValues(alpha: 0.35);
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(

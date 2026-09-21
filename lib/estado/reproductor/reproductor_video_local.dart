@@ -29,14 +29,6 @@ mixin ReproductorVideoLocal on ReproductorArchivosTemp {
     await _loadLocalFiles();
   }
 
-  /// Recarga el caché de archivos locales de inmediato, ignorando el TTL.
-  /// Lo llama DownloadCubit cuando una descarga termina para que el player
-  /// encuentre el archivo nuevo ya, sin esperar el TTL.
-  Future<void> forzarActualizarArchivosLocales() async {
-    _archivosLocalesCargadosEn = null;
-    await _loadLocalFiles();
-  }
-
   /// Registra un archivo recién descargado en el mapa local para que la
   /// reproducción lo encuentre sin esperar una recarga de la BD.
   void registrarArchivoLocal({
@@ -52,7 +44,8 @@ mixin ReproductorVideoLocal on ReproductorArchivosTemp {
       _archivosLocales[providerTrackId] = filePath;
     }
     if (trackName != null && trackName.isNotEmpty) {
-      _archivosLocales[huellaDesdeNombre(trackName, artistName ?? '')] = filePath;
+      _archivosLocales[huellaDesdeNombre(trackName, artistName ?? '')] =
+          filePath;
     }
     if (isrc != null && isrc.isNotEmpty) {
       _archivosLocales[huellaIsrc(isrc)] = filePath;
@@ -131,7 +124,9 @@ mixin ReproductorVideoLocal on ReproductorArchivosTemp {
             }
           }
         }
-      } catch (e) { debugPrint("[App] $e"); }
+      } catch (e) {
+        debugPrint("[App] $e");
+      }
     }
     return null;
   }

@@ -63,4 +63,3 @@ class FavoritePlaylists extends Table {
   @override
   Set<Column> get primaryKey => {playlistId};
 }
-

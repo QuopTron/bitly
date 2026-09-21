@@ -17,12 +17,13 @@ import 'chip_filtro_mi_espacio.dart';
 export 'modelo_filtros_mi_espacio.dart';
 
 /// Un chip de filtro/orden: ícono, etiqueta, si está activo y qué hace.
-typedef _Chip = ({
-  IconData icon,
-  String label,
-  bool activo,
-  FiltrosMiEspacio Function(FiltrosMiEspacio) aplicar,
-});
+typedef _Chip =
+    ({
+      IconData icon,
+      String label,
+      bool activo,
+      FiltrosMiEspacio Function(FiltrosMiEspacio) aplicar,
+    });
 
 /// Fila de chips de orden y filtros. Diseño horizontal scroll con
 /// chips compactos que se iluminan al activarse.

@@ -38,11 +38,12 @@ Future<void> reproducirCompartidoApp({
   limpiarLink();
   if (link == null) return;
   final compartido = link.compartido;
-  final resuelto = compartido != null
-      ? await resolverCompartidoBitly(compartido)
-      : (link.url.isNotEmpty
-          ? await ServicioEnlaces.instance.resolver(link.url)
-          : null);
+  final resuelto =
+      compartido != null
+          ? await resolverCompartidoBitly(compartido)
+          : (link.url.isNotEmpty
+              ? await ServicioEnlaces.instance.resolver(link.url)
+              : null);
   if (resuelto != null) {
     if (modo == ModoCompartido.encolar) {
       _encolarCompartido(resuelto);

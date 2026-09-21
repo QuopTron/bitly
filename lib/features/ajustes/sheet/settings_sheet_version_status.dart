@@ -29,6 +29,7 @@ class _VersionStatusCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final glow = glowColor;
+    final u = AppLocalizations.of(context).update;
 
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: r.spacingM),
@@ -57,7 +58,7 @@ class _VersionStatusCard extends StatelessWidget {
                         ),
                         SizedBox(width: r.spacingS),
                         Text(
-                          'Instalada',
+                          u.instalada,
                           style: TextStyle(
                             fontSize: r.footerSize,
                             color: onBg.withValues(alpha: 0.5),
@@ -87,7 +88,7 @@ class _VersionStatusCard extends StatelessWidget {
                           ),
                           SizedBox(width: r.spacingS),
                           Text(
-                            'Última',
+                            u.ultima,
                             style: TextStyle(
                               fontSize: r.footerSize,
                               color: onBg.withValues(alpha: 0.5),

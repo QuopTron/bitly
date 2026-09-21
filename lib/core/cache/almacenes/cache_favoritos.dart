@@ -24,8 +24,6 @@ class CacheFavoritos with CacheFavoritosArtistas, CacheFavoritosPlaylists {
 
   // ── Tracks amados ──────────────────────────────────────────
 
-  Future<bool> esTrackAmado(String trackId) => _dao.isLoved(trackId);
-
   Future<String> getTracksAmados() async {
     final items = await _dao.getLovedTracks();
     final lista =

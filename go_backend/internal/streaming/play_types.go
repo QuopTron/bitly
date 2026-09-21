@@ -32,6 +32,12 @@ var streamingProviders = []string{
 	"youtube", "deezer", "qobuz", "tidal", "qobuz-web", "tidal-web", "amazon",
 	"ytmusic-spotiflac", "apple-music", "spotify-web", "soundcloud",
 	"flac-rescue", "internetarchive", "soulseek",
+	// tidal-hifi aporta IDENTIDAD, no audio: publica el ISRC y la duración de
+	// su catálogo sin sesión, así que resuelve por ISRC temas que el catálogo
+	// de Qobuz no tiene. Su audio sale solo por descarga (ver
+	// proveedoresSoloDescarga), y ese es su lugar (mismo criterio que
+	// soulseek).
+	"tidal-hifi",
 }
 
 // proveedoresAudio son las ÚNICAS fuentes de las que se acepta AUDIO.
@@ -73,7 +79,7 @@ var proveedoresAudio = []string{
 // usa: ver orchestrator_fallback.go). Se declaran acá para que la carrera de
 // streaming los ignore a propósito y no por accidente, y para que un test
 // pueda pincharlo.
-var proveedoresSoloDescarga = []string{"soulseek"}
+var proveedoresSoloDescarga = []string{"soulseek", "tidal-hifi"}
 
 // esProveedorSoloDescarga reporta si [name] solo puede aportar por descarga.
 func esProveedorSoloDescarga(name string) bool {
@@ -128,6 +134,10 @@ var proveedoresReSubidos = []string{
 // equivocada.
 var proveedoresLossless = []string{
 	"flac-rescue", "internetarchive", "soulseek",
+	// tidal-hifi entrega FLAC 16/44.1 (y hasta 24 bits) real y sin sesión, pero
+	// SOLO por descarga: acá declara CAPACIDAD de audio, no participación en la
+	// carrera (para eso está fuentesLosslessSiempre, de la que queda afuera).
+	"tidal-hifi",
 	"deezer", "deezer-web", "qobuz", "qobuz-web", "tidal", "tidal-web",
 	"amazon", "amazon-web", "apple-music",
 }

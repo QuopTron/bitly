@@ -8,7 +8,9 @@ import 'package:drift/drift.dart';
 // dart:ffi (y drift/native.dart lo usa): en web se abre con drift sobre
 // wasm y en el resto como archivo SQLite nativo. Ver conexion_nativa.dart
 // y conexion_web.dart.
-import 'conexion_nativa.dart' if (dart.library.js_interop) 'conexion_web.dart' as conexion;
+import 'conexion_nativa.dart'
+    if (dart.library.js_interop) 'conexion_web.dart'
+    as conexion;
 
 import 'tables/settings_table.dart';
 import 'tables/content_tables.dart';
@@ -18,7 +20,6 @@ import 'tables/collections_table.dart';
 import 'tables/play_history_table.dart';
 import 'tables/download_tables.dart';
 import 'tables/recent_table.dart';
-import 'tables/secrets_table.dart';
 import 'tables/premium_table.dart';
 import 'tables/artists_tables.dart';
 import 'tables/cache_tables.dart';
@@ -57,8 +58,6 @@ part 'app_database.g.dart';
     HiddenDownloadIds,
     RecentSearches,
     RecentAccess,
-    SecretCounters,
-    SecretUnlocks,
     UserPremium,
     QuotaUsage,
     UserDailyPlays,
@@ -83,7 +82,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -99,6 +98,14 @@ class AppDatabase extends _$AppDatabase {
         m.addColumn(downloadBatches, downloadBatches.coverUrl);
         m.addColumn(downloadBatches, downloadBatches.coverPath);
       }
+      if (from < 5) {
+        // Las tablas de "secretos" (contadores y desbloqueos ocultos) nunca
+        // guardaron una sola fila y sus DAOs se eliminaron. DROP IF EXISTS
+        // para que la migración sea idempotente y no pueda bloquear el
+        // arranque si la tabla ya no estaba (p. ej. base recién creada).
+        await customStatement('DROP TABLE IF EXISTS secret_counters');
+        await customStatement('DROP TABLE IF EXISTS secret_unlocks');
+      }
     },
   );
 
@@ -109,13 +116,24 @@ class AppDatabase extends _$AppDatabase {
   /// covers are saved with real absolute local paths. Runs once at startup —
   /// the UPDATEs only touch legacy rows, so it's cheap and idempotent.
   Future<void> migrateLegacyCoverPaths() async {
-    const legacyWhere = "LIKE 'http://127.0.0.1%' OR cover_path LIKE 'http://localhost%'";
+    const legacyWhere =
+        "LIKE 'http://127.0.0.1%' OR cover_path LIKE 'http://localhost%'";
     try {
-      await customStatement("UPDATE loved_tracks SET cover_path = '' WHERE cover_path $legacyWhere");
-      await customStatement("UPDATE favorite_albums SET cover_path = '' WHERE cover_path $legacyWhere");
-      await customStatement("UPDATE favorite_artists SET image_path = '' WHERE image_path LIKE 'http://127.0.0.1%' OR image_path LIKE 'http://localhost%'");
-      await customStatement("UPDATE favorite_playlists SET cover_path = '' WHERE cover_path $legacyWhere");
-      await customStatement("UPDATE download_history SET cover_path = '' WHERE cover_path $legacyWhere");
+      await customStatement(
+        "UPDATE loved_tracks SET cover_path = '' WHERE cover_path $legacyWhere",
+      );
+      await customStatement(
+        "UPDATE favorite_albums SET cover_path = '' WHERE cover_path $legacyWhere",
+      );
+      await customStatement(
+        "UPDATE favorite_artists SET image_path = '' WHERE image_path LIKE 'http://127.0.0.1%' OR image_path LIKE 'http://localhost%'",
+      );
+      await customStatement(
+        "UPDATE favorite_playlists SET cover_path = '' WHERE cover_path $legacyWhere",
+      );
+      await customStatement(
+        "UPDATE download_history SET cover_path = '' WHERE cover_path $legacyWhere",
+      );
     } catch (_) {
       // Best-effort: a failed migration must never block app startup.
     }
@@ -124,4 +142,3 @@ class AppDatabase extends _$AppDatabase {
   static Future<AppDatabase> create() async =>
       AppDatabase(await conexion.abrirConexion());
 }
-

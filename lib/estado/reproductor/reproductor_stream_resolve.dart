@@ -69,8 +69,11 @@ mixin ReproductorStreamResolve on ReproductorStreamPipeline {
       }
     }
 
-    final future =
-        _resolveStreamUrlInner(track, esPreload: esPreload, conRespaldo: conRespaldo);
+    final future = _resolveStreamUrlInner(
+      track,
+      esPreload: esPreload,
+      conRespaldo: conRespaldo,
+    );
     _futuresStream[key] = (future, quiereRespaldo);
     try {
       final url = await future;
@@ -79,8 +82,11 @@ mixin ReproductorStreamResolve on ReproductorStreamPipeline {
         // mejor que un tap ya guardó.
         final actual = _cacheUrlStream[key];
         if (actual == null || !esPreload || !actual.conRespaldo) {
-          _cacheUrlStream[key] =
-              _StreamCacheado(url, quiereRespaldo, _expiryParaUrl(url));
+          _cacheUrlStream[key] = _StreamCacheado(
+            url,
+            quiereRespaldo,
+            _expiryParaUrl(url),
+          );
         }
         _marcarListo(normKey);
         unawaited(_guardarCachePersistente());

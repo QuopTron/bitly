@@ -21,7 +21,7 @@ Widget _contenidoDialogoReporte({
   required StateSetter setModalState,
   required ValueChanged<bool> onBugCambiado,
 }) {
-return SizedBox(
+  return SizedBox(
     width: double.maxFinite,
     child: Column(
       mainAxisSize: MainAxisSize.min,
@@ -44,9 +44,7 @@ return SizedBox(
             labelStyle: TextStyle(color: onBg.withValues(alpha: 0.5)),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(
-                color: onBg.withValues(alpha: 0.2),
-              ),
+              borderSide: BorderSide(color: onBg.withValues(alpha: 0.2)),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
@@ -64,9 +62,7 @@ return SizedBox(
             hintStyle: TextStyle(color: onBg.withValues(alpha: 0.4)),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(
-                color: onBg.withValues(alpha: 0.2),
-              ),
+              borderSide: BorderSide(color: onBg.withValues(alpha: 0.2)),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),

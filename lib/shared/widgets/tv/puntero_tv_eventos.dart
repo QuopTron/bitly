@@ -53,18 +53,22 @@ class EmisorPunteroTv {
     final g = posicionGlobal();
     if (!mouseAgregado) {
       mouseAgregado = true;
-      _enviar(PointerAddedEvent(
+      _enviar(
+        PointerAddedEvent(
+          device: idPuntero,
+          kind: PointerDeviceKind.mouse,
+          position: g,
+        ),
+      );
+    }
+    _enviar(
+      PointerHoverEvent(
         device: idPuntero,
         kind: PointerDeviceKind.mouse,
         position: g,
-      ));
-    }
-    _enviar(PointerHoverEvent(
-      device: idPuntero,
-      kind: PointerDeviceKind.mouse,
-      position: g,
-      buttons: 0,
-    ));
+        buttons: 0,
+      ),
+    );
   }
 
   /// Emula un clic completo (down + up diferido) en la posición del cursor.
@@ -83,19 +87,23 @@ class EmisorPunteroTv {
     // Hover primero: posiciona el hit-test debajo del cursor.
     hover();
     final g = posicionGlobal();
-    _enviar(PointerDownEvent(
-      device: idPuntero,
-      kind: PointerDeviceKind.mouse,
-      position: g,
-      buttons: kPrimaryButton,
-    ));
-    Timer(const Duration(milliseconds: 80), () {
-      _enviar(PointerUpEvent(
+    _enviar(
+      PointerDownEvent(
         device: idPuntero,
         kind: PointerDeviceKind.mouse,
         position: g,
-        buttons: 0,
-      ));
+        buttons: kPrimaryButton,
+      ),
+    );
+    Timer(const Duration(milliseconds: 80), () {
+      _enviar(
+        PointerUpEvent(
+          device: idPuntero,
+          kind: PointerDeviceKind.mouse,
+          position: g,
+          buttons: 0,
+        ),
+      );
       presionando = false;
       if (estaMontado()) _actualizarEstado(() {});
     });
@@ -104,19 +112,20 @@ class EmisorPunteroTv {
   /// Manda un scroll vertical en la posición actual del cursor.
   void desplazar(double dy) {
     hover();
-    _enviar(PointerScrollEvent(
-      device: idPuntero,
-      kind: PointerDeviceKind.mouse,
-      position: posicionGlobal(),
-      scrollDelta: Offset(0, dy),
-    ));
+    _enviar(
+      PointerScrollEvent(
+        device: idPuntero,
+        kind: PointerDeviceKind.mouse,
+        position: posicionGlobal(),
+        scrollDelta: Offset(0, dy),
+      ),
+    );
   }
 
   /// Retira el puntero (al desmontar el widget).
   void removed() {
-    _enviar(PointerRemovedEvent(
-      device: idPuntero,
-      kind: PointerDeviceKind.mouse,
-    ));
+    _enviar(
+      PointerRemovedEvent(device: idPuntero, kind: PointerDeviceKind.mouse),
+    );
   }
 }

@@ -7,7 +7,8 @@ import 'package:drift/drift.dart';
 class IsrcCache extends Table {
   TextColumn get isrc => text()();
   TextColumn get genre => text().customConstraint("NOT NULL DEFAULT ''")();
-  TextColumn get albumArtist => text().customConstraint("NOT NULL DEFAULT ''")();
+  TextColumn get albumArtist =>
+      text().customConstraint("NOT NULL DEFAULT ''")();
   IntColumn get fetchedAt => integer()();
 
   @override
@@ -40,4 +41,3 @@ class JsonCache extends Table {
   @override
   Set<Column> get primaryKey => {key};
 }
-

@@ -9,7 +9,6 @@
 import 'dart:convert';
 
 import '../../modelos/datos_setup.dart';
-import '../../modelos/usuario/estado_premium.dart';
 import '../../modelos/feed/item_feed.dart';
 import '../../modelos/feed/seccion_feed.dart';
 
@@ -34,8 +33,10 @@ class AyudantesBackend {
       'setup_completed_at': DateTime.now().toIso8601String(),
     };
     if (mode == 'free') {
-      datos['trial_started_at'] = trialIniciadoEnExistente ?? DateTime.now().toIso8601String();
-      datos['trial_expires_at'] = trialExpiraEnExistente ??
+      datos['trial_started_at'] =
+          trialIniciadoEnExistente ?? DateTime.now().toIso8601String();
+      datos['trial_expires_at'] =
+          trialExpiraEnExistente ??
           DateTime.now().add(const Duration(hours: 8)).toIso8601String();
       datos['trial_used'] = true;
     }
@@ -51,48 +52,13 @@ class AyudantesBackend {
     return DatosSetup.desdeJson(decodificado);
   }
 
-  static EstadoPremium parsearEstadoPremium(dynamic resultado) {
-    try {
-      if (resultado == null || resultado == '') {
-        return const EstadoPremium(tier: 'free', premiumHasta: 0, activo: false);
-      }
-      final decodificado = jsonDecode(resultado as String);
-      return EstadoPremium.desdeJson(decodificado);
-    } catch (_) {
-      return const EstadoPremium(tier: 'free', premiumHasta: 0, activo: false);
-    }
-  }
-
   static List<SeccionFeed> parsearSeccionesFeed(dynamic resultado) {
     try {
       if (resultado is String && resultado.isNotEmpty) {
         final lista = jsonDecode(resultado) as List<dynamic>;
-        return lista.map((e) => SeccionFeed.desdeJson(e as Map<String, dynamic>)).toList();
-      }
-      return [];
-    } catch (_) {
-      return [];
-    }
-  }
-
-  static String? parsearResultadoValidacion(dynamic resultado) {
-    try {
-      if (resultado is String && resultado.isNotEmpty) {
-        resultado = jsonDecode(resultado);
-      }
-      if (resultado is Map && resultado['valido'] == true) return null;
-      if (resultado is Map && resultado['error'] is String) return resultado['error'];
-      return 'Código inválido';
-    } catch (_) {
-      return 'Código inválido';
-    }
-  }
-
-  static List<String> parsearBusquedasRecientes(dynamic resultado) {
-    try {
-      if (resultado is String && resultado.isNotEmpty) {
-        final lista = jsonDecode(resultado) as List<dynamic>;
-        return lista.cast<String>();
+        return lista
+            .map((e) => SeccionFeed.desdeJson(e as Map<String, dynamic>))
+            .toList();
       }
       return [];
     } catch (_) {
@@ -104,10 +70,14 @@ class AyudantesBackend {
     try {
       if (resultado is String && resultado.isNotEmpty) {
         final lista = jsonDecode(resultado) as List<dynamic>;
-        return lista.map((e) => ItemFeed.desdeJson(e as Map<String, dynamic>)).toList();
+        return lista
+            .map((e) => ItemFeed.desdeJson(e as Map<String, dynamic>))
+            .toList();
       }
       if (resultado is List) {
-        return resultado.map((e) => ItemFeed.desdeJson(e as Map<String, dynamic>)).toList();
+        return resultado
+            .map((e) => ItemFeed.desdeJson(e as Map<String, dynamic>))
+            .toList();
       }
       return [];
     } catch (_) {

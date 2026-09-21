@@ -18,10 +18,7 @@ class ManejadorAudioBitly extends BaseAudioHandler {
 
   ManejadorAudioBitly(this._aPrincipal) {
     // Avisa al isolate principal cómo empujarnos el estado real.
-    _aPrincipal.send({
-      '@type': 'register',
-      'sendPort': _puertoEstado.sendPort,
-    });
+    _aPrincipal.send({'@type': 'register', 'sendPort': _puertoEstado.sendPort});
     _puertoEstado.listen((dynamic msg) {
       if (msg is Map) _aplicarMensajeEstado(msg);
     });
@@ -55,11 +52,7 @@ class ManejadorAudioBitly extends BaseAudioHandler {
   Future<void> stop() async => _enviar('stop');
 
   void _enviar(String command, [Map<String, dynamic>? extra]) {
-    _aPrincipal.send({
-      '@type': 'command',
-      'cmd': command,
-      ...?extra,
-    });
+    _aPrincipal.send({'@type': 'command', 'cmd': command, ...?extra});
   }
 
   // ── Isolate principal → SO (estado de la notificación) ──
@@ -71,13 +64,12 @@ class ManejadorAudioBitly extends BaseAudioHandler {
         MediaItem(
           id: id,
           title: (m['title'] ?? '').toString(),
-          artist: (m['artist'] ?? '').toString().isNotEmpty
-              ? (m['artist']).toString()
-              : (m['album'] ?? '').toString(),
+          artist:
+              (m['artist'] ?? '').toString().isNotEmpty
+                  ? (m['artist']).toString()
+                  : (m['album'] ?? '').toString(),
           album: (m['album'] ?? '').toString(),
-          duration: Duration(
-            milliseconds: (m['durationMs'] as int?) ?? 0,
-          ),
+          duration: Duration(milliseconds: (m['durationMs'] as int?) ?? 0),
           artUri: _parsearArtUri(m['artUri'] as String?),
         ),
       );
@@ -119,20 +111,20 @@ class ManejadorAudioBitly extends BaseAudioHandler {
         androidCompactActionIndices: const [1, 2, 3],
         processingState: tieneActual ? procesando : AudioProcessingState.idle,
         playing: tieneActual && reproduciendo,
-        updatePosition: Duration(
-          milliseconds: (m['positionMs'] as int?) ?? 0,
-        ),
+        updatePosition: Duration(milliseconds: (m['positionMs'] as int?) ?? 0),
         bufferedPosition: Duration(
           milliseconds: (m['bufferedMs'] as int?) ?? 0,
         ),
         speed: 1.0,
-        shuffleMode: (m['shuffle'] == true)
-            ? AudioServiceShuffleMode.all
-            : AudioServiceShuffleMode.none,
-        repeatMode: _modoRepeticionDesdeString((m['repeat'] ?? 'none').toString()),
+        shuffleMode:
+            (m['shuffle'] == true)
+                ? AudioServiceShuffleMode.all
+                : AudioServiceShuffleMode.none,
+        repeatMode: _modoRepeticionDesdeString(
+          (m['repeat'] ?? 'none').toString(),
+        ),
         queueIndex: (m['queueIndex'] as int?) ?? 0,
       ),
     );
   }
-
 }

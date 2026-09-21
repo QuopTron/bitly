@@ -93,7 +93,12 @@ class _GrillaEsqueleto extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final disponible = constraints.maxWidth - 32;
-        final columnas = disponible > 700 ? 4 : disponible > 340 ? 3 : 2;
+        final columnas =
+            disponible > 700
+                ? 4
+                : disponible > 340
+                ? 3
+                : 2;
         return GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),

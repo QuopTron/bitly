@@ -14,14 +14,17 @@ const String tokenGithub = 'tu_github_token_aqui';
 
 /// Google OAuth Client ID (tipo: Android) — usado en el flujo nativo de
 /// Google Sign-In (Credential Manager) en Android.
-const String oauthClienteIdAndroid = 'tu_android_client_id_aqui.apps.googleusercontent.com';
+const String oauthClienteIdAndroid =
+    'tu_android_client_id_aqui.apps.googleusercontent.com';
 
 /// Google OAuth Client ID (tipo: web) — serverClientId del flujo nativo.
-const String oauthClienteIdPorDefecto = 'tu_client_id_aqui.apps.googleusercontent.com';
+const String oauthClienteIdPorDefecto =
+    'tu_client_id_aqui.apps.googleusercontent.com';
 
 /// Google OAuth Client Secret (corresponde al Web Client ID de arriba).
 const String oauthClienteSecretoPorDefecto = 'GOCSPX-tu_secret_aqui';
 
 /// Google OAuth Desktop Client ID (flujo de loopback en el navegador).
-const String oauthClienteIdEscritorio = 'tu_desktop_client_id_aqui.apps.googleusercontent.com';
+const String oauthClienteIdEscritorio =
+    'tu_desktop_client_id_aqui.apps.googleusercontent.com';
 const String oauthClienteSecretoEscritorio = 'GOCSPX-tu_desktop_secret_aqui';

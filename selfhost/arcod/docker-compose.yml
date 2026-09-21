@@ -1,0 +1,48 @@
+# ─────────────────────────────────────────────────────────────
+# docker-compose.yml — instancia propia de arcod, mínima.
+#
+# Solo levanta la web (que es la que sirve catálogo y stream). No
+# incluye worker, R2 ni el Lambda de descargas en la nube: eso es
+# para DESCARGAR en la nube, y Bitly ya baja el audio por su cuenta.
+#
+# Uso:
+#   cp .env.example .env   # y completá las 4 claves de Qobuz
+#   docker compose up -d --build
+#
+# Va en la RAÍZ del fork de arcod (al lado de package.json).
+# ─────────────────────────────────────────────────────────────
+
+services:
+  arcod:
+    build: .
+    env_file: .env
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    healthcheck:
+      # El propio repo expone este endpoint: si responde, la API está viva.
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/v2/guest/rate-limit').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+
+  # TLS opcional: descomentá si vas a exponer la instancia a internet.
+  # Bitly acepta http:// en LAN; para internet, https evita líos de
+  # proxies y de políticas de tráfico claro.
+  #
+  # caddy:
+  #   image: caddy:2-alpine
+  #   restart: unless-stopped
+  #   ports:
+  #     - "443:443"
+  #   command: caddy reverse-proxy --from mi-arcod.example --to arcod:3000
+  #   volumes:
+  #     - caddy_data:/data
+  #
+# volumes:
+#   caddy_data:

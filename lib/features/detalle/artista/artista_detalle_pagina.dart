@@ -35,6 +35,7 @@ import '../comun/cabecera_detalle.dart';
 import '../comun/esqueleto_detalle.dart';
 import '../comun/navegador_detalle.dart';
 import '../../../core/servicios/compartir/servicio_compartir.dart';
+import '../../../shared/utilidades/formato/apariencia_espacios_helper.dart';
 
 part 'artista_detalle_albumes.dart';
 part 'artista_detalle_carga.dart';
@@ -44,13 +45,14 @@ part 'artista_detalle_contenido.dart';
 part 'artista_detalle_estados.dart';
 
 /// Datos calculados de la vista de artista (compartidos entre parts).
-typedef DatosVistaArtista = ({
-  String? imagen,
-  String subtitulo,
-  List<ItemFeed> tracks,
-  List<ItemFeed> albums,
-  List<ItemFeed> tracksOffline,
-});
+typedef DatosVistaArtista =
+    ({
+      String? imagen,
+      String subtitulo,
+      List<ItemFeed> tracks,
+      List<ItemFeed> albums,
+      List<ItemFeed> tracksOffline,
+    });
 
 /// Detalle de artista: id, nombre y fuente de entrada.
 class ArtistaDetallePagina extends StatefulWidget {
@@ -95,22 +97,29 @@ class _ArtistaDetallePaginaState extends State<ArtistaDetallePagina> {
 
     if (_cargando) {
       return Scaffold(
-          backgroundColor: colorFondo,
-          appBar: AppBar(title: Text(loc.setup.searchArtists)),
-          body: const EsqueletoDetalle());
+        backgroundColor: colorFondo,
+        appBar: AppBar(title: Text(loc.setup.searchArtists)),
+        body: const EsqueletoDetalle(),
+      );
     }
     if (_artista == null) {
       return Scaffold(
-          backgroundColor: colorFondo,
-          appBar: AppBar(title: Text(loc.setup.searchArtists)),
-          body: _estadoVacioArtista(this, context));
+        backgroundColor: colorFondo,
+        appBar: AppBar(title: Text(loc.setup.searchArtists)),
+        body: _estadoVacioArtista(this, context),
+      );
     }
 
     final artista = _artista!;
     final likedCubit = context.watch<CubitLikes>();
     final dlCubit = context.watch<CubitDescargas>();
     final datos = _calcularDatosArtista(
-        this, context, artista, likedCubit, dlCubit);
+      this,
+      context,
+      artista,
+      likedCubit,
+      dlCubit,
+    );
 
     // Pre-calentar streams de los primeros tracks visibles.
     if (!_precacheado && datos.tracks.isNotEmpty) {
@@ -128,7 +137,13 @@ class _ArtistaDetallePaginaState extends State<ArtistaDetallePagina> {
         tamanoPortada: 160,
         acciones: _filaAccionesArtista(this, context, datos),
         children: _construirContenidoArtista(
-            this, context, datos, artista, likedCubit, dlCubit),
+          this,
+          context,
+          datos,
+          artista,
+          likedCubit,
+          dlCubit,
+        ),
       ),
     );
   }

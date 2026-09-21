@@ -66,5 +66,9 @@
 	     para que no consuma el link antes que nuestro código. -->
 	<key>FlutterDeepLinkingEnabled</key>
 	<false/>
+	<!-- Vínculo entre aparatos de la misma red: iOS 14+ pide permiso de red
+	     local la primera vez (sin este texto, el sistema no lo permite). -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Para prestarte tu música descargada entre tus propios aparatos en la misma red, sin internet.</string>
 </dict>
 </plist>

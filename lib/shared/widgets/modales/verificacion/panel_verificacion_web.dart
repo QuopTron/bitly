@@ -64,9 +64,8 @@ class _PanelVerificacionWebState extends State<PanelVerificacionWeb> {
     // En Windows el primer arranque de WebView2 tarda más (inicialización del
     // runtime), así usar un timeout más generoso en escritorio para no mostrar
     // la vista de fallo mientras la página todavía está cargando.
-    final escritorio = (Platform.isWindows ||
-        Platform.isLinux ||
-        Platform.isMacOS);
+    final escritorio =
+        (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
     _timerCarga = Timer(
       escritorio ? const Duration(seconds: 20) : const Duration(seconds: 10),
       () {
@@ -86,7 +85,9 @@ class _PanelVerificacionWebState extends State<PanelVerificacionWeb> {
       unawaited(plataforma.setUserAgent(ServicioVerificacion.chromeUA));
     }
     if (widget.urlAuth.contains('zarz.moe')) {
-      debugPrint('[Verificacion] PanelVerificacionWeb: refusing zarz URL → empty');
+      debugPrint(
+        '[Verificacion] PanelVerificacionWeb: refusing zarz URL → empty',
+      );
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) widget.alObtenerGrant('');
       });

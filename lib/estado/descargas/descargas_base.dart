@@ -15,6 +15,12 @@ mixin DescargasBase on DescargasBaseCaches {
 
   /// Caché de descargas (BD drift) resuelto desde la inyección.
   late CacheDescargas _downloadCache;
+
+  /// DAO de contenido: escribe la carátula local en la biblioteca (tablas
+  /// tracks/albums), que es lo que leen las vistas de detalle sin red.
+  daobd.ContentDao? _contentDaoLote;
+  daobd.ContentDao get _contentLote =>
+      _contentDaoLote ??= daobd.ContentDao(di.sl<bd.AppDatabase>());
   Timer? _timerProgreso;
   Timer? _timerHistorial;
 

@@ -8,26 +8,33 @@ Widget _indicadorFila(FilaTrackCola f) {
   final fg = f.fg;
   return SizedBox(
     width: 24,
-    child: f.esActual
-        ? Icon(Icons.play_arrow_rounded,
-            color: f.colorBrillo, size: r.subtitleSize + 2)
-        : Row(
-            children: [
-              Icon(Icons.drag_indicator,
+    child:
+        f.esActual
+            ? Icon(
+              Icons.play_arrow_rounded,
+              color: f.colorBrillo,
+              size: r.subtitleSize + 2,
+            )
+            : Row(
+              children: [
+                Icon(
+                  Icons.drag_indicator,
                   size: r.subtitleSize,
-                  color: fg.withValues(alpha: 0.2)),
-              Text(
-                '${f.index + 1}',
-                style: TextStyle(
-                  fontSize: r.footerSize,
-                  color: f.esReproducida
-                      ? fg.withValues(alpha: 0.2)
-                      : fg.withValues(alpha: 0.45),
-                  fontWeight: FontWeight.w500,
+                  color: fg.withValues(alpha: 0.2),
                 ),
-              ),
-            ],
-          ),
+                Text(
+                  '${f.index + 1}',
+                  style: TextStyle(
+                    fontSize: r.footerSize,
+                    color:
+                        f.esReproducida
+                            ? fg.withValues(alpha: 0.2)
+                            : fg.withValues(alpha: 0.45),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
   );
 }
 
@@ -47,8 +54,11 @@ Widget _miniaturaFila(FilaTrackCola f) {
         ancho: 38,
         alto: 38,
         ajuste: BoxFit.cover,
-        fallback: Icon(Icons.music_note,
-            size: 18, color: fg.withValues(alpha: 0.3)),
+        fallback: Icon(
+          Icons.music_note,
+          size: 18,
+          color: fg.withValues(alpha: 0.3),
+        ),
       ),
     ),
   );
@@ -61,26 +71,32 @@ Widget _infoFila(FilaTrackCola f) {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(f.track.name,
+        Text(
+          f.track.name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: r.subtitleSize,
+            fontWeight: f.esActual ? FontWeight.bold : FontWeight.w500,
+            color:
+                f.esReproducida
+                    ? fg.withValues(alpha: 0.3)
+                    : (f.esActual ? f.colorBrillo : fg),
+          ),
+        ),
+        if (f.track.artists != null && f.track.artists!.isNotEmpty)
+          Text(
+            f.track.artists!,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: r.subtitleSize,
-              fontWeight: f.esActual ? FontWeight.bold : FontWeight.w500,
-              color: f.esReproducida
-                  ? fg.withValues(alpha: 0.3)
-                  : (f.esActual ? f.colorBrillo : fg),
-            )),
-        if (f.track.artists != null && f.track.artists!.isNotEmpty)
-          Text(f.track.artists!,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: r.footerSize - 1,
-                color: f.esReproducida
-                    ? fg.withValues(alpha: 0.18)
-                    : fg.withValues(alpha: 0.55),
-              )),
+              fontSize: r.footerSize - 1,
+              color:
+                  f.esReproducida
+                      ? fg.withValues(alpha: 0.18)
+                      : fg.withValues(alpha: 0.55),
+            ),
+          ),
       ],
     ),
   );

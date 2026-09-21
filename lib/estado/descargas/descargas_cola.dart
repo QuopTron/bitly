@@ -56,8 +56,10 @@ mixin DescargasCola on DescargasColaReintento {
         _reencolarConReintento(track, baseId);
         continue;
       }
-      _log.w('[cola] ✖ $baseId agotó $_maxReintentosInSitu reintento(s) — '
-          'queda interrumpido y el FIFO avanza');
+      _log.w(
+        '[cola] ✖ $baseId agotó $_maxReintentosInSitu reintento(s) — '
+        'queda interrumpido y el FIFO avanza',
+      );
       // El usuario se entera: sin este aviso la canción quedaba en rojo sin
       // decir por qué ni qué hacer. El motivo es el último que reportó Go.
       //

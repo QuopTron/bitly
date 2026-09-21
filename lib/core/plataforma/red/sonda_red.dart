@@ -59,8 +59,7 @@ class SondaRed {
     if (cliente == null) return -1;
     final reloj = Stopwatch()..start();
     try {
-      final req =
-          await cliente.headUrl(Uri.parse(_url)).timeout(_timeout);
+      final req = await cliente.headUrl(Uri.parse(_url)).timeout(_timeout);
       final res = await req.close().timeout(_timeout);
       await res.drain<void>();
       reloj.stop();

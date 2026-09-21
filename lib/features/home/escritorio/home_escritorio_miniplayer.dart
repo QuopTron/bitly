@@ -23,9 +23,10 @@ class _MiniplayerEscritorio extends StatelessWidget {
   Widget build(BuildContext context) {
     final esOscuro = Theme.of(context).brightness == Brightness.dark;
     return BlocBuilder<CubitCola, EstadoCola>(
-      buildWhen: (prev, curr) =>
-          prev.tieneActual != curr.tieneActual ||
-          prev.actual?.id != curr.actual?.id,
+      buildWhen:
+          (prev, curr) =>
+              prev.tieneActual != curr.tieneActual ||
+              prev.actual?.id != curr.actual?.id,
       builder: (context, cola) {
         if (!cola.tieneActual) return const SizedBox.shrink();
         return Padding(
@@ -35,8 +36,7 @@ class _MiniplayerEscritorio extends StatelessWidget {
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color:
-                      Colors.black.withValues(alpha: esOscuro ? 0.45 : 0.14),
+                  color: Colors.black.withValues(alpha: esOscuro ? 0.45 : 0.14),
                   blurRadius: 26,
                   offset: const Offset(0, 10),
                 ),

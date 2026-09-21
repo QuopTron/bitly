@@ -19,8 +19,12 @@ Widget _areaPortadaVideo(
     tieneVideo: st._tieneVideo,
     videoCargando: st._videoCargando,
     videoController: st._videoController,
-    onAlternarVideo: () => _alternarVideo(
-        st, track, context.read<CubitReproductor>().rutaDescargas),
+    onAlternarVideo:
+        () => _alternarVideo(
+          st,
+          track,
+          context.read<CubitReproductor>().rutaDescargas,
+        ),
     onDetenerVideo: () => _detenerVideoParaPortada(st),
   );
 }
@@ -38,8 +42,7 @@ PreferredSizeWidget _barraSuperior(
     backgroundColor: Colors.transparent,
     elevation: 0,
     leading: IconButton(
-      icon:
-          Icon(Icons.keyboard_arrow_down_rounded, color: activo, size: 30),
+      icon: Icon(Icons.keyboard_arrow_down_rounded, color: activo, size: 30),
       onPressed: () => Navigator.of(context).pop(),
     ),
     title: Text(
@@ -58,13 +61,16 @@ PreferredSizeWidget _barraSuperior(
         clipBehavior: Clip.none,
         children: [
           IconButton(
-            icon: Icon(Icons.queue_music_rounded,
-                color: activo.withValues(alpha: 0.7)),
-            onPressed: () => mostrarModalCola(
-              context,
-              mostrarVideo: st._mostrarVideo,
-              videoController: st._videoController,
+            icon: Icon(
+              Icons.queue_music_rounded,
+              color: activo.withValues(alpha: 0.7),
             ),
+            onPressed:
+                () => mostrarModalCola(
+                  context,
+                  mostrarVideo: st._mostrarVideo,
+                  videoController: st._videoController,
+                ),
           ),
           if (cola.tracks.length > 1)
             Positioned(
@@ -72,8 +78,7 @@ PreferredSizeWidget _barraSuperior(
               right: 8,
               child: Container(
                 padding: const EdgeInsets.all(4),
-                constraints:
-                    const BoxConstraints(minWidth: 18, minHeight: 18),
+                constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
                 decoration: BoxDecoration(
                   color: colorBrillo,
                   shape: BoxShape.circle,
@@ -81,9 +86,10 @@ PreferredSizeWidget _barraSuperior(
                 child: Text(
                   '${cola.tracks.length}',
                   style: TextStyle(
-                    color: Theme.of(context).brightness == Brightness.dark
-                        ? Colors.black
-                        : Colors.white,
+                    color:
+                        Theme.of(context).brightness == Brightness.dark
+                            ? Colors.black
+                            : Colors.white,
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
                   ),
@@ -96,9 +102,10 @@ PreferredSizeWidget _barraSuperior(
       IconButton(
         icon: Icon(Icons.share_rounded, color: activo.withValues(alpha: 0.7)),
         onPressed: () {
-          final texto = track.albumName != null
-              ? '🎵 ${track.name} — ${track.artists ?? ''}\n💿 ${track.albumName}'
-              : '🎵 ${track.name} — ${track.artists ?? ''}';
+          final texto =
+              track.albumName != null
+                  ? '🎵 ${track.name} — ${track.artists ?? ''}\n💿 ${track.albumName}'
+                  : '🎵 ${track.name} — ${track.artists ?? ''}';
           SharePlus.instance.share(ShareParams(text: texto));
         },
       ),
@@ -106,11 +113,7 @@ PreferredSizeWidget _barraSuperior(
   );
 }
 
-Widget _barraSeek(
-  BuildContext context,
-  Responsive r,
-  bool esOscuro,
-) {
+Widget _barraSeek(BuildContext context, Responsive r, bool esOscuro) {
   return BarraSeekReproductor(r: r, esOscuro: esOscuro);
 }
 
@@ -139,5 +142,8 @@ Widget _selectorVelocidad(
   EstadoAudioReproductor reproductor,
 ) {
   return SelectorVelocidadReproductor(
-      r: r, esOscuro: esOscuro, estado: reproductor);
+    r: r,
+    esOscuro: esOscuro,
+    estado: reproductor,
+  );
 }

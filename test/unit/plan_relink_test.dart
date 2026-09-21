@@ -18,7 +18,10 @@ void main() {
   test('el archivo que sigue en su lugar no se toca', () {
     final plan = planificarRelink(
       entradas: const [
-        EntradaHistorialDescarga(id: 'abc123def', ruta: r'D:\Musica\Vieja\abc123def_audio.flac'),
+        EntradaHistorialDescarga(
+          id: 'abc123def',
+          ruta: r'D:\Musica\Vieja\abc123def_audio.flac',
+        ),
       ],
       carpeta: carpeta,
       existe: (r) => r == r'D:\Musica\Vieja\abc123def_audio.flac',
@@ -29,7 +32,10 @@ void main() {
   test('el audio movido se reencuentra por nombre en la carpeta nueva', () {
     final plan = planificarRelink(
       entradas: const [
-        EntradaHistorialDescarga(id: 'abc123def', ruta: r'D:\Musica\Vieja\abc123def_audio.flac'),
+        EntradaHistorialDescarga(
+          id: 'abc123def',
+          ruta: r'D:\Musica\Vieja\abc123def_audio.flac',
+        ),
       ],
       carpeta: carpeta,
       existe: (_) => false,
@@ -52,7 +58,10 @@ void main() {
   test('se reencuentra por id aunque el nombre cambió del todo', () {
     final plan = planificarRelink(
       entradas: const [
-        EntradaHistorialDescarga(id: 'abc123def', ruta: r'D:\Musica\Vieja\tema.flac'),
+        EntradaHistorialDescarga(
+          id: 'abc123def',
+          ruta: r'D:\Musica\Vieja\tema.flac',
+        ),
       ],
       carpeta: carpeta,
       existe: (_) => false,
@@ -63,7 +72,10 @@ void main() {
   test('un archivo no-audio nunca reemplaza al audio', () {
     final plan = planificarRelink(
       entradas: const [
-        EntradaHistorialDescarga(id: 'lyrics_9f8', ruta: r'D:\Musica\Vieja\lyrics_9f8.lrc'),
+        EntradaHistorialDescarga(
+          id: 'lyrics_9f8',
+          ruta: r'D:\Musica\Vieja\lyrics_9f8.lrc',
+        ),
       ],
       carpeta: carpeta,
       existe: (_) => false,
@@ -71,21 +83,24 @@ void main() {
     expect(plan.rutas, isEmpty);
   });
 
-  test('carátula guardada junto al audio se rescata del cover de la carpeta', () {
-    final plan = planificarRelink(
-      entradas: const [
-        EntradaHistorialDescarga(
-          id: 'abc123def',
-          ruta: r'D:\Musica\Vieja\abc123def_audio.flac',
-          caratula: r'D:\Musica\Vieja\cover.jpg',
-        ),
-      ],
-      carpeta: carpeta,
-      existe: (_) => false,
-    );
-    expect(plan.rutas['abc123def'], r'D:\Musica\Nueva\abc123def_audio.flac');
-    expect(plan.caratulas['abc123def'], r'D:\Musica\Nueva\cover.jpg');
-  });
+  test(
+    'carátula guardada junto al audio se rescata del cover de la carpeta',
+    () {
+      final plan = planificarRelink(
+        entradas: const [
+          EntradaHistorialDescarga(
+            id: 'abc123def',
+            ruta: r'D:\Musica\Vieja\abc123def_audio.flac',
+            caratula: r'D:\Musica\Vieja\cover.jpg',
+          ),
+        ],
+        carpeta: carpeta,
+        existe: (_) => false,
+      );
+      expect(plan.rutas['abc123def'], r'D:\Musica\Nueva\abc123def_audio.flac');
+      expect(plan.caratulas['abc123def'], r'D:\Musica\Nueva\cover.jpg');
+    },
+  );
 
   test('una carátula de la caché de la app (otra carpeta) no se toca', () {
     final plan = planificarRelink(
@@ -105,7 +120,10 @@ void main() {
   test('sin coincidencias no se inventa ninguna ruta', () {
     final plan = planificarRelink(
       entradas: const [
-        EntradaHistorialDescarga(id: 'nada', ruta: r'D:\Musica\Vieja\inexistente.flac'),
+        EntradaHistorialDescarga(
+          id: 'nada',
+          ruta: r'D:\Musica\Vieja\inexistente.flac',
+        ),
       ],
       carpeta: carpeta,
       existe: (_) => false,

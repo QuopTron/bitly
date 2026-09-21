@@ -15,9 +15,10 @@ part of 'reproductor_pagina.dart';
 void _escucharCambiosCola(_ReproductorPaginaState st) {
   final cola = sl<CubitCola>();
   cola.stream.listen((estadoCola) {
-    final clave = estadoCola.tieneActual
-        ? '${estadoCola.actual!.id}|${estadoCola.actual!.source}'
-        : null;
+    final clave =
+        estadoCola.tieneActual
+            ? '${estadoCola.actual!.id}|${estadoCola.actual!.source}'
+            : null;
     if (clave == st._ultimaClaveCola) return;
     st._ultimaClaveCola = clave;
     st._tieneVideo = false;
@@ -28,7 +29,7 @@ void _escucharCambiosCola(_ReproductorPaginaState st) {
     if (st._mostrarVideo) {
       st._videoPlayer.stop();
       st._mostrarVideo = false;
-    st.repintar();
+      st.repintar();
     }
     st._letrasCargando = false;
     st._videoTrackId = null;
@@ -71,7 +72,7 @@ Future<void> _refrescarDisponibilidadVideo(_ReproductorPaginaState st) async {
   if (listo || descargado) {
     if (st.mounted && !st._tieneVideo) {
       st._tieneVideo = true;
-    st.repintar();
+      st.repintar();
     }
     return;
   }

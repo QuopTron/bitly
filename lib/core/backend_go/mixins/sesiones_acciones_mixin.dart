@@ -38,13 +38,18 @@ mixin SesionesAccionesMixin on BackendService {
       }
       return {'ok': false, 'error': 'Respuesta inesperada'};
     } catch (e) {
-      _logAcciones.w('[sesiones] invokeExtensionAction falló para $provider/$action: $e');
+      _logAcciones.w(
+        '[sesiones] invokeExtensionAction falló para $provider/$action: $e',
+      );
       return {'ok': false, 'error': '$e'};
     }
   }
 
   @override
-  Future<bool> completeSignedSessionGrant(String extensionId, String grantCode) async {
+  Future<bool> completeSignedSessionGrant(
+    String extensionId,
+    String grantCode,
+  ) async {
     try {
       final resultado = await rpcCall('completeSignedSessionGrant', {
         'extension_id': extensionId,
@@ -63,11 +68,15 @@ mixin SesionesAccionesMixin on BackendService {
         }
       }
       if (!ok) {
-        _logAcciones.w('[sesiones] completeSignedSessionGrant falló para $extensionId: $error');
+        _logAcciones.w(
+          '[sesiones] completeSignedSessionGrant falló para $extensionId: $error',
+        );
       }
       return ok;
     } catch (e) {
-      _logAcciones.e('[sesiones] completeSignedSessionGrant error para $extensionId: $e');
+      _logAcciones.e(
+        '[sesiones] completeSignedSessionGrant error para $extensionId: $e',
+      );
       return false;
     }
   }

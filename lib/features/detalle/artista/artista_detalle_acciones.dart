@@ -22,9 +22,13 @@ Widget _filaAccionesArtista(
       BotonAccionVidrio(
         icono: Icons.play_arrow_rounded,
         relleno: true,
-        onTap: d.tracks.isNotEmpty
-            ? () => sl<CubitCola>().reproducirConContexto(d.tracks, d.tracks.first)
-            : null,
+        onTap:
+            d.tracks.isNotEmpty
+                ? () => sl<CubitCola>().reproducirConContexto(
+                  d.tracks,
+                  d.tracks.first,
+                )
+                : null,
       ),
       SizedBox(width: r.spacingS),
     ],

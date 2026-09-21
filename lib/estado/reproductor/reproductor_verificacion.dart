@@ -22,7 +22,9 @@ mixin ReproductorVerificacion on ReproductorControles {
       return true; // la fuente no necesita sesión firmada
     }
     final servicio = ServicioVerificacion();
-    if (!servicio.estaListo) return true; // sin UI — dejar que el backend intente
+    if (!servicio.estaListo) {
+      return true; // sin UI — dejar que el backend intente
+    }
 
     final backend = di.sl<BackendService>();
     // Fast path: el token ya es usable. Acotado para que un status colgado
@@ -32,7 +34,9 @@ mixin ReproductorVerificacion on ReproductorControles {
           .getSignedSessionStatus(fuente)
           .timeout(const Duration(seconds: 3));
       if (estado.autenticado) return true;
-    } catch (e) { debugPrint("[App] $e"); }
+    } catch (e) {
+      debugPrint("[App] $e");
+    }
 
     // Preguntar al backend si un challenge fresco está pendiente. Si reporta
     // NINGUNO, NO bloquear: el token puede ya estar al día y la capa de
@@ -71,7 +75,10 @@ mixin ReproductorVerificacion on ReproductorControles {
   /// Abre el modal de verificación Cloudflare de [servicio] (un proveedor
   /// alcanzado durante fallback que necesita sesión firmada, p.ej. amazon)
   /// para refrescar su token. Fire-and-forget; el siguiente tap reintenta.
-  Future<void> _verificarServicioParaPlayback(String servicio, String nombre) async {
+  Future<void> _verificarServicioParaPlayback(
+    String servicio,
+    String nombre,
+  ) async {
     if (servicio.isEmpty) return;
     final svc = ServicioVerificacion();
     if (!svc.estaListo) return;
@@ -79,7 +86,9 @@ mixin ReproductorVerificacion on ReproductorControles {
     try {
       final estado = await backend.getSignedSessionStatus(servicio);
       if (estado.autenticado) return;
-    } catch (e) { debugPrint("[App] $e"); }
+    } catch (e) {
+      debugPrint("[App] $e");
+    }
     String url;
     try {
       url = await backend.getPendingVerificationUrl(servicio);

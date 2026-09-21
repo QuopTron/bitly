@@ -37,31 +37,50 @@ void main() {
     );
   });
 
-  test('desde 128 los reintentos se quedan en 128 (no hay escalón más bajo)', () {
-    expect(
-      calidadParaIntento(forzada: null, calidadAjustes: 'MP3_128', intento: 2),
-      'MP3_128',
-    );
-    expect(
-      calidadParaIntento(forzada: null, calidadAjustes: 'LOW', intento: 5),
-      'MP3_128',
-    );
-  });
+  test(
+    'desde 128 los reintentos se quedan en 128 (no hay escalón más bajo)',
+    () {
+      expect(
+        calidadParaIntento(
+          forzada: null,
+          calidadAjustes: 'MP3_128',
+          intento: 2,
+        ),
+        'MP3_128',
+      );
+      expect(
+        calidadParaIntento(forzada: null, calidadAjustes: 'LOW', intento: 5),
+        'MP3_128',
+      );
+    },
+  );
 
   test('nunca sube la calidad por encima de lo pedido', () {
     expect(
-      calidadParaIntento(forzada: 'MP3_128', calidadAjustes: 'FLAC', intento: 2),
+      calidadParaIntento(
+        forzada: 'MP3_128',
+        calidadAjustes: 'FLAC',
+        intento: 2,
+      ),
       'MP3_128',
     );
     expect(
-      calidadParaIntento(forzada: 'MP3_320', calidadAjustes: 'FLAC', intento: 2),
+      calidadParaIntento(
+        forzada: 'MP3_320',
+        calidadAjustes: 'FLAC',
+        intento: 2,
+      ),
       'MP3_128',
     );
   });
 
   test('una calidad forzada se conserva en el primer intento', () {
     expect(
-      calidadParaIntento(forzada: 'MP3_320', calidadAjustes: 'FLAC', intento: 1),
+      calidadParaIntento(
+        forzada: 'MP3_320',
+        calidadAjustes: 'FLAC',
+        intento: 1,
+      ),
       'MP3_320',
     );
   });

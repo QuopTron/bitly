@@ -10,37 +10,36 @@
 // espacio.
 // ─────────────────────────────────────────────────────────────
 
-
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../app/inyeccion.dart';
-import '../../../../core/modelos/usuario/estilo_visual.dart';
+import '../../../../core/cache/almacenes/cache_colecciones.dart';
+import '../../../../core/modelos/playlist/playlist_propia.dart';
 import '../../../../core/modelos/feed/item_feed.dart';
-import '../../../../core/modelos/usuario/preferencias_estilo.dart';
 import '../../../../estado/cola/cubit_cola.dart';
 import '../../../../estado/like/cubit_like.dart';
-import '../../../../estado/playlists/cubit_playlists.dart';
+import '../../../../core/servicios/playlist/editor_playlist.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../tema/colores_app.dart';
-import '../../../utilidades/portada/paleta_portada.dart';
+import '../../../utilidades/modales/mostrar_modal.dart';
 import '../../../utilidades/plataforma/insets_sistema.dart';
 import '../../../utilidades/plataforma/responsive.dart';
-import '../../vidrio/desenfoque_adaptativo.dart';
+import '../../tarjetas/portada/imagen_portada.dart';
+import '../../vidrio/fondo_reactivo_portada.dart';
+import '../playlist/hoja_playlist.dart';
 
 part 'modal_agregar_a_crear.dart';
 part 'modal_agregar_a_estilo.dart';
-part 'modal_agregar_a_inline.dart';
 part 'modal_agregar_a_picker.dart';
+part 'modal_agregar_a_picker_filas.dart';
 part 'modal_agregar_a_widgets.dart';
-part 'modal_agregar_a_hoja.dart';
 
 /// Abre el modal "agregar a" para un ítem de la app.
 void mostrarAgregarA(BuildContext context, ItemFeed item) {
   final r = Responsive(context);
   final loc = AppLocalizations.of(context);
 
-  showModalBottomSheet(
+  mostrarHoja<void>(
     context: context,
     backgroundColor: Colors.transparent,
     builder: (_) => _HojaAgregarA(r: r, loc: loc, item: item),
@@ -59,15 +58,10 @@ class _HojaAgregarA extends StatelessWidget {
     final esOscuro = Theme.of(context).brightness == Brightness.dark;
     final onBg = ColoresApp.enSuperficie(esOscuro);
     final bg = ColoresApp.superficie(esOscuro);
-    final hayTrack = sl<CubitCola>().state.tieneActual;
-    final fondoModal = hayTrack ? bg.withValues(alpha: 0.85) : bg;
-
     return _AgregarAEstilo(
       esOscuro: esOscuro,
       onBg: onBg,
       bg: bg,
-      hayTrack: hayTrack,
-      fondoModal: fondoModal,
       r: r,
       loc: loc,
       item: item,

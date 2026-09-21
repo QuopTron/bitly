@@ -23,15 +23,18 @@ List<String> _candidatosClaveDesencriptado(String claveCruda) {
   void agregarHex(String hex) {
     final normalizado = hex.trim().toLowerCase();
     if (normalizado.isEmpty || normalizado.length != 32) return;
-    if (RegExp(r'^[0-9a-f]+$').hasMatch(normalizado)) candidatos.add(normalizado);
+    if (RegExp(r'^[0-9a-f]+$').hasMatch(normalizado)) {
+      candidatos.add(normalizado);
+    }
   }
 
   final recortada = claveCruda.trim();
   if (recortada.isEmpty) return candidatos.toList();
 
-  final sinPrefijo = recortada.startsWith(RegExp(r'0x', caseSensitive: false))
-      ? recortada.substring(2)
-      : recortada;
+  final sinPrefijo =
+      recortada.startsWith(RegExp(r'0x', caseSensitive: false))
+          ? recortada.substring(2)
+          : recortada;
 
   // Hex plano: quita basura no-hex y toma la forma de 16 bytes (32 hex).
   final hexCompacto = sinPrefijo.replaceAll(RegExp(r'[^0-9a-fA-F]'), '');
@@ -40,10 +43,15 @@ List<String> _candidatosClaveDesencriptado(String claveCruda) {
   // La fuente puede devolver la clave en base64. Decodifica y emite la forma
   // hex de 16 bytes (solo claves que decodifican a exactamente 16 bytes).
   try {
-    final decodificado = base64Decode(sinPrefijo.replaceAll(RegExp(r'\s+'), ''));
-    final hex = decodificado.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+    final decodificado = base64Decode(
+      sinPrefijo.replaceAll(RegExp(r'\s+'), ''),
+    );
+    final hex =
+        decodificado.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
     agregarHex(hex);
-  } catch (e) { debugPrint("[Decrypted] error: $e"); }
+  } catch (e) {
+    debugPrint("[Decrypted] error: $e");
+  }
 
   // Algunos builds de FFmpeg aceptan la clave cruda de 16 bytes directa.
   agregarHex(sinPrefijo);

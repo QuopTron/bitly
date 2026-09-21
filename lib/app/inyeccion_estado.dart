@@ -13,9 +13,64 @@ part of 'inyeccion.dart';
 /// Registra servicios de dominio, cubits/blocs globales y navegación.
 void registrarServiciosYEstado(BackendService backend) {
   // ── 5. Servicios de dominio ──────────────────────────────
+  // Traducción de la letra del karaoke: singleton (su caché en memoria se
+  // comparte entre aperturas del modal) y con respaldo en la base, así que la
+  // canción ya traducida no se vuelve a pedir ni tras cerrar la app.
+  sl.registerLazySingleton<ServicioTraduccionLetras>(
+    () => ServicioTraduccionLetras(cache: sl<AlmacenTraducciones>()),
+  );
   sl.registerLazySingleton<ServicioDominioPlaylist>(
     () => ServicioDominioPlaylist(backend),
   );
+  // Guarda las playlists creadas/editadas a mano (nombre, portada y las
+  // canciones exactas, en orden) dejando la biblioteca local al día.
+  sl.registerLazySingleton<ServicioEditorPlaylist>(
+    () => ServicioEditorPlaylist(
+      sl<AppDatabase>(),
+      sl<CacheColecciones>(),
+      sl<CacheDetalleMemoria>(),
+    ),
+  );
+
+  // Canciones likeadas/descargadas para armar playlists, leídas de la
+  // base (no del estado en memoria, que se carga async al arrancar).
+  sl.registerLazySingleton<FuentesPlaylist>(
+    () => FuentesPlaylist(sl<CacheFavoritos>(), sl<CacheDescargas>()),
+  );
+
+  // Aparatos de la cuenta (burbuja Conexión): guarda la lista, quién manda y
+  // la prueba de 9 horas. El plan se consulta a la base en cada apertura de
+  // Ajustes, así un Premium recién activado ya cuenta como tal sin reiniciar.
+  sl.registerLazySingleton<ServicioConexion>(
+    () => ServicioConexion(
+      sl<CacheAjustes>(),
+      esPremium: () async {
+        final estado = await sl<CachePremium>().getEstadoPremium();
+        return estado.esPremium;
+      },
+    ),
+  );
+
+  // El vínculo entre aparatos de la MISMA red: cada app anuncia quién es y
+  // presta su biblioteca descargada, sin servidor de nadie. Se arranca al
+  // abrir la app (main), no acá, para no abrir puertos durante los tests.
+  sl.registerLazySingleton<ServicioLan>(
+    () => ServicioLan(
+      cache: sl<CacheAjustes>(),
+      descargas: sl<CacheDescargas>(),
+      db: sl<AppDatabase>(),
+      identidad: () async {
+        final conexion = sl<ServicioConexion>();
+        if (!conexion.cargado) await conexion.cargar();
+        return (conexion.idPropio, conexion.esteDispositivo?.nombre ?? '');
+      },
+    ),
+  );
+  // Al aceptar un vínculo en la red, el aparato queda vinculado también en la
+  // lista de Conexión (es el mismo aparato, con el id de Conexión).
+  sl<ServicioLan>().alVincular = (id, nombre) {
+    unawaited(sl<ServicioConexion>().vincular(id, nombre));
+  };
 
   // ── 6. Cubits globales ───────────────────────────────────
   // (player_cubit y los blocs de vistas se crean en el ensamblador

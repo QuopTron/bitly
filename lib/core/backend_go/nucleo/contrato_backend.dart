@@ -23,11 +23,21 @@ abstract class BackendService {
   Future<List<String>> getSources();
 
   // ── Búsqueda ──────────────────────────────────────────
-  Future<List<ItemFeed>> search({required String query, String source = '', String type = '', int limit = 20});
+  Future<List<ItemFeed>> search({
+    required String query,
+    String source = '',
+    String type = '',
+    int limit = 20,
+  });
 
   /// Inicia búsqueda en streaming (proveedores en paralelo, resultados
   /// acumulados). Devuelve el ID de generación de la sesión.
-  Future<int> searchStreaming({required String query, String source = '', String type = '', int limit = 20});
+  Future<int> searchStreaming({
+    required String query,
+    String source = '',
+    String type = '',
+    int limit = 20,
+  });
 
   /// Resultados acumulados de la sesión de búsqueda actual.
   Future<ResultadosBusquedaStream> getSearchStreamResults();
@@ -55,7 +65,11 @@ abstract class BackendService {
 
   /// Despacha una descarga (audio/video/letras) a Go. JSON resultante o null.
   Future<dynamic> downloadByStrategy(String json);
-  Future<void> initItemProgress(String itemId, {String trackName = '', String artistName = ''});
+  Future<void> initItemProgress(
+    String itemId, {
+    String trackName = '',
+    String artistName = '',
+  });
   Future<String> estimateTrackFileSize(int durationMs, String quality);
 
   // ── Detalles (extensiones) ────────────────────────────
@@ -65,11 +79,19 @@ abstract class BackendService {
   Future<String> fetchArtistDetail(String artistId, String source);
 
   // ── Caché de carátulas ────────────────────────────────
-  Future<String?> saveCover(String coverUrl);
+  /// Guarda la carátula y la indexa con [keys] (isrc/id/"nombre|artista")
+  /// para que otro camino la recupere sin volver a bajarla.
+  Future<String?> saveCover(String coverUrl, {List<String> keys});
   Future<void> deleteCover(String coverUrl);
 
   /// Ruta local de una carátula por ISRC o track+artista.
-  Future<String?> getCoverPathForTrack({required String trackId, String? isrc, String? trackName, String? artistName, String? coverUrl});
+  Future<String?> getCoverPathForTrack({
+    required String trackId,
+    String? isrc,
+    String? trackName,
+    String? artistName,
+    String? coverUrl,
+  });
 
   // ── Caché de streaming ────────────────────────────────
   Future<Map<String, dynamic>> getStreamCacheStats();
@@ -78,7 +100,12 @@ abstract class BackendService {
 
   // ── Sincronización de config (Flutter → Go) ───────────
   Future<void> syncDownloadDir(String path);
-  Future<void> syncBackendConfig({String? mode, int? streamCacheMaxMb, int? downloadConcurrency, int? streamChunkSize});
+  Future<void> syncBackendConfig({
+    String? mode,
+    int? streamCacheMaxMb,
+    int? downloadConcurrency,
+    int? streamChunkSize,
+  });
   Future<void> syncDownloadProviderPriority(List<String> providers);
 
   // ── Premium ───────────────────────────────────────────
@@ -88,7 +115,11 @@ abstract class BackendService {
 
   /// Sincroniza el estado premium (drift) hacia Go para que el gate de
   /// descargas respete códigos ya activados tras un reinicio.
-  Future<void> syncPremiumStatus({required bool isPremium, required String tier, int? expiresAt});
+  Future<void> syncPremiumStatus({
+    required bool isPremium,
+    required String tier,
+    int? expiresAt,
+  });
 
   // ── Sesiones firmadas ─────────────────────────────────
   Future<String> getPendingVerificationUrl(String extensionId);
@@ -106,7 +137,9 @@ abstract class BackendService {
   // ── Biblioteca local (música propia) ──────────────────
   /// Escanea una carpeta de música propia, la indexa por ISRC y devuelve un
   /// resumen: `{archivos, conIsrc, indexados}`.
-  Future<Map<String, dynamic>> importarBibliotecaLocal({required String directorio});
+  Future<Map<String, dynamic>> importarBibliotecaLocal({
+    required String directorio,
+  });
 
   /// De una lista de ISRCs, devuelve solo los que NO están en la biblioteca
   /// local. La descarga lo usa para no volver a bajar lo que ya se tiene.
@@ -116,12 +149,20 @@ abstract class BackendService {
   Future<String?> rutaLocalIsrc({required String isrc});
 
   // ── Acciones de extensión (botones de Ajustes) ────────
-  Future<Map<String, dynamic>> invokeExtensionAction(String provider, String action, {List<dynamic> args = const []});
+  Future<Map<String, dynamic>> invokeExtensionAction(
+    String provider,
+    String action, {
+    List<dynamic> args = const [],
+  });
 
   // ── RPC genérico ──────────────────────────────────────
   /// Ejecuta un método RPC arbitrario. [timeout] sobreescribe el timeout
   /// defensivo por llamada (las descargas de track pasan uno más largo).
-  Future<dynamic> rpcCall(String method, [Map<String, dynamic>? params, Duration? timeout]);
+  Future<dynamic> rpcCall(
+    String method, [
+    Map<String, dynamic>? params,
+    Duration? timeout,
+  ]);
 
   // ── Reset / Editor tags / Salud ───────────────────────
   /// Borra TODOS los datos (DB, ajustes, favoritos, descargas, librería).

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/zarz/bitly/go_backend/internal/provider"
 )
@@ -13,6 +14,11 @@ import (
 // Client wraps yt-dlp for YouTube Music search and download.
 type Client struct {
 	ytdlpPath string
+
+	// mu protege la instancia de cobalt, que llega desde Ajustes mientras
+	// otras goroutines descargan (ver cobalt.go).
+	mu     sync.RWMutex
+	cobalt cobaltConfig
 }
 
 // NewClient creates a YouTube client using the yt-dlp binary.

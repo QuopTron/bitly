@@ -28,7 +28,8 @@ mixin ReproductorCompletado on ReproductorCompletadoGuards {
     final durMs = state.duracion.inMilliseconds;
     final posMs = state.posicion.inMilliseconds;
     final completado = _queueCubit.state.actual;
-    final desdeHttp = _ultimaUriAbierta?.startsWith('http://') == true ||
+    final desdeHttp =
+        _ultimaUriAbierta?.startsWith('http://') == true ||
         _ultimaUriAbierta?.startsWith('https://') == true;
 
     // Guards de completación falsa (stream muerto / preview corto / evento
@@ -88,7 +89,8 @@ mixin ReproductorCompletado on ReproductorCompletadoGuards {
     // emitiría un estado con el mismo índice y bloc ≥ 9 descarta estados
     // idénticos — reabrir el track directo. Igual para repeat-all con una
     // sola canción (el wrap a índice 0 también sería un estado idéntico).
-    final repetirMismo = colaAntes.modoRepeticion == ModoRepeticion.uno ||
+    final repetirMismo =
+        colaAntes.modoRepeticion == ModoRepeticion.uno ||
         (colaAntes.modoRepeticion == ModoRepeticion.todos &&
             colaAntes.tracks.length <= 1);
     bool huboSiguiente;

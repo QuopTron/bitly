@@ -12,21 +12,19 @@ part of 'slide_gracias.dart';
 
 /// Estado del alta de Soulseek en el paso final: girando mientras conecta y,
 /// al terminar, el resultado en una sola línea.
-Widget _lineaSoulseek(
-  _SlideGraciasState st,
-  Color onBg,
-  Color glowColor,
-) {
+Widget _lineaSoulseek(_SlideGraciasState st, Color onBg, Color glowColor) {
   final conectando = st.widget.state.syncSoulseek == SyncSoulseek.creando;
   final ok = st.widget.state.syncSoulseek == SyncSoulseek.listo;
-  final color = conectando
-      ? onBg.withValues(alpha: 0.45)
-      : (ok ? glowColor : onBg.withValues(alpha: 0.45));
-  final texto = conectando
-      ? st.widget.loc.setup.soulseekConnecting
-      : (ok
-            ? st.widget.loc.setup.soulseekReady
-            : st.widget.loc.setup.soulseekPending);
+  final color =
+      conectando
+          ? onBg.withValues(alpha: 0.45)
+          : (ok ? glowColor : onBg.withValues(alpha: 0.45));
+  final texto =
+      conectando
+          ? st.widget.loc.setup.soulseekConnecting
+          : (ok
+              ? st.widget.loc.setup.soulseekReady
+              : st.widget.loc.setup.soulseekPending);
 
   return Padding(
     padding: EdgeInsets.symmetric(horizontal: st.widget.r.spacingXL),

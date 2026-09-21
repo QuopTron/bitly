@@ -55,8 +55,10 @@ class _SoulseekTileState extends State<_SoulseekTile> {
   }
 
   Future<void> _abrir() async {
-    final conecto = await showModalBottomSheet<bool>(
+    // `sobreHoja`: la hoja de Soulseek sale desde Ajustes y tapa la de abajo.
+    final conecto = await mostrarHoja<bool>(
       context: context,
+      sobreHoja: true,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (_) => _SoulseekSheet(glowColor: widget.glowColor),
@@ -68,7 +70,7 @@ class _SoulseekTileState extends State<_SoulseekTile> {
       // la hoja se cierra y el tile ya quedó pintado.
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Soulseek conectado. Tu cuenta ya está lista.'),
+          content: Text(AppLocalizations.of(context).soulseek.snackConectado),
           backgroundColor: Colors.green.shade700,
           behavior: SnackBarBehavior.floating,
           duration: const Duration(seconds: 3),

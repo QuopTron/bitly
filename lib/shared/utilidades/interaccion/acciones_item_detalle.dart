@@ -24,9 +24,14 @@ Future<DetalleAlbum?> _fetchDetalleAlbum(String albumId, String src) async {
 
 /// Fetch del detalle de playlist a Go (null si falla o viene vacío).
 Future<DetallePlaylist?> _fetchDetallePlaylist(
-    String playlistId, String src) async {
+  String playlistId,
+  String src,
+) async {
   try {
-    final json = await sl<BackendService>().fetchPlaylistDetail(playlistId, src);
+    final json = await sl<BackendService>().fetchPlaylistDetail(
+      playlistId,
+      src,
+    );
     if (json.isEmpty || json == '{}') return null;
     return DetallePlaylist.desdeJson(jsonDecode(json) as Map<String, dynamic>);
   } catch (_) {
@@ -45,27 +50,26 @@ List<Map<String, dynamic>> _tracksAMapas(
   String? coverUrlPadre,
 }) {
   return tracks
-      .map((t) => {
-            'track_id': t.trackId,
-            'track_title': t.name,
-            'artist_name': t.artistName ?? '',
-            'album_name': t.albumName ?? '',
-            'source': t.provider ?? source,
-            'isrc': t.isrc,
-            'duration_ms': t.durationMs,
-            'cover_url': (t.coverUrl?.isNotEmpty == true)
-                ? t.coverUrl!
-                : coverUrlPadre,
-          })
+      .map(
+        (t) => {
+          'track_id': t.trackId,
+          'track_title': t.name,
+          'artist_name': t.artistName ?? '',
+          'album_name': t.albumName ?? '',
+          'source': t.provider ?? source,
+          'isrc': t.isrc,
+          'duration_ms': t.durationMs,
+          'cover_url':
+              (t.coverUrl?.isNotEmpty == true) ? t.coverUrl! : coverUrlPadre,
+        },
+      )
       .toList();
 }
 
 /// Snack de error cuando no se pudo cargar el detalle (álbum/playlist).
-void _snackError(ScaffoldMessengerState messenger, bool esAlbum) {
-  messenger.showSnackBar(SnackBar(
-    content: Text(esAlbum
-        ? 'No se pudo cargar el álbum'
-        : 'No se pudo cargar la playlist'),
-    duration: const Duration(seconds: 2),
-  ));
+/// El texto llega ya localizado desde quien lo llama.
+void _snackError(ScaffoldMessengerState messenger, String mensaje) {
+  messenger.showSnackBar(
+    SnackBar(content: Text(mensaje), duration: const Duration(seconds: 2)),
+  );
 }

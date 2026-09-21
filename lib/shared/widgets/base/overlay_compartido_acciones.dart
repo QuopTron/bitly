@@ -29,9 +29,7 @@ Widget _accionesOverlay(
         cs,
         r,
         texto: w.enCola ? l.agregarACola : l.reproducir,
-        icono: w.enCola
-            ? Icons.playlist_add_rounded
-            : Icons.play_arrow_rounded,
+        icono: w.enCola ? Icons.playlist_add_rounded : Icons.play_arrow_rounded,
         onTap: w.onAccion,
         relleno: true,
       ),
@@ -70,9 +68,10 @@ Widget _pildora(
         color: relleno ? cs.onSurface : cs.surface.withValues(alpha: 0.55),
         borderRadius: BorderRadius.circular(22),
         border: Border.all(
-          color: relleno
-              ? Colors.transparent
-              : cs.outlineVariant.withValues(alpha: 0.6),
+          color:
+              relleno
+                  ? Colors.transparent
+                  : cs.outlineVariant.withValues(alpha: 0.6),
         ),
       ),
       child: Row(

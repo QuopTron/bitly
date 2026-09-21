@@ -25,20 +25,26 @@ class _SettingsSheetState extends State<SettingsSheet>
     try {
       final status = await sl<CachePremium>().getEstadoPremium();
       if (mounted) setState(() => _premium = status);
-    } catch (e) { debugPrint("[Feature] $e"); }
+    } catch (e) {
+      debugPrint("[Feature] $e");
+    }
   }
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(
-      length: _bubbleTabs.length,
+      length: cantidadPestanasAjustes,
       vsync: this,
       initialIndex: _selectedTab ?? 0,
     )..addListener(() {
-        if (mounted) setState(() {});
-      });
+      if (mounted) setState(() {});
+    });
     _loadPremium();
+    // Cuenta los regalos del cofre de diseños una vez al abrir: así el
+    // mininumerito de la burbuja de Apariencia ya sale con el número real.
+    AparienciaHelper.refrescarRegalos();
+    _refrescarNovedadesConexion();
     // Si el tutorial abrió la hoja, la hoja lo sigue: cada paso pide una
     // pestaña y acá se cambia sola, para que el usuario vea dónde está
     // cada cosa en vez de tener que buscarla.
@@ -53,11 +59,25 @@ class _SettingsSheetState extends State<SettingsSheet>
     super.dispose();
   }
 
+  /// Cuenta las novedades de Conexión al abrir la hoja: el mininumerito de
+  /// esa burbuja tiene que salir con el número real, antes de que el usuario
+  /// entre a la pestaña. Es best-effort: si falla, deja el número como está.
+  Future<void> _refrescarNovedadesConexion() async {
+    try {
+      final servicio = sl<ServicioConexion>();
+      if (!servicio.cargado) await servicio.cargar();
+      if (!mounted) return;
+      novedadesConexion.value = servicio.novedadesNuevas;
+    } catch (e) {
+      debugPrint('[Conexion] no se pudo contar las novedades: $e');
+    }
+  }
+
   /// Se para en la pestaña que pide el paso actual del tutorial.
   void _seguirTutorial() {
     final pedida = widget.tutorial?.pestanaAjustesActual;
     if (!mounted || pedida == null || pedida == _selectedTab) return;
-    if (pedida < 0 || pedida >= _bubbleTabs.length) return;
+    if (pedida < 0 || pedida >= cantidadPestanasAjustes) return;
     setState(() {
       _selectedTab = pedida;
       _tabController.animateTo(pedida);
@@ -97,11 +117,6 @@ class _SettingsSheetState extends State<SettingsSheet>
             r: r,
             hasTrack: hasTrack,
             onThemeChanged: widget.onThemeChanged,
-            onLanguageChanged: widget.onLanguageChanged,
-            onStyleChanged: (estilo) {
-              EstiloHelper.cambiar(context, estilo);
-              if (mounted) setState(() {});
-            },
             onPremiumChanged: _loadPremium,
             onTabTap: (i) {
               setState(() {

@@ -96,7 +96,7 @@ class StringsTutorialInteractivo {
       ),
       TextoTutorial(
         'Look and feel',
-        'Light or dark theme, visual style and the app language. Changes apply instantly.',
+        'Light or dark theme, the cover style and the app language. Changes apply instantly.',
       ),
       TextoTutorial(
         'Downloads',
@@ -107,8 +107,8 @@ class StringsTutorialInteractivo {
         'Performance profiles so the app runs smooth on your device, using less memory and battery.',
       ),
       TextoTutorial(
-        'Account and Premium',
-        'Your account, the free trial hours, reports and app updates live here.',
+        'Account',
+        'Your plan, the free trial hours and the Google connection live here.',
       ),
     ],
   );
@@ -159,7 +159,7 @@ class StringsTutorialInteractivo {
       ),
       TextoTutorial(
         'Apariencia',
-        'Tema claro u oscuro, estilo visual e idioma de la app. Los cambios se aplican al instante.',
+        'Tema claro u oscuro, el estilo con cover y el idioma de la app. Los cambios se aplican al instante.',
       ),
       TextoTutorial(
         'Descargas',
@@ -170,8 +170,8 @@ class StringsTutorialInteractivo {
         'Perfiles de rendimiento para que la app vaya fluida en tu equipo, gastando menos memoria y batería.',
       ),
       TextoTutorial(
-        'Cuenta y Premium',
-        'Tu cuenta, las horas de prueba gratis, los reportes y las actualizaciones de la app.',
+        'Cuenta',
+        'Tu plan, las horas de prueba gratis y la conexión con Google.',
       ),
     ],
   );

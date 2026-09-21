@@ -36,20 +36,23 @@ Widget _vistaAgrupadaPorCategoria(
   for (final cat in orden) {
     final items = agrupado[cat]!;
     if (items.isEmpty) continue;
-    children
-        .add(_cabeceraSeccion(context, cat, items.length, r, colorBrillo, onBg));
+    children.add(
+      _cabeceraSeccion(context, cat, items.length, r, colorBrillo, onBg),
+    );
     if (cat == 'tracks') {
       children.addAll(_listaTracks(cuerpo, context, items));
     } else {
-      children.add(_seccionGrilla(
-        cuerpo,
-        context,
-        r,
-        items,
-        colorBrillo: colorBrillo,
-        onBg: onBg,
-        titulo: null,
-      ));
+      children.add(
+        _seccionGrilla(
+          cuerpo,
+          context,
+          r,
+          items,
+          colorBrillo: colorBrillo,
+          onBg: onBg,
+          titulo: null,
+        ),
+      );
     }
   }
   if (children.isEmpty) {
@@ -79,20 +82,30 @@ Widget _vistaAgrupadaPorFuente(
   final children = <Widget>[];
   for (final entry in porFuente.entries) {
     if (entry.value.isEmpty) continue;
-    children.add(_cabeceraFuente(
-        context, entry.key, entry.value.length, r, colorBrillo, onBg));
+    children.add(
+      _cabeceraFuente(
+        context,
+        entry.key,
+        entry.value.length,
+        r,
+        colorBrillo,
+        onBg,
+      ),
+    );
     if (cuerpo.tipoSeleccionado == 'tracks') {
       children.addAll(_listaTracks(cuerpo, context, entry.value));
     } else {
-      children.add(_seccionGrilla(
-        cuerpo,
-        context,
-        r,
-        entry.value,
-        colorBrillo: colorBrillo,
-        onBg: onBg,
-        titulo: null,
-      ));
+      children.add(
+        _seccionGrilla(
+          cuerpo,
+          context,
+          r,
+          entry.value,
+          colorBrillo: colorBrillo,
+          onBg: onBg,
+          titulo: null,
+        ),
+      );
     }
   }
   if (children.isEmpty) {

@@ -42,10 +42,11 @@ mixin VerificacionNavegador on VerificacionKeepalive {
     if (ctx == null) return;
     ScaffoldMessenger.of(ctx)
       ..clearSnackBars()
-      ..showSnackBar(SnackBar(
-        content: Text(
-            'Se abrió el navegador — completa el captcha para $nombreMostrado'),
-        duration: const Duration(seconds: 5),
-      ));
+      ..showSnackBar(
+        SnackBar(
+          content: Text(L10n.actual.servicio.navegadorAbierto(nombreMostrado)),
+          duration: const Duration(seconds: 5),
+        ),
+      );
   }
 }

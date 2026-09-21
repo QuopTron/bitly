@@ -16,14 +16,18 @@ mixin AccionesMixin on BackendService {
   Future<void> likeItem(String itemId, bool liked) async {
     try {
       await rpcCall('likeItem', {'item_id': itemId, 'liked': liked});
-    } catch (e) { debugPrint("[Backend] $e"); }
+    } catch (e) {
+      debugPrint("[Backend] $e");
+    }
   }
 
   @override
   Future<void> downloadItem(String itemId) async {
     try {
       await rpcCall('downloadItem', {'item_id': itemId});
-    } catch (e) { debugPrint("[Backend] $e"); }
+    } catch (e) {
+      debugPrint("[Backend] $e");
+    }
   }
 
   // ── Progreso de descarga y estrategia (Go) ──────────────
@@ -41,7 +45,9 @@ mixin AccionesMixin on BackendService {
   Future<void> cancelDownload(String itemId) async {
     try {
       await rpcCall('cancelDownload', {'item_id': itemId});
-    } catch (e) { debugPrint("[Backend] $e"); }
+    } catch (e) {
+      debugPrint("[Backend] $e");
+    }
   }
 
   @override
@@ -54,23 +60,30 @@ mixin AccionesMixin on BackendService {
   }
 
   @override
-  Future<void> initItemProgress(String itemId, {String trackName = '', String artistName = ''}) async {
+  Future<void> initItemProgress(
+    String itemId, {
+    String trackName = '',
+    String artistName = '',
+  }) async {
     try {
       await rpcCall('initItemProgress', {
         'item_id': itemId,
         'track_name': trackName,
         'artist_name': artistName,
       });
-    } catch (e) { debugPrint("[Backend] $e"); }
+    } catch (e) {
+      debugPrint("[Backend] $e");
+    }
   }
 
   @override
   Future<String> estimateTrackFileSize(int durationMs, String quality) async {
     try {
       return await rpcCall('estimateTrackFileSize', {
-        'duration_ms': durationMs,
-        'quality': quality,
-      }) as String;
+            'duration_ms': durationMs,
+            'quality': quality,
+          })
+          as String;
     } catch (_) {
       return '{}';
     }
@@ -82,7 +95,9 @@ mixin AccionesMixin on BackendService {
   Future<void> syncDownloadDir(String path) async {
     try {
       await rpcCall('setDownloadDirectory', {'path': path});
-    } catch (e) { debugPrint("[Backend] $e"); }
+    } catch (e) {
+      debugPrint("[Backend] $e");
+    }
   }
 
   @override
@@ -95,18 +110,27 @@ mixin AccionesMixin on BackendService {
     try {
       final params = <String, dynamic>{};
       if (mode != null) params['mode'] = mode;
-      if (streamCacheMaxMb != null) params['stream_cache_max_mb'] = streamCacheMaxMb;
-      if (downloadConcurrency != null) params['download_concurrency'] = downloadConcurrency;
-      if (streamChunkSize != null) params['stream_chunk_size'] = streamChunkSize;
+      if (streamCacheMaxMb != null) {
+        params['stream_cache_max_mb'] = streamCacheMaxMb;
+      }
+      if (downloadConcurrency != null) {
+        params['download_concurrency'] = downloadConcurrency;
+      }
+      if (streamChunkSize != null) {
+        params['stream_chunk_size'] = streamChunkSize;
+      }
       if (params.isNotEmpty) await rpcCall('setBackendConfig', params);
-    } catch (e) { debugPrint("[Backend] $e"); }
+    } catch (e) {
+      debugPrint("[Backend] $e");
+    }
   }
 
   @override
   Future<void> syncDownloadProviderPriority(List<String> providers) async {
     try {
       await rpcCall('setDownloadProviderPriority', {'providers': providers});
-    } catch (e) { debugPrint("[Backend] $e"); }
+    } catch (e) {
+      debugPrint("[Backend] $e");
+    }
   }
-
 }

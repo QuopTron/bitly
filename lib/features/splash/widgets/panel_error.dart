@@ -41,7 +41,8 @@ class PanelError extends StatelessWidget {
     if (kIsWeb) {
       return PanelErrorWeb(loc: loc, r: r, isDark: isDark);
     }
-    final glowColor = isDark ? ColoresApp.verdeBrillante : ColoresApp.verdeMedio;
+    final glowColor =
+        isDark ? ColoresApp.verdeBrillante : ColoresApp.verdeMedio;
 
     return Column(
       children: [
@@ -49,10 +50,12 @@ class PanelError extends StatelessWidget {
         Padding(
           padding: EdgeInsets.symmetric(horizontal: r.spacingXL),
           child: Text(
-            state.error ?? loc.splash.backendNotResponding,
+            loc.splash.backendNotResponding,
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.65),
+              color: (isDark ? Colors.white : Colors.black).withValues(
+                alpha: 0.65,
+              ),
               fontSize: r.subtitleSize,
             ),
           ),
@@ -69,7 +72,8 @@ class PanelError extends StatelessWidget {
                 side: BorderSide(color: glowColor.withValues(alpha: 0.4)),
               ),
             ),
-            onPressed: () => context.read<SplashBloc>().add(const ChequearBackend()),
+            onPressed:
+                () => context.read<SplashBloc>().add(const ChequearBackend()),
             child: Text(
               loc.splash.retry,
               style: TextStyle(color: glowColor, fontWeight: FontWeight.w600),

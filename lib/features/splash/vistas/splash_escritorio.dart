@@ -42,7 +42,8 @@ class SplashEscritorio extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = isDark ? ColoresApp.fondoOscuro : ColoresApp.fondoClaro;
     final onBg = isDark ? Colors.white : Colors.black;
-    final glowColor = isDark ? ColoresApp.verdeBrillante : ColoresApp.verdeMedio;
+    final glowColor =
+        isDark ? ColoresApp.verdeBrillante : ColoresApp.verdeMedio;
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -91,7 +92,7 @@ class SplashEscritorio extends StatelessWidget {
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
-                                  'Tu música, todas tus fuentes.',
+                                  loc.splash.lema,
                                   style: TextStyle(
                                     fontSize: r.subtitleSize,
                                     color: onBg.withValues(alpha: 0.5),

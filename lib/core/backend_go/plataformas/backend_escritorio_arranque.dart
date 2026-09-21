@@ -32,7 +32,8 @@ Future<String?> _cwdEscribible() async {
 /// Busca el directorio de extensiones: junto al exe, luego CWD/assets,
 /// luego CWD/extensions. Devuelve null si no encuentra ninguno.
 Future<String?> _buscarDirExtensiones(String? rutaEjecutable) async {
-  final padreExe = rutaEjecutable != null ? File(rutaEjecutable).parent.path : null;
+  final padreExe =
+      rutaEjecutable != null ? File(rutaEjecutable).parent.path : null;
   if (padreExe != null && await Directory('$padreExe/extensions').exists()) {
     return '$padreExe/extensions';
   }
@@ -95,8 +96,10 @@ Future<void> _initPremiumCredenciales(BackendEscritorio backend) async {
 
   try {
     final cache = sl<CacheAjustes>();
-    await ServicioCredencialesProveedor(backend, cache)
-        .empujarCredencialesAlArrancar();
+    await ServicioCredencialesProveedor(
+      backend,
+      cache,
+    ).empujarCredencialesAlArrancar();
   } catch (e) {
     debugPrint("[Backend] $e");
   }

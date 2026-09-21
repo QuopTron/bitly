@@ -9,7 +9,8 @@ import '../tables/play_history_table.dart';
 part 'play_history_dao.g.dart';
 
 @DriftAccessor(tables: [PlayHistory, PlayAggregates])
-class PlayHistoryDao extends DatabaseAccessor<AppDatabase> with _$PlayHistoryDaoMixin {
+class PlayHistoryDao extends DatabaseAccessor<AppDatabase>
+    with _$PlayHistoryDaoMixin {
   PlayHistoryDao(super.db);
 
   Future<void> logPlay(PlayHistoryCompanion entry) =>
@@ -25,12 +26,15 @@ class PlayHistoryDao extends DatabaseAccessor<AppDatabase> with _$PlayHistoryDao
 
   Future<void> incrementPlayCount(String itemId, String type) {
     final now = DateTime.now();
-    return into(playAggregates).insert(PlayAggregatesCompanion(
-      itemId: Value(itemId),
-      type: Value(type),
-      playCount: const Value(1),
-      lastPlayedAt: Value(now),
-    ), mode: InsertMode.insertOrReplace);
+    return into(playAggregates).insert(
+      PlayAggregatesCompanion(
+        itemId: Value(itemId),
+        type: Value(type),
+        playCount: const Value(1),
+        lastPlayedAt: Value(now),
+      ),
+      mode: InsertMode.insertOrReplace,
+    );
   }
 
   Future<List<PlayAggregate>> getTop(String type, {int limit = 20}) =>
@@ -41,11 +45,10 @@ class PlayHistoryDao extends DatabaseAccessor<AppDatabase> with _$PlayHistoryDao
           .get();
 
   /// Total playback time in milliseconds across all played tracks.
-  Future<int> getTotalPlaybackMs() =>
-      (select(playHistory)
-            ..where((t) => t.durationMs.isNotNull()))
-          .get()
-          .then((rows) => rows.fold<int>(0, (sum, r) => sum + (r.durationMs ?? 0)));
+  Future<int> getTotalPlaybackMs() => (select(playHistory)
+    ..where((t) => t.durationMs.isNotNull())).get().then(
+    (rows) => rows.fold<int>(0, (sum, r) => sum + (r.durationMs ?? 0)),
+  );
 
   /// Sum of every play count for [type] (the real total, NOT capped by a
   /// top-N limit like [getTop]).
@@ -66,19 +69,20 @@ class PlayHistoryDao extends DatabaseAccessor<AppDatabase> with _$PlayHistoryDao
 
   /// Number of distinct (non-empty) artist names ever played.
   Future<int> getDistinctArtistsCount() async {
-    final rows = await (select(playHistory)
-          ..where((t) => t.artistName.isNotIn(const [''])))
-        .get();
+    final rows =
+        await (select(playHistory)
+          ..where((t) => t.artistName.isNotIn(const ['']))).get();
     return rows.map((r) => r.artistName).toSet().length;
   }
 
   /// Latest known name/artist for the most recent played tracks, so the
   /// "most played" list can show real titles instead of raw ids.
   Future<Map<String, ({String name, String artist})>> getLatestNames() async {
-    final rows = await (select(playHistory)
-          ..orderBy([(t) => OrderingTerm.desc(t.playedAt)])
-          ..limit(500))
-        .get();
+    final rows =
+        await (select(playHistory)
+              ..orderBy([(t) => OrderingTerm.desc(t.playedAt)])
+              ..limit(500))
+            .get();
     final map = <String, ({String name, String artist})>{};
     for (final r in rows) {
       map.putIfAbsent(
@@ -89,4 +93,3 @@ class PlayHistoryDao extends DatabaseAccessor<AppDatabase> with _$PlayHistoryDao
     return map;
   }
 }
-

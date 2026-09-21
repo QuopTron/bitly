@@ -24,14 +24,12 @@ WebViewController _crearControlador(_PanelVerificacionWebState state) {
         Platform.environment['LOCALAPPDATA'] ??
         Platform.environment['APPDATA'] ??
         '';
-    final carpetaDatos = base.isEmpty
-        ? null
-        : '$base\\Bitly\\webview_data';
+    final carpetaDatos = base.isEmpty ? null : '$base\\Bitly\\webview_data';
     return WebViewController.fromPlatformCreationParams(
-      WindowsPlatformWebViewControllerCreationParams(
-        userDataFolder: carpetaDatos,
-      ),
-    )
+        WindowsPlatformWebViewControllerCreationParams(
+          userDataFolder: carpetaDatos,
+        ),
+      )
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..addJavaScriptChannel(
         'SpotiflacGrant',
@@ -39,9 +37,11 @@ WebViewController _crearControlador(_PanelVerificacionWebState state) {
           // La página de zarz postea el grant como URL completa, URL con query
           // malformada o token pelado — grantDeCadena tolera los tres casos.
           final grant = grantDeCadena(mensaje.message);
-          debugPrint('[Verificacion] JS bridge mensaje: '
-              '${mensaje.message.length > 120 ? mensaje.message.substring(0, 120) : mensaje.message} '
-              '→ grant: ${grant == null ? 'null' : 'OK'}');
+          debugPrint(
+            '[Verificacion] JS bridge mensaje: '
+            '${mensaje.message.length > 120 ? mensaje.message.substring(0, 120) : mensaje.message} '
+            '→ grant: ${grant == null ? 'null' : 'OK'}',
+          );
           if (grant != null) _dispararGrant(state, grant);
         },
       )
@@ -55,9 +55,11 @@ WebViewController _crearControlador(_PanelVerificacionWebState state) {
         // La página de zarz postea el grant como URL completa, URL con query
         // malformada o token pelado — grantDeCadena tolera los tres casos.
         final grant = grantDeCadena(mensaje.message);
-        debugPrint('[Verificacion] JS bridge mensaje: '
-            '${mensaje.message.length > 120 ? mensaje.message.substring(0, 120) : mensaje.message} '
-            '→ grant: ${grant == null ? 'null' : 'OK'}');
+        debugPrint(
+          '[Verificacion] JS bridge mensaje: '
+          '${mensaje.message.length > 120 ? mensaje.message.substring(0, 120) : mensaje.message} '
+          '→ grant: ${grant == null ? 'null' : 'OK'}',
+        );
         if (grant != null) _dispararGrant(state, grant);
       },
     )

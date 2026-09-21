@@ -60,16 +60,14 @@ class _FondoParticulasState extends State<FondoParticulas>
       return;
     }
     _controller.repeat();
-    _particulas = List.generate(
-      widget.particleCount,
-      (_) => _crearParticula(),
-    );
+    _particulas = List.generate(widget.particleCount, (_) => _crearParticula());
   }
 
   _Particula _crearParticula() => _Particula(
     x: _rng.nextDouble(),
     y: _rng.nextDouble(),
-    size: widget.minParticleSize +
+    size:
+        widget.minParticleSize +
         _rng.nextDouble() * (widget.maxParticleSize - widget.minParticleSize),
     speedX: (_rng.nextDouble() - 0.5) * 0.012 * widget.speedMultiplier,
     speedY: -_rng.nextDouble() * 0.018 * widget.speedMultiplier,

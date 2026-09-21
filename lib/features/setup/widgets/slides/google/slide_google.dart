@@ -61,15 +61,15 @@ class _SlideGoogleState extends State<SlideGoogle> {
     final bloc = context.read<SetupBloc>();
     final messenger = ScaffoldMessenger.of(context);
     setState(() => _conectando = true);
-    final msg = await ServicioOAuthYouTube().conectar(context);
+    final resultado = await ServicioOAuthYouTube().conectar(context);
     if (!mounted) return;
     setState(() => _conectando = false);
-    final ok = msg.startsWith('Sesión de YouTube conectada');
-    bloc.add(EstadoGoogleCambiado(ok));
+    // El éxito sale del booleano, no de comparar el texto (que se traduce).
+    bloc.add(EstadoGoogleCambiado(resultado.ok));
     messenger.showSnackBar(
       SnackBar(
-        content: Text(msg),
-        backgroundColor: ok ? null : Colors.redAccent,
+        content: Text(resultado.mensaje),
+        backgroundColor: resultado.ok ? null : Colors.redAccent,
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 4),
       ),
@@ -102,7 +102,10 @@ class _SlideGoogleState extends State<SlideGoogle> {
           ),
           SizedBox(height: 4),
           Text(
-            _t('Opcional — mejora tu reproducción', 'Optional — better playback'),
+            _t(
+              'Opcional — mejora tu reproducción',
+              'Optional — better playback',
+            ),
             style: TextStyle(
               fontSize: widget.r.footerSize + 1,
               color: onBg.withValues(alpha: 0.5),

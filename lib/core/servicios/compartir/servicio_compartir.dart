@@ -63,15 +63,12 @@ class ServicioCompartir {
     final datos = DatosCompartido.desdeItem(item, emisor: await _emisor());
     final enlace = construirEnlace(datos);
     final titulo = texto ?? _tituloLegible(item);
-    await SharePlus.instance.share(
-      ShareParams(text: '$titulo\n$enlace'),
-    );
+    await SharePlus.instance.share(ShareParams(text: '$titulo\n$enlace'));
   }
 
   /// Enlace listo para pegar: host + payload cifrado.
   String construirEnlace(DatosCompartido datos) {
-    final payload =
-        CifradoCompartir.cifrar(jsonEncode(datos.aJson()));
+    final payload = CifradoCompartir.cifrar(jsonEncode(datos.aJson()));
     return 'https://$host$ruta?s=$payload';
   }
 
@@ -82,8 +79,7 @@ class ServicioCompartir {
       final uri = Uri.parse(url.trim());
       // Acepta las formas declaradas en Android/iOS: el host configurado
       // (https://<host>/open?s=...) y el esquema propio (bitly://open?s=...).
-      final hostValido =
-          uri.host == host || _hostsValidos.contains(uri.host);
+      final hostValido = uri.host == host || _hostsValidos.contains(uri.host);
       if (!hostValido) return null;
       final payload = uri.queryParameters['s'];
       if (payload == null || payload.isEmpty) return null;
@@ -100,8 +96,6 @@ class ServicioCompartir {
 
   /// ¿Este texto trae un enlace de Bitly? (para no tratarlo como URL de otra
   /// fuente y mandarlo al backend sin necesidad)
-  bool esEnlaceBitly(String texto) => leerEnlace(texto) != null;
-
   /// Texto visible: la canción y el artista; el enlace lo agrega [compartir].
   String _tituloLegible(ItemFeed item) {
     final artista = item.artists?.trim() ?? '';

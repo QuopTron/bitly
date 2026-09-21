@@ -21,7 +21,9 @@ mixin _VersionSheetLoader on State<_VersionSheet> {
     try {
       final pkg = await PackageInfo.fromPlatform();
       state._currentVersion = pkg.version;
-    } catch (e) { debugPrint("[Feature] $e"); }
+    } catch (e) {
+      debugPrint("[Feature] $e");
+    }
 
     try {
       // Fetch latest for update info
@@ -34,7 +36,9 @@ mixin _VersionSheetLoader on State<_VersionSheet> {
         final tag = json['tag_name'] as String? ?? '';
         state._latestVersion = tag.replaceFirst('v', '').trim();
       }
-    } catch (e) { debugPrint("[Feature] $e"); }
+    } catch (e) {
+      debugPrint("[Feature] $e");
+    }
 
     try {
       // Fetch all releases for the version list
@@ -53,7 +57,8 @@ mixin _VersionSheetLoader on State<_VersionSheet> {
               // Elige el asset de ESTA plataforma y arquitectura (APK del ABI
               // correcto en Android, instalador .exe en Windows). Los nombres
               // son consistentes con los que lee el sitio web del proyecto.
-              final url = UpdateService.urlDescarga(
+              final url =
+                  UpdateService.urlDescarga(
                     assets,
                     tag.replaceFirst('v', '').trim(),
                   ) ??
@@ -66,7 +71,9 @@ mixin _VersionSheetLoader on State<_VersionSheet> {
               );
             }).toList();
       }
-    } catch (e) { debugPrint("[Feature] $e"); }
+    } catch (e) {
+      debugPrint("[Feature] $e");
+    }
 
     if (!mounted) return;
     setState(() => state._loading = false);
@@ -75,6 +82,8 @@ mixin _VersionSheetLoader on State<_VersionSheet> {
     try {
       final info = await UpdateService().checkForUpdate();
       if (mounted) setState(() => state._updateInfo = info);
-    } catch (e) { debugPrint("[Feature] $e"); }
+    } catch (e) {
+      debugPrint("[Feature] $e");
+    }
   }
 }

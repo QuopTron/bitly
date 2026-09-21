@@ -77,8 +77,11 @@ void main() {
     test('la gama baja apaga los efectos pesados y precarga', () {
       final perfil = PerfilRendimiento.bajo;
       expect(perfil.efectosPesados, isFalse);
-      expect(perfil.sigmaDesenfoque, 0,
-          reason: 'sin desenfoque: es lo que congela la GPU de gama baja');
+      expect(
+        perfil.sigmaDesenfoque,
+        0,
+        reason: 'sin desenfoque: es lo que congela la GPU de gama baja',
+      );
       expect(perfil.precargaHabilitada, isFalse);
       expect(perfil.concurrenciaDescargas, 1);
     });

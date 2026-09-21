@@ -52,8 +52,12 @@ Widget _construirChips(_PaginaBusquedaState st, EstadoBusqueda state) {
 }
 
 /// Cuerpo con resultados/recientes/pegar URL y selectores de estado.
-Widget _construirCuerpo(_PaginaBusquedaState st, EstadoBusqueda state,
-    bool mostrarResultados, bool mostrarRecientes) {
+Widget _construirCuerpo(
+  _PaginaBusquedaState st,
+  EstadoBusqueda state,
+  bool mostrarResultados,
+  bool mostrarRecientes,
+) {
   return CuerpoBusqueda(
     tipoSeleccionado: st._tipo,
     fuenteSeleccionada: st._fuente,
@@ -61,6 +65,7 @@ Widget _construirCuerpo(_PaginaBusquedaState st, EstadoBusqueda state,
     cargando: st._buscando || state.cargando,
     haBuscado: state.haBuscado,
     error: state.error,
+    fuenteError: state.fuenteError,
     mostrarResultados: mostrarResultados,
     mostrarRecientes: mostrarRecientes,
     busquedasRecientes: state.busquedasRecientes,
@@ -74,10 +79,11 @@ Widget _construirCuerpo(_PaginaBusquedaState st, EstadoBusqueda state,
     onMostrarMas: _mostrarMas,
     onNavegarItem: st.widget.onNavegarItem,
     onBusquedaTocada: (q) => _repetirBusqueda(st, q),
-    onLimpiarRecientes: () => st.context
-        .read<BlocBusqueda>()
-        .add(const LimpiarBusquedasRecientes()),
-    onQuitarReciente: (q) =>
-        st.context.read<BlocBusqueda>().add(QuitarBusquedaReciente(q)),
+    onLimpiarRecientes:
+        () => st.context.read<BlocBusqueda>().add(
+          const LimpiarBusquedasRecientes(),
+        ),
+    onQuitarReciente:
+        (q) => st.context.read<BlocBusqueda>().add(QuitarBusquedaReciente(q)),
   );
 }

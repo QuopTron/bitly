@@ -70,15 +70,16 @@ class ContenedorVidrio extends StatelessWidget {
 
     // ── Sombra del glow ── (se omite en gama baja: una sombra con blur alto
     // por tarjeta se paga caro al desplazar listas largas).
-    final sombras = (glowBorder && !sinEfectos)
-        ? [
-            BoxShadow(
-              color: border.withValues(alpha: 0.18),
-              blurRadius: glowBlur,
-              spreadRadius: glowSpread,
-            ),
-          ]
-        : null;
+    final sombras =
+        (glowBorder && !sinEfectos)
+            ? [
+              BoxShadow(
+                color: border.withValues(alpha: 0.18),
+                blurRadius: glowBlur,
+                spreadRadius: glowSpread,
+              ),
+            ]
+            : null;
 
     final contenido = Container(
       padding: padding,
@@ -95,9 +96,10 @@ class ContenedorVidrio extends StatelessWidget {
     // El desenfoque pasa por DesenfoqueAdaptativo: en gama baja se apaga solo.
     Widget interno = ClipRRect(
       borderRadius: BorderRadius.circular(radius),
-      child: blurSigma != null
-          ? DesenfoqueAdaptativo(sigma: blurSigma!, child: contenido)
-          : contenido,
+      child:
+          blurSigma != null
+              ? DesenfoqueAdaptativo(sigma: blurSigma!, child: contenido)
+              : contenido,
     );
 
     if (margin != null) {

@@ -54,10 +54,9 @@ Widget _barraNivel(PerfilMiEspacio p, BuildContext context) {
               child: LinearProgressIndicator(
                 value: p.progresoNivel.clamp(0.0, 1.0),
                 backgroundColor: p.onBg.withValues(alpha: 0.08),
-                valueColor:
-                    AlwaysStoppedAnimation(
-                      p.colorBrillo.withValues(alpha: 0.6),
-                    ),
+                valueColor: AlwaysStoppedAnimation(
+                  p.colorBrillo.withValues(alpha: 0.6),
+                ),
                 minHeight: 6,
               ),
             ),

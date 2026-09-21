@@ -23,29 +23,35 @@ List<Widget> _capasFondo(
   final tienePortada =
       st.widget.coverUrl != null && st.widget.coverUrl!.isNotEmpty;
 
-  // Check Spotify mode for detail header
-  final estilo = sl<ValueNotifier<EstiloVisual>>().value;
+  // Intensidad del cover en el fondo: la carátula difuminada se apaga y el
+  // gradiente con el color del cover se refuerza a medida que sube. Se aplica
+  // 1:1, así cada punto porcentual vale lo mismo de punta a punta.
   final prefs = sl<ValueNotifier<PreferenciasEstilo>>().value;
-  final spotify = estilo == EstiloVisual.spotify && prefs.fondoPrincipal;
+  final nivel = prefs.fondoPrincipal;
 
   return [
     // Capa 1: base.
     Positioned.fill(child: Container(color: colorFondo)),
 
-    // Capa 2: carátula difuminada (solo en Clásico o cuando Spotify no aplica).
-    if (!spotify && tienePortada)
+    // Capa 2: carátula difuminada, que se apaga con la intensidad.
+    if (tienePortada)
       Positioned.fill(
         child: RepaintBoundary(
           child: Opacity(
-            opacity: t * 0.65,
-            child: DesenfoqueHijo(sigma: efectosPesados ? 20 : 6, child: Transform.scale(scale: 1.5, child: _fondoBlur(st)),
+            opacity: t * 0.65 * (1 - nivel),
+            child: DesenfoqueHijo(
+              // La carátula se va desenfocando con la intensidad, igual que en
+              // el resto de los fondos (con su tope propio).
+              sigma: EstiloHelper.sigmaPorNivel(efectosPesados ? 20 : 6, nivel),
+              tope: EstiloHelper.topeSigma(efectosPesados ? 20 : 6),
+              child: Transform.scale(scale: 1.5, child: _fondoBlur(st)),
             ),
           ),
         ),
       ),
 
-    // Capa 3: gradiente con el color dominante.
-    // En Spotify, el gradiente es más fuerte y cubre todo.
+    // Capa 3: gradiente con el color dominante, más fuerte cuanto más sube
+    // la intensidad (cubre la carátula que se va).
     Positioned.fill(
       child: RepaintBoundary(
         child: DecoratedBox(
@@ -54,8 +60,8 @@ List<Widget> _capasFondo(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               colors: [
-                acento.withValues(alpha: (spotify ? 0.95 : 0.85) * t),
-                acento.withValues(alpha: (spotify ? 0.80 : 0.6) * t),
+                acento.withValues(alpha: (0.85 + 0.10 * nivel) * t),
+                acento.withValues(alpha: (0.60 + 0.20 * nivel) * t),
                 colorFondo.withValues(alpha: 0.95),
                 colorFondo,
               ],

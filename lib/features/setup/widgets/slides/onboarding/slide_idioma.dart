@@ -38,7 +38,8 @@ class SlideIdioma extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final onBg = isDark ? Colors.white : Colors.black;
-    final glowColor = isDark ? ColoresApp.verdeBrillante : ColoresApp.verdeMedio;
+    final glowColor =
+        isDark ? ColoresApp.verdeBrillante : ColoresApp.verdeMedio;
 
     return Padding(
       key: const ValueKey('language'),
@@ -71,9 +72,10 @@ class SlideIdioma extends StatelessWidget {
             iconColor: ColoresApp.verdeBrillante,
             name: loc.setup.espanol,
             selected: state.idiomaSeleccionado == 'es',
-            onTap: () => context
-                .read<SetupBloc>()
-                .add(const SeleccionarIdioma('es')),
+            onTap:
+                () => context.read<SetupBloc>().add(
+                  const SeleccionarIdioma('es'),
+                ),
             glowColor: glowColor,
           ),
           TarjetaIdioma(
@@ -81,9 +83,10 @@ class SlideIdioma extends StatelessWidget {
             iconColor: ColoresApp.primario,
             name: loc.setup.english,
             selected: state.idiomaSeleccionado == 'en',
-            onTap: () => context
-                .read<SetupBloc>()
-                .add(const SeleccionarIdioma('en')),
+            onTap:
+                () => context.read<SetupBloc>().add(
+                  const SeleccionarIdioma('en'),
+                ),
             glowColor: glowColor,
           ),
           const Spacer(),
@@ -91,8 +94,8 @@ class SlideIdioma extends StatelessWidget {
             padding: EdgeInsets.symmetric(horizontal: r.spacingXL),
             child: BotonVidrio(
               label: loc.setup.continueText,
-              onPressed: () =>
-                  context.read<SetupBloc>().add(const SiguientePaso()),
+              onPressed:
+                  () => context.read<SetupBloc>().add(const SiguientePaso()),
               height: r.continueButtonHeight,
               accent: glowColor,
             ),

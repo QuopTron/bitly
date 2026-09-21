@@ -39,9 +39,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: const IndicadorDescarga(
-              estado: EstadoDescarga.enProgreso,
-            ),
+            body: const IndicadorDescarga(estado: EstadoDescarga.enProgreso),
           ),
         ),
       );
@@ -70,22 +68,21 @@ void main() {
         ),
       );
 
-      final indicator = tester.widget<IndicadorDescarga>(find.byType(IndicadorDescarga));
+      final indicator = tester.widget<IndicadorDescarga>(
+        find.byType(IndicadorDescarga),
+      );
       expect(indicator.tamano, 24);
     });
 
     testWidgets('uses default tamano of 8', (tester) async {
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: const IndicadorDescarga(),
-          ),
-        ),
+        MaterialApp(home: Scaffold(body: const IndicadorDescarga())),
       );
 
-      final indicator = tester.widget<IndicadorDescarga>(find.byType(IndicadorDescarga));
+      final indicator = tester.widget<IndicadorDescarga>(
+        find.byType(IndicadorDescarga),
+      );
       expect(indicator.tamano, IndicadorDescarga.tamanoPorDefecto);
     });
   });
 }
-

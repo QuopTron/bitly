@@ -34,24 +34,29 @@ List<Widget> _construirContenidoArtista(
       final clave = 'track_${normalizarIdTrack(item.id)}_$src';
       void play() => sl<CubitCola>().reproducirConContexto(d.tracks, item);
       // Sin padding horizontal: la tarjeta ya trae su margen lateral.
-      widgets.add(Padding(
-        padding: EdgeInsets.symmetric(vertical: r.spacingXS * 0.5),
-        child: TarjetaTrack(
-          item: item,
-          titulo: item.name,
-          subtitulo: artista.name,
-          coverUrl: likedCubit.caratulaLocalPara(item),
-          esAmado: likedCubit.estaAmado(item),
-          readyKey: normalizarIdTrack(item.id),
-          escalaTexto: 1.2,
-          onLike: () => likedCubit.alternarLike(item),
-          estadoDescarga: dlCubit.estadoDescargaPara(clave).estado,
-          onDescargar: () => mostrarOpcionesDescarga(context, item, esOscuro),
-          onBorrar: () => dlCubit.borrarDescargaTrack(item.id, src),
-          onTap: play,
-          onCompartir: () => ServicioCompartir.instance.compartir(item),
+      widgets.add(
+        Padding(
+          // El eje Y de Ajustes → Diseño escala el hueco entre canciones.
+          padding: EdgeInsets.symmetric(
+            vertical: r.spacingXS * 0.5 * AparienciaEspacios.espacioY(context),
+          ),
+          child: TarjetaTrack(
+            item: item,
+            titulo: item.name,
+            subtitulo: artista.name,
+            coverUrl: likedCubit.caratulaLocalPara(item),
+            esAmado: likedCubit.estaAmado(item),
+            readyKey: normalizarIdTrack(item.id),
+            escalaTexto: 1.2,
+            onLike: () => likedCubit.alternarLike(item),
+            estadoDescarga: dlCubit.estadoDescargaPara(clave).estado,
+            onDescargar: () => mostrarOpcionesDescarga(context, item, esOscuro),
+            onBorrar: () => dlCubit.borrarDescargaTrack(item.id, src),
+            onTap: play,
+            onCompartir: () => ServicioCompartir.instance.compartir(item),
+          ),
         ),
-      ));
+      );
     }
   }
 
@@ -66,21 +71,28 @@ List<Widget> _construirContenidoArtista(
   // ── Offline: banner + tracks descargados del artista ──
   if (!st._estaEnLinea && d.tracksOffline.isNotEmpty) {
     widgets.add(SizedBox(height: r.spacingM));
-    widgets.add(Padding(
-      padding: EdgeInsets.symmetric(horizontal: r.spacingS),
-      child: Row(children: [
-        Icon(Icons.cloud_off,
-            size: r.footerSize,
-            color: colorSuperficie.withValues(alpha: 0.4)),
-        SizedBox(width: 6),
-        Text(
-          '${loc.setup.downloaded} ${loc.setup.miSpaceSongs.toLowerCase()}',
-          style: TextStyle(
-              fontSize: r.footerSize,
-              color: colorSuperficie.withValues(alpha: 0.4)),
+    widgets.add(
+      Padding(
+        padding: EdgeInsets.symmetric(horizontal: r.spacingS),
+        child: Row(
+          children: [
+            Icon(
+              Icons.cloud_off,
+              size: r.footerSize,
+              color: colorSuperficie.withValues(alpha: 0.4),
+            ),
+            SizedBox(width: 6),
+            Text(
+              '${loc.setup.downloaded} ${loc.setup.miSpaceSongs.toLowerCase()}',
+              style: TextStyle(
+                fontSize: r.footerSize,
+                color: colorSuperficie.withValues(alpha: 0.4),
+              ),
+            ),
+          ],
         ),
-      ]),
-    ));
+      ),
+    );
     widgets.add(SizedBox(height: r.spacingS));
     for (final item in d.tracksOffline) {
       final src = item.source ?? '';
@@ -88,24 +100,29 @@ List<Widget> _construirContenidoArtista(
       void play() =>
           sl<CubitCola>().reproducirConContexto(d.tracksOffline, item);
       // Sin padding horizontal: la tarjeta ya trae su margen lateral.
-      widgets.add(Padding(
-        padding: EdgeInsets.symmetric(vertical: r.spacingXS * 0.5),
-        child: TarjetaTrack(
-          item: item,
-          titulo: item.name,
-          subtitulo: item.artists ?? st.widget.artistName,
-          coverUrl: likedCubit.caratulaLocalPara(item),
-          esAmado: true,
-          readyKey: normalizarIdTrack(item.id),
-          escalaTexto: 1.2,
-          onLike: () => likedCubit.alternarLike(item),
-          estadoDescarga: dlCubit.estadoDescargaPara(clave).estado,
-          onDescargar: () => mostrarOpcionesDescarga(context, item, esOscuro),
-          onBorrar: () => dlCubit.borrarDescargaTrack(item.id, src),
-          onTap: play,
-          onCompartir: () => ServicioCompartir.instance.compartir(item),
+      widgets.add(
+        Padding(
+          // El eje Y de Ajustes → Diseño escala el hueco entre canciones.
+          padding: EdgeInsets.symmetric(
+            vertical: r.spacingXS * 0.5 * AparienciaEspacios.espacioY(context),
+          ),
+          child: TarjetaTrack(
+            item: item,
+            titulo: item.name,
+            subtitulo: item.artists ?? st.widget.artistName,
+            coverUrl: likedCubit.caratulaLocalPara(item),
+            esAmado: true,
+            readyKey: normalizarIdTrack(item.id),
+            escalaTexto: 1.2,
+            onLike: () => likedCubit.alternarLike(item),
+            estadoDescarga: dlCubit.estadoDescargaPara(clave).estado,
+            onDescargar: () => mostrarOpcionesDescarga(context, item, esOscuro),
+            onBorrar: () => dlCubit.borrarDescargaTrack(item.id, src),
+            onTap: play,
+            onCompartir: () => ServicioCompartir.instance.compartir(item),
+          ),
         ),
-      ));
+      );
     }
   }
   return widgets;

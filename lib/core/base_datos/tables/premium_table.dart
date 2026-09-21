@@ -6,7 +6,10 @@ import 'package:drift/drift.dart';
 
 class UserPremium extends Table {
   TextColumn get id => text().customConstraint("NOT NULL DEFAULT 'default'")();
-  TextColumn get tier => text().customConstraint("NOT NULL DEFAULT 'free' CHECK(tier IN ('free', 'premium', 'lifetime'))")();
+  TextColumn get tier =>
+      text().customConstraint(
+        "NOT NULL DEFAULT 'free' CHECK(tier IN ('free', 'premium', 'lifetime'))",
+      )();
   IntColumn get premiumUntil => integer().nullable()();
   IntColumn get dailyPlayLimit => integer().nullable()();
   DateTimeColumn get createdAt => dateTime()();
@@ -22,7 +25,8 @@ class QuotaUsage extends Table {
   TextColumn get userId => text()();
   TextColumn get trackId => text()();
   RealColumn get durationMinutes => real()();
-  TextColumn get status => text().customConstraint("NOT NULL DEFAULT 'reserved'")();
+  TextColumn get status =>
+      text().customConstraint("NOT NULL DEFAULT 'reserved'")();
   DateTimeColumn get downloadedAt => dateTime()();
 
   @override
@@ -35,4 +39,3 @@ class UserDailyPlays extends Table {
   TextColumn get date => text()();
   IntColumn get playCount => integer().nullable()();
 }
-

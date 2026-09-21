@@ -45,8 +45,10 @@ class _PaginaSplashState extends State<PaginaSplash>
       vsync: this,
       duration: const Duration(milliseconds: 2000),
     )..repeat(reverse: true);
-    _pulse = Tween(begin: 0.3, end: 1.0)
-        .animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+    _pulse = Tween(
+      begin: 0.3,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
     context.read<SplashBloc>().add(const ChequearBackend());
   }
 
@@ -80,15 +82,9 @@ class _PaginaSplashState extends State<PaginaSplash>
         },
         builder: (context, state) {
           if (usarEscritorio) {
-            return SplashEscritorio(
-              estado: state,
-              pulse: _pulse,
-            );
+            return SplashEscritorio(estado: state, pulse: _pulse);
           }
-          return SplashMovil(
-            estado: state,
-            pulse: _pulse,
-          );
+          return SplashMovil(estado: state, pulse: _pulse);
         },
       ),
     );

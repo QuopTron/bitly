@@ -20,7 +20,11 @@ String _formatearDuracion(int ms) {
 /// Botón de compartir: manda el enlace de Bitly con los datos cifrados
 /// (ISRC, nombre, carátula y quién lo comparte).
 Widget _botonCompartir(
-    BuildContext context, Responsive r, Color onBg, ItemFeed item) {
+  BuildContext context,
+  Responsive r,
+  Color onBg,
+  ItemFeed item,
+) {
   return GestureDetector(
     onTap: () => ServicioCompartir.instance.compartir(item),
     child: Container(
@@ -33,7 +37,11 @@ Widget _botonCompartir(
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.share, size: r.subtitleSize, color: onBg.withValues(alpha: 0.7)),
+          Icon(
+            Icons.share,
+            size: r.subtitleSize,
+            color: onBg.withValues(alpha: 0.7),
+          ),
           SizedBox(width: r.spacingS),
           Text(
             AppLocalizations.of(context).setup.share,
@@ -51,15 +59,28 @@ Widget _botonCompartir(
 
 /// Fila de detalle del modal: icono + etiqueta + valor.
 Widget _filaInfo(
-    Responsive r, Color onBg, IconData icono, String etiqueta, String valor) {
+  Responsive r,
+  Color onBg,
+  IconData icono,
+  String etiqueta,
+  String valor,
+) {
   return Padding(
-    padding: EdgeInsets.symmetric(horizontal: r.spacingXL, vertical: r.spacingXS),
+    padding: EdgeInsets.symmetric(
+      horizontal: r.spacingXL,
+      vertical: r.spacingXS,
+    ),
     child: Row(
       children: [
         Icon(icono, size: r.footerSize + 2, color: onBg.withValues(alpha: 0.4)),
         SizedBox(width: r.spacingM),
-        Text(etiqueta,
-            style: TextStyle(fontSize: r.footerSize, color: onBg.withValues(alpha: 0.5))),
+        Text(
+          etiqueta,
+          style: TextStyle(
+            fontSize: r.footerSize,
+            color: onBg.withValues(alpha: 0.5),
+          ),
+        ),
         const Spacer(),
         Flexible(
           child: Text(

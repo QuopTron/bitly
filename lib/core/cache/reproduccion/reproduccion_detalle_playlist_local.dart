@@ -20,35 +20,46 @@ mixin ReproduccionDetallePlaylistLocal {
   /// Arma un DetallePlaylist desde drift local, o null si no existe.
   Future<DetallePlaylist?> getDetallePlaylistLocal(String collectionId) async {
     final coleccion = await _colecciones.get(collectionId);
-  if (coleccion == null) return null;
+    if (coleccion == null) return null;
 
-  final items = await _colecciones.getTracks(collectionId);
-  final tracks = <TrackDetalle>[];
-  for (final item in items) {
-    final trackId = item.trackId ?? item.itemId;
-    final track = await _contenido.getTrack(trackId);
-    if (track != null) {
-      tracks.add(TrackDetalle(
-        trackId: track.id,
-        name: track.name,
-        durationMs: track.durationMs ?? 0,
-        trackNumber: track.trackNumber ?? 0,
-        isrc: track.isrc ?? '',
-        coverUrl: track.coverUrl,
-        coverPath: track.coverPath,
-        provider: track.source,
-      ));
+    final items = await _colecciones.getTracks(collectionId);
+    final tracks = <TrackDetalle>[];
+    for (final item in items) {
+      final trackId = item.trackId ?? item.itemId;
+      final track = await _contenido.getTrack(trackId);
+      if (track == null) continue;
+      // Artista y álbum de la fila: sin esto las canciones de una playlist
+      // propia se mostraban sin intérprete (solo el título).
+      final artista = await _contenido.getArtist(track.artistId);
+      final album =
+          track.albumId.isEmpty
+              ? null
+              : await _contenido.getAlbumPorIdNormalizado(track.albumId);
+      tracks.add(
+        TrackDetalle(
+          trackId: track.id,
+          name: track.name,
+          durationMs: track.durationMs ?? 0,
+          trackNumber: track.trackNumber ?? 0,
+          isrc: track.isrc ?? '',
+          coverUrl: track.coverUrl,
+          coverPath: track.coverPath,
+          artistName: artista?.name,
+          albumName: album?.name,
+          provider: track.source,
+        ),
+      );
     }
-  }
 
-  // Respaldar con la carátula del primer track para que una playlist recién
-  // creada sin coverPath persistido aún muestre arte en el header.
-  var coverPath = coleccion.coverPath;
-  if ((coverPath == null || coverPath.isEmpty) && tracks.isNotEmpty) {
-    coverPath = (tracks.first.coverPath?.isNotEmpty ?? false)
-        ? tracks.first.coverPath
-        : tracks.first.coverUrl;
-  }
+    // Respaldar con la carátula del primer track para que una playlist recién
+    // creada sin coverPath persistido aún muestre arte en el header.
+    var coverPath = coleccion.coverPath;
+    if ((coverPath == null || coverPath.isEmpty) && tracks.isNotEmpty) {
+      coverPath =
+          (tracks.first.coverPath?.isNotEmpty ?? false)
+              ? tracks.first.coverPath
+              : tracks.first.coverUrl;
+    }
 
     return DetallePlaylist(
       id: coleccion.id,

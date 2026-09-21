@@ -34,6 +34,7 @@ class _NivelesEscuchaCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final siguiente = progreso.siguiente;
+    final n = AppLocalizations.of(context).niveles;
     return Container(
       padding: EdgeInsets.all(r.spacingM),
       decoration: BoxDecoration(
@@ -46,11 +47,15 @@ class _NivelesEscuchaCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.emoji_events_rounded, color: glowColor, size: r.subtitleSize),
+              Icon(
+                Icons.emoji_events_rounded,
+                color: glowColor,
+                size: r.subtitleSize,
+              ),
               SizedBox(width: r.spacingS),
               Expanded(
                 child: Text(
-                  'Niveles de escucha',
+                  n.titulo,
                   style: TextStyle(
                     fontSize: r.subtitleSize,
                     fontWeight: FontWeight.w700,
@@ -73,8 +78,8 @@ class _NivelesEscuchaCard extends StatelessWidget {
             // Con 0 horas todavía no hay nivel: se dice así en vez de mostrar
             // el nombre del primero como si ya lo tuviera.
             progreso.tieneNivel
-                ? 'Nivel actual: ${progreso.actual.nombre}'
-                : 'Todavía sin nivel — el primero llega a la hora de escucha',
+                ? n.nivelActual(n.nombre(progreso.indice))
+                : n.sinNivel,
             style: TextStyle(
               fontSize: r.footerSize,
               color: onBg.withValues(alpha: 0.75),
@@ -93,8 +98,10 @@ class _NivelesEscuchaCard extends StatelessWidget {
             ),
             SizedBox(height: r.spacingXS),
             Text(
-              'Faltan ${_formatoHoras(progreso.horasFaltantes)} h para '
-              '"${siguiente.nombre}"',
+              n.faltan(
+                _formatoHoras(progreso.horasFaltantes),
+                n.nombre(progreso.indice + 1),
+              ),
               style: TextStyle(
                 fontSize: r.footerSize - 1,
                 color: onBg.withValues(alpha: 0.5),
@@ -103,7 +110,7 @@ class _NivelesEscuchaCard extends StatelessWidget {
           ] else ...[
             SizedBox(height: r.spacingXS),
             Text(
-              'Escalera completa: ya desbloqueaste todos los premios.',
+              n.escaleraCompleta,
               style: TextStyle(
                 fontSize: r.footerSize - 1,
                 color: onBg.withValues(alpha: 0.6),
@@ -117,18 +124,19 @@ class _NivelesEscuchaCard extends StatelessWidget {
               scrollDirection: Axis.horizontal,
               itemCount: nivelesEscucha.length,
               separatorBuilder: (_, _) => SizedBox(width: r.spacingS),
-              itemBuilder: (context, i) => _FichaNivel(
-                nivel: nivelesEscucha[i],
-                abierto: progreso.desbloqueado(i),
-                glowColor: glowColor,
-                onBg: onBg,
-                r: r,
-              ),
+              itemBuilder:
+                  (context, i) => _FichaNivel(
+                    nivel: nivelesEscucha[i],
+                    index: i,
+                    abierto: progreso.desbloqueado(i),
+                    glowColor: glowColor,
+                    onBg: onBg,
+                    r: r,
+                  ),
             ),
           ),
         ],
       ),
     );
   }
-
 }

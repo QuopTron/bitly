@@ -44,12 +44,12 @@ class _Particula {
   void asegurarCache(Color glowColor, Color particleColor) {
     if (glowPaint == null) {
       final c = glowColor.withValues(alpha: opacity * 0.45);
-      glowPaint = ui.Paint()
-        ..shader = ui.Gradient.radial(
-          Offset.zero,
-          size * 1.6,
-          [c, c.withValues(alpha: 0.0)],
-        );
+      glowPaint =
+          ui.Paint()
+            ..shader = ui.Gradient.radial(Offset.zero, size * 1.6, [
+              c,
+              c.withValues(alpha: 0.0),
+            ]);
     }
     if (glyph == null ||
         _glyphAlpha != opacity ||
@@ -72,8 +72,6 @@ class _Particula {
     }
   }
 }
-
-
 
 /// Painter que dibuja todas las partículas con su glow cacheado.
 class _PainterParticulas extends CustomPainter {

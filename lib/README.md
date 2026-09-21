@@ -377,8 +377,21 @@ La vista de búsqueda (SearchPage + SearchResults + SearchBloc originales:
 features/busqueda/            — bloc (5) + página (4) + variantes (2) + widgets (10)
 shared/widgets/acordeon_fuente.dart       — selector de extensión (ex SourceAccordion)
 shared/widgets/hoja_opciones_descarga*.dart — hoja de calidad (ex DownloadOptionsSheet, 613 líneas → 6 archivos)
-shared/widgets/modal_info_cancion*.dart   — info del ítem (ex SongInfoModal)
-shared/widgets/modal_agregar_a*.dart      — agregar a playlist/favs/cola (ex AddToModal, 348 → 5 archivos)
+shared/widgets/modales/info_cancion/      — info del ítem (ex SongInfoModal)
+shared/widgets/modales/agregar_a/         — agregar a playlist/favs/cola (ex AddToModal)
+shared/widgets/modales/playlist/          — hoja de playlist: crear/editar (8 archivos)
+  hoja_playlist                            — entrada, widget y estado (136 líneas)
+  hoja_playlist_acciones                   — cargar/agregar/quitar/portada/guardar (part)
+  hoja_playlist_cabecera                   — tirador + título + portada y nombre (part)
+  hoja_playlist_cuerpo                     — alto del panel, fondo reactivo y piezas (part)
+  hoja_playlist_canciones                  — atajos Me gustan / Descargadas (part)
+  hoja_playlist_lista                      — lista de canciones con quitar (part)
+  hoja_playlist_vacio                      — estado vacío (con scroll, sin overflow) (part)
+  hoja_playlist_portada                    — selector de foto de portada (part)
+shared/widgets/vidrio/fondo_reactivo_portada.dart — fondo de modal reactivo a la carátula
+core/servicios/playlist/editor_playlist*.dart — guardar playlist + biblioteca local
+core/servicios/playlist/fuentes_playlist.dart — likeadas/descargadas para armar playlists
+core/modelos/playlist/playlist_propia.dart — PlaylistPropia (id, nombre, portada, canciones)
 shared/widgets/transiciones_pagina.dart   — rutas fade/slide (ex PageTransitions)
 shared/utilidades/acciones_item*.dart     — ItemActions globalizado (una sola impl para feed/search/miespacio)
 ```
@@ -457,5 +470,54 @@ features/feed/
   (+ avatar/piezas/hoja_ajustes), `contenido_mi_espacio`
   (+ canciones/grilla/helpers/vacio/widgets) y `pagina_mi_espacio`
   (+ acciones/banner/helpers/widgets) con doble variante móvil/escritorio.
-  Reutiliza `TarjetaTrack`/`TarjetaGrilla`/`AccionesItem`/`mostrarCrearPlaylist`
-  (diálogo compartido) y el navegador de detalle (stub).
+  Reutiliza `TarjetaTrack`/`TarjetaGrilla`/`AccionesItem`/`mostrarHojaPlaylist`
+  (hoja compartida de playlist) y el navegador de detalle (stub).
+
+### Playlist: crear y editar en una hoja (reemplaza al diálogo flotante)
+
+- **`mostrarHojaPlaylist(context, {playlistId, semilla, sobreHoja})`** es la
+  única entrada: en Mi Espacio crea, desde el detalle edita (nombre, portada y
+  canciones) y desde "agregar a" crea con la canción ya cargada. `sobreHoja`
+  va en true cuando sale desde otro modal, para que su velo tape el de abajo.
+- **Portada:** `shared/utilidades/portada/portada_playlist.dart` copia la foto
+  elegida a `<documentos>/portadas_playlist` (la ruta del selector de Android
+  es temporal y quedaba muerta). Sin foto, la playlist usa la carátula de su
+  primera canción.
+- **`ServicioEditorPlaylist.guardar`** deja las canciones EXACTAS en orden
+  (`CollectionsDao.reordenarItems` escribe `position`, que `addTrack` no tocaba)
+  y sincroniza cada canción a la biblioteca local (artista + `tracks`), sin
+  pisar portada/letra/video ya descargados: `collection_items` solo guarda ids,
+  así que una canción ausente de `tracks` no tenía ni nombre ni artista.
+- **Detalle de playlist local** ahora resuelve `artistName` y `albumName`
+  (antes la playlist propia mostraba las canciones sin intérprete).
+- **Hojas no flotantes:** Material 3 limita las hojas a 640 px y las centra en
+  pantallas anchas (PC/TV); `mostrarHoja` las abre sin tope de ancho.
+- **"Agregar a playlist" lista MIS creadas:** el selector lee
+  `CacheColecciones.getPlaylistsPropias()` (las `col_*` con portada y conteo, en
+  una sola consulta agrupada), y suma con `ServicioEditorPlaylist.agregarItem`
+  (al final, sin duplicar y dejando la canción en la biblioteca).
+- **Cubits desde DI dentro de los modales:** una hoja vive en el `Navigator`
+  raíz, POR ENCIMA de los providers de la Home, así que `context.read<CubitLikes>()`
+  tiraba `ProviderNotFoundException` y el tap no hacía nada ("Me gustan" y el
+  corazón de "agregar a"). Ahora usan `sl<...>()`.
+- **Likeadas/descargadas desde la BASE:** los atajos de la hoja de playlist
+  piden las canciones a `FuentesPlaylist` (drift) y no al estado en memoria de
+  los cubits, que se carga async al arrancar: antes, abrir el armado apenas
+  arrancaba la app (o tener más de 100 descargas) sumaba cero canciones sin
+  decir nada. Además el chip muestra un spinner mientras lee y avisa si no había
+  nada que sumar. Lo cubre `test/widgets/hoja_playlist_fuentes_test.dart`, que
+  monta la hoja sin ningún provider y con los datos solo en la base.
+- **La portada que le pusiste a una playlist manda:** el detalle resolvía
+  primero la carátula del like y después la del lote de descarga, así que una
+  playlist con el corazón (o descargada) mostraba el arte del proveedor y "se
+  comía" la foto elegida. `mejorCaratulaPlaylist` (en `caratula_util.dart`)
+  pone la propia (foto o portada sincronizada) por delante. Cubierto por
+  `test/unit/caratula_playlist_test.dart`.
+- **La foto elegida se copia a la app:** la ruta que devuelve el selector vive
+  en la caché del plugin (se puede borrar) y en modo SAF puede venir vacía; si
+  venía vacía se perdía en silencio. `portada_playlist.dart` la copia a
+  `portadas_playlist/` y conserva la extensión (`test/unit/portada_playlist_test.dart`).
+- **Un solo fondo reactivo:** `FondoReactivoPortada` (portada desenfocada +
+  velo, o el color dominante en modo Spotify) reemplaza las copias privadas del
+  karaoke, la cola, "agregar a", info de canción y la hoja de descarga; también
+  lo usan la hoja de playlist y el selector de playlists.

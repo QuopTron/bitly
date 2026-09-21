@@ -22,8 +22,10 @@ import '../../../core/modelos/detalle/detalle_album.dart';
 import '../../../core/modelos/detalle/detalle_playlist.dart';
 import '../../../core/modelos/detalle/detalle_track.dart';
 import '../../../core/modelos/feed/item_feed.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../estado/descargas/cubit_descargas.dart';
 import '../../../estado/like/cubit_like.dart';
+import '../modales/mostrar_modal.dart';
 import '../../widgets/modales/descarga/hoja_opciones_descarga.dart';
 import '../../widgets/modales/agregar_a/modal_agregar_a.dart';
 import '../../widgets/modales/info_cancion/modal_info_cancion.dart';
@@ -41,7 +43,9 @@ class AccionesItem {
   }
 
   static Future<void> iniciarDescarga(
-      BuildContext context, ItemFeed item) async {
+    BuildContext context,
+    ItemFeed item,
+  ) async {
     final esOscuro = Theme.of(context).brightness == Brightness.dark;
     await mostrarOpcionesDescarga(context, item, esOscuro);
   }
@@ -54,12 +58,12 @@ class AccionesItem {
 
   /// Descarga por lote: ver acciones_item_lote.dart (implementación).
   static Future<void> iniciarDescargaLote(
-          BuildContext context, ItemFeed item) =>
-      _iniciarDescargaLote(context, item);
+    BuildContext context,
+    ItemFeed item,
+  ) => _iniciarDescargaLote(context, item);
 
   /// Exporta álbum/playlist: ver acciones_item_lote.dart.
-  static Future<void> exportarPlaylist(
-          BuildContext context, ItemFeed item) =>
+  static Future<void> exportarPlaylist(BuildContext context, ItemFeed item) =>
       _exportarPlaylist(context, item);
 
   static void borrarLote(BuildContext context, ItemFeed item) {

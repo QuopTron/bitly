@@ -16,7 +16,9 @@ import 'package:open_filex/open_filex.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../../../l10n/app_localizations.dart';
 import '../../../shared/tema/colores_app.dart';
+import '../../../shared/utilidades/modales/mostrar_modal.dart';
 import '../../../shared/utilidades/plataforma/insets_sistema.dart';
 import '../../../shared/utilidades/plataforma/responsive.dart';
 import 'update_info.dart';
@@ -32,9 +34,12 @@ part 'update_sheet_acciones.dart';
 part 'update_sheet_ui.dart';
 
 /// Muestra el modal de actualización con los datos del release.
+/// `sobreHoja`: se abre desde Ajustes (o desde su aviso) y tapa la hoja de
+/// abajo en vez de dejarla asomar por detrás.
 Future<void> showUpdateModal(BuildContext context, UpdateInfo info) {
-  return showModalBottomSheet(
+  return mostrarHoja<void>(
     context: context,
+    sobreHoja: true,
     backgroundColor: Colors.transparent,
     isScrollControlled: true,
     builder: (_) => _HojaActualizacion(info: info),
@@ -55,7 +60,8 @@ class _EstadoHojaActualizacion extends State<_HojaActualizacion> {
   String? _error;
 
   @override
-  Widget build(BuildContext context) => _construirHojaActualizacion(this, context);
+  Widget build(BuildContext context) =>
+      _construirHojaActualizacion(this, context);
 
   /// Formatea bytes a una etiqueta legible (KB/MB).
   String _formatearBytes(int? bytes) {
@@ -79,9 +85,10 @@ class _EstadoHojaActualizacion extends State<_HojaActualizacion> {
     try {
       final dir = await getTemporaryDirectory();
       final esWindows = Platform.isWindows;
-      final nombre = esWindows
-          ? 'Bitly-Setup-${widget.info.version}.exe'
-          : 'bitly_${widget.info.version}.apk';
+      final nombre =
+          esWindows
+              ? 'Bitly-Setup-${widget.info.version}.exe'
+              : 'bitly_${widget.info.version}.apk';
       final archivo = File('${dir.path}${Platform.pathSeparator}$nombre');
       if (await archivo.exists()) await archivo.delete();
 
@@ -97,15 +104,13 @@ class _EstadoHojaActualizacion extends State<_HojaActualizacion> {
       var recibido = 0;
       final sink = archivo.openWrite();
 
-      await response.stream
-          .listen((chunk) {
-            sink.add(chunk);
-            recibido += chunk.length;
-            if (total > 0 && mounted) {
-              setState(() => _progreso = recibido / total);
-            }
-          })
-          .asFuture();
+      await response.stream.listen((chunk) {
+        sink.add(chunk);
+        recibido += chunk.length;
+        if (total > 0 && mounted) {
+          setState(() => _progreso = recibido / total);
+        }
+      }).asFuture();
 
       await sink.flush();
       await sink.close();
@@ -123,8 +128,10 @@ class _EstadoHojaActualizacion extends State<_HojaActualizacion> {
         // Android: abrir el APK con el instalador del sistema.
         final resultado = await OpenFilex.open(archivo.path);
         if (resultado.type != ResultType.done) {
-          setState(() =>
-              _error = 'No se pudo abrir el instalador: ${resultado.message}');
+          setState(
+            () =>
+                _error = 'No se pudo abrir el instalador: ${resultado.message}',
+          );
         } else if (mounted) {
           Navigator.of(context).pop();
         }

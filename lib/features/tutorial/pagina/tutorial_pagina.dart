@@ -39,11 +39,11 @@ class _TutorialPaginaState extends State<TutorialPagina> {
 
   /// Construye los 4 pasos con los textos localizados.
   List<Paso> _pasos(AppLocalizations loc) => [
-        Paso(Icons.music_note, loc.tutorial.paso1Titulo, loc.tutorial.paso1Desc),
-        Paso(Icons.search, loc.tutorial.paso2Titulo, loc.tutorial.paso2Desc),
-        Paso(Icons.download, loc.tutorial.paso3Titulo, loc.tutorial.paso3Desc),
-        Paso(Icons.extension, loc.tutorial.paso4Titulo, loc.tutorial.paso4Desc),
-      ];
+    Paso(Icons.music_note, loc.tutorial.paso1Titulo, loc.tutorial.paso1Desc),
+    Paso(Icons.search, loc.tutorial.paso2Titulo, loc.tutorial.paso2Desc),
+    Paso(Icons.download, loc.tutorial.paso3Titulo, loc.tutorial.paso3Desc),
+    Paso(Icons.extension, loc.tutorial.paso4Titulo, loc.tutorial.paso4Desc),
+  ];
 
   /// Marca el tutorial como visto y navega al flujo de arranque.
   Future<void> _completar() async {
@@ -64,9 +64,6 @@ class _TutorialPaginaState extends State<TutorialPagina> {
       _completar();
     }
   }
-
-  /// Página actual del PageView (usada por los indicadores).
-  int get paginaActual => _pagina;
 
   @override
   void dispose() {

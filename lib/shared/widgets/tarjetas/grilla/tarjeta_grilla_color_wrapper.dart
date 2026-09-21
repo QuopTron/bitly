@@ -22,7 +22,8 @@ class _TarjetaGrillaColorWrapper extends StatefulWidget {
       _TarjetaGrillaColorWrapperState();
 }
 
-class _TarjetaGrillaColorWrapperState extends State<_TarjetaGrillaColorWrapper> {
+class _TarjetaGrillaColorWrapperState
+    extends State<_TarjetaGrillaColorWrapper> {
   Color? _color;
 
   @override
@@ -47,7 +48,11 @@ class _TarjetaGrillaColorWrapperState extends State<_TarjetaGrillaColorWrapper> 
           _color = paleta?.dominante;
         });
       }
-    } catch (_) {}
+    } catch (e) {
+      // Sin paleta la tarjeta usa su color por defecto: no es un fallo visible
+      // para el usuario, pero conviene saber que la portada no dio color.
+      debugPrint('[Grilla] no se pudo sacar el color de la portada: $e');
+    }
   }
 
   @override

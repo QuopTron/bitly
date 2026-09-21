@@ -48,17 +48,22 @@ class _VeloDinamicoReproductorState extends State<_VeloDinamicoReproductor> {
           _acento = paleta?.dominante;
         });
       }
-    } catch (e) { debugPrint("[Feature] $e"); }
+    } catch (e) {
+      debugPrint("[Feature] $e");
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final colorBase = _acento ?? widget.defaultBg;
-    final colorFinal = Color.lerp(
-      widget.defaultBg,
+    // El color del cover se pinta con presencia (estilo_helper): mezclado
+    // apagado quedaba casi igual que la carátula de abajo y el control de
+    // opacidad no se notaba.
+    final colorFinal = EstiloHelper.colorDeCover(
       colorBase,
-      widget.esOscuro ? 0.50 : 0.35,
-    )!;
+      widget.defaultBg,
+      mezcla: widget.esOscuro ? 0.60 : 0.46,
+    );
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 400),

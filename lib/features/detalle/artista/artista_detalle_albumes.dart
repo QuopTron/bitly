@@ -45,8 +45,12 @@ Widget _grillaAlbumesArtista(
             onDescargar: () => AccionesItem.iniciarDescargaLote(context, item),
             onBorrar: () => AccionesItem.borrarLote(context, item),
             mostrarTerceraAccion: false,
-            onTap: () => abrirDetalleAlbum(context,
-                id: item.id, fuente: item.source ?? ''),
+            onTap:
+                () => abrirDetalleAlbum(
+                  context,
+                  id: item.id,
+                  fuente: item.source ?? '',
+                ),
           ),
         );
       },

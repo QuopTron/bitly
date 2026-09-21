@@ -42,8 +42,7 @@ class StringsTutorial {
     paso3Desc:
         'Download tracks or whole albums with one tap. Choose the quality you prefer.',
     paso4Titulo: 'Extensions',
-    paso4Desc:
-        'Install extensions from the store to add new music sources.',
+    paso4Desc: 'Install extensions from the store to add new music sources.',
     siguiente: 'Next',
     empezar: 'Get started',
   );

@@ -30,24 +30,31 @@ bool _webviewPrimero() {
 }
 
 /// WebView in-app con un único reintento automático.
-Future<String> _conectarInAppConReintento(
+///
+/// El éxito lo decide que `iniciarOAuth` devuelva un mensaje (no-null): acá no
+/// se inspecciona su texto, así el copy puede cambiar sin romper la lógica.
+Future<ResultadoConexionYouTube> _conectarInAppConReintento(
   ServicioOAuthYouTube servicio,
   BuildContext context,
 ) async {
   final msg = await OAuthYouTubeApp.iniciarOAuth(context);
-  if (msg != null && msg.contains('✓')) return msg;
+  if (msg != null) return ResultadoConexionYouTube(ok: true, mensaje: msg);
 
   debugPrint('YouTube OAuth: primer intento WebView falló, reintentando...');
   if (context.mounted) {
     final retryMsg = await OAuthYouTubeApp.iniciarOAuth(context);
-    if (retryMsg != null && retryMsg.contains('✓')) return retryMsg;
+    if (retryMsg != null) {
+      return ResultadoConexionYouTube(ok: true, mensaje: retryMsg);
+    }
   }
 
-  return 'Error al conectar YouTube. Verifica tu conexión e intenta de nuevo.';
+  return ResultadoConexionYouTube.fallo(L10n.actual.oauth.errorConexion);
 }
 
 /// Recupera los ajustes OAuth guardados completando id/secret por defecto.
-Future<Map<String, String>> _ajustesGuardados(ServicioOAuthYouTube servicio) async {
+Future<Map<String, String>> _ajustesGuardados(
+  ServicioOAuthYouTube servicio,
+) async {
   const keys = [
     'oauthClientId',
     'oauthClientSecret',
@@ -56,10 +63,12 @@ Future<Map<String, String>> _ajustesGuardados(ServicioOAuthYouTube servicio) asy
   ];
   final out = <String, String>{};
   for (final key in keys) {
-    final v = (await servicio._cache.getAjuste(
-                '${ServicioOAuthYouTube.idExt}_$key') ??
-            '')
-        .trim();
+    final v =
+        (await servicio._cache.getAjuste(
+                  '${ServicioOAuthYouTube.idExt}_$key',
+                ) ??
+                '')
+            .trim();
     if (v.isNotEmpty) out[key] = v;
   }
   out.putIfAbsent('oauthClientId', () => _clienteIdOAuthWeb);

@@ -47,7 +47,11 @@ void main() {
           ultimaVez: ahora.subtract(const Duration(hours: 20)),
         ),
       ];
-      final r = aplicarFiltroEscucha(hoy, rango: RangoEscucha.hoy, ahora: ahora);
+      final r = aplicarFiltroEscucha(
+        hoy,
+        rango: RangoEscucha.hoy,
+        ahora: ahora,
+      );
       expect(r.map((f) => f.id), ['x']);
     });
 
@@ -68,13 +72,18 @@ void main() {
 
   group('Orden', () {
     test('más reproducidas primero por conteo descendente', () {
-      final r = aplicarFiltroEscucha(filas, orden: OrdenEscucha.masReproducidas);
+      final r = aplicarFiltroEscucha(
+        filas,
+        orden: OrdenEscucha.masReproducidas,
+      );
       expect(r.map((f) => f.id).toList(), ['b', 'c', 'a']);
     });
 
     test('menos reproducidas es el inverso', () {
-      final r =
-          aplicarFiltroEscucha(filas, orden: OrdenEscucha.menosReproducidas);
+      final r = aplicarFiltroEscucha(
+        filas,
+        orden: OrdenEscucha.menosReproducidas,
+      );
       expect(r.map((f) => f.id).first, 'a');
     });
 

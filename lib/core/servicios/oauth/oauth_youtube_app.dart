@@ -25,6 +25,7 @@ import '../../../app/inyeccion.dart' as di;
 import '../../../config/secretos.dart';
 import '../../backend_go/nucleo/contrato_backend.dart';
 import '../../cache/almacenes/cache_ajustes.dart';
+import '../../../shared/utilidades/formato/l10n_servicio.dart';
 import 'oauth_youtube_webview.dart';
 import '../proveedores/servicio_credenciales_proveedor.dart';
 
@@ -49,9 +50,10 @@ class OAuthYouTubeApp {
       'scope': _alcance,
     });
 
-    final res = raw is String
-        ? jsonDecode(raw) as Map<String, dynamic>
-        : Map<String, dynamic>.from(raw as Map);
+    final res =
+        raw is String
+            ? jsonDecode(raw) as Map<String, dynamic>
+            : Map<String, dynamic>.from(raw as Map);
 
     if (res['ok'] != true) {
       return null;
@@ -74,10 +76,11 @@ class OAuthYouTubeApp {
       code = await Navigator.of(context).push<String>(
         MaterialPageRoute(
           fullscreenDialog: true,
-          builder: (_) => PaginaWebViewOAuth(
-            authUrl: authUrl,
-            redirectBase: redirectBase,
-          ),
+          builder:
+              (_) => PaginaWebViewOAuth(
+                authUrl: authUrl,
+                redirectBase: redirectBase,
+              ),
         ),
       );
     }
@@ -85,19 +88,21 @@ class OAuthYouTubeApp {
     // Detiene el listener de loopback (pase lo que pase).
     try {
       await backend.rpcCall('stopYoutubeOauth', {});
-    } catch (e) { debugPrint("[OAuth] error: $e"); }
+    } catch (e) {
+      debugPrint("[OAuth] error: $e");
+    }
 
     if (code == null || code.isEmpty) return null;
 
     // Cambia el código por tokens de acceso/refresh.
-    final exchangeRaw = await backend.rpcCall(
-      'exchangeYoutubeOauth',
-      {'code': code},
-    );
+    final exchangeRaw = await backend.rpcCall('exchangeYoutubeOauth', {
+      'code': code,
+    });
 
-    final exchange = exchangeRaw is String
-        ? jsonDecode(exchangeRaw) as Map<String, dynamic>
-        : Map<String, dynamic>.from(exchangeRaw as Map);
+    final exchange =
+        exchangeRaw is String
+            ? jsonDecode(exchangeRaw) as Map<String, dynamic>
+            : Map<String, dynamic>.from(exchangeRaw as Map);
 
     final accessToken = exchange['access_token'] as String?;
     if (accessToken == null || accessToken.isEmpty) return null;
@@ -122,9 +127,11 @@ class OAuthYouTubeApp {
     if (refreshToken != null && refreshToken.isNotEmpty) {
       guardados['oauthRefreshToken'] = refreshToken;
     }
-    await ServicioCredencialesProveedor(backend, cache)
-        .guardarYReinicializar(_idExt, guardados);
+    await ServicioCredencialesProveedor(
+      backend,
+      cache,
+    ).guardarYReinicializar(_idExt, guardados);
 
-    return 'Sesión de YouTube conectada ✓';
+    return L10n.actual.oauth.conectadoCon(null);
   }
 }

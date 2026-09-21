@@ -26,7 +26,7 @@ class _CacheExplainedCard extends StatelessWidget {
             Icon(Icons.cached_rounded, color: glowColor, size: r.subtitleSize),
             SizedBox(width: r.spacingS),
             Text(
-              'Caché de streaming',
+              AppLocalizations.of(context).ajustes.cacheTitulo,
               style: TextStyle(
                 fontSize: r.subtitleSize,
                 fontWeight: FontWeight.w700,
@@ -37,7 +37,7 @@ class _CacheExplainedCard extends StatelessWidget {
         ),
         SizedBox(height: 4),
         Text(
-          'Guarda temporalmente las canciones que reproduces para que las que repites suenen al instante y sin gastar datos.',
+          AppLocalizations.of(context).ajustes.cacheAyuda,
           style: TextStyle(
             fontSize: r.footerSize - 1,
             color: onBg.withValues(alpha: 0.5),
@@ -91,7 +91,7 @@ class _VersionInfoCard extends StatelessWidget {
             ),
             SizedBox(width: r.spacingS),
             Text(
-              'Versiones',
+              AppLocalizations.of(context).ajustes.versiones,
               style: TextStyle(
                 fontSize: r.subtitleSize,
                 fontWeight: FontWeight.w600,

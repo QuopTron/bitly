@@ -8,7 +8,8 @@ import 'content_tables.dart';
 @TableIndex(name: 'idx_sources_track_id', columns: {#trackId})
 class Sources extends Table {
   TextColumn get id => text()();
-  TextColumn get trackId => text().references(Tracks, #id, onDelete: KeyAction.cascade)();
+  TextColumn get trackId =>
+      text().references(Tracks, #id, onDelete: KeyAction.cascade)();
   TextColumn get provider => text()();
   TextColumn get externalId => text()();
   TextColumn? get quality => text().nullable()();
@@ -23,11 +24,16 @@ class Sources extends Table {
 
 class Files extends Table {
   TextColumn get id => text()();
-  TextColumn? get trackId => text().references(Tracks, #id, onDelete: KeyAction.cascade).nullable()();
+  TextColumn? get trackId =>
+      text().references(Tracks, #id, onDelete: KeyAction.cascade).nullable()();
   TextColumn? get metadataId => text().nullable()();
-  TextColumn? get sourceId => text().references(Sources, #id, onDelete: KeyAction.setNull).nullable()();
+  TextColumn? get sourceId =>
+      text().references(Sources, #id, onDelete: KeyAction.setNull).nullable()();
   TextColumn get filePath => text().unique()();
-  TextColumn get sourceType => text().customConstraint("NOT NULL CHECK(source_type IN ('download', 'local_scan'))")();
+  TextColumn get sourceType =>
+      text().customConstraint(
+        "NOT NULL CHECK(source_type IN ('download', 'local_scan'))",
+      )();
   TextColumn? get format => text().nullable()();
   IntColumn get bitrate => integer().nullable()();
   IntColumn get bitDepth => integer().nullable()();
@@ -39,4 +45,3 @@ class Files extends Table {
   @override
   Set<Column> get primaryKey => {id};
 }
-

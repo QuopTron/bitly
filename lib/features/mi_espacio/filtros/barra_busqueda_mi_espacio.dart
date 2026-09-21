@@ -25,8 +25,7 @@ class BarraBusquedaMiEspacio extends StatefulWidget {
   });
 
   @override
-  State<BarraBusquedaMiEspacio> createState() =>
-      _BarraBusquedaMiEspacioState();
+  State<BarraBusquedaMiEspacio> createState() => _BarraBusquedaMiEspacioState();
 }
 
 class _BarraBusquedaMiEspacioState extends State<BarraBusquedaMiEspacio> {
@@ -60,10 +59,7 @@ class _BarraBusquedaMiEspacioState extends State<BarraBusquedaMiEspacio> {
       child: TextField(
         controller: _ctrl,
         onChanged: _onChanged,
-        style: TextStyle(
-          fontSize: r.footerSize,
-          color: onBg,
-        ),
+        style: TextStyle(fontSize: r.footerSize, color: onBg),
         decoration: InputDecoration(
           hintText: widget.hintText,
           hintStyle: TextStyle(
@@ -75,19 +71,20 @@ class _BarraBusquedaMiEspacioState extends State<BarraBusquedaMiEspacio> {
             size: r.footerSize + 4,
             color: onBg.withValues(alpha: 0.4),
           ),
-          suffixIcon: _ctrl.text.isNotEmpty
-              ? IconButton(
-                  icon: Icon(
-                    Icons.close_rounded,
-                    size: r.footerSize + 2,
-                    color: onBg.withValues(alpha: 0.4),
-                  ),
-                  onPressed: () {
-                    _ctrl.clear();
-                    widget.onBusquedaCambiada('');
-                  },
-                )
-              : null,
+          suffixIcon:
+              _ctrl.text.isNotEmpty
+                  ? IconButton(
+                    icon: Icon(
+                      Icons.close_rounded,
+                      size: r.footerSize + 2,
+                      color: onBg.withValues(alpha: 0.4),
+                    ),
+                    onPressed: () {
+                      _ctrl.clear();
+                      widget.onBusquedaCambiada('');
+                    },
+                  )
+                  : null,
           filled: true,
           fillColor: onBg.withValues(alpha: 0.05),
           contentPadding: EdgeInsets.symmetric(

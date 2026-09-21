@@ -86,9 +86,10 @@ Widget _tarjetaGridMini(
 ) {
   final lado = (r.width * 0.42).clamp(112.0, 168.0);
   final titulo = w.item.name.isEmpty ? l.compartidoCancion : w.item.name;
-  final subtitulo = (w.item.artists ?? '').isNotEmpty
-      ? w.item.artists!
-      : (w.item.albumName ?? '');
+  final subtitulo =
+      (w.item.artists ?? '').isNotEmpty
+          ? w.item.artists!
+          : (w.item.albumName ?? '');
 
   return _placa(
     cs,

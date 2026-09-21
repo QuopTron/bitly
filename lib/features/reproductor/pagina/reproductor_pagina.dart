@@ -20,9 +20,9 @@ import 'package:media_kit_video/media_kit_video.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../app/inyeccion.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../core/cache/estado/estado_cola.dart';
 import '../../../core/cache/estado/estado_reproductor.dart';
-import '../../../core/modelos/usuario/estilo_visual.dart';
 import '../../../core/modelos/feed/item_feed.dart';
 import '../../../core/modelos/usuario/preferencias_estilo.dart';
 import '../../../core/modelos/usuario/perfil_rendimiento.dart';
@@ -32,6 +32,7 @@ import '../../../estado/like/cubit_like.dart';
 import '../../../estado/reproductor/cubit_reproductor.dart';
 import '../../../shared/tema/colores_app.dart';
 import '../../../shared/utilidades/portada/paleta_portada.dart';
+import '../../../shared/utilidades/formato/estilo_helper.dart';
 import '../../../shared/utilidades/plataforma/responsive.dart';
 import '../../../shared/widgets/tarjetas/portada/imagen_portada.dart';
 import '../video/area_portada_video.dart';
@@ -41,6 +42,7 @@ import '../letras/hoja_letras.dart';
 import '../cola/modal_cola.dart';
 import '../controles/selector_velocidad_reproductor.dart';
 import '../video/textura_video_fondo.dart';
+import '../../../shared/widgets/fondos/atenuado_por_nivel.dart';
 import '../../../shared/widgets/vidrio/desenfoque_adaptativo.dart';
 
 part 'reproductor_pagina_estado.dart';
@@ -102,11 +104,13 @@ class _ReproductorPaginaState extends State<ReproductorPagina>
       duration: const Duration(milliseconds: 320),
     )..addListener(() => _enTickArrastre(this));
     _escucharCambiosCola(this);
-    _videoListoSrc = sl<CubitReproductor>().videoPrecargadoListo
-      ..addListener(() => _enVideoListo(this));
+    _videoListoSrc =
+        sl<CubitReproductor>().videoPrecargadoListo
+          ..addListener(() => _enVideoListo(this));
     WidgetsBinding.instance.addPostFrameCallback((_) => _enVideoListo(this));
-    WidgetsBinding.instance
-        .addPostFrameCallback((_) => _restaurarSesionVideo(this));
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _restaurarSesionVideo(this),
+    );
   }
 
   @override

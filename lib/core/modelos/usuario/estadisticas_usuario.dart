@@ -31,7 +31,9 @@ class EstadisticasUsuario {
     this.progreso = 0.0,
   });
 
-  factory EstadisticasUsuario.desdeJson(Map<String, dynamic> json) => EstadisticasUsuario(
+  factory EstadisticasUsuario.desdeJson(
+    Map<String, dynamic> json,
+  ) => EstadisticasUsuario(
     totalDescargas: (json['totalDownloads'] as num?)?.toInt() ?? 0,
     totalLikes: (json['totalLikes'] as num?)?.toInt() ?? 0,
     totalTiempoReproducidoMs: (json['totalPlaybackMs'] as num?)?.toInt() ?? 0,

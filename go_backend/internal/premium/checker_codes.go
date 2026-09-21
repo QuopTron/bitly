@@ -14,10 +14,10 @@ func (c *Checker) CheckDownloadAllowed() error {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	if !c.status.IsPremium {
-		return fmt.Errorf("las descargas requieren premium — ingresa un código válido en Configuración")
+		return nuevoError("descargas_requieren_premium", "las descargas requieren premium — ingresa un código válido en Configuración")
 	}
 	if c.status.ExpiresAt > 0 && time.Now().Unix() > c.status.ExpiresAt {
-		return fmt.Errorf("suscripción premium expirada")
+		return nuevoError("premium_expirado", "suscripción premium expirada")
 	}
 	return nil
 }

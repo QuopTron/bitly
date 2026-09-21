@@ -50,7 +50,7 @@ class BackendEscritorio extends BackendService
         PremiumMixin,
         EditorEtiquetasMixin,
         EnlacesMixin,
-    IsrcMixin,
+        IsrcMixin,
         SesionesFirmadasMixin,
         SesionesAccionesMixin,
         SesionesKeepaliveMixin,
@@ -62,8 +62,11 @@ class BackendEscritorio extends BackendService
   bool _iniciado = false;
   int _contadorId = 1;
 
-  BackendEscritorio({this.baseUrl = 'http://127.0.0.1:55009/rpc', this.rutaEjecutable, http.Client? cliente})
-      : _cliente = cliente ?? http.Client();
+  BackendEscritorio({
+    this.baseUrl = 'http://127.0.0.1:55009/rpc',
+    this.rutaEjecutable,
+    http.Client? cliente,
+  }) : _cliente = cliente ?? http.Client();
 
   Future<void> _garantizarEnMarcha() async {
     if (_iniciado) return;
@@ -73,10 +76,15 @@ class BackendEscritorio extends BackendService
     // vigila ese PID y sale solo si la app se cierra (sin dejar huérfanos).
     // En móvil no hay proceso separado (gomobile embebido) — no aplica.
     final cwd = await _cwdEscribible();
-    _proceso = await Process.start(rutaEjecutable!, [pid.toString()],
-        workingDirectory: cwd);
-    _proceso!.stdout.transform(utf8.decoder).listen((l) => debugPrint('[backend] $l'));
-    _proceso!.stderr.transform(utf8.decoder).listen((l) => debugPrint('[backend:err] $l'));
+    _proceso = await Process.start(rutaEjecutable!, [
+      pid.toString(),
+    ], workingDirectory: cwd);
+    _proceso!.stdout
+        .transform(utf8.decoder)
+        .listen((l) => debugPrint('[backend] $l'));
+    _proceso!.stderr
+        .transform(utf8.decoder)
+        .listen((l) => debugPrint('[backend:err] $l'));
     _proceso!.exitCode.then((c) => debugPrint('[backend] salió con código $c'));
     for (var i = 0; i < 60; i++) {
       try {
@@ -86,17 +94,34 @@ class BackendEscritorio extends BackendService
         debugPrint("[Backend] $e");
       }
     }
-    debugPrint('[backend] health check agotó el tiempo (12s) — el binario Go no arrancó');
+    debugPrint(
+      '[backend] health check agotó el tiempo (12s) — el binario Go no arrancó',
+    );
   }
 
   @override
-  Future<dynamic> rpcCall(String method, [Map<String, dynamic>? params, Duration? timeout]) async {
-    final body = jsonEncode({'jsonrpc': '2.0', 'id': _contadorId++, 'method': method, 'params': params ?? {}});
-    final res = await _cliente.post(Uri.parse(baseUrl), headers: {'Content-Type': 'application/json'}, body: body).timeout(
-      timeout ?? const Duration(seconds: 60),
-    );
+  Future<dynamic> rpcCall(
+    String method, [
+    Map<String, dynamic>? params,
+    Duration? timeout,
+  ]) async {
+    final body = jsonEncode({
+      'jsonrpc': '2.0',
+      'id': _contadorId++,
+      'method': method,
+      'params': params ?? {},
+    });
+    final res = await _cliente
+        .post(
+          Uri.parse(baseUrl),
+          headers: {'Content-Type': 'application/json'},
+          body: body,
+        )
+        .timeout(timeout ?? const Duration(seconds: 60));
     final decodificado = jsonDecode(res.body);
-    if (decodificado['error'] != null) throw Exception(decodificado['error'] ?? 'Error RPC');
+    if (decodificado['error'] != null) {
+      throw Exception(decodificado['error'] ?? 'Error RPC');
+    }
     return decodificado['result'];
   }
 

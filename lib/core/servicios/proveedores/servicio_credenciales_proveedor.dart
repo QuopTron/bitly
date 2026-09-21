@@ -59,17 +59,11 @@ class ServicioCredencialesProveedor {
   Future<void> _empujarCredencialesProveedor(ConfigProveedor proveedor) async {
     final ajustes = <String, String>{};
 
-    for (final campo in proveedor.campos) {
-      final valor =
-          (await _cache.getAjuste('${proveedor.id}_${campo.key}') ?? '').trim();
-      if (valor.isNotEmpty) {
-        ajustes[campo.key] = valor;
-      }
-    }
-    // Los tokens OAuth producidos por la app (sin campo visible) también
-    // deben sobrevivir reinicios: se empujan como campos para que la
-    // extensión reinicialice con la sesión intacta.
-    for (final clave in proveedor.clavesAjusteExtra) {
+    // Cada clave se lee de la caché como `<id>_<clave>`. Da igual si es una
+    // credencial que el usuario pegaba o un token OAuth que genera la app:
+    // todas viajan en el mismo mapa para que la extensión reinicialice con
+    // la sesión intacta.
+    for (final clave in proveedor.claves) {
       final valor =
           (await _cache.getAjuste('${proveedor.id}_$clave') ?? '').trim();
       if (valor.isNotEmpty) {
@@ -78,7 +72,9 @@ class ServicioCredencialesProveedor {
     }
 
     if (ajustes.isEmpty) {
-      debugPrint('[CredencialesProveedor] Sin credenciales guardadas de ${proveedor.nombreMostrado}');
+      debugPrint(
+        '[CredencialesProveedor] Sin credenciales guardadas de ${proveedor.nombreMostrado}',
+      );
       return;
     }
 
@@ -91,6 +87,8 @@ class ServicioCredencialesProveedor {
       'extension_id': proveedor.id,
     });
 
-    debugPrint('[CredencialesProveedor] Credenciales de ${proveedor.nombreMostrado} empujadas al arrancar');
+    debugPrint(
+      '[CredencialesProveedor] Credenciales de ${proveedor.nombreMostrado} empujadas al arrancar',
+    );
   }
 }

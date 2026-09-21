@@ -50,10 +50,10 @@ void main() {
     });
 
     test('acepta el formato viejo (strings) y el enriquecido (mapas)', () {
-      expect(
-        idsStateKeysDeLote('["track_1_deezer","track_2_deezer"]'),
-        ['track_1_deezer', 'track_2_deezer'],
-      );
+      expect(idsStateKeysDeLote('["track_1_deezer","track_2_deezer"]'), [
+        'track_1_deezer',
+        'track_2_deezer',
+      ]);
       expect(
         idsStateKeysDeLote(
           '[{"id":"track_1_deezer","name":"A","artist":"B","cover":""}]',
@@ -68,7 +68,10 @@ void main() {
       // El id de Internet Archive trae '_' adentro: cortar por el último '_'
       // devolvería 'gran' y el lote quedaría parcial para siempre.
       expect(
-        idDeStateKey('track_gran_salon_de_baile_internetarchive', 'internetarchive'),
+        idDeStateKey(
+          'track_gran_salon_de_baile_internetarchive',
+          'internetarchive',
+        ),
         'gran_salon_de_baile',
       );
       expect(idDeStateKey('track_123_spotify-web', 'spotify-web'), '123');

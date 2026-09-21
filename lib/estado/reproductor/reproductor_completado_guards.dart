@@ -30,9 +30,10 @@ mixin ReproductorCompletadoGuards on ReproductorAvanceSeguro {
   ) {
     if (completado == null) return false;
     final normId = normalizarId(completado.id);
-    final msDesdeOpen = _tsMediaAbierto == null
-        ? -1
-        : DateTime.now().difference(_tsMediaAbierto!).inMilliseconds;
+    final msDesdeOpen =
+        _tsMediaAbierto == null
+            ? -1
+            : DateTime.now().difference(_tsMediaAbierto!).inMilliseconds;
 
     final decision = decidirCompletado(
       desdeHttp: desdeHttp,
@@ -69,10 +70,12 @@ mixin ReproductorCompletadoGuards on ReproductorAvanceSeguro {
     int durMs,
     int posMs,
   ) {
-    final esPreview = durMs > 0 &&
+    final esPreview =
+        durMs > 0 &&
         (completado.durationMs ?? 0) >= 60000 &&
         durMs <= (completado.durationMs ?? 0) * fraccionPreviewCompletado;
-    final marca = esPreview ? _tracksRecuperadosPreview : _muertosStreamRecuperados;
+    final marca =
+        esPreview ? _tracksRecuperadosPreview : _muertosStreamRecuperados;
     marca.add(normId);
     debugPrint(
       '[Player] completación falsa (${esPreview ? "clip corto" : "stream truncado"}) '

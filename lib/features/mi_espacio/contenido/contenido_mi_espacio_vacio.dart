@@ -12,7 +12,11 @@ part of 'contenido_mi_espacio.dart';
 
 /// Estado vacío genérico (icono + mensaje).
 Widget _vistaVacia(
-    ContenidoMiEspacio c, BuildContext context, Responsive r, Color onBg) {
+  ContenidoMiEspacio c,
+  BuildContext context,
+  Responsive r,
+  Color onBg,
+) {
   return Center(
     child: Column(
       mainAxisSize: MainAxisSize.min,
@@ -41,7 +45,11 @@ Widget _vistaVacia(
 
 /// Estado vacío de la pestaña Playlists (con botón de crear).
 Widget _vistaVaciaPlaylists(
-    ContenidoMiEspacio c, BuildContext context, Responsive r, Color onBg) {
+  ContenidoMiEspacio c,
+  BuildContext context,
+  Responsive r,
+  Color onBg,
+) {
   final loc = AppLocalizations.of(context);
   return Center(
     child: Column(

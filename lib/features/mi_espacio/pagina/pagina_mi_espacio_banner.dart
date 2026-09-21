@@ -10,11 +10,7 @@
 part of 'pagina_mi_espacio.dart';
 
 /// Banner ámbar de descargas interrumpidas con botón de reintento.
-Widget _bannerReintentar(
-  BuildContext context,
-  Color onBg,
-  int count,
-) {
+Widget _bannerReintentar(BuildContext context, Color onBg, int count) {
   final r = Responsive(context);
   final loc = AppLocalizations.of(context);
   return Padding(
@@ -43,9 +39,9 @@ Widget _bannerReintentar(
             child: Text(
               count > 1
                   ? loc.setup.downloadInterruptedMany.replaceAll(
-                      '{count}',
-                      '$count',
-                    )
+                    '{count}',
+                    '$count',
+                  )
                   : loc.setup.downloadInterruptedOne,
               style: TextStyle(
                 fontSize: r.footerSize,
@@ -55,8 +51,11 @@ Widget _bannerReintentar(
           ),
           SizedBox(width: r.spacingS),
           GestureDetector(
-            onTap: () =>
-                context.read<CubitDescargas>().reintentarTodosInterrumpidos(),
+            onTap:
+                () =>
+                    context
+                        .read<CubitDescargas>()
+                        .reintentarTodosInterrumpidos(),
             child: Container(
               padding: EdgeInsets.symmetric(
                 horizontal: r.spacingM,

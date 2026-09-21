@@ -53,11 +53,12 @@ class CifradoCompartir {
       cifrado[i] = datos[i] ^ flujo[i];
     }
     final mac = _mac(nonce, cifrado).sublist(0, 8);
-    final salida = BytesBuilder(copy: false)
-      ..addByte(version)
-      ..add(nonce)
-      ..add(mac)
-      ..add(cifrado);
+    final salida =
+        BytesBuilder(copy: false)
+          ..addByte(version)
+          ..add(nonce)
+          ..add(mac)
+          ..add(cifrado);
     return base64Url.encode(salida.toBytes()).replaceAll('=', '');
   }
 
@@ -89,13 +90,14 @@ class CifradoCompartir {
     var escritos = 0;
     var contador = 0;
     while (escritos < largo) {
-      final bloque = Hmac(sha256, _claveFlujo).convert([
-        ...nonce,
-        (contador >> 24) & 0xff,
-        (contador >> 16) & 0xff,
-        (contador >> 8) & 0xff,
-        contador & 0xff,
-      ]).bytes;
+      final bloque =
+          Hmac(sha256, _claveFlujo).convert([
+            ...nonce,
+            (contador >> 24) & 0xff,
+            (contador >> 16) & 0xff,
+            (contador >> 8) & 0xff,
+            contador & 0xff,
+          ]).bytes;
       final copiar = min(bloque.length, largo - escritos);
       salida.setRange(escritos, escritos + copiar, bloque);
       escritos += copiar;

@@ -60,9 +60,8 @@ mixin VerificacionUi on VerificacionLote {
     if (ctx == null) return;
     ScaffoldMessenger.of(ctx)
       ..clearSnackBars()
-      ..showSnackBar(SnackBar(
-        content: Text(mensaje),
-        duration: const Duration(seconds: 4),
-      ));
+      ..showSnackBar(
+        SnackBar(content: Text(mensaje), duration: const Duration(seconds: 4)),
+      );
   }
 }

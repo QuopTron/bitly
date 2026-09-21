@@ -34,7 +34,9 @@ class _TrialChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
-        trialRemaining,
+        expired
+            ? AppLocalizations.of(context).ajustes.trialExpirado
+            : trialRemaining,
         style: TextStyle(
           fontSize: r.footerSize - 2,
           color: expired ? Colors.redAccent : glowColor,

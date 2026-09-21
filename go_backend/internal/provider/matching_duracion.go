@@ -29,6 +29,31 @@ package provider
 // grande no compila. 2^31-1 (≈24 días en ms) excede cualquier distancia real.
 const duracionDesconocida = 1<<31 - 1
 
+// DuracionCoincide es la ÚNICA definición de "dura lo mismo" del backend:
+// tolera 25% o 20s (lo que sea mayor) de diferencia.
+//
+// Por qué existe compartida: la descarga la tenía en internal/download
+// (duracionCoincide) y la reproducción no verificaba duración EN ABSOLUTO, así
+// que un remix o un directo con el título parecido podía sonar aunque durara
+// medio minuto más. Ahora las dos rutas usan la misma regla.
+//
+// Un candidato (o una consulta) sin duración NO se rechaza: YouTube/SoundCloud
+// no siempre la exponen y rechazarlos dejaría canciones sin audio.
+func DuracionCoincide(queryMS, gotMS int) bool {
+	if queryMS <= 0 || gotMS <= 0 {
+		return true
+	}
+	diff := queryMS - gotMS
+	if diff < 0 {
+		diff = -diff
+	}
+	tol := queryMS / 4
+	if tol < 20000 {
+		tol = 20000
+	}
+	return diff <= tol
+}
+
 // distanciaDuracionMS devuelve qué tan lejos está [got] de [query] en ms, o
 // duracionDesconocida si el candidato no trae duración.
 func distanciaDuracionMS(queryMS, got int) int {
@@ -75,30 +100,10 @@ func puntajeEfectivo(queryTitle, queryArtist string, t TrackResult) float64 {
 // el que dura lo mismo que la canción consultada. Nunca promueve un candidato
 // peor ni descarta uno sin duración — por eso es seguro llamarlo en el camino
 // crítico de reproducción.
+// Delega en RankOriginalCandidatesAlbum con álbum vacío: la lógica de orden es
+// UNA sola (evita que las dos copias se separen con el tiempo).
 func RankOriginalCandidatesDuracion(queryTitle, queryArtist string, queryDurationMS int, results []TrackResult) []TrackResult {
-	ranked := RankOriginalCandidates(queryTitle, queryArtist, results)
-	if len(ranked) < 2 || queryDurationMS <= 0 {
-		return ranked
-	}
-	out := append([]TrackResult(nil), ranked...)
-	// Inserción estable por (puntaje desc, distancia de duración asc) DENTRO de
-	// cada grupo de puntaje: al no cruzar grupos, un candidato mejor nunca baja.
-	for i := 1; i < len(out); i++ {
-		for j := i; j > 0; j-- {
-			prev, cur := out[j-1], out[j]
-			if puntajeEfectivo(queryTitle, queryArtist, prev) != puntajeEfectivo(queryTitle, queryArtist, cur) {
-				break
-			}
-			dPrev := distanciaDuracionMS(queryDurationMS, prev.Duration)
-			dCur := distanciaDuracionMS(queryDurationMS, cur.Duration)
-			if dCur < dPrev {
-				out[j-1], out[j] = out[j], out[j-1]
-				continue
-			}
-			break
-		}
-	}
-	return out
+	return RankOriginalCandidatesAlbum(queryTitle, queryArtist, "", queryDurationMS, results)
 }
 
 // BestOriginalDuracion picks the strongest original match, desempatando por

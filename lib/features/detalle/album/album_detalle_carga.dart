@@ -63,10 +63,14 @@ Future<void> _cargarDetalleAlbum(_AlbumDetallePaginaState st) async {
         }
       }
       if (json != null && json.isNotEmpty && json != '{}') {
-        detalle = DetalleAlbum.desdeJson(jsonDecode(json) as Map<String, dynamic>);
+        detalle = DetalleAlbum.desdeJson(
+          jsonDecode(json) as Map<String, dynamic>,
+        );
         memoria.setAlbum(st.widget.albumId, detalle);
       }
-    } catch (e) { debugPrint("[Feature] $e"); }
+    } catch (e) {
+      debugPrint("[Feature] $e");
+    }
     if (detalle != null && detalle.tracks.isNotEmpty) {
       st._album = detalle;
       st._cargando = false;
@@ -101,13 +105,13 @@ bool _todosTracksDescargados(
   CubitDescargas dlCubit,
 ) {
   if (detalle.tracks.isEmpty) return false;
-  final src = st.widget.source.isNotEmpty
-      ? st.widget.source
-      : (detalle.tracks.first.provider ?? '');
+  final src =
+      st.widget.source.isNotEmpty
+          ? st.widget.source
+          : (detalle.tracks.first.provider ?? '');
   for (final t in detalle.tracks) {
     final clave = 'track_${normalizarIdTrack(t.trackId)}_$src';
-    if (dlCubit.estadoDescargaPara(clave).estado !=
-        EstadoDescarga.completado) {
+    if (dlCubit.estadoDescargaPara(clave).estado != EstadoDescarga.completado) {
       return false;
     }
   }
@@ -126,14 +130,18 @@ Future<void> _refrescarDesdeApi(
       st.widget.source,
     );
     if (json.isNotEmpty && json != '{}') {
-      final fresco = DetalleAlbum.desdeJson(jsonDecode(json) as Map<String, dynamic>);
+      final fresco = DetalleAlbum.desdeJson(
+        jsonDecode(json) as Map<String, dynamic>,
+      );
       sl<CacheDetalleMemoria>().setAlbum(st.widget.albumId, fresco);
       await cache.guardarDetalleAlbum(st.widget.albumId, json);
       st._album = fresco;
       st._error = false;
       st.repintar();
     }
-  } catch (e) { debugPrint("[Feature] $e"); }
+  } catch (e) {
+    debugPrint("[Feature] $e");
+  }
 }
 
 // (la reconstrucción offline desde el lote vive en album_detalle_lote.dart)

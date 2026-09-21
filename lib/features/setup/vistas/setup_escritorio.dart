@@ -67,8 +67,9 @@ class SetupEscritorio extends StatelessWidget {
                   duration: const Duration(milliseconds: 400),
                   switchInCurve: Curves.easeInOut,
                   switchOutCurve: Curves.easeInOut,
-                  transitionBuilder: (child, animation) =>
-                      FadeTransition(opacity: animation, child: child),
+                  transitionBuilder:
+                      (child, animation) =>
+                          FadeTransition(opacity: animation, child: child),
                   child: SizedBox(
                     key: ValueKey(state.paso),
                     // Garantiza el alto del slide (Spacer/Expanded lo exigen) y
@@ -107,11 +108,12 @@ class SetupEscritorio extends StatelessWidget {
             margin: const EdgeInsets.symmetric(horizontal: 3),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(4),
-              color: i <= indice
-                  ? (esOscuro
-                      ? ColoresApp.verdeBrillante
-                      : ColoresApp.verdeMedio)
-                  : onBg.withValues(alpha: 0.15),
+              color:
+                  i <= indice
+                      ? (esOscuro
+                          ? ColoresApp.verdeBrillante
+                          : ColoresApp.verdeMedio)
+                      : onBg.withValues(alpha: 0.15),
             ),
           ),
       ],

@@ -14,17 +14,17 @@ import (
 // lo largo de todos los proveedores full-stream. Es la ruta mas rapida para una
 // cancion tidal/amazon/qobuz/spotify con id cross-provider: cada proveedor
 // resuelve el id (o ISRC) en ~1-2s sin ninguna busqueda por nombre.
-func rescuePorIdentificadores(reg *provider.Registry, quality, isrc, spotifyID, deezerID, tidalID, qobuzID, trackName, artistName string) (string, string, bool) {
+func rescuePorIdentificadores(reg *provider.Registry, quality, isrc, spotifyID, deezerID, tidalID, qobuzID, trackName, artistName string, queryDurationMS int) (string, string, bool) {
 	if isrc == "" && spotifyID == "" && deezerID == "" && tidalID == "" && qobuzID == "" {
 		return "", "", false
 	}
-	names := ordenProvidersStreaming(reg)
-	// Presupuesto y paralelismo originales (5s, 2 workers): subir los workers a
-	// 3 disparaba 429 de los proveedores (tidal/soundcloud), el circuito de
-	// enfriamiento se abría y la 3ra canción seguida se quedaba sin stream. Esta
-	// fase corre EN PARALELO con la búsqueda por nombre, así que su presupuesto
-	// no suma a la latencia percibida.
-	url, prov, verified := carreraPorConfianzaCalidad(reg, names, 5*time.Second, 2, func(name string, p provider.Provider) (string, bool) {
+	// El orden y el paralelismo dependen de la calidad pedida: sin pérdida, las
+	// fuentes que pueden darlo van primero y con un turno extra (ver
+	// ordenProvidersStreamingCalidad / workersRescate).
+	names := ordenProvidersStreamingCalidad(reg, quality)
+	// Presupuesto original (5s): esta fase corre EN PARALELO con la búsqueda por
+	// nombre, así que su presupuesto no suma a la latencia percibida.
+	url, prov, verified := carreraPorConfianzaCalidad(reg, names, 5*time.Second, workersRescate(quality), func(name string, p provider.Provider) (string, bool) {
 		resolvedID := ""
 		if ep, ok := p.(*provider.ExtensionProvider); ok {
 			if id, found := ep.CheckAvailability(isrc, trackName, artistName, spotifyID, deezerID, tidalID, qobuzID, 0); found && id != "" {
@@ -41,7 +41,7 @@ func rescuePorIdentificadores(reg *provider.Registry, quality, isrc, spotifyID, 
 		}
 		// Mismo guard que la fase 1 de rescueStream: nunca streamear un
 		// candidato sin verificar cuando conocemos el titulo/artista pedido.
-		if trackName != "" && verificarMatchStream(p, resolvedID, trackName, artistName, isrc, true) == "" {
+		if trackName != "" && verificarMatchStream(p, resolvedID, trackName, artistName, isrc, true, queryDurationMS) == "" {
 			return "", false
 		}
 		return rescueProviderUnaVez(p, resolvedID, quality)
@@ -57,7 +57,7 @@ func rescuePorIdentificadores(reg *provider.Registry, quality, isrc, spotifyID, 
 // stream" pass used before the slow download pipeline for tracks whose
 // preferred source (tidal/apple/amazon/qobuz/spotify-web) exposes no direct
 // stream. Returns (url, provider, err).
-func RescueStreamURL(reg *provider.Registry, quality, isrc, spotifyID, deezerID, tidalID, qobuzID, trackName, artistName string) (string, string, error) {
+func RescueStreamURL(reg *provider.Registry, quality, isrc, spotifyID, deezerID, tidalID, qobuzID, trackName, artistName, queryAlbum string, queryDurationMS int) (string, string, error) {
 	if reg == nil {
 		return "", "", fmt.Errorf("no inicializado")
 	}
@@ -89,15 +89,20 @@ func RescueStreamURL(reg *provider.Registry, quality, isrc, spotifyID, deezerID,
 	// cancion sonando siempre gana a un modal de verificacion, asi que el
 	// veredicto solo se devuelve cuando nada streamea.
 	var idVerify string
-	if url, prov, verified := rescuePorIdentificadores(reg, quality, isrc, spotifyID, deezerID, tidalID, qobuzID, trackName, artistName); url != "" {
+	if url, prov, verified := rescuePorIdentificadores(reg, quality, isrc, spotifyID, deezerID, tidalID, qobuzID, trackName, artistName, queryDurationMS); url != "" {
 		return url, prov, nil
 	} else if verified {
 		idVerify = prov
 	}
+	// La duración entra para que la verificación por fase (y la fase exacta por
+	// ISRC) pueda descartar un remix/directo con el título parecido, y el álbum
+	// para que el ranking por nombre prefiera la toma del disco pedido.
 	track := &provider.TrackResult{
-		ISRC:   isrc,
-		Title:  trackName,
-		Artist: artistName,
+		ISRC:     isrc,
+		Title:    trackName,
+		Artist:   artistName,
+		Album:    queryAlbum,
+		Duration: queryDurationMS,
 	}
 	url, prov, attempted, verified := rescueStream(reg, track, trackName, artistName, quality)
 	if url != "" {

@@ -73,8 +73,7 @@ class _CompartidosTabState extends State<_CompartidosTab> {
 
   /// Vuelve a resolver la canción y la encola sin cortar lo que suena.
   Future<void> _encolar(CompartidoRecibido entrada) async {
-    final resuelto =
-        await ServicioCompartir.instance.resolver(entrada.datos);
+    final resuelto = await ServicioCompartir.instance.resolver(entrada.datos);
     if (!mounted || resuelto == null) return;
     sl<CubitCola>().agregarAlFinal(resuelto.item);
     ScaffoldMessenger.of(context).showSnackBar(

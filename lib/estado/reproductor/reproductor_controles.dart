@@ -58,15 +58,6 @@ mixin ReproductorControles on ReproductorPreloadMedia {
 
   void anterior() => _queueCubit.anterior();
 
-  void setVolumen(double vol) {
-    // El estado y la interfaz de audio usan 0.0–1.0; la conversión a la
-    // escala de cada motor (mpv: 0–100) la hace la implementación.
-    final v = vol.clamp(0.0, 1.0);
-    _volumenUsuario = v;
-    _player.ponerVolumen(v);
-    emit(state.copiarCon(volumen: v));
-  }
-
   /// Fade-in suave tras cada apertura: sube de silencio al volumen del
   /// usuario en ~110ms. Pequeño a propósito — crossfades largos sobre el
   /// switch local↔stream arriesgan gaps audibles y latencia extra de arranque.

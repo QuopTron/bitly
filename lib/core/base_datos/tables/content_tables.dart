@@ -21,7 +21,8 @@ class Artists extends Table {
 @TableIndex(name: 'idx_albums_artist_id', columns: {#artistId})
 class Albums extends Table {
   TextColumn get id => text()();
-  TextColumn get artistId => text().references(Artists, #id, onDelete: KeyAction.cascade)();
+  TextColumn get artistId =>
+      text().references(Artists, #id, onDelete: KeyAction.cascade)();
   TextColumn get name => text()();
   TextColumn get normalizedName => text()();
   TextColumn? get coverUrl => text().nullable()();
@@ -42,8 +43,10 @@ class Albums extends Table {
 class Tracks extends Table {
   TextColumn get id => text()();
   TextColumn get name => text()();
-  TextColumn get artistId => text().references(Artists, #id, onDelete: KeyAction.cascade)();
-  TextColumn? get albumId => text().references(Albums, #id, onDelete: KeyAction.setNull)();
+  TextColumn get artistId =>
+      text().references(Artists, #id, onDelete: KeyAction.cascade)();
+  TextColumn? get albumId =>
+      text().references(Albums, #id, onDelete: KeyAction.setNull)();
   TextColumn? get isrc => text().nullable()();
   IntColumn get durationMs => integer().nullable()();
   IntColumn get trackNumber => integer().nullable()();
@@ -66,4 +69,3 @@ class Tracks extends Table {
   @override
   Set<Column> get primaryKey => {id};
 }
-

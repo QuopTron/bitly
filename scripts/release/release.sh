@@ -117,7 +117,7 @@ ls -lh dist/
 # ── 3) Commit + tag + push ──────────────────────────────────────────
 # Solo el bump va al repo; los binarios se suben a la GitHub Release
 # (nunca se commitean APKs/instaladores al git).
-git add pubspec.yaml
+git add -A
 git commit -m "release: v${NEW_VERSION} — Android + PC (${NEW_VERSION}+${CODE})
 
 Release: v${NEW_VERSION} — Android + PC (${NEW_VERSION}+${CODE})"

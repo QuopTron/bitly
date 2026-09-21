@@ -32,7 +32,9 @@ class VerificadorAccesoDescarga {
     // 2. Modo free → permitido mientras dure la ventana de 8h.
     try {
       final setup = await sl<CacheAjustes>().cargarDatosSetup();
-      if (setup != null && setup.mode == 'free' && setup.trialExpiraEn != null) {
+      if (setup != null &&
+          setup.mode == 'free' &&
+          setup.trialExpiraEn != null) {
         final exp = DateTime.tryParse(setup.trialExpiraEn!);
         if (exp != null) {
           return DateTime.now().isBefore(exp)

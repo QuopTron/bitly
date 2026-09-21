@@ -47,8 +47,7 @@ class BitlyApp extends StatefulWidget {
 class _BitlyAppState extends State<BitlyApp> with ManejadoresCompartidos {
   late final NotificadoresAjustesApp _ajustes = NotificadoresAjustesApp();
   final _navigatorKey = GlobalKey<NavigatorState>();
-  late final GoRouter _router =
-      AppRouter(navigatorKey: _navigatorKey).router;
+  late final GoRouter _router = AppRouter(navigatorKey: _navigatorKey).router;
 
   DatosDeepLink? _linkCompartido;
   StreamSubscription<ResultadoEnlace>? _subEnlaces;
@@ -73,8 +72,9 @@ class _BitlyAppState extends State<BitlyApp> with ManejadoresCompartidos {
     _router.routerDelegate.addListener(_onRutaCambiada);
     // Enlaces de música (compartidos a la app o resueltos por la UI): en
     // cuanto Go devuelve el ítem, se encola y se reproduce.
-    _subEnlaces =
-        ServicioEnlaces.instance.resultados.listen(reproducirResueltoCompartido);
+    _subEnlaces = ServicioEnlaces.instance.resultados.listen(
+      reproducirResueltoCompartido,
+    );
     // Deep link inicial (app abierta vía link de WhatsApp, etc.).
     final inicial = ServicioDeepLink.instance.consumirPendiente();
     if (inicial != null) {
@@ -103,8 +103,11 @@ class _BitlyAppState extends State<BitlyApp> with ManejadoresCompartidos {
   String _firmaLink(DatosDeepLink? link) {
     if (link == null) return '';
     final c = link.compartido;
-    return [c?.tipo ?? link.type, c?.isrc ?? link.id, c?.nombre ?? link.query]
-        .join('|');
+    return [
+      c?.tipo ?? link.type,
+      c?.isrc ?? link.id,
+      c?.nombre ?? link.query,
+    ].join('|');
   }
 
   void _onAjusteCambiado() {

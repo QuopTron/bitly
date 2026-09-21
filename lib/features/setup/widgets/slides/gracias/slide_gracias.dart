@@ -58,7 +58,9 @@ class _SlideGraciasState extends State<SlideGracias> {
   @override
   void didUpdateWidget(covariant SlideGracias oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!widget.state.guardando && oldWidget.state.guardando && _timer == null) {
+    if (!widget.state.guardando &&
+        oldWidget.state.guardando &&
+        _timer == null) {
       _iniciarTimer();
     }
   }

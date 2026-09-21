@@ -71,7 +71,9 @@ class _SoulseekSheetState extends State<_SoulseekSheet> {
   Future<void> _siguiente() async {
     final nombre = _nombreCtrl.text.trim();
     if (nombre.isEmpty) {
-      setState(() => _mensaje = 'Elegí un nombre para tu cuenta.');
+      setState(
+        () => _mensaje = AppLocalizations.of(context).soulseek.nombreVacio,
+      );
       return;
     }
     setState(() {

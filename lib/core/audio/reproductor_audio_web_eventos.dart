@@ -12,8 +12,9 @@ part of 'reproductor_audio_web.dart';
 /// Conecta los eventos del elemento a los streams que consume el player.
 void _conectarEventos(ReproductorWeb r) {
   _escuchar(r, 'timeupdate', () {
-    r._posicion
-        .add(Duration(milliseconds: (r._audio.currentTime * 1000).round()));
+    r._posicion.add(
+      Duration(milliseconds: (r._audio.currentTime * 1000).round()),
+    );
   });
   _escuchar(r, 'durationchange', () => _emitirDuracion(r));
   _escuchar(r, 'loadedmetadata', () => _emitirDuracion(r));
@@ -41,14 +42,13 @@ void _emitirDuracion(ReproductorWeb r) {
 /// Traduce el error del elemento a un mensaje accionable.
 void _emitirError(ReproductorWeb r) {
   final codigo = r._audio.error?.code ?? 0;
+  final s = L10n.actual.servicio;
   final detalle = switch (codigo) {
-    1 => 'Reproducción cancelada',
-    2 => 'Error de red al traer el audio (¿sin conexión?)',
-    3 => 'El audio no se pudo decodificar',
-    4 =>
-      'El audio no está disponible o el enlace no es reproducible '
-          '(algunos streams exigen cabeceras que el navegador no puede mandar)',
-    _ => 'El navegador no pudo reproducir el audio',
+    1 => s.audioWebCancelada,
+    2 => s.audioWebRed,
+    3 => s.audioWebDecodificar,
+    4 => s.audioWebNoDisponible,
+    _ => s.audioWebGenerico,
   };
   r._error.add(detalle);
 }

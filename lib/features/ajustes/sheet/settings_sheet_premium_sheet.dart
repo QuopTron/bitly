@@ -27,7 +27,9 @@ class _PremiumActivationSheetState extends State<_PremiumActivationSheet> {
   final _controller = TextEditingController();
   var _sending = false;
   var _activated = false;
-  String? _errorMsg;
+
+  /// CÓDIGO del motivo del error (no el texto): el formulario lo traduce.
+  String? _errorCodigo;
 
   @override
   void dispose() {
@@ -39,21 +41,22 @@ class _PremiumActivationSheetState extends State<_PremiumActivationSheet> {
     final code = _controller.text.trim();
     setState(() {
       _sending = true;
-      _errorMsg = null;
+      _errorCodigo = null;
     });
     if (code.isEmpty) {
       setState(() {
         _sending = false;
-        _errorMsg = 'Ingresa un codigo valido';
+        _errorCodigo = 'codigo_vacio';
       });
       return;
     }
-    final err = await sl<BackendService>().validatePremiumCode(code);
-    if (err != null) {
+    // El backend devuelve el CÓDIGO del motivo, no el texto.
+    final motivo = await sl<BackendService>().validatePremiumCode(code);
+    if (motivo != null) {
       if (!mounted) return;
       setState(() {
         _sending = false;
-        _errorMsg = err;
+        _errorCodigo = motivo;
       });
       return;
     }
@@ -110,15 +113,13 @@ class _PremiumActivationSheetState extends State<_PremiumActivationSheet> {
               controller: _controller,
               sending: _sending,
               activated: _activated,
-              errorMsg: _errorMsg,
+              errorCodigo: _errorCodigo,
               glowColor: glow,
               onBg: onBg,
               r: r,
               onActivate: _activate,
             ),
-            SizedBox(
-              height: r.bottomPadding + insetInferiorSistema(context),
-            ),
+            SizedBox(height: r.bottomPadding + insetInferiorSistema(context)),
           ],
         ),
       ),

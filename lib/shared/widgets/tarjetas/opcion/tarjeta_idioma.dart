@@ -49,14 +49,16 @@ class TarjetaIdioma extends StatelessWidget {
             horizontal: r.spacingL,
           ),
           decoration: BoxDecoration(
-            color: selected
-                ? glowColor.withValues(alpha: 0.1)
-                : onBg.withValues(alpha: 0.03),
+            color:
+                selected
+                    ? glowColor.withValues(alpha: 0.1)
+                    : onBg.withValues(alpha: 0.03),
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: selected
-                  ? glowColor.withValues(alpha: 0.5)
-                  : onBg.withValues(alpha: 0.06),
+              color:
+                  selected
+                      ? glowColor.withValues(alpha: 0.5)
+                      : onBg.withValues(alpha: 0.06),
               width: selected ? 1.2 : 0.8,
             ),
           ),

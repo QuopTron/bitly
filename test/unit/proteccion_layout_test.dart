@@ -33,8 +33,7 @@ class _Sonda extends StatelessWidget {
         Text('escala:${mq.textScaler.scale(10).toStringAsFixed(1)}'),
         Row(
           children: [
-            for (var i = 0; i < 4; i++)
-              const SizedBox(width: 80, height: 40),
+            for (var i = 0; i < 4; i++) const SizedBox(width: 80, height: 40),
           ],
         ),
       ],
@@ -43,16 +42,17 @@ class _Sonda extends StatelessWidget {
 }
 
 Widget _protegida() => MaterialApp(
-      home: Builder(
-        builder: (context) =>
-            protegerLayout(context: context, child: const _Sonda()),
-      ),
-    );
+  home: Builder(
+    builder:
+        (context) => protegerLayout(context: context, child: const _Sonda()),
+  ),
+);
 
 void main() {
   group('protección global de layout', () {
-    testWidgets('acota el tamaño de fuente del sistema al máximo soportado',
-        (tester) async {
+    testWidgets('acota el tamaño de fuente del sistema al máximo soportado', (
+      tester,
+    ) async {
       // 2.0 es el tope de Android en Accesibilidad → Tamaño de fuente.
       tester.platformDispatcher.textScaleFactorTestValue = 2.0;
       addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
@@ -72,12 +72,16 @@ void main() {
       await tester.pumpWidget(_protegida());
 
       expect(tester.takeException(), isNull);
-      expect(find.text('ancho:400.0'), findsOneWidget,
-          reason: 'una pantalla normal se usa tal cual, sin escalar');
+      expect(
+        find.text('ancho:400.0'),
+        findsOneWidget,
+        reason: 'una pantalla normal se usa tal cual, sin escalar',
+      );
     });
 
-    testWidgets('con la densidad subida (menos px lógicos) no desborda',
-        (tester) async {
+    testWidgets('con la densidad subida (menos px lógicos) no desborda', (
+      tester,
+    ) async {
       // Simula "Pantalla → Tamaño de pantalla" al máximo: el mismo teléfono
       // reporta 280px lógicos, donde una fila de 320px ya no entra.
       tester.view.physicalSize = const Size(280, 600);
@@ -86,16 +90,23 @@ void main() {
 
       await tester.pumpWidget(_protegida());
 
-      expect(tester.takeException(), isNull,
-          reason: 'la fila que no entraba debe escalarse, no desbordar');
-      expect(find.text('ancho:320.0'), findsOneWidget,
-          reason: 'la app recibe el ancho de diseño mínimo soportado');
+      expect(
+        tester.takeException(),
+        isNull,
+        reason: 'la fila que no entraba debe escalarse, no desbordar',
+      );
+      expect(
+        find.text('ancho:320.0'),
+        findsOneWidget,
+        reason: 'la app recibe el ancho de diseño mínimo soportado',
+      );
     });
   });
 
   group('slide del setup con alto garantizado', () {
-    testWidgets('en pantalla baja desplaza en vez de recortar el botón',
-        (tester) async {
+    testWidgets('en pantalla baja desplaza en vez de recortar el botón', (
+      tester,
+    ) async {
       tester.view.physicalSize = const Size(360, 420);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.reset);
@@ -124,13 +135,21 @@ void main() {
       expect(tester.getRect(find.text('Continuar')).bottom, greaterThan(420));
 
       // …y se alcanza desplazando, en vez de quedar perdido.
-      await tester.drag(find.byType(SingleChildScrollView), const Offset(0, -300));
+      await tester.drag(
+        find.byType(SingleChildScrollView),
+        const Offset(0, -300),
+      );
       await tester.pump();
-      expect(tester.getRect(find.text('Continuar')).bottom, lessThanOrEqualTo(420),
-          reason: 'el botón de continuar debe poder alcanzarse');
+      expect(
+        tester.getRect(find.text('Continuar')).bottom,
+        lessThanOrEqualTo(420),
+        reason: 'el botón de continuar debe poder alcanzarse',
+      );
     });
 
-    testWidgets('en pantalla alta usa el alto real, sin scroll', (tester) async {
+    testWidgets('en pantalla alta usa el alto real, sin scroll', (
+      tester,
+    ) async {
       tester.view.physicalSize = const Size(360, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.reset);
@@ -152,7 +171,10 @@ void main() {
       );
 
       expect(tester.takeException(), isNull);
-      expect(tester.getRect(find.text('Continuar')).bottom, lessThanOrEqualTo(800));
+      expect(
+        tester.getRect(find.text('Continuar')).bottom,
+        lessThanOrEqualTo(800),
+      );
     });
   });
 }

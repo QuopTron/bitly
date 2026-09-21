@@ -45,6 +45,7 @@ import '../filtros/barra_busqueda_mi_espacio.dart';
 part 'pagina_mi_espacio_acciones.dart';
 part 'pagina_mi_espacio_banner.dart';
 part 'pagina_mi_espacio_helpers.dart';
+part 'pagina_mi_espacio_navegacion.dart';
 part 'pagina_mi_espacio_widgets.dart';
 part 'pagina_mi_espacio_build.dart';
 part 'pagina_mi_espacio_cuerpo.dart';
@@ -82,6 +83,7 @@ class _PaginaMiEspacioState extends State<PaginaMiEspacio> {
     unawaited(context.read<CubitPlaylists>().inicializar());
     final u = await cargarUsername();
     final p = await cargarPlaylistsPropias();
+    await refrescarBibliotecaLocal();
     await sl<CubitPlaylists>().cargarStats();
     Map<String, int> contadores = {};
     try {
@@ -90,7 +92,9 @@ class _PaginaMiEspacioState extends State<PaginaMiEspacio> {
         final id = t['trackId'];
         if (id != null) contadores[id as String] = (t['count'] as int?) ?? 0;
       }
-    } catch (e) { debugPrint("[Feature] $e"); }
+    } catch (e) {
+      debugPrint("[Feature] $e");
+    }
     if (mounted) {
       setState(() {
         _username = u;
@@ -105,6 +109,13 @@ class _PaginaMiEspacioState extends State<PaginaMiEspacio> {
     setState(() => _pestanaSeleccionada = i);
     // Recargar playlists creadas al volver al tab de playlists.
     if (i == 1) _recargarPlaylists();
+    // El índice local cambia con cada descarga nueva: se refresca al
+    // cambiar de pestaña para que la lista ya tenga la portada al día.
+    unawaited(
+      refrescarBibliotecaLocal().then((_) {
+        if (mounted) setState(() {});
+      }),
+    );
   }
 
   void _aplicar(VoidCallback fn) => setState(fn);
@@ -125,26 +136,4 @@ class _PaginaMiEspacioState extends State<PaginaMiEspacio> {
 
   @override
   Widget build(BuildContext context) => _construirPaginaMiEspacio(this);
-
-
-  /// Abre el detalle según el tipo de ítem (via navegador de detalle).
-  void _onItemTap(Item item) {
-    if (item.idReal.isEmpty) return;
-    final src = _resolverFuente(this, item);
-    switch (item.tipo) {
-      case TipoItem.album:
-        abrirDetalleAlbum(context, id: item.idReal, fuente: src);
-      case TipoItem.playlist:
-        abrirDetallePlaylist(
-          context,
-          id: item.idReal,
-          nombre: item.titulo,
-          fuente: src,
-        );
-      case TipoItem.artista:
-        abrirDetalleArtista(context, id: item.idReal, nombre: item.titulo);
-      case TipoItem.cancion:
-        mostrarInfoCancionDesdeMiEspacio(context, item);
-    }
-  }
 }

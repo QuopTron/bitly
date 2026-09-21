@@ -102,7 +102,9 @@ class ReproductorMediaKit implements ReproductorAudio {
     // expone tipadas y algunas solo existen en ciertas versiones.
     try {
       await (_player.platform as dynamic).setProperty(clave, valor);
-    } catch (e) { debugPrint("[App] $e"); }
+    } catch (e) {
+      debugPrint("[App] $e");
+    }
   }
 
   @override

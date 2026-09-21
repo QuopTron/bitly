@@ -15,30 +15,29 @@ part of 'settings_sheet_new.dart';
 
 /// Nombre localizado de un tipo de contenido.
 String _etiquetaTipo(AppLocalizations loc, TipoEscucha t) => switch (t) {
-      TipoEscucha.canciones => loc.estadisticas.tipoCanciones,
-      TipoEscucha.albumes => loc.estadisticas.tipoAlbumes,
-      TipoEscucha.artistas => loc.estadisticas.tipoArtistas,
-      TipoEscucha.playlists => loc.estadisticas.tipoPlaylists,
-    };
+  TipoEscucha.canciones => loc.estadisticas.tipoCanciones,
+  TipoEscucha.albumes => loc.estadisticas.tipoAlbumes,
+  TipoEscucha.artistas => loc.estadisticas.tipoArtistas,
+  TipoEscucha.playlists => loc.estadisticas.tipoPlaylists,
+};
 
 /// Nombre localizado de un rango temporal.
 String _etiquetaRango(AppLocalizations loc, RangoEscucha rg) => switch (rg) {
-      RangoEscucha.hoy => loc.estadisticas.rangoHoy,
-      RangoEscucha.sieteDias => loc.estadisticas.rango7Dias,
-      RangoEscucha.treintaDias => loc.estadisticas.rango30Dias,
-      RangoEscucha.unAnio => loc.estadisticas.rango1Anio,
-      RangoEscucha.todo => loc.estadisticas.rangoTodo,
-    };
+  RangoEscucha.hoy => loc.estadisticas.rangoHoy,
+  RangoEscucha.sieteDias => loc.estadisticas.rango7Dias,
+  RangoEscucha.treintaDias => loc.estadisticas.rango30Dias,
+  RangoEscucha.unAnio => loc.estadisticas.rango1Anio,
+  RangoEscucha.todo => loc.estadisticas.rangoTodo,
+};
 
 /// Nombre localizado de un orden.
 String _etiquetaOrden(AppLocalizations loc, OrdenEscucha o) => switch (o) {
-      OrdenEscucha.masReproducidas => loc.estadisticas.ordenMasReproducidas,
-      OrdenEscucha.menosReproducidas =>
-        loc.estadisticas.ordenMenosReproducidas,
-      OrdenEscucha.recientes => loc.estadisticas.ordenRecientes,
-      OrdenEscucha.az => loc.estadisticas.ordenAz,
-      OrdenEscucha.za => loc.estadisticas.ordenZa,
-    };
+  OrdenEscucha.masReproducidas => loc.estadisticas.ordenMasReproducidas,
+  OrdenEscucha.menosReproducidas => loc.estadisticas.ordenMenosReproducidas,
+  OrdenEscucha.recientes => loc.estadisticas.ordenRecientes,
+  OrdenEscucha.az => loc.estadisticas.ordenAz,
+  OrdenEscucha.za => loc.estadisticas.ordenZa,
+};
 
 /// Encabezado compacto: título, cuántos ítems entran y el tiempo total.
 class _EncabezadoDetalle extends StatelessWidget {

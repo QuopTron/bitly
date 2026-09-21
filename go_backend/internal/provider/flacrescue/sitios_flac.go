@@ -30,6 +30,11 @@ import (
 // existe en ningún catálogo y el sitio responde con búsqueda aproximada).
 var errSinCoincidencia = errors.New("sin coincidencia verificable")
 
+// errSitioSinCuentas lo devuelve un sitio cuando avisa que su pool de
+// credenciales quedó sin cuentas vivas (arcod vive de tokens de Qobuz
+// propios). Con eso el canal lo marca y lo saltea unos minutos en vez de
+// pagar su espera completa en cada canción.
+
 // sitioFLAC es un sitio raspable con protocolo propio.
 type sitioFLAC interface {
 	nombre() string

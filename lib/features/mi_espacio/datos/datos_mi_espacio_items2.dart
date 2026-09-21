@@ -12,19 +12,24 @@
 part of 'datos_mi_espacio.dart';
 
 /// Pestaña Álbumes: likes + lotes descargados 'album_' (dedup).
-List<Item> _itemsAlbumes(EstadoLikes estado, CubitDescargas? dl) {
+List<Item> _itemsAlbumes(
+  EstadoLikes estado,
+  CubitDescargas? dl,
+  Map<String, DatoBiblioteca> biblioteca,
+) {
   final vistosId = <String>{};
   final vistosClave = <String>{};
   final albumes = <Item>[];
   final idsAmados = <String>{};
   for (final i in estado.todosAmados.values.where((i) => i.type == 'album')) {
     final normId = normalizarIdTrack(i.id);
-    final clave = '${_normalizarNombre(i.name)}|${_normalizarNombre(i.artists ?? '')}';
+    final clave =
+        '${_normalizarNombre(i.name)}|${_normalizarNombre(i.artists ?? '')}';
     if (vistosId.contains(normId) || vistosClave.contains(clave)) continue;
     vistosId.add(normId);
     vistosClave.add(clave);
     idsAmados.add(normId);
-    albumes.add(_itemDesdeAmado(i, TipoItem.album));
+    albumes.add(_itemDesdeAmado(i, TipoItem.album, biblioteca));
   }
   if (dl != null) {
     for (final entry in dl.state.descargas.entries) {
@@ -36,30 +41,40 @@ List<Item> _itemsAlbumes(EstadoLikes estado, CubitDescargas? dl) {
       final albumId = parts.sublist(1, parts.length - 1).join('_');
       final normId = normalizarIdTrack(albumId);
       final nombre = dl.nombreLotePara(entry.key);
-      final clave = '${_normalizarNombre(nombre.isNotEmpty ? nombre : albumId)}|$src';
+      final clave =
+          '${_normalizarNombre(nombre.isNotEmpty ? nombre : albumId)}|$src';
       if (vistosId.contains(normId) || vistosClave.contains(clave)) continue;
       vistosId.add(normId);
       vistosClave.add(clave);
       final caratula = dl.caratulaLotePara(entry.key);
-      albumes.add(Item(
-        nombre.isNotEmpty ? nombre : albumId,
-        src,
-        TipoItem.album,
-        coverUrl: caratula.isNotEmpty ? caratula : null,
-        idReal: albumId,
-        fuente: src,
-        origen: idsAmados.contains(normId) ? OrigenItem.amado : OrigenItem.descargado,
-      ));
+      final bib = biblioteca[normId];
+      albumes.add(
+        Item(
+          nombreDeItem(nombre, bib, respaldo: albumId),
+          src,
+          TipoItem.album,
+          coverUrl: caratulaDeItem(caratula, bib),
+          idReal: albumId,
+          fuente: src,
+          origen:
+              idsAmados.contains(normId)
+                  ? OrigenItem.amado
+                  : OrigenItem.descargado,
+        ),
+      );
     }
   }
   return albumes;
 }
 
 /// Pestaña Artistas: likes de artistas (dedup por ID normalizado).
-List<Item> _itemsArtistas(EstadoLikes estado) {
+List<Item> _itemsArtistas(
+  EstadoLikes estado,
+  Map<String, DatoBiblioteca> biblioteca,
+) {
   final vistos = <String>{};
   return estado.todosAmados.values
       .where((i) => i.type == 'artist' && vistos.add(normalizarIdTrack(i.id)))
-      .map((i) => _itemDesdeAmado(i, TipoItem.artista))
+      .map((i) => _itemDesdeAmado(i, TipoItem.artista, biblioteca))
       .toList();
 }

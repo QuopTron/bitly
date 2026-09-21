@@ -11,45 +11,39 @@ CompartidoRecibido _entrada({
   String isrc = 'USUM71703861',
   String nombre = 'Todo de Ti',
   int minuto = 0,
-}) =>
-    CompartidoRecibido(
-      datos: DatosCompartido(
-        isrc: isrc,
-        nombre: nombre,
-        artista: 'Rauw Alejandro',
-        emisor: emisor,
-      ),
-      fecha: DateTime(2026, 9, 15, 12, minuto),
-    );
+}) => CompartidoRecibido(
+  datos: DatosCompartido(
+    isrc: isrc,
+    nombre: nombre,
+    artista: 'Rauw Alejandro',
+    emisor: emisor,
+  ),
+  fecha: DateTime(2026, 9, 15, 12, minuto),
+);
 
 void main() {
   group('nuevoHistorial', () {
     test('lo nuevo va primero', () {
-      final lista = nuevoHistorial(
-        [_entrada(nombre: 'Vieja', isrc: 'AAA')],
-        _entrada(nombre: 'Nueva', isrc: 'BBB'),
-      );
+      final lista = nuevoHistorial([
+        _entrada(nombre: 'Vieja', isrc: 'AAA'),
+      ], _entrada(nombre: 'Nueva', isrc: 'BBB'));
       expect(lista.first.datos.nombre, 'Nueva');
       expect(lista.length, 2);
     });
 
     test('no repite la misma canción del mismo emisor: la reubica', () {
-      final lista = nuevoHistorial(
-        [
-          _entrada(nombre: 'Otra', isrc: 'AAA'),
-          _entrada(nombre: 'Todo de Ti', isrc: 'USUM71703861'),
-        ],
-        _entrada(),
-      );
+      final lista = nuevoHistorial([
+        _entrada(nombre: 'Otra', isrc: 'AAA'),
+        _entrada(nombre: 'Todo de Ti', isrc: 'USUM71703861'),
+      ], _entrada());
       expect(lista.length, 2);
       expect(lista.first.datos.isrc, 'USUM71703861');
     });
 
     test('la misma canción de otro emisor sí se guarda aparte', () {
-      final lista = nuevoHistorial(
-        [_entrada(emisor: 'Ana')],
-        _entrada(emisor: 'Pablo'),
-      );
+      final lista = nuevoHistorial([
+        _entrada(emisor: 'Ana'),
+      ], _entrada(emisor: 'Pablo'));
       expect(lista.length, 2);
     });
 

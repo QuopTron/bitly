@@ -46,8 +46,9 @@ class FilaControlesReproductor extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final apagado =
-        (esOscuro ? Colors.white : Colors.black).withValues(alpha: 0.45);
+    final apagado = (esOscuro ? Colors.white : Colors.black).withValues(
+      alpha: 0.45,
+    );
     final activo = esOscuro ? Colors.white : Colors.black;
     final iconoM = r.subtitleSize + 7;
     final iconoL = r.subtitleSize + 13;
@@ -83,7 +84,11 @@ class BotonPlayReproductor extends StatelessWidget {
   final Responsive r;
   final Color activo;
 
-  const BotonPlayReproductor({super.key, required this.r, required this.activo});
+  const BotonPlayReproductor({
+    super.key,
+    required this.r,
+    required this.activo,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -99,30 +104,29 @@ class BotonPlayReproductor extends StatelessWidget {
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           color: activo.withValues(alpha: 0.12),
-          border: Border.all(
-            color: activo.withValues(alpha: 0.15),
-            width: 0.5,
-          ),
+          border: Border.all(color: activo.withValues(alpha: 0.15), width: 0.5),
         ),
-        child: reproductor.estadoReproduccion == EstadoReproduccion.buffering
-            ? Center(
-                child: SizedBox(
-                  width: r.subtitleSize + 4,
-                  height: r.subtitleSize + 4,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 3,
-                    valueColor:
-                        AlwaysStoppedAnimation(activo.withValues(alpha: 0.7)),
+        child:
+            reproductor.estadoReproduccion == EstadoReproduccion.buffering
+                ? Center(
+                  child: SizedBox(
+                    width: r.subtitleSize + 4,
+                    height: r.subtitleSize + 4,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 3,
+                      valueColor: AlwaysStoppedAnimation(
+                        activo.withValues(alpha: 0.7),
+                      ),
+                    ),
                   ),
+                )
+                : Icon(
+                  reproductor.estaReproduciendo
+                      ? Icons.pause_rounded
+                      : Icons.play_arrow_rounded,
+                  color: activo,
+                  size: r.subtitleSize + 18,
                 ),
-              )
-            : Icon(
-                reproductor.estaReproduciendo
-                    ? Icons.pause_rounded
-                    : Icons.play_arrow_rounded,
-                color: activo,
-                size: r.subtitleSize + 18,
-              ),
       ),
     );
   }

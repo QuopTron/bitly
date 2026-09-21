@@ -126,7 +126,11 @@ class StringsSetup {
       perfHigh,
       perfLowDesc,
       perfMediumDesc,
-      perfHighDesc;
+      perfHighDesc,
+      performanceHelp,
+      audioFondoTitulo,
+      audioFondoDesc,
+      audioQualityHelp;
   final String enabled, disabled;
   final String downloadProviderPriority,
       downloadProviderPriorityDesc,
@@ -143,6 +147,12 @@ class StringsSetup {
   final String playlistNameHint;
   final String nuevaPlaylist, crear, seleccionarPlaylist, crearNuevaPlaylist;
   final String crearYAgregar, agregadoAPlaylist;
+  final String playlistEdit, playlistCover, playlistChangeCover;
+  final String playlistAddLiked, playlistAddDownloaded, playlistEmpty;
+  final String playlistEmptyHint, playlistRemove, playlistSaved;
+  final String playlistNameNeeded, playlistSaveFailed;
+  final String playlistNoLiked, playlistNoDownloads;
+  final String save, optionalField;
   // ── Level / Stats ──────────────────────────────────────────
   final String level;
   final String nextLevel;
@@ -175,12 +185,33 @@ class StringsSetup {
   final String ok;
 
   // Profile / stats
-  final String profileTitle, totalPlays, uniqueTracks, uniqueArtists, listeningTime, downloadedSongs, mostPlayed;
+  final String profileTitle,
+      totalPlays,
+      uniqueTracks,
+      uniqueArtists,
+      listeningTime,
+      downloadedSongs,
+      mostPlayed;
   // Version sheet
-  final String versions, installed, latestVersion, newAvailable, download, downloading, upToDate, downloadError;
+  final String versions,
+      installed,
+      latestVersion,
+      newAvailable,
+      download,
+      downloading,
+      upToDate,
+      downloadError;
   final String reproductions;
   // Report a bug / suggestion
-  final String reportBug, reportDesc, reportTypeBug, reportTypeSuggestion, reportTitle, reportBody, reportSend, reportSent, reportFailed;
+  final String reportBug,
+      reportDesc,
+      reportTypeBug,
+      reportTypeSuggestion,
+      reportTitle,
+      reportBody,
+      reportSend,
+      reportSent,
+      reportFailed;
 
   const StringsSetup({
     required this.selectLanguage,
@@ -338,6 +369,10 @@ class StringsSetup {
     required this.perfLowDesc,
     required this.perfMediumDesc,
     required this.perfHighDesc,
+    required this.performanceHelp,
+    required this.audioFondoTitulo,
+    required this.audioFondoDesc,
+    required this.audioQualityHelp,
     required this.enabled,
     required this.disabled,
     required this.downloadProviderPriority,
@@ -358,6 +393,21 @@ class StringsSetup {
     required this.crearNuevaPlaylist,
     required this.crearYAgregar,
     required this.agregadoAPlaylist,
+    required this.playlistEdit,
+    required this.playlistCover,
+    required this.playlistChangeCover,
+    required this.playlistAddLiked,
+    required this.playlistAddDownloaded,
+    required this.playlistEmpty,
+    required this.playlistEmptyHint,
+    required this.playlistRemove,
+    required this.playlistSaved,
+    required this.playlistNameNeeded,
+    required this.playlistSaveFailed,
+    required this.playlistNoLiked,
+    required this.playlistNoDownloads,
+    required this.save,
+    required this.optionalField,
     required this.level,
     required this.nextLevel,
     required this.share,
@@ -585,6 +635,13 @@ class StringsSetup {
     perfLowDesc: 'Best battery life and RAM. Fewer downloads, lighter audio.',
     perfMediumDesc: 'Balanced for most devices.',
     perfHighDesc: 'Maximum quality and speed for powerful hardware.',
+    performanceHelp:
+        'Pick how to balance quality and usage for your device: the profile tunes audio, concurrency and blur effects.',
+    audioFondoTitulo: 'Background audio',
+    audioFondoDesc:
+        'Music keeps playing even when another app is using audio (great for gaming while you listen).',
+    audioQualityHelp:
+        'The quality each song is downloaded at. It is used when FLAC is not available.',
     enabled: 'Enabled',
     disabled: 'Disabled',
     downloadProviderPriority: 'Download provider priority',
@@ -608,6 +665,21 @@ class StringsSetup {
     crearNuevaPlaylist: 'Create new playlist',
     crearYAgregar: 'Create and add',
     agregadoAPlaylist: 'Added to "{name}"',
+    playlistEdit: 'Edit playlist',
+    playlistCover: 'Cover',
+    playlistChangeCover: 'Change cover',
+    playlistAddLiked: 'Add liked',
+    playlistAddDownloaded: 'Add downloaded',
+    playlistEmpty: 'No songs yet',
+    playlistEmptyHint: 'Add your liked or downloaded songs',
+    playlistRemove: 'Remove',
+    playlistSaved: 'Playlist saved',
+    playlistNoLiked: 'You have no liked songs yet',
+    playlistNoDownloads: 'You have no downloaded songs yet',
+    playlistNameNeeded: 'Write a name first',
+    playlistSaveFailed: 'Could not save the playlist',
+    save: 'Save',
+    optionalField: 'Optional',
     level: 'Level',
     nextLevel: 'Next level',
     share: 'Share',
@@ -635,7 +707,8 @@ class StringsSetup {
     settingsServicesLabel: 'Services',
     settingsStatsLabel: 'Statistics',
     downloadDecryptFailed:
-        'A download could not be decrypted after several attempts. Retry the download; if it persists, the source served an invalid file.',    ok: 'OK',
+        'A download could not be decrypted after several attempts. Retry the download; if it persists, the source served an invalid file.',
+    ok: 'OK',
     profileTitle: 'Profile',
     totalPlays: 'Total plays',
     uniqueTracks: 'Unique tracks',
@@ -653,7 +726,8 @@ class StringsSetup {
     downloadError: 'Download error',
     reproductions: 'plays',
     reportBug: 'Report a bug',
-    reportDesc: 'Send bug reports and suggestions straight to the developer on GitHub.',
+    reportDesc:
+        'Send bug reports and suggestions straight to the developer on GitHub.',
     reportTypeBug: 'Bug',
     reportTypeSuggestion: 'Suggestion',
     reportTitle: 'Title',
@@ -837,6 +911,13 @@ class StringsSetup {
     perfLowDesc: 'Máxima batería y RAM. Menos descargas, audio más ligero.',
     perfMediumDesc: 'Equilibrado para la mayoría de dispositivos.',
     perfHighDesc: 'Máxima calidad y velocidad para hardware potente.',
+    performanceHelp:
+        'Elegí cómo balancear calidad y consumo según tu equipo: el perfil ajusta el audio, la concurrencia y los desenfoques.',
+    audioFondoTitulo: 'Audio en segundo plano',
+    audioFondoDesc:
+        'La música sigue sonando aunque otra app tenga audio (ideal para jugar mientras escuchás).',
+    audioQualityHelp:
+        'Con qué calidad se baja cada canción. Se usa cuando no hay FLAC.',
     enabled: 'Activado',
     disabled: 'Desactivado',
     downloadProviderPriority: 'Prioridad de proveedores de descarga',
@@ -860,6 +941,21 @@ class StringsSetup {
     crearNuevaPlaylist: 'Crear nueva playlist',
     crearYAgregar: 'Crear y agregar',
     agregadoAPlaylist: 'Agregado a "{name}"',
+    playlistEdit: 'Editar playlist',
+    playlistCover: 'Portada',
+    playlistChangeCover: 'Cambiar portada',
+    playlistAddLiked: 'Agregar likeadas',
+    playlistAddDownloaded: 'Agregar descargadas',
+    playlistEmpty: 'Todavía no hay canciones',
+    playlistEmptyHint: 'Agrega tus canciones likeadas o descargadas',
+    playlistRemove: 'Quitar',
+    playlistSaved: 'Playlist guardada',
+    playlistNoLiked: 'Todavía no tenés canciones likeadas',
+    playlistNoDownloads: 'Todavía no tenés canciones descargadas',
+    playlistNameNeeded: 'Escribe un nombre primero',
+    playlistSaveFailed: 'No se pudo guardar la playlist',
+    save: 'Guardar',
+    optionalField: 'Opcional',
     level: 'Nivel',
     nextLevel: 'Siguiente nivel',
     share: 'Compartir',
@@ -906,7 +1002,8 @@ class StringsSetup {
     downloadError: 'Error al descargar',
     reproductions: 'reproducciones',
     reportBug: 'Reportar un bug',
-    reportDesc: 'Envía reportes de bugs y sugerencias directo al desarrollador en GitHub.',
+    reportDesc:
+        'Envía reportes de bugs y sugerencias directo al desarrollador en GitHub.',
     reportTypeBug: 'Bug',
     reportTypeSuggestion: 'Sugerencia',
     reportTitle: 'Título',

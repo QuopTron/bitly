@@ -36,8 +36,16 @@ class DetalleArtista {
       name: json['name'] as String? ?? '',
       imageUrl: json['imageUrl'] as String?,
       imagePath: json['imagePath'] as String?,
-      topTracks: rawTracks.map((e) => TrackDetalle.desdeJson(e as Map<String, dynamic>)).toList(),
-      topAlbums: rawAlbums.map((e) => DetalleAlbumLigero.desdeJson(e as Map<String, dynamic>)).toList(),
+      topTracks:
+          rawTracks
+              .map((e) => TrackDetalle.desdeJson(e as Map<String, dynamic>))
+              .toList(),
+      topAlbums:
+          rawAlbums
+              .map(
+                (e) => DetalleAlbumLigero.desdeJson(e as Map<String, dynamic>),
+              )
+              .toList(),
     );
   }
 

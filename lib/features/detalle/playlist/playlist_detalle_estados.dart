@@ -27,8 +27,11 @@ Widget _estadoVacioPlaylist(
         if (st._error)
           TextButton.icon(
             onPressed: () => _cargarDetallePlaylist(st),
-            icon: Icon(Icons.refresh,
-                size: 18, color: colorSuperficie.withValues(alpha: 0.6)),
+            icon: Icon(
+              Icons.refresh,
+              size: 18,
+              color: colorSuperficie.withValues(alpha: 0.6),
+            ),
             label: Text(
               loc.setup.retry,
               style: TextStyle(color: colorSuperficie.withValues(alpha: 0.6)),

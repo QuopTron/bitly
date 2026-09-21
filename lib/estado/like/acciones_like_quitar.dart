@@ -14,7 +14,8 @@ part of 'cubit_like.dart';
 /// `on AccionesLike` garantiza acceso a sus miembros (backend, _fav, ...).
 mixin AccionesLikeQuitar on AccionesLike {
   DownloadDao? _daoDescargas;
-  DownloadDao get _downloadDao => _daoDescargas ??= DownloadDao(di.sl<AppDatabase>());
+  DownloadDao get _downloadDao =>
+      _daoDescargas ??= DownloadDao(di.sl<AppDatabase>());
 
   /// Implementación del método abstracto declarado en [AccionesLike].
   @override
@@ -25,9 +26,14 @@ mixin AccionesLikeQuitar on AccionesLike {
       // historial de descargas, y los álbumes/playlists miran si aún existe el
       // batch descargado (un like de un álbum descargado conserva su portada
       // en Mi Espacio aunque se quite el corazón).
-      final aunNecesaria = item.type == 'track'
-          ? await _estaTrackDescargado(item)
-          : await _estaColeccionDescargada(item.type, item.id, item.source ?? '');
+      final aunNecesaria =
+          item.type == 'track'
+              ? await _estaTrackDescargado(item)
+              : await _estaColeccionDescargada(
+                item.type,
+                item.id,
+                item.source ?? '',
+              );
       if (!aunNecesaria) {
         unawaited(backend.deleteCover(item.coverUrl!));
       }
@@ -45,44 +51,56 @@ mixin AccionesLikeQuitar on AccionesLike {
       if (efp != null && efp != fp) huellasMuertas.add(efp);
     }
 
-    final nuevasHuellas = Set<String>.from(state.huellasAmadas)..removeAll(huellasMuertas);
-    final nuevosItems = Map<String, DatosItemAmado>.from(state.todosAmados)..remove(item.id);
+    final nuevasHuellas = Set<String>.from(state.huellasAmadas)
+      ..removeAll(huellasMuertas);
+    final nuevosItems = Map<String, DatosItemAmado>.from(state.todosAmados)
+      ..remove(item.id);
 
-    emit(state.copiarCon(huellasAmadas: nuevasHuellas, todosAmados: nuevosItems));
+    emit(
+      state.copiarCon(huellasAmadas: nuevasHuellas, todosAmados: nuevosItems),
+    );
 
     _invalidarCacheDetalle(item.id, item.type);
 
     switch (item.type) {
       case 'track':
-        unawaited(_fav.alternarTrackAmado(
-          trackId: item.id,
-          trackName: item.name,
-          artistName: item.artists ?? '',
-          liked: false,
-        ));
+        unawaited(
+          _fav.alternarTrackAmado(
+            trackId: item.id,
+            trackName: item.name,
+            artistName: item.artists ?? '',
+            liked: false,
+          ),
+        );
       case 'album':
-        unawaited(_fav.alternarAlbumFavorito(
-          albumId: item.id,
-          name: item.name,
-          artistId: item.artists ?? '',
-          artistName: item.artists ?? '',
-          coverUrl: item.coverUrl ?? '',
-          liked: false,
-        ));
+        unawaited(
+          _fav.alternarAlbumFavorito(
+            albumId: item.id,
+            name: item.name,
+            artistId: item.artists ?? '',
+            artistName: item.artists ?? '',
+            coverUrl: item.coverUrl ?? '',
+            liked: false,
+          ),
+        );
       case 'artist':
-        unawaited(_fav.alternarArtistaFavorito(
-          artistId: item.id,
-          name: item.name,
-          imageUrl: item.coverUrl ?? '',
-          liked: false,
-        ));
+        unawaited(
+          _fav.alternarArtistaFavorito(
+            artistId: item.id,
+            name: item.name,
+            imageUrl: item.coverUrl ?? '',
+            liked: false,
+          ),
+        );
       case 'playlist':
-        unawaited(_fav.alternarPlaylistFavorita(
-          playlistId: item.id,
-          name: item.name,
-          coverUrl: item.coverUrl,
-          liked: false,
-        ));
+        unawaited(
+          _fav.alternarPlaylistFavorita(
+            playlistId: item.id,
+            name: item.name,
+            coverUrl: item.coverUrl,
+            liked: false,
+          ),
+        );
     }
   }
 
@@ -105,7 +123,11 @@ mixin AccionesLikeQuitar on AccionesLike {
   /// descargado (su carátula se sigue mostrando en Mi Espacio). Reintenta con
   /// source vacío porque el batch puede estar guardado con otro nombre de
   /// extensión.
-  Future<bool> _estaColeccionDescargada(String type, String id, String source) async {
+  Future<bool> _estaColeccionDescargada(
+    String type,
+    String id,
+    String source,
+  ) async {
     try {
       final normalizado = normalizarId(id);
       var batch = await _downloadDao.getBatchByItem(type, normalizado, source);

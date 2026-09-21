@@ -5,7 +5,8 @@ void main() {
   group('resultadoOauthDesdeUrl', () {
     test('parses code + state from spotiflac://callback', () {
       final r = resultadoOauthDesdeUrl(
-          'spotiflac://callback?code=AQB123XYZ&state=pkce_state_1');
+        'spotiflac://callback?code=AQB123XYZ&state=pkce_state_1',
+      );
       expect(r, isNotNull);
       expect(r!.code, 'AQB123XYZ');
       expect(r.state, 'pkce_state_1');
@@ -16,7 +17,8 @@ void main() {
 
     test('parses error + state (user denied)', () {
       final r = resultadoOauthDesdeUrl(
-          'spotiflac://callback?error=access_denied&state=pkce_state_1');
+        'spotiflac://callback?error=access_denied&state=pkce_state_1',
+      );
       expect(r, isNotNull);
       expect(r!.error, 'access_denied');
       expect(r.state, 'pkce_state_1');
@@ -26,8 +28,7 @@ void main() {
     });
 
     test('accepts any scheme as long as host is callback', () {
-      final r = resultadoOauthDesdeUrl(
-          'bitly://callback?code=XYZ&state=s');
+      final r = resultadoOauthDesdeUrl('bitly://callback?code=XYZ&state=s');
       expect(r, isNotNull);
       expect(r!.code, 'XYZ');
     });
@@ -42,7 +43,8 @@ void main() {
     test('null for non-callback hosts', () {
       expect(
         resultadoOauthDesdeUrl(
-            'https://accounts.spotify.com/authorize?client_id=x'),
+          'https://accounts.spotify.com/authorize?client_id=x',
+        ),
         isNull,
       );
     });

@@ -14,21 +14,25 @@ part of 'contenido_mi_espacio.dart';
 
 /// Lista de canciones amadas/descargadas con swipe-para-cola y acciones.
 Widget _vistaCanciones(
-    ContenidoMiEspacio c, BuildContext context, Responsive r) {
+  ContenidoMiEspacio c,
+  BuildContext context,
+  Responsive r,
+) {
   final likeCubit = context.read<CubitLikes>();
   final dlCubit = context.read<CubitDescargas>();
-  final feedItems = c.items
-      .map(
-        (s) => ItemFeed(
-          id: s.idReal,
-          type: 'track',
-          name: s.titulo,
-          artists: s.subtitulo,
-          coverUrl: s.coverUrl,
-          source: s.fuente.isNotEmpty ? s.fuente : null,
-        ),
-      )
-      .toList();
+  final feedItems =
+      c.items
+          .map(
+            (s) => ItemFeed(
+              id: s.idReal,
+              type: 'track',
+              name: s.titulo,
+              artists: s.subtitulo,
+              coverUrl: s.coverUrl,
+              source: s.fuente.isNotEmpty ? s.fuente : null,
+            ),
+          )
+          .toList();
 
   // Solo padding vertical: la tarjeta ya aporta su margen lateral, así el
   // gap es idéntico al de búsqueda/feed/detalle. Builder perezoso: solo se
@@ -39,8 +43,16 @@ Widget _vistaCanciones(
       bottom: r.spacingS + r.val(120, 100, 150),
     ),
     itemCount: feedItems.length,
-    itemBuilder: (context, index) =>
-        _tarjetaCancion(c, context, r, index, feedItems, likeCubit, dlCubit),
+    itemBuilder:
+        (context, index) => _tarjetaCancion(
+          c,
+          context,
+          r,
+          index,
+          feedItems,
+          likeCubit,
+          dlCubit,
+        ),
   );
 }
 
@@ -59,8 +71,10 @@ Widget _tarjetaCancion(
   final id = 'track_${normalizarIdTrack(feedItem.id)}_${feedItem.source ?? ''}';
 
   // Carátula local de la descarga → like → lote dueño → URL remota.
-  final caratulaDescarga =
-      dlCubit.caratulaTrackLocal(feedItem.id, feedItem.source ?? '');
+  final caratulaDescarga = dlCubit.caratulaTrackLocal(
+    feedItem.id,
+    feedItem.source ?? '',
+  );
   final caratulaLike = likeCubit.caratulaLocalPara(feedItem);
   String? caratulaLote;
   if (caratulaDescarga == null &&
@@ -97,7 +111,9 @@ Widget _tarjetaCancion(
     key: ValueKey(
       'track_${normalizarIdTrack(feedItem.id)}_${feedItem.source ?? ''}',
     ),
-    padding: EdgeInsets.only(bottom: r.spacingXS),
+    padding: EdgeInsets.only(
+      bottom: r.spacingXS * AparienciaEspacios.espacioY(context),
+    ),
     child: TarjetaTrack(
       item: feedItem,
       titulo: feedItem.name,
@@ -125,14 +141,14 @@ Widget _tarjetaCancion(
       onBorrar:
           dlCubit.estadoDescargaPara(id).estado == EstadoDescarga.completado
               ? () => dlCubit.borrarTrackResuelto(
-                    ItemFeed(
-                      id: s.idReal,
-                      type: 'track',
-                      name: s.titulo,
-                      artists: s.subtitulo,
-                      source: s.fuente,
-                    ),
-                  )
+                ItemFeed(
+                  id: s.idReal,
+                  type: 'track',
+                  name: s.titulo,
+                  artists: s.subtitulo,
+                  source: s.fuente,
+                ),
+              )
               : null,
       onInfo: () => mostrarInfoCancion(context, feedItem),
       onMas: () => mostrarAgregarA(context, feedItem),

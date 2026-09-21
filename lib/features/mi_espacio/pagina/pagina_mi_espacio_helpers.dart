@@ -39,6 +39,7 @@ String _resolverFuente(_PaginaMiEspacioState st, Item item) {
   }
   return '';
 }
+
 /// Aplica búsqueda de texto y filtros/orden a la lista de ítems.
 List<Item> _aplicarBusquedaYFiltros(
   List<Item> items,
@@ -51,53 +52,68 @@ List<Item> _aplicarBusquedaYFiltros(
 
   // Búsqueda por texto (título, subtítulo, fuente).
   if (texto.isNotEmpty) {
-    resultado = resultado.where((item) {
-      final busca = '$texto ${item.titulo} ${item.subtitulo} ${item.fuente}'
-          .toLowerCase();
-      return busca.contains(texto);
-    }).toList();
+    resultado =
+        resultado.where((item) {
+          final busca =
+              '$texto ${item.titulo} ${item.subtitulo} ${item.fuente}'
+                  .toLowerCase();
+          return busca.contains(texto);
+        }).toList();
   }
 
   // Filtros de origen.
   final dlCubit = st.context.read<CubitDescargas>();
   final huellasDesc = dlCubit.state.huellasDescargadas;
   if (filtros.soloAmados) {
-    resultado = resultado.where((item) {
-      return estadoLike.todosAmados.keys.any(
-        (rawId) => normalizarIdTrack(rawId) == normalizarIdTrack(item.idReal),
-      );
-    }).toList();
+    resultado =
+        resultado.where((item) {
+          return estadoLike.todosAmados.keys.any(
+            (rawId) =>
+                normalizarIdTrack(rawId) == normalizarIdTrack(item.idReal),
+          );
+        }).toList();
   }
   if (filtros.soloDescargados) {
-    resultado = resultado.where((item) {
-      final normId = normalizarIdTrack(item.idReal);
-      final prefijo = '${tipoParaPestana(st._pestanaSeleccionada)}_${normId}_';
-      final tieneDescarga = dlCubit.state.descargas.keys.any(
-        (k) => k.startsWith(prefijo),
-      );
-      return tieneDescarga ||
-          huellasDesc.contains(huellaItem(ItemFeed(
-            id: item.idReal, type: tipoParaPestana(st._pestanaSeleccionada),
-            name: item.titulo, artists: item.subtitulo,
-            source: item.fuente,
-          )));
-    }).toList();
+    resultado =
+        resultado.where((item) {
+          final normId = normalizarIdTrack(item.idReal);
+          final prefijo =
+              '${tipoParaPestana(st._pestanaSeleccionada)}_${normId}_';
+          final tieneDescarga = dlCubit.state.descargas.keys.any(
+            (k) => k.startsWith(prefijo),
+          );
+          return tieneDescarga ||
+              huellasDesc.contains(
+                huellaItem(
+                  ItemFeed(
+                    id: item.idReal,
+                    type: tipoParaPestana(st._pestanaSeleccionada),
+                    name: item.titulo,
+                    artists: item.subtitulo,
+                    source: item.fuente,
+                  ),
+                ),
+              );
+        }).toList();
   }
   // soloConPlaylist filtra por playlists.
   if (filtros.soloConPlaylist) {
-    resultado = resultado.where((item) {
-      return item.tipo == TipoItem.playlist;
-    }).toList();
+    resultado =
+        resultado.where((item) {
+          return item.tipo == TipoItem.playlist;
+        }).toList();
   }
 
   // Orden.
   switch (filtros.modoOrden) {
     case ModoOrden.az:
-      resultado.sort((a, b) =>
-          a.titulo.toLowerCase().compareTo(b.titulo.toLowerCase()));
+      resultado.sort(
+        (a, b) => a.titulo.toLowerCase().compareTo(b.titulo.toLowerCase()),
+      );
     case ModoOrden.azInvertido:
-      resultado.sort((a, b) =>
-          b.titulo.toLowerCase().compareTo(a.titulo.toLowerCase()));
+      resultado.sort(
+        (a, b) => b.titulo.toLowerCase().compareTo(a.titulo.toLowerCase()),
+      );
     case ModoOrden.masEscuchados:
       resultado.sort((a, b) {
         final ra = st._contadoresReproduccion[a.idReal] ?? 0;

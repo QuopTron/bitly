@@ -65,13 +65,15 @@ class BarraPestanasMiEspacio extends StatelessWidget {
                   curve: Curves.easeOutCubic,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(20),
-                    color: seleccionada
-                        ? colorBrillo.withValues(alpha: 0.15)
-                        : Colors.transparent,
+                    color:
+                        seleccionada
+                            ? colorBrillo.withValues(alpha: 0.15)
+                            : Colors.transparent,
                     border: Border.all(
-                      color: seleccionada
-                          ? colorBrillo.withValues(alpha: 0.5)
-                          : onBg.withValues(alpha: 0.1),
+                      color:
+                          seleccionada
+                              ? colorBrillo.withValues(alpha: 0.5)
+                              : onBg.withValues(alpha: 0.1),
                       width: seleccionada ? 1.0 : 0.6,
                     ),
                   ),
@@ -85,9 +87,10 @@ class BarraPestanasMiEspacio extends StatelessWidget {
                       Icon(
                         p.icono,
                         size: r.footerSize + 1,
-                        color: seleccionada
-                            ? colorBrillo
-                            : onBg.withValues(alpha: 0.45),
+                        color:
+                            seleccionada
+                                ? colorBrillo
+                                : onBg.withValues(alpha: 0.45),
                       ),
                       SizedBox(width: r.spacingXS),
                       Text(
@@ -95,10 +98,13 @@ class BarraPestanasMiEspacio extends StatelessWidget {
                         style: TextStyle(
                           fontSize: r.footerSize,
                           fontWeight:
-                              seleccionada ? FontWeight.w600 : FontWeight.normal,
-                          color: seleccionada
-                              ? colorBrillo
-                              : onBg.withValues(alpha: 0.45),
+                              seleccionada
+                                  ? FontWeight.w600
+                                  : FontWeight.normal,
+                          color:
+                              seleccionada
+                                  ? colorBrillo
+                                  : onBg.withValues(alpha: 0.45),
                         ),
                       ),
                     ],

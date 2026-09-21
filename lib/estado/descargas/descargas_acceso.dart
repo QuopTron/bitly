@@ -62,40 +62,43 @@ mixin DescargasAcceso on DescargasLoteFinalizar {
     for (final ch in invalid) {
       result = result.replaceAll(ch, '_');
     }
-    result = result.replaceAll(RegExp(r'^[. ]+'), '').replaceAll(RegExp(r'[. ]+$'), '');
+    result = result
+        .replaceAll(RegExp(r'^[. ]+'), '')
+        .replaceAll(RegExp(r'[. ]+$'), '');
     return result.isEmpty ? 'unknown' : result;
   }
 
-  /// Mejor carátula disponible de un track descargado: ruta local (si se
-  /// guardó) → URL remota → null.
+  /// Mejor carátula disponible de un track descargado: ruta local VIVA (si
+  /// se guardó y sigue en disco) → URL remota → null. Una ruta local muerta
+  /// no gana: dejaría la tarjeta gris con la URL remota disponible.
   String? caratulaTrackLocal(String trackId, String source) {
     final key = 'track_${normalizarId(trackId)}_$source';
     final meta = _metaTrack[key];
-    return meta?.coverPath ?? meta?.coverUrl;
+    return mejorCaratula(meta?.coverPath, meta?.coverUrl);
   }
 
   /// Nombre almacenado de un lote (álbum/playlist), o vacío.
   String nombreLotePara(String batchKey) => _metaLote[batchKey]?.name ?? '';
 
   /// Lista de state keys de tracks que pertenecen a un lote.
-  List<String> idsLotePara(String batchKey) => _batchTrackIds[batchKey] ?? const [];
+  List<String> idsLotePara(String batchKey) =>
+      _batchTrackIds[batchKey] ?? const [];
 
-  /// Mejor carátula de un lote: ruta local primero, luego URL, o vacía.
+  /// Mejor carátula de un lote: ruta local VIVA primero, luego URL, o vacía.
   String caratulaLotePara(String batchKey) {
     final meta = _metaLote[batchKey];
     if (meta != null) {
-      if (meta.coverPath.isNotEmpty) return meta.coverPath;
-      if (meta.coverUrl.isNotEmpty) return meta.coverUrl;
+      final propia = mejorCaratula(meta.coverPath, meta.coverUrl);
+      if (propia != null && propia.isNotEmpty) return propia;
     }
     // Fallback en runtime: buscar en _metaTrack el primer track del lote.
     final trackIds = _batchTrackIds[batchKey];
     if (trackIds != null && trackIds.isNotEmpty) {
       for (final tid in trackIds) {
         final tm = _metaTrack[tid];
-        if (tm != null) {
-          if (tm.coverPath != null && tm.coverPath!.isNotEmpty) return tm.coverPath!;
-          if (tm.coverUrl != null && tm.coverUrl!.isNotEmpty) return tm.coverUrl!;
-        }
+        if (tm == null) continue;
+        final delTrack = mejorCaratula(tm.coverPath, tm.coverUrl);
+        if (delTrack != null && delTrack.isNotEmpty) return delTrack;
       }
     }
     return '';
@@ -113,20 +116,6 @@ mixin DescargasAcceso on DescargasLoteFinalizar {
         source: source,
         isrc: isrc,
       );
-
-  /// True si hay un lote completado (álbum/playlist) con [type] e [id]
-  /// normalizado en el estado en memoria.
-  bool esColeccionDescargada(String type, String id) {    final normalized = normalizarId(id);
-    for (final entry in state.descargas.entries) {
-      if (entry.value.estado != EstadoDescarga.completado) continue;
-      if (!entry.key.startsWith('${type}_')) continue;
-      final parts = entry.key.split('_');
-      if (parts.length < 3) continue;
-      final entryId = parts.sublist(1, parts.length - 1).join('_');
-      if (normalizarId(entryId) == normalized) return true;
-    }
-    return false;
-  }
 
   /// True cuando el álbum/playlist dueño de [batchKey] sigue amado. Su
   /// carátula NO se debe borrar al quitar la descarga porque Mi Espacio sigue

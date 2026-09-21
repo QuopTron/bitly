@@ -29,8 +29,9 @@ Future<void> _garantizarExtensiones(String dirExt) async {
     for (final entrada in _archivosExt.entries) {
       for (final archivo in entrada.value) {
         try {
-          final data = await rootBundle
-              .load('assets/extensions/${entrada.key}/$archivo');
+          final data = await rootBundle.load(
+            'assets/extensions/${entrada.key}/$archivo',
+          );
           final destino = File('$dirExt/${entrada.key}/$archivo');
           destino.parent.createSync(recursive: true);
           await destino.writeAsBytes(data.buffer.asUint8List());
@@ -81,8 +82,10 @@ Future<void> _sincronizarArranqueGo(BackendAndroid backend) async {
   // Empuja las credenciales guardadas de proveedores a las extensiones.
   try {
     final cache = di.sl<CacheAjustes>();
-    await ServicioCredencialesProveedor(backend, cache)
-        .empujarCredencialesAlArrancar();
+    await ServicioCredencialesProveedor(
+      backend,
+      cache,
+    ).empujarCredencialesAlArrancar();
   } catch (e) {
     debugPrint("[Backend] $e");
   }

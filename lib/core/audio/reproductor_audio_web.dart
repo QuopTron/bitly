@@ -28,6 +28,8 @@ import 'dart:js_interop';
 
 import 'package:web/web.dart' as web;
 
+import '../../shared/utilidades/formato/l10n_servicio.dart';
+
 import 'reproductor_audio.dart';
 
 part 'reproductor_audio_web_eventos.dart';
@@ -87,10 +89,7 @@ class ReproductorWeb implements ReproductorAudio {
   Future<void> abrir(String uri, {Map<String, String>? headers}) async {
     if (headers != null && headers.isNotEmpty) {
       // No es fatal, pero explica por qué ciertos streams fallan en web.
-      _error.add(
-        'Este stream necesita cabeceras que el navegador no puede enviar; '
-        'si no suena, probá con otra fuente.',
-      );
+      _error.add(L10n.actual.servicio.audioWebCabeceras);
     }
     _audio.src = uri;
     _audio.load();
@@ -102,7 +101,7 @@ class ReproductorWeb implements ReproductorAudio {
       await _audio.play().toDart;
     } catch (_) {
       // La política de autoplay sólo deja arrancar tras un gesto del usuario.
-      _error.add('Tocá play otra vez para permitir la reproducción');
+      _error.add(L10n.actual.servicio.audioWebAutoplay);
     }
   }
 
@@ -140,7 +139,9 @@ class ReproductorWeb implements ReproductorAudio {
       _audio.pause();
       _audio.removeAttribute('src');
       _audio.load();
-    } catch (e) { debugPrint("[App] $e"); }
+    } catch (e) {
+      debugPrint("[App] $e");
+    }
     await _posicion.close();
     await _duracion.close();
     await _completado.close();

@@ -6,8 +6,10 @@
 // Posicionamiento: el círculo y la etiqueta van cada uno en un slot de
 // ancho completo. Así las cinco burbujas quedan en el mismo eje (antes
 // "Rendimiento" y "Estadísticas" se veían corridas porque cada columna
-// se centraba sobre su propio ancho de etiqueta) y el conjunto aguanta
-// cualquier DPI o escala de texto del sistema.
+// se centraba sobre su propio ancho de etiqueta) y el conjunto aguanta// cualquier DPI o escala de texto del sistema.
+//
+// El ícono sale de `_iconosPestanas` y la etiqueta de `StringsAjustes`
+// (mismo índice): así se traduce sin tocar este widget.
 //
 // Se conecta con: settings_sheet_new.dart (misma library).
 // Parte del flujo: Ajustes → fila de burbujas (tabs).
@@ -46,10 +48,23 @@ class _BubbleTab extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // Slot de ancho completo: todas las burbujas comparten eje.
+            // Slot de ancho completo: todas las burbujas comparten eje. El
+            // mininumerito se cuelga de la burbuja que tiene algo pendiente:
+            // Apariencia (los regalos del cofre) y Conexión (el aviso de
+            // novedades). Cada uno lee su contador; si está en 0 no se pinta.
             SizedBox(
               width: double.infinity,
-              child: Center(child: _circulo()),
+              child: Center(
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    _circulo(),
+                    if (index == _indiceApariencia)
+                      _numerito(AparienciaHelper.regalos),
+                    if (index == _indiceConexion) _numerito(novedadesConexion),
+                  ],
+                ),
+              ),
             ),
             const SizedBox(height: 4),
             SizedBox(
@@ -59,7 +74,7 @@ class _BubbleTab extends StatelessWidget {
                 // La etiqueta se encoge si la burbuja es angosta (pantalla
                 // chica o texto del sistema grande) en vez de desbordar.
                 child: Text(
-                  _bubbleTabs[index].label,
+                  AppLocalizations.of(context).ajustes.pestanas[index],
                   maxLines: 1,
                   style: TextStyle(
                     fontSize: r.footerSize - 2,
@@ -88,6 +103,37 @@ class _BubbleTab extends StatelessWidget {
     );
   }
 
+  /// Mininumerito con lo pendiente de esa burbuja. Se esconde solo cuando
+  /// la cuenta es 0, así no queda un "0" colgado.
+  Widget _numerito(ValueListenable<int> contador) =>
+      ValueListenableBuilder<int>(
+        valueListenable: contador,
+        builder: (context, n, _) {
+          if (n <= 0) return const SizedBox.shrink();
+          return Positioned(
+            top: -3,
+            right: -6,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+              constraints: const BoxConstraints(minWidth: 16),
+              decoration: BoxDecoration(
+                color: glowColor,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                n > 9 ? '9+' : '$n',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: r.footerSize - 3,
+                  fontWeight: FontWeight.w800,
+                  color: ColoresApp.enSuperficie(false),
+                ),
+              ),
+            ),
+          );
+        },
+      );
+
   /// Círculo con glow: relleno, anillo y sombra cuando está activa.
   Widget _circulo() {
     return AnimatedContainer(
@@ -97,35 +143,38 @@ class _BubbleTab extends StatelessWidget {
       height: 38,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        gradient: active
-            ? LinearGradient(
-                colors: [
-                  glowColor.withValues(alpha: 0.9),
-                  glowColor.withValues(alpha: 0.5),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              )
-            : null,
+        gradient:
+            active
+                ? LinearGradient(
+                  colors: [
+                    glowColor.withValues(alpha: 0.9),
+                    glowColor.withValues(alpha: 0.5),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                )
+                : null,
         color: active ? null : onBg.withValues(alpha: 0.05),
         border: Border.all(
-          color: active
-              ? Colors.white.withValues(alpha: 0.3)
-              : onBg.withValues(alpha: 0.08),
+          color:
+              active
+                  ? Colors.white.withValues(alpha: 0.3)
+                  : onBg.withValues(alpha: 0.08),
           width: active ? 1.5 : 1.0,
         ),
-        boxShadow: active
-            ? [
-                BoxShadow(
-                  color: glowColor.withValues(alpha: 0.3),
-                  blurRadius: 16,
-                  spreadRadius: 0,
-                ),
-              ]
-            : null,
+        boxShadow:
+            active
+                ? [
+                  BoxShadow(
+                    color: glowColor.withValues(alpha: 0.3),
+                    blurRadius: 16,
+                    spreadRadius: 0,
+                  ),
+                ]
+                : null,
       ),
       child: Icon(
-        _bubbleTabs[index].icon,
+        _iconosPestanas[index],
         size: r.footerSize + 1,
         color: active ? Colors.white : onBg.withValues(alpha: 0.5),
       ),

@@ -45,9 +45,10 @@ Future<String?> _iniciarOAuthNavegador(
   while (DateTime.now().difference(inicio) < timeout) {
     await Future<void>.delayed(const Duration(milliseconds: 800));
     final raw = await backend.rpcCall('pollYoutubeOauth', {});
-    final res = raw is String
-        ? jsonDecode(raw) as Map<String, dynamic>
-        : Map<String, dynamic>.from(raw as Map);
+    final res =
+        raw is String
+            ? jsonDecode(raw) as Map<String, dynamic>
+            : Map<String, dynamic>.from(raw as Map);
     if (res['done'] == true) {
       final code = res['code'] as String?;
       if (code != null && code.isNotEmpty) return code;

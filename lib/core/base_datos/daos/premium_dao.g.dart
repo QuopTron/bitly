@@ -7,8 +7,6 @@ mixin _$PremiumDaoMixin on DatabaseAccessor<AppDatabase> {
   $UserPremiumTable get userPremium => attachedDatabase.userPremium;
   $QuotaUsageTable get quotaUsage => attachedDatabase.quotaUsage;
   $UserDailyPlaysTable get userDailyPlays => attachedDatabase.userDailyPlays;
-  $SecretCountersTable get secretCounters => attachedDatabase.secretCounters;
-  $SecretUnlocksTable get secretUnlocks => attachedDatabase.secretUnlocks;
   PremiumDaoManager get managers => PremiumDaoManager(this);
 }
 
@@ -24,11 +22,4 @@ class PremiumDaoManager {
         _db.attachedDatabase,
         _db.userDailyPlays,
       );
-  $$SecretCountersTableTableManager get secretCounters =>
-      $$SecretCountersTableTableManager(
-        _db.attachedDatabase,
-        _db.secretCounters,
-      );
-  $$SecretUnlocksTableTableManager get secretUnlocks =>
-      $$SecretUnlocksTableTableManager(_db.attachedDatabase, _db.secretUnlocks);
 }

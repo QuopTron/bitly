@@ -22,12 +22,13 @@ class CompartidoRecibido {
   const CompartidoRecibido({required this.datos, required this.fecha});
 
   /// Clave para no repetir la misma canción del mismo emisor.
-  String get clave => '${datos.emisor}|${datos.isrc.isNotEmpty ? datos.isrc : datos.nombre}';
+  String get clave =>
+      '${datos.emisor}|${datos.isrc.isNotEmpty ? datos.isrc : datos.nombre}';
 
   Map<String, dynamic> aJson() => {
-        ...datos.aJson(),
-        'ts': fecha.millisecondsSinceEpoch,
-      };
+    ...datos.aJson(),
+    'ts': fecha.millisecondsSinceEpoch,
+  };
 
   factory CompartidoRecibido.desdeJson(Map<String, dynamic> json) {
     final crudo = json['ts'];

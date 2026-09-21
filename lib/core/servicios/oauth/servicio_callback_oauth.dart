@@ -43,11 +43,13 @@ class ServicioCallbackOAuth with WidgetsBindingObserver {
         _log.i('[ServicioCallbackOAuth] callback OAuth recibido');
         final args = call.arguments;
         if (args is Map) {
-          _completar(ResultadoOAuth(
-            code: (args['code'] as String? ?? '').trim(),
-            state: (args['state'] as String? ?? '').trim(),
-            error: (args['error'] as String? ?? '').trim(),
-          ));
+          _completar(
+            ResultadoOAuth(
+              code: (args['code'] as String? ?? '').trim(),
+              state: (args['state'] as String? ?? '').trim(),
+              error: (args['error'] as String? ?? '').trim(),
+            ),
+          );
         } else {
           _completar(null);
         }
@@ -74,33 +76,6 @@ class ServicioCallbackOAuth with WidgetsBindingObserver {
   /// [stateEsperado] (el `state` PKCE) se valida cuando se provee; un
   /// desajuste resuelve null. Devuelve null en cancelación, timeout,
   /// rechazo o desajuste de state — el llamador debe tratarlo como fallo.
-  Future<ResultadoOAuth?> esperarCallback({
-    String? stateEsperado,
-    Duration timeout = const Duration(minutes: 3),
-  }) async {
-    _completar(null); // cancela cualquier waiter previo pendiente
-    final completer = Completer<ResultadoOAuth?>();
-    _pendiente = completer;
-    _timeout = Timer(timeout, () {
-      _log.w('[ServicioCallbackOAuth] callback OAuth agotó '
-          '${timeout.inMinutes} min');
-      _completar(null);
-    });
-
-    final result = await completer.future;
-    if (result == null) return null;
-    if (result.esError) {
-      _log.w('[ServicioCallbackOAuth] error OAuth: ${result.error}');
-      return null;
-    }
-    if (!result.coincideConState(stateEsperado)) {
-      _log.w('[ServicioCallbackOAuth] state no coincide '
-          '(esperado $stateEsperado, recibido ${result.state})');
-      return null;
-    }
-    return result;
-  }
-
   void _completar(ResultadoOAuth? result) {
     final c = _pendiente;
     _pendiente = null;

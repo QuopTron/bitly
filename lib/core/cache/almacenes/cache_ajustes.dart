@@ -19,6 +19,7 @@ import '../../modelos/usuario/perfil_rendimiento.dart';
 import '../../plataforma/sistema/deteccion_gama.dart';
 import '../../modelos/usuario/preferencias_apariencia.dart';
 import '../../modelos/usuario/preferencias_estilo.dart';
+import '../../modelos/usuario/preferencias_estilo_json.dart';
 
 /// Caché local de ajustes — wrappers sobre [SettingsDao].
 class CacheAjustes {
@@ -27,7 +28,8 @@ class CacheAjustes {
 
   Future<void> guardarIdioma(String locale) => _dao.set('locale', locale);
   Future<void> guardarTema(String mode) => _dao.set('theme_mode', mode);
-  Future<void> guardarRutaDescargas(String path) => _dao.set('download_path', path);
+  Future<void> guardarRutaDescargas(String path) =>
+      _dao.set('download_path', path);
   Future<String?> getRutaDescargas() => _dao.get('download_path');
 
   Future<AjustesDescarga> getAjustesDescarga() async {
@@ -73,24 +75,18 @@ class CacheAjustes {
   Future<String?> getAjuste(String key) => _dao.get(key);
   Future<void> guardarAjuste(String key, String value) => _dao.set(key, value);
 
-  // ── Estilo visual ──
-  static const _claveEstiloVisual = 'visual_style';
-
-  Future<String?> getEstiloVisual() => _dao.get(_claveEstiloVisual);
-
-  Future<void> guardarEstiloVisual(String estilo) =>
-      _dao.set(_claveEstiloVisual, estilo);
-
-  // ── Preferencias de estilo por componente ──
+  // ── Estilo con cover (intensidad por componente) ──
   static const _clavePreferenciasEstilo = 'style_preferences';
 
   Future<PreferenciasEstilo> getPreferenciasEstilo() async {
     final raw = await _dao.get(_clavePreferenciasEstilo);
-    return PreferenciasEstilo.desdeJsonString(raw);
+    return PreferenciasEstiloJson.decodificar(raw);
   }
 
-  Future<void> guardarPreferenciasEstilo(PreferenciasEstilo prefs) =>
-      _dao.set(_clavePreferenciasEstilo, prefs.toJsonString());
+  Future<void> guardarPreferenciasEstilo(PreferenciasEstilo prefs) => _dao.set(
+    _clavePreferenciasEstilo,
+    PreferenciasEstiloJson.codificar(prefs),
+  );
 
   // ── Preferencias de diseño (Apariencia) ──
   static const _clavePreferenciasApariencia = 'appearance_preferences';
@@ -145,12 +141,11 @@ class CacheAjustes {
     try {
       final lista = jsonDecode(raw);
       if (lista is List) return lista.whereType<String>().toList();
-    } catch (e) { debugPrint("[Cache] $e"); }
+    } catch (e) {
+      debugPrint("[Cache] $e");
+    }
     return const [];
   }
-
-  Future<void> guardarPrioridadProveedoresDescarga(List<String> orden) =>
-      _dao.set(_clavePrioridadDescarga, jsonEncode(orden));
 
   static dynamic _parsearValor(String v) {
     if (v == 'true') return true;

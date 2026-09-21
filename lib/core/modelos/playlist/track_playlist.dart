@@ -31,26 +31,26 @@ class TrackPlaylist {
   });
 
   factory TrackPlaylist.desdeJson(Map<String, dynamic> json) => TrackPlaylist(
-        title: json['title'] as String? ?? '',
-        artist: json['artist'] as String? ?? '',
-        album: json['album'] as String? ?? '',
-        durationMs: (json['duration_ms'] as num?)?.toInt() ?? 0,
-        filePath: json['file_path'] as String? ?? '',
-        trackNum: (json['track_number'] as num?)?.toInt() ?? 0,
-        discNum: (json['disc_number'] as num?)?.toInt() ?? 0,
-        isrc: json['isrc'] as String? ?? '',
-      );
+    title: json['title'] as String? ?? '',
+    artist: json['artist'] as String? ?? '',
+    album: json['album'] as String? ?? '',
+    durationMs: (json['duration_ms'] as num?)?.toInt() ?? 0,
+    filePath: json['file_path'] as String? ?? '',
+    trackNum: (json['track_number'] as num?)?.toInt() ?? 0,
+    discNum: (json['disc_number'] as num?)?.toInt() ?? 0,
+    isrc: json['isrc'] as String? ?? '',
+  );
 
   Map<String, dynamic> aJson() => {
-        'title': title,
-        'artist': artist,
-        'album': album,
-        'duration_ms': durationMs,
-        'file_path': filePath,
-        'track_number': trackNum,
-        'disc_number': discNum,
-        'isrc': isrc,
-      };
+    'title': title,
+    'artist': artist,
+    'album': album,
+    'duration_ms': durationMs,
+    'file_path': filePath,
+    'track_number': trackNum,
+    'disc_number': discNum,
+    'isrc': isrc,
+  };
 }
 
 /// Configuración para generar los archivos de una playlist.

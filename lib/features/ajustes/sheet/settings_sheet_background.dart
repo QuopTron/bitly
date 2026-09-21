@@ -70,49 +70,79 @@ class _SongTintedBackgroundState extends State<_SongTintedBackground> {
     if (cover == null || cover.isEmpty) return null;
     final palette = await paletaParaPortada(cover);
     if (palette == null) return null;
-    // Dark theme keeps the surface dark-ish; light theme uses the cover's
-    // dominant hue directly. Blend toward the default so it never shouts.
-    final mix = widget.isDark ? 0.30 : 0.45;
-    return Color.lerp(widget.defaultBg, palette.dominante, mix);
+    // El color del cover con presencia (estilo_helper): mezclado apagado el
+    // fondo del sheet quedaba casi igual que su propia carátula.
+    return EstiloHelper.colorDeCover(
+      palette.dominante,
+      widget.defaultBg,
+      mezcla: widget.isDark ? 0.50 : 0.42,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    // En modo Spotify con fondosModals activo, no mostramos cover borroso.
-    final estilo = EstiloHelper.fondosModals(context);
+    // El fondo ESCUCHA el estilo con cover: sin esto, mover el control en
+    // Ajustes no repintaba nada hasta que el sheet se reconstruía por otro
+    // motivo (y el usuario sentía que el slider no hacía nada).
+    return ValueListenableBuilder<PreferenciasEstilo>(
+      valueListenable: sl<ValueNotifier<PreferenciasEstilo>>(),
+      builder: (context, prefs, _) {
+        // La portada borrosa se apaga a medida que sube la intensidad de
+        // "fondos de modales": con 1 queda sólo el color del cover (_bg).
+        // Se aplica 1:1: cada punto porcentual mueve lo mismo.
+        final nivel = prefs.fondosModals;
+        // Sigma de fábrica del modal; con el control sube (la portada se va
+        // desenfocando mientras se disuelve en el color del cover).
+        final sigmaBase =
+            sl<ValueNotifier<PerfilRendimiento>>().value.sigmaDesenfoque;
 
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 600),
-      curve: Curves.easeOutCubic,
-      decoration: BoxDecoration(
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-        color: _bg,
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Stack(
-        children: [
-          if (!estilo && _hasTrack && _cover != null && _cover!.isNotEmpty)
-            Positioned.fill(
-              child: DesenfoqueHijo(sigma: sl<ValueNotifier<PerfilRendimiento>>().value.sigmaDesenfoque, child: Transform.scale(
-                  scale: 1.3,
-                  child: imagenDesdeUrl(
-                    _cover!,
-                    ajuste: BoxFit.cover,
-                    ancho: 512,
-                    alto: double.infinity,
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 600),
+          curve: Curves.easeOutCubic,
+          decoration: BoxDecoration(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            color: _bg,
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Stack(
+            children: [
+              if (_hasTrack && _cover != null && _cover!.isNotEmpty)
+                Positioned.fill(
+                  child: AtenuadoPorNivel(
+                    opacidad: 1 - nivel,
+                    child: DesenfoqueHijo(
+                      sigma: EstiloHelper.sigmaPorNivel(sigmaBase, nivel),
+                      tope: EstiloHelper.topeSigma(sigmaBase),
+                      child: Transform.scale(
+                        scale: 1.3,
+                        child: imagenDesdeUrl(
+                          _cover!,
+                          ajuste: BoxFit.cover,
+                          ancho: 512,
+                          alto: double.infinity,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              // Velo de legibilidad del contenido sobre la carátula: se
+              // aclara con la intensidad, y al final el tinte ya es _bg.
+              Positioned.fill(
+                child: ColoredBox(
+                  color: _bg.withValues(
+                    alpha: EstiloHelper.mezclar(
+                      widget.isDark ? 0.72 : 0.55,
+                      widget.isDark ? 0.45 : 0.35,
+                      nivel,
+                    ),
                   ),
                 ),
               ),
-            ),
-          // Veil keeps content readable over the artwork.
-          Positioned.fill(
-            child: ColoredBox(
-              color: _bg.withValues(alpha: widget.isDark ? 0.72 : 0.55),
-            ),
+              widget.child,
+            ],
           ),
-          widget.child,
-        ],
-      ),
+        );
+      },
     );
   }
 }

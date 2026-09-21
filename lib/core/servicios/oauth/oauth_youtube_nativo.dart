@@ -48,30 +48,34 @@ Future<void> _inicializar() async {
   _inicializadoNativo = true;
 }
 
-Future<void> _signOutNativo() async {
-  await _inicializar();
-  await GoogleSignIn.instance.signOut();
-}
-
 /// Flujo nativo: authenticate() → authorizeScopes() (picker bonito,
 /// sin abrir Chrome). Lanza _ExcepcionCanceladoUsuario si el usuario
 /// cancela; cualquier otro error se propaga para caer a la WebView.
-Future<String> _conectarNativo(ServicioOAuthYouTube servicio) async {
+Future<ResultadoConexionYouTube> _conectarNativo(
+  ServicioOAuthYouTube servicio,
+) async {
   await _inicializar();
   await GoogleSignIn.instance.signOut();
 
   final account = await GoogleSignIn.instance.authenticate();
 
   try {
-    final auth = await account.authorizationClient.authorizeScopes([_alcanceOAuth]);
+    final auth = await account.authorizationClient.authorizeScopes([
+      _alcanceOAuth,
+    ]);
     if (auth.accessToken.isEmpty) throw Exception('token vacío');
 
     final guardados = await _ajustesGuardados(servicio);
     guardados['oauthAccessToken'] = auth.accessToken;
-    await ServicioCredencialesProveedor(servicio._backend, servicio._cache)
-        .guardarYReinicializar(ServicioOAuthYouTube.idExt, guardados);
+    await ServicioCredencialesProveedor(
+      servicio._backend,
+      servicio._cache,
+    ).guardarYReinicializar(ServicioOAuthYouTube.idExt, guardados);
 
-    return 'Sesión de YouTube conectada ✓ — ${account.email}';
+    return ResultadoConexionYouTube(
+      ok: true,
+      mensaje: L10n.actual.oauth.conectadoCon(account.email),
+    );
   } on GoogleSignInException catch (e) {
     if (e.code == GoogleSignInExceptionCode.canceled ||
         e.code == GoogleSignInExceptionCode.interrupted) {

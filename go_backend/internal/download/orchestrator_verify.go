@@ -7,24 +7,14 @@ import (
 	"github.com/zarz/bitly/go_backend/internal/provider"
 )
 
-// durationMatches bounds how much a candidate's length may diverge from the
-// requested track before it is rejected. A cover, remix, extended or acoustic
-// version of the "same" song almost always differs by more than this from the
-// album version, so an unusually long/short match is a strong wrong-version
-// signal even when title/artist happen to align.
+// duracionCoincide es la regla de "dura lo mismo" para las descargas. La
+// definición vive ahora en provider.DuracionCoincide, compartida con la
+// verificación de reproducción (que antes no miraba la duración): una versión
+// cover/remix/extendida/acústica de la "misma" canción casi siempre difiere
+// más que la tolerancia de la versión de álbum, así que una duración rara es
+// una señal fuerte de versión equivocada aunque título y artista coincidan.
 func duracionCoincide(queryDurationMS, got int) bool {
-	if queryDurationMS <= 0 || got <= 0 {
-		return true
-	}
-	diff := queryDurationMS - got
-	if diff < 0 {
-		diff = -diff
-	}
-	tol := queryDurationMS / 4
-	if tol < 20000 {
-		tol = 20000
-	}
-	return diff <= tol
+	return provider.DuracionCoincide(queryDurationMS, got)
 }
 
 // confirmDownloadMatch reverse-verifies, before downloading, that a track id

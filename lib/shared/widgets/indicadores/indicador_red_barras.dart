@@ -42,11 +42,7 @@ class BarrasCalidadRed extends StatelessWidget {
   Widget build(BuildContext context) {
     final r = Responsive(context);
     final llenas = _barrasLlenas(nivel);
-    final alturas = <double>[
-      r.val(4, 3, 6),
-      r.val(6, 4, 9),
-      r.val(8, 5, 12),
-    ];
+    final alturas = <double>[r.val(4, 3, 6), r.val(6, 4, 9), r.val(8, 5, 12)];
     final colorActivo = colorNivelRed(nivel, TipoRed.otra, onBg);
 
     return Row(
@@ -62,9 +58,7 @@ class BarrasCalidadRed extends StatelessWidget {
             height: alturas[i],
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(2),
-              color: i < llenas
-                  ? colorActivo
-                  : onBg.withValues(alpha: 0.18),
+              color: i < llenas ? colorActivo : onBg.withValues(alpha: 0.18),
             ),
           ),
         ],

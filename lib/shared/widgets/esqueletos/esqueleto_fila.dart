@@ -59,14 +59,15 @@ class _FilaEsqueletoState extends State<_FilaEsqueleto>
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(radio),
             color: estatico ? widget.base : null,
-            gradient: estatico
-                ? null
-                : LinearGradient(
-                    begin: Alignment(-1.0 + 2.0 * _ctrl.value, 0),
-                    end: Alignment(-0.5 + 2.0 * _ctrl.value, 0),
-                    colors: [widget.base, widget.brillo, widget.base],
-                    stops: const [0.0, 0.5, 1.0],
-                  ),
+            gradient:
+                estatico
+                    ? null
+                    : LinearGradient(
+                      begin: Alignment(-1.0 + 2.0 * _ctrl.value, 0),
+                      end: Alignment(-0.5 + 2.0 * _ctrl.value, 0),
+                      colors: [widget.base, widget.brillo, widget.base],
+                      stops: const [0.0, 0.5, 1.0],
+                    ),
           ),
         );
       },

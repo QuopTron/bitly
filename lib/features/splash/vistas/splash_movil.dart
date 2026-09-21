@@ -23,11 +23,7 @@ class SplashMovil extends StatelessWidget {
   final EstadoSplash estado;
   final Animation<double> pulse;
 
-  const SplashMovil({
-    super.key,
-    required this.estado,
-    required this.pulse,
-  });
+  const SplashMovil({super.key, required this.estado, required this.pulse});
 
   @override
   Widget build(BuildContext context) {
@@ -36,7 +32,8 @@ class SplashMovil extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = isDark ? ColoresApp.fondoOscuro : ColoresApp.fondoClaro;
     final onBg = isDark ? Colors.white : Colors.black;
-    final glowColor = isDark ? ColoresApp.verdeBrillante : ColoresApp.verdeMedio;
+    final glowColor =
+        isDark ? ColoresApp.verdeBrillante : ColoresApp.verdeMedio;
 
     return Scaffold(
       backgroundColor: bgColor,

@@ -29,6 +29,7 @@ import 'package:flutter/foundation.dart';
 import '../../backend_go/nucleo/contrato_backend.dart';
 import '../../cache/almacenes/cache_ajustes.dart';
 import '../../../app/inyeccion.dart' as di;
+import '../../../shared/utilidades/formato/l10n_servicio.dart';
 import 'modelo_soulseek.dart';
 import 'servicio_credenciales_proveedor.dart';
 
@@ -75,9 +76,9 @@ class ServicioSoulseek {
   Future<ResultadoSoulseek> crearOConectar(String usuarioEscrito) async {
     final nombre = usuarioEscrito.trim();
     if (nombre.isEmpty) {
-      return const ResultadoSoulseek(
+      return ResultadoSoulseek(
         ok: false,
-        mensaje: 'Escribí el nombre que querés usar en Soulseek.',
+        mensaje: L10n.actual.servicio.soulseekNombreRequerido,
       );
     }
 
@@ -91,15 +92,22 @@ class ServicioSoulseek {
       });
       final datos = _comoMapa(respuesta);
       if (datos == null) {
-        return const ResultadoSoulseek(
-          ok: false,
-          mensaje: 'Respuesta inesperada del backend.',
-        );
-      }      if (datos['ok'] != true) {
         return ResultadoSoulseek(
           ok: false,
-          mensaje: _limpiarMensaje(datos['error'] as String?),
-          motivo: _motivoDesde(datos['motivo'] as String?),
+          mensaje: L10n.actual.servicio.soulseekRespuestaInesperada,
+        );
+      }
+      if (datos['ok'] != true) {
+        final motivo = _motivoDesde(datos['motivo'] as String?);
+        // El texto crudo de Go queda solo para el log: al usuario se le
+        // muestra un mensaje localizado según el motivo accionable.
+        debugPrint(
+          '[Soulseek] rechazo: ${_limpiarMensaje(datos['error'] as String?)}',
+        );
+        return ResultadoSoulseek(
+          ok: false,
+          mensaje: _mensajeRechazo(motivo),
+          motivo: motivo,
         );
       }
 
@@ -117,19 +125,22 @@ class ServicioSoulseek {
         'password': password,
       });
 
+      final generada = datos['password_generada'] == true;
       return ResultadoSoulseek(
         ok: true,
         mensaje:
-            (datos['mensaje'] as String?) ??
-            'Cuenta conectada y lista para buscar.',
+            generada
+                ? L10n.actual.servicio.soulseekCuentaCreada
+                : L10n.actual.servicio.soulseekConectada,
         usuario: usuarioReal,
         password: password,
-        passwordGenerada: datos['password_generada'] == true,
+        passwordGenerada: generada,
       );
     } catch (e) {
-      return ResultadoSoulseek(ok: false, mensaje: 'Error: $e');
+      return ResultadoSoulseek(
+        ok: false,
+        mensaje: L10n.actual.servicio.errorGenerico(e),
+      );
     }
   }
-
-
 }

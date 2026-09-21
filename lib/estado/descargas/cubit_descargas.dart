@@ -22,7 +22,13 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:logger/logger.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../app/inyeccion.dart' as di;
+import '../../core/backend_go/mixins/infra_mixin.dart';
 import '../../core/backend_go/nucleo/contrato_backend.dart';
+// Con prefijo: `app_database.dart` exporta una tabla llamada `File` que
+// taparía la `File` de dart:io en todo el cubit (rompía cada File(...) del
+// flujo de descargas).
+import '../../core/base_datos/app_database.dart' as bd;
+import '../../core/base_datos/daos/content_dao.dart' as daobd;
 import '../../core/cache/almacenes/cache_ajustes.dart';
 import '../../core/cache/almacenes/cache_biblioteca.dart';
 import '../../core/cache/almacenes/cache_descargas.dart';
@@ -32,9 +38,10 @@ import '../../core/modelos/ajustes_descarga.dart';
 import '../../core/modelos/feed/item_feed.dart';
 import '../../core/servicios/descarga/acceso_descarga.dart';
 import '../../core/servicios/descargas/escalado_calidad.dart';
-import '../../core/servicios/descargas/fallo_reintentable.dart';
+import '../../core/servicios/descargas/motivos_descarga.dart';
 import '../../core/servicios/desencriptado/desencriptado_stream.dart';
 import '../../shared/utilidades/descarga/estrategia_descarga.dart';
+import '../../shared/utilidades/portada/caratula_util.dart';
 import '../../core/servicios/utilidades/huella_item.dart';
 import '../../core/servicios/verificacion/servicio_verificacion.dart';
 import '../../core/servicios/utilidades/utilidades_id.dart';
@@ -60,6 +67,7 @@ part 'descargas_cola.dart';
 part 'descargas_cola_track.dart';
 part 'descargas_estado.dart';
 part 'descargas_lote_finalizar.dart';
+part 'descargas_lote_caratula.dart';
 part 'descargas_acceso.dart';
 part 'descargas_inicio.dart';
 part 'descargas_inicio_album.dart';
@@ -107,6 +115,7 @@ class CubitDescargas extends Cubit<EstadoCubitDescargas>
         DescargasEstadoReintento,
         DescargasEstado,
         DescargasLoteFinalizar,
+        DescargasLoteCaratula,
         DescargasAcceso,
         DescargasInicio,
         DescargasInicioAlbum,

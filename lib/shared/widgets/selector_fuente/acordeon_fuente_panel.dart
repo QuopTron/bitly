@@ -51,9 +51,7 @@ class PanelFuenteFlotante extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         clipBehavior: Clip.hardEdge,
         child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-          ),
+          decoration: BoxDecoration(borderRadius: BorderRadius.circular(14)),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxHeight: 400),
             child: SingleChildScrollView(
@@ -83,9 +81,10 @@ class PanelFuenteFlotante extends StatelessWidget {
   Widget _fila(FilaFuente fila) {
     final seleccionada = fuenteSeleccionada == fila.valor;
     return Material(
-      color: seleccionada
-          ? onBg.withValues(alpha: esOscuro ? 0.1 : 0.08)
-          : Colors.transparent,
+      color:
+          seleccionada
+              ? onBg.withValues(alpha: esOscuro ? 0.1 : 0.08)
+              : Colors.transparent,
       child: InkWell(
         onTap: () => onSeleccionar(fila.valor),
         child: SizedBox(
@@ -103,7 +102,8 @@ class PanelFuenteFlotante extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 13,
-                      fontWeight: seleccionada ? FontWeight.w700 : FontWeight.w500,
+                      fontWeight:
+                          seleccionada ? FontWeight.w700 : FontWeight.w500,
                       color: onBg.withValues(alpha: seleccionada ? 1 : 0.78),
                     ),
                   ),
@@ -111,9 +111,10 @@ class PanelFuenteFlotante extends StatelessWidget {
                 Icon(
                   seleccionada ? Icons.check_circle : Icons.circle_outlined,
                   size: 17,
-                  color: seleccionada
-                      ? onBg
-                      : onBg.withValues(alpha: esOscuro ? 0.3 : 0.4),
+                  color:
+                      seleccionada
+                          ? onBg
+                          : onBg.withValues(alpha: esOscuro ? 0.3 : 0.4),
                 ),
               ],
             ),

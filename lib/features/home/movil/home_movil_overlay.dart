@@ -19,6 +19,7 @@ class _OverlayPreparacion extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final nav = AppLocalizations.of(context).nav;
     return Positioned.fill(
       child: AbsorbPointer(
         child: ColoredBox(
@@ -29,17 +30,17 @@ class _OverlayPreparacion extends StatelessWidget {
               children: [
                 const CircularProgressIndicator(),
                 const SizedBox(height: 20),
-                const Text(
-                  'Preparando tus fuentes de música…',
-                  style: TextStyle(
+                Text(
+                  nav.preparando,
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  'Si una fuente pide verificación, se abrirá al usarla.',
+                Text(
+                  nav.preparandoAviso,
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Colors.white70, fontSize: 13),
                 ),
@@ -48,7 +49,7 @@ class _OverlayPreparacion extends StatelessWidget {
                   TextButton.icon(
                     onPressed: onSaltarEspera,
                     icon: const Icon(Icons.skip_next, size: 20),
-                    label: const Text('Continuar'),
+                    label: Text(nav.continuar),
                     style: TextButton.styleFrom(
                       foregroundColor: Colors.white,
                       backgroundColor: Colors.white12,

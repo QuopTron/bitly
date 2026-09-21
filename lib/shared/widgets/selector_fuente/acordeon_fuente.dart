@@ -116,7 +116,11 @@ class _AcordeonFuenteState extends State<AcordeonFuente> {
     ];
   }
 
-  Widget _iconoRedondeado(IconData icono, {required double tamano, Color? tinte}) {
+  Widget _iconoRedondeado(
+    IconData icono, {
+    required double tamano,
+    Color? tinte,
+  }) {
     final c = tinte ?? widget.onBg;
     return Container(
       width: tamano + 12,

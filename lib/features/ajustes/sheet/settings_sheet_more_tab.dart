@@ -1,60 +1,29 @@
 // ─────────────────────────────────────────────────────────────
-// settings_sheet_more_tab.dart — PART de settings_sheet_new.dart: pestaña Más — Premium, Google,
-// Soulseek, biblioteca local, reporte, caché y versión.
-// Se conecta con: settings_sheet_new.dart (misma library) + varios servicios.
+// settings_sheet_more_tab.dart — PART de settings_sheet_new.dart:
+// pestaña Más de Ajustes.
+//
+// Quedó liviana a propósito: reportar un problema, entender la caché de
+// streaming y ver la versión/actualizaciones. Todo lo que era cuenta
+// (Premium, Google) se fue a la pestaña Cuenta, y lo que era fuente de
+// música (Soulseek, biblioteca local) a Proveedores, así este tab deja de
+// ser una lista larguísima de cosas sin relación.
+//
+// Se conecta con: settings_sheet_more_report.dart, settings_sheet_cache_card
+// y settings_sheet_release_info.dart (misma library).
 // Parte del flujo: Ajustes → Más.
 // ─────────────────────────────────────────────────────────────
 
 part of 'settings_sheet_new.dart';
 
-class _MoreTab extends StatefulWidget {
+class _MoreTab extends StatelessWidget {
   final Color glowColor;
-  final EstadoPremium? premium;
-  final Future<void> Function() onPremiumChanged;
-  const _MoreTab({
-    required this.glowColor,
-    this.premium,
-    required this.onPremiumChanged,
-  });
-  @override
-  State<_MoreTab> createState() => _MoreTabState();
-}
 
-class _MoreTabState extends State<_MoreTab> {
-  String? _trialRemaining;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadTrialRemaining();
-  }
-
-  Future<void> _loadTrialRemaining() async {
-    try {
-      final setup = await sl<CacheAjustes>().cargarDatosSetup();
-      if (setup != null &&
-          setup.mode == 'free' &&
-          setup.trialExpiraEn != null) {
-        final expires = DateTime.tryParse(setup.trialExpiraEn!);
-        if (expires != null) {
-          final diff = expires.difference(DateTime.now());
-          if (diff.isNegative) {
-            if (mounted) setState(() => _trialRemaining = 'EXPIRADO');
-          } else {
-            final h = diff.inHours;
-            final m = (diff.inMinutes % 60);
-            if (mounted) {
-              setState(() => _trialRemaining = '${h}h ${m}m restantes');
-            }
-          }
-        }
-      }
-    } catch (e) { debugPrint("[Feature] $e"); }
-  }
+  const _MoreTab({required this.glowColor});
 
   @override
   Widget build(BuildContext context) {
     final r = Responsive(context);
+    final t = AppLocalizations.of(context).ajustes;
 
     return SingleChildScrollView(
       padding: EdgeInsets.all(r.spacingL),
@@ -62,47 +31,37 @@ class _MoreTabState extends State<_MoreTab> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(height: r.spacingS),
-          // Premium status + activation
-          _PremiumCardWidget(
-            glowColor: widget.glowColor,
-            premium: widget.premium,
-            trialRemaining: _trialRemaining,
-            onPremiumChanged: widget.onPremiumChanged,
+          // Mismo encabezado que Cuenta/Proveedores: título + bajada.
+          _TituloApartado(
+            titulo: t.mas,
+            bajada: t.masAyuda,
+            glowColor: glowColor,
           ),
-          SizedBox(height: r.spacingM),
-          // Google connection
-          _GoogleConnectionCard(glowColor: widget.glowColor),
-          SizedBox(height: r.spacingM),
-          // Soulseek: cuenta propia en un click (nombre + Siguiente) para el
-          // catálogo en FLAC que no pide invitación, pago ni datos.
-          _SoulseekCard(glowColor: widget.glowColor),
-          SizedBox(height: r.spacingM),
-          // Música propia del usuario (importación local + dedupe por ISRC)
-          _BibliotecaLocalCard(glowColor: widget.glowColor),
-          SizedBox(height: r.spacingM),
+          SizedBox(height: r.spacingL),
           // Report a bug / suggestion
-          _ReportCardWidget(glowColor: widget.glowColor),
+          _ReportCardWidget(glowColor: glowColor),
           SizedBox(height: r.spacingM),
           // Streaming cache, explained
-          _CacheExplainedCard(glowColor: widget.glowColor),
+          _CacheExplainedCard(glowColor: glowColor),
           SizedBox(height: r.spacingM),
           _VersionInfoCard(
-            glowColor: widget.glowColor,
-            onShowVersions: _showVersionSheet,
+            glowColor: glowColor,
+            onShowVersions: (ctx) => _abrirVersiones(ctx, glowColor),
           ),
         ],
       ),
     );
   }
+}
 
-  /// Opens a bottom sheet that fetches current version + all GitHub releases
-  /// and shows them as a clean list with the latest highlighted.
-  Future<void> _showVersionSheet(BuildContext context) async {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (_) => _VersionSheet(glowColor: widget.glowColor),
-    );
-  }
+/// Abre la hoja con la versión actual y todas las releases de GitHub.
+/// `sobreHoja`: sale desde dentro de Ajustes y tapa esa hoja por completo.
+Future<void> _abrirVersiones(BuildContext context, Color glowColor) {
+  return mostrarHoja<void>(
+    context: context,
+    sobreHoja: true,
+    backgroundColor: Colors.transparent,
+    isScrollControlled: true,
+    builder: (_) => _VersionSheet(glowColor: glowColor),
+  );
 }

@@ -17,7 +17,8 @@ class ServicioShareIntent {
   static final ServicioShareIntent _instancia = ServicioShareIntent._();
   static ServicioShareIntent get instance => _instancia;
 
-  final StreamController<String> _urlController = StreamController<String>.broadcast();
+  final StreamController<String> _urlController =
+      StreamController<String>.broadcast();
   Stream<String> get urlsCompartidas => _urlController.stream;
 
   ServicioShareIntent._();
@@ -45,43 +46,15 @@ class ServicioShareIntent {
 
     // Verifica el share intent inicial (app abierta vía compartir).
     try {
-      final textoInicial = await _canal.invokeMethod<String>('getInitialSharedText');
+      final textoInicial = await _canal.invokeMethod<String>(
+        'getInitialSharedText',
+      );
       if (textoInicial != null && textoInicial.isNotEmpty) {
         _urlController.add(textoInicial);
       }
     } catch (_) {
       // Método no disponible en esta plataforma.
     }
-  }
-
-  /// Extrae URLs de música de un texto compartido.
-  List<String> extraerUrlsMusica(String texto) {
-    final urls = <String>[];
-    final patronUrl = RegExp(
-      r'https?://[^\s<>"{}|\\^`\[\]]+',
-      caseSensitive: false,
-    );
-    for (final match in patronUrl.allMatches(texto)) {
-      final url = match.group(0)!;
-      if (_esUrlMusica(url)) {
-        urls.add(url);
-      }
-    }
-    return urls;
-  }
-
-  bool _esUrlMusica(String url) {
-    final lower = url.toLowerCase();
-    return lower.contains('spotify.com') ||
-        lower.contains('open.spotify.com') ||
-        lower.contains('deezer.com') ||
-        lower.contains('music.apple.com') ||
-        lower.contains('tidal.com') ||
-        lower.contains('soundcloud.com') ||
-        lower.contains('youtube.com') ||
-        lower.contains('music.youtube.com') ||
-        lower.contains('qobuz.com') ||
-        lower.contains('amazon.com/music');
   }
 
   void dispose() {

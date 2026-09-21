@@ -12,7 +12,12 @@ import 'package:flutter/material.dart';
 
 /// Envuelve la app con color dinámico (Android 12+) o esquema fijo neutro.
 class EnvoltorioColorDinamico extends StatelessWidget {
-  final Widget Function(ThemeData lightTheme, ThemeData darkTheme, ThemeMode themeMode) builder;
+  final Widget Function(
+    ThemeData lightTheme,
+    ThemeData darkTheme,
+    ThemeMode themeMode,
+  )
+  builder;
   final ThemeMode? themeModeOverride;
 
   const EnvoltorioColorDinamico({
@@ -26,7 +31,8 @@ class EnvoltorioColorDinamico extends StatelessWidget {
     final lightTheme = _buildLightTheme();
     final darkTheme = _buildDarkTheme();
     // Respeta la preferencia explícita del usuario; si no, brillo del sistema.
-    final themeMode = themeModeOverride ??
+    final themeMode =
+        themeModeOverride ??
         (MediaQuery.platformBrightnessOf(context) == Brightness.dark
             ? ThemeMode.dark
             : ThemeMode.light);

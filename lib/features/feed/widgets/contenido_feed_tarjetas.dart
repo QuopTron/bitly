@@ -15,46 +15,56 @@ part of 'contenido_feed.dart';
 
 /// Tarjetas de track de todas las secciones (máx 10 por sección).
 List<Widget> _construirTracks(
-    ContenidoFeed c, BuildContext context, Responsive r) {
+  ContenidoFeed c,
+  BuildContext context,
+  Responsive r,
+) {
   final loc = AppLocalizations.of(context);
   final conTracks =
       c.secciones.where((s) => s.items.any((i) => i.type == 'track')).toList();
   final widgets = <Widget>[];
   for (final seccion in conTracks) {
-    final tracks = seccion.items.where((i) => i.type == 'track').take(10).toList();
+    final tracks =
+        seccion.items.where((i) => i.type == 'track').take(10).toList();
     if (tracks.isEmpty) continue;
     // Cabecera de sección solo cuando hay más de una con tracks.
     if (seccion.title.isNotEmpty && conTracks.length > 1) {
-      widgets.add(_cabeceraSeccion(
-        context,
-        titulo: localizeFeedTitle(loc, seccion.title),
-        colorBrillo: c.colorBrillo,
-        icono: Icons.wifi_tethering,
-      ));
+      widgets.add(
+        _cabeceraSeccion(
+          context,
+          titulo: localizeFeedTitle(loc, seccion.title),
+          colorBrillo: c.colorBrillo,
+          icono: Icons.wifi_tethering,
+        ),
+      );
     }
     for (final item in tracks) {
       final huella = huellaItem(item);
       final id = 'track_${normalizarIdTrack(item.id)}_${item.source}';
-      final caratulaResuelta =
-          context.read<CubitLikes>().caratulaLocalPara(item);
+      final caratulaResuelta = context.read<CubitLikes>().caratulaLocalPara(
+        item,
+      );
       void play() => sl<CubitCola>().reproducirConContexto(tracks, item);
-      widgets.add(TarjetaTrack(
-        item: item,
-        titulo: item.name,
-        subtitulo: item.artists ?? '',
-        coverUrl: caratulaResuelta,
-        escalaTexto: 1.2,
-        readyKey: normalizarIdTrack(item.id),
-        esAmado: c.idsAmados.contains(huella),
-        onLike: () => c.onAlternarLike(id, item),
-        estadoDescarga: _estadoDescargaTrack(c, huella, id, item.isrc),
-        onDescargar: () => c.onIniciarDescarga(item),
-        onBorrar: c.onBorrarTrack != null ? () => c.onBorrarTrack!(item) : null,
-        onInfo: () => c.onMostrarInfo(context, item),
-        onMas: () => c.onMostrarMas(context, item),
-        onTap: play,
-        onCompartir: () => ServicioCompartir.instance.compartir(item),
-      ));
+      widgets.add(
+        TarjetaTrack(
+          item: item,
+          titulo: item.name,
+          subtitulo: item.artists ?? '',
+          coverUrl: caratulaResuelta,
+          escalaTexto: 1.2,
+          readyKey: normalizarIdTrack(item.id),
+          esAmado: c.idsAmados.contains(huella),
+          onLike: () => c.onAlternarLike(id, item),
+          estadoDescarga: _estadoDescargaTrack(c, huella, id, item.isrc),
+          onDescargar: () => c.onIniciarDescarga(item),
+          onBorrar:
+              c.onBorrarTrack != null ? () => c.onBorrarTrack!(item) : null,
+          onInfo: () => c.onMostrarInfo(context, item),
+          onMas: () => c.onMostrarMas(context, item),
+          onTap: play,
+          onCompartir: () => ServicioCompartir.instance.compartir(item),
+        ),
+      );
     }
   }
   return widgets;
@@ -62,7 +72,11 @@ List<Widget> _construirTracks(
 
 /// Estado de descarga de un track: por clave de fuente, huella o ISRC.
 EstadoDescarga _estadoDescargaTrack(
-    ContenidoFeed c, String huella, String id, String? isrc) {
+  ContenidoFeed c,
+  String huella,
+  String id,
+  String? isrc,
+) {
   final s = c.estadosDescarga[id];
   if (s != null && s != EstadoDescarga.ninguno) return s;
   if (c.huellasDescargadas.contains(huella)) return EstadoDescarga.completado;
@@ -73,4 +87,3 @@ EstadoDescarga _estadoDescargaTrack(
   }
   return EstadoDescarga.ninguno;
 }
-

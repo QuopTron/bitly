@@ -19,27 +19,32 @@ mixin _DownloadDaoLotes on DatabaseAccessor<AppDatabase>, _$DownloadDaoMixin {
     final sinceDt = DateTime.tryParse(since);
     if (sinceDt == null) return select(downloadBatches).get();
     return (select(downloadBatches)
-          ..where((t) => t.downloadedAt.isBiggerThanValue(sinceDt)))
-        .get();
+      ..where((t) => t.downloadedAt.isBiggerThanValue(sinceDt))).get();
   }
 
   Future<DownloadBatche?> getBatchByItem(
-    String itemType, String itemId, String source,
-  ) => (select(downloadBatches)
-        ..where((t) =>
+    String itemType,
+    String itemId,
+    String source,
+  ) =>
+      (select(downloadBatches)..where(
+        (t) =>
             t.itemType.equals(itemType) &
             t.itemId.equals(itemId) &
-            t.source.equals(source)))
-      .getSingleOrNull();
+            t.source.equals(source),
+      )).getSingleOrNull();
 
   Future<void> removeBatchByItem(
-          String itemType, String itemId, String source) =>
-      (delete(downloadBatches)
-            ..where((t) =>
-                t.itemType.equals(itemType) &
-                t.itemId.equals(itemId) &
-                t.source.equals(source)))
-          .go();
+    String itemType,
+    String itemId,
+    String source,
+  ) =>
+      (delete(downloadBatches)..where(
+        (t) =>
+            t.itemType.equals(itemType) &
+            t.itemId.equals(itemId) &
+            t.source.equals(source),
+      )).go();
 
   Future<void> removeBatches(List<String> keys) async {
     for (final k in keys) {

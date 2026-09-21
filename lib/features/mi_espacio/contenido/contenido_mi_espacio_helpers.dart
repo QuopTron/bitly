@@ -14,7 +14,11 @@ part of 'contenido_mi_espacio.dart';
 
 /// Estado de descarga de un track: clave de fuente exacta, luego
 /// escaneo por prefijo (cualquier fuente del mismo ID) y huellas.
-EstadoDescarga _estadoTrackPara(ContenidoMiEspacio c, ItemFeed item, String id) {
+EstadoDescarga _estadoTrackPara(
+  ContenidoMiEspacio c,
+  ItemFeed item,
+  String id,
+) {
   final s = c.estadosDescarga[id];
   if (s != null && s != EstadoDescarga.ninguno) return s;
   final normId = normalizarIdTrack(item.id);
@@ -36,13 +40,17 @@ EstadoDescarga _estadoTrackPara(ContenidoMiEspacio c, ItemFeed item, String id) 
 
 /// Resuelve la mejor carátula de un ítem de grilla: la propia, la
 /// guardada localmente por like o la del lote descargado que lo contiene.
-String? _resolverCaratula(BuildContext context, ContenidoMiEspacio c, Item item) {
-  if (item.coverUrl?.isNotEmpty == true) return item.coverUrl;
+/// Las rutas locales que ya no existen se saltan (dejarían la tarjeta gris
+/// aunque hubiera una URL perfectamente usable).
+String? _resolverCaratula(
+  BuildContext context,
+  ContenidoMiEspacio c,
+  Item item,
+) {
+  final candidatas = <String?>[item.coverUrl];
   try {
     final likeCubit = context.read<CubitLikes>();
-    final feed = _itemFeedPara(c, item);
-    final local = likeCubit.caratulaLocalPara(feed);
-    if (local != null && local.isNotEmpty) return local;
+    candidatas.add(likeCubit.caratulaLocalPara(_itemFeedPara(c, item)));
     if (item.tipo == TipoItem.album || item.tipo == TipoItem.playlist) {
       final dlCubit = context.read<CubitDescargas>();
       final normId = normalizarIdTrack(item.idReal);
@@ -52,25 +60,47 @@ String? _resolverCaratula(BuildContext context, ContenidoMiEspacio c, Item item)
         if (entry.value.estado != EstadoDescarga.completado) continue;
         final parts = entry.key.split('_');
         if (parts.length < 3) continue;
-        final keyNormId =
-            normalizarIdTrack(parts.sublist(1, parts.length - 1).join('_'));
+        final keyNormId = normalizarIdTrack(
+          parts.sublist(1, parts.length - 1).join('_'),
+        );
         if (keyNormId == normId) {
-          final caratula = dlCubit.caratulaLotePara(entry.key);
-          if (caratula.isNotEmpty) return caratula;
+          candidatas.add(dlCubit.caratulaLotePara(entry.key));
         }
       }
     }
-    return null;
   } catch (_) {
-    return null;
+    // Sin cubits en el árbol se muestra igual lo que traiga el ítem.
   }
+  return _primeraCaratula(candidatas);
+}
+
+/// Primera candidata que se puede pintar: una URL o un archivo local que
+/// existe de verdad. Devuelve null si ninguna sirve.
+String? _primeraCaratula(List<String?> candidatas) {
+  for (final candidata in candidatas) {
+    final valor = candidata?.trim() ?? '';
+    if (valor.isEmpty) continue;
+    if (caratulaLocalUsable(valor)) return valor;
+    if (esRutaDeArchivo(valor)) continue;
+    return valor;
+  }
+  return null;
 }
 
 /// Identificadores de proveedor conocidos por el sistema de descargas.
 const _fuentesConocidas = {
-  'apple-music', 'spotify-web', 'spotify', 'deezer', 'deezer-web',
-  'soundcloud', 'tidal-web', 'qobuz-web', 'pandora',
-  'ytmusic-spotiflac', 'amazon', 'internetarchive',
+  'apple-music',
+  'spotify-web',
+  'spotify',
+  'deezer',
+  'deezer-web',
+  'soundcloud',
+  'tidal-web',
+  'qobuz-web',
+  'pandora',
+  'ytmusic-spotiflac',
+  'amazon',
+  'internetarchive',
 };
 
 /// Estado de descarga de un ítem de grilla: por clave exacta
@@ -103,10 +133,12 @@ EstadoDescarga _resolverEstadoDescarga(
     if (estado == EstadoDescarga.enCola && mejor != EstadoDescarga.enProgreso) {
       mejor = estado;
     }
-    if (estado == EstadoDescarga.interrumpido && mejor == EstadoDescarga.ninguno) {
+    if (estado == EstadoDescarga.interrumpido &&
+        mejor == EstadoDescarga.ninguno) {
       mejor = estado;
     }
-    if (estado == EstadoDescarga.completado && mejor == EstadoDescarga.ninguno) {
+    if (estado == EstadoDescarga.completado &&
+        mejor == EstadoDescarga.ninguno) {
       mejor = estado;
     }
   }

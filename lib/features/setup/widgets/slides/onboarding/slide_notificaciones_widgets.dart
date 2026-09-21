@@ -72,9 +72,10 @@ Widget _filaPermiso(
           desc,
           style: TextStyle(
             fontSize: st.widget.r.footerSize,
-            color: hecha && !concedida
-                ? Colors.redAccent.withValues(alpha: 0.7)
-                : onBg.withValues(alpha: 0.65),
+            color:
+                hecha && !concedida
+                    ? Colors.redAccent.withValues(alpha: 0.7)
+                    : onBg.withValues(alpha: 0.65),
           ),
         ),
       ),
@@ -82,9 +83,8 @@ Widget _filaPermiso(
         Icon(
           concedida ? Icons.check_circle : Icons.cancel,
           size: st.widget.r.footerSize + 2,
-          color: concedida
-              ? glowColor
-              : Colors.redAccent.withValues(alpha: 0.6),
+          color:
+              concedida ? glowColor : Colors.redAccent.withValues(alpha: 0.6),
         ),
     ],
   );
@@ -101,15 +101,17 @@ Widget _acciones(
     child: Column(
       children: [
         BotonVidrio(
-          label: st._todoHecho
-              ? st.widget.loc.setup.continueText
-              : st.widget.loc.setup.notificationActivate,
-          onPressed: guardando
-              ? null
-              : () async {
-                  if (!st._todoHecho) await st._solicitarTodo();
-                  if (st.mounted) st._continuar();
-                },
+          label:
+              st._todoHecho
+                  ? st.widget.loc.setup.continueText
+                  : st.widget.loc.setup.notificationActivate,
+          onPressed:
+              guardando
+                  ? null
+                  : () async {
+                    if (!st._todoHecho) await st._solicitarTodo();
+                    if (st.mounted) st._continuar();
+                  },
           isLoading: st._solicitando || guardando,
           height: st.widget.r.continueButtonHeight,
           accent: glowColor,
