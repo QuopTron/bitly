@@ -7,7 +7,6 @@
 
 import 'package:bitly/core/plataforma/sistema/base/monitor_frames.dart';
 import 'package:bitly/shared/utilidades/plataforma/pantalla/efectos_app.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
