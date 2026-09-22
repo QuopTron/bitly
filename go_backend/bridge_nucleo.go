@@ -22,6 +22,12 @@ func ClearQueue() string {
 	return gobackend.ClearQueue()
 }
 
+// LiberarMemoria re-exportado desde internal/gobackend. La app lo llama cuando
+// el sistema operativo avisa que hay presión de memoria (Android onTrimMemory).
+func LiberarMemoria() string {
+	return gobackend.LiberarMemoria()
+}
+
 // CloseBackend re-exportado desde internal/gobackend.
 func CloseBackend() {
 	gobackend.CloseBackend()

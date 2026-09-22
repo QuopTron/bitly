@@ -64,8 +64,14 @@ Future<String> cargarUsername() async {
 }
 
 /// Minúsculas, sin espacios extra (dedup cross-extensión).
+/// Espacios colapsados a uno. La expresión se compila UNA vez: esto corre
+/// dentro de los bucles que arman la biblioteca entera (todos los likes y
+/// todas las descargas), así que recrear el `RegExp` por ítem se pagaba en
+/// cada armado de Mi Espacio.
+final RegExp _reEspaciosNombre = RegExp(r'\s+');
+
 String _normalizarNombre(String n) =>
-    n.toLowerCase().trim().replaceAll(RegExp(r'\s+'), ' ');
+    n.toLowerCase().trim().replaceAll(_reEspaciosNombre, ' ');
 
 /// Ítems de la pestaña [pestana] combinando likes + descargas.
 /// [biblioteca] es el índice local (nombre + carátula) que actúa como

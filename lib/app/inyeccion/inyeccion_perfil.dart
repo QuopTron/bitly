@@ -33,6 +33,11 @@ Future<void> cargarPerfilRendimiento() async {
     efectosPesados: perfil.efectosPesados && !enTv,
     sigmaMax: enTv ? 0 : perfil.sigmaDesenfoque,
   );
+  // Y la elección EXPLÍCITA del usuario: el "modo fluido" pinta lo mínimo por
+  // frame aunque el perfil detectado diga que hay margen (el perfil acierta en
+  // los extremos, pero se equivoca con equipos de muchos núcleos y GPU floja,
+  // que es justo donde la persona lo activa).
+  EfectosApp.aplicarModoFluido(await cache.getModoFluido());
 }
 
 /// Empuja el perfil de rendimiento cargado al backend Go. Llamar después

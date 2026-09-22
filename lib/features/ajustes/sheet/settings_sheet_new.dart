@@ -24,6 +24,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../../shared/utilidades/interaccion/haptico.dart';
 import '../../../shared/utilidades/plataforma/deteccion_plataforma.dart';
+import '../../../shared/utilidades/plataforma/pantalla/efectos_app.dart';
 import '../../../shared/utilidades/plataforma/pantalla/insets_sistema.dart';
 import '../../../shared/utilidades/plataforma/responsive.dart';
 import '../../../l10n/app_localizations.dart';

@@ -45,7 +45,12 @@ Widget _construirHoja(
     child: Stack(
       children: [
         // Fondo reactivo a la carátula (incluye su propio velo de tema).
-        Positioned.fill(child: _fondoCaratula(caratula, esOscuro)),
+        Positioned.fill(
+          child: st._memo(
+            'fondo|$caratula|$esOscuro',
+            () => _fondoCaratula(caratula, esOscuro),
+          ),
+        ),
         Column(
           children: [
             const SizedBox(height: 8),
@@ -60,7 +65,14 @@ Widget _construirHoja(
               ),
             ),
             SizedBox(height: r.spacingS),
-            _cabeceraHoja(st, context, r, esOscuro),
+            // Cabecera memoizada: no depende de la posición, así que no tiene
+            // por qué reconstruirse ~25 veces por segundo.
+            st._memo(
+              'cabecera|${r.subtitleSize}|${r.footerSize}|$esOscuro|'
+              '${st._traduciendo}|${st._idiomaDestino}|'
+              '${st._traducciones != null}',
+              () => _cabeceraHoja(st, context, r, esOscuro),
+            ),
             const SizedBox(height: 2),
             // Color explícito (como el resto de la app): sin él el Divider
             // hereda el del tema y no queda neutro.
@@ -70,6 +82,15 @@ Widget _construirHoja(
                 future: st._paletaFuture,
                 builder: (context, snap) {
                   final paleta = snap.data;
+                  // Firma de lo que define el aspecto de las líneas NO activas:
+                  // activa, tema, tamaños de fuente y acento de la paleta.
+                  // Mientras no cambie, el widget de cada línea inactiva se
+                  // reutiliza tal cual y Flutter se salta su subárbol: sin esto
+                  // el texto de TODAS las líneas visibles se volvía a maquetar
+                  // en cada tick de posición (~25/s).
+                  final firmaLineas =
+                      '$activa|$esOscuro|${r.subtitleSize}|${r.titleSize}|'
+                      '${paleta?.vibrante.toARGB32()}';
                   // La letra ocupa todo y el mini karaoke de la traducción queda
                   // pegado abajo; los dos comparten la paleta de la portada.
                   return Column(
@@ -94,12 +115,13 @@ Widget _construirHoja(
                                       // recortarse) y el centrado va por la
                                       // posición real de la línea activa.
                                       itemCount: st._lineas.length,
-                                      itemBuilder:
-                                          (context, i) => KeyedSubtree(
-                                            key:
-                                                i == activa
-                                                    ? st._claveActiva
-                                                    : null,
+                                      itemBuilder: (context, i) {
+                                        // La activa se reconstruye siempre (su
+                                        // relleno sigue la posición); las demás
+                                        // se sirven memoizadas.
+                                        if (i == activa) {
+                                          return KeyedSubtree(
+                                            key: st._claveActiva,
                                             child: _lineaKaraoke(
                                               st,
                                               r,
@@ -109,7 +131,21 @@ Widget _construirHoja(
                                               paleta,
                                               posicion,
                                             ),
+                                          );
+                                        }
+                                        return st._memoLinea(
+                                          '$firmaLineas|$i',
+                                          () => _lineaKaraoke(
+                                            st,
+                                            r,
+                                            esOscuro,
+                                            i,
+                                            activa,
+                                            paleta,
+                                            posicion,
                                           ),
+                                        );
+                                      },
                                     );
                                   },
                                 )

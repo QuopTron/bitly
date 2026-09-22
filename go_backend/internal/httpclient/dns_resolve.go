@@ -7,22 +7,64 @@ import (
 	"time"
 )
 
+// Resolve devuelve las IPs de un hostname por DoH, con caché y single-flight.
+//
+// El single-flight es lo que faltaba: cada dial llamaba a Resolve y, si la
+// caché estaba fría, lanzaba su propia consulta DoH (1–2 HTTPS a Cloudflare o
+// Google). Una búsqueda hace muchas peticiones al MISMO host, así que se
+// repetían N consultas idénticas en paralelo — latencia extra, conexiones de
+// más y RAM de más. Ahora la primera consulta del host se comparte: las demás
+// esperan su resultado.
 func (dm *DNSManager) Resolve(ctx context.Context, hostname string) ([]net.IP, error) {
-	if net.ParseIP(hostname) != nil {
-		return []net.IP{net.ParseIP(hostname)}, nil
+	if ip := net.ParseIP(hostname); ip != nil {
+		return []net.IP{ip}, nil
 	}
 
 	// Comprueba la caché
 	dm.mutexCache.RLock()
-	if entry, ok := dm.almacenCache[hostname]; ok && time.Now().Before(entry.expira) {
-		dm.mutexCache.RUnlock()
+	entry, ok := dm.almacenCache[hostname]
+	dm.mutexCache.RUnlock()
+	if ok && time.Now().Before(entry.expira) {
 		if entry.negativo {
 			return nil, fmt.Errorf("doh: cached failure for %s", hostname)
 		}
 		return entry.ips, nil
 	}
-	dm.mutexCache.RUnlock()
 
+	// Single-flight: apuntarse a la consulta en curso o crearla.
+	dm.mutexCache.Lock()
+	if dm.enVuelo == nil {
+		dm.enVuelo = make(map[string]*vueloDNS)
+	}
+	if enCurso, hay := dm.enVuelo[hostname]; hay {
+		dm.mutexCache.Unlock()
+		select {
+		case <-enCurso.hecho:
+			return enCurso.ips, enCurso.err
+		case <-ctx.Done():
+			// El que espera sí puede rendirse: el resultado compartido sigue en
+			// camino para los demás.
+			return nil, ctx.Err()
+		}
+	}
+	vuelo := &vueloDNS{hecho: make(chan struct{})}
+	dm.enVuelo[hostname] = vuelo
+	dm.mutexCache.Unlock()
+
+	ips, err := dm.resolverDoH(ctx, hostname)
+
+	vuelo.ips, vuelo.err = ips, err
+	close(vuelo.hecho)
+	dm.mutexCache.Lock()
+	delete(dm.enVuelo, hostname)
+	dm.mutexCache.Unlock()
+
+	return ips, err
+}
+
+// resolverDoH hace la consulta real (resolvedores en orden + guarda SSRF) y
+// escribe la caché. Es la parte que ejecuta solo el líder del single-flight.
+func (dm *DNSManager) resolverDoH(ctx context.Context, hostname string) ([]net.IP, error) {
 	dm.mutex.Lock()
 	allowPrivate := dm.permitirPrivadas
 	dm.mutex.Unlock()
@@ -61,7 +103,13 @@ func (dm *DNSManager) Resolve(ctx context.Context, hostname string) ([]net.IP, e
 		return ips, nil
 	}
 
-	// All resolvers failed — cache negative (30s)
+	// All resolvers failed. Un fallo por cancelación del llamador NO se cachea:
+	// no dice nada del host y dejaría a ese host sin resolver durante 30 s para
+	// todas las peticiones siguientes.
+	if ctx.Err() != nil {
+		return nil, fmt.Errorf("doh: %s: %w", hostname, ctx.Err())
+	}
+
 	dm.mutexCache.Lock()
 	dm.almacenCache[hostname] = &entradaCacheDNS{
 		negativo: true,

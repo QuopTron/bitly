@@ -118,6 +118,22 @@ class CacheAjustes {
   Future<void> guardarNivelRendimiento(NivelRendimiento nivel) =>
       _dao.set(_clavePerf, nivel.clave);
 
+  // ── Modo fluido (Ajustes → Rendimiento) ──────────────
+  static const _claveModoFluido = 'modo_fluido';
+
+  /// Si es true, la app pinta lo mínimo por frame: sin desenfoques, sombras,
+  /// pulsos ni partículas, y los fondos a pantalla completa usan el COLOR
+  /// dominante del cover en vez de la foto. Lo elige la persona (Ajustes →
+  /// Rendimiento) para los equipos donde la app se siente pesada; a diferencia
+  /// del perfil automático, esta elección no se revierte sola.
+  Future<bool> getModoFluido() async {
+    final raw = await _dao.get(_claveModoFluido);
+    return raw == 'true';
+  }
+
+  Future<void> guardarModoFluido(bool valor) =>
+      _dao.set(_claveModoFluido, valor ? 'true' : 'false');
+
   // ── Audio en segundo plano (PC/escritorio) ───────────
   static const _claveAudioFondo = 'audio_en_segundo_plano';
 

@@ -44,7 +44,15 @@ class FondoAmbientalReproductor extends StatelessWidget {
         // (lo de siempre), 1 = sólo el color dominante. En el medio se
         // cruzan las capas 1:1: cada punto porcentual del control vale lo
         // mismo de punta a punta.
-        final v = prefs.fondoReproductor;
+        //
+        // En MODO FLUIDO se va directo al 100% (solo el color dominante): la
+        // foto a pantalla completa es la capa más cara por frame en una GPU de
+        // gama baja y este es el mismo estado al que llega el control, así que
+        // el diseño y el color de la canción se mantienen.
+        final v =
+            EfectosApp.fotoPantallaCompletaActiva
+                ? prefs.fondoReproductor
+                : 1.0;
         // Y la carátula se va desenfocando con la intensidad hasta disolverse
         // en el color del cover (con su tope propio, ver estilo_helper).
         final sigmaFondo = EstiloHelper.sigmaPorNivel(sigma, v);
@@ -97,7 +105,9 @@ class FondoAmbientalReproductor extends StatelessWidget {
                   ),
                 ),
               // Capa 4: gradiente inferior.
-              Container(
+              // `DecoratedBox` en vez de `Container`: la misma decoración sin el
+              // ConstrainedBox/Padding que arma un Container por frame.
+              DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,

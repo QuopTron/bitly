@@ -41,7 +41,7 @@ Widget _statsGrid(List<Widget> children, BuildContext context, Responsive r) {
             .map(
               (c) => SizedBox(
                 width:
-                    (MediaQuery.of(context).size.width -
+                    (MediaQuery.sizeOf(context).width -
                         r.spacingL * 2 -
                         r.spacingS) /
                     2,

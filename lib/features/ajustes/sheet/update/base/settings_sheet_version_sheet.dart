@@ -37,7 +37,7 @@ class _VersionSheetState extends State<_VersionSheet> with _VersionSheetLoader {
     final glow = widget.glowColor;
 
     return Container(
-      height: MediaQuery.of(context).size.height * 0.55,
+      height: MediaQuery.sizeOf(context).height * 0.55,
       margin: EdgeInsets.only(top: r.spacingXL * 2),
       decoration: BoxDecoration(
         color: bg,

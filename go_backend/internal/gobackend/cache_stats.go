@@ -4,7 +4,10 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
+	"runtime/debug"
 
+	"github.com/zarz/bitly/go_backend/internal/httpclient"
 	"github.com/zarz/bitly/go_backend/internal/provider"
 )
 
@@ -91,6 +94,38 @@ func ClearStreamCache() string {
 	removed += limpiarArchivosDir(rutaDirPortadas())
 	provider.LimpiarCacheMetadata()
 	out, _ := json.Marshal(map[string]interface{}{"removed": removed, "ok": true})
+	return string(out)
+}
+
+// LiberarMemoria responde a una señal de PRESIÓN DE MEMORIA del sistema
+// operativo (Android onTrimMemory / Flutter didHaveMemoryPressure).
+//
+// Qué libera: SOLO cachés reconstruibles que viven en RAM —
+//   - metadata de proveedores (búsqueda, detalle y feed de las 9 extensiones),
+//   - resoluciones DNS (se vuelven a pedir en la próxima conexión),
+//
+// y al final fuerza un GC más la devolución de memoria al sistema
+// (debug.FreeOSMemory): es exactamente el momento para el que existe esa
+// llamada — el SO acaba de pedir memoria y prefiere que sueltes tú antes de
+// matar el proceso.
+//
+// Qué NO toca a propósito: nada en DISCO. El caché de streaming, las carátulas
+// y las descargas son datos del usuario; borrarlos ante una señal de memoria
+// sería destruir cosas por un aviso que el sistema puede resolver por su cuenta
+// (ese page cache es reclamable sin perder nada).
+func LiberarMemoria() string {
+	provider.LimpiarCacheMetadata()
+	httpclient.ClearDNSCache()
+	// Devuelve al SO lo que ya no usamos. No se llama en ningún camino normal:
+	// un GC completo tiene un costo, y acá es el SO el que lo está pidiendo.
+	debug.FreeOSMemory()
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	out, _ := json.Marshal(map[string]interface{}{
+		"ok":        true,
+		"heap_mb":   m.HeapAlloc >> 20,
+		"sistemaMB": m.Sys >> 20,
+	})
 	return string(out)
 }
 

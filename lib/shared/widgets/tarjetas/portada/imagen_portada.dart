@@ -12,8 +12,6 @@ import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
-import '../../../utilidades/plataforma/pantalla/efectos_app.dart';
-
 part 'imagen_portada_helpers.dart';
 
 /// Widget de portada con borde redondeado, shimmer opcional y glow.
@@ -26,9 +24,6 @@ class ImagenPortada extends StatelessWidget {
   final double radioBorde;
   final Widget? fallback;
   final Color? fondoFallback;
-
-  /// True: muestra shimmer animado mientras carga la imagen.
-  final bool mostrarShimmer;
 
   /// Si se define, pinta un glow de color suave detrás de la imagen
   /// (p.ej. el color dominante de la portada). Alpha controla intensidad.
@@ -47,7 +42,6 @@ class ImagenPortada extends StatelessWidget {
     this.radioBorde = 0,
     this.fallback,
     this.fondoFallback,
-    this.mostrarShimmer = false,
     this.colorGlow,
     this.dispersionGlow = 6,
   });
@@ -57,21 +51,6 @@ class ImagenPortada extends StatelessWidget {
     final radio = BorderRadius.circular(radioBorde);
 
     Widget imagen = _construirImagen(context);
-
-    if (mostrarShimmer) {
-      imagen = Stack(
-        fit: StackFit.expand,
-        children: [
-          _PlaceholderShimmer(
-            ancho: ancho,
-            alto: alto,
-            radioBorde: radioBorde,
-            colorFondo: fondoFallback,
-          ),
-          imagen,
-        ],
-      );
-    }
 
     if (colorGlow != null) {
       imagen = Container(
@@ -95,26 +74,31 @@ class ImagenPortada extends StatelessWidget {
   }
 
   Widget _construirImagen(BuildContext context) {
-    if (rutaLocal != null && rutaLocal!.isNotEmpty) {
-      if (rutaLocal!.startsWith('http://') ||
-          rutaLocal!.startsWith('https://')) {
+    final respaldo = fallback ?? _fallbackPorDefecto(context);
+    final local = rutaLocal;
+    if (local != null && local.isNotEmpty) {
+      if (local.startsWith('http://') || local.startsWith('https://')) {
         return imagenDesdeUrl(
-          rutaLocal,
+          local,
           ancho: ancho,
           alto: alto,
           ajuste: ajuste,
-          fallback: fallback ?? _fallbackPorDefecto(context),
+          fallback: respaldo,
         );
       }
-      if (File(rutaLocal!).existsSync()) {
-        return imagenDesdeUrl(
-          rutaLocal,
-          ancho: ancho,
-          alto: alto,
-          ajuste: ajuste,
-          fallback: fallback ?? _fallbackPorDefecto(context),
-        );
-      }
+      // SIN `existsSync`: consultar el sistema de archivos en el `build()` de
+      // cada tarjeta es una llamada al sistema por frame (antes: una por
+      // tarjeta y por build). `Image.file` ya resuelve el archivo y, si no
+      // existe o falla, cae al cover de red (o al respaldo) vía `errorBuilder`:
+      // mismo resultado visible, cero syscalls.
+      return imagenDesdeUrl(
+        local,
+        ancho: ancho,
+        alto: alto,
+        ajuste: ajuste,
+        fallback: respaldo,
+        respaldoRemoto: coverUrl,
+      );
     }
 
     return imagenDesdeUrl(
@@ -122,7 +106,7 @@ class ImagenPortada extends StatelessWidget {
       ancho: ancho,
       alto: alto,
       ajuste: ajuste,
-      fallback: fallback ?? _fallbackPorDefecto(context),
+      fallback: respaldo,
     );
   }
 

@@ -90,34 +90,18 @@ List<Widget> _construirContenidoPlaylist(
     );
   }
 
-  // Lista de tracks visibles.
+  // Lista de tracks: cada fila resuelve su carátula/like/descarga en SU
+  // build, así abrir una playlist de 100 canciones no paga el trabajo de las
+  // 100 de golpe (ver FilaTrackDetalle).
   for (final item in d.items) {
-    final clave = 'track_${normalizarIdTrack(item.id)}_${d.src}';
-    final caratulaItem = likedCubit.caratulaLocalPara(item) ?? d.caratula;
-    final esAmado = likedCubit.estaAmado(item);
-    void play() => sl<CubitCola>().reproducirConContexto(d.items, item);
-    // Sin padding horizontal: la tarjeta ya trae su margen lateral.
     widgets.add(
-      Padding(
-        // El eje Y de Ajustes → Diseño escala el hueco entre canciones.
-        padding: EdgeInsets.symmetric(
-          vertical: r.spacingXS * 0.5 * AparienciaEspacios.espacioY(context),
-        ),
-        child: TarjetaTrack(
-          item: item,
-          titulo: item.name,
-          subtitulo: item.artists ?? '',
-          coverUrl: caratulaItem,
-          esAmado: esAmado,
-          readyKey: normalizarIdTrack(item.id),
-          escalaTexto: 1.2,
-          onLike: () => likedCubit.alternarLike(item),
-          estadoDescarga: dlCubit.estadoDescargaPara(clave).estado,
-          onDescargar: () => mostrarOpcionesDescarga(context, item, esOscuro),
-          onBorrar: () => dlCubit.borrarDescargaTrack(item.id, d.src),
-          onTap: play,
-          onCompartir: () => ServicioCompartir.instance.compartir(item),
-        ),
+      FilaTrackDetalle(
+        key: ValueKey('pl_${d.src}_${item.id}'),
+        item: item,
+        contexto: d.items,
+        subtitulo: item.artists ?? '',
+        src: d.src,
+        caratulaRespaldo: d.caratula,
       ),
     );
   }

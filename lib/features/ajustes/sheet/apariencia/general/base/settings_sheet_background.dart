@@ -94,7 +94,10 @@ class _SongTintedBackgroundState extends State<_SongTintedBackground> {
         // La portada borrosa se apaga a medida que sube la intensidad de
         // "fondos de modales": con 1 queda sólo el color del cover (_bg).
         // Se aplica 1:1: cada punto porcentual mueve lo mismo.
-        final nivel = prefs.fondosModals;
+        // En MODO FLUIDO la portada a pantalla completa no se pinta: se va
+        // directo al color (el mismo estado del control al 100%).
+        final nivel =
+            EfectosApp.fotoPantallaCompletaActiva ? prefs.fondosModals : 1.0;
         // Sigma de fábrica del modal; con el control sube (la portada se va
         // desenfocando mientras se disuelve en el color del cover).
         final sigmaBase =

@@ -7,10 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"time"
 
 	"github.com/dop251/goja"
-	"github.com/zarz/bitly/go_backend/internal/httpclient"
 )
 
 // registerFileSegments expone file.downloadSegments, el descargador paralelo de
@@ -76,12 +74,11 @@ func registerFileSegments(s *Sandbox, fileObj *goja.Object) {
 			return vm.ToValue(map[string]interface{}{"success": false, "error": fmt.Sprintf("mkdir: %v", err)})
 		}
 
-		client := &http.Client{
-			Transport: &http.Transport{
-				DialContext:           httpclient.NewDoHDialContext(),
-				ResponseHeaderTimeout: 30 * time.Second,
-			},
-		}
+		// Cliente COMPARTIDO de descargas: acá es donde MÁS se nota. Una descarga
+		// por segmentos (DASH/HLS) hace decenas o cientos de peticiones al MISMO
+		// CDN; con un cliente por llamada cada segmento pagaba su TCP + TLS, y
+		// además el handshake no tenía techo. Ver clienteDescargaExtPara.
+		client := clienteDescargaExtPara()
 
 		type segResult struct {
 			index int

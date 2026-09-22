@@ -12,11 +12,16 @@ part of '../base/busqueda_bloc.dart';
 
 final _log = Logger();
 
-/// Fuentes cuyas BÚSQUEDAS requieren sesión firmada (el registry de
-/// ServicioVerificacion es la fuente de verdad): qobuz-web da 403 y amazon
-/// devuelve 0 sin verificar; tidal-web también pide sesión. Deezer/pandora
-/// buscan anónimo — vacío ahí es rate-limit o "sin resultados", nunca un
-/// problema de sesión.
+/// Fuentes cuyas BÚSQUEDAS exigen sesión firmada del gateway, según el registry
+/// de ServicioVerificacion (la fuente de verdad). Deezer/pandora buscan
+/// anónimo: ahí un vacío es rate-limit o "sin resultados", nunca de sesión.
+///
+/// HOY ESTÁ VACÍO a propósito (ver el doc de ServicioVerificacion.
+/// fuentesSesionFirmada): ninguna fuente depende del gateway, así que el camino
+/// de verificación queda como plomería lista para reactivarse, no como una
+/// compensación activa. Por eso una búsqueda vacía ya NO se reintenta a ciegas:
+/// cuando esta lista tenía entradas, el reintento tapaba el warm-up de la sesión
+/// firmada; sin entradas solo duplicaba el trabajo de todos los proveedores.
 final _fuentesVerificarAlVacio = <String>{
   ...ServicioVerificacion.fuentesSesionFirmada,
 }..removeAll(const {'deezer', 'pandora'});

@@ -35,12 +35,10 @@ import '../../../../shared/widgets/vidrio/botones/boton_accion_vidrio.dart';
 import '../../../../shared/utilidades/modales/mostrar_modal.dart';
 import '../../../../shared/widgets/modales/descarga/base/hoja_opciones_descarga.dart';
 import '../../../../shared/widgets/modales/playlist/base/hoja_playlist.dart';
-import '../../../../shared/widgets/tarjetas/track/base/tarjeta_track.dart';
 import '../../comun/cabecera/cabecera_detalle.dart';
+import '../../comun/piezas/fila_track_detalle.dart';
 import '../../comun/vistas/detalle_tv.dart';
 import '../../comun/base/esqueleto_detalle.dart';
-import '../../../../core/servicios/compartir/base/servicio_compartir.dart';
-import '../../../../shared/utilidades/formato/apariencia/barras/apariencia_espacios_helper.dart';
 import '../../../../shared/tema/especificaciones/especificaciones_plataforma.dart';
 
 part '../acciones/playlist_detalle_batch.dart';

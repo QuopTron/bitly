@@ -19,6 +19,7 @@ import '../../../../app/inyeccion/inyeccion.dart';
 import '../../../../core/modelos/usuario/perfil/perfil_rendimiento.dart';
 import '../../../../core/modelos/usuario/preferencias/preferencias_estilo.dart';
 import '../../../utilidades/formato/comun/formato/estilo_helper.dart';
+import '../../../utilidades/plataforma/pantalla/efectos_app.dart';
 import '../../../utilidades/portada/paleta/paleta_portada.dart';
 import '../../fondos/ambiente/atenuado_por_nivel.dart';
 import '../../tarjetas/portada/imagen_portada.dart';
@@ -88,18 +89,29 @@ class _FondoReactivoPortadaState extends State<FondoReactivoPortada> {
     return ValueListenableBuilder<PreferenciasEstilo>(
       valueListenable: prefs,
       builder:
-          (context, preferencias, _) => Stack(
-            fit: StackFit.expand,
-            children: [
-              _clasico(preferencias.fondosModals),
-              if (_acento != null)
-                AtenuadoPorNivel(
-                  // La opacidad es la intensidad tal cual: cada punto
-                  // porcentual del control vale lo mismo.
-                  opacidad: preferencias.fondosModals,
-                  child: _tinte(),
-                ),
-            ],
+          (context, preferencias, _) => Builder(
+            builder: (context) {
+              // En MODO FLUIDO la portada a pantalla completa no se pinta (es la
+              // capa más cara por frame): el modal queda con el color dominante
+              // del cover, que es el mismo estado del control al 100%.
+              final nivel =
+                  EfectosApp.fotoPantallaCompletaActiva
+                      ? preferencias.fondosModals
+                      : 1.0;
+              return Stack(
+                fit: StackFit.expand,
+                children: [
+                  _clasico(nivel),
+                  if (_acento != null)
+                    AtenuadoPorNivel(
+                      // La opacidad es la intensidad tal cual: cada punto
+                      // porcentual del control vale lo mismo.
+                      opacidad: nivel,
+                      child: _tinte(),
+                    ),
+                ],
+              );
+            },
           ),
     );
   }
@@ -127,7 +139,7 @@ class _FondoReactivoPortadaState extends State<FondoReactivoPortada> {
     final velo = (widget.esOscuro ? Colors.black : Colors.white).withValues(
       alpha: widget.esOscuro ? widget.veloOscuro : widget.veloClaro,
     );
-    if (_caratula.isEmpty) {
+    if (_caratula.isEmpty || !EfectosApp.fotoPantallaCompletaActiva) {
       return Container(color: Color.alphaBlend(velo, _base));
     }
     final sigma =

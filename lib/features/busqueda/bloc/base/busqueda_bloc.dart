@@ -101,7 +101,7 @@ class BlocBusqueda extends Bloc<EventoBusqueda, EstadoBusqueda> {
         _cacheResultados.remove(clave);
       }
 
-      await _intentarBusqueda(this, event, emit, permitirReintento: true);
+      await _intentarBusqueda(this, event, emit);
     });
 
     on<AgregarBusquedaReciente>((event, emit) {

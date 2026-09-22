@@ -9,7 +9,14 @@ import (
 // (no JSON serialization — used by streaming search). Track results are
 // filtered through RankOriginalCandidates so covers/remixes/wrong-versions
 // are rejected before they reach the user's screen.
-func searchProviderItems(p provider.Provider, query string, limit int, searchType string) []FeedItemGo {
+//
+// El segundo valor es `fallo`: la fuente NO dio ninguna respuesta válida (error
+// de transporte/sesión, cooldown o, más arriba, el techo de tiempo). Sirve para
+// que la app pueda distinguir "esta fuente no tiene nada para esta consulta" de
+// "a esta fuente no se le pudo preguntar" — sin eso, un fallo se pintaba como
+// "sin resultados", que es una mentira y además manda al usuario a revisar la
+// consulta en vez de reintentar.
+func searchProviderItems(p provider.Provider, query string, limit int, searchType string) ([]FeedItemGo, bool) {
 	items := make([]FeedItemGo, 0)
 
 	// Only skip providers cooled *for search*. Streaming/download rate-limits
@@ -18,8 +25,14 @@ func searchProviderItems(p provider.Provider, query string, limit int, searchTyp
 	// session (until the cooldown expires) even though the source's search
 	// endpoints are perfectly reachable.
 	if cooldown.IsCooledOp(p.Name(), "search") {
-		return items
+		// Enfriada = no se le preguntó: no se puede afirmar que no tenga nada.
+		return items, true
 	}
+
+	// `respondio` se enciende con la PRIMERA consulta que termina sin error. Con
+	// eso el vacío legítimo (la fuente contestó "no tengo nada") se distingue de
+	// la fuente que nunca contestó.
+	respondio := false
 
 	// Extract query title+artist for relevance filtering.
 	queryTitle, queryArtist := splitSearchQuery(query)
@@ -33,8 +46,9 @@ func searchProviderItems(p provider.Provider, query string, limit int, searchTyp
 				// Transport/session failure: the source is unhealthy right now.
 				// Return fast — a fallback query would fail the same way and
 				// only add seconds of dead wait for the user.
-				return items
+				return items, true
 			}
+			respondio = true
 			for _, c := range res {
 				items = append(items, combinadoAFeedItem(c, ep.Name()))
 			}
@@ -48,13 +62,14 @@ func searchProviderItems(p provider.Provider, query string, limit int, searchTyp
 				items = filtrarOriginales(items, queryTitle, queryArtist)
 			}
 			if len(items) > 0 {
-				return items
+				return items, false
 			}
 		}
 		// Fallback: track search only (only reached when the extension search
 		// genuinely succeeded with zero results, or for native providers).
 		tracks, err := p.SearchTracks(query, limit)
 		if err == nil {
+			respondio = true
 			if queryTitle != "" {
 				tracks = provider.RankOriginalCandidates(queryTitle, queryArtist, tracks)
 			}
@@ -72,20 +87,22 @@ func searchProviderItems(p provider.Provider, query string, limit int, searchTyp
 			if err != nil {
 				// Source is down (auth/session/rate-limit): don't burn a second
 				// full query on top of the failed one.
-				return items
+				return items, true
 			}
+			respondio = true
 			if len(res) > 0 {
 				items := combinadosAFeedItems(res, ep.Name())
 				if queryTitle != "" {
 					items = filtrarOriginales(items, queryTitle, queryArtist)
 				}
-				return items
+				return items, false
 			}
 			// Genuine empty for this filter: fall through to SearchTracks once
 			// (some providers only populate the unfiltered search).
 		}
 		tracks, err := p.SearchTracks(query, limit)
 		if err == nil {
+			respondio = true
 			if queryTitle != "" {
 				tracks = provider.RankOriginalCandidates(queryTitle, queryArtist, tracks)
 			}
@@ -95,48 +112,60 @@ func searchProviderItems(p provider.Provider, query string, limit int, searchTyp
 		}
 	case "album", "albums":
 		if ep, ok := p.(*provider.ExtensionProvider); ok {
-			if res, err := ep.SearchFiltered(
-				filtroParaExtension(ep.Name(), searchType), query, limit,
-			); err == nil && len(res) > 0 {
-				return combinadosAFeedItems(res, ep.Name())
+			res, err := ep.SearchFiltered(
+				filtroParaExtension(ep.Name(), searchType), query, limit)
+			if err == nil {
+				respondio = true
+				if len(res) > 0 {
+					return combinadosAFeedItems(res, ep.Name()), false
+				}
 			}
 		}
 		albums, err := p.SearchAlbums(query, limit)
 		if err == nil {
+			respondio = true
 			for _, a := range albums {
 				items = append(items, albumAFeedItem(a, p.Name()))
 			}
 		}
 	case "artist", "artists":
 		if ep, ok := p.(*provider.ExtensionProvider); ok {
-			if res, err := ep.SearchFiltered(
-				filtroParaExtension(ep.Name(), searchType), query, limit,
-			); err == nil && len(res) > 0 {
-				return combinadosAFeedItems(res, ep.Name())
+			res, err := ep.SearchFiltered(
+				filtroParaExtension(ep.Name(), searchType), query, limit)
+			if err == nil {
+				respondio = true
+				if len(res) > 0 {
+					return combinadosAFeedItems(res, ep.Name()), false
+				}
 			}
 		}
 		artists, err := p.SearchArtists(query, limit)
 		if err == nil {
+			respondio = true
 			for _, a := range artists {
 				items = append(items, artistaAFeedItem(a, p.Name()))
 			}
 		}
 	case "playlist", "playlists":
 		if ep, ok := p.(*provider.ExtensionProvider); ok {
-			if res, err := ep.SearchFiltered(
-				filtroParaExtension(ep.Name(), searchType), query, limit,
-			); err == nil && len(res) > 0 {
-				return combinadosAFeedItems(res, ep.Name())
+			res, err := ep.SearchFiltered(
+				filtroParaExtension(ep.Name(), searchType), query, limit)
+			if err == nil {
+				respondio = true
+				if len(res) > 0 {
+					return combinadosAFeedItems(res, ep.Name()), false
+				}
 			}
 		}
 		playlists, err := p.SearchPlaylists(query, limit)
 		if err == nil {
+			respondio = true
 			for _, pl := range playlists {
 				items = append(items, playlistAFeedItem(pl, p.Name()))
 			}
 		}
 	}
-	return items
+	return items, !respondio
 }
 
 // combinedToFeedItems converts a slice of CombinedResult to FeedItemGo.

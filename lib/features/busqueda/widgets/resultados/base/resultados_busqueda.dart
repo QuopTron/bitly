@@ -17,6 +17,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../../app/inyeccion/inyeccion.dart';
 import '../../../../../core/cache/estado/estado_descarga.dart';
 import '../../../../../core/modelos/feed/item_feed.dart';
+import '../../../../../core/modelos/usuario/preferencias/preferencias_apariencia.dart';
 import '../../../../../core/servicios/utilidades/huella_item.dart';
 import '../../../../../estado/cola/cubit_cola.dart';
 import '../../../../../estado/like/base/cubit_like.dart';

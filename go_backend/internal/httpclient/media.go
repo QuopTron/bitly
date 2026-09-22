@@ -21,6 +21,7 @@ package httpclient
 import (
 	"net"
 	"net/http"
+	"sync"
 	"time"
 )
 
@@ -62,4 +63,25 @@ func NewMediaClient() *http.Client {
 		Timeout: 0,
 		Jar:     nil,
 	}
+}
+
+var (
+	mediaClienteUna  sync.Once
+	mediaClienteComp *http.Client
+)
+
+// MediaClientCompartido devuelve el cliente de media único del proceso.
+//
+// Por qué: cada descarga creaba su PROPIO cliente (y por lo tanto su propio
+// pool de conexiones), así que al terminar un tema se tiraban las conexiones
+// TLS ya establecidas con el CDN y el tema siguiente volvía a pagar handshake
+// y arranque lento — justo en una descarga de 40 MB donde unos segundos de
+// handshake se notan. Con un cliente compartido, el pool (32 conexiones ociosas
+// por host, ver NewMediaTransport) sobrevive de un track al siguiente.
+//
+// http.Client es seguro para uso concurrente y el transporte está pensado para
+// muchos hosts a la vez, así que descargas simultáneas no se estorban.
+func MediaClientCompartido() *http.Client {
+	mediaClienteUna.Do(func() { mediaClienteComp = NewMediaClient() })
+	return mediaClienteComp
 }

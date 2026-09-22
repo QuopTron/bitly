@@ -56,13 +56,33 @@ String _etiquetaCategoria(AppLocalizations loc, String cat) {
   }
 }
 
-/// ListView con padding inferior para el miniplayer.
-Widget _listado(BuildContext context, Responsive r, List<Widget> children) {
-  return ListView(
-    padding: EdgeInsets.only(
-      top: r.spacingS,
-      bottom: r.spacingS + r.val(120, 100, 150),
-    ),
-    children: children,
+/// Scroll de resultados: `CustomScrollView` con el padding del miniplayer
+/// alrededor de todos los slivers.
+///
+/// Por qué slivers: la lista de resultados se armaba COMPLETA (todas las
+/// cabeceras, todas las tarjetas y todas las grillas con `shrinkWrap`) antes de
+/// pintar el primer frame. Con slivers se construye por índice visible, así una
+/// búsqueda de 60 resultados ya no paga las 60 tarjetas de entrada.
+Widget _listado(BuildContext context, Responsive r, List<Widget> slivers) {
+  // La apariencia se escucha UNA vez, envolviendo el scroll entero: al mover
+  // los controles de Ajustes → Apariencia los slivers se reconstruyen igual
+  // que antes, pero sin necesidad de envolver cada grilla (que es lo que
+  // obligaba a tener cajas alrededor de slivers).
+  return ValueListenableBuilder<PreferenciasApariencia>(
+    valueListenable: AparienciaHelper.notifier(),
+    builder:
+        (context, _, _) => CustomScrollView(
+          slivers: [
+            SliverPadding(
+              padding: EdgeInsets.only(
+                top: r.spacingS,
+                bottom: r.spacingS + r.val(120, 100, 150),
+              ),
+              // `SliverMainAxisGroup` encadena los slivers como si fueran una
+              // sola lista, así el padding de arriba/abajo cae donde toca.
+              sliver: SliverMainAxisGroup(slivers: slivers),
+            ),
+          ],
+        ),
   );
 }

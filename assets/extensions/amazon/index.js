@@ -498,14 +498,41 @@ function contextoDeStorefront(sf) {
 }
 
 // storefrontsEnOrden lista los storefronts con el último que funcionó primero.
+// Los que contestaron un diálogo hace poco van al final: no se descartan (un
+// geo-bloqueo puede cambiar, y el usuario puede viajar), pero una red donde
+// Amazon no atiende deja de pagar el recorrido completo de 5 storefronts en
+// CADA búsqueda. Sin esto, la búsqueda de una sola fuente tardaba ~40 s porque
+// cada storefront suma su config.json + su showSearch con reintentos.
+var _malosStorefronts = {};
+var TTL_MALO_STOREFRONT_MS = 10 * 60 * 1000;
+
+function storefrontEstabaMalo(sf) {
+  var t = sf && sf.base ? _malosStorefronts[sf.base] : 0;
+  return !!t && Date.now() - t < TTL_MALO_STOREFRONT_MS;
+}
+
+function marcarStorefrontMalo(sf, malo) {
+  if (!sf || !sf.base) return;
+  if (malo) _malosStorefronts[sf.base] = Date.now();
+  else delete _malosStorefronts[sf.base];
+}
+
 function storefrontsEnOrden() {
   var lista = CONFIG.storefronts || [];
-  if (!_storefront) return lista;
-  var orden = [_storefront];
-  for (var i = 0; i < lista.length; i++) {
-    if (lista[i].base !== _storefront.base) orden.push(lista[i]);
+  var orden = lista;
+  if (_storefront) {
+    orden = [_storefront];
+    for (var i = 0; i < lista.length; i++) {
+      if (lista[i].base !== _storefront.base) orden.push(lista[i]);
+    }
   }
-  return orden;
+  var buenos = [];
+  var malos = [];
+  for (var j = 0; j < orden.length; j++) {
+    if (storefrontEstabaMalo(orden[j])) malos.push(orden[j]);
+    else buenos.push(orden[j]);
+  }
+  return buenos.concat(malos);
 }
 
 // esDialogoDeError detecta que la respuesta NO trae resultados: Amazon contesta
@@ -1149,6 +1176,11 @@ function callShowSearch(keyword, context, _retried) {
   // IPs fuera de EE.UU., así que se prueba el siguiente hasta encontrar uno que
   // conteste resultados de verdad. El que funciona se recuerda en _storefront.
   var lista = storefrontsEnOrden();
+  // Cuántos storefronts contestaron con 200 (aunque fuera un diálogo). Es la
+  // señal de que la red y la sesión están bien: si al menos uno contestó, un
+  // refreshSession() no puede arreglar el bloqueo geográfico, así que no se
+  // repite el recorrido completo (ver más abajo).
+  var respuestasOk = 0;
   for (var i = 0; i < lista.length; i++) {
     var sf = lista[i];
     var ctxSf = contextoDeStorefront(sf);
@@ -1168,18 +1200,21 @@ function callShowSearch(keyword, context, _retried) {
     });
 
     var data = _doShowSearch(sf.mesh, keyword, pageSf, bodySf, ctxSf);
+    if (data) respuestasOk++;
     if (data && !esDialogoDeError(data)) {
       if (!_storefront || _storefront.base !== sf.base) {
         L("info", "[Amazon] storefront de búsqueda:", sf.base);
       }
       _storefront = sf;
       recordarStorefront(sf);
+      marcarStorefrontMalo(sf, false);
       return data;
     }
+    marcarStorefrontMalo(sf, true);
     L("warn", "[Amazon] storefront sin resultados, probando otro:", sf.base);
   }
 
-  if (!_retried) {
+  if (!_retried && respuestasOk === 0) {
     L("info", "[Amazon] showSearch failed, refreshing session and retrying...");
     refreshSession();
     sleep(CONFIG.baseBackoffMs);

@@ -10,6 +10,15 @@
 
 part of 'miniplayer.dart';
 
+/// True si el perfil permite animaciones de coste continuo.
+///
+/// Por qué: el pulso del pulgar es un `AnimationController` en `repeat()` que
+/// corre a 60 fps TODO el tiempo que hay música sonando, en cualquier pantalla
+/// (el miniplayer es global), y pinta un glow con `MaskFilter.blur` por frame.
+/// En gama baja se deja el pulgar quieto: se ve igual de bien y la GPU deja de
+/// trabajar de más justo mientras se navega con música de fondo.
+bool get _pulsoPermitido => EfectosApp.desenfoqueActivo;
+
 /// Barra de progreso animada con glow pulsante.
 class _BarraProgresoAnimada extends StatefulWidget {
   final double progreso;
@@ -46,15 +55,18 @@ class _BarraProgresoAnimadaState extends State<_BarraProgresoAnimada>
       begin: 0.6,
       end: 1.0,
     ).animate(CurvedAnimation(parent: _pulsoCtrl, curve: Curves.easeInOut));
-    if (widget.reproduciendo) _pulsoCtrl.repeat(reverse: true);
+    if (widget.reproduciendo && _pulsoPermitido) {
+      _pulsoCtrl.repeat(reverse: true);
+    }
   }
 
   @override
   void didUpdateWidget(_BarraProgresoAnimada oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.reproduciendo && !_pulsoCtrl.isAnimating) {
+    if (widget.reproduciendo && _pulsoPermitido && !_pulsoCtrl.isAnimating) {
       _pulsoCtrl.repeat(reverse: true);
-    } else if (!widget.reproduciendo && _pulsoCtrl.isAnimating) {
+    } else if ((!widget.reproduciendo || !_pulsoPermitido) &&
+        _pulsoCtrl.isAnimating) {
       _pulsoCtrl.stop();
       _pulsoCtrl.value = 0.6;
     }
@@ -104,23 +116,33 @@ class _BarraProgresoAnimadaState extends State<_BarraProgresoAnimada>
             animation: _pulsoAnim,
             builder: (context, _) {
               final pulgarX = mostrado * ancho;
+              // El glow del pulgar es un `MaskFilter.blur` por frame: si el
+              // equipo no permite el pulso (gama baja o modo fluido) NO se
+              // pinta aunque esté reproduciendo, que es justo cuando más se
+              // nota (el miniplayer es global).
+              final conPulso = widget.reproduciendo && _pulsoPermitido;
               final radioGlow =
-                  widget.reproduciendo ? 6.0 + (_pulsoAnim.value * 6.0) : 0.0;
+                  conPulso ? 6.0 + (_pulsoAnim.value * 6.0) : 0.0;
               final escalaPulgar =
-                  widget.reproduciendo ? 0.8 + (_pulsoAnim.value * 0.4) : 1.0;
+                  conPulso ? 0.8 + (_pulsoAnim.value * 0.4) : 1.0;
 
-              return CustomPaint(
-                size: Size(ancho, radioPulgar * 2 + 4),
-                painter: _PintorBarraProgreso(
-                  progreso: mostrado,
-                  pulgarX: pulgarX,
-                  radioPulgar: radioPulgar * escalaPulgar,
-                  radioGlow: radioGlow,
-                  altoTrack: altoTrack,
-                  colorActivo: fg.withValues(alpha: 0.7),
-                  colorInactivo: fg.withValues(alpha: 0.1),
-                  colorPulgar: fg.withValues(alpha: 0.9),
-                  colorGlow: fg,
+              // RepaintBoundary: el pulso repinta solo la barrita en cada
+              // frame en vez de ensuciar la capa del miniplayer y, con ella,
+              // lo que tenga detrás.
+              return RepaintBoundary(
+                child: CustomPaint(
+                  size: Size(ancho, radioPulgar * 2 + 4),
+                  painter: _PintorBarraProgreso(
+                    progreso: mostrado,
+                    pulgarX: pulgarX,
+                    radioPulgar: radioPulgar * escalaPulgar,
+                    radioGlow: radioGlow,
+                    altoTrack: altoTrack,
+                    colorActivo: fg.withValues(alpha: 0.7),
+                    colorInactivo: fg.withValues(alpha: 0.1),
+                    colorPulgar: fg.withValues(alpha: 0.9),
+                    colorGlow: fg,
+                  ),
                 ),
               );
             },

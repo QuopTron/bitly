@@ -14,6 +14,7 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+
 /// True si [ruta] apunta a un archivo local y no a una URL http.
 bool esRutaDeArchivo(String ruta) {
   if (ruta.isEmpty) return false;
@@ -26,12 +27,18 @@ bool esRutaDeArchivo(String ruta) {
 /// True si [ruta] es una carátula local usable AHORA: archivo local que
 /// existe y tiene contenido. Un guardado a medias deja un archivo de 0
 /// bytes que `Image.file` no puede pintar (y sin error visible).
+///
+/// Usa UN solo `statSync` (no `existsSync` + `lengthSync`, que son dos
+/// llamadas al sistema): esto corre en el `build()` de cada tarjeta, así que
+/// cada syscall de más se paga en el frame. No se cachea el veredicto a
+/// propósito: una ruta local muerta debe perder contra la URL remota en
+/// cuanto muere, no un rato después.
 bool caratulaLocalUsable(String? ruta) {
   if (ruta == null || ruta.isEmpty) return false;
   if (!esRutaDeArchivo(ruta)) return false;
   try {
-    final archivo = File(ruta);
-    return archivo.existsSync() && archivo.lengthSync() > 0;
+    final stat = File(ruta).statSync();
+    return stat.type != FileSystemEntityType.notFound && stat.size > 0;
   } catch (e) {
     debugPrint('[caratula_util] $e');
     return false;

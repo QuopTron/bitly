@@ -36,7 +36,13 @@ Widget _filaCompartido(
               height: 46,
               child:
                   datos.caratula.isNotEmpty
-                      ? imagenDesdeUrl(datos.caratula)
+                      // 46 px lógicos: se acota el decode al hueco real.
+                      ? imagenDesdeUrl(
+                          datos.caratula,
+                          ancho: 46,
+                          alto: 46,
+                          ajuste: BoxFit.cover,
+                        )
                       : ColoredBox(
                         color: Colors.white.withValues(alpha: 0.06),
                         child: const Icon(

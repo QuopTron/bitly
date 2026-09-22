@@ -51,10 +51,13 @@ func descargarAArchivoCon(url, outDir string, req Request, title, artist string,
 	// desde la mitad"). Ver orchestrator_parciales.go.
 	partialPath, existingSize := buscarParcial(outDir, pista, huella, ext)
 
-	// Cliente de MEDIA: sin timeout global (un FLAC grande tarda) y con
-	// muchas conexiones reutilizadas por host, que es lo que hace posible
-	// tanto la descarga paralela como la reanudación sin reabrir TLS.
-	client := httpclient.NewMediaClient()
+	// Cliente de MEDIA compartido: sin timeout global (un FLAC grande tarda) y
+	// con muchas conexiones reutilizadas por host, que es lo que hace posible
+	// tanto la descarga paralela como la reanudación sin reabrir TLS. Al ser
+	// COMPARTIDO (ver MediaClientCompartido) las conexiones al CDN sobreviven
+	// de un tema al siguiente; antes cada descarga creaba su propio cliente y
+	// el pool se tiraba al terminar, así que cada track nuevo pagaba handshake.
+	client := httpclient.MediaClientCompartido()
 	var resp *http.Response
 	var err error
 

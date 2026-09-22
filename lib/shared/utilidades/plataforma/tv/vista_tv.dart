@@ -35,6 +35,8 @@ const double anchoDisenoTv = 1280;
 Widget vistaDisenoTv({required BuildContext context, required Widget child}) {
   if (!esSmartTV(context)) return child;
 
+  // Acá sí hace falta el `MediaQueryData` COMPLETO (se reescalan los insets con
+  // `copyWith`), así que se lee entero a propósito: no es un `of` de más.
   final real = MediaQuery.of(context);
   final tam = real.size;
   if (!tam.width.isFinite || !tam.height.isFinite || tam.width <= 0) {

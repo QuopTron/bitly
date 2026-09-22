@@ -50,5 +50,14 @@ func Search(payload string) string {
 		return `[]`
 	}
 
-	return searchProvider(p, query, limit, searchType)
+	// Con techo de tiempo: una fuente elegida a propósito puede estar lenta,
+	// pero una colgada no puede dejar la pantalla cargando para siempre (ver
+	// search_deadline.go). Antes esta ruta no tenía ningún límite.
+	res := conTimeoutProveedor(searchFuenteUnicaTimeout, func() string {
+		return searchProvider(p, query, limit, searchType)
+	})
+	if !res.ok {
+		return `[]`
+	}
+	return res.valor
 }

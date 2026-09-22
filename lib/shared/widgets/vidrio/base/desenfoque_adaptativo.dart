@@ -34,7 +34,7 @@ class DesenfoqueAdaptativo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (!EfectosApp.permitirDesenfoque.value) return child;
+    if (!EfectosApp.desenfoqueActivo) return child;
 
     // Nunca por encima del tope del perfil: el coste crece con el radio.
     final efectivo = math.min(sigma, EfectosApp.sigmaMaximo.value);
@@ -74,7 +74,7 @@ class DesenfoqueHijo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (!EfectosApp.permitirDesenfoque.value) return child;
+    if (!EfectosApp.desenfoqueActivo) return child;
     final efectivo = math.min(sigma, tope ?? EfectosApp.sigmaMaximo.value);
     if (efectivo <= 0) return child;
     return ImageFiltered(

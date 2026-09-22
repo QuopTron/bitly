@@ -53,7 +53,7 @@ Widget acotarEscalaTexto({
 
 /// Escala de texto del sistema ya acotada al rango soportado.
 TextScaler _escalaAcotada(BuildContext context) {
-  return MediaQuery.of(context).textScaler.clamp(
+  return MediaQuery.textScalerOf(context).clamp(
     minScaleFactor: escalaTextoMinima,
     maxScaleFactor: escalaTextoMaxima,
   );

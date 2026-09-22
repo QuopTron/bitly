@@ -10,23 +10,38 @@
 
 import '../../modelos/feed/item_feed.dart';
 
+// Las expresiones se compilan UNA vez, no en cada llamada.
+//
+// Por qué: estas funciones corren en el `build()` de cada tarjeta (la huella
+// del like y la de la carátula) y antes construían ~8 `RegExp` por llamada,
+// cada uno compilando su patrón. Con una biblioteca grande y una lista en
+// pantalla eso solo ya consumía el presupuesto de frame: era el motivo de que
+// la app fuera a tirones en celular, TV y PC por igual.
+final RegExp _reNoPalabra = RegExp(r'[^\w\s]');
+final RegExp _reEspacios = RegExp(r'\s+');
+final RegExp _reFeat = RegExp(r'\s*feat\.?\s*', caseSensitive: false);
+final RegExp _reFt = RegExp(r'\s*ft\.?\s*', caseSensitive: false);
+final RegExp _reAmpersand = RegExp(r'\s*&\s*');
+final RegExp _reComa = RegExp(r'\s*,\s*');
+final RegExp _reY = RegExp(r'\s+y\s+', caseSensitive: false);
+
 String _normalizar(String s) {
   return s
       .toLowerCase()
-      .replaceAll(RegExp(r'[^\w\s]'), '')
-      .replaceAll(RegExp(r'\s+'), ' ')
+      .replaceAll(_reNoPalabra, '')
+      .replaceAll(_reEspacios, ' ')
       .trim();
 }
 
 List<String> extraerArtistas(String? artists) {
   if (artists == null || artists.isEmpty) return [];
   final normalizado = artists
-      .replaceAll(RegExp(r'\s*feat\.?\s*', caseSensitive: false), ',')
-      .replaceAll(RegExp(r'\s*ft\.?\s*', caseSensitive: false), ',')
-      .replaceAll(RegExp(r'\s*&\s*'), ',')
-      .replaceAll(RegExp(r'\s*,\s*'), ',')
-      .replaceAll(RegExp(r'\s+y\s+', caseSensitive: false), ',')
-      .replaceAll(RegExp(r'\s*,\s*'), ',');
+      .replaceAll(_reFeat, ',')
+      .replaceAll(_reFt, ',')
+      .replaceAll(_reAmpersand, ',')
+      .replaceAll(_reComa, ',')
+      .replaceAll(_reY, ',')
+      .replaceAll(_reComa, ',');
   return normalizado
       .split(',')
       .map((a) => _normalizar(a))

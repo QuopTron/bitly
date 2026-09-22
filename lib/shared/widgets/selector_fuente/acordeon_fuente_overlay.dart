@@ -16,7 +16,7 @@ void _abrirOverlaySt(_AcordeonFuenteState st) {
   if (box == null || !box.hasSize) return;
   final overlay = Overlay.of(st.context, rootOverlay: true);
   final rectBoton = box.localToGlobal(Offset.zero) & box.size;
-  final tamano = MediaQuery.of(st.context).size;
+  final tamano = MediaQuery.sizeOf(st.context);
   final pad = 8.0;
   final filas = st._filas;
   final altoPanel = math.min(

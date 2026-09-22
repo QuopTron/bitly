@@ -70,9 +70,15 @@ func searchAllWithTimeout[T any](query string, limit int,
 			if cooldown.IsCooledOp(prov.Name(), "search") {
 				return
 			}
-			res, err := fn(prov, query, limit)
-			if err == nil && len(res) > 0 {
-				ch <- item{name: prov.Name(), data: res}
+			// Techo por proveedor (ver search_deadline.go): al vencer devuelve el
+			// cero de [](T,error), que cae en el `len(res) > 0` de abajo y este
+			// proveedor simplemente no aporta, sin bloquear a los demás.
+			res := conTimeoutProveedor(searchProviderTimeoutFanout, func() parResultado[T] {
+				items, err := fn(prov, query, limit)
+				return parResultado[T]{items: items, err: err}
+			}).valor
+			if res.err == nil && len(res.items) > 0 {
+				ch <- item{name: prov.Name(), data: res.items}
 			}
 		}(p)
 	}

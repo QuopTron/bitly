@@ -88,6 +88,40 @@ class _HojaLetrasState extends State<_HojaLetras> {
   double _altoViewport = 600;
   Future<PaletaPortada?>? _paletaFuture;
 
+  /// Spans de las líneas NO activas, memoizados por índice.
+  ///
+  /// Por qué: `TextSpan` no define `==`, así que un span nuevo en cada build
+  /// hace que el `RenderParagraph` marque `needsLayout` SIEMPRE — es decir, la
+  /// lista entera (~10 líneas visibles) se volvía a maquetar en cada tick de
+  /// posición (~25/s) aunque su texto no hubiera cambiado. Con la MISMA
+  /// instancia el párrafo se compara por identidad, no cambia y no se vuelve a
+  /// medir. Se vacía al (re)parsear la letra.
+  final Map<int, TextSpan> _spanLinea = {};
+
+  /// Glow de la línea activa memoizado por color: las sombras se recreaban (3
+  /// `Shadow` + 3 colores) por línea y por tick sin cambiar nunca entre ticks.
+  Color? _acentoGlow;
+  List<Shadow>? _sombrasGlow;
+
+  /// Caché de los WIDGETS de las líneas no activas, por `firma|índice`.
+  ///
+  /// Por qué a nivel de widget y no de span: `Text.rich` envuelve el span en un
+  /// `TextSpan` NUEVO en cada build (con el estilo heredado), así que el
+  /// párrafo se marca sucio igual aunque el span interno se reutilice. Al
+  /// devolver el MISMO widget, Flutter compara por identidad y se salta el
+  /// subárbol entero, que es lo único que evita la re-maquetación.
+  final Map<String, Widget> _cacheLineas = {};
+
+  /// Fondo y cabecera del modal: no dependen de la posición, así que se
+  /// construyen una vez por firma en vez de en cada tick (~25/s).
+  final Map<String, Widget> _cacheEstatico = {};
+
+  /// Carátula resuelta, memoizada por id de canción: `caratulaLocalPara`
+  /// recorre like + descargas (y puede tocar el disco) y se llamaba en CADA
+  /// tick de posición.
+  String? _caratulaId;
+  String? _caratulaValor;
+
   /// Traducción activa, indexada igual que [_lineas] (null = sin traducir, y
   /// una entrada null dentro = esa línea quedó vacía).
   List<String?>? _traducciones;
@@ -111,14 +145,48 @@ class _HojaLetrasState extends State<_HojaLetras> {
   String? _resolverCaratula() {
     try {
       final actual = sl<CubitCola>().state.actual;
+      final id = actual?.id ?? '';
+      // Memo por canción: resolver la carátula implica mirar like + descargas
+      // (y puede tocar el disco). Se llamaba en cada tick de posición.
+      if (_caratulaId == id) return _caratulaValor;
+      String? valor;
       if (actual != null) {
-        final resuelta = sl<CubitLikes>().caratulaLocalPara(actual);
-        if (resuelta != null) return resuelta;
+        valor = sl<CubitLikes>().caratulaLocalPara(actual);
       }
+      _caratulaId = id;
+      _caratulaValor = valor ?? widget.track.coverUrl;
+      return _caratulaValor;
     } catch (e) {
       debugPrint("[Feature] $e");
     }
     return widget.track.coverUrl;
+  }
+
+  /// Devuelve el widget memoizado para [clave], construyéndolo una sola vez.
+  ///
+  /// El caché guarda una sola firma viva a la vez (se vacía al cambiar), así
+  /// no crece sin control en canciones largas ni arrastra widgets viejos.
+  Widget _memo(String clave, Widget Function() build) {
+    final yaEsta = _cacheEstatico[clave];
+    if (yaEsta != null) return yaEsta;
+    // Tope chico: cabecera y fondo tienen pocas variantes; al pasarse se vacía
+    // y se reconstruye lo vigente (las claves viejas ya no se piden).
+    if (_cacheEstatico.length >= 16) _cacheEstatico.clear();
+    final nuevo = build();
+    _cacheEstatico[clave] = nuevo;
+    return nuevo;
+  }
+
+  /// Igual que [_memo] pero por línea del karaoke.
+  Widget _memoLinea(String clave, Widget Function() build) {
+    final yaEsta = _cacheLineas[clave];
+    if (yaEsta != null) return yaEsta;
+    // Acotado: al superar el tope se vacía (las claves viejas ya no se usan
+    // porque cambian con la firma).
+    if (_cacheLineas.length >= 96) _cacheLineas.clear();
+    final nueva = build();
+    _cacheLineas[clave] = nueva;
+    return nueva;
   }
 
   /// Identidad estable de la canción para guardar su traducción: el ISRC es lo

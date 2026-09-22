@@ -40,6 +40,7 @@ import '../../core/servicios/descarga/acceso_descarga.dart';
 import '../../core/servicios/descargas/plan/escalado_calidad.dart';
 import '../../core/servicios/descargas/plan/motivos_descarga.dart';
 import '../../core/servicios/desencriptado/pasos/desencriptado_stream.dart';
+import 'reparar/audio_archivo_estado.dart';
 import '../../shared/utilidades/descarga/estrategia_descarga.dart';
 import '../../shared/utilidades/portada/base/caratula_util.dart';
 import '../../core/servicios/utilidades/huella_item.dart';

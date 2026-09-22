@@ -11,25 +11,60 @@
 part of 'paleta_portada.dart';
 
 /// Lee los bytes de la fuente (archivo local o URL remota).
+///
+/// Para URLs remotas NO se hace una petición propia: se lee el archivo que
+/// cached_network_image ya descargó para PINTAR la portada (misma caché de
+/// disco). Antes cada carátula se bajaba DOS veces —una para el widget y otra
+/// para la paleta—, lo que duplicaba el tráfico, satu­raba la conexión en
+/// listas largas y dejaba la paleta llegando tarde.
 Future<Uint8List?> _leerBytes(String src) async {
   if (esUrlLocal(src)) {
     final f = File(src);
     if (!await f.exists()) return null;
     return f.readAsBytes();
   }
-  final resp = await http
-      .get(Uri.parse(src))
-      .timeout(const Duration(seconds: 8));
-  if (resp.statusCode != 200 || resp.bodyBytes.isEmpty) return null;
-  return resp.bodyBytes;
+  const esperaMax = Duration(seconds: 8);
+  try {
+    // 1. Ya en caché de disco (lo normal mientras se hace scroll).
+    final enCache = await DefaultCacheManager().getFileFromCache(src);
+    final archivoCache = enCache?.file;
+    if (archivoCache != null && await archivoCache.exists()) {
+      final bytes = await archivoCache.readAsBytes();
+      if (bytes.isNotEmpty) return bytes;
+    }
+  } catch (_) {
+    // Caché no disponible (o entrada corrupta): se intenta descargar abajo.
+  }
+  try {
+    // 2. No estaba: se descarga UNA vez a través de la misma caché, así el
+    // widget la reutiliza enseguida en vez de bajarla otra vez.
+    final archivo = await DefaultCacheManager()
+        .getSingleFile(src)
+        .timeout(esperaMax);
+    if (!await archivo.exists()) return null;
+    final bytes = await archivo.readAsBytes();
+    return bytes.isEmpty ? null : bytes;
+  } catch (_) {
+    return null;
+  }
 }
 
-/// Calcula la paleta muestreando los píxeles de la imagen (96x96).
+/// Lado del muestreo para la paleta.
+///
+/// 48 y no 96: la paleta es un PROMEDIO del arte, así que 2.304 píxeles por
+/// canal dan el mismo color que 9.216 (la diferencia no se ve en pantalla),
+/// pero el `toByteData` —que es una LECTURA de la GPU a la CPU y por eso lo
+/// caro de esta función— mueve la CUARTA parte de bytes. Cada carátula nueva
+/// que entra en pantalla (seis por frame en un scroll rápido) paga este
+/// readback, así que acá está el pico de frames del scroll.
+const int _ladoMuestreo = 48;
+
+/// Calcula la paleta muestreando los píxeles de la imagen.
 Future<PaletaPortada?> _calcularDesdeBytes(Uint8List bytes) async {
   final codec = await ui.instantiateImageCodec(
     bytes,
-    targetWidth: 96,
-    targetHeight: 96,
+    targetWidth: _ladoMuestreo,
+    targetHeight: _ladoMuestreo,
   );
   final frame = await codec.getNextFrame();
   final image = frame.image;

@@ -26,15 +26,21 @@ List<Widget> _capasFondo(
   // Intensidad del cover en el fondo: la carátula difuminada se apaga y el
   // gradiente con el color del cover se refuerza a medida que sube. Se aplica
   // 1:1, así cada punto porcentual vale lo mismo de punta a punta.
+  //
+  // En MODO FLUIDO se salta la foto a pantalla completa (la capa más cara por
+  // frame en una GPU de gama baja) y se va directo al gradiente con el color
+  // dominante, que es el mismo estado del control al 100%.
   final prefs = sl<ValueNotifier<PreferenciasEstilo>>().value;
-  final nivel = prefs.fondoPrincipal;
+  final fluido = !EfectosApp.fotoPantallaCompletaActiva;
+  final nivel = fluido ? 1.0 : prefs.fondoPrincipal;
 
   return [
     // Capa 1: base.
     Positioned.fill(child: Container(color: colorFondo)),
 
-    // Capa 2: carátula difuminada, que se apaga con la intensidad.
-    if (tienePortada)
+    // Capa 2: carátula difuminada, que se apaga con la intensidad (y no se
+    // pinta en modo fluido).
+    if (!fluido && tienePortada)
       Positioned.fill(
         child: RepaintBoundary(
           child: Opacity(

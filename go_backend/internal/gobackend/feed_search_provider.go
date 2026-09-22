@@ -1,26 +1,37 @@
 package gobackend
 
 import (
-	"encoding/json"
-
 	"github.com/zarz/bitly/go_backend/internal/cooldown"
 	"github.com/zarz/bitly/go_backend/internal/provider"
 )
 
-// searchProvider searches a single provider for a given type.
+// searchProvider busca un proveedor y devuelve JSON. Es la frontera para el
+// RPC y las rutas del servidor; el trabajo real está en
+// searchProviderItemsSync, que devuelve los items ya armados.
 func searchProvider(p provider.Provider, query string, limit int, searchType string) string {
+	return itemsAJSON(searchProviderItemsSync(p, query, limit, searchType))
+}
+
+// searchProviderItemsSync busca un solo proveedor para un tipo dado y devuelve
+// los items sin serializar.
+//
+// Ojo: NO es la misma que searchProviderItems (search_provider.go), que es la
+// del camino de streaming y aplica el filtro de originales. Esta conserva
+// exactamente la política del camino síncrono (sin filtrar) para no cambiar
+// resultados: lo único que cambia acá es que ya no se pasa por JSON en medio.
+func searchProviderItemsSync(p provider.Provider, query string, limit int, searchType string) []FeedItemGo {
 	items := make([]FeedItemGo, 0)
 
 	// Circuit breaker: skip only if this provider is cooled *for search*. A
 	// provider-wide cooldown (tripped by streaming/download rate-limits) must
 	// not empty a single-source search — search has its own op bucket.
 	if cooldown.IsCooledOp(p.Name(), "search") {
-		return `[]`
+		return items
 	}
 
 	switch searchType {
 	case "all":
-		return searchProviderAll(p, query, limit)
+		return searchProviderAllItems(p, query, limit)
 	case "track", "tracks", "song", "songs", "album", "albums", "artist", "artists", "playlist", "playlists":
 		// For extensions, honour the category filter directly via customSearch
 		// with the manifest filter id — this is how SpotiFLAC re-queries a
@@ -28,11 +39,11 @@ func searchProvider(p provider.Provider, query string, limit int, searchType str
 		// (50 tracks / 20 albums / 20 artists / 20 playlists).
 		if ep, ok := p.(*provider.ExtensionProvider); ok {
 			if res, err := ep.SearchFiltered(searchType, query, limit); err == nil && len(res) > 0 {
-				return combinadoAJSON(res, ep.Name())
+				return combinadosAFeedItems(res, ep.Name())
 			}
 			// Un vacío filtered resultado es un real vacío (spotiflac shows "sin
 			// results"); never fall back to dumping every type here.
-			return `[]`
+			return items
 		}
 		// Non-extension provider: use the legacy per-type methods below.
 	}
@@ -68,6 +79,5 @@ func searchProvider(p provider.Provider, query string, limit int, searchType str
 		}
 	}
 
-	data, _ := json.Marshal(items)
-	return string(data)
+	return items
 }

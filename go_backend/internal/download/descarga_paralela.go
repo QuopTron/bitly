@@ -103,7 +103,9 @@ func descargarEnParalelo(
 	if conexiones < 2 {
 		conexiones = conexionesParalelo
 	}
-	cliente := httpclient.NewMediaClient()
+	// Cliente de media COMPARTIDO: conserva las conexiones TLS con el CDN entre
+	// descargas (ver httpclient.MediaClientCompartido).
+	cliente := httpclient.MediaClientCompartido()
 
 	archivo, err := os.OpenFile(destino, os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {

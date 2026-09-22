@@ -42,7 +42,13 @@ class _TarjetaGrillaColorWrapperState
 
   Future<void> _extraerColor() async {
     try {
-      final paleta = await paletaParaPortada(widget.coverUrl);
+      // DIFERIDA, igual que la tarjeta de fila: la grilla vive en el feed y en
+      // la biblioteca, así que también pide la paleta en pleno scroll. Con la
+      // versión directa, cada portada nueva hacia su decode + `toByteData`
+      // (lectura GPU→CPU) EN EL FRAME en curso: era el mismo trabajo que la
+      // tarjeta de fila ya había movido a tarea ociosa, pero acá seguía
+      // cortando el scroll.
+      final paleta = await paletaParaPortadaDiferida(widget.coverUrl);
       if (mounted) {
         setState(() {
           _color = paleta?.dominante;

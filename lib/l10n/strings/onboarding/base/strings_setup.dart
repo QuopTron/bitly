@@ -129,7 +129,9 @@ class StringsSetup {
       performanceHelp,
       audioFondoTitulo,
       audioFondoDesc,
-      audioQualityHelp;
+      audioQualityHelp,
+      modoFluidoTitulo,
+      modoFluidoDesc;
   final String enabled, disabled;
   final String downloadProviderPriority,
       downloadProviderPriorityDesc,
@@ -360,6 +362,8 @@ class StringsSetup {
     required this.audioFondoTitulo,
     required this.audioFondoDesc,
     required this.audioQualityHelp,
+    required this.modoFluidoTitulo,
+    required this.modoFluidoDesc,
     required this.enabled,
     required this.disabled,
     required this.downloadProviderPriority,
@@ -617,6 +621,9 @@ class StringsSetup {
         'Music keeps playing even when another app is using audio (great for gaming while you listen).',
     audioQualityHelp:
         'The quality each song is downloaded at. It is used when FLAC is not available.',
+    modoFluidoTitulo: 'Fluid mode',
+    modoFluidoDesc:
+        'Draws less on every frame: no blurs, shadows, pulses or particles, and the full-screen backgrounds use the cover color instead of the photo. Smoother on low-end phones; the colors and the design stay the same.',
     enabled: 'Enabled',
     disabled: 'Disabled',
     downloadProviderPriority: 'Download provider priority',
@@ -879,6 +886,9 @@ class StringsSetup {
         'La música sigue sonando aunque otra app tenga audio (ideal para jugar mientras escuchás).',
     audioQualityHelp:
         'Con qué calidad se baja cada canción. Se usa cuando no hay FLAC.',
+    modoFluidoTitulo: 'Modo fluido',
+    modoFluidoDesc:
+        'Dibuja menos en cada cuadro: sin desenfoques, sombras, pulsos ni partículas, y los fondos a pantalla completa usan el color del cover en vez de la foto. Va más fluido en equipos de gama baja; los colores y el diseño se mantienen.',
     enabled: 'Activado',
     disabled: 'Desactivado',
     downloadProviderPriority: 'Prioridad de proveedores de descarga',

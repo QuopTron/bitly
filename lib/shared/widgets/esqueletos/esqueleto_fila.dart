@@ -35,12 +35,26 @@ class _FilaEsqueletoState extends State<_FilaEsqueleto>
       vsync: this,
       duration: const Duration(milliseconds: 1500),
     );
-    // Gama baja: shimmer quieto (ver esqueleto_carga.dart).
-    if (EfectosApp.permitirDesenfoque.value) _ctrl.repeat();
+    // Gama baja / modo fluido: shimmer quieto (ver esqueleto_carga.dart).
+    EfectosApp.cambiosEfectos.addListener(_sincronizarShimmer);
+    _sincronizarShimmer();
+  }
+
+  void _sincronizarShimmer() {
+    if (!mounted) return;
+    final animar = EfectosApp.desenfoqueActivo;
+    if (animar) {
+      if (!_ctrl.isAnimating) _ctrl.repeat();
+    } else if (_ctrl.isAnimating) {
+      _ctrl.stop();
+      _ctrl.value = 0;
+    }
+    setState(() {});
   }
 
   @override
   void dispose() {
+    EfectosApp.cambiosEfectos.removeListener(_sincronizarShimmer);
     _ctrl.dispose();
     super.dispose();
   }
@@ -49,7 +63,7 @@ class _FilaEsqueletoState extends State<_FilaEsqueleto>
   Widget build(BuildContext context) {
     final alto = widget.esTrack ? 72.0 : 220.0;
     final radio = widget.esTrack ? 18.0 : 16.0;
-    final estatico = !EfectosApp.permitirDesenfoque.value;
+    final estatico = !EfectosApp.desenfoqueActivo;
     return AnimatedBuilder(
       animation: _ctrl,
       builder: (context, _) {

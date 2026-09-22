@@ -80,7 +80,7 @@ class _PremiumActivationSheetState extends State<_PremiumActivationSheet> {
     final r = Responsive(context);
 
     return Container(
-      height: MediaQuery.of(context).size.height * 0.4,
+      height: MediaQuery.sizeOf(context).height * 0.4,
       margin: EdgeInsets.only(top: r.spacingXL * 2),
       decoration: BoxDecoration(
         color: bg,

@@ -17,6 +17,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../shared/utilidades/plataforma/deteccion_plataforma.dart';
+import '../../../shared/utilidades/plataforma/pantalla/efectos_app.dart';
 import '../../../app/inyeccion/inyeccion.dart' as di;
 import '../../../core/cache/almacenes/sistema/cache_ajustes.dart';
 import '../bloc/splash_bloc.dart';
@@ -45,7 +46,11 @@ class _PaginaSplashState extends State<PaginaSplash>
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2000),
-    )..repeat(reverse: true);
+    );
+    // El pulso del logo es una sombra con blur que se repinta en CADA frame,
+    // 2 s sin parar mientras dura el arranque. En gama baja o con el modo
+    // fluido el logo queda quieto: se ve igual, sin el coste de GPU.
+    if (EfectosApp.desenfoqueActivo) _controller.repeat(reverse: true);
     _pulse = Tween(
       begin: 0.3,
       end: 1.0,

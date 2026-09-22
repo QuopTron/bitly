@@ -168,7 +168,11 @@ func esElMismoTrack(a, b FeedItemGo) bool {
 // extensión ya trajo para la MISMA grabación (nombre+artista normalizados y
 // duración coincidente). Es best-effort: lo que no se puede confirmar con
 // duración se deja sin ISRC, en vez de arriesgar una identidad equivocada.
-func propagarISRC(items []FeedItemGo) {
+//
+// Devuelve true si completó al menos un ISRC, para que el llamador sepa si el
+// contenido cambió y hay que invalidar la respuesta serializada.
+func propagarISRC(items []FeedItemGo) bool {
+	rellenados := false
 	for i := range items {
 		if items[i].Type != "track" || items[i].ISRC != "" {
 			continue
@@ -195,7 +199,9 @@ func propagarISRC(items []FeedItemGo) {
 				continue
 			}
 			items[i].ISRC = items[j].ISRC
+			rellenados = true
 			break
 		}
 	}
+	return rellenados
 }

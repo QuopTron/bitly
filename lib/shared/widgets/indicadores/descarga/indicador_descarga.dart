@@ -13,6 +13,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/cache/estado/estado_descarga.dart';
+import '../../../utilidades/plataforma/pantalla/efectos_app.dart';
 
 export '../../../../core/cache/estado/estado_descarga.dart';
 

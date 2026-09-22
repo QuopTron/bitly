@@ -57,6 +57,49 @@ class CubitLikes extends Cubit<EstadoLikes>
   late final CacheFavoritos _fav;
   bool _inicializado = false;
 
+  // ── Índice de favoritos por huella ───────────────────────────────────────
+  //
+  // Por qué: `caratulaLocalPara` corre en el `build()` de CADA tarjeta y antes
+  // recorría TODOS los favoritos construyendo un `ItemFeed` y calculando su
+  // huella por cada uno para comparar. Con una biblioteca grande eso es una
+  // pasada O(N) con N asignaciones y N huellas (con expresiones regulares) por
+  // tarjeta y por frame: la causa directa de los tirones en celular, TV y PC.
+  //
+  // El índice se arma una sola vez por versión de `todosAmados` y después la
+  // búsqueda es un acceso a mapa.
+  Map<String, DatosItemAmado>? _indiceHuellas;
+  Object? _indiceFuente;
+
+  Map<String, DatosItemAmado> _indice() {
+    final fuente = state.todosAmados;
+    final cacheado = _indiceHuellas;
+    if (cacheado != null && identical(_indiceFuente, fuente)) return cacheado;
+    final idx = <String, DatosItemAmado>{};
+    for (final v in fuente.values) {
+      // `putIfAbsent` replica el `firstOrNull` de antes: ante dos favoritos
+      // con la misma huella gana el primero, no el último.
+      idx.putIfAbsent(
+        huellaItem(
+          ItemFeed(
+            id: v.id,
+            type: v.type,
+            name: v.name,
+            artists: v.artists,
+            coverUrl: v.coverUrl,
+            albumName: v.albumName,
+            durationMs: v.durationMs,
+            isrc: v.isrc,
+            source: v.source,
+          ),
+        ),
+        () => v,
+      );
+    }
+    _indiceHuellas = idx;
+    _indiceFuente = fuente;
+    return idx;
+  }
+
   CubitLikes(this.backend) : super(const EstadoLikes()) {
     _fav = di.sl<CacheFavoritos>();
   }
@@ -99,23 +142,9 @@ class CubitLikes extends Cubit<EstadoLikes>
   /// descargados muestren su carátula local cacheada.
   String? caratulaLocalPara(ItemFeed item) {
     // 1. Carátula local del like (la más específica).
-    final fp = huellaItem(item);
-    final coincidente =
-        state.todosAmados.values.where((v) {
-          final feedItem = ItemFeed(
-            id: v.id,
-            type: v.type,
-            name: v.name,
-            artists: v.artists,
-            coverUrl: v.coverUrl,
-            albumName: v.albumName,
-            durationMs: v.durationMs,
-            isrc: v.isrc,
-            source: v.source,
-          );
-          return huellaItem(feedItem) == fp;
-        }).firstOrNull;
-    final likeLocal = limpiarRutaCaratulaLocal(coincidente?.rutaCaratulaLocal);
+    final likeLocal = limpiarRutaCaratulaLocal(
+      _indice()[huellaItem(item)]?.rutaCaratulaLocal,
+    );
     if (likeLocal != null && likeLocal.isNotEmpty) return likeLocal;
 
     // 2. Carátula local de la descarga (track o lote álbum/playlist).

@@ -34,7 +34,9 @@ class Responsive {
   static const double _base = 400;
 
   Responsive(this.context) {
-    final size = MediaQuery.of(context).size;
+    // `sizeOf` en vez de `of`: solo se depende del tamaño, así un cambio de
+    // teclado/insets/texto del sistema no reconstruye al consumidor.
+    final size = MediaQuery.sizeOf(context);
     width = size.width;
     height = size.height;
     factor = EspecificacionesPlataforma.de(context).factorEscala;

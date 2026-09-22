@@ -45,6 +45,9 @@ func dispatchMedia(method string, params map[string]interface{}) (interface{}, s
 		return backend.GetStreamCacheStats(), "", true
 	case "clearStreamCache":
 		return backend.ClearStreamCache(), "", true
+	case "liberarMemoria":
+		// Presión de memoria del sistema: suelta las cachés reconstruibles.
+		return backend.LiberarMemoria(), "", true
 	case "setStreamCacheMaxMb":
 		return backend.SetStreamCacheMaxMb(rpcBody(params)), "", true
 	case "getCoverPathForTrack":

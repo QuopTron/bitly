@@ -15,7 +15,8 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
+import 'package:flutter/scheduler.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 
 import '../../../widgets/tarjetas/portada/imagen_portada.dart' show esUrlLocal;
 
@@ -82,22 +83,72 @@ class PaletaPortada {
 }
 
 /// Caché en memoria: re-entrar a letras de la misma carátula es instantáneo.
+///
+/// ACOTADA a propósito: sin límite quedaba una entrada por cada cover visto,
+/// así que recorrer el feed en una sesión larga hacía crecer la memoria sin
+/// techo (cada entrada retiene su Future y su tamaño de píxeles leídos).
+const int _maxPaletas = 48;
 final Map<String, Future<PaletaPortada?>> _cachePaleta = {};
 
 /// Obtiene (o calcula) la paleta para una carátula por URL o ruta local.
-Future<PaletaPortada?> paletaParaPortada(String? urlORuta) async {
-  if (urlORuta == null || urlORuta.isEmpty) return null;
+Future<PaletaPortada?> paletaParaPortada(String? urlORuta) {
+  if (urlORuta == null || urlORuta.isEmpty) return Future.value(null);
   final clave = 'cover|$urlORuta';
-  return _cachePaleta.putIfAbsent(clave, () => _extraer(urlORuta));
+  final yaPedida = _cachePaleta[clave];
+  if (yaPedida != null) return yaPedida;
+  if (_cachePaleta.length >= _maxPaletas) {
+    // Los Map de Dart conservan el orden de inserción, así que `keys.first`
+    // es la más antigua: se descarta esa y no todo el caché.
+    _cachePaleta.remove(_cachePaleta.keys.first);
+  }
+  final futura = _extraer(urlORuta);
+  _cachePaleta[clave] = futura;
+  return futura;
+}
+
+/// Igual que [paletaParaPortada] pero esperando a que el hilo de UI esté libre.
+///
+/// La usan las TARJETAS: piden la paleta mientras el usuario hace scroll, así
+/// que una pasada rápida por una lista larga encola decenas de paletas de golpe
+/// y cada una corta el frame en curso. Con esto el trabajo se agenda como tarea
+/// ociosa y los frames del scroll van primero (el resultado es el mismo; solo
+/// llega un poco después, cuando la tarjeta ya está quieta).
+Future<PaletaPortada?> paletaParaPortadaDiferida(String? urlORuta) async {
+  if (urlORuta == null || urlORuta.isEmpty) return null;
+  // Si YA está en caché es instantáneo: no tiene sentido diferirlo.
+  final clave = 'cover|$urlORuta';
+  if (_cachePaleta.containsKey(clave)) return paletaParaPortada(urlORuta);
+  await _esperarHuecoLibre();
+  return paletaParaPortada(urlORuta);
+}
+
+/// Espera al hueco ocioso del planificador. Si el scheduler todavía no está
+/// listo (tests puros), cae a un salto de microtarea normal.
+Future<void> _esperarHuecoLibre() {
+  final c = Completer<void>();
+  try {
+    SchedulerBinding.instance.scheduleTask(() {
+      if (!c.isCompleted) c.complete();
+    }, Priority.idle);
+  } catch (_) {
+    if (!c.isCompleted) c.complete();
+  }
+  return c.future;
 }
 
 Future<PaletaPortada?> _extraer(String src) async {
   try {
     final bytes = await _leerBytes(src);
-    if (bytes == null) return null;
+    if (bytes == null) {
+      // No se pudo leer: se saca de la caché para que un reintento (o una
+      // red que vuelve) no quede clavado con el null para siempre.
+      _cachePaleta.remove('cover|$src');
+      return null;
+    }
     return await _calcularDesdeBytes(bytes);
   } catch (e) {
     debugPrint('[PaletaPortada] $e');
+    _cachePaleta.remove('cover|$src');
     return null;
   }
 }

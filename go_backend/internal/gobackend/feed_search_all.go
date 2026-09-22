@@ -1,7 +1,6 @@
 package gobackend
 
 import (
-	"encoding/json"
 	"sync"
 	"time"
 
@@ -24,12 +23,8 @@ func searchAllSourceBest(query string, limit int, searchType string) string {
 		perSource = 20
 	}
 
-	type namedItems struct {
-		name  string
-		items []FeedItemGo
-	}
 	providers := providersBusquedaOrdenados()
-	ch := make(chan namedItems, len(providers))
+	ch := make(chan []FeedItemGo, len(providers))
 	var wg sync.WaitGroup
 	for _, p := range providers {
 		// Only skip providers cooled *for search*. Downloads/streaming cool their
@@ -47,32 +42,43 @@ func searchAllSourceBest(query string, limit int, searchType string) string {
 					// Never crash the app if a provider panics mid-search.
 				}
 			}()
-			res := searchProvider(p, query, perSource, searchType)
-			var batch []FeedItemGo
-			if err := json.Unmarshal([]byte(res), &batch); err == nil && len(batch) > 0 {
-				ch <- namedItems{name: p.Name(), items: batch}
+			// Cada proveedor con su propio techo (ver search_deadline.go): el más
+			// lento se abandona a los 3 s en vez de consumir los 4 s de la
+			// ventana global, así que el canal se cierra (y la búsqueda termina)
+			// en cuanto el último proveedor útil responde.
+			//
+			// Se usa la variante que devuelve items: antes cada proveedor
+			// serializaba a JSON y el agregador lo deserializaba enseguida (ver
+			// itemsAJSON), duplicando el trabajo de TODOS los resultados.
+			batch := conTimeoutProveedor(searchProviderTimeoutFanout, func() []FeedItemGo {
+				return searchProviderItemsSync(p, query, perSource, searchType)
+			}).valor
+			if len(batch) > 0 {
+				ch <- batch
 			}
 		}(p)
 	}
 	go func() { wg.Wait(); close(ch) }()
 
 	items := make([]FeedItemGo, 0, len(providers)*perSource)
+	// La ventana global queda como RED DE SEGURIDAD: con el techo por
+	// proveedor ya no debería alcanzarse nunca, solo si el runtime de una
+	// extensión se traga la cancelación y deja el goroutine vivo.
 	timeout := time.After(searchGlobalTimeout)
 	collecting := true
 	for collecting {
 		select {
-		case n, ok := <-ch:
+		case batch, ok := <-ch:
 			if !ok {
 				collecting = false
 				break
 			}
-			items = append(items, n.items...)
+			items = append(items, batch...)
 		case <-timeout:
 			collecting = false
 		}
 	}
-	data, _ := json.Marshal(items)
-	return string(data)
+	return itemsAJSON(items)
 }
 
 // searchAllSource searches all providers for a given type, using the

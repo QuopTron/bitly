@@ -59,18 +59,15 @@ mixin FeedBusquedaMixin on BackendService {
       return await _ejecutarBusqueda(query, source, type, limit);
     } catch (e) {
       debugPrint('[FeedBusquedaMixin] $e');
-      // El bridge nativo serializa los RPCs en un hilo; una búsqueda lanzada
-      // mientras corre una llamada pesada (fallback de descarga / resolución
-      // de stream) puede exceder el timeout del RPC. Reintenta una vez — para
-      // entonces la cola ya drenó — para que un stall transitorio nunca
-      // parezca "sin resultados".
-      try {
-        await Future<void>.delayed(const Duration(seconds: 2));
-        return await _ejecutarBusqueda(query, source, type, limit);
-      } catch (e) {
-        debugPrint('[FeedBusquedaMixin] $e');
-        return [];
-      }
+      // Un solo intento, a propósito. Antes se re-lanzaba la búsqueda COMBINADA
+      // entera 2s después, porque se creía que el puente nativo serializaba los
+      // RPCs en un hilo y que la búsqueda podía exceder el timeout del RPC. Ya
+      // no es así: MainActivity corre las llamadas de Go en un POOL de threads
+      // (uno colgado no bloquea al resto) y el timeout real es de 45s en el
+      // puente / 60s en Dart, así que una excepción acá es un fallo de verdad y
+      // repetir la misma consulta 2s más tarde falla igual: solo duplicaba el
+      // trabajo de todos los proveedores y retrasaba el error.
+      return [];
     }
   }
 
@@ -122,23 +119,37 @@ mixin FeedBusquedaMixin on BackendService {
         final items = AyudantesBackend.parsearResultadosBusqueda(raw['items']);
         final done = raw['done'] == true;
         final gen = (raw['generation'] as num?)?.toInt() ?? 0;
+        // Estado por fuente: con la lista vacía esto decide entre "no hay nada"
+        // (todas respondieron) y "no se pudo preguntar" (ninguna respondió).
+        final fallidas = (raw['fallidas'] as List?)
+                ?.map((e) => e.toString())
+                .toList() ??
+            const <String>[];
+        final fuentesOk = (raw['fuentes_ok'] as num?)?.toInt() ?? 0;
         return ResultadosBusquedaStream(
           items: items,
           done: done,
           generation: gen,
+          fallidas: fallidas,
+          fuentesOk: fuentesOk,
         );
       }
+      // Respuesta ilegible: se marca como fallo (no como "terminó sin
+      // resultados") — así el sondeo la reintenta en vez de dar la búsqueda
+      // por vacía.
       return const ResultadosBusquedaStream(
         items: [],
-        done: true,
+        done: false,
         generation: 0,
+        fallo: true,
       );
     } catch (e) {
       debugPrint('[FeedBusquedaMixin] $e');
       return const ResultadosBusquedaStream(
         items: [],
-        done: true,
+        done: false,
         generation: 0,
+        fallo: true,
       );
     }
   }

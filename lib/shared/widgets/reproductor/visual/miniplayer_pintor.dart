@@ -88,5 +88,19 @@ class _PintorBarraProgreso extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_PintorBarraProgreso old) => true;
+  // Compara los campos en vez de repintar siempre: con `=> true` cualquier
+  // reconstrucción del padre (un like, un estado que cambia) marcaba la barra
+  // sucia y la repintaba con su glow, sin que nada de la barra hubiera
+  // cambiado. Con el pulso activo igual se repinta por frame, que es lo que
+  // anima el glow; esto solo corta los repintados de más.
+  bool shouldRepaint(_PintorBarraProgreso old) =>
+      old.progreso != progreso ||
+      old.pulgarX != pulgarX ||
+      old.radioPulgar != radioPulgar ||
+      old.radioGlow != radioGlow ||
+      old.altoTrack != altoTrack ||
+      old.colorActivo != colorActivo ||
+      old.colorInactivo != colorInactivo ||
+      old.colorPulgar != colorPulgar ||
+      old.colorGlow != colorGlow;
 }

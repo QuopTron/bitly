@@ -50,6 +50,31 @@ mixin ReproductorVideoLocal on ReproductorArchivosTemp {
     if (isrc != null && isrc.isNotEmpty) {
       _archivosLocales[huellaIsrc(isrc)] = filePath;
     }
+    // Una descarga RECIÉN llegada es evidencia nueva: si esta ruta estaba
+    // marcada como "archivo muerto" (no decodificó) o con reintentos
+    // agotados, ese veredicto ya no aplica al archivo nuevo. Sin esto, el
+    // mismo camino reescrito quedaba vetado y el reproductor iba a streaming
+    // teniendo la canción descargada.
+    for (final id in {trackId, if (providerTrackId != null) providerTrackId}) {
+      if (id.isEmpty) continue;
+      _urlRotaPorTrack.remove(id);
+      _reintentosArchivoMuerto.remove(id);
+      final norm = normalizarId(id);
+      _urlRotaPorTrack.remove(norm);
+      _reintentosArchivoMuerto.remove(norm);
+    }
+  }
+
+  /// Resuelve la URI local usable de [track] o null si no hay ninguna.
+  ///
+  /// Además de [_resolveLocalUri], descarta el archivo que YA falló al
+  /// decodificar en esta sesión (si no, reabriría en bucle).
+  String? _resolverLocalParaTrack(ItemFeed track) {
+    final uri = _resolveLocalUri(track);
+    if (uri == null) return null;
+    final rota = _urlRotaPorTrack[normalizarId(track.id)];
+    if (rota != null && uri == rota) return null;
+    return uri;
   }
 
   /// Resuelve la URI local (file://) de [track] o null si no existe:

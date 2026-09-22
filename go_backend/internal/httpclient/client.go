@@ -22,29 +22,55 @@ type Config struct {
 	FollowRedirects     bool
 	InsecureSkipVerify  bool
 	ProxyURL            string // optional HTTP/SOCKS proxy URL
+
+	// TLSHandshakeTimeout y ResponseHeaderTimeout acotan las dos esperas que
+	// antes quedaban sin techo: un servidor que acepta el TCP/TLS y luego no
+	// contesta nada dejaba al llamador esperando el Timeout completo del
+	// cliente (30 s) o el global de la búsqueda, y eso se ve como "la búsqueda
+	// se quedó cargando". Con cero, se usa el valor por defecto.
+	TLSHandshakeTimeout   time.Duration
+	ResponseHeaderTimeout time.Duration
 }
 
 // DefaultConfig returns a sensible default configuration.
 func DefaultConfig() Config {
 	return Config{
-		Timeout:             30 * time.Second,
-		KeepAlive:           30 * time.Second,
-		MaxIdleConns:        100,
-		MaxIdleConnsPerHost: 10,
-		FollowRedirects:     true,
-		InsecureSkipVerify:  false,
+		Timeout:   30 * time.Second,
+		KeepAlive: 30 * time.Second,
+		// 100 conexiones ociosas en total y 16 por host. El valor por defecto de
+		// Go es 2 por host, y una búsqueda dispara varias llamadas simultáneas
+		// al MISMO host (catálogo + detalle + player), así que con 2 se reabría
+		// TLS en medio de la búsqueda.
+		MaxIdleConns:          100,
+		MaxIdleConnsPerHost:   16,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ResponseHeaderTimeout: 15 * time.Second,
+		FollowRedirects:       true,
+		InsecureSkipVerify:    false,
 	}
 }
 
 // NewTransport creates an http.Transport from the given config.
 // If dialFn is provided, it replaces the default TCP dialer (used for utls).
 func NewTransport(cfg Config, dialFn func(network, addr string) (net.Conn, error)) *http.Transport {
+	tlsTimeout := cfg.TLSHandshakeTimeout
+	if tlsTimeout <= 0 {
+		tlsTimeout = 10 * time.Second
+	}
+	headerTimeout := cfg.ResponseHeaderTimeout
+	if headerTimeout <= 0 {
+		headerTimeout = 15 * time.Second
+	}
 	transport := &http.Transport{
 		MaxIdleConns:        cfg.MaxIdleConns,
 		MaxIdleConnsPerHost: cfg.MaxIdleConnsPerHost,
 		IdleConnTimeout:     90 * time.Second,
 		DisableKeepAlives:   cfg.DisableKeepAlive,
 		ForceAttemptHTTP2:   false,
+		// Estas dos esperas antes no tenían techo: la conexión podía quedar
+		// colgada en el handshake TLS o esperando una cabecera que nunca llega.
+		TLSHandshakeTimeout:   tlsTimeout,
+		ResponseHeaderTimeout: headerTimeout,
 		TLSClientConfig: &tls.Config{
 			InsecureSkipVerify: cfg.InsecureSkipVerify,
 		},

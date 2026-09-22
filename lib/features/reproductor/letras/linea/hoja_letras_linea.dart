@@ -3,6 +3,28 @@
 
 part of '../base/hoja_letras.dart';
 
+/// Lista vacía compartida: evita asignar una lista nueva por línea inactiva
+/// en cada tick de posición.
+const List<Shadow> _sinSombras = <Shadow>[];
+
+/// Sombras del glow de la línea activa, memoizadas por color de acento.
+///
+/// Antes se construían (3 `Shadow` + 3 colores con alpha) para cada línea y en
+/// cada tick de posición, aunque entre ticks no cambiaran: puro trabajo de
+/// asignación en el camino caliente del karaoke.
+List<Shadow> _sombrasGlowDe(_HojaLetrasState st, Color acento) {
+  final cache = st._sombrasGlow;
+  if (cache != null && st._acentoGlow == acento) return cache;
+  final sombras = <Shadow>[
+    Shadow(color: acento.withValues(alpha: 0.55), blurRadius: 14),
+    Shadow(color: acento.withValues(alpha: 0.30), blurRadius: 26),
+    Shadow(color: acento.withValues(alpha: 0.18), blurRadius: 42),
+  ];
+  st._sombrasGlow = sombras;
+  st._acentoGlow = acento;
+  return sombras;
+}
+
 double _progresoLinea(_HojaLetrasState st, int i, Duration posicion) {
   final inicio = st._lineas[i].tiempo;
   final fin =
@@ -114,15 +136,16 @@ Widget _lineaKaraoke(
   }
 
   final esActiva = distancia == 0;
-  final sombrasGlow = <Shadow>[
-    Shadow(color: acento.withValues(alpha: 0.55), blurRadius: 14),
-    Shadow(color: acento.withValues(alpha: 0.30), blurRadius: 26),
-    Shadow(color: acento.withValues(alpha: 0.18), blurRadius: 42),
-  ];
+  // Las sombras del glow solo las usa la línea activa: se calculan una vez por
+  // acento (no por línea y por tick).
+  final sombrasGlow = esActiva ? _sombrasGlowDe(st, acento) : _sinSombras;
 
   // El texto NUNCA se recorta ni se desplaza: envuelve centrado (ver
   // texto_linea_letra.dart). La activa se distingue por el estilo y por el
   // resaltado que avanza DENTRO del texto.
+  //
+  // Las NO activas usan un span MEMOIZADO: así el párrafo no se vuelve a
+  // maquetar en cada tick de posición (ver _spanLinea en hoja_letras.dart).
   final texto = TextoLineaLetra(
     span:
         esActiva
@@ -134,7 +157,7 @@ Widget _lineaKaraoke(
               fg.withValues(alpha: 0.5),
               sombrasGlow,
             )
-            : TextSpan(text: st._lineas[i].texto),
+            : st._spanLinea.putIfAbsent(i, () => TextSpan(text: st._lineas[i].texto)),
   );
 
   final textoConEstilo =

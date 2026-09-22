@@ -64,7 +64,7 @@ class _SettingsSheetBodyState extends State<_SettingsSheetBody> {
     Widget sheet = Container(
       // Más alto que la mitad: deja ~20% visible arriba (contexto de la
       // página) y le da más aire al contenido de cada pestaña.
-      height: MediaQuery.of(context).size.height * 0.8,
+      height: MediaQuery.sizeOf(context).height * 0.8,
       margin: EdgeInsets.only(top: r.spacingXL),
       decoration: BoxDecoration(
         // Transparent when a track is playing: the _SongTintedBackground

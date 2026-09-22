@@ -2,9 +2,20 @@
 // descargas_reparar_escaneo.dart — PART de cubit_descargas.dart:
 // escaneo único de arranque que detecta archivos descargados que NO
 // son audio reproducible (p.ej. streams amazon encriptados guardados
-// antes del decrypt por ffmpeg-kit), los borra junto con sus filas
-// de BD y los re-descarga automáticamente reconstruyendo la
-// estrategia desde la fila de historial.
+// antes del decrypt por ffmpeg-kit) y los re-descarga automáticamente
+// reconstruyendo la estrategia desde la fila de historial.
+//
+// NO BORRA NADA. Antes quitaba la fila de BD y borraba el archivo
+// con la esperanza de reemplazarlo; si la re-descarga no podía correr
+// (gate del plan free vencido, sin red, fuente caída) el usuario
+// perdía la descarga PARA SIEMPRE — exactamente el "me dura un día y
+// se pierde". Ahora la descarga nueva se escribe en el mismo camino
+// (mismo stem) y sobrescribe a la rota; si no se puede, el usuario
+// conserva lo que tenía.
+//
+// Y solo se considera roto un archivo con EVIDENCIA POSITIVA de otro
+// contenedor (ver audio_archivo_estado.dart): no poder leerlo no es
+// prueba de nada.
 // Se conecta con: descargas_reparar_decrypt.dart (misma library).
 // Parte del flujo: descargas (reparación de arranque).
 // ─────────────────────────────────────────────────────────────
@@ -14,8 +25,8 @@ part of '../cubit_descargas.dart';
 /// Escaneo de arranque de descargas rotas. Mixin aplicado en CubitDescargas.
 mixin DescargasRepararEscaneo on DescargasRepararDecrypt {
   /// Escaneo único de arranque que detecta archivos descargados que NO son
-  /// audio reproducible. Se borran, se quitan sus filas de BD y se
-  /// re-descargan automáticamente.
+  /// audio reproducible y los re-descarga. No toca la BD ni el disco: la
+  /// descarga nueva sobrescribe a la rota por sí sola.
   Future<void> _repararDescargasRotas() async {
     if (_reparacionIntentada) return;
     _reparacionIntentada = true;
@@ -28,38 +39,21 @@ mixin DescargasRepararEscaneo on DescargasRepararDecrypt {
         final m = e as Map<String, dynamic>;
         final fp = (m['file_path'] ?? '').toString();
         if (fp.isEmpty) continue;
-        final file = File(fp);
-        if (!await file.exists()) continue;
-        if (!await _esAudioDecodificable(file)) {
-          rotas.add(m);
-          _log.w('[CubitDescargas] Descarga corrupta detectada: $fp');
-        }
+        // `estadoAudioEnDisco` distingue "es otro contenedor" (corrupto, se
+        // repara) de "no se pudo leer" (desconocido: se deja quieto).
+        final estado = await estadoAudioEnDisco(fp);
+        if (estado != EstadoArchivoAudio.corrupto) continue;
+        rotas.add(m);
+        _log.w('[CubitDescargas] Descarga ilegible (otro contenedor): $fp');
       }
       if (rotas.isEmpty) return;
       _log.w(
-        '[CubitDescargas] Reparando ${rotas.length} descarga(s) corrupta(s)...',
+        '[CubitDescargas] Re-descargando ${rotas.length} descarga(s) rota(s) '
+        'sin borrar nada',
       );
 
-      // Quitar filas rotas de la BD y borrar los archivos inutilizables.
-      final idsRotas =
-          rotas
-              .map((m) => (m['id'] ?? '').toString())
-              .where((id) => id.isNotEmpty)
-              .toList();
-      if (idsRotas.isNotEmpty) {
-        await _downloadCache.borrarTracksDescargados(idsRotas);
-      }
-      for (final m in rotas) {
-        try {
-          final file = File((m['file_path'] ?? '').toString());
-          if (await file.exists()) await file.delete();
-        } catch (e) {
-          debugPrint("[Descargas] $e");
-        }
-      }
-      await di.sl<CacheBiblioteca>().invalidarTodo();
-
-      // Re-descargar cada track reparado (usa el nuevo decrypt al descargar).
+      // Re-descargar cada track roto (usa el nuevo decrypt al descargar). La
+      // fila y el archivo viejos quedan hasta que llegue el reemplazo.
       for (final m in rotas) {
         await _redescargarTrackRoto(m);
       }

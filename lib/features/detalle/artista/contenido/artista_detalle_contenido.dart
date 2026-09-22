@@ -29,32 +29,16 @@ List<Widget> _construirContenidoArtista(
   if (st._estaEnLinea && d.tracks.isNotEmpty) {
     widgets.add(_tituloSeccion(r, loc.setup.searchTracks, esOscuro));
     widgets.add(SizedBox(height: r.spacingS));
+    // Cada fila resuelve su carátula/like/descarga en SU build (ver
+    // FilaTrackDetalle): abrir un artista con muchos tracks no paga el trabajo
+    // de todos de golpe.
     for (final item in d.tracks) {
-      final src = item.source ?? '';
-      final clave = 'track_${normalizarIdTrack(item.id)}_$src';
-      void play() => sl<CubitCola>().reproducirConContexto(d.tracks, item);
-      // Sin padding horizontal: la tarjeta ya trae su margen lateral.
       widgets.add(
-        Padding(
-          // El eje Y de Ajustes → Diseño escala el hueco entre canciones.
-          padding: EdgeInsets.symmetric(
-            vertical: r.spacingXS * 0.5 * AparienciaEspacios.espacioY(context),
-          ),
-          child: TarjetaTrack(
-            item: item,
-            titulo: item.name,
-            subtitulo: artista.name,
-            coverUrl: likedCubit.caratulaLocalPara(item),
-            esAmado: likedCubit.estaAmado(item),
-            readyKey: normalizarIdTrack(item.id),
-            escalaTexto: 1.2,
-            onLike: () => likedCubit.alternarLike(item),
-            estadoDescarga: dlCubit.estadoDescargaPara(clave).estado,
-            onDescargar: () => mostrarOpcionesDescarga(context, item, esOscuro),
-            onBorrar: () => dlCubit.borrarDescargaTrack(item.id, src),
-            onTap: play,
-            onCompartir: () => ServicioCompartir.instance.compartir(item),
-          ),
+        FilaTrackDetalle(
+          key: ValueKey('ar_${item.id}'),
+          item: item,
+          contexto: d.tracks,
+          subtitulo: artista.name,
         ),
       );
     }
@@ -95,32 +79,13 @@ List<Widget> _construirContenidoArtista(
     );
     widgets.add(SizedBox(height: r.spacingS));
     for (final item in d.tracksOffline) {
-      final src = item.source ?? '';
-      final clave = 'track_${normalizarIdTrack(item.id)}_$src';
-      void play() =>
-          sl<CubitCola>().reproducirConContexto(d.tracksOffline, item);
-      // Sin padding horizontal: la tarjeta ya trae su margen lateral.
       widgets.add(
-        Padding(
-          // El eje Y de Ajustes → Diseño escala el hueco entre canciones.
-          padding: EdgeInsets.symmetric(
-            vertical: r.spacingXS * 0.5 * AparienciaEspacios.espacioY(context),
-          ),
-          child: TarjetaTrack(
-            item: item,
-            titulo: item.name,
-            subtitulo: item.artists ?? st.widget.artistName,
-            coverUrl: likedCubit.caratulaLocalPara(item),
-            esAmado: true,
-            readyKey: normalizarIdTrack(item.id),
-            escalaTexto: 1.2,
-            onLike: () => likedCubit.alternarLike(item),
-            estadoDescarga: dlCubit.estadoDescargaPara(clave).estado,
-            onDescargar: () => mostrarOpcionesDescarga(context, item, esOscuro),
-            onBorrar: () => dlCubit.borrarDescargaTrack(item.id, src),
-            onTap: play,
-            onCompartir: () => ServicioCompartir.instance.compartir(item),
-          ),
+        FilaTrackDetalle(
+          key: ValueKey('aroff_${item.id}'),
+          item: item,
+          contexto: d.tracksOffline,
+          subtitulo: item.artists ?? st.widget.artistName,
+          forzarAmado: true,
         ),
       );
     }

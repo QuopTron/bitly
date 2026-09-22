@@ -51,6 +51,10 @@ Widget _portadaNitidaDe(
           imagenDesdeUrl(
             t.coverUrl,
             ajuste: BoxFit.cover,
+            // Lado real de la tarjeta: acota el decode en las grillas, que es
+            // donde más portadas conviven en pantalla a la vez.
+            ancho: lado,
+            alto: lado,
             fallback: _iconoPlaceholderDe(t, lado, context),
           )
         else

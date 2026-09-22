@@ -22,6 +22,7 @@ import '../../../../estado/like/base/cubit_like.dart';
 import '../../../../estado/reproductor/cubit_reproductor.dart';
 import '../../../tema/colores_app.dart';
 import '../../../utilidades/interaccion/haptico.dart';
+import '../../../utilidades/plataforma/pantalla/efectos_app.dart';
 import '../../../utilidades/plataforma/responsive.dart';
 import '../../tarjetas/portada/imagen_portada.dart';
 import '../../../utilidades/formato/apariencia/barras/apariencia_barras_helper.dart';

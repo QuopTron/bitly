@@ -9,6 +9,15 @@
 
 part of '../base/hoja_letras.dart';
 
+// RegExps de LRC a nivel de módulo: antes se construían DENTRO del parseo
+// (`regexTiempo` por parseo y `regexInline` por LÍNEA) y compilar un patrón es
+// lo más caro de recorrer una letra. Como literales de módulo se compilan una
+// sola vez y el parseo queda en solo las comparaciones.
+final RegExp _reTagTiempo = RegExp(r'\[(\d{2}):(\d{2})\.(\d{2,3})\]');
+final RegExp _reTagInline = RegExp(r'<(\d{1,2}:\d{2}(?:\.\d{1,3})?)>');
+final RegExp _reMetaLrc = RegExp(r'^\[(ti|ar|al|by|offset|re|ve):');
+final RegExp _reSoloTiempo = RegExp(r'^\[\d{2}:\d{2}\.\d{2,3}\]$');
+
 /// Parsea un tag de tiempo `mm:ss.xx` a Duration.
 Duration _parsearTag(String tag) {
   final minutos = int.parse(tag.substring(0, 2));
@@ -20,9 +29,15 @@ Duration _parsearTag(String tag) {
 
 /// Llena `_lineas` y `_textoPlano` desde las letras crudas (LRC o plano).
 void _parsear(_HojaLetrasState st) {
+  // Reparseo idempotente: se vacían las líneas y los spans memoizados, así
+  // volver a parsear (o cambiar de letra) nunca duplica líneas ni deja spans
+  // apuntando a índices viejos.
+  st._lineas.clear();
+  st._spanLinea.clear();
+  st._cacheLineas.clear();
   final crudas = st.widget.letrasCrudas;
   st._textoPlano = _quitarLrc(crudas);
-  final regexTiempo = RegExp(r'\[(\d{2}):(\d{2})\.(\d{2,3})\]');
+  final regexTiempo = _reTagTiempo;
   for (final lineaCruda in crudas.split('\n')) {
     final recortada = lineaCruda.trim();
     final match = regexTiempo.firstMatch(recortada);
@@ -41,7 +56,7 @@ void _parsear(_HojaLetrasState st) {
     // espacios que traiga la fuente. Apple Music manda SÍLABAS ("Ho", "la ",
     // "mun"), y recortarlas e inyectar un espacio entre cada una escribía
     // "Ho la  mun".
-    final regexInline = RegExp(r'<(\d{1,2}:\d{2}(?:\.\d{1,3})?)>');
+    final regexInline = _reTagInline;
     final palabras = <(Duration, String)>[];
     final partes = texto.split(regexInline);
     if (partes.length >= 3) {
@@ -82,10 +97,10 @@ String _quitarLrc(String lrc) {
   for (final linea in lrc.split('\n')) {
     final recortada = linea.trim();
     if (recortada.isEmpty) continue;
-    if (RegExp(r'^\[(ti|ar|al|by|offset|re|ve):').hasMatch(recortada)) {
+    if (_reMetaLrc.hasMatch(recortada)) {
       continue;
     }
-    if (RegExp(r'^\[\d{2}:\d{2}\.\d{2,3}\]$').hasMatch(recortada)) {
+    if (_reSoloTiempo.hasMatch(recortada)) {
       continue;
     }
     // También las marcas inline `<mm:ss.xx>` de palabra/sílaba: sin esto, una
@@ -93,8 +108,8 @@ String _quitarLrc(String lrc) {
     // renderizador cae al texto plano.
     final texto =
         recortada
-            .replaceAll(RegExp(r'\[\d{2}:\d{2}\.\d{2,3}\]'), '')
-            .replaceAll(RegExp(r'<\d{1,2}:\d{2}(?:\.\d{1,3})?>'), '')
+            .replaceAll(_reTagTiempo, '')
+            .replaceAll(_reTagInline, '')
             .trim();
     if (texto.isNotEmpty) salida.add(texto);
   }

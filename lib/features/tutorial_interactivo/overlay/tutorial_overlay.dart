@@ -20,6 +20,7 @@ import 'package:flutter/material.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/tema/colores_app.dart';
 import '../../../shared/tema/especificaciones/especificaciones_plataforma.dart';
+import '../../../shared/utilidades/plataforma/pantalla/efectos_app.dart';
 import '../../../shared/utilidades/plataforma/pantalla/escala_texto.dart';
 import '../../../shared/utilidades/plataforma/responsive.dart';
 import '../motor/pasos/modelo_tutorial.dart';

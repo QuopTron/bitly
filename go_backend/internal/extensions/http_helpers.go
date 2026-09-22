@@ -2,6 +2,7 @@ package extensions
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -11,6 +12,10 @@ import (
 	"github.com/dop251/goja"
 	"github.com/zarz/bitly/go_backend/internal/httpclient"
 )
+
+// maxCuerpoFetchExt es el techo de tamaño para el cuerpo que devuelve el
+// fetch() de una extensión. Ver doHTTP para el porqué.
+const maxCuerpoFetchExt = 12 << 20 // 12 MiB
 
 // Los clientes HTTP compartidos (extHTTPClient/ytHTTPClient y sus helpers
 // esHostYouTube/esHostGooglevideo/clienteHTTPExtPara/ytHTTPClientFor) viven en
@@ -94,9 +99,21 @@ func doHTTPWithTimeout(method, url, body string, headers map[string]string, time
 	httpclient.BreakerRecord(url, resp.StatusCode, nil)
 	defer resp.Body.Close()
 
-	respBody, err := io.ReadAll(resp.Body)
+	// Techo de tamaño: este camino devuelve el cuerpo COMPLETO como string de Go
+	// y goja lo copia otra vez a un string de JS, así que un cuerpo grande se
+	// paga dos veces en RAM. Todo lo que pasa por aquí es HTML o JSON de los
+	// catálogos (cientos de KB como mucho); la media (audio, video, carátulas)
+	// baja por file_download.go, que escribe a disco en streaming. El límite
+	// existe para que una extensión que por error pida un archivo grande no
+	// intente meter cientos de MB en memoria en un teléfono.
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, maxCuerpoFetchExt+1))
 	if err != nil {
 		return nil, "", err
+	}
+	if len(respBody) > maxCuerpoFetchExt {
+		log.Printf("[ext-http] respuesta demasiado grande (>{%.1f} MiB): %s",
+			float64(maxCuerpoFetchExt)/(1<<20), url)
+		return nil, "", fmt.Errorf("respuesta demasiado grande (más de %d MiB)", maxCuerpoFetchExt>>20)
 	}
 	return resp, string(respBody), nil
 }

@@ -65,7 +65,7 @@ class _SoulseekSheetVisual extends StatelessWidget {
         // Deja lugar al teclado: sin esto el campo queda tapado al escribir.
         child: Padding(
           padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom,
+            bottom: MediaQuery.viewInsetsOf(context).bottom,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,

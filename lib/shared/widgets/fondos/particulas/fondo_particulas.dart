@@ -52,10 +52,10 @@ class _FondoParticulasState extends State<FondoParticulas>
       vsync: this,
       duration: const Duration(seconds: 40),
     );
-    // Gama baja: sin partículas. Es un CustomPainter animado a pantalla
-    // completa (glow + glifo por partícula, 40 s sin parar): en una GPU de
-    // entrada es de lo más caro que hay y no aporta nada esencial.
-    if (!EfectosApp.permitirDesenfoque.value) {
+    // Gama baja / modo fluido: sin partículas. Es un CustomPainter animado a
+    // pantalla completa (glow + glifo por partícula, 40 s sin parar): en una GPU
+    // de entrada es de lo más caro que hay y no aporta nada esencial.
+    if (!EfectosApp.desenfoqueActivo) {
       _particulas = const [];
       return;
     }

@@ -17,6 +17,7 @@ import '../../../../app/inyeccion/inyeccion.dart';
 import '../../../../shared/widgets/vidrio/base/contenedor_vidrio.dart';
 
 import 'settings_audio_fondo.dart';
+import 'settings_modo_fluido.dart';
 
 /// Selector de perfil de rendimiento (Bajo / Medio / Alto).
 /// Al cambiar, persiste el perfil, ajusta la calidad de audio por defecto
@@ -123,6 +124,10 @@ class _SettingsPerformanceSectionState
               color: widget.onBg,
             ),
           ),
+          // Modo fluido PRIMERO: es la respuesta directa para quien siente la
+          // app pesada, y es una elección suya (el perfil de abajo es el ajuste
+          // automático por gama del equipo).
+          ModoFluidoRow(onBg: widget.onBg, glowColor: widget.glowColor),
           SizedBox(height: r.spacingM),
           ...perfiles.map(
             (p) => Padding(

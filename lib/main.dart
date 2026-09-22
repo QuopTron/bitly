@@ -23,6 +23,7 @@ import 'app.dart';
 import 'app/debug/depuracion.dart';
 import 'app/inyeccion/inyeccion.dart';
 import 'core/plataforma/sistema/base/perfil_runtime.dart';
+import 'core/plataforma/sistema/base/monitor_frames.dart';
 import 'core/plataforma/notificacion/base/puente_notificacion_media.dart';
 import 'core/plataforma/sistema/enlaces/servicio_deep_link.dart';
 import 'core/plataforma/sistema/base/servicio_foco_audio.dart';
@@ -95,6 +96,11 @@ Future<void> main() async {
   final prefs = await SharedPreferences.getInstance();
   final perfil = await cargarPerfilRuntime(prefs);
   configurarCacheImagenes(perfil);
+
+  // Adaptación EN VIVO: mide los frames reales y va apagando efectos si el
+  // equipo (o su estado de momento) no llega al ritmo de la pantalla. Cubre a
+  // los chips que la detección estática de gama clasifica mal.
+  MonitorFrames.instancia.iniciar();
 
   // Enlaces: se suscribe ANTES de inicializar el share intent para no perder
   // el enlace con el que se abrió la app (llega durante el initialize).

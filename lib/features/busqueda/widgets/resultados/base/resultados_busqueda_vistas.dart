@@ -32,17 +32,26 @@ Widget _vistaAgrupadaPorCategoria(
     if (agrupado[cat] != null) agrupado[cat]!.add(it);
   }
   const orden = ['tracks', 'artists', 'albums', 'playlists'];
-  final children = <Widget>[];
+  final slivers = <Widget>[];
   for (final cat in orden) {
     final items = agrupado[cat]!;
     if (items.isEmpty) continue;
-    children.add(
-      _cabeceraSeccion(context, cat, items.length, r, colorBrillo, onBg),
+    slivers.add(
+      SliverToBoxAdapter(
+        child: _cabeceraSeccion(
+          context,
+          cat,
+          items.length,
+          r,
+          colorBrillo,
+          onBg,
+        ),
+      ),
     );
     if (cat == 'tracks') {
-      children.addAll(_listaTracks(cuerpo, context, items));
+      slivers.add(_sliverTracks(cuerpo, context, items));
     } else {
-      children.add(
+      slivers.addAll(
         _seccionGrilla(
           cuerpo,
           context,
@@ -55,10 +64,10 @@ Widget _vistaAgrupadaPorCategoria(
       );
     }
   }
-  if (children.isEmpty) {
+  if (slivers.isEmpty) {
     return _centroSinResultados(loc, r, onBg);
   }
-  return _listado(context, r, children);
+  return _listado(context, r, slivers);
 }
 
 /// Vista agrupada por fuente (fuente "Todas"): cada extensión en su sección.
@@ -79,23 +88,25 @@ Widget _vistaAgrupadaPorFuente(
     final src = it.source ?? 'unknown';
     (porFuente[src] ??= []).add(it);
   }
-  final children = <Widget>[];
+  final slivers = <Widget>[];
   for (final entry in porFuente.entries) {
     if (entry.value.isEmpty) continue;
-    children.add(
-      _cabeceraFuente(
-        context,
-        entry.key,
-        entry.value.length,
-        r,
-        colorBrillo,
-        onBg,
+    slivers.add(
+      SliverToBoxAdapter(
+        child: _cabeceraFuente(
+          context,
+          entry.key,
+          entry.value.length,
+          r,
+          colorBrillo,
+          onBg,
+        ),
       ),
     );
     if (cuerpo.tipoSeleccionado == 'tracks') {
-      children.addAll(_listaTracks(cuerpo, context, entry.value));
+      slivers.add(_sliverTracks(cuerpo, context, entry.value));
     } else {
-      children.add(
+      slivers.addAll(
         _seccionGrilla(
           cuerpo,
           context,
@@ -108,10 +119,10 @@ Widget _vistaAgrupadaPorFuente(
       );
     }
   }
-  if (children.isEmpty) {
+  if (slivers.isEmpty) {
     return _centroSinResultados(loc, r, onBg);
   }
-  return _listado(context, r, children);
+  return _listado(context, r, slivers);
 }
 
 /// Grilla de una sola categoría con su título.
@@ -125,7 +136,7 @@ Widget _grillaUnica(
   List<ItemFeed> items,
 ) {
   return _listado(context, r, [
-    _seccionGrilla(
+    ..._seccionGrilla(
       cuerpo,
       context,
       r,

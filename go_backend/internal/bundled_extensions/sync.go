@@ -35,11 +35,14 @@ func SincronizarConDisco(destDir string) []string {
 	}
 	var actualizadas []string
 	for _, id := range dirs {
-		ext, err := Load(id)
+		// Solo el manifest: para decidir hay que comparar VERSIONES, y leer el
+		// index.js entero aquí (hasta 250 KB por extensión) era puro gasto de
+		// arranque — ver ManifestDataDe.
+		manifestData, err := ManifestDataDe(id)
 		if err != nil {
 			continue
 		}
-		empaquetada := versionDeManifest(ext.ManifestData)
+		empaquetada := versionDeManifest(manifestData)
 		if empaquetada == "" {
 			empaquetada = "0.0.0"
 		}

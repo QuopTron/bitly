@@ -33,6 +33,7 @@ import '../../../../estado/reproductor/cubit_reproductor.dart';
 import '../../../../shared/tema/colores_app.dart';
 import '../../../../shared/utilidades/portada/paleta/paleta_portada.dart';
 import '../../../../shared/utilidades/formato/comun/formato/estilo_helper.dart';
+import '../../../../shared/utilidades/plataforma/pantalla/efectos_app.dart';
 import '../../../../shared/utilidades/plataforma/responsive.dart';
 import '../../../../shared/widgets/tarjetas/portada/imagen_portada.dart';
 import '../../video/area_portada_video.dart';

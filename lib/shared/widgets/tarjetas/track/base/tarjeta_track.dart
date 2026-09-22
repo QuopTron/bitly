@@ -23,6 +23,7 @@ import '../../../../utilidades/interaccion/haptico.dart';
 import '../../../../utilidades/portada/paleta/paleta_portada.dart';
 import '../../../../utilidades/formato/comun/formato/estilo_helper.dart';
 import '../../../../utilidades/plataforma/responsive.dart';
+import '../../../../utilidades/plataforma/pantalla/efectos_app.dart';
 import '../../../fondos/ambiente/atenuado_por_nivel.dart';
 import '../../portada/imagen_portada.dart';
 import '../../../indicadores/descarga/indicador_descarga.dart';
@@ -157,8 +158,16 @@ class TarjetaTrack extends StatelessWidget {
                 esOscuro,
               );
               final tamanoIcono = r.footerSize * 1.6 * escalaTexto;
+              // Las sombras con blur son el resto caro que queda en gama baja
+              // (un `MaskFilter.blur` por tarjeta y por frame). Se consulta
+              // TAMBIÉN `EfectosApp`, que es el interruptor que mueve el monitor
+              // de frames midiendo el equipo real: sin esto el monitor apagaba
+              // los desenfoques pero cada tarjeta seguía pagando su sombra, y
+              // el perfil estático (núcleos + RAM) clasifica como "hay margen"
+              // a equipos con GPU floja, como un Unisoc con PowerVR.
               final efectosPesados =
-                  sl<ValueNotifier<PerfilRendimiento>>().value.efectosPesados;
+                  sl<ValueNotifier<PerfilRendimiento>>().value.efectosPesados &&
+                  EfectosApp.desenfoqueActivo;
               // Intensidad del color del cover en las cards (0 = card del tema).
               final nivel = prefs.cardsCancion;
 
@@ -185,7 +194,13 @@ class TarjetaTrack extends StatelessWidget {
               );
 
               final Widget tarjeta;
-              if (nivel > 0 && colorDominante == null && coverUrl != null) {
+              // `colorPorTarjetaActivo`: en equipos que no llegan al ritmo, el
+              // monitor de frames apaga la extracción de la paleta por tarjeta
+              // (es lo que escala con la cantidad de items en pantalla).
+              if (nivel > 0 &&
+                  colorDominante == null &&
+                  coverUrl != null &&
+                  EfectosApp.colorPorTarjetaActivo) {
                 tarjeta = _conDeslizarCola(
                   this,
                   context,

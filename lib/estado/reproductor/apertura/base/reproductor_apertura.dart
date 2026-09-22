@@ -52,18 +52,42 @@ mixin ReproductorApertura on ReproductorAperturaHelpers {
     _ultimoTipoErrorStream = '';
     _ultimoServicioStream = '';
 
-    // 1. Intentar archivos locales primero (skip de un archivo local que ya
-    // falló al decodificar, para que caiga a streaming).
-    String? uri = _resolveLocalUri(track);
-    if (uri != null) {
-      final rota = _urlRotaPorTrack[normalizarId(track.id)];
-      if (rota != null && uri == rota) uri = null;
+    // 1. LOCAL PRIMERO, SIEMPRE (con o sin internet).
+    // El primer intento usa el mapa ya cargado; si no encuentra nada, fuerza
+    // UNA recarga completa y reintenta ANTES de tocar la red — así una
+    // descarga que el mapa todavía no indexó (TTL, otra pantalla, otra
+    // sesión) nunca se paga con un stream. Solo se paga cuando el track no
+    // está en disco.
+    var uri = _resolverLocalParaTrack(track);
+    if (uri == null) {
+      final ahora = DateTime.now();
+      final hace = _archivosLocalesCargadosEn == null
+          ? null
+          : ahora.difference(_archivosLocalesCargadosEn!);
+      if (hace == null || hace > _refrescoLocalMinimo) {
+        await _loadLocalFiles();
+        if (gen != _generacionOpen) return;
+        uri = _resolverLocalParaTrack(track);
+      }
     }
     if (uri != null) _marcarListo(normalizarId(track.id));
 
     // 2. Si no es local, resolver una URL de stream en vivo.
     if (uri == null) {
-      // Gate duro: antes de resolver un stream de una fuente con sesión
+      // 2a. Sin internet y sin archivo local: fallar rápido con un mensaje
+      // claro. Va ANTES del gate de sesión para no encadenar esperas de red
+      // (los RPCs pueden tardar hasta 60s) justo cuando no hay red.
+      if (!await ServicioConectividad.estaEnLinea()) {
+        if (gen != _generacionOpen) return;
+        _switchPendiente = false;
+        _claveTrackAbierto = null;
+        _ultimoErrorStream = 'Sin conexión a internet';
+        _ultimoTipoErrorStream = 'offline';
+        await _manejarFalloOpen(track);
+        _recuperando = false;
+        return;
+      }
+      // 2b. Gate duro: antes de resolver un stream de una fuente con sesión
       // firmada (Cloudflare), asegurar que su token es usable — si no, abrir
       // el modal de verificación YA para refrescar el token.
       if (!await _ensureSesionParaFuente(track)) {
@@ -87,15 +111,7 @@ mixin ReproductorApertura on ReproductorAperturaHelpers {
       // Serializado: el pause no debe pisar un open en vuelo (crash de
       // media_kit "Callback invoked after it has been deleted").
       unawaited(_enColaPlayer(() => _player.pausar()));
-      // Sin internet y sin archivo local: fallar rápido con mensaje claro en
-      // vez de esperar el timeout del backend (los RPCs pueden tardar 60s).
-      if (!await ServicioConectividad.estaEnLinea()) {
-        uri = null;
-        _ultimoErrorStream = 'Sin conexión a internet';
-        _ultimoTipoErrorStream = 'offline';
-      } else {
-        uri = await _resolveStreamUrl(track);
-      }
+      uri = await _resolveStreamUrl(track);
       // Un track más nuevo empezó a resolver/abrir mientras esperábamos — no
       // entregar nuestra URL stale al player por encima del track nuevo.
       if (gen != _generacionOpen) return;

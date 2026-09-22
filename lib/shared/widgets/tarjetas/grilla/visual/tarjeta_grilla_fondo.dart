@@ -49,7 +49,7 @@ Widget _fondoTarjeta(
     // Gama baja: sin desenfoque (una sola textura, casi gratis).
     base = imagenDesdeUrl(url, ajuste: BoxFit.cover, ancho: 128, alto: 128);
   } else {
-    base = Container(
+    base = DecoratedBox(
       decoration: BoxDecoration(gradient: _gradientePlaceholderDe(context)),
     );
   }

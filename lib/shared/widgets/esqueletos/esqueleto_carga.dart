@@ -45,14 +45,30 @@ class _EsqueletoCargaState extends State<EsqueletoCarga>
       vsync: this,
       duration: const Duration(milliseconds: 1500),
     );
-    // Gama baja: sin shimmer. Cada esqueleto visible tendría su propio
-    // controller repintando un gradiente en CADA frame; con 8 filas eso solo ya
-    // come la GPU y es lo que hacía sentir la lista "trabada".
-    if (EfectosApp.permitirDesenfoque.value) _ctrl.repeat();
+    // Gama baja (y modo fluido): sin shimmer. Cada esqueleto visible tendría su
+    // propio controller repintando un gradiente en CADA frame; con 8 filas eso
+    // solo ya come la GPU y es lo que hacía sentir la lista "trabada".
+    // Se escuchan TODOS los interruptores de efectos (perfil, monitor y modo
+    // fluido), así activar el modo fluido lo deja quieto al instante.
+    EfectosApp.cambiosEfectos.addListener(_sincronizarShimmer);
+    _sincronizarShimmer();
+  }
+
+  void _sincronizarShimmer() {
+    if (!mounted) return;
+    final animar = EfectosApp.desenfoqueActivo;
+    if (animar) {
+      if (!_ctrl.isAnimating) _ctrl.repeat();
+    } else if (_ctrl.isAnimating) {
+      _ctrl.stop();
+      _ctrl.value = 0;
+    }
+    setState(() {});
   }
 
   @override
   void dispose() {
+    EfectosApp.cambiosEfectos.removeListener(_sincronizarShimmer);
     _ctrl.dispose();
     super.dispose();
   }
@@ -68,7 +84,7 @@ class _EsqueletoCargaState extends State<EsqueletoCarga>
         oscuro
             ? Colors.white.withValues(alpha: 0.12)
             : Colors.black.withValues(alpha: 0.08);
-    final estatico = !EfectosApp.permitirDesenfoque.value;
+    final estatico = !EfectosApp.desenfoqueActivo;
 
     return AnimatedBuilder(
       animation: _ctrl,

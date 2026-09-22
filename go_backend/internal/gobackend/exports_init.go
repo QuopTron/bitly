@@ -9,6 +9,7 @@ import (
 	core "github.com/zarz/bitly/go_backend/internal/core"
 	"github.com/zarz/bitly/go_backend/internal/download"
 	"github.com/zarz/bitly/go_backend/internal/extensions"
+	"github.com/zarz/bitly/go_backend/internal/httpclient"
 	"github.com/zarz/bitly/go_backend/internal/library"
 	"github.com/zarz/bitly/go_backend/internal/lyrics"
 	"github.com/zarz/bitly/go_backend/internal/playback"
@@ -35,6 +36,11 @@ func InitGlobalState() string {
 	// acotado): el GC recolecta antes de agotar la RAM del dispositivo y la
 	// CPU no se satura contra el UI de Flutter.
 	core.AjustarRuntimeMemoria()
+
+	// Reutilización de conexiones del transporte global de net/http (lo
+	// comparten los clientes que no definen transporte propio). Se hace aquí,
+	// antes de cualquier petición en vuelo.
+	httpclient.OptimizarTransportePorDefecto()
 
 	// Always initialize — reg must be set even if InitBackend() was called separately.
 	reg = provider.NewRegistry()

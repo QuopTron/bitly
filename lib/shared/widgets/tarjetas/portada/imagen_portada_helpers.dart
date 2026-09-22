@@ -1,9 +1,8 @@
 // ─────────────────────────────────────────────────────────────
 // imagen_portada_helpers.dart — PART de imagen_portada.dart:
-// helpers de carga de carátulas — detección de URL local,
+// helpers de carga de carátulas — detección de URL local y
 // construcción del widget de imagen (archivo local o URL remota
-// con caché, decode acotado, filtro low, fade) y el placeholder
-// shimmer con gradiente barrido para mientras carga.
+// con caché, decode acotado, filtro low, fade).
 // Se conecta con: imagen_portada.dart (misma library) +
 // cached_network_image + dart:io.
 // Parte del flujo: feed, búsqueda, detalle, mi espacio (carátulas).
@@ -21,17 +20,26 @@ bool esUrlLocal(String url) =>
 /// Devuelve [fallback] si la URL está vacía o hay error.
 /// El decode acotado, filtro low, fade corto y useOldImageOnUrlChange
 /// siguen el manejo de portadas de SpotiFLAC (rápido + memoria acotada).
+///
+/// [respaldoRemoto], si se pasa, es la URL a la que cae el widget cuando
+/// [url] es un archivo LOCAL que no se pudo abrir. Permite resolver el caso
+/// "ruta local muerta" SIN consultar el sistema de archivos en el build.
 Widget imagenDesdeUrl(
   String? url, {
   double? ancho,
   double? alto,
   BoxFit ajuste = BoxFit.cover,
   Widget? fallback,
+  String? respaldoRemoto,
 }) {
   if (url == null || url.isEmpty) {
     return fallback ?? const SizedBox.shrink();
   }
   if (esUrlLocal(url)) {
+    final tieneRespaldo =
+        respaldoRemoto != null &&
+        respaldoRemoto.isNotEmpty &&
+        !esUrlLocal(respaldoRemoto);
     return Image.file(
       File(url),
       width: ancho,
@@ -40,7 +48,19 @@ Widget imagenDesdeUrl(
       cacheWidth: _extentCachePara(ancho),
       gaplessPlayback: true,
       filterQuality: FilterQuality.low,
-      errorBuilder: (_, _, _) => fallback ?? const SizedBox.shrink(),
+      errorBuilder:
+          // Ruta local muerta: se intenta el cover de red antes de darse por
+          // vencido (antes esto lo decidía un `existsSync` por build).
+          (_, _, _) =>
+              tieneRespaldo
+                  ? imagenDesdeUrl(
+                    respaldoRemoto,
+                    ancho: ancho,
+                    alto: alto,
+                    ajuste: ajuste,
+                    fallback: fallback,
+                  )
+                  : (fallback ?? const SizedBox.shrink()),
     );
   }
   return CachedNetworkImage(
@@ -66,82 +86,9 @@ int? _extentCachePara(double? tamano) {
   return (tamano * 2).round().clamp(64, 512);
 }
 
-/// Shimmer simple con gradiente barrido. Sin dependencias externas.
-class _PlaceholderShimmer extends StatefulWidget {
-  final double? ancho;
-  final double? alto;
-  final double radioBorde;
-  final Color? colorFondo;
+// El shimmer de carga se eliminó: nadie lo activaba (`mostrarShimmer` nunca
+// llegaba en true) y, de estar montado, cada tarjeta cargando habría tenido su
+// propio AnimationController en `repeat()` repintando un gradiente en cada
+// frame. El hueco de carga lo cubre el color de fondo del contenedor.
 
-  const _PlaceholderShimmer({
-    this.ancho,
-    this.alto,
-    this.radioBorde = 0,
-    this.colorFondo,
-  });
 
-  @override
-  State<_PlaceholderShimmer> createState() => _PlaceholderShimmerState();
-}
-
-class _PlaceholderShimmerState extends State<_PlaceholderShimmer>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1200),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final base =
-        widget.colorFondo ??
-        (Theme.of(context).brightness == Brightness.dark
-            ? const Color(0xFF1A1A1A)
-            : const Color(0xFFE8E8E8));
-
-    // Gama baja: sin shimmer. Cada tarjeta cargando tendría su propio
-    // AnimationController repintando un gradiente en cada frame; con 10
-    // visibles eso solo ya come la GPU.
-    if (!EfectosApp.permitirDesenfoque.value) {
-      return Container(
-        width: widget.ancho,
-        height: widget.alto,
-        decoration: BoxDecoration(
-          color: base,
-          borderRadius: BorderRadius.circular(widget.radioBorde),
-        ),
-      );
-    }
-
-    return AnimatedBuilder(
-      animation: _ctrl,
-      builder: (context, _) {
-        final t = _ctrl.value;
-        return Container(
-          width: widget.ancho,
-          height: widget.alto,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(widget.radioBorde),
-            gradient: LinearGradient(
-              begin: Alignment(-1.0 + 2.0 * t, 0),
-              end: Alignment(-0.5 + 2.0 * t, 0),
-              colors: [base, base.withValues(alpha: 0.5), base],
-            ),
-          ),
-        );
-      },
-    );
-  }
-}

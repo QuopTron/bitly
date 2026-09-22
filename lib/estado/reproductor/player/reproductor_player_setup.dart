@@ -42,9 +42,13 @@ mixin ReproductorPlayerSetup on ReproductorPlayerErrores {
       unawaited(_player.propiedad('audio-format', 's16'));
       unawaited(_player.propiedad('audio-samplerate', '48000'));
     }
-    // TEMP-DIAG: dump de logs mpv a logcat mientras se diagnostican URLs de
-    // YouTube muertas.
-    _player.flujoLog.listen((l) => debugPrint('[MPV-DIAG] $l'));
+    // Dump de logs de mpv SOLO en debug. mpv escribe varias líneas por
+    // segundo durante la reproducción y `debugPrint` arma y formatea una
+    // cadena por cada una: dejarlo activo en release mantenía al hilo de UI
+    // trabajando en cada frame sin aportar nada al usuario.
+    if (kDebugMode) {
+      _player.flujoLog.listen((l) => debugPrint('[MPV-DIAG] $l'));
+    }
     _subPosicion = _player.flujoPosicion.listen((pos) {
       if (!isClosed) emit(state.copiarCon(posicion: pos));
       // Guard de media nuevo: el primer evento de posición tras un open()

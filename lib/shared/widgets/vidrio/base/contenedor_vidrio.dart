@@ -66,7 +66,7 @@ class ContenedorVidrio extends StatelessWidget {
   Widget build(BuildContext context) {
     final radius = borderRadius;
     final border = borderColor ?? Colors.transparent;
-    final sinEfectos = !EfectosApp.permitirDesenfoque.value;
+    final sinEfectos = !EfectosApp.desenfoqueActivo;
 
     // ── Sombra del glow ── (se omite en gama baja: una sombra con blur alto
     // por tarjeta se paga caro al desplazar listas largas).

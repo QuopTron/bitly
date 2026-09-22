@@ -36,7 +36,11 @@ class _TutorialOverlayState extends State<TutorialOverlay>
     _pulso = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1400),
-    )..repeat(reverse: true);
+    );
+    // El latido del agujero repinta su borde y su glow en CADA frame, sin
+    // parar, mientras el tutorial está abierto. En gama baja o con el modo
+    // fluido queda fijo: el agujero se ve igual y la GPU deja de trabajar.
+    if (EfectosApp.desenfoqueActivo) _pulso.repeat(reverse: true);
     widget.controller.addListener(_alCambiarEstado);
     if (widget.controller.visible) _iniciarRastreador();
   }

@@ -38,7 +38,7 @@ class _HojaEstadoRed extends StatelessWidget {
             r.spacingL,
             0,
             r.spacingL,
-            MediaQuery.of(context).viewInsets.bottom + r.spacingXL,
+            MediaQuery.viewInsetsOf(context).bottom + r.spacingXL,
           ),
           child: ContenedorVidrio(
             borderRadius: 22,

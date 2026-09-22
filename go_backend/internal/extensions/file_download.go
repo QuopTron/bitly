@@ -7,10 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/dop251/goja"
-	"github.com/zarz/bitly/go_backend/internal/httpclient"
 )
 
 func registerFileDownload(s *Sandbox, fileObj *goja.Object) {
@@ -45,15 +43,11 @@ func registerFileDownload(s *Sandbox, fileObj *goja.Object) {
 			req.Header.Set(k, v)
 		}
 
-		// Audio files can be large (lossless FLAC ~50-100 MB) and downloads from
-		// slow CDNs legitimately exceed a minute, so no tight overall cap. A
-		// response-header timeout still stops dead servers from hanging forever.
-		client := &http.Client{
-			Transport: &http.Transport{
-				DialContext:           httpclient.NewDoHDialContext(),
-				ResponseHeaderTimeout: 30 * time.Second,
-			},
-		}
+		// Cliente COMPARTIDO de descargas (ver clienteDescargaExtPara): sin timeout
+		// global —un FLAC de 50-100 MB desde un CDN lento es legítimo— pero con
+		// timeout de handshake TLS y de cabeceras, y con las conexiones
+		// reutilizadas entre descargas.
+		client := clienteDescargaExtPara()
 		resp, err := client.Do(req)
 		if err != nil {
 			return vm.ToValue(map[string]interface{}{"success": false, "error": fmt.Sprintf("http: %v", err)})

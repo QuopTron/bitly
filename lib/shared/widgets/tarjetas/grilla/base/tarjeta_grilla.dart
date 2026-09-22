@@ -22,6 +22,7 @@ import '../../../../../l10n/app_localizations.dart';
 import '../../../../tema/colores_app.dart';
 import '../../../../utilidades/interaccion/haptico.dart';
 import '../../../../utilidades/portada/paleta/paleta_portada.dart';
+import '../../../../utilidades/plataforma/pantalla/efectos_app.dart';
 import '../../../../utilidades/plataforma/responsive.dart';
 import '../../../../utilidades/formato/comun/formato/estilo_helper.dart';
 import '../../../fondos/ambiente/atenuado_por_nivel.dart';

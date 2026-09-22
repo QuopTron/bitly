@@ -117,65 +117,14 @@ mixin DescargasReparar on DescargasBase {
     return null;
   }
 
-  /// Chequeo rápido de magic bytes: ¿es audio reproducible? Los archivos rotos
-  /// conocidos son streams amazon DRM encriptados guardados como `.flac` (son
-  /// contenedores MP4, no FLAC — un FLAC real siempre empieza con `fLaC`).
-  Future<bool> _esAudioDecodificable(File file) async {
-    try {
-      final nombre = file.path.split(RegExp(r'[/\\\\]')).last.toLowerCase();
-      final punto = nombre.lastIndexOf('.');
-      final ext = punto >= 0 ? nombre.substring(punto + 1) : '';
-      final raf = await file.open(mode: FileMode.read);
-      final magic = await raf.read(8);
-      await raf.close();
-      if (magic.length < 4) return false;
-      switch (ext) {
-        case 'flac':
-          return magic[0] == 0x66 &&
-              magic[1] == 0x4C &&
-              magic[2] == 0x61 &&
-              magic[3] == 0x43; // "fLaC"
-        case 'mp3':
-          if (magic[0] == 0x49 && magic[1] == 0x44 && magic[2] == 0x33) {
-            return true; // ID3
-          }
-          if (magic[0] == 0xFF && (magic[1] & 0xE0) == 0xE0) {
-            return true; // frame MPEG
-          }
-          if (magic[0] == 0x47) return true; // MPEG-TS (HLS de SoundCloud)
-          return false;
-        case 'wav':
-          return magic[0] == 0x52 &&
-              magic[1] == 0x49 &&
-              magic[2] == 0x46 &&
-              magic[3] == 0x46; // "RIFF"
-        case 'ogg':
-          return magic[0] == 0x4F &&
-              magic[1] == 0x67 &&
-              magic[2] == 0x67 &&
-              magic[3] == 0x53; // "OggS"
-        case 'opus':
-          if (magic[0] == 0x4F &&
-              magic[1] == 0x67 &&
-              magic[2] == 0x67 &&
-              magic[3] == 0x53) {
-            return true; // OggS
-          }
-          if (magic[0] == 0x1A &&
-              magic[1] == 0x45 &&
-              magic[2] == 0xDF &&
-              magic[3] == 0xA3) {
-            return true; // WebM
-          }
-          return true; // Opus crudo: aceptar si el archivo existe
-        default:
-          // mp4/m4a/aac y extensiones desconocidas son contenedores MP4
-          // estructuralmente válidos incluso encriptados — no se sniffean.
-          return true;
-      }
-    } catch (e) {
-      debugPrint('[DescargasReparar] $e');
-      return false;
-    }
-  }
+  /// Chequeo rápido de magic bytes: ¿es audio reproducible?
+  ///
+  /// Delega en [esAudioUsableEnDisco], que NUNCA dice "no" por no poder leer
+  /// el archivo. El bug que esto arregla: antes una excepción de E/S (permiso
+  /// sin conceder, carpeta externa no montada) devolvía `false`, eso se leía
+  /// como "corrupto" y terminaba borrando descargas buenas del usuario. Los
+  /// archivos realmente rotos son streams encriptados guardados como `.flac`
+  /// (son contenedores MP4, no FLAC) — eso SÍ se detecta, con evidencia.
+  Future<bool> _esAudioDecodificable(File file) =>
+      esAudioUsableEnDisco(file.path);
 }

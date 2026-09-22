@@ -23,6 +23,7 @@ import '../../../../core/modelos/usuario/preferencias/preferencias_estilo.dart';
 import '../../../../shared/utilidades/plataforma/deteccion_plataforma.dart';
 import '../../../../shared/utilidades/plataforma/pantalla/insets_sistema.dart';
 import '../../../../shared/utilidades/formato/comun/formato/estilo_helper.dart';
+import '../../../../shared/utilidades/plataforma/pantalla/efectos_app.dart';
 import '../../../../shared/utilidades/plataforma/responsive.dart';
 import '../../../../shared/tema/especificaciones/especificaciones_plataforma.dart';
 import '../../../../shared/widgets/vidrio/base/desenfoque_adaptativo.dart';
@@ -137,8 +138,13 @@ class _CabeceraDetalleState extends State<CabeceraDetalle>
     final acento =
         _colorDominante ??
         (esOscuro ? const Color(0xFF1A1A2E) : const Color(0xFFE8E8E8));
+    // El desenfoque de la cabecera (sigma 20) y sus sombras son lo más caro
+    // de esta pantalla. Se consulta TAMBIÉN `EfectosApp` para que el monitor
+    // de frames pueda apagarlos midiendo el equipo real, no sólo el perfil
+    // estático (núcleos + RAM), que da "hay margen" a GPUs flojas.
     final efectosPesados =
-        sl<ValueNotifier<PerfilRendimiento>>().value.efectosPesados;
+        sl<ValueNotifier<PerfilRendimiento>>().value.efectosPesados &&
+        EfectosApp.desenfoqueActivo;
 
     return AnimatedBuilder(
       animation: _anim,

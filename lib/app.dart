@@ -18,6 +18,7 @@ import 'package:go_router/go_router.dart';
 
 import 'app/inyeccion/inyeccion.dart' as di;
 import 'app/base/helpers/app_helpers.dart';
+import 'core/backend_go/nucleo/base/contrato_backend.dart';
 import 'core/modelos/resultado_enlace.dart';
 import 'core/plataforma/sistema/enlaces/servicio_deep_link.dart';
 import 'core/servicios/oauth/callback/servicio_callback_oauth.dart';
@@ -44,7 +45,8 @@ class BitlyApp extends StatefulWidget {
   State<BitlyApp> createState() => _BitlyAppState();
 }
 
-class _BitlyAppState extends State<BitlyApp> with ManejadoresCompartidos {
+class _BitlyAppState extends State<BitlyApp>
+    with ManejadoresCompartidos, WidgetsBindingObserver {
   late final NotificadoresAjustesApp _ajustes = NotificadoresAjustesApp();
   final _navigatorKey = GlobalKey<NavigatorState>();
   late final GoRouter _router = AppRouter(navigatorKey: _navigatorKey).router;
@@ -61,6 +63,10 @@ class _BitlyAppState extends State<BitlyApp> with ManejadoresCompartidos {
   @override
   void initState() {
     super.initState();
+    // Observer para la presión de memoria del sistema (ver
+    // didHaveMemoryPressure): sin esto, la única defensa del backend contra
+    // quedarse sin RAM era su propio límite interno.
+    WidgetsBinding.instance.addObserver(this);
     _ajustes.suscribir(_onAjusteCambiado);
     cargarAjustesGuardadosApp(ajustes: _ajustes, estaMontado: () => mounted);
     ServicioVerificacion().init(_navigatorKey);
@@ -110,6 +116,26 @@ class _BitlyAppState extends State<BitlyApp> with ManejadoresCompartidos {
     ].join('|');
   }
 
+  /// El sistema operativo avisa que hay presión de memoria (Android lo dispara
+  /// con onTrimMemory antes de empezar a matar procesos). Se sueltan las cachés
+  /// RECONSTRUIBLES del backend (metadata de búsqueda/detalle/feed y DNS): se
+  /// vuelven a llenar solas, y a cambio el proceso baja su huella justo cuando
+  /// el sistema está decidiendo a quién matar. No toca archivos del usuario.
+  @override
+  void didHaveMemoryPressure() {
+    super.didHaveMemoryPressure();
+    unawaited(_liberarMemoria());
+  }
+
+  Future<void> _liberarMemoria() async {
+    try {
+      await di.sl<BackendService>().rpcCall('liberarMemoria');
+    } catch (_) {
+      // Best-effort: si el backend aún no está listo o la plataforma no lo
+      // soporta, no hay nada que hacer y no debe afectar a la app.
+    }
+  }
+
   void _onAjusteCambiado() {
     setState(() {});
   }
@@ -154,6 +180,7 @@ class _BitlyAppState extends State<BitlyApp> with ManejadoresCompartidos {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _router.routerDelegate.removeListener(_onRutaCambiada);
     _subEnlaces?.cancel();
     _subDeepLinks?.cancel();

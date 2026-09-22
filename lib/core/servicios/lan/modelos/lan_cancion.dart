@@ -10,6 +10,19 @@
 // Parte del flujo: Ajustes → Conexión → biblioteca en tu red.
 // ─────────────────────────────────────────────────────────────
 
+/// RegExps de normalización a nivel de módulo.
+///
+/// `_normal` se llama una vez por `clave` y la `clave` se usa para comparar
+/// catálogos completos (buscar cuáles de estas canciones ya tenés): construía
+/// OCHO `RegExp` por llamada, y compilar un patrón es lo más caro de la
+/// función. Como literales de módulo se compilan una sola vez.
+final RegExp _reA = RegExp('[áàäâ]');
+final RegExp _reE = RegExp('[éèëê]');
+final RegExp _reI = RegExp('[íìïî]');
+final RegExp _reO = RegExp('[óòöô]');
+final RegExp _reU = RegExp('[úùüû]');
+final RegExp _reNoAlfanumerico = RegExp('[^a-z0-9]');
+
 /// Una canción descargada en el otro aparato.
 class CancionLan {
   /// Id de la descarga (la clave con la que se pide el archivo).
@@ -74,14 +87,15 @@ class CancionLan {
   static String _normal(String s) =>
       s
           .toLowerCase()
-          .replaceAll(RegExp('ñ'), 'n')
-          .replaceAll(RegExp('ç'), 'c')
-          .replaceAll(RegExp('[áàäâ]'), 'a')
-          .replaceAll(RegExp('[éèëê]'), 'e')
-          .replaceAll(RegExp('[íìïî]'), 'i')
-          .replaceAll(RegExp('[óòöô]'), 'o')
-          .replaceAll(RegExp('[úùüû]'), 'u')
-          .replaceAll(RegExp('[^a-z0-9]'), '')
+          // 'ñ' y 'ç' son literales: con String.replaceAll no se compila patrón.
+          .replaceAll('ñ', 'n')
+          .replaceAll('ç', 'c')
+          .replaceAll(_reA, 'a')
+          .replaceAll(_reE, 'e')
+          .replaceAll(_reI, 'i')
+          .replaceAll(_reO, 'o')
+          .replaceAll(_reU, 'u')
+          .replaceAll(_reNoAlfanumerico, '')
           .trim();
 
   Map<String, dynamic> aJson() => {

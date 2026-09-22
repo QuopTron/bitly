@@ -46,7 +46,9 @@ List<Widget> _capasFondoTrack(
           : ColoresApp.sombra(esOscuro);
 
   return [
-    // Capa 1: la carátula, SIEMPRE. La intensidad no la saca: la va tapando.
+    // Capa 1: la carátula, SIEMPRE. La intensidad no la saca: la va tapando
+    // (con el tinte al 100% queda debajo del degradado, y ahí sigue: así
+    // volver a bajar el control la descubre otra vez sin recargar nada).
     if (tieneCover)
       Positioned.fill(
         child: imagenDesdeUrl(
@@ -87,8 +89,10 @@ List<Widget> _capasFondoTrack(
       ),
     ),
     // Capa 4: degradado inferior, con el tono de sombra que corresponda.
+    // `DecoratedBox` en vez de `Container`: mismos píxeles, sin el
+    // ConstrainedBox/Padding extra que arma un Container por fila.
     Positioned.fill(
-      child: Container(
+      child: DecoratedBox(
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,

@@ -45,7 +45,9 @@ class _TarjetaTrackColorWrapperState extends State<_TarjetaTrackColorWrapper> {
 
   Future<void> _extraerColor() async {
     try {
-      final paleta = await paletaParaPortada(widget.coverUrl);
+      // Diferida: la tarjeta pide la paleta en pleno scroll, así que el trabajo
+      // se agenda como tarea ociosa para no cortar los frames de la lista.
+      final paleta = await paletaParaPortadaDiferida(widget.coverUrl);
       if (mounted) {
         setState(() {
           _color = paleta?.dominante;

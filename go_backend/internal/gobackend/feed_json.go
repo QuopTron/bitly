@@ -8,9 +8,25 @@ import (
 )
 
 func combinadoAJSON(res []provider.CombinedResult, source string) string {
-	items := make([]FeedItemGo, 0, len(res))
-	for _, c := range res {
-		items = append(items, combinadoAFeedItem(c, source))
+	return itemsAJSON(combinadosAFeedItems(res, source))
+}
+
+// itemsAJSON serializa una lista de items para las fronteras de la API (RPC,
+// rutas del servidor).
+//
+// Existe para que el trabajo real viva en funciones que devuelven slices y
+// SOLO las fronteras serialicen. Antes los caminos internos se pasaban los
+// resultados como string JSON y el agregador los volvía a deserializar
+// (`json.Unmarshal` de lo que acababa de `json.Marshal`ear el proveedor), así
+// que cada búsqueda pagaba dos conversiones completas de todos los items por
+// cada fuente: CPU y memoria tiradas a la basura sin cambiar una coma del
+// resultado.
+func itemsAJSON(items []FeedItemGo) string {
+	// Un slice nil saldría como `null`, y el contrato con Flutter es `[]`: el
+	// camino viejo siempre marshaleaba un slice vacío no-nil, así que este
+	// refactor tiene que garantizar la misma forma de respuesta.
+	if items == nil {
+		return `[]`
 	}
 	data, _ := json.Marshal(items)
 	return string(data)
@@ -21,19 +37,21 @@ func combinadoAJSON(res []provider.CombinedResult, source string) string {
 // is exactly how SpotiFLAC surfaces tracks/albums/artists/playlists together.
 // If el combined call yields nothing (e.g. un non-extension proveedor), we fall// back to a plain track search so the source still returns something.
 func searchProviderAll(p provider.Provider, query string, limit int) string {
+	return itemsAJSON(searchProviderAllItems(p, query, limit))
+}
+
+// searchProviderAllItems es el trabajo real de searchProviderAll sin pasar por
+// JSON (ver itemsAJSON).
+func searchProviderAllItems(p provider.Provider, query string, limit int) []FeedItemGo {
 	items := make([]FeedItemGo, 0)
 	// Circuit breaker: skip only if cooled *for search* (not provider-wide,
 	// which streaming/download errors trip and would empty this search).
 	if cooldown.IsCooledOp(p.Name(), "search") {
-		return `[]`
+		return items
 	}
 	if ep, ok := p.(*provider.ExtensionProvider); ok {
 		if res, err := ep.CombinedSearch(query, limit); err == nil && len(res) > 0 {
-			for _, c := range res {
-				items = append(items, combinadoAFeedItem(c, ep.Name()))
-			}
-			data, _ := json.Marshal(items)
-			return string(data)
+			return combinadosAFeedItems(res, ep.Name())
 		}
 	}
 	tracks, err := p.SearchTracks(query, limit)
@@ -42,6 +60,5 @@ func searchProviderAll(p provider.Provider, query string, limit int) string {
 			items = append(items, trackToFeedItem(t, p.Name()))
 		}
 	}
-	data, _ := json.Marshal(items)
-	return string(data)
+	return items
 }

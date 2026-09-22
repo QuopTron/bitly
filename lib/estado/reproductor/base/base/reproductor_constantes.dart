@@ -31,6 +31,13 @@ const _margenSeguridadUrl = Duration(seconds: 60);
 /// `expire` que [_expiryForUrl] parsea en su lugar.
 const _ttlStreamDefault = Duration(hours: 6);
 
+/// Guarda contra ráfagas: la recarga FORZADA de archivos locales (la que
+/// corre justo antes de decidir que un track no está descargado) no se repite
+/// si el mapa se cargó hace menos que esto. Evita pagar una consulta en cada
+/// skip rápido, sin tapar el caso que importa: una descarga recién terminada
+/// entra por [registrarArchivoLocal], no por esta recarga.
+const _refrescoLocalMinimo = Duration(seconds: 1);
+
 /// Crossfade: cuando es true, el listener de posición hace fade-out cerca del
 /// final del track y el handler de completado hace fade-in del siguiente.
 const _crossfadeHabilitado = true;

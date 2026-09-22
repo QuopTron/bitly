@@ -24,8 +24,14 @@ Widget _construirTarjetaGrilla(TarjetaGrilla t, BuildContext context) {
             final fondoFallback = ColoresApp.superficie(esOscuro);
             final fg = ColoresApp.enSuperficie(esOscuro);
             final ts = t.escalaTexto;
+            // Las sombras con blur son el resto caro que queda en gama baja
+            // (un `MaskFilter.blur` por tarjeta y por frame). Se consulta
+            // TAMBIÉN `EfectosApp`, que es el interruptor que mueve el monitor
+            // de frames midiendo el equipo real: sin esto el monitor apagaba
+            // los desenfoques pero cada tarjeta seguía pagando su sombra.
             final efectosPesados =
-                sl<ValueNotifier<PerfilRendimiento>>().value.efectosPesados;
+                sl<ValueNotifier<PerfilRendimiento>>().value.efectosPesados &&
+                EfectosApp.desenfoqueActivo;
 
             // Intensidad del color del cover en las cards (0 = card del tema).
             final nivel = prefs.cardsGrilla;

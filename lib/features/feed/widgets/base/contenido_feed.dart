@@ -16,6 +16,7 @@ import '../../../../app/inyeccion/inyeccion.dart';
 import '../../../../core/cache/estado/estado_descarga.dart';
 import '../../../../core/modelos/feed/item_feed.dart';
 import '../../../../core/modelos/feed/seccion_feed.dart';
+import '../../../../core/modelos/usuario/preferencias/preferencias_apariencia.dart';
 import '../../../../core/servicios/utilidades/huella_item.dart';
 import '../../../../estado/cola/cubit_cola.dart';
 import '../../../../estado/like/base/cubit_like.dart';
@@ -91,18 +92,35 @@ class ContenidoFeed extends StatelessWidget {
     if (cargando) return const EsqueletoFeed();
     if (!tieneContenido) return _estadoVacio(context, r, onBg);
 
-    final hijos = <Widget>[
-      ..._construirTracks(this, context, r),
-      ..._construirGrillas(this, context, r),
-    ];
-
-    final lista = ListView.builder(
-      padding: EdgeInsets.only(
-        top: r.spacingXS,
-        bottom: r.spacingXS + r.val(120, 100, 150),
-      ),
-      itemCount: hijos.length,
-      itemBuilder: (context, index) => hijos[index],
+    // CUERPO PEREZOSO: `CustomScrollView` de slivers. Antes el cuerpo armaba la
+    // lista COMPLETA de widgets (todos los tracks y todas las grillas) y recién
+    // después se la pasaba a un `ListView.builder`, que igual tenía que crear
+    // esos widgets porque ya existían. Peor: cada grilla usaba
+    // `GridView(shrinkWrap: true)`, que obliga a medir TODOS sus hijos aunque
+    // después solo monte los visibles. Con slivers, la construcción ocurre por
+    // índice visible y una sección de 30 álbumes ya no se paga entera al abrir
+    // el feed.
+    //
+    // La apariencia se escucha UNA vez acá (el cuerpo entero se reconstruye al
+    // mover los controles de Ajustes → Apariencia, igual que antes) en vez de
+    // en cada grilla, que es lo que obligaba a envolver slivers en cajas.
+    final lista = ValueListenableBuilder<PreferenciasApariencia>(
+      valueListenable: AparienciaHelper.notifier(),
+      builder:
+          (context, _, _) => CustomScrollView(
+            slivers: [
+              SliverPadding(
+                padding: EdgeInsets.only(top: r.spacingXS),
+                sliver: _sliverTracks(this, context, r),
+              ),
+              ..._sliversGrillas(this, context, r),
+              SliverToBoxAdapter(
+                child: SizedBox(
+                  height: r.spacingXS + r.val(120, 100, 150),
+                ),
+              ),
+            ],
+          ),
     );
 
     if (onRefrescar == null) return lista;

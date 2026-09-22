@@ -55,6 +55,10 @@ Widget _filaContenidoTrack(
                     ? imagenDesdeUrl(
                       t.coverUrl,
                       ajuste: BoxFit.cover,
+                      // Tamaño del hueco real: sin esto la imagen se decodifica
+                      // a resolución completa para pintarse en ~90 px.
+                      ancho: r.subtitleSize * 5.5,
+                      alto: r.subtitleSize * 5.5,
                       fallback: Icon(
                         Icons.music_note,
                         color: colorIconoFallback,

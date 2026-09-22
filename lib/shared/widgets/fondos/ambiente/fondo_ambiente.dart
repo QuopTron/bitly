@@ -66,7 +66,13 @@ class FondoAmbiente extends StatelessWidget {
         // velo del tema (el de siempre), 1 = sólo el color dominante.
         // En el medio se cruzan las tres capas, lineales con el control: el
         // 50% deja la carátula a medio apagar y el color a media entrada.
-        final v = prefs.fondoPrincipal;
+        //
+        // En MODO FLUIDO se salta la foto a pantalla completa (la capa más
+        // cara por frame en una GPU de gama baja) y se va directo al color
+        // dominante: es el mismo estado al que llega este control al 100%, así
+        // que el diseño y el color de la canción se mantienen.
+        final fluido = !EfectosApp.fotoPantallaCompletaActiva;
+        final v = fluido ? 1.0 : prefs.fondoPrincipal;
         // Y la carátula se va DESENFOCANDO con la intensidad: con 1% está casi
         // nítida y en el extremo ya no se distingue del color del cover, así se
         // disuelve en vez de apagarse como una foto.
@@ -87,9 +93,9 @@ class FondoAmbiente extends StatelessWidget {
               // Capa 0: base opaca (nunca se ve el fondo de la página).
               ColoredBox(color: bgColor),
               // Capa 1: cover de fondo (con blur solo si el perfil lo
-              // permite; sin él es una sola textura, casi gratis). Se
-              // apaga a medida que entra el color del cover.
-              if (url != null && url.isNotEmpty)
+              // permite; sin él es una sola textura). Se apaga a medida que
+              // entra el color del cover, y en modo fluido no se pinta.
+              if (!fluido && url != null && url.isNotEmpty)
                 AtenuadoPorNivel(
                   opacidad: 1 - v,
                   child: ClipRect(
@@ -116,7 +122,11 @@ class FondoAmbiente extends StatelessWidget {
                   ),
                 ),
               // Capa 4: gradiente inferior para legibilidad.
-              Container(
+              // `DecoratedBox` en vez de `Container`: un Container de sólo
+              // decoración arma igual el DecoratedBox pero además pasa por
+              // LayoutBuilder/ConstrainedBox y su Padding al medir. Mismos
+              // píxeles, menos widgets por frame.
+              DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,

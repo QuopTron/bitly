@@ -34,16 +34,23 @@ EstadoDescarga _estadoDescargaTrack(
   return EstadoDescarga.ninguno;
 }
 
-/// Todas las tarjetas de track como widgets — para listas mixtas
-/// (cabeceras + cards) que no pueden usar un builder perezoso.
-List<Widget> _listaTracks(
+/// Sliver perezoso con las tarjetas de track de una sección.
+///
+/// Antes devolvía `List<Widget>` con TODAS las tarjetas ya construidas y se
+/// metían en un `ListView(children:)`: la palabra "perezoso" no aplicaba a
+/// nada porque el trabajo ya estaba hecho. Con `SliverList.builder` cada
+/// tarjeta —y su carátula, su like y su estado de descarga— se resuelve sólo
+/// cuando entra en pantalla.
+Widget _sliverTracks(
   CuerpoResultadosBusqueda cuerpo,
   BuildContext context,
   List<ItemFeed> items,
 ) {
-  return items
-      .map((item) => _tarjetaTrack(cuerpo, context, items, item))
-      .toList();
+  return SliverList.builder(
+    itemCount: items.length,
+    itemBuilder:
+        (context, i) => _tarjetaTrack(cuerpo, context, items, items[i]),
+  );
 }
 
 /// Construye UNA tarjeta de track de resultados (item de lista lazy).
