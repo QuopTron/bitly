@@ -29,9 +29,7 @@ const verifyGrace = 4 * time.Second
 // descarta lo bueno por haber respondido tarde. Se acepta igual si el
 // bloqueante llega a tiempo, si todos terminaron, o si la gracia expira (una
 // canción sonando es mejor que un fallo de reproducción).
-func recogerResultados(results <-chan rescueOut, verifyCh <-chan string, done <-chan struct{}, deadline *time.Time, bloqueantesEnVuelo int, pol politicaCarrera) (string, string, bool) {
-	best := ""
-	bestName := ""
+func recogerResultados(results <-chan rescueOut, verifyCh <-chan string, deadline *time.Time, bloqueantesEnVuelo int, pol politicaCarrera) (string, string, bool) {
 	var verifyName string
 	var graceCh <-chan time.Time
 	var graceTimer *time.Timer
@@ -39,7 +37,23 @@ func recogerResultados(results <-chan rescueOut, verifyCh <-chan string, done <-
 	var pendiente *rescueOut
 	for {
 		select {
-		case r := <-results:
+		case r, abierto := <-results:
+			if !abierto {
+				// Todos los workers terminaron Y el buffer ya se entregó entero
+				// (Go marca el cierre solo después de los valores encolados), así
+				// que acá no queda ningún stream por leer: es el momento seguro de
+				// cerrar la carrera sin arriesgar un resultado perdido.
+				if graceTimer != nil {
+					graceTimer.Stop()
+				}
+				if pendiente != nil {
+					return pendiente.url, pendiente.name, false
+				}
+				if verifyName != "" {
+					return "", verifyName, true
+				}
+				return "", "", false
+			}
 			if r.finBloqueante {
 				// Un bloqueante terminó sin stream. Si era el último, ya no hay
 				// NADA que pueda mejorar lo retenido dentro de esta fase: se
@@ -112,17 +126,6 @@ func recogerResultados(results <-chan rescueOut, verifyCh <-chan string, done <-
 			// veredicto para que el cliente abra el modal en vez de que el
 			// llamador queme 10-30s en un walk de respaldo condenado.
 			return "", verifyName, true
-		case <-done:
-			if graceTimer != nil {
-				graceTimer.Stop()
-			}
-			if pendiente != nil {
-				return pendiente.url, pendiente.name, false
-			}
-			if verifyName != "" && best == "" {
-				return "", verifyName, true
-			}
-			return best, bestName, false
 		case <-time.After(time.Until(*deadline)):
 			if graceTimer != nil {
 				graceTimer.Stop()
@@ -130,10 +133,10 @@ func recogerResultados(results <-chan rescueOut, verifyCh <-chan string, done <-
 			if pendiente != nil {
 				return pendiente.url, pendiente.name, false
 			}
-			if verifyName != "" && best == "" {
+			if verifyName != "" {
 				return "", verifyName, true
 			}
-			return best, bestName, false
+			return "", "", false
 		}
 	}
 }

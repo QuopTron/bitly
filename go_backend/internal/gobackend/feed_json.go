@@ -7,10 +7,6 @@ import (
 	"github.com/zarz/bitly/go_backend/internal/provider"
 )
 
-func combinadoAJSON(res []provider.CombinedResult, source string) string {
-	return itemsAJSON(combinadosAFeedItems(res, source))
-}
-
 // itemsAJSON serializa una lista de items para las fronteras de la API (RPC,
 // rutas del servidor).
 //
@@ -32,16 +28,14 @@ func itemsAJSON(items []FeedItemGo) string {
 	return string(data)
 }
 
-// searchProviderAll performs a single combined search (unfiltered) for the
-// provider. Extensions return every result kind with its own item_type, which
-// is exactly how SpotiFLAC surfaces tracks/albums/artists/playlists together.
-// If el combined call yields nothing (e.g. un non-extension proveedor), we fall// back to a plain track search so the source still returns something.
-func searchProviderAll(p provider.Provider, query string, limit int) string {
-	return itemsAJSON(searchProviderAllItems(p, query, limit))
-}
-
-// searchProviderAllItems es el trabajo real de searchProviderAll sin pasar por
-// JSON (ver itemsAJSON).
+// searchProviderAllItems hace la búsqueda combinada sin filtro de un proveedor:
+// las extensiones devuelven cada tipo de resultado con su propio item_type, que
+// es como SpotiFLAC expone tracks/álbumes/artistas/playlists juntos. Si la
+// llamada combined no devuelve nada (p. ej. un proveedor no-extension), cae a
+// una búsqueda simple de tracks para que la fuente igual devuelva algo.
+//
+// Devuelve el slice y NO un string JSON: el trabajo real vive acá y solo las
+// fronteras de la API serializan (ver itemsAJSON).
 func searchProviderAllItems(p provider.Provider, query string, limit int) []FeedItemGo {
 	items := make([]FeedItemGo, 0)
 	// Circuit breaker: skip only if cooled *for search* (not provider-wide,

@@ -97,7 +97,6 @@ func carreraRescueConFiltro(reg *provider.Registry, names []string, budget time.
 	}
 	results := make(chan rescueOut, len(names))
 	verifyCh := make(chan string, len(names))
-	done := make(chan struct{})
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, workers)
 	deadline := time.Now().Add(budget)
@@ -159,9 +158,16 @@ func carreraRescueConFiltro(reg *provider.Registry, names []string, budget time.
 			// running may still report via drainResults.
 		}
 	}
-	go func() { wg.Wait(); close(done) }()
+	// El canal de resultados se CIERRA cuando termina el último worker, en vez
+	// de señalarlo con un `done` aparte: Go entrega todo lo que quedó en el
+	// buffer ANTES de reportar el cierre, así que el colector nunca puede
+	// enterarse de "ya terminaron" dejando un stream sin leer. Con el `done`
+	// separado, `select` elegía al azar entre los dos casos listos y podía
+	// devolver vacío teniendo una URL válida en el buffer (el "no encontró
+	// stream" intermitente, que aparecía justo bajo carga).
+	go func() { wg.Wait(); close(results) }()
 
-	return recogerResultados(results, verifyCh, done, &deadline, bloqueantesEnVuelo, pol)
+	return recogerResultados(results, verifyCh, &deadline, bloqueantesEnVuelo, pol)
 }
 
 // carreraPorConfianza es la carrera de rescate consciente de la CONFIANZA de

@@ -75,16 +75,22 @@ func (o *Orchestrator) consumeCandidates(f *candidatosFeeder, req Request, outDi
 	budgetCh := time.After(restante)
 
 	for {
+		// Sin candidatos en vuelo y sin más por probar, la carrera terminó. El
+		// chequeo va ACÁ, antes del select, y no solo en la rama sinMas: cuando
+		// el ÚLTIMO evento era un fallo (no un sinMas) el bucle se quedaba
+		// bloqueado esperando un evento que nunca llegaba, y una descarga
+		// condenada a fallar tardaba los 50s completos del presupuesto en
+		// reportar el error (en el celular: "la descarga se queda pensando").
+		if agotado && enVuelo == 0 {
+			detenerGracia()
+			return lastResort
+		}
 		select {
 		case ev := <-salida:
 			enVuelo--
 			if ev.sinMas {
 				agotado = true
 				exactInFlight--
-				if enVuelo == 0 {
-					detenerGracia()
-					return lastResort
-				}
 				continue
 			}
 			if ev.ultimoRec {

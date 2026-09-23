@@ -114,6 +114,30 @@ func TestSinPerdidaResuelveElFlac(t *testing.T) {
 	}
 }
 
+// TestCarreraCerradaNoPierdeElStreamYaEncolado fija el invariante del colector
+// de la carrera: un stream que YA está en el canal se entrega, aunque el canal
+// ya esté cerrado.
+//
+// El bug que evita: los workers terminaban avisando por un canal `done` APARTE,
+// y `select` elige al azar entre casos listos. Cuando el resultado quedaba
+// encolado y `done` se cerraba sin que el colector hubiera sido programado,
+// elegir `done` devolvía vacío teniendo la URL en la mano: la reproducción se
+// quedaba sin audio (y el canal sin pérdida perdía su FLAC) de forma
+// intermitente, sobre todo bajo carga. Con el canal de resultados cerrándose a
+// sí mismo, Go entrega el buffer ENTERO antes de reportar el cierre, así que no
+// hay azar posible: el stream encolado gana siempre.
+func TestCarreraCerradaNoPierdeElStreamYaEncolado(t *testing.T) {
+	ch := make(chan rescueOut, 2)
+	ch <- rescueOut{name: "flac-rescue", url: "http://arcod/flac"}
+	close(ch) // el worker ya terminó: cierre y resultado listos a la vez
+
+	deadline := time.Now().Add(time.Second)
+	url, prov, verified := recogerResultados(ch, make(chan string, 1), &deadline, 0, politicaCarrera{})
+	if url != "http://arcod/flac" || prov != "flac-rescue" || verified {
+		t.Fatalf("se perdió el stream ya encolado: url=%q prov=%q verified=%v", url, prov, verified)
+	}
+}
+
 // TestSinPerdidaNoCuelgaCuandoNoHayTema: si las fuentes sin pérdida no tienen
 // el tema, el canal vuelve VACÍO y rápido — el llamador conserva su audio con
 // pérdida en vez de quedarse esperando.
