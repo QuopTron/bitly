@@ -51,6 +51,9 @@ func inicializarProviders(reg *provider.Registry) []bundled_extensions.Registere
 			ep.SetHomeFeedEnabled(ext.HasHomeFeed)
 			ep.SetQualityOptions(ext.QualityOptions)
 			ep.SetDownloadCapable(ext.IsDownloadProvider)
+			// Declarado en el manifest, así el wiring de letras no ejecuta el JS
+			// de cada extensión solo para saber si exporta fetchLyrics.
+			ep.SetLyricsProvider(ext.HasLyricsProvider)
 			// Los patrones de urlHandler dicen qué enlaces (Spotify, YouTube,
 			// Deezer...) sabe resolver esta extensión con su handleUrl.
 			ep.SetURLPatterns(ext.URLHandler.Patterns)

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"log"
 	"strings"
-	"time"
 
 	"github.com/zarz/bitly/go_backend/internal/provider/flacrescue"
 	"github.com/zarz/bitly/go_backend/internal/provider/soulseek"
@@ -74,43 +73,24 @@ func SetExtensionSettings(payload string) string {
 		go expandirPoolDeSesiones(params.ExtensionID, copiarAjustes(settings))
 	}
 
-	// Push settings to the JS initialize() function if the extension is loaded.
+	// Push settings to the JS initialize() function.
 	if er := getExtRegistry(); er != nil {
-		if sb := er.Runtime().Sandbox(params.ExtensionID); sb != nil && sb.VM != nil {
+		sb := er.Runtime().Sandbox(params.ExtensionID)
+		// QueueSettings devuelve false cuando la extensión todavía no se compiló:
+		// los ajustes quedan encolados y se aplican en cuanto se compile (ver
+		// Runtime.EnsureLoaded). No se compila acá a propósito — guardar
+		// credenciales no debería costar traer la extensión entera, y este push
+		// corre al arrancar, cuando la app empuja todo lo guardado.
+		if sb != nil {
+			if !sb.QueueSettings(copiarAjustes(settings)) {
+				return `{"ok":true}`
+			}
 			if _, err := er.Runtime().CallMethod(params.ExtensionID, "initialize", settings); err == nil {
 				return `{"ok":true}`
 			}
 		}
-		// The extension sandbox puede sin exist yet (startup race: el push puede
-		// land while extensions are still loading). Settings are stored above;
-		// retry initialize for a short window so credentials are not lost — a
-		// subsequent replay at load time covers the case where even this retry
-		// window closes before the sandbox appears.
-		go retryInitializeAfterLoad(params.ExtensionID, settings)
 	}
 	return `{"ok":true}`
-}
-
-// retryInitializeAfterLoad repeatedly calls initialize() on an extension once
-// its sandbox becomes available. Bounded (~6s) and best-effort: if the window
-// passes the settings stay stored and replicarAjustesExtensiones() applies
-// them when the sandbox finally loads.
-func retryInitializeAfterLoad(extID string, settings map[string]string) {
-	for i := 0; i < 20; i++ {
-		time.Sleep(300 * time.Millisecond)
-		er := getExtRegistry()
-		if er == nil {
-			return
-		}
-		sb := er.Runtime().Sandbox(extID)
-		if sb == nil || sb.VM == nil {
-			continue
-		}
-		_, err := er.Runtime().CallMethod(extID, "initialize", settings)
-		if err == nil {
-			return
-		}
-	}
 }
 
 // clavesFuentesDePool son los campos donde el usuario pega las URLs de
@@ -188,6 +168,11 @@ func expandirPoolDeSesiones(extID string, settings map[string]string) {
 	if er == nil {
 		return
 	}
+	// La extensión del pool acaba de configurarse, así que se compila si hacía
+	// falta; si no se pudo, el pool queda encolado y se aplica al compilar.
+	if sb := er.Runtime().Sandbox(extID); sb != nil && !sb.QueueSettings(copiarAjustes(settings)) {
+		return
+	}
 	if _, err := er.Runtime().CallMethod(extID, "initialize", settings); err != nil {
 		log.Printf("[sessionpool] %s: no se pudo empujar el pool: %v", extID, err)
 	}
@@ -224,7 +209,13 @@ func replicarAjustesExtensiones() int {
 			break
 		}
 		sb := er.Runtime().Sandbox(extID)
-		if sb == nil || sb.VM == nil {
+		if sb == nil {
+			continue
+		}
+		// Sin compilar: los ajustes quedan encolados y se aplican al compilar.
+		// Compilarlas todas acá era justamente lo que devolvía al arranque el
+		// costo de las nueve extensiones.
+		if !sb.QueueSettings(copiarAjustes(settings)) {
 			continue
 		}
 		if _, err := er.Runtime().CallMethod(extID, "initialize", settings); err == nil {

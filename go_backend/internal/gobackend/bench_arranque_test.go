@@ -61,7 +61,7 @@ func sufijoExeBench() string {
 // esBinarioValido exige >100 KB y la cabecera del formato de la plataforma
 // (PE "MZ" en Windows, ELF en Linux/Android, Mach-O en macOS), así que los
 // archivos de relleno se crean con esa forma exacta.
-func prepararBinariosArranque(b *testing.B) {
+func prepararBinariosArranque(b testing.TB) {
 	b.Helper()
 	dir := b.TempDir()
 	b.Setenv("BITLY_EXT_DIR", b.TempDir())
@@ -119,7 +119,7 @@ func BenchmarkArranqueCompleto(b *testing.B) {
 
 // silenciarLogArranque apaga el logger durante el benchmark y lo restaura al
 // terminar.
-func silenciarLogArranque(b *testing.B) {
+func silenciarLogArranque(b testing.TB) {
 	b.Helper()
 	previo := log.Writer()
 	log.SetOutput(io.Discard)

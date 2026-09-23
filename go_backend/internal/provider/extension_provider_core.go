@@ -22,6 +22,17 @@ type ExtensionProvider struct {
 	// enrutar un enlace compartido/pegado a la extensión correcta en vez de
 	// preguntarle a las nueve.
 	urlPatterns []string
+	// hasLyrics mirrors the manifest's lyrics_provider type. Declararlo evita
+	// ejecutar el JS de la extensión solo para descubrir que NO exporta
+	// fetchLyrics: en el arranque eso compilaba las nueve extensiones para
+	// descartar ocho, que es justo el costo que se sacó del arranque.
+	hasLyrics bool
+	// lyricsDeclarado separa "el manifest dijo que no" de "todavía no lo
+	// sabemos". Sin esta marca, un manifest que NO lista lyrics_provider
+	// (hasLyrics == false) era indistinguible de una extensión cargada desde
+	// disco sin manifest, y el wiring caía al sondeo contra la VM — que con el
+	// arranque diferido significa compilarla entera.
+	lyricsDeclarado bool
 }
 
 // NewExtensionProvider creates a new provider backed by a JS extension.
@@ -44,6 +55,14 @@ func (p *ExtensionProvider) SetURLPatterns(ps []string) { p.urlPatterns = ps }
 // URLPatterns returns the host/subpath patterns this extension claims to
 // resolve, or nil when it declares no urlHandler.
 func (p *ExtensionProvider) URLPatterns() []string { return p.urlPatterns }
+
+// SetLyricsProvider marks whether the extension declares the lyrics_provider
+// capability in its manifest (it exports fetchLyrics). Deja constancia de que el
+// manifest YA respondió, para que HasLyricsProvider no tenga que sondear la VM.
+func (p *ExtensionProvider) SetLyricsProvider(v bool) {
+	p.hasLyrics = v
+	p.lyricsDeclarado = true
+}
 
 // SetQualityOptions stores the extension's declared quality option IDs.
 func (p *ExtensionProvider) SetQualityOptions(qs []string) { p.qOpts = qs }

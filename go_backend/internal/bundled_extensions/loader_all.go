@@ -80,10 +80,15 @@ func LoadAllToRegistry(reg *extensions.Registry) []RegisteredExtension {
 		// Un proveedor puede descarga solo si su manifest listas un descarga
 		// capability (metadata_provider/lyrics_provider alone cannot).
 		isDownload := false
+		hasLyrics := false
 		for _, t := range manifest.Type {
-			if t == "download_provider" {
+			switch t {
+			case "download_provider":
 				isDownload = true
-				break
+			case "lyrics_provider":
+				// Declarado en el manifest: la extensión exporta fetchLyrics.
+				// Leerlo de acá evita ejecutar su JS solo para preguntárselo.
+				hasLyrics = true
 			}
 		}
 		qOpts := make([]string, 0, len(manifest.QualityOptions))
@@ -106,18 +111,25 @@ func LoadAllToRegistry(reg *extensions.Registry) []RegisteredExtension {
 			qTiers = append(qTiers, tier)
 		}
 
-		// Run the extension JS in sandbox
-		_, err = reg.Runtime().RunJS(
+		// Registrar el JS SIN compilarlo.
+		//
+		// El arranque solo necesita los metadatos de arriba (manifest) para
+		// armar la lista de fuentes y sus capacidades; compilar el JS de las
+		// nueve extensiones empaquetadas son decenas de MB de asignaciones
+		// transitorias de goja, justo mientras el sistema operativo todavía
+		// está inflando la app. Cada extensión se compila la primera vez que
+		// alguien la usa de verdad (o en el warm-up de fondo).
+		//
+		// Efecto observable: una extensión empaquetada con JS roto ya no
+		// desaparece de la lista en silencio al arrancar — aparece y falla con
+		// su error en el primer uso.
+		reg.Runtime().RegisterDeferred(
 			string(ext.IndexJSData),
 			dir,
 			manifest.Name,
 			cfg,
 			".",
 		)
-		if err != nil {
-			_ = err // silently skip failed extensions
-			continue
-		}
 
 		// Attach signed session config from manifest to the sandbox.
 		if sb := reg.Runtime().Sandbox(dir); sb != nil && manifest.SignedSession != nil {
@@ -134,6 +146,7 @@ func LoadAllToRegistry(reg *extensions.Registry) []RegisteredExtension {
 			Replaces:           manifest.Capabilities.Replaces,
 			HasHomeFeed:        manifest.Capabilities.HomeFeed,
 			IsDownloadProvider: isDownload,
+			HasLyricsProvider:  hasLyrics,
 			QualityOptions:     qOpts,
 			QualityTiers:       qTiers,
 			Search: Search{

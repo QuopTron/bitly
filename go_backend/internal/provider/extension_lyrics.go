@@ -34,9 +34,19 @@ import (
 // the player's synced-LRC renderer has no place for them.
 
 // HasLyricsProvider reports whether the extension exports fetchLyrics.
+//
+// Cuando el manifest declaró sus capacidades (todas las empaquetadas), esa
+// declaración es la respuesta — tanto si dice que sí como si dice que no.
+// Comprobarlo contra la VM obligaba a compilar la extensión, y con el arranque
+// diferido eso era traerla entera— solo para preguntarle si tiene una función.
+// El sondeo en vivo queda como respaldo para extensiones cargadas desde disco,
+// cuyo manifest no pasó por LoadAllToRegistry.
 func (p *ExtensionProvider) HasLyricsProvider() bool {
 	if p == nil || p.runtime == nil {
 		return false
+	}
+	if p.lyricsDeclarado {
+		return p.hasLyrics
 	}
 	return p.runtime.HasMethod(p.extID, "fetchLyrics")
 }

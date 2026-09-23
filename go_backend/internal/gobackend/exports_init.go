@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"runtime/debug"
+	"time"
 
 	"github.com/zarz/bitly/go_backend/internal/bin"
 	core "github.com/zarz/bitly/go_backend/internal/core"
@@ -118,12 +119,19 @@ func InitGlobalState() string {
 		core.InitBackend()
 	}
 
-	// Re-apply any settings stored by an earlier push (extension sandboxes are
-	// all present now that LoadAllToRegistry finished). Without this, a
-	// credential push that raced extension loading is silently dropped and the
-	// extension keeps running anonymous (e.g. YouTube OAuth never reaching the
-	// ytmusic extension -> every InnerTube call 403s).
+	// Re-apply any settings stored by an earlier push (every bundled extension is
+	// already registered now that LoadAllToRegistry finished, compiled or not —
+	// los ajustes de las que todavía no se compilaron quedan encolados y se
+	// aplican en su compilación). Without this, a credential push that raced
+	// extension loading is silently dropped and the extension keeps running
+	// anonymous (e.g. YouTube OAuth never reaching the ytmusic extension ->
+	// every InnerTube call 403s).
 	replicarAjustesExtensiones()
+
+	// Las extensiones empaquetadas se registraron SIN compilar (ver
+	// RegisterDeferred): esta pasada las compila en segundo plano, después de
+	// que el arranque ya devolvió. Ver extensions_warmup.go.
+	precalentarExtensiones(bundledExts, 2*time.Second)
 
 	allProviders := reg.Names()
 	resp := map[string]any{

@@ -19,6 +19,13 @@ type RegisteredExtension struct {
 	// descarga. Sirve para omitir extensiones solo-metadata (p. ej. spotify-web)
 	// durante el streaming/descarga de respaldo.
 	IsDownloadProvider bool `json:"isDownloadProvider,omitempty"`
+	// HasLyricsProvider es true cuando el manifest declara el tipo
+	// lyrics_provider, o sea que la extensión exporta fetchLyrics.
+	//
+	// Es la fuente de verdad para saberlo SIN ejecutar su JS: el arranque antes
+	// preguntaba método por método contra la VM (HasMethod) y eso obligaba a
+	// compilar las nueve extensiones empaquetadas solo para descartar ocho.
+	HasLyricsProvider bool `json:"hasLyricsProvider,omitempty"`
 	// QualityOptions mirrors manifest.qualityOptions (id list), so the
 	// fallback can pick a quality token each extension recognizes.
 	QualityOptions []string `json:"qualityOptions,omitempty"`

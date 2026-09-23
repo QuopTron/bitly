@@ -2,6 +2,8 @@ package extensions
 
 import (
 	"net/http"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/dop251/goja"
@@ -49,6 +51,17 @@ type Sandbox struct {
 	SignedSession *SignedSessionConfig
 	Session       *SignedSessionState
 	httpClient    *http.Client
+	// vmReady marca que la VM ya está compilada y usable. Es atómico (y no una
+	// lectura suelta de VM) porque la compilación puede ocurrir en una goroutine
+	// de fondo —el warm-up— mientras el hilo del puente pregunta si la extensión
+	// está lista. `mu` serializa la transición con los ajustes encolados: ver
+	// markLoadedAndDrainSettings.
+	vmReady atomic.Bool
+	// settingsMu protege pendingSettings. Es un candado propio y no lockCh
+	// porque lockCh también serializa las llamadas JS (y puede estar tomado por
+	// una llamada larga) mientras que esto solo protege un mapa de ajustes.
+	settingsMu      sync.Mutex
+	pendingSettings map[string]string
 	// callStartedAt marca el inicio de la llamada JS en curso (ver CallMethod).
 	// Las extensiones lo usan vía utils.getResolutionRemainingMs() para no
 	// encadenar reintentos cuando ya no queda presupuesto y el RPC del cliente
