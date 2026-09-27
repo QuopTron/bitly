@@ -2,27 +2,7 @@ package provider
 
 import (
 	"fmt"
-	"strconv"
 )
-
-func toInt(v interface{}) int {
-	if v == nil {
-		return 0
-	}
-	switch n := v.(type) {
-	case float64:
-		return int(n)
-	case int64:
-		return int(n)
-	case int:
-		return n
-	case string:
-		i, _ := strconv.Atoi(n)
-		return i
-	default:
-		return 0
-	}
-}
 
 func getString(m map[string]interface{}, keys ...string) string {
 	for _, k := range keys {
