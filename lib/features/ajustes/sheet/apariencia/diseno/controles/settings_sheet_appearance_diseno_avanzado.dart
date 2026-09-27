@@ -1,24 +1,30 @@
 // ─────────────────────────────────────────────────────────────
 // settings_sheet_appearance_diseno_avanzado.dart — PART de
-// settings_sheet_new.dart: el desplegable "Avanzado" del bloque
+// settings_sheet_new.dart: el desplegable "Personalizado" del bloque
 // Diseño de Apariencia.
 //
-// El control general mueve todo junto; acá el usuario ajusta por
-// COMPONENTE y por EJE: cards de canción y cards de grilla, cada una con su
-// horizontal (mueve el hueco entre columnas Y el margen contra los bordes
-// izq/der) y su vertical (hueco entre filas).
+// El control general mueve todo junto; acá el usuario afina POR COSA:
+// elige con una burbujita si está tocando las cards de canción o las de
+// grilla, y abajo mueve los dos ejes de ESA sola (el horizontal mueve el hueco
+// entre columnas Y el margen contra los bordes izq/der; el vertical, el hueco
+// entre filas).
+//
+// Antes esto era una pila de cuatro deslizadores (dos componentes x dos ejes)
+// que no se sabía cuál movía qué. Ahora se ve un componente por vez.
 //
 // Está detrás de un desplegable (cerrado por defecto) para no ensuciar el
 // bloque: el 90% usa el control general.
 //
 // Se conecta con: apariencia_helper (cambiar cada eje) + la fila
-// _FilaAvanzado y el _Deslizador de esta misma library.
-// Parte del flujo: Ajustes → Apariencia → Diseño → Avanzado.
+// _FilaAvanzado y el _Deslizador de esta misma library + las burbujitas
+// (burbujas_personalizado.dart).
+// Parte del flujo: Ajustes → Apariencia → Diseño → Personalizado.
 // ─────────────────────────────────────────────────────────────
 
 part of '../../../settings_sheet_new.dart';
 
-/// Desplegable "Avanzado": separa canción/grilla y horizontal/vertical.
+/// Desplegable "Personalizado": una burbujita por componente y, abajo, sus
+/// dos ejes.
 class _SeccionAvanzadoDiseno extends StatefulWidget {
   final PreferenciasApariencia prefs;
   final StringsApariencia t;
@@ -41,11 +47,15 @@ class _SeccionAvanzadoDiseno extends StatefulWidget {
 class _SeccionAvanzadoDisenoState extends State<_SeccionAvanzadoDiseno> {
   bool _abierto = false;
 
+  /// 0 = cards de canción, 1 = cards de grilla.
+  int _componente = 0;
+
   @override
   Widget build(BuildContext context) {
     final t = widget.t;
     final r = widget.r;
     final prefs = widget.prefs;
+    final cancion = _componente == 0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -60,63 +70,46 @@ class _SeccionAvanzadoDisenoState extends State<_SeccionAvanzadoDiseno> {
           onTap: () => setState(() => _abierto = !_abierto),
         ),
         // El cuerpo se arma sólo si está abierto: así el bloque no paga por
-        // cuatro sliders que nadie está mirando.
+        // los controles que nadie está mirando.
         if (_abierto) ...[
           SizedBox(height: r.spacingS),
-          _grupo(
-            titulo: t.avanzadoCancion,
-            x: prefs.cancionX,
-            y: prefs.cancionY,
-            onX: (v) => AparienciaEspacios.cambiarCancionX(context, v),
-            onY: (v) => AparienciaEspacios.cambiarCancionY(context, v),
+          BurbujasPersonalizado(
+            opciones: [
+              OpcionBurbuja(
+                icono: Icons.music_note_rounded,
+                etiqueta: t.avanzadoCancion,
+              ),
+              OpcionBurbuja(
+                icono: Icons.grid_view_rounded,
+                etiqueta: t.avanzadoGrilla,
+              ),
+            ],
+            seleccionada: _componente,
+            onSeleccion: (i) => setState(() => _componente = i),
+            glowColor: widget.glowColor,
+            onBg: widget.onBg,
+            r: r,
           ),
           SizedBox(height: r.spacingS),
-          _grupo(
-            titulo: t.avanzadoGrilla,
-            x: prefs.grillaX,
-            y: prefs.grillaY,
-            onX: (v) => AparienciaEspacios.cambiarGrillaX(context, v),
-            onY: (v) => AparienciaEspacios.cambiarGrillaY(context, v),
+          _Deslizador(
+            etiqueta: t.separacionX,
+            valor: cancion ? prefs.cancionX : prefs.grillaX,
+            maximo: PreferenciasApariencia.maxEspacio,
+            onChanged:
+                cancion
+                    ? (v) => AparienciaEspacios.cambiarCancionX(context, v)
+                    : (v) => AparienciaEspacios.cambiarGrillaX(context, v),
+          ),
+          _Deslizador(
+            etiqueta: t.separacionY,
+            valor: cancion ? prefs.cancionY : prefs.grillaY,
+            maximo: PreferenciasApariencia.maxEspacio,
+            onChanged:
+                cancion
+                    ? (v) => AparienciaEspacios.cambiarCancionY(context, v)
+                    : (v) => AparienciaEspacios.cambiarGrillaY(context, v),
           ),
         ],
-      ],
-    );
-  }
-
-  /// Un componente (canción o grilla): título chico y sus dos ejes.
-  Widget _grupo({
-    required String titulo,
-    required double x,
-    required double y,
-    required ValueChanged<double> onX,
-    required ValueChanged<double> onY,
-  }) {
-    final r = widget.r;
-    final t = widget.t;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          titulo,
-          style: TextStyle(
-            fontSize: r.footerSize - 2,
-            fontWeight: FontWeight.w700,
-            color: widget.onBg.withValues(alpha: 0.55),
-          ),
-        ),
-        SizedBox(height: r.spacingXS),
-        _Deslizador(
-          etiqueta: t.separacionX,
-          valor: x,
-          maximo: PreferenciasApariencia.maxEspacio,
-          onChanged: onX,
-        ),
-        _Deslizador(
-          etiqueta: t.separacionY,
-          valor: y,
-          maximo: PreferenciasApariencia.maxEspacio,
-          onChanged: onY,
-        ),
       ],
     );
   }

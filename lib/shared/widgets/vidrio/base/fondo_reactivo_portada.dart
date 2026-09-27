@@ -73,7 +73,9 @@ class _FondoReactivoPortadaState extends State<FondoReactivoPortada> {
     if (_caratula.isEmpty) return;
     try {
       final paleta = await paletaParaPortada(_caratula);
-      if (mounted) setState(() => _acento = paleta?.dominante);
+      // `acentoTinte` = el color que de verdad domina en el arte (un cover sin
+      // color se tiñe con su propio neutro, sin inventarle un tono).
+      if (mounted) setState(() => _acento = paleta?.acentoTinte);
     } catch (e) {
       debugPrint('[Fondo] no se pudo leer la paleta: $e');
     }
@@ -119,9 +121,14 @@ class _FondoReactivoPortadaState extends State<FondoReactivoPortada> {
   Widget _tinte() {
     // El color del cover con presencia (estilo_helper): si se mezclaba
     // apagado, sobre su propia carátula no se notaba el cambio.
-    final colorFinal = EstiloHelper.colorDeCover(
+    //
+    // Es el fondo de los modales que comparten este widget (cola, karaoke,
+    // hoja de playlist, "agregar a") y sus letras son las del TEMA: el fondo se
+    // acomoda a ellas para que ninguna portada lo deje ilegible.
+    final colorFinal = EstiloHelper.fondoDeCover(
       _acento ?? _base,
       _base,
+      widget.esOscuro ? Colors.white : Colors.black,
       mezcla: widget.esOscuro ? 0.50 : 0.38,
     );
     return AnimatedContainer(

@@ -10,6 +10,11 @@
 // El velo y el gradiente se cruzan entre el look Normal y el del
 // color para que el primer punto del control no pegue un salto.
 //
+// El VELO SIGUE A LAS LETRAS: si el tinte dejó la card clara, el texto
+// pasa a oscuro y un velo negro lo taparía con su propio degradado. El
+// neutro del velo es el que contrasta con [fg], así que las dos cosas se
+// mueven juntas y el bloque de info se lee en cualquier caso.
+//
 // Se conecta con: tarjeta_grilla.dart (misma library) + imagen_portada
 // + colores_app + estilo_helper + atenuado_por_nivel.
 // Parte del flujo: feed, búsqueda, mi espacio (tarjetas de grilla).
@@ -25,6 +30,7 @@ Widget _fondoTarjeta(
   bool esOscuro,
   Color? acento,
   double nivel,
+  Color fg,
 ) {
   final url = t.coverUrl;
   // Un gradiente preset (`gradient:N`) es el arte de la tarjeta: se pinta
@@ -54,20 +60,34 @@ Widget _fondoTarjeta(
     );
   }
 
-  // Velo: el de siempre sobre el arte, el del color cuando el cover manda.
-  final veloNormal = ColoresApp.velo(esOscuro).withValues(alpha: 0.45);
+  // Velo: el de siempre sobre el arte, el del color cuando el cover manda. El
+  // NEUTRO del velo lo elige el color de las letras (blanco sobre letras
+  // oscuras), porque el velo está para que el texto se lea: con las letras
+  // oscuras de una card clara, un velo negro taparía lo que tiene que mostrar.
+  final veloNeutro = mejorNeutro(fg);
+  final veloNormal = veloNeutro.withValues(alpha: 0.45);
   final veloColor =
       hayColor
-          ? ColoresApp.veloDinamico(esOscuro, acento, alpha: 0.20)
+          ? ColoresApp.veloDinamico(
+            esOscuro,
+            acento,
+            alpha: 0.20,
+            base: veloNeutro,
+          )
           : veloNormal;
 
   /// Una parada del gradiente de legibilidad: el velo de siempre y el del
   /// color, cruzados por la intensidad (así el primer punto no salta).
   Color parada(double alpha) => EstiloHelper.mezclarColor(
-    ColoresApp.velo(esOscuro).withValues(alpha: alpha),
+    veloNeutro.withValues(alpha: alpha),
     hayColor
-        ? ColoresApp.veloDinamico(esOscuro, acento, alpha: alpha)
-        : ColoresApp.velo(esOscuro).withValues(alpha: alpha),
+        ? ColoresApp.veloDinamico(
+            esOscuro,
+            acento,
+            alpha: alpha,
+            base: veloNeutro,
+          )
+        : veloNeutro.withValues(alpha: alpha),
     v,
   );
 
@@ -88,10 +108,22 @@ Widget _fondoTarjeta(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 // El color del cover con presencia (si no, sobre su propia
-                // portada quedaba casi igual y el control no se notaba).
+                // portada quedaba casi igual y el control no se notaba) y con
+                // la CLARIDAD de la portada cuando no tiene tono: un cover
+                // blanco aclara la card y uno negro la deja oscura, en vez de
+                // quedar los dos en el mismo gris.
                 colors: [
-                  EstiloHelper.colorDeCover(acento, fondo),
-                  EstiloHelper.colorDeCover(acento, fondo, mezcla: 0.40),
+                  EstiloHelper.colorDeCover(
+                    acento,
+                    fondo,
+                    respetarClaridad: true,
+                  ),
+                  EstiloHelper.colorDeCover(
+                    acento,
+                    fondo,
+                    mezcla: 0.40,
+                    respetarClaridad: true,
+                  ),
                 ],
               ),
             ),

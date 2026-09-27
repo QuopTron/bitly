@@ -4,8 +4,10 @@
 // previa (carátula + dos barras de texto) y el arte de ejemplo.
 //
 // Es la zona "cards de canción" en miniatura: el borde se cruza con
-// el color del cover igual que en tarjeta_track_cuerpo, así el panel
-// muestra de verdad lo que va a pasar en las cards.
+// el color del cover igual que en tarjeta_track_cuerpo, y las letras del
+// esqueleto siguen al tinte como en las cards reales —con una portada clara el
+// esqueleto blanco desaparecería—, así el panel muestra de verdad lo que va a
+// pasar en las cards.
 //
 // Se conecta con: settings_sheet_appearance_estilo_previa_panel.dart
 // (la monta) + estilo_helper + colores_app.
@@ -47,7 +49,15 @@ class _MiniCardPrevia extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bordeNormal = Colors.white.withValues(alpha: 0.12);
+    // Misma cuenta que la tarjeta real (EstiloHelper.textoDeTinte contra la
+    // base del velo): con el diseño de fábrica da el blanco de siempre.
+    final fg = EstiloHelper.textoDeTinte(
+      acento,
+      ColoresApp.baseBajoCover(esOscuro),
+      nivel,
+      fgTema: Colors.white,
+    );
+    final bordeNormal = fg.withValues(alpha: 0.12);
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(6),
@@ -78,9 +88,9 @@ class _MiniCardPrevia extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _barraPrevia(0.75),
+                _barraPrevia(0.75, fg),
                 SizedBox(height: r.spacingXS * 0.5),
-                _barraPrevia(0.45),
+                _barraPrevia(0.45, fg),
               ],
             ),
           ),
@@ -89,14 +99,14 @@ class _MiniCardPrevia extends StatelessWidget {
     );
   }
 
-  /// Una barra del esqueleto de texto.
-  Widget _barraPrevia(double factor) => FractionallySizedBox(
+  /// Una barra del esqueleto de texto, con el color de letras ya adaptado.
+  Widget _barraPrevia(double factor, Color fg) => FractionallySizedBox(
     alignment: Alignment.centerLeft,
     widthFactor: factor,
     child: Container(
       height: 4,
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.5),
+        color: fg.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(2),
       ),
     ),

@@ -1,8 +1,14 @@
 // ─────────────────────────────────────────────────────────────
 // puntero_tv_eventos.dart — Emisor de eventos de mouse del puntero
-// de TV: emula hover, clic y scroll sobre la posición que le indique
-// el llamador, para que los widgets respondan como si hubiera un
-// mouse real.
+// de TV: emula CLIC y SCROLL sobre la posición que le indique el
+// llamador, para que los widgets respondan como si hubiera un mouse
+// real.
+//
+// A propósito NUNCA emite hover: el cursor dibujado ya muestra dónde
+// está parado el usuario, y el hover hacía que la capa de atrás
+// (tarjetas, íconos, tooltips) se resaltara sola, como si el
+// desplazamiento o el clic se aplicaran al fondo. La única señal que
+// viaja al árbol es la pulsación real (y el scroll).
 // Se conecta con: puntero_tv_estado.dart (lo usa).
 // Parte del flujo: entrada de usuario en TV.
 // ─────────────────────────────────────────────────────────────
@@ -48,25 +54,19 @@ class EmisorPunteroTv {
     }
   }
 
-  /// Anuncia el cursor y manda un hover en la posición actual.
-  void hover() {
-    final g = posicionGlobal();
-    if (!mouseAgregado) {
-      mouseAgregado = true;
-      _enviar(
-        PointerAddedEvent(
-          device: idPuntero,
-          kind: PointerDeviceKind.mouse,
-          position: g,
-        ),
-      );
-    }
+  /// Anuncia el puntero al motor de gestos UNA sola vez.
+  ///
+  /// Hace falta antes de mandar un clic (protocolo de punteros del framework).
+  /// No manda hover, y su único efecto en la capa de atrás es el resaltado del
+  /// widget pulsado, que es justo el feedback que se quiere.
+  void anunciar() {
+    if (mouseAgregado) return;
+    mouseAgregado = true;
     _enviar(
-      PointerHoverEvent(
+      PointerAddedEvent(
         device: idPuntero,
         kind: PointerDeviceKind.mouse,
-        position: g,
-        buttons: 0,
+        position: posicionGlobal(),
       ),
     );
   }
@@ -84,8 +84,10 @@ class EmisorPunteroTv {
     presionando = true;
     _actualizarEstado(() {});
 
-    // Hover primero: posiciona el hit-test debajo del cursor.
-    hover();
+    // Se anuncia el puntero (sin hover): el hit-test lo define la posición del
+    // propio `PointerDown`, así que el clic cae igual donde se ve el cursor y
+    // la capa de atrás NO se resalta hasta la pulsación.
+    anunciar();
     final g = posicionGlobal();
     _enviar(
       PointerDownEvent(
@@ -110,8 +112,11 @@ class EmisorPunteroTv {
   }
 
   /// Manda un scroll vertical en la posición actual del cursor.
+  ///
+  /// No anuncia el puntero: el propio `PointerScroll` se hit-testea en su
+  /// posición, así que la rueda llega igual y sin resaltar nada del fondo (el
+  /// anuncio, en cambio, entra en el widget de debajo y deja el hover pegado).
   void desplazar(double dy) {
-    hover();
     _enviar(
       PointerScrollEvent(
         device: idPuntero,

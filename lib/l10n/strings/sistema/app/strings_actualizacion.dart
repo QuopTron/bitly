@@ -32,6 +32,12 @@ class StringsActualizacion {
   final String ahoraNo;
   final String enSegundoPlano;
   final String instalalaCuandoQuieras;
+
+  /// Notas de una release (hoja de versiones y hoja de actualización):
+  /// abren y cierran el detalle de lo nuevo. Las notas crudas se recortan
+  /// para que la lista no sea un muro de texto.
+  final String verTodo;
+  final String verMenos;
   final String _limpiarAntiguas;
   final String _limpiezaHecha;
   final String _nuevaVersion;
@@ -55,6 +61,8 @@ class StringsActualizacion {
     required this.ahoraNo,
     required this.enSegundoPlano,
     required this.instalalaCuandoQuieras,
+    required this.verTodo,
+    required this.verMenos,
     required String limpiarAntiguas,
     required String limpiezaHecha,
     required String nuevaVersion,
@@ -95,6 +103,8 @@ class StringsActualizacion {
     ahoraNo: 'Ahora no',
     enSegundoPlano: 'Se descarga en segundo plano',
     instalalaCuandoQuieras: 'Podés instalarla cuando quieras',
+    verTodo: 'Ver todo',
+    verMenos: 'Ver menos',
     limpiarAntiguas: 'Borrar versiones anteriores',
     limpiezaHecha: 'Se borraron {n} archivos',
     nuevaVersion: 'Bitly {v} ya está disponible',
@@ -120,6 +130,8 @@ class StringsActualizacion {
     ahoraNo: 'Not now',
     enSegundoPlano: 'Downloads in the background',
     instalalaCuandoQuieras: 'You can install it whenever you want',
+    verTodo: 'See all',
+    verMenos: 'See less',
     limpiarAntiguas: 'Delete older versions',
     limpiezaHecha: 'Removed {n} files',
     nuevaVersion: 'Bitly {v} is available',

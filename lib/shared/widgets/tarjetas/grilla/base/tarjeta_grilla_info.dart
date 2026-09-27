@@ -2,7 +2,13 @@
 // tarjeta_grilla_info.dart — PART de tarjeta_grilla.dart: bloque
 // de info + fila de acciones de la tarjeta de grilla — like con
 // animación, descarga según estado, acción "más" y contador de
-// reproducciones. Reciben la tarjeta (tipo, esAmado, callbacks).
+// reproducciones. Reciben la tarjeta (tipo, esAmado, callbacks) y el
+// color de letras ya adaptado al tinte (fg).
+//
+// El color no se fija acá: llega resuelto desde el `build`
+// (`EstiloHelper.textoDeTinte` contra la base real de la card). Si el tinte
+// dejó la card clara, las letras vienen oscuras —y el velo de la card se aclara
+// junto con ellas (tarjeta_grilla_fondo)—, así que el bloque se lee siempre.
 // Se conecta con: misma library + shared (indicador, colores,
 // haptico, responsive, l10n).
 // Parte del flujo: feed, búsqueda, mi espacio (tarjetas grilla).
@@ -15,16 +21,19 @@ Widget _bloqueInfoDe(
   BuildContext context,
   Responsive r,
   double ts,
+  Color fg,
 ) {
-  // Info sobre velo oscuro en ambos temas → el neutro legible es blanco.
-  final colorTexto = Colors.white;
-  final colorApagado = Colors.white.withValues(alpha: 0.72);
-  final esOscuro = Theme.of(context).brightness == Brightness.dark;
+  // El texto va sobre el velo de la card, y ese velo sigue a las letras.
+  final colorTexto = fg;
+  final colorApagado = fg.withValues(alpha: 0.72);
+  // El halo del texto es el neutro que contrasta con él: con las letras
+  // oscuras de una card clara, un halo negro las embarraría.
+  final halo = mejorNeutro(colorTexto);
   return Column(
     mainAxisSize: MainAxisSize.min,
     crossAxisAlignment: CrossAxisAlignment.center,
     children: [
-      if (t.mostrarAcciones) _filaAccionesDe(t, context, r),
+      if (t.mostrarAcciones) _filaAccionesDe(t, context, r, fg),
       SizedBox(height: r.spacingXS),
       Text(
         t.titulo,
@@ -35,7 +44,7 @@ Widget _bloqueInfoDe(
           letterSpacing: -0.2,
           color: colorTexto,
           shadows: [
-            Shadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 8),
+            Shadow(color: halo.withValues(alpha: 0.3), blurRadius: 8),
           ],
         ),
         maxLines: 2,
@@ -49,7 +58,7 @@ Widget _bloqueInfoDe(
           fontSize: r.footerSize * ts,
           fontWeight: FontWeight.w400,
           color: colorApagado,
-          shadows: [Shadow(color: ColoresApp.sombra(esOscuro), blurRadius: 4)],
+          shadows: [Shadow(color: halo.withValues(alpha: 0.25), blurRadius: 4)],
         ),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
@@ -59,7 +68,7 @@ Widget _bloqueInfoDe(
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.14),
+            color: fg.withValues(alpha: 0.14),
             borderRadius: BorderRadius.circular(6),
           ),
           child: Text(
@@ -71,7 +80,7 @@ Widget _bloqueInfoDe(
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontSize: r.footerSize - 3,
-              color: Colors.white.withValues(alpha: 0.85),
+              color: fg.withValues(alpha: 0.85),
             ),
           ),
         ),
@@ -80,11 +89,15 @@ Widget _bloqueInfoDe(
   );
 }
 
-Widget _filaAccionesDe(TarjetaGrilla t, BuildContext context, Responsive r) {
+Widget _filaAccionesDe(
+  TarjetaGrilla t,
+  BuildContext context,
+  Responsive r,
+  Color fg,
+) {
   final loc = AppLocalizations.of(context);
   final esOscuro = Theme.of(context).brightness == Brightness.dark;
-  // Los iconos van sobre el mismo velo oscuro que el texto → colores blancos.
-  final fg = Colors.white;
+  // Los iconos van sobre el mismo velo que el texto y con su mismo color.
   final tamanoIcono = r.footerSize * 1.8;
   Widget fila = Wrap(
     alignment: WrapAlignment.center,

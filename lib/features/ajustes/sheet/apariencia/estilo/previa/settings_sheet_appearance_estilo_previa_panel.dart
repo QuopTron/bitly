@@ -1,6 +1,8 @@
 // ─────────────────────────────────────────────────────────────
 // settings_sheet_appearance_estilo_previa_panel.dart — PART de
-// settings_sheet_new.dart: los paneles de la vista previa.
+// settings_sheet_new.dart: los paneles de la vista previa. Pintan las MISMAS
+// cuentas que las superficies reales (el tinte acomodado a las letras del tema
+// que hace `EstiloHelper.fondoDeCover`), por eso el panel no miente.
 //
 // Un panel pinta, en miniatura, lo que hace una zona en la app:
 //   [apagaArte] true  → la carátula se va y el color del cover entra
@@ -96,12 +98,16 @@ class _PanelPrevia extends StatelessWidget {
                 if (nivel > 0)
                   AtenuadoPorNivel(
                     opacidad: nivel,
-                    // El color del cover con presencia, igual que en las
-                    // vistas reales: así el panel no miente sobre el efecto.
+                    // El color del cover con presencia Y acomodado a las letras
+                    // del tema, igual que en las vistas reales
+                    // (`EstiloHelper.fondoDeCover`): así el panel no miente
+                    // sobre el efecto —antes mostraba un tinte más claro que el
+                    // que termina pintando el reproductor—.
                     child: ColoredBox(
-                      color: EstiloHelper.colorDeCover(
+                      color: EstiloHelper.fondoDeCover(
                         acento,
                         ColoresApp.superficie(esOscuro),
+                        ColoresApp.enSuperficie(esOscuro),
                         mezcla: apagaArte ? 0.58 : 0.55,
                       ),
                     ),

@@ -6,7 +6,7 @@
 // Por qué existe: el control cambia la app entera, así que "Opacidad"
 // sola no alcanza para que se entienda qué se está moviendo. Acá se
 // cuenta de dónde a dónde va, qué son los paneles de la vista previa
-// y para qué sirve "Avanzado".
+// y para qué sirve "Personalizado".
 //
 // Abre con `sobreHoja: true`: saltando desde el sheet de Ajustes, el
 // velo queda opaco y no se ve un modal sobre otro.

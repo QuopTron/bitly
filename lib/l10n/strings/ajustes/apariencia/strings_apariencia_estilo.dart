@@ -1,7 +1,11 @@
 // ─────────────────────────────────────────────────────────────
 // strings_apariencia_estilo.dart — Textos del bloque "Estilo con cover" de
 // Ajustes → Apariencia: el slider GENERAL de OPACIDAD, su modal de ayuda,
-// la sección "Avanzado" con un control por componente y el selector de idioma.
+// la sección "Personalizado" (con una burbujita por zona) y el selector de
+// idioma.
+//
+// Ojo: el chip que avisa que las zonas quedaron desparejas dice "A medida"
+// (`estiloPersonalizado`) para no repetir la palabra del desplegable.
 //
 // Español primario, inglés secundario (se elige por el locale).
 // Se conecta con: app_localizations.dart (lo expone como
@@ -76,12 +80,12 @@ class StringsAparienciaEstilo {
         'poco, así que en el medio tenés media carátula y medio color.\n\n'
         'Al 100% el color de la carátula pasa a ser el fondo principal.\n\n'
         'Los paneles de abajo muestran en vivo cómo queda el fondo, las cards '
-        'y los modales. Con "Avanzado" podés mover cada zona por separado.',
+        'y los modales. Con "Personalizado" podés mover cada zona por separado.',
     estiloInfoCerrar: 'Entendido',
-    estiloPersonalizado: 'Personalizado',
+    estiloPersonalizado: 'A medida',
     estiloVistaPrevia: 'Así se ve ahora',
-    estiloAvanzado: 'Avanzado',
-    estiloAvanzadoAyuda: 'Un control por zona, si querés afinar.',
+    estiloAvanzado: 'Personalizado',
+    estiloAvanzadoAyuda: 'Elegí una zona con su burbujita y movés solo esa.',
     estiloRestablecer: 'Volver al diseño original',
     compCancion: 'Cards de canción',
     compCancionAyuda: 'Color del cover en cada track',
@@ -113,12 +117,12 @@ class StringsAparienciaEstilo {
         'so halfway you have half cover and half color.\n\n'
         'At 100% the cover color becomes the main background.\n\n'
         'The panels below show it live for the background, the cards and the '
-        'modals. With "Advanced" you can move each area separately.',
+        'modals. With "Custom" you can move each area separately.',
     estiloInfoCerrar: 'Got it',
-    estiloPersonalizado: 'Customized',
+    estiloPersonalizado: 'Adjusted',
     estiloVistaPrevia: 'Live preview',
-    estiloAvanzado: 'Advanced',
-    estiloAvanzadoAyuda: 'One control per area, if you want to fine-tune.',
+    estiloAvanzado: 'Custom',
+    estiloAvanzadoAyuda: 'Pick an area with its bubble and move only that one.',
     estiloRestablecer: 'Back to the original design',
     compCancion: 'Song cards',
     compCancionAyuda: 'Cover color on every track',

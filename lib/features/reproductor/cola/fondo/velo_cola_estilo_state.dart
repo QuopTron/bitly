@@ -24,7 +24,9 @@ class _VeloColaEstiloState extends State<_VeloColaEstilo> {
     if (widget.caratula == null || widget.caratula!.isEmpty) return;
     try {
       final paleta = await paletaParaPortada(widget.caratula);
-      if (mounted) setState(() => _acento = paleta?.dominante);
+      // `acentoTinte` = el color que de verdad domina en el arte (un cover sin
+      // color se tiñe con su propio neutro, sin inventarle un tono).
+      if (mounted) setState(() => _acento = paleta?.acentoTinte);
     } catch (e) {
       debugPrint("[Feature] $e");
     }
@@ -43,10 +45,13 @@ class _VeloColaEstiloState extends State<_VeloColaEstilo> {
         final defaultBg =
             widget.esOscuro ? const Color(0xFF141414) : const Color(0xFFF6F6F6);
         // El color del cover con presencia (estilo_helper): mezclado apagado,
-        // sobre su propia carátula no se notaba el cambio.
-        final colorFinal = EstiloHelper.colorDeCover(
+        // sobre su propia carátula no se notaba el cambio. Y acomodado a las
+        // letras del tema, que son las de la cola: ninguna portada deja la
+        // lista ilegible.
+        final colorFinal = EstiloHelper.fondoDeCover(
           _acento ?? defaultBg,
           defaultBg,
+          widget.esOscuro ? Colors.white : Colors.black,
           mezcla: widget.esOscuro ? 0.50 : 0.38,
         );
 

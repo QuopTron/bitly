@@ -24,6 +24,13 @@
 // lista sigue desplazándose y el gesto dispara igual. La ayuda de la
 // burbuja lo dice.
 //
+// Y para que el gesto no se confunda con el scroll, el flick SÓLO cuenta si la
+// lista NO se movió durante ese dedo: un desplazamiento rápido hacia arriba
+// (un fling de verdad) mueve la lista y entonces no dispara nada. El gesto
+// queda para cuando la lista ya no puede moverse más (el final de la lista),
+// que es donde el usuario lo busca. Antes cualquier fling sobre una tarjeta
+// disparaba la acción además de scrollear: eso era el "scroll falso".
+//
 // Se conecta con: tarjeta_track.dart (misma library) + cubit_cola +
 // cubit_descargas + navegador_detalle + acciones rápidas (ajustes) +
 // haptico + l10n.
@@ -40,6 +47,11 @@ const double _velocidadGestoVertical = 420;
 /// Recorrido mínimo (px) del flick vertical: evita que un movimiento corto
 /// (el rebote de un toque) dispare la acción.
 const double _recorridoGestoVertical = 36;
+
+/// Cuánto puede moverse la lista sin que el flick deje de ser gesto. Con 1 px
+/// ya se sabe que el desplazamiento se lo comió el scroll (no hay ruido: los
+/// píxeles de un `ScrollPosition` son enteros).
+const double _toleranciaScrollVertical = 1;
 
 /// Envuelve [hijo] con los gestos rápidos configurados. Devuelve [hijo]
 /// intacto si la tarjeta no tiene [TarjetaTrack.item] (no hay canción sobre
@@ -63,11 +75,12 @@ Widget _conGestosRapidos(
       if (ajustes.hayVertical) {
         w = _ConFlickVertical(
           key: const ValueKey('gesto-vertical'),
-          alFlick: (abajo) => _ejecutarGesto(
-            t,
-            context,
-            abajo ? ajustes.abajo : ajustes.arriba,
-          ),
+          alFlick:
+              (abajo) => _ejecutarGesto(
+                t,
+                context,
+                abajo ? ajustes.abajo : ajustes.arriba,
+              ),
           child: w,
         );
       }
@@ -86,9 +99,12 @@ Widget _conGestosRapidos(
       final derecha = ajustes.derecha != AccionRapida.ninguna;
       final izquierda = ajustes.izquierda != AccionRapida.ninguna;
       if (derecha || izquierda) {
-        final direccion = derecha && izquierda
-            ? DismissDirection.horizontal
-            : (derecha ? DismissDirection.startToEnd : DismissDirection.endToStart);
+        final direccion =
+            derecha && izquierda
+                ? DismissDirection.horizontal
+                : (derecha
+                    ? DismissDirection.startToEnd
+                    : DismissDirection.endToStart);
         w = Dismissible(
           key: ValueKey(
             'gesto_${item.id}_${item.source ?? ''}_${ajustes.derecha.clave}_${ajustes.izquierda.clave}',
@@ -109,12 +125,19 @@ Widget _conGestosRapidos(
             );
             return false;
           },
-          background: derecha
-              ? _fondoGesto(ajustes.derecha, r, context, aLaDerecha: true)
-              : null,
-          secondaryBackground: izquierda
-              ? _fondoGesto(ajustes.izquierda, r, context, aLaDerecha: false)
-              : null,
+          background:
+              derecha
+                  ? _fondoGesto(ajustes.derecha, r, context, aLaDerecha: true)
+                  : null,
+          secondaryBackground:
+              izquierda
+                  ? _fondoGesto(
+                    ajustes.izquierda,
+                    r,
+                    context,
+                    aLaDerecha: false,
+                  )
+                  : null,
           child: w,
         );
       }
@@ -130,7 +153,7 @@ Widget _conGestosRapidos(
 /// lista y, al ganar, dejaría el desplazamiento roto sobre las tarjetas. Un
 /// `Listener` recibe los eventos de puntero igual (la lista se desplaza
 /// cuando corresponde) y sólo avisa si el movimiento fue un flick: recorrido
-/// suficiente y velocidad alta.
+/// suficiente, velocidad alta y —clave— la lista quieta.
 class _ConFlickVertical extends StatefulWidget {
   final ValueChanged<bool> alFlick;
   final Widget child;
@@ -152,6 +175,11 @@ class _ConFlickVerticalState extends State<_ConFlickVertical> {
   Duration? _tInicial;
   int? _puntero;
 
+  /// La lista de atrás y dónde estaba cuando empezó el dedo. Sirve para saber
+  /// si el movimiento lo consumió el scroll (entonces NO es un gesto).
+  ScrollPosition? _scroll;
+  double? _scrollInicial;
+
   @override
   Widget build(BuildContext context) => Listener(
     onPointerDown: (e) {
@@ -159,6 +187,10 @@ class _ConFlickVerticalState extends State<_ConFlickVertical> {
       _puntero = e.pointer;
       _yInicial = e.position.dy;
       _tInicial = e.timeStamp;
+      // La lista puede no existir (una tarjeta suelta): ahí el flick siempre
+      // es gesto, porque no hay nada con qué confundirlo.
+      _scroll = Scrollable.maybeOf(context)?.position;
+      _scrollInicial = _scroll?.pixels;
     },
     onPointerCancel: (_) => _limpiar(),
     onPointerUp: (e) {
@@ -169,18 +201,31 @@ class _ConFlickVerticalState extends State<_ConFlickVertical> {
       }
       final dy = e.position.dy - y0;
       final ms = (e.timeStamp - t0).inMilliseconds;
+      final seMovioLaLista = _seMovioLaLista();
       _limpiar();
       if (ms <= 0 || dy.abs() < _recorridoGestoVertical) return;
+      // El dedo scrolleó: eso es desplazarse, no pedir una acción.
+      if (seMovioLaLista) return;
       if (dy.abs() * 1000 / ms < _velocidadGestoVertical) return;
       widget.alFlick(dy > 0);
     },
     child: widget.child,
   );
 
+  /// ¿La lista de atrás cambió de posición durante este dedo?
+  bool _seMovioLaLista() {
+    final scroll = _scroll;
+    final desde = _scrollInicial;
+    if (scroll == null || desde == null) return false;
+    return (scroll.pixels - desde).abs() > _toleranciaScrollVertical;
+  }
+
   void _limpiar() {
     _puntero = null;
     _yInicial = null;
     _tInicial = null;
+    _scroll = null;
+    _scrollInicial = null;
   }
 }
 
@@ -233,11 +278,7 @@ Widget _fondoGesto(
 /// Todo lo que no puede resolverse desde acá (una tarjeta sin álbum, sin
 /// callback de descarga, etc.) avisa en vez de quedarse mudo: si el usuario
 /// eligió ese gesto, tiene que saber por qué no pasó nada.
-void _ejecutarGesto(
-  TarjetaTrack t,
-  BuildContext context,
-  AccionRapida accion,
-) {
+void _ejecutarGesto(TarjetaTrack t, BuildContext context, AccionRapida accion) {
   final item = t.item;
   if (item == null || accion == AccionRapida.ninguna) return;
   final t9 = AppLocalizations.of(context).accionesRapidas;

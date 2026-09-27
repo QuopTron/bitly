@@ -83,7 +83,7 @@ void _centrarPorEstimacion(
 }
 
 /// Color real del panel detrás del texto: el fondo sólido mezclado con el
-/// velo (y, si hay, el tono dominante de la carátula desenfocada). El
+/// velo (y, si hay, el color que domina en la carátula desenfocada). El
 /// contraste corre contra ESTO para que las letras se lean sobre cualquier
 /// arte.
 Color _colorPanel(bool esOscuro, PaletaPortada? paleta) {
@@ -93,7 +93,10 @@ Color _colorPanel(bool esOscuro, PaletaPortada? paleta) {
   );
   final conVelo = Color.lerp(fondo, velo, 0.5)!;
   if (paleta == null) return conVelo;
-  return Color.lerp(conVelo, paleta.dominante, esOscuro ? 0.30 : 0.22)!;
+  // `acentoTinte` = el color que de verdad domina en el arte, el mismo que
+  // tiñe las cards y los fondos. Y el texto karaoke se calcula CONTRA este
+  // color (acentoTexto/garantizarContraste), así que se mueve con él.
+  return Color.lerp(conVelo, paleta.acentoTinte, esOscuro ? 0.30 : 0.22)!;
 }
 
 /// Letras planas (sin timestamps) como fallback del karaoke.

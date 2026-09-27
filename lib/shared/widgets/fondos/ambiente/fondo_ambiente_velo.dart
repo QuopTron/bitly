@@ -1,7 +1,8 @@
 // ─────────────────────────────────────────────────────────────
 // fondo_ambiente_velo.dart — Velo dinámico que extrae el color
 // dominante del cover y lo muestra como fondo sólido en modo
-// Spotify. Transición animada al cambiar de canción.
+// Spotify, acomodado para que las letras del tema se lean encima.
+// Transición animada al cambiar de canción.
 //
 // Se conecta con: fondo_ambiente.dart (lo monta como capa 2) + estilo_helper.
 // Parte del flujo: Home → fondo ambiente.
@@ -47,7 +48,9 @@ class _VeloDinamicoState extends State<VeloDinamico> {
   Future<void> _extraerColor() async {
     try {
       final paleta = await paletaParaPortada(widget.coverUrl);
-      if (mounted) setState(() => _acento = paleta?.dominante);
+      // `acentoTinte` = el color que domina de verdad (un cover sin color no
+      // recibe un tono inventado).
+      if (mounted) setState(() => _acento = paleta?.acentoTinte);
     } catch (e) {
       debugPrint("[Widget] $e");
     }
@@ -59,9 +62,14 @@ class _VeloDinamicoState extends State<VeloDinamico> {
     // El color del cover se pinta con presencia (estilo_helper): mezclado
     // apagado quedaba casi igual que la carátula de abajo y el control de
     // opacidad no se notaba.
-    final colorFinal = EstiloHelper.colorDeCover(
+    //
+    // Las letras de la Home son las del TEMA: el fondo se acomoda a ellas
+    // (ver `EstiloHelper.fondoDeCover`), así un cover saturado y claro no deja
+    // el texto blanco al borde de lo ilegible.
+    final colorFinal = EstiloHelper.fondoDeCover(
       colorBase,
       widget.defaultBg,
+      widget.isDark ? Colors.white : Colors.black,
       mezcla: widget.isDark ? 0.58 : 0.45,
     );
     return AnimatedContainer(

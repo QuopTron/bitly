@@ -17,6 +17,9 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../../portada/paleta/paleta_portada.dart'
+    show fondoParaTexto, mejorNeutro, relacionContraste;
+
 import '../../../../../app/inyeccion/inyeccion.dart';
 import '../../../../../core/cache/almacenes/sistema/cache_ajustes.dart';
 import '../../../../../core/modelos/usuario/preferencias/preferencias_estilo.dart';
@@ -117,16 +120,107 @@ class EstiloHelper {
   /// paso del control se ve y al 100% el color manda de verdad.
   ///
   /// [mezcla] es cuánto del color entra sobre el fondo (1 = color puro).
-  static Color colorDeCover(Color acento, Color fondo, {double mezcla = 0.55}) {
+  ///
+  /// [respetarClaridad] decide qué hacer con un cover SIN tono (blanco, negro o
+  /// gris): en las CARDS va en true, así el tinte se parece a su portada —un
+  /// cover blanco aclara la card y uno negro la deja oscura, y las letras se
+  /// acomodan solas—. Los FONDOS lo dejan en false: ahí el color tiñe toda la
+  /// pantalla y sus letras son las del tema, así que tiene que quedar dentro de
+  /// una franja oscura y legible (un cover blanco no puede blanquear la Home).
+  static Color colorDeCover(
+    Color acento,
+    Color fondo, {
+    double mezcla = 0.55,
+    bool respetarClaridad = false,
+  }) {
     final hsl = HSLColor.fromColor(acento);
-    final saturado = (hsl.saturation * 1.3).clamp(0.35, 0.85);
-    final vivo =
-        hsl
-            .withSaturation(saturado)
-            .withLightness(hsl.lightness.clamp(0.34, 0.58))
-            .toColor();
-    return Color.lerp(fondo, vivo, mezcla.clamp(0.0, 1.0))!;
+    // Un cover blanco, negro o gris NO tiene tono. Antes se le forzaba
+    // saturación igual y salía un color falso —y peor: rojo— porque el "hue"
+    // de un gris es 0 y el círculo de color arranca en rojo. Ahí no se inventa
+    // nada: se respeta el gris y lo único que se acomoda es la claridad.
+    final tieneTono = hsl.saturation >= _satMinimaTono;
+    final pintable =
+        tieneTono
+            ? hsl
+                .withSaturation((hsl.saturation * 1.3).clamp(0.35, 0.85))
+                .withLightness(hsl.lightness.clamp(0.34, 0.58))
+                .toColor()
+            : hsl
+                .withSaturation(0)
+                .withLightness(
+                  respetarClaridad
+                      ? claridadNeutra(hsl.lightness)
+                      : hsl.lightness.clamp(0.28, 0.62),
+                )
+                .toColor();
+    return Color.lerp(fondo, pintable, mezcla.clamp(0.0, 1.0))!;
   }
+
+  /// Color de un FONDO con cover que deja legibles las letras del tema.
+  ///
+  /// En las cards son las letras las que siguen al fondo ([textoDeTinte]); en
+  /// un fondo a pantalla completa (reproductor, cola, Home, modales) las letras
+  /// son las del tema y no se pueden recolorear una por una, así que el que se
+  /// acomoda es el fondo: se lo oscurece o aclara lo justo para que [texto]
+  /// llegue al contraste mínimo. Sin esto, un cover saturado y claro al 100%
+  /// (un verde o un cian brillante) dejaba el texto blanco en ~3.9:1.
+  static Color fondoDeCover(
+    Color acento,
+    Color fondo,
+    Color texto, {
+    double mezcla = 0.55,
+  }) => fondoParaTexto(colorDeCover(acento, fondo, mezcla: mezcla), texto);
+
+  /// Claridad del tinte cuando el cover NO tiene tono (blanco, negro o gris).
+  ///
+  /// Sin color, lo único que identifica al arte es su CLARIDAD: un cover
+  /// blanco puro tiene que teñir la card de claro y uno negro puro de oscuro.
+  /// Por eso se la conserva en vez de achatarla en una franja media (que
+  /// dejaba los dos extremos en el mismo gris y hacía que la card no se
+  /// pareciera a su portada). Se le da un tirón leve hacia el medio —así el
+  /// tinte se sigue notando sobre su propia foto, que es lo que mueve el
+  /// control— y un tope que evita el blanco y el negro puros, que se ven
+  /// rotos. El texto que va encima no se toca acá: lo decide [textoDeTinte],
+  /// que sobre la card clara de un cover blanco pasa solo a negro.
+  static double claridadNeutra(double luz) =>
+      (0.5 + (luz - 0.5) * 0.8).clamp(0.08, 0.92);
+
+  /// Saturación por debajo de la cual el color cuenta como gris (sin tono).
+  static const double _satMinimaTono = 0.12;
+
+  /// El fondo REAL que va a quedar pintado en la card con el tinte a [nivel].
+  ///
+  /// Es la mezcla del fondo del tema con el color del cover a la intensidad
+  /// elegida, en el punto donde el tinte manda (la parada con más color del
+  /// gradiente). Sirve para decidir el color de las letras encima.
+  static Color fondoPintado(Color? acento, Color fondo, double nivel) {
+    final v = nivel.clamp(0.0, 1.0);
+    if (acento == null || v <= 0) return fondo;
+    return Color.lerp(fondo, colorDeCover(acento, fondo), v)!;
+  }
+
+  /// Color de las letras e íconos de la card, ya adaptado al tinte.
+  ///
+  /// Por qué: con una carátula clara al 100% la card queda clara, y el texto
+  /// blanco de fábrica desaparecía sobre ella (y al revés: con una portada
+  /// oscura, un texto negro se perdía en el fondo oscuro del tema). Se pide el
+  /// mínimo de contraste WCAG (4.5:1); si el color del tema no llega, se pasa
+  /// al neutro más legible sobre ese fondo (blanco o negro).
+  static Color textoDeTinte(
+    Color? acento,
+    Color fondo,
+    double nivel, {
+    required Color fgTema,
+  }) {
+    final pintado = fondoPintado(acento, fondo, nivel);
+    if (relacionContraste(fgTema, pintado) >= _contrasteTextoMinimo) {
+      return fgTema;
+    }
+    return mejorNeutro(pintado);
+  }
+
+  /// Contraste mínimo de texto (WCAG AA para texto normal).
+  static const double _contrasteTextoMinimo = 4.5;
 
   /// Sigma del desenfoque de un fondo para una intensidad del control.
   ///

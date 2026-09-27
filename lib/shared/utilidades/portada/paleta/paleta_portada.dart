@@ -1,11 +1,11 @@
 // ─────────────────────────────────────────────────────────────
 // paleta_portada.dart — Extrae la paleta de colores de la carátula
-// (vibrante + dominante) para pintar el karaoke de letras con los
-// colores del arte. El contraste WCAG vive en
-// paleta_portada_contraste.dart y el cálculo en
-// paleta_portada_calculo.dart.
-// Se conecta con: hoja de letras (karaoke) + widgets de video.
-// Parte del flujo: reproductor (letras karaoke).
+// (vibrante + dominante + la mancha de COLOR que domina) para pintar el
+// karaoke de letras y para teñir las cards y los fondos con el estilo con
+// cover. El contraste WCAG vive en paleta_portada_contraste.dart y el
+// cálculo en paleta_portada_calculo.dart.
+// Se conecta con: hoja de letras (karaoke) + tarjetas y fondos (tinte).
+// Parte del flujo: reproductor (letras karaoke) y presentación (tinte).
 // ─────────────────────────────────────────────────────────────
 
 import 'dart:async';
@@ -31,14 +31,33 @@ class PaletaPortada {
   /// Color dominante (promedio) de la carátula.
   final Color dominante;
 
+  /// La mancha de COLOR más presente del arte ("acá manda el azul"), o null
+  /// cuando el arte no tiene color: blanco, negro o gris puro. Sirve para
+  /// teñir sin inventar un tono.
+  final Color? dominanteConTono;
+
+  /// Luminancia relativa del [dominante] (0 = negro, 1 = blanco). Dice si el
+  /// tinte va a quedar claro u oscuro, que es lo que necesitan las letras
+  /// para decidir su color.
+  final double luminanciaDominante;
+
   /// True cuando el arte es brillante (fondo claro).
   final bool esPortadaClara;
 
   const PaletaPortada({
     required this.vibrante,
     required this.dominante,
+    required this.dominanteConTono,
+    required this.luminanciaDominante,
     required this.esPortadaClara,
   });
+
+  /// Color con el que se TIÑEN las superficies (cards y fondos).
+  ///
+  /// Es el color que domina de verdad; si el arte no tiene tono (blanco o
+  /// negro puro) no se le inventa uno: se tiñe con el dominante neutro y las
+  /// letras se adaptan solas.
+  Color get acentoTinte => dominanteConTono ?? dominante;
 
   /// Devuelve [vibrante] ajustado para contraste contra una superficie
   /// oscura o clara (el panel real del karaoke). [fondo] es el color real

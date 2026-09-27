@@ -7,7 +7,7 @@
 // pero desde Ajustes casi no se ve (el sheet tapa las pantallas y, si no hay
 // canción sonando, su fondo no tiene carátula que mostrar). Los tres paneles
 // —fondo, card y modal— se pintan con LA MISMA cuenta que la app, así cada
-// porcentaje se ve al arrastrar y cada zona del "Avanzado" tiene su panel.
+// porcentaje se ve al arrastrar y cada zona del "Personalizado" tiene su panel.
 //
 // La carátula y su color salen de la canción actual; sin canción se usa una
 // de ejemplo. Los paneles viven en ..._estilo_previa_panel.dart.
@@ -46,7 +46,7 @@ class _PreviaEstiloState extends State<_PreviaEstilo> {
     _leerCancion();
   }
 
-  /// Canción actual y su color dominante (o queda la carátula de ejemplo).
+  /// Canción actual y el color de su tinte (o queda la carátula de ejemplo).
   Future<void> _leerCancion() async {
     String? cover;
     try {
@@ -63,7 +63,9 @@ class _PreviaEstiloState extends State<_PreviaEstilo> {
     if (!mounted) return;
     setState(() {
       _cover = cover;
-      _acento = paleta?.dominante ?? acentoDeEjemplo;
+      // `acentoTinte` = el color que de verdad domina en el arte: el mismo que
+      // usan las cards y los fondos, así la previa no miente.
+      _acento = paleta?.acentoTinte ?? acentoDeEjemplo;
     });
   }
 

@@ -80,6 +80,10 @@ const _excepcionesFeatures = <String, String>{
       'ya es la variante exclusiva de la tele',
   'lib/features/setup/widgets/slides/gracias/slide_gracias_widgets.dart':
       'sólo el grosor de un borde (1.5): no se ve distinto por aparato',
+  'lib/features/ajustes/update/base/release_notas_vista.dart':
+      'sólo alto de línea (1.35) dentro de un TextStyle: no es una medida de '
+      'pantalla. El tamaño del texto y el puntito de cada viñeta llegan por '
+      '`tamano`, que sale de Responsive en quien la monta',
 };
 
 String _leer(String ruta) =>

@@ -1,11 +1,19 @@
 // ─────────────────────────────────────────────────────────────
 // paleta_portada_calculo.dart — PART de paleta_portada.dart:
 // cálculo de la paleta desde los bytes de la carátula — lee los
-// píxeles RGBA (decode acotado a 96px), promedia el color
-// dominante, detecta el vibrante (saturado con luminancia legible,
-// con respaldo de tonos medios) y decide si el arte es claro.
+// píxeles RGBA (decode acotado a 48px), promedia el color
+// dominante, busca la MANCHA DE COLOR más presente (los cajones de
+// tono), detecta el vibrante y decide si el arte es claro.
+//
+// La mancha de color es lo que hace que el tinte de las cards y de los fondos
+// sea el color que de verdad domina en el arte y no un promedio sucio: un
+// cover 80% blanco con un logo negro daba un gris que no era ni una cosa ni la
+// otra, y uno blanco puro o negro puro no tiene tono —inventarlo daba rojo,
+// porque el "hue" de un gris es 0—. Ahí se devuelve null y el tinte queda
+// neutro, con las letras adaptadas.
+//
 // Se conecta con: paleta_portada.dart (misma library).
-// Parte del flujo: reproductor (letras karaoke, cálculo).
+// Parte del flujo: reproductor (letras karaoke) y tarjetas/fondos (tinte).
 // ─────────────────────────────────────────────────────────────
 
 part of 'paleta_portada.dart';
@@ -78,6 +86,9 @@ Future<PaletaPortada?> _calcularDesdeBytes(Uint8List bytes) async {
     var vR = 0, vG = 0, vB = 0, vCount = 0;
     var midR = 0, midG = 0, midB = 0, midCount = 0;
     var lumSum = 0.0;
+    // Cajones de TONO: cuánto pesa cada familia de color del arte. Es lo que
+    // permite decir "acá el que manda es el azul" aunque haya mucho blanco.
+    final cajones = List<_CajonColor>.generate(_cajonesTono, (_) => _CajonColor());
 
     for (var i = 0; i < pixels.length; i += 4) {
       final a = pixels[i + 3];
@@ -110,6 +121,15 @@ Future<PaletaPortada?> _calcularDesdeBytes(Uint8List bytes) async {
         midG += g;
         midB += b;
         midCount++;
+      }
+      // La mancha de color: píxeles con tono de verdad. Se les saca el
+      // blanco, el negro y los grises, que no aportan identidad.
+      if (sat >= _satMinimaTono && lum > 0.08 && lum < 0.92) {
+        final cajon = cajones[_cajonDeTono(r, g, b)];
+        cajon.peso++;
+        cajon.r += r;
+        cajon.g += g;
+        cajon.b += b;
       }
     }
 
@@ -144,6 +164,8 @@ Future<PaletaPortada?> _calcularDesdeBytes(Uint8List bytes) async {
     return PaletaPortada(
       vibrante: vibrante,
       dominante: dominante,
+      dominanteConTono: _manchaDominante(cajones, count),
+      luminanciaDominante: luminanciaRelativa(dominante),
       esPortadaClara: esClara,
     );
   } finally {
@@ -154,3 +176,49 @@ Future<PaletaPortada?> _calcularDesdeBytes(Uint8List bytes) async {
 
 int _max3(int a, int b, int c) => a > b ? (a > c ? a : c) : (b > c ? b : c);
 int _min3(int a, int b, int c) => a < b ? (a < c ? a : c) : (b < c ? b : c);
+
+/// Un cajón de tono: cuántos píxeles cayeron en esa familia y su promedio.
+class _CajonColor {
+  int peso = 0;
+  int r = 0;
+  int g = 0;
+  int b = 0;
+}
+
+/// Cuántas familias de color se distinguen (una cada 30° del círculo).
+const int _cajonesTono = 12;
+
+/// Saturación mínima para que un píxel cuente como "color" y no como gris.
+const double _satMinimaTono = 0.18;
+
+/// Peso mínimo de la mancha ganadora.
+///
+/// Es un piso relativo (6% del arte) con un mínimo absoluto chico: así un
+/// detalle minúsculo —un logo de dos píxeles— no tiñe toda la tarjeta, pero un
+/// arte con color real (aunque sea una franja) sí se detecta.
+int _pesoMinimoMancha(int total) => math.max(24, (total * 0.06).round());
+
+/// El cajón de tono de un píxel (0..11, un cajón cada 30°).
+int _cajonDeTono(int r, int g, int b) {
+  final hue = HSLColor.fromColor(Color.fromARGB(255, r, g, b)).hue;
+  final cajon = (hue / (360 / _cajonesTono)).floor();
+  return cajon.clamp(0, _cajonesTono - 1);
+}
+
+/// La mancha de color más presente del arte, o null si el arte no tiene color
+/// (blanco, negro o gris puro): ahí no hay tono que detectar y inventarlo da
+/// colores falsos.
+Color? _manchaDominante(List<_CajonColor> cajones, int total) {
+  _CajonColor? mejor;
+  for (final c in cajones) {
+    if (c.peso == 0) continue;
+    if (mejor == null || c.peso > mejor.peso) mejor = c;
+  }
+  if (mejor == null || mejor.peso < _pesoMinimoMancha(total)) return null;
+  return Color.fromARGB(
+    255,
+    mejor.r ~/ mejor.peso,
+    mejor.g ~/ mejor.peso,
+    mejor.b ~/ mejor.peso,
+  );
+}

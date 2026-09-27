@@ -38,7 +38,7 @@ class EscalaUi {
   /// Los dos juntos, para quien tenga que repintar con cualquiera de ellos.
   static final Listenable cambios = Listenable.merge([texto, iconos]);
 
-  /// Afinado por COMPONENTE (bloque "Avanzado" de los tamaños): el general de
+  /// Afinado por COMPONENTE (bloque "Personalizado" de los tamaños): el general de
   /// arriba mueve todo junto y estos lo separan. Se MULTIPLICAN entre sí, no se
   /// reemplazan, así subir el general sigue agrandando todo lo que el usuario
   /// ya había afinado.

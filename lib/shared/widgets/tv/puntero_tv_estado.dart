@@ -6,10 +6,26 @@
 // aceleración al mantener. La emulación de eventos de mouse vive en
 // puntero_tv_eventos.dart.
 //
+// Regla clave: MOVER el cursor es puramente visual (no se inyecta hover),
+// para que la capa de atrás no reaccione al desplazamiento. Con las flechas
+// NADA llega al árbol salvo la pulsación real (y la rueda).
+//
 // También SIGUE al mouse real (control con giroscopio / air mouse):
 // esos controles mandan eventos de mouse de verdad, así que si el
 // cursor dibujado se quedaba en otro lado, el clic del control caía
 // sobre otra tarjeta (el "clic falso" al mover el puntero).
+//
+// Con el mouse REAL el hover se deja pasar a propósito: es del sistema, sigue
+// al puntero físico y es la única señal que trae el movimiento sin botones
+// (imprescindible para el seguimiento de arriba). Marca lo que hay debajo,
+// pero nunca activa: eso fija test/unit/puntero_tv_sin_hover_test.dart.
+//
+// Además el estado recuerda SI el usuario viene manejándose con un mouse/air
+// mouse real (`usandoMouseReal`): en ese caso la TV ya dibuja su propio cursor
+// del sistema y el aro propio se esconde para no ver DOS flechas. La marca se
+// prende en `adoptarPunteroReal` (único lugar donde se ven eventos de mouse de
+// verdad) y se apaga apenas se usa el D-pad, que es cuando el aro vuelve a ser
+// la única referencia de dónde se está parado.
 //
 // Se conecta con: puntero_tv.dart (monta este estado) +
 // puntero_tv_eventos.dart.
@@ -35,6 +51,15 @@ mixin PunteroTvEstado<T extends StatefulWidget> on State<T> {
   DateTime? _ultimaTecla;
   int _repeticion = 0;
 
+  /// ¿El usuario viene manejándose con un mouse/air mouse REAL?
+  ///
+  /// Si es así, la TV ya muestra el cursor del sistema en la posición del
+  /// puntero físico, así que el aro dibujado se esconde (ver `PunteroTv.build`)
+  /// para no ver dos cursores. Al tocar cualquier tecla del control (D-pad) se
+  /// apaga y el aro vuelve, porque ahí el control remoto es la única forma de
+  /// saber dónde se está parado.
+  bool _usandoMouseReal = false;
+
   late final EmisorPunteroTv _emisor = EmisorPunteroTv(
     posicionGlobal: () => _global(posCursor),
     estaMontado: () => mounted,
@@ -48,6 +73,22 @@ mixin PunteroTvEstado<T extends StatefulWidget> on State<T> {
   /// ¿Ya se anunció el puntero al motor de gestos?
   @protected
   bool get mouseAgregado => _emisor.mouseAgregado;
+
+  /// ¿El puntero que se está usando es un mouse/air mouse real?
+  ///
+  /// Lo lee la capa visual: con mouse real el aro propio se oculta (doble
+  /// cursor), con D-pad se muestra.
+  @protected
+  bool get usandoMouseReal => _usandoMouseReal;
+
+  /// Marca que la entrada viene del D-pad (control remoto) y no del mouse.
+  ///
+  /// Apenas se toca una tecla del control el aro dibujado vuelve a mostrarse:
+  /// con el D-pad es la única referencia que tiene el usuario.
+  void _usarDpad() {
+    if (!_usandoMouseReal) return;
+    setState(() => _usandoMouseReal = false);
+  }
 
   RenderBox? get _caja {
     final ro = context.findRenderObject();
@@ -116,6 +157,9 @@ mixin PunteroTvEstado<T extends StatefulWidget> on State<T> {
         local.dy.clamp(_margenBorde, t.height - _margenBorde),
       );
       posicionadoCursor = true;
+      // Hay un mouse real en uso: la tele ya dibuja su cursor, así que el aro
+      // propio se esconde (si no, se ven dos flechas al mismo tiempo).
+      _usandoMouseReal = true;
     });
   }
 
@@ -137,19 +181,26 @@ mixin PunteroTvEstado<T extends StatefulWidget> on State<T> {
         _repeticion = 0;
         _ultimaTecla = null;
       } else {
+        _usarDpad();
         _mover(delta);
       }
       return true;
     }
 
     if (_esClic(key)) {
-      if (evento is KeyDownEvent) _emisor.clicar();
+      if (evento is KeyDownEvent) {
+        _usarDpad();
+        _emisor.clicar();
+      }
       return true;
     }
 
     final scroll = _scrollDe(key);
     if (scroll != null) {
-      if (evento is! KeyUpEvent) _emisor.desplazar(scroll);
+      if (evento is! KeyUpEvent) {
+        _usarDpad();
+        _emisor.desplazar(scroll);
+      }
       return true;
     }
 
@@ -177,7 +228,16 @@ mixin PunteroTvEstado<T extends StatefulWidget> on State<T> {
       ),
     );
     setState(() => posCursor = nueva);
-    _emisor.hover();
+    // A propósito NO se manda hover al mover.
+    //
+    // Antes sí se mandaba y en la tele se veía como si la capa de atrás
+    // "también se moviera": cada flecha iluminaba con hover la card o el botón
+    // que quedaban debajo del cursor (el InkWell de las tarjetas, los
+    // MouseRegion), así que al desplazarse parecía que saltaba de una tarjeta a
+    // otra y, cuando se acababan, a un ícono. Ese es el "clic falso"
+    // reportado. El cursor dibujado ya muestra dónde estás parado, así que la
+    // capa de atrás no necesita reaccionar al movimiento: el hover se reserva
+    // para el clic real (ver `clicar()`), donde además posiciona el hit-test.
   }
 
   /// Inicializa posición y handler de teclado.

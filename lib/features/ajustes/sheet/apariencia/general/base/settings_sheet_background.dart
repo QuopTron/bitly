@@ -72,10 +72,14 @@ class _SongTintedBackgroundState extends State<_SongTintedBackground> {
     final palette = await paletaParaPortada(cover);
     if (palette == null) return null;
     // El color del cover con presencia (estilo_helper): mezclado apagado el
-    // fondo del sheet quedaba casi igual que su propia carátula.
-    return EstiloHelper.colorDeCover(
-      palette.dominante,
+    // fondo del sheet quedaba casi igual que su propia carátula. Es el fondo
+    // que queda DETRÁS del contenido de Ajustes y sus letras son las del tema,
+    // así que se acomoda a ellas (y `acentoTinte` toma el color que de verdad
+    // domina en el arte, no el promedio sucio).
+    return EstiloHelper.fondoDeCover(
+      palette.acentoTinte,
       widget.defaultBg,
+      widget.isDark ? Colors.white : Colors.black,
       mezcla: widget.isDark ? 0.50 : 0.42,
     );
   }

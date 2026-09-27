@@ -1,18 +1,19 @@
 // ─────────────────────────────────────────────────────────────
 // settings_sheet_appearance_granular_fila.dart — PART de
-// settings_sheet_new.dart: la fila que abre y cierra "Avanzado".
+// settings_sheet_new.dart: la fila que abre y cierra "Personalizado".
 //
 // Es la cabecera tocable del desplegable: el ícono de ajustes finos, el
 // título con su explicación y el chevron que gira al abrir. No tiene estado
-// propio: recibe si está abierto y avisa del toque.
+// propio: recibe si está abierto y avisa del toque. Al abrirla aparecen las
+// burbujitas con una cosa por vez (ver burbujas_personalizado.dart).
 //
 // Se conecta con: settings_sheet_appearance_granular.dart (la monta).
-// Parte del flujo: Ajustes → Apariencia → Estilo con cover → Avanzado.
+// Parte del flujo: Ajustes → Apariencia → Estilo con cover → Personalizado.
 // ─────────────────────────────────────────────────────────────
 
 part of '../../../settings_sheet_new.dart';
 
-/// La fila que abre y cierra "Avanzado", con el chevron que gira.
+/// La fila que abre y cierra "Personalizado", con el chevron que gira.
 class _FilaAvanzado extends StatelessWidget {
   final String titulo;
   final String ayuda;

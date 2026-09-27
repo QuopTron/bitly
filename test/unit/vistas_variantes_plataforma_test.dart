@@ -119,6 +119,17 @@ const _vistas = <_Familia>[
     selector: 'lib/features/ajustes/sheet/nav/base/settings_sheet_nav.dart',
     tvPrimero: false,
   ),
+  // La HOJA de Ajustes (no sólo su navegador) tiene sus tres armados: el
+  // celular la hace subir desde abajo, la PC la abre con el riel al costado y
+  // ancho máximo, y la tele va plana a todo el lienzo. El selector pregunta TV
+  // primero (una tele ancha también entra en el layout de escritorio).
+  _Familia(
+    nombre: 'Ajustes (hoja)',
+    celular: 'lib/features/ajustes/sheet/vistas/movil/ajustes_movil.dart',
+    pc: 'lib/features/ajustes/sheet/vistas/escritorio/ajustes_escritorio.dart',
+    tv: 'lib/features/ajustes/sheet/vistas/tv/ajustes_tv.dart',
+    selector: 'lib/features/ajustes/sheet/vistas/base/ajustes_marco.dart',
+  ),
 ];
 
 String _leer(String ruta) =>

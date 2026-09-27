@@ -1,7 +1,13 @@
 // ─────────────────────────────────────────────────────────────
-// settings_sheet_version_tile.dart — PART de settings_sheet_new.dart: tile de una release individual
-// con número, fecha y notas.
-// Se conecta con: settings_sheet_new.dart (misma library).
+// settings_sheet_version_tile.dart — PART de settings_sheet_new.dart: tile de
+// una release individual con número, fecha y notas.
+//
+// Las notas NO se muestran crudas: van por NotasReleaseVista, que las parte en
+// secciones y viñetas y deja solo el idioma de la app. Antes iban dentro de un
+// `Text` recortado a 3 líneas, así que el markdown (###, **, el español y el
+// inglés pegados) se veía tal cual y no se entendía nada.
+//
+// Se conecta con: settings_sheet_new.dart (misma library) + release_notas_vista.
 // Parte del flujo: Ajustes → Más (tile de release).
 // ─────────────────────────────────────────────────────────────
 
@@ -112,17 +118,19 @@ class _ReleaseTile extends StatelessWidget {
               ),
             ],
           ),
-          if (rel.body.isNotEmpty) ...[
-            SizedBox(height: r.spacingXS),
-            Text(
-              _stripChangelog(rel.body),
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: r.footerSize - 1,
-                color: onBg.withValues(alpha: 0.5),
-                height: 1.3,
-              ),
+          if (rel.body.trim().isNotEmpty) ...[
+            SizedBox(height: r.spacingS),
+            // Las novedades, una por renglón: sección, puntito y el titular de
+            // cada cosa en negrita. Si hay más de tres, el propio bloque
+            // ofrece "Ver todo" sin salir del tile.
+            NotasReleaseVista(
+              cuerpo: rel.body,
+              version: tagClean,
+              colorTexto: onBg.withValues(alpha: 0.62),
+              colorTitulo: onBg.withValues(alpha: 0.88),
+              colorPunto: glow,
+              tamano: r.footerSize - 1,
+              maxItems: 3,
             ),
           ],
           // Download button for any version that has an APK and is not current

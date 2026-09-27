@@ -1,19 +1,43 @@
 // ─────────────────────────────────────────────────────────────
 // settings_sheet_appearance_granular.dart — PART de settings_sheet_new.dart:
-// los controles AVANZADOS del estilo con cover, uno por zona.
+// los controles PERSONALIZADOS del estilo con cover, uno por zona.
 //
 // Están detrás de un desplegable para no ensuciar el bloque: el 90% de la
 // gente usa el control general y el que quiere afinar abre esto y deja, por
 // ejemplo, las cards con color y los fondos en Normal.
 //
+// Cada zona tiene su burbujita (con su ícono y su nombre) y abajo queda el
+// deslizador de la elegida, con la línea que explica dónde se ve. Antes eran
+// cinco deslizadores apilados: entre el nombre y el de al lado no se sabía
+// cuál estaba moviendo.
+//
 // Se conecta con: estilo_helper (cambiar cada nivel) +
-// settings_sheet_appearance_style.dart (lo monta).
-// Parte del flujo: Ajustes → Apariencia → Estilo con cover → Avanzado.
+// settings_sheet_appearance_style.dart (lo monta) + las burbujitas
+// (burbujas_personalizado.dart).
+// Parte del flujo: Ajustes → Apariencia → Estilo con cover → Personalizado.
 // ─────────────────────────────────────────────────────────────
 
 part of '../../../settings_sheet_new.dart';
 
-/// Desplegable "Avanzado" con un slider por componente.
+/// Una zona del estilo: con qué se la nombra, dónde se ve, cuánto tiene ahora
+/// y a quién hay que pedirle el cambio.
+class _ZonaEstilo {
+  final String etiqueta;
+  final String ayuda;
+  final double valor;
+  final IconData icono;
+  final ComponenteEstilo componente;
+
+  const _ZonaEstilo({
+    required this.etiqueta,
+    required this.ayuda,
+    required this.valor,
+    required this.icono,
+    required this.componente,
+  });
+}
+
+/// Desplegable "Personalizado" con una burbujita por zona.
 class _SeccionGranular extends StatefulWidget {
   final Color glowColor;
   final Color onBg;
@@ -36,18 +60,65 @@ class _SeccionGranular extends StatefulWidget {
 class _SeccionGranularState extends State<_SeccionGranular> {
   bool _abierto = false;
 
+  /// Burbuja elegida: el orden es el mismo de las zonas del estilo.
+  int _zona = 0;
+
+  /// Las cinco zonas del estilo, en el mismo orden que las burbujitas.
+  List<_ZonaEstilo> get _zonas {
+    final t = widget.textos;
+    final p = widget.prefs;
+    return [
+      _ZonaEstilo(
+        etiqueta: t.compCancion,
+        ayuda: t.compCancionAyuda,
+        valor: p.cardsCancion,
+        icono: Icons.music_note_rounded,
+        componente: ComponenteEstilo.cardsCancion,
+      ),
+      _ZonaEstilo(
+        etiqueta: t.compGrilla,
+        ayuda: t.compGrillaAyuda,
+        valor: p.cardsGrilla,
+        icono: Icons.grid_view_rounded,
+        componente: ComponenteEstilo.cardsGrilla,
+      ),
+      _ZonaEstilo(
+        etiqueta: t.compFondoPrincipal,
+        ayuda: t.compFondoPrincipalAyuda,
+        valor: p.fondoPrincipal,
+        icono: Icons.wallpaper_rounded,
+        componente: ComponenteEstilo.fondoPrincipal,
+      ),
+      _ZonaEstilo(
+        etiqueta: t.compFondoReproductor,
+        ayuda: t.compFondoReproductorAyuda,
+        valor: p.fondoReproductor,
+        icono: Icons.play_circle_outline_rounded,
+        componente: ComponenteEstilo.fondoReproductor,
+      ),
+      _ZonaEstilo(
+        etiqueta: t.compModals,
+        ayuda: t.compModalsAyuda,
+        valor: p.fondosModals,
+        icono: Icons.layers_rounded,
+        componente: ComponenteEstilo.fondosModals,
+      ),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
-    final t = widget.textos;
     final r = widget.r;
-    final prefs = widget.prefs;
+    final zonas = _zonas;
+    final zona = _zona.clamp(0, zonas.length - 1);
+    final elegida = zonas[zona];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _FilaAvanzado(
-          titulo: t.estiloAvanzado,
-          ayuda: t.estiloAvanzadoAyuda,
+          titulo: widget.textos.estiloAvanzado,
+          ayuda: widget.textos.estiloAvanzadoAyuda,
           abierto: _abierto,
           glowColor: widget.glowColor,
           onBg: widget.onBg,
@@ -55,76 +126,44 @@ class _SeccionGranularState extends State<_SeccionGranular> {
           onTap: () => setState(() => _abierto = !_abierto),
         ),
         // Se arma el cuerpo sólo si está abierto: así el bloque no paga por
-        // 5 sliders que nadie está mirando.
+        // los controles que nadie está mirando.
         if (_abierto) ...[
           SizedBox(height: r.spacingS),
-          _nivel(
-            t.compCancion,
-            t.compCancionAyuda,
-            prefs.cardsCancion,
-            ComponenteEstilo.cardsCancion,
+          BurbujasPersonalizado(
+            opciones: [
+              for (final z in zonas)
+                OpcionBurbuja(icono: z.icono, etiqueta: z.etiqueta),
+            ],
+            seleccionada: zona,
+            onSeleccion: (i) => setState(() => _zona = i),
+            glowColor: widget.glowColor,
+            onBg: widget.onBg,
+            r: r,
           ),
-          _nivel(
-            t.compGrilla,
-            t.compGrillaAyuda,
-            prefs.cardsGrilla,
-            ComponenteEstilo.cardsGrilla,
+          SizedBox(height: r.spacingS),
+          // La zona elegida: su deslizador arriba y dónde se ve, abajo.
+          _Deslizador(
+            etiqueta: elegida.etiqueta,
+            valor: elegida.valor,
+            maximo: 1,
+            // 100 pasos: la barra avanza de a 1%.
+            divisiones: 100,
+            formato: _porcentaje,
+            onChanged:
+                (v) =>
+                    EstiloHelper.cambiarNivel(context, elegida.componente, v),
           ),
-          _nivel(
-            t.compFondoPrincipal,
-            t.compFondoPrincipalAyuda,
-            prefs.fondoPrincipal,
-            ComponenteEstilo.fondoPrincipal,
-          ),
-          _nivel(
-            t.compFondoReproductor,
-            t.compFondoReproductorAyuda,
-            prefs.fondoReproductor,
-            ComponenteEstilo.fondoReproductor,
-          ),
-          _nivel(
-            t.compModals,
-            t.compModalsAyuda,
-            prefs.fondosModals,
-            ComponenteEstilo.fondosModals,
-          ),
-        ],
-      ],
-    );
-  }
-
-  /// Una zona: el slider arriba y su explicación abajo, para que no se
-  /// apriete en pantallas chicas.
-  Widget _nivel(
-    String etiqueta,
-    String ayuda,
-    double valor,
-    ComponenteEstilo componente,
-  ) {
-    final r = widget.r;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _Deslizador(
-          etiqueta: etiqueta,
-          valor: valor,
-          maximo: 1,
-          // 100 pasos: la barra avanza de a 1%.
-          divisiones: 100,
-          formato: _porcentaje,
-          onChanged: (v) => EstiloHelper.cambiarNivel(context, componente, v),
-        ),
-        Padding(
-          padding: EdgeInsets.only(left: r.width * 0.24),
-          child: Text(
-            ayuda,
-            style: TextStyle(
-              fontSize: r.footerSize - 2,
-              color: widget.onBg.withValues(alpha: 0.4),
+          Padding(
+            padding: EdgeInsets.only(left: r.width * 0.24),
+            child: Text(
+              elegida.ayuda,
+              style: TextStyle(
+                fontSize: r.footerSize - 2,
+                color: widget.onBg.withValues(alpha: 0.4),
+              ),
             ),
           ),
-        ),
-        SizedBox(height: r.spacingXS),
+        ],
       ],
     );
   }

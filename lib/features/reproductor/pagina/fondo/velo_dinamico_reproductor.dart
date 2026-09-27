@@ -1,6 +1,8 @@
 // ─────────────────────────────────────────────────────────────
-// reproductor_pagina_fondo.dart — PART de reproductor_pagina.dart:
-// velo_dinamico_reproductor.dart — PART de reproductor_pagina.dart: _VeloDinamicoReproductor (movido desde reproductor_pagina_fondo.dart).
+// velo_dinamico_reproductor.dart — PART de reproductor_pagina.dart:
+// _VeloDinamicoReproductor (movido desde reproductor_pagina_fondo.dart): el
+// color del cover como fondo sólido, acomodado para que las letras del tema
+// (blancas en oscuro, negras en claro) se lean encima.
 // Se conecta con: reproductor_pagina.dart (misma library).
 // ─────────────────────────────────────────────────────────────
 
@@ -45,7 +47,7 @@ class _VeloDinamicoReproductorState extends State<_VeloDinamicoReproductor> {
       final paleta = await paletaParaPortada(widget.coverUrl);
       if (mounted) {
         setState(() {
-          _acento = paleta?.dominante;
+          _acento = paleta?.acentoTinte;
         });
       }
     } catch (e) {
@@ -59,9 +61,15 @@ class _VeloDinamicoReproductorState extends State<_VeloDinamicoReproductor> {
     // El color del cover se pinta con presencia (estilo_helper): mezclado
     // apagado quedaba casi igual que la carátula de abajo y el control de
     // opacidad no se notaba.
-    final colorFinal = EstiloHelper.colorDeCover(
+    //
+    // Las letras del reproductor son las del TEMA (blancas en oscuro, negras en
+    // claro) y son decenas: no se recolorean una por una, así que el fondo se
+    // acomoda a ellas. Un cover saturado y claro al 100% dejaba el texto blanco
+    // en ~3.9:1.
+    final colorFinal = EstiloHelper.fondoDeCover(
       colorBase,
       widget.defaultBg,
+      widget.esOscuro ? Colors.white : Colors.black,
       mezcla: widget.esOscuro ? 0.60 : 0.46,
     );
 

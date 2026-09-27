@@ -8,7 +8,7 @@
 // ni tocar 5 interruptores para quedar a medias. La "i" del encabezado abre
 // la explicación (settings_sheet_appearance_estilo_info.dart).
 //
-// Detrás de "Avanzado" quedan los controles por zona
+// Detrás de "Personalizado" quedan los controles por zona
 // (settings_sheet_appearance_granular.dart) para el que quiera afinar, y las
 // piezas chicas del bloque (el chip) en
 // settings_sheet_appearance_style_piezas.dart.
@@ -116,7 +116,7 @@ class _StylePicker extends StatelessWidget {
                 // ── Cómo queda ahora: los tres paneles en vivo ──
                 _PreviaEstilo(prefs: prefs, onBg: onBg, r: r, textos: t),
                 SizedBox(height: r.spacingS),
-                // ── Avanzado: un control por zona ──
+                // ── Personalizado: una burbujita por zona ──
                 _SeccionGranular(
                   glowColor: glowColor,
                   onBg: onBg,

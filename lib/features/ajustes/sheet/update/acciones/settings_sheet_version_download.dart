@@ -1,6 +1,12 @@
 // ─────────────────────────────────────────────────────────────
-// settings_sheet_version_download.dart — PART de settings_sheet_new.dart: descarga del instalador de una
-// nueva versión desde la hoja de releases.
+// settings_sheet_version_download.dart — PART de settings_sheet_new.dart:
+// descarga del instalador de una nueva versión desde la hoja de releases.
+//
+// Las notas de cada release NO se limpian acá: eso vive en
+// update/base/release_notas.dart, que las lee como texto y las parte en
+// secciones (antes había acá un `_stripChangelog` que dejaba un párrafo
+// corrido con los símbolos del markdown a la vista).
+//
 // Se conecta con: settings_sheet_new.dart (misma library) + update_service.
 // Parte del flujo: Ajustes → Más (descargar versión).
 // ─────────────────────────────────────────────────────────────
@@ -18,14 +24,4 @@ void _downloadApk(String url, String version) async {
   } catch (e) {
     debugPrint("[Feature] $e");
   }
-}
-
-/// Limpia el markdown del changelog para mostrarlo como texto plano.
-String _stripChangelog(String body) {
-  return body
-      .replaceAll(RegExp(r'#{1,6}\s*', multiLine: true), '')
-      .replaceAll(RegExp(r'\*+'), '')
-      .replaceAll(RegExp(r'\[([^\]]+)\]\([^)]+\)'), r'\1')
-      .replaceAll(RegExp(r'`'), '')
-      .trim();
 }

@@ -1,13 +1,18 @@
 // ─────────────────────────────────────────────────────────────
 // settings_sheet_appearance_escala_avanzado.dart — PART de
-// settings_sheet_new.dart: el desplegable "Avanzado" de los TAMAÑOS
+// settings_sheet_new.dart: el desplegable "Personalizado" de los TAMAÑOS
 // (letras e iconos) del bloque Diseño de Apariencia.
 //
 // Los dos controles generales ("Tamaño de las letras" y "Tamaño de los
-// iconos") mueven TODO junto; acá el usuario los separa por componente, que es
-// lo que hace falta cuando una sola cosa molesta: los títulos se ven chicos
-// pero los textos de abajo están bien, o el navbar queda enorme y las tarjetas
-// bien.
+// iconos") mueven TODO junto; acá el usuario los separa por cosa, que es lo
+// que hace falta cuando una sola molesta: los títulos se ven chicos pero los
+// textos de abajo están bien, o el navbar queda enorme y las cards bien.
+//
+// Está dividido como el usuario piensa el problema —LETRAS por un lado, ICONOS
+// por el otro— y cada grupo tiene sus burbujitas (una por cosa) con el
+// deslizador de la elegida abajo. Antes eran cuatro deslizadores seguidos bajo
+// dos títulos, y en una pantalla chica no se distinguía dónde empezaba cada
+// cosa.
 //
 // Cada control dice QUÉ modifica, porque "títulos" y "textos secundarios" no
 // significan nada hasta que se aclara dónde se ven.
@@ -16,13 +21,15 @@
 // agrandando los títulos aunque estén afinados acá.
 //
 // Se conecta con: apariencia_espacios_helper (cambiar cada componente) + la
-// fila _FilaAvanzado y el _Deslizador de esta misma library.
-// Parte del flujo: Ajustes → Apariencia → Diseño → Tamaños avanzados.
+// fila _FilaAvanzado y el _Deslizador de esta misma library + las burbujitas
+// (burbujas_personalizado.dart).
+// Parte del flujo: Ajustes → Apariencia → Diseño → Tamaños personalizados.
 // ─────────────────────────────────────────────────────────────
 
 part of '../../../settings_sheet_new.dart';
 
-/// Desplegable "Avanzado" de los tamaños: letras e iconos por componente.
+/// Desplegable "Personalizado" de los tamaños: letras e iconos, con una
+/// burbujita por cosa.
 class _SeccionAvanzadoEscala extends StatefulWidget {
   final PreferenciasApariencia prefs;
   final StringsApariencia t;
@@ -45,11 +52,22 @@ class _SeccionAvanzadoEscala extends StatefulWidget {
 class _SeccionAvanzadoEscalaState extends State<_SeccionAvanzadoEscala> {
   bool _abierto = false;
 
+  /// Burbuja elegida en LETRAS: 0 = títulos, 1 = textos secundarios.
+  int _letra = 0;
+
+  /// Burbuja elegida en ICONOS: 0 = de las cards, 1 = de las barras.
+  int _icono = 0;
+
   @override
   Widget build(BuildContext context) {
     final t = widget.t;
     final r = widget.r;
     final prefs = widget.prefs;
+
+    // Texto y ayuda de la burbuja elegida en cada grupo: el deslizador de
+    // abajo muestra siempre la cosa que está seleccionada arriba.
+    final enLetras = _letra == 0;
+    final enCards = _icono == 0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -63,40 +81,68 @@ class _SeccionAvanzadoEscalaState extends State<_SeccionAvanzadoEscala> {
           r: r,
           onTap: () => setState(() => _abierto = !_abierto),
         ),
-        // El cuerpo se arma sólo si está abierto: el bloque no paga por cuatro
+        // El cuerpo se arma sólo si está abierto: el bloque no paga por los
         // deslizadores que nadie está mirando.
         if (_abierto) ...[
-          SizedBox(height: r.spacingS),
           _grupo(t.escalaGrupoLetras),
-          _control(
-            etiqueta: t.escalaTitulos,
-            ayuda: t.escalaTitulosAyuda,
-            valor: prefs.escalaTitulos,
-            onChanged:
-                (v) => AparienciaEspacios.cambiarEscalaTitulos(context, v),
+          BurbujasPersonalizado(
+            opciones: [
+              OpcionBurbuja(
+                icono: Icons.title_rounded,
+                etiqueta: t.escalaTitulos,
+              ),
+              OpcionBurbuja(
+                icono: Icons.subject_rounded,
+                etiqueta: t.escalaTextos,
+              ),
+            ],
+            seleccionada: _letra,
+            onSeleccion: (i) => setState(() => _letra = i),
+            glowColor: widget.glowColor,
+            onBg: widget.onBg,
+            r: r,
           ),
           _control(
-            etiqueta: t.escalaTextos,
-            ayuda: t.escalaTextosAyuda,
-            valor: prefs.escalaTextos,
+            etiqueta: enLetras ? t.escalaTitulos : t.escalaTextos,
+            ayuda: enLetras ? t.escalaTitulosAyuda : t.escalaTextosAyuda,
+            valor: enLetras ? prefs.escalaTitulos : prefs.escalaTextos,
             onChanged:
-                (v) => AparienciaEspacios.cambiarEscalaTextos(context, v),
+                enLetras
+                    ? (v) => AparienciaEspacios.cambiarEscalaTitulos(context, v)
+                    : (v) => AparienciaEspacios.cambiarEscalaTextos(context, v),
           ),
           SizedBox(height: r.spacingS),
           _grupo(t.escalaGrupoIconos),
-          _control(
-            etiqueta: t.escalaIconosCards,
-            ayuda: t.escalaIconosCardsAyuda,
-            valor: prefs.escalaIconosCards,
-            onChanged:
-                (v) => AparienciaEspacios.cambiarEscalaIconosCards(context, v),
+          BurbujasPersonalizado(
+            opciones: [
+              OpcionBurbuja(
+                icono: Icons.touch_app_rounded,
+                etiqueta: t.escalaIconosCards,
+              ),
+              OpcionBurbuja(
+                icono: Icons.space_bar_rounded,
+                etiqueta: t.escalaIconosBarras,
+              ),
+            ],
+            seleccionada: _icono,
+            onSeleccion: (i) => setState(() => _icono = i),
+            glowColor: widget.glowColor,
+            onBg: widget.onBg,
+            r: r,
           ),
           _control(
-            etiqueta: t.escalaIconosBarras,
-            ayuda: t.escalaIconosBarrasAyuda,
-            valor: prefs.escalaIconosBarras,
+            etiqueta: enCards ? t.escalaIconosCards : t.escalaIconosBarras,
+            ayuda:
+                enCards ? t.escalaIconosCardsAyuda : t.escalaIconosBarrasAyuda,
+            valor: enCards ? prefs.escalaIconosCards : prefs.escalaIconosBarras,
             onChanged:
-                (v) => AparienciaEspacios.cambiarEscalaIconosBarras(context, v),
+                enCards
+                    ? (v) =>
+                        AparienciaEspacios.cambiarEscalaIconosCards(context, v)
+                    : (v) => AparienciaEspacios.cambiarEscalaIconosBarras(
+                      context,
+                      v,
+                    ),
           ),
         ],
       ],
@@ -111,12 +157,13 @@ class _SeccionAvanzadoEscalaState extends State<_SeccionAvanzadoEscala> {
       style: TextStyle(
         fontSize: widget.r.footerSize - 2,
         fontWeight: FontWeight.w700,
+        letterSpacing: 0.4,
         color: widget.onBg.withValues(alpha: 0.55),
       ),
     ),
   );
 
-  /// Un componente: su deslizador y la línea que explica QUÉ toca.
+  /// El deslizador de la cosa elegida y la línea que explica QUÉ toca.
   Widget _control({
     required String etiqueta,
     required String ayuda,

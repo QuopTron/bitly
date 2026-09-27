@@ -6,7 +6,7 @@
 //
 // La separación va POR COMPONENTE (cards de canción y cards de grilla) y por
 // eje (X horizontal, Y vertical): el control general mueve los cuatro a la
-// vez y en "Avanzado" se afinan por separado.
+// vez y en "Personalizado" se afinan por separado.
 //
 // Los valores por defecto son EXACTAMENTE el diseño actual de la app:
 // abrir Ajustes sin tocar nada deja todo como estaba.
@@ -105,7 +105,7 @@ class PreferenciasApariencia {
   /// Multiplicador del TAMAÑO DE LOS ICONOS (1 = el de fábrica).
   final double escalaIconos;
 
-  /// Afinado por COMPONENTE (bloque "Avanzado" de los tamaños). Se multiplica
+  /// Afinado por COMPONENTE (bloque "Personalizado" de los tamaños). Se multiplica
   /// con el general en vez de reemplazarlo, así el control de arriba sigue
   /// moviendo todo junto.
   ///

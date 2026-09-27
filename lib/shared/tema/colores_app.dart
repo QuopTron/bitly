@@ -78,6 +78,24 @@ class ColoresApp {
           ? Colors.white.withValues(alpha: 0.14)
           : Colors.black.withValues(alpha: 0.06);
 
+  /// Base REAL que queda debajo de las letras de una card con cover.
+  ///
+  /// No es la superficie del tema: estas cards pintan su carátula con un velo
+  /// oscuro y un degradado inferior de legibilidad que existen en los DOS
+  /// temas, así que el fondo donde cae el texto es oscuro también en tema
+  /// claro (por eso su texto de fábrica es blanco). Es el color que hay que
+  /// pasarle a `EstiloHelper.textoDeTinte` para decidir las letras: con la
+  /// superficie del tema (blanca en tema claro) el cálculo daba un fondo claro
+  /// que no existe y las letras pasaban a negro sobre ese velo oscuro.
+  static Color baseBajoCover(bool oscuro) {
+    final conVelo = Color.alphaBlend(
+      sombra(oscuro).withValues(alpha: 0.4),
+      superficie(oscuro),
+    );
+    // El degradado inferior, que es donde se apoyan el título y el subtítulo.
+    return Color.alphaBlend(Colors.black.withValues(alpha: 0.45), conVelo);
+  }
+
   /// Color de sombra.
   static Color sombra(bool oscuro) =>
       oscuro
@@ -99,10 +117,20 @@ class ColoresApp {
   }
 
   /// Velo dinámico: mezcla el velo del tema con el color dominante.
-  static Color veloDinamico(bool oscuro, Color? acento, {double alpha = 1.0}) {
-    final base = velo(oscuro);
-    if (acento == null) return base.withValues(alpha: alpha);
-    final mix = Color.lerp(base, acento, 0.35)!;
+  ///
+  /// [base] reemplaza el velo del tema. Lo usan las cards que dejan de tener
+  /// letras blancas: el velo existe para que el texto se lea sobre la portada,
+  /// así que tiene que ser del color OPUESTO a las letras — una card clara con
+  /// letras oscuras necesita un velo blanco, no negro.
+  static Color veloDinamico(
+    bool oscuro,
+    Color? acento, {
+    double alpha = 1.0,
+    Color? base,
+  }) {
+    final neutro = base ?? velo(oscuro);
+    if (acento == null) return neutro.withValues(alpha: alpha);
+    final mix = Color.lerp(neutro, acento, 0.35)!;
     return mix.withValues(alpha: alpha);
   }
 
@@ -113,9 +141,14 @@ class ColoresApp {
   }
 
   /// Sombra dinámica: si hay acento, tiñe la sombra con el color dominante.
-  static Color sombraDinamica(bool oscuro, Color? acento) {
-    if (acento == null) return sombra(oscuro);
-    return Color.lerp(sombra(oscuro), acento, 0.3)!;
+  ///
+  /// [base] reemplaza la sombra del tema, igual que en [veloDinamico]: la
+  /// usan los degradados de legibilidad de las cards cuando las letras pasaron
+  /// a oscuras (una sombra negra debajo de un texto negro lo tapa).
+  static Color sombraDinamica(bool oscuro, Color? acento, {Color? base}) {
+    final neutro = base ?? sombra(oscuro);
+    if (acento == null) return neutro;
+    return Color.lerp(neutro, acento, 0.3)!;
   }
 
   // ── Estados ──

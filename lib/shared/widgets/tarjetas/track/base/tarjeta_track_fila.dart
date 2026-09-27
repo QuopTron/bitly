@@ -94,7 +94,7 @@ Widget _filaContenidoTrack(
                   t.titulo,
                   style: TextStyle(
                     // El factor de TÍTULOS suma el general ("Letras") y el afinado
-                    // del bloque "Avanzado": así subir el general sigue
+                    // del bloque "Personalizado": así subir el general sigue
                     // agrandando lo que el usuario ya había separado.
                     fontSize: r.subtitleSize * ts * EscalaUi.factorTitulos,
                     fontWeight: FontWeight.w700,

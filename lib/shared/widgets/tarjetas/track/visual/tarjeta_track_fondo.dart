@@ -10,6 +10,11 @@
 // el valor de Normal y el del color, así el primer punto del slider
 // no pega un salto.
 //
+// El VELO SIGUE A LAS LETRAS, igual que en la grilla: su neutro es el que
+// contrasta con [fg]. Si el tinte dejó la card clara y las letras pasaron a
+// oscuras, un velo negro las taparía con su propio degradado. Con las letras
+// blancas de siempre el neutro es negro y los píxeles son los mismos.
+//
 // Se conecta con: tarjeta_track.dart (misma library) + imagen_portada
 // + colores_app + estilo_helper + atenuado_por_nivel.
 // Parte del flujo: búsqueda, feed, mi espacio (filas de tracks).
@@ -33,17 +38,26 @@ List<Widget> _capasFondoTrack(
   // sin curvas que concentren el cambio en un tramo del control.
   final v = nivel;
 
+  // El neutro del velo y de la sombra inferior lo elige el color de las letras:
+  // velo y texto tienen que ser OPUESTOS, porque el velo está justamente para
+  // que el texto se lea.
+  final veloNeutro = mejorNeutro(fg);
   // Velo: el de siempre sobre la foto, el del color cuando el cover manda.
-  final veloNormal = ColoresApp.sombra(esOscuro).withValues(alpha: 0.4);
+  final veloNormal = veloNeutro.withValues(alpha: 0.4);
   final veloColor =
       hayColor
-          ? ColoresApp.veloDinamico(esOscuro, acento, alpha: 0.15)
+          ? ColoresApp.veloDinamico(
+            esOscuro,
+            acento,
+            alpha: 0.15,
+            base: veloNeutro,
+          )
           : veloNormal;
   // Sombra inferior: misma idea, para el degradado de legibilidad.
   final sombraInferior =
       hayColor
-          ? ColoresApp.sombraDinamica(esOscuro, acento)
-          : ColoresApp.sombra(esOscuro);
+          ? ColoresApp.sombraDinamica(esOscuro, acento, base: veloNeutro)
+          : veloNeutro;
 
   return [
     // Capa 1: la carátula, SIEMPRE. La intensidad no la saca: la va tapando
@@ -72,10 +86,22 @@ List<Widget> _capasFondoTrack(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 // El color del cover con presencia (si no, sobre su propia
-                // foto quedaba casi igual y el control no se notaba).
+                // foto quedaba casi igual y el control no se notaba) y con la
+                // CLARIDAD de la portada cuando no tiene tono: un cover blanco
+                // aclara la card y uno negro la deja oscura, en vez de quedar
+                // los dos en el mismo gris.
                 colors: [
-                  EstiloHelper.colorDeCover(acento, fondoCard),
-                  EstiloHelper.colorDeCover(acento, fondoCard, mezcla: 0.42),
+                  EstiloHelper.colorDeCover(
+                    acento,
+                    fondoCard,
+                    respetarClaridad: true,
+                  ),
+                  EstiloHelper.colorDeCover(
+                    acento,
+                    fondoCard,
+                    mezcla: 0.42,
+                    respetarClaridad: true,
+                  ),
                 ],
               ),
             ),

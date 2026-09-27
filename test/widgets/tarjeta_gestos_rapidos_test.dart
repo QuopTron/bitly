@@ -6,7 +6,10 @@
 //    el gesto de siempre y no agrega nada más;
 //  · dos toques ejecutan la acción elegida (antes no existía el gesto);
 //  · deslizar hacia el lado apagado NO dispara nada;
-//  · con todos los gestos en "nada" la tarjeta sigue tocándose normal.
+//  · con todos los gestos en "nada" la tarjeta sigue tocándose normal;
+//  · un fling sobre una lista que scrollea NO dispara la acción (era el
+//    "scroll falso": la lista se movía y encima se ejecutaba el gesto), pero
+//    el gesto vuelve a andar cuando la lista ya no puede moverse más.
 
 import 'package:bitly/app/inyeccion/inyeccion.dart' as di;
 import 'package:bitly/core/cache/estado/estado_descarga.dart';
@@ -50,7 +53,9 @@ void main() {
     accionesRapidas.value = AjustesAccionesRapidas.porDefecto;
   });
 
-  Widget app({
+  /// App con [cartas] tarjetas: con más de una, la lista SÍ scrollea.
+  Widget appLarga({
+    required int cartas,
     VoidCallback? onTap,
     VoidCallback? onLike,
     VoidCallback? onInfo,
@@ -66,23 +71,66 @@ void main() {
     home: Scaffold(
       body: ListView(
         children: [
-          SizedBox(
-            height: 120,
-            child: TarjetaTrack(
-              titulo: 'Una canción',
-              subtitulo: 'Un artista',
-              coverUrl: cover,
-              estadoDescarga: EstadoDescarga.ninguno,
-              onTap: onTap,
-              onLike: onLike,
-              onInfo: onInfo,
-              item: cancion,
+          for (var i = 0; i < cartas; i++)
+            SizedBox(
+              height: 120,
+              child: TarjetaTrack(
+                titulo: 'Una canción',
+                subtitulo: 'Un artista',
+                coverUrl: cover,
+                estadoDescarga: EstadoDescarga.ninguno,
+                onTap: onTap,
+                onLike: onLike,
+                onInfo: onInfo,
+                item: cancion,
+              ),
             ),
-          ),
         ],
       ),
     ),
   );
+
+  /// App con una sola tarjeta (en un `ListView` que no tiene para dónde
+  /// scrollear).
+  Widget app({
+    VoidCallback? onTap,
+    VoidCallback? onLike,
+    VoidCallback? onInfo,
+  }) => appLarga(cartas: 1, onTap: onTap, onLike: onLike, onInfo: onInfo);
+
+  /// Un tirón vertical rápido (60 px en 16 ms) sobre la tarjeta [indice].
+  Future<void> flick(WidgetTester tester, double dy, {int indice = 0}) async {
+    final g = await tester.startGesture(
+      tester.getCenter(find.byType(TarjetaTrack).at(indice)),
+    );
+    await g.moveBy(Offset(0, dy), timeStamp: const Duration(milliseconds: 16));
+    await tester.pump(const Duration(milliseconds: 16));
+    await g.up(timeStamp: const Duration(milliseconds: 32));
+    await tester.pumpAndSettle();
+  }
+
+  /// Un arrastre vertical REALISTA sobre la tarjeta [indice]: varios pasos
+  /// chicos en muy poco tiempo (144 px en 48 ms = 3000 px/s, bastante más que
+  /// el umbral del gesto). Es la forma en la que el dedo scrollea la lista.
+  Future<void> arrastrarRapido(
+    WidgetTester tester, {
+    double porPaso = -12,
+    int pasos = 12,
+    int indice = 0,
+  }) async {
+    final g = await tester.startGesture(
+      tester.getCenter(find.byType(TarjetaTrack).at(indice)),
+    );
+    for (var i = 0; i < pasos; i++) {
+      await g.moveBy(
+        Offset(0, porPaso),
+        timeStamp: Duration(milliseconds: 4 * (i + 1)),
+      );
+      await tester.pump(const Duration(milliseconds: 4));
+    }
+    await g.up(timeStamp: Duration(milliseconds: 4 * (pasos + 1)));
+    await tester.pumpAndSettle();
+  }
 
   testWidgets('de fábrica no hay gesto vertical ni de dos toques', (
     tester,
@@ -188,22 +236,23 @@ void main() {
     expect(likes, 1);
   });
 
-  testWidgets('un toque simple sigue reproduciendo con los dos toques activos', (
-    tester,
-  ) async {
-    var taps = 0;
-    accionesRapidas.value = AjustesAccionesRapidas.porDefecto.copyWith(
-      dobleToque: AccionRapida.meGusta,
-    );
-    await tester.pumpWidget(app(onTap: () => taps++));
-    await tester.pump();
+  testWidgets(
+    'un toque simple sigue reproduciendo con los dos toques activos',
+    (tester) async {
+      var taps = 0;
+      accionesRapidas.value = AjustesAccionesRapidas.porDefecto.copyWith(
+        dobleToque: AccionRapida.meGusta,
+      );
+      await tester.pumpWidget(app(onTap: () => taps++));
+      await tester.pump();
 
-    await tester.tap(find.text('Una canción'), warnIfMissed: false);
-    // El doble toque retrasa el simple: hay que dejar vencer su ventana.
-    await tester.pump(const Duration(milliseconds: 500));
+      await tester.tap(find.text('Una canción'), warnIfMissed: false);
+      // El doble toque retrasa el simple: hay que dejar vencer su ventana.
+      await tester.pump(const Duration(milliseconds: 500));
 
-    expect(taps, 1);
-  });
+      expect(taps, 1);
+    },
+  );
 
   /// Arrastra la tarjeta [dx] píxeles en varios pasos: el `drag` de un solo
   /// salto no alcanza el umbral que exige el Dismissible (medido: con 300 px
@@ -262,5 +311,69 @@ void main() {
     await tester.tap(find.text('Una canción'), warnIfMissed: false);
     await tester.pump();
     expect(taps, 1);
+  });
+
+  // ── El flick vertical no puede pisar el scroll de la lista ──
+  //
+  // El bug: con "deslizar arriba/abajo" configurado, un fling normal (scrollear
+  // rápido pasando el dedo por encima de una tarjeta) movía la lista Y además
+  // ejecutaba la acción: la lista se desplazaba de más o de menos y aparecía una
+  // acción que nadie pidió. El gesto ahora sólo cuenta si la lista NO se movió.
+  testWidgets('un fling que scrollea la lista no dispara el gesto', (
+    tester,
+  ) async {
+    var likes = 0;
+    accionesRapidas.value = AjustesAccionesRapidas.porDefecto.copyWith(
+      arriba: AccionRapida.meGusta,
+    );
+    await tester.pumpWidget(appLarga(cartas: 30, onLike: () => likes++));
+    await tester.pump();
+    final posicion =
+        tester.state<ScrollableState>(find.byType(Scrollable).first).position;
+    expect(posicion.pixels, 0, reason: 'la lista arranca arriba de todo');
+
+    // Arrastre rápido hacia arriba sobre una tarjeta: es scroll, no gesto
+    // (la velocidad supera el umbral, así que sin el chequeo de la lista esto
+    // disparaba la acción).
+    await arrastrarRapido(tester, indice: 2);
+
+    expect(
+      posicion.pixels,
+      greaterThan(0),
+      reason: 'la lista se desplaza: es un scroll de verdad',
+    );
+    expect(
+      likes,
+      0,
+      reason:
+          'scrollear no puede ejecutar la acción: era el "scroll falso" '
+          'reportado',
+    );
+  });
+
+  testWidgets('con la lista al final el flick vuelve a ser gesto', (
+    tester,
+  ) async {
+    var likes = 0;
+    accionesRapidas.value = AjustesAccionesRapidas.porDefecto.copyWith(
+      abajo: AccionRapida.meGusta,
+    );
+    await tester.pumpWidget(appLarga(cartas: 8, onLike: () => likes++));
+    await tester.pump();
+
+    final posicion =
+        tester.state<ScrollableState>(find.byType(Scrollable)).position;
+    // Se deja la lista al final: ya no tiene para dónde moverse, así que el
+    // gesto vuelve a ser la única lectura posible del movimiento.
+    posicion.jumpTo(posicion.maxScrollExtent);
+    await tester.pump();
+
+    await flick(tester, 60, indice: 3);
+
+    expect(
+      likes,
+      1,
+      reason: 'en el final de la lista el tirón sí tiene que actuar',
+    );
   });
 }

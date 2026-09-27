@@ -23,6 +23,7 @@ import '../../../../shared/tema/colores_app.dart';
 import '../../../../shared/utilidades/modales/mostrar_modal.dart';
 import '../../../../shared/utilidades/plataforma/pantalla/insets_sistema.dart';
 import '../../../../shared/utilidades/plataforma/responsive.dart';
+import 'release_notas_vista.dart';
 import 'update_info.dart';
 
 // Re-exportado para que los llamadores sigan importando el modelo y el

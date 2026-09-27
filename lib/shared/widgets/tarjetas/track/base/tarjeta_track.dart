@@ -157,8 +157,6 @@ class TarjetaTrack extends StatelessWidget {
               final r = Responsive(context);
               final loc = AppLocalizations.of(context);
               final esOscuro = Theme.of(context).brightness == Brightness.dark;
-              final fg = Colors.white;
-              final colorApagado = Colors.white.withValues(alpha: 0.7);
               final fondoFallback = ColoresApp.superficie(esOscuro);
               final colorIconoFallback = ColoresApp.enSuperficieApagado(
                 esOscuro,
@@ -182,27 +180,45 @@ class TarjetaTrack extends StatelessWidget {
               // Intensidad del color del cover en las cards (0 = card del tema).
               final nivel = prefs.cardsCancion;
 
-              Widget contenido(Color? colorDominante) => _cuerpoTarjetaTrack(
-                this,
-                context,
-                r,
-                loc,
-                esOscuro,
-                fg,
-                colorApagado,
-                fondoFallback,
-                colorIconoFallback,
-                tamanoIcono,
-                escalaTexto,
-                efectosPesados,
-                // El color entra como capa de tinte con la opacidad de la
-                // intensidad: la carátula nunca se borra.
-                colorDominante: EstiloHelper.acentoDeTinte(
+              // Las letras se calculan CON el color del cover ya resuelto: con
+              // una carátula clara al 100% la card queda clara y el blanco de
+              // fábrica desaparecía sobre ella.
+              //
+              // El fondo que se le pasa NO es la superficie del tema sino la
+              // base real de la card (`baseBajoCover`, el velo oscuro que
+              // existe en los dos temas): con la superficie, en tema claro el
+              // cálculo daba un fondo claro que no existe y el texto pasaba a
+              // negro sobre ese velo, donde no se ve.
+              Widget contenido(Color? colorDominante) {
+                final fg = EstiloHelper.textoDeTinte(
                   colorDominante,
+                  ColoresApp.baseBajoCover(esOscuro),
                   nivel,
-                ),
-                nivel: nivel,
-              );
+                  fgTema: Colors.white,
+                );
+                final colorApagado = fg.withValues(alpha: 0.7);
+                return _cuerpoTarjetaTrack(
+                  this,
+                  context,
+                  r,
+                  loc,
+                  esOscuro,
+                  fg,
+                  colorApagado,
+                  fondoFallback,
+                  colorIconoFallback,
+                  tamanoIcono,
+                  escalaTexto,
+                  efectosPesados,
+                  // El color entra como capa de tinte con la opacidad de la
+                  // intensidad: la carátula nunca se borra.
+                  colorDominante: EstiloHelper.acentoDeTinte(
+                    colorDominante,
+                    nivel,
+                  ),
+                  nivel: nivel,
+                );
+              }
 
               final Widget tarjeta;
               // `colorPorTarjetaActivo`: en equipos que no llegan al ritmo, el

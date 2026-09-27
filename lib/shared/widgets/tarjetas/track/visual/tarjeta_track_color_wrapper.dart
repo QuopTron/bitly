@@ -50,7 +50,10 @@ class _TarjetaTrackColorWrapperState extends State<_TarjetaTrackColorWrapper> {
       final paleta = await paletaParaPortadaDiferida(widget.coverUrl);
       if (mounted) {
         setState(() {
-          _color = paleta?.dominante;
+          // `acentoTinte` = el color que de verdad domina en el arte. Con un
+          // cover blanco o negro puro no hay tono que sacar: devuelve el
+          // dominante neutro (antes se le inventaba un color y salía rojo).
+          _color = paleta?.acentoTinte;
         });
       }
     } catch (e) {

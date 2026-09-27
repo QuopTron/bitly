@@ -100,6 +100,7 @@ Widget _cuerpoTarjeta(
               esOscuro,
               acento,
               nivel,
+              fg,
             ),
           ),
           // Primer plano: portada nítida + bloque de info debajo.
@@ -123,7 +124,7 @@ Widget _cuerpoTarjeta(
                     child: SingleChildScrollView(
                       key: ValueKey('info_${t.tipo}'),
                       physics: const NeverScrollableScrollPhysics(),
-                      child: _bloqueInfoDe(t, context, r, ts),
+                      child: _bloqueInfoDe(t, context, r, ts, fg),
                     ),
                   ),
                 ),

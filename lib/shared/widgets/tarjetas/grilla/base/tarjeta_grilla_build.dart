@@ -22,7 +22,7 @@ Widget _construirTarjetaGrilla(TarjetaGrilla t, BuildContext context) {
             final r = Responsive(context);
             final esOscuro = Theme.of(context).brightness == Brightness.dark;
             final fondoFallback = ColoresApp.superficie(esOscuro);
-            final fg = ColoresApp.enSuperficie(esOscuro);
+            final fgTema = ColoresApp.enSuperficie(esOscuro);
             final ts = t.escalaTexto;
             // Las sombras con blur son el resto caro que queda en gama baja
             // (un `MaskFilter.blur` por tarjeta y por frame). Se consulta
@@ -87,22 +87,41 @@ Widget _construirTarjetaGrilla(TarjetaGrilla t, BuildContext context) {
                 builder: (context, constraints) {
                   /// El acento entra como capa de tinte con la opacidad de la
                   /// intensidad (la portada de fondo nunca se borra).
-                  Widget cuerpo(Color? dominante) => _cuerpoTarjeta(
-                    t,
-                    context,
-                    constraints,
-                    r,
-                    esOscuro,
-                    fondoFallback,
-                    fg,
-                    ts,
-                    efectosPesados,
-                    colorDominante: EstiloHelper.acentoDeTinte(
+                  Widget cuerpo(Color? dominante) {
+                    // Las letras van CON el color ya resuelto, y contra la base
+                    // REAL de la card (`baseBajoCover`, el velo oscuro que
+                    // existe en los dos temas): la superficie del tema es
+                    // blanca en tema claro, y con ella el cálculo daba un fondo
+                    // claro inexistente y las letras pasaban a negro sobre ese
+                    // velo.
+                    //
+                    // Ojo: es el `fg` del BORDE y del piso de la card. El
+                    // bloque de info sigue en blanco a propósito
+                    // (tarjeta_grilla_info): el degradado inferior es opaco y
+                    // le garantiza un fondo oscuro en cualquier tema.
+                    final fg = EstiloHelper.textoDeTinte(
                       dominante,
+                      ColoresApp.baseBajoCover(esOscuro),
                       nivel,
-                    ),
-                    nivel: nivel,
-                  );
+                      fgTema: fgTema,
+                    );
+                    return _cuerpoTarjeta(
+                      t,
+                      context,
+                      constraints,
+                      r,
+                      esOscuro,
+                      fondoFallback,
+                      fg,
+                      ts,
+                      efectosPesados,
+                      colorDominante: EstiloHelper.acentoDeTinte(
+                        dominante,
+                        nivel,
+                      ),
+                      nivel: nivel,
+                    );
+                  }
 
                   if (nivel > 0 &&
                       t.colorDominante == null &&

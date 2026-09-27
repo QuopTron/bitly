@@ -3,6 +3,14 @@
 // bloque "Diseño" (separación de las cards/grillas y su redondeo,
 // con la vista previa) y el tema/idioma.
 //
+// Ojo con los dos "Personalizado" de este archivo:
+//   · `personalizado`      → el chip "A medida" que avisa que un control salió
+//                            del diseño de fábrica (lo pone la interfaz sola),
+//   · `avanzadoTitulo` y   → el desplegable donde se afina POR COSA, con su
+//     `escalaAvanzadoTitulo`   burbujita por componente. Se llama personalizar
+//                            justamente por eso: antes decía "Avanzado" y no
+//                            explicaba nada.
+//
 // El espacio "Barras" tiene su archivo (strings_apariencia_barras.dart,
 // acá dentro como `barras`) y el cofre de paletas el suyo
 // (strings_cofre_paletas.dart, en AppLocalizations como `cofre`).
@@ -105,11 +113,11 @@ class StringsApariencia {
         'Cuánto espacio hay entre las cards. En 0 se pegan (tipo Spotify) y queda una línea finita que las divide; en 1 se ven como vienen.',
     separacionX: 'Horizontal',
     separacionY: 'Vertical',
-    avanzadoTitulo: 'Avanzado',
-    avanzadoAyuda: 'Separá las cards de canción de las grillas para afinarlas.',
+    avanzadoTitulo: 'Personalizado',
+    avanzadoAyuda: 'Elegí con qué empezar y movelo solo, sin tocar el resto.',
     avanzadoCancion: 'Cards de canción',
-    avanzadoGrilla: 'Cards de grilla (álbum, playlist, artista)',
-    personalizado: 'Personalizado',
+    avanzadoGrilla: 'Cards de grilla',
+    personalizado: 'A medida',
     radioTitulo: 'Redondeo de las cards',
     radioAyuda:
         'Qué tan curvas son las esquinas de las cards. En 0 quedan cuadradas.',
@@ -119,7 +127,7 @@ class StringsApariencia {
     iconosTitulo: 'Tamaño de los iconos',
     iconosAyuda:
         'Agranda o achica los iconos de las tarjetas y las barras, para que acompañen a las letras.',
-    escalaAvanzadoTitulo: 'Avanzado (por separado)',
+    escalaAvanzadoTitulo: 'Personalizado',
     escalaAvanzadoAyuda:
         'Los dos controles de arriba mueven todo junto. Acá agrandás una sola cosa: por ejemplo los títulos sin tocar los textos.',
     escalaGrupoLetras: 'Letras',
@@ -130,7 +138,7 @@ class StringsApariencia {
     escalaTextosAyuda:
         'Lo que va debajo del título: el artista, el año y los datos de la fila.',
     escalaGrupoIconos: 'Iconos',
-    escalaIconosCards: 'De las tarjetas',
+    escalaIconosCards: 'De las cards',
     escalaIconosCardsAyuda:
         'Los botones de cada fila: me gusta, descargar, compartir e información.',
     escalaIconosBarras: 'De las barras',
@@ -154,11 +162,12 @@ class StringsApariencia {
         'How much space sits between cards. At 0 they join Spotify-style with a thin line between them; at 1 they look like the app ships.',
     separacionX: 'Horizontal',
     separacionY: 'Vertical',
-    avanzadoTitulo: 'Advanced',
-    avanzadoAyuda: 'Split song cards from grid cards to fine-tune them.',
+    avanzadoTitulo: 'Custom',
+    avanzadoAyuda:
+        'Pick one thing and move it on its own, without touching the rest.',
     avanzadoCancion: 'Song cards',
-    avanzadoGrilla: 'Grid cards (album, playlist, artist)',
-    personalizado: 'Custom',
+    avanzadoGrilla: 'Grid cards',
+    personalizado: 'Adjusted',
     radioTitulo: 'Card roundness',
     radioAyuda: 'How round the card corners are. At 0 they become square.',
     letrasTitulo: 'Text size',
@@ -167,7 +176,7 @@ class StringsApariencia {
     iconosTitulo: 'Icon size',
     iconosAyuda:
         'Scales the icons on cards and bars so they follow the text size.',
-    escalaAvanzadoTitulo: 'Advanced (one by one)',
+    escalaAvanzadoTitulo: 'Custom',
     escalaAvanzadoAyuda:
         'The two controls above move everything together. Here you can grow a single thing: titles without touching the secondary text, for example.',
     escalaGrupoLetras: 'Text',

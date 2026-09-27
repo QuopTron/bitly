@@ -95,7 +95,10 @@ import '../../../shared/utilidades/formato/apariencia/visual/apariencia_muestra_
 import '../../../shared/widgets/barras/barra_adornada.dart';
 import '../../../shared/utilidades/formato/apariencia/barras/apariencia_espacios_helper.dart';
 import '../../../shared/utilidades/formato/apariencia/base/apariencia_helper.dart';
+import 'apariencia/general/piezas/burbujas_personalizado.dart';
+import 'vistas/base/ajustes_marco.dart';
 import 'apariencia/general/piezas/tarjeta_acciones_rapidas.dart';
+import '../update/base/release_notas_vista.dart';
 part 'base/entrada/settings_sheet_entry.dart';
 
 part 'apariencia/general/base/settings_sheet_background.dart';

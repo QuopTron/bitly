@@ -1,6 +1,12 @@
 // ─────────────────────────────────────────────────────────────
-// update_sheet_acciones.dart — PART de update_modal.dart: notas de la release y botones de acción (descargar e instalar / ahora no) de la hoja de actualización.
-// Se conecta con: update_modal.dart (misma library) + update_sheet_ui.
+// update_sheet_acciones.dart — PART de update_modal.dart: notas de la release
+// y botones de acción (descargar e instalar / ahora no) de la hoja de
+// actualización.
+//
+// Las notas se dibujan con NotasReleaseVista (secciones + viñetas, un solo
+// idioma), no con el markdown crudo dentro de un `Text`.
+// Se conecta con: update_modal.dart (misma library) + update_sheet_ui +
+// release_notas_vista.
 // Parte del flujo: Ajustes → Versión → actualización (acciones).
 // ─────────────────────────────────────────────────────────────
 
@@ -23,15 +29,14 @@ Widget _notasActualizacion(
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: borde),
       ),
-      child: Text(
-        st.widget.info.body,
-        style: TextStyle(
-          fontSize: r.footerSize,
-          color: sobreFondo.withValues(alpha: 0.7),
-          height: 1.5,
-        ),
-        maxLines: 8,
-        overflow: TextOverflow.ellipsis,
+      child: NotasReleaseVista(
+        cuerpo: st.widget.info.body,
+        version: st.widget.info.version,
+        colorTexto: sobreFondo.withValues(alpha: 0.75),
+        colorTitulo: sobreFondo,
+        colorPunto: ColoresApp.exito,
+        tamano: r.footerSize,
+        maxItems: 4,
       ),
     ),
   );
@@ -73,8 +78,7 @@ Widget _botonesActualizacion(
             yaBajada
                 ? st._instalarLoBajado
                 : (enAndroid ? st._descargarEnFondo : st._descargarEInstalar),
-        icono:
-            yaBajada ? Icons.install_mobile_rounded : Icons.download_rounded,
+        icono: yaBajada ? Icons.install_mobile_rounded : Icons.download_rounded,
         texto: yaBajada ? u.instalar : u.descargar,
         color: ColoresApp.exito,
       ),

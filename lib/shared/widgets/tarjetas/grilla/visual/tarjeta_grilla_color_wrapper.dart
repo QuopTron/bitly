@@ -51,7 +51,8 @@ class _TarjetaGrillaColorWrapperState
       final paleta = await paletaParaPortadaDiferida(widget.coverUrl);
       if (mounted) {
         setState(() {
-          _color = paleta?.dominante;
+          // `acentoTinte` = el color que de verdad domina en el arte.
+          _color = paleta?.acentoTinte;
         });
       }
     } catch (e) {
