@@ -54,10 +54,12 @@ Widget _campoRescate(
   style: TextStyle(color: onBg, fontSize: r.subtitleSize - 1),
 );
 
-/// Los dos campos de la instancia propia + el guardado.
+/// Los campos avanzados (instancia propia de cobalt + proxy del rescate) y el
+/// guardado.
 List<Widget> _cuerpoCobaltRescate({
   required TextEditingController instancia,
   required TextEditingController clave,
+  required TextEditingController proxy,
   required bool guardado,
   required StringsRescate t,
   required Color onBg,
@@ -103,6 +105,31 @@ List<Widget> _cuerpoCobaltRescate({
     ),
     SizedBox(height: r.spacingS),
     _textoAyuda(t.cobaltAyuda, onBg, r, alpha: 0.35),
+    SizedBox(height: r.spacingM),
+    // Proxy del rescate: aplica a TODO el egreso de flac-rescue (espejos,
+    // sitios raspables, canal sin pérdida y claves firmadas).
+    _campoRescate(
+      proxy,
+      t.proxyLabel,
+      t.proxyHint,
+      onBg,
+      r,
+      onChanged: onCampoCambiado,
+      onGuardar: onGuardar,
+    ),
+    if (proxy.text.trim().isNotEmpty &&
+        !AjustesRescate.proxyValido(proxy.text)) ...[
+      SizedBox(height: r.spacingXS),
+      Text(
+        t.proxyInvalido,
+        style: TextStyle(
+          fontSize: r.footerSize - 2,
+          color: Colors.red.shade400,
+        ),
+      ),
+    ],
+    SizedBox(height: r.spacingS),
+    _textoAyuda(t.proxyAyuda, onBg, r, alpha: 0.35),
     SizedBox(height: r.spacingS),
     Row(
       children: [

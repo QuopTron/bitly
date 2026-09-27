@@ -30,10 +30,12 @@ import 'strings/comun/strings_fechas.dart';
 import 'strings/sistema/app/strings_premium.dart';
 import 'strings/ajustes/apariencia/strings_apariencia.dart';
 import 'strings/ajustes/apariencia/strings_apariencia_estilo.dart';
+import 'strings/ajustes/apariencia/strings_acciones_rapidas.dart';
 import 'strings/ajustes/cofre/strings_cofre_paletas.dart';
 import 'strings/ajustes/cofre/strings_cofre_paletas_idiomas.dart';
 import 'strings/reproduccion/descargas/strings_descargas.dart';
 import 'strings/reproduccion/base/strings_letras.dart';
+import 'strings/sistema/info/strings_info_cancion.dart';
 import 'strings/sistema/datos/strings_estadisticas.dart';
 import 'strings/conexion/red/strings_red.dart';
 import 'strings/onboarding/pasos/strings_splash.dart';
@@ -44,6 +46,7 @@ import 'strings/conexion/sesiones/strings_conexion_novedades.dart';
 import 'strings/conexion/red/strings_conexion_red.dart';
 import 'strings/conexion/red/strings_conexion_red_progreso.dart';
 import 'strings/reproduccion/descargas/strings_rescate.dart';
+import 'strings/reproduccion/descargas/strings_pool_qobuz.dart';
 import 'strings/fiesta/strings_fiesta.dart';
 import 'strings/onboarding/pasos/strings_tutorial_interactivo.dart';
 
@@ -55,6 +58,8 @@ export 'strings/onboarding/base/strings_setup.dart';
 export 'strings/ajustes/apariencia/strings_apariencia.dart';
 // Los textos del estilo visual y los componentes se exportan igual.
 export 'strings/ajustes/apariencia/strings_apariencia_estilo.dart';
+// Y los de la burbuja de acciones rápidas (StringsAccionesRapidas).
+export 'strings/ajustes/apariencia/strings_acciones_rapidas.dart';
 // Y los del cofre de paletas (StringsCofrePaletas).
 export 'strings/ajustes/cofre/strings_cofre_paletas.dart';
 // Y los datos de sus dos idiomas (cofreEs / cofreEn).
@@ -87,6 +92,7 @@ export 'strings/comun/strings_fechas.dart';
 export 'strings/sistema/app/strings_premium.dart';
 // Los textos del karaoke (traducción) se exportan igual.
 export 'strings/reproduccion/base/strings_letras.dart';
+export 'strings/sistema/info/strings_info_cancion.dart';
 // Los de la burbuja Conexión también (StringsConexion).
 export 'strings/conexion/sesiones/strings_conexion.dart';
 // Y los del aviso de novedades (StringsConexionNovedades).
@@ -99,6 +105,8 @@ export 'strings/conexion/red/strings_conexion_red_progreso.dart';
 export 'strings/fiesta/strings_fiesta.dart';
 // Y los del rescate sin pérdida (StringsRescate).
 export 'strings/reproduccion/descargas/strings_rescate.dart';
+// Y los del estado del pool de Qobuz (StringsPoolQobuz).
+export 'strings/reproduccion/descargas/strings_pool_qobuz.dart';
 
 part 'app_localizations_inicializar.dart';
 part 'app_localizations_delegate.dart';
@@ -114,6 +122,8 @@ class AppLocalizations {
   late final StringsDescargas descargas;
   late final StringsApariencia apariencia;
   late final StringsAparienciaEstilo aparienciaEstilo;
+  late final StringsAccionesRapidas accionesRapidas;
+  late final StringsInfoCancion infoCancion;
   late final StringsCofrePaletas cofre;
   late final StringsAjustes ajustes;
   late final StringsConexionGoogle google;
@@ -136,6 +146,7 @@ class AppLocalizations {
   late final StringsConexionRed redConexion;
   late final StringsTraspaso traspasoConexion;
   late final StringsRescate rescate;
+  late final StringsPoolQobuz poolQobuz;
   late final StringsFiesta fiesta;
 
   /// El bloque de textos se elige por idioma (es/en) en la inicialización.

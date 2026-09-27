@@ -29,8 +29,10 @@ func streamPackageFallback(params *streamPackageParams) string {
 	// necesita completarse para streamear). Se recuerda abajo para que el
 	// chance first: a playing song always beats a verification modal.
 	// EL CANAL SIN PÉRDIDA ARRANCA YA, en paralelo con el camino rápido: con
-	// calidad sin pérdida y un ISRC conocido, el FLAC (arcod) tarda ~0,6 s y no
-	// puede quedar esperando a que el camino rápido termine de decidir.
+	// calidad sin pérdida el FLAC (arcod) tarda ~0,6 s y no puede quedar
+	// esperando a que el camino rápido termine de decidir. Si el pedido no
+	// trae ISRC (YouTube/SoundCloud), el canal lo deriva en paralelo y su
+	// ventana es algo más larga (ver VentanaSinPerdidaDerivada).
 	chSinPerdida := abrirCanalSinPerdida(params)
 	var preferredVerify *streaming.VerifyRequiredError
 	if streaming.IsFullStreamProvider(params.PreferredProvider) {

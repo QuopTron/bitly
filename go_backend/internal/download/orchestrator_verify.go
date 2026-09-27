@@ -71,15 +71,7 @@ func confirmarMatchDescarga(p provider.Provider, trackID, isrc, queryTitle, quer
 // colon-bearing value is passed through untouched, mirroring the reference
 // middleware's trimKnownProviderPrefix behavior.
 func quitarPrefijoTrack(id string) string {
-	i := strings.IndexByte(id, ':')
-	if i <= 0 || i >= len(id)-1 {
-		return id
-	}
-	switch strings.ToLower(id[:i]) {
-	case "spotify", "deezer", "tidal", "qobuz", "amazon", "soundcloud", "apple", "youtube":
-		return id[i+1:]
-	}
-	return id
+	return provider.TrimKnownProviderPrefix(id)
 }
 
 // spotifyTrackIDRe matches Spotify's canonical 22-char base62 track IDs.

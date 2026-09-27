@@ -1,5 +1,7 @@
 package gobackend
 
+import prov "github.com/zarz/bitly/go_backend/internal/provider"
+
 func extraerTracksDetalle(m map[string]interface{}, source string) []detailTrack {
 	lists := []string{"tracks", "track_list", "songs", "items", "data", "top_tracks", "topTracks", "top-songs"}
 	for _, key := range lists {
@@ -32,9 +34,9 @@ func extraerTracksDetalle(m map[string]interface{}, source string) []detailTrack
 			result = append(result, detailTrack{
 				TrackID:     tid,
 				Name:        tname,
-				DurationMs:  intDetalle(tm, "duration_ms", "durationMs"),
+				DurationMs:  prov.DuracionDeCampo(tm, "duration_ms", "durationMs", "duration"),
 				TrackNumber: intDetalle(tm, "track_number", "trackNumber"),
-				ISRC:        stringDetalle(tm, "isrc"),
+				ISRC:        prov.ISRCDeCampo(tm),
 				CoverURL:    portadaDetalle(tm),
 				ArtistName:  stringDetalle(tm, "artists", "artist", "artist_name"),
 				AlbumName:   stringDetalle(tm, "album_name", "album", "albumName"),

@@ -17,12 +17,19 @@
 // el ancho lógico quedó por debajo del mínimo soportado, escala TODA la UI para
 // que entre sin desbordar. El diseño no cambia: nada más no se rompe.
 //
-// Se conecta con: app.dart (lo aplica a TODAS las pantallas, setup incluido) y
+// Además de proteger el layout, acá se aplica el TAMAÑO DE LETRA elegido en
+// Ajustes → Apariencia (ver escala_ui.dart): multiplica al del sistema, así que
+// respeta la accesibilidad del teléfono en vez de pisarla.
+//
+// Se conecta con: app.dart (lo aplica a TODAS las pantallas, setup incluido),
+// escala_ui (la preferencia del usuario) y
 // features/tutorial_interactivo/overlay (acota además su propia tarjeta).
 // Parte del flujo: presentación (protección de layout global).
 // ─────────────────────────────────────────────────────────────
 
 import 'package:flutter/material.dart';
+
+import 'escala_ui.dart';
 
 /// Escala mínima aceptada. El sistema casi nunca baja de 1, pero una app
 /// web/escritorio puede llegar con 0.8 y el texto quedaría ilegible.
@@ -31,6 +38,15 @@ const double escalaTextoMinima = 0.9;
 /// Escala máxima: por encima de esto los diseños de tamaño fijo (tarjetas,
 /// filas de botones, grillas) se desbordan y dejan botones fuera de alcance.
 const double escalaTextoMaxima = 1.3;
+
+/// Tamaño de referencia para traducir el escalador del sistema (que puede ser
+/// no lineal) a un factor único: "cuántas veces el tamaño de un texto de 14".
+const double _tamanoReferencia = 14;
+
+/// Techo ABSOLUTO de la escala de texto: el del sistema (1.3) multiplicado por
+/// el máximo que puede elegir el usuario en Apariencia (1.4). Se acota acá
+/// también para que ni la combinación de los dos rompa el layout.
+const double escalaTextoMaximaAbsoluta = escalaTextoMaxima * 1.4;
 
 /// Ancho lógico mínimo que sabe soportar el diseño (el de un celular chico
 /// estándar). Por debajo de esto se escala la UI en vez de dejar que se
@@ -51,11 +67,27 @@ Widget acotarEscalaTexto({
   );
 }
 
-/// Escala de texto del sistema ya acotada al rango soportado.
+/// Escala de texto final del árbol: la del SISTEMA (acotada) multiplicada por
+/// la que eligió el usuario en Ajustes → Apariencia.
+///
+/// Por qué se multiplican y no se pisa una a la otra: si el usuario subió el
+/// tamaño de fuente del teléfono (accesibilidad) y además elige 1.2 en la app,
+/// lo que espera es "un poco más grande que como lo dejó", no perder su ajuste
+/// del sistema. El resultado se acota al techo absoluto para que la suma de los
+/// dos nunca desborde los diseños de tamaño fijo.
 TextScaler _escalaAcotada(BuildContext context) {
-  return MediaQuery.textScalerOf(context).clamp(
-    minScaleFactor: escalaTextoMinima,
-    maxScaleFactor: escalaTextoMaxima,
+  final sistema = MediaQuery.textScalerOf(
+    context,
+  ).clamp(minScaleFactor: escalaTextoMinima, maxScaleFactor: escalaTextoMaxima);
+  final usuario = EscalaUi.texto.value;
+  // Sin preferencia (lo normal), se devuelve EXACTAMENTE el escalador del
+  // sistema: ni una vista cambia por tener esta función en el medio.
+  if ((usuario - 1).abs() < 0.001) return sistema;
+
+  final factor =
+      (sistema.scale(_tamanoReferencia) / _tamanoReferencia) * usuario;
+  return TextScaler.linear(
+    factor.clamp(escalaTextoMinima, escalaTextoMaximaAbsoluta),
   );
 }
 

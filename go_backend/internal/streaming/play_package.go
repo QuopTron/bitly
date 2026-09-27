@@ -28,10 +28,51 @@ func GetStreamPackage(
 	// se compone de metadata + atajo al proveedor preferido + rescate por fases.
 	// Sin estos tres números no se puede saber cuál se come los segundos.
 	inicioPkg := time.Now()
-	track := obtenerMetadata(reg, preferredProvider, trackID, trackName, artistName, isrc, spotifyID, deezerID, tidalID, qobuzID)
-	log.Printf("[play] metadata %.0fms (prov=%q track=%v isrc=%v)",
-		float64(time.Since(inicioPkg).Microseconds())/1000, preferredProvider, track != nil,
-		track != nil && track.ISRC != "")
+
+	// ── LA METADATA CORRE EN PARALELO, NO DELANTE ───────────────────────────
+	// Antes era un paso SERIAL previo al atajo y al rescate, así que su tiempo
+	// entero se sumaba al pedido aunque el audio estuviera a la vuelta de la
+	// esquina. Con el arnés real (TestStreamDiagE2E) eso era el caso
+	// amazon→Percuma: metadata 2,49s + rescate 2,22s = 4,71s de punta a punta,
+	// cuando el rescate ya tenía el stream a los 2,22s. El comentario de este
+	// flujo dice desde siempre que la metadata es "una mejora, nunca un
+	// requisito"; ahora el código lo cumple.
+	//
+	// La identidad con la que se BUSCA el audio sale del PEDIDO (título, artista,
+	// ISRC y ids cross-proveedor que ya manda la UI), que es exactamente lo que el
+	// usuario tocó. La metadata solo AGREGA datos ricos (portada, álbum, ids
+	// traducidos) y se cosecha al final, cuando el stream ya está resuelto.
+	chMeta := make(chan *provider.TrackResult, 1)
+	go func() {
+		defer func() {
+			// Una extensión que paniquea no puede tumbar la reproducción NI dejar
+			// el canal sin respuesta: el pedido sin identidad propia ESPERA este
+			// canal, así que un worker muerto sin enviar sería un cuelgue.
+			if r := recover(); r != nil {
+				log.Printf("[play] metadata: pánico en la fase de identidad: %v", r)
+				chMeta <- nil
+			}
+		}()
+		inicioMeta := time.Now()
+		t := obtenerMetadata(reg, preferredProvider, trackID, trackName, artistName, isrc, spotifyID, deezerID, tidalID, qobuzID)
+		log.Printf("[play] metadata %.0fms (prov=%q track=%v isrc=%v)",
+			float64(time.Since(inicioMeta).Microseconds())/1000, preferredProvider,
+			t != nil, t != nil && t.ISRC != "")
+		chMeta <- t
+	}()
+
+	// Cosecha sin espera: la metadata ya resuelta para este pedido (tap repetido,
+	// prefetch, vecino de cola) está en memoria y mirarla es gratis — no se abre
+	// ninguna ventana por algo que ya está.
+	track := metadataCacheadaDelPedido(isrc, spotifyID, deezerID, tidalID, qobuzID, trackID, trackName, artistName)
+	// Excepción a la regla: si el pedido NO trae el QUÉ buscar (título o
+	// artista), esta fase es la ÚNICA fuente de la consulta. Sin ella el rescate
+	// por nombre y el video oficial no tienen con qué arrancar, así que acá sí se
+	// la espera. Sus llamadas ya vienen acotadas por presupuesto
+	// (ver play_metadata_limite.go).
+	if track == nil && (trackName == "" || artistName == "") {
+		track = <-chMeta
+	}
 	if track != nil {
 		if trackName == "" {
 			trackName = track.Title
@@ -40,15 +81,20 @@ func GetStreamPackage(
 			artistName = track.Artist
 		}
 	}
-	// Identidad para el RESCATE: la del proveedor cuando la metadata llegó a
-	// tiempo y, si no, la del propio PEDIDO. La metadata se acota por presupuesto
-	// (ver play_metadata_limite.go) y puede volver vacía sin que eso signifique
-	// "sin identidad": la UI ya manda el ISRC/los ids. Sin este fallback, una
-	// extensión lenta se llevaba por delante la fase exacta por ISRC y el rescate
-	// FLAC. `track` queda intacto a propósito: más abajo es lo que llena pkg.Track
-	// con los datos ricos (portada, álbum) del proveedor ganador.
+	// Identidad para el RESCATE: la del proveedor cuando la metadata llegó (o ya
+	// estaba cacheada) y, si no, la del propio PEDIDO. La UI ya manda el ISRC/los
+	// ids, así que una metadata vacía NO significa "sin identidad". Sin este
+	// fallback, una extensión lenta se llevaba por delante la fase exacta por
+	// ISRC y el rescate FLAC. `track` queda intacto a propósito: más abajo es lo
+	// que llena pkg.Track con los datos ricos (portada, álbum) del proveedor
+	// ganador.
+	//
+	// Se arma también cuando el pedido solo trae título/artista (sin ids): esa
+	// identidad no alcanza para resolver por id, pero SÍ para que el rescate
+	// derive el ISRC en vuelo (provider.DerivarISRC) y habilite la fase exacta
+	// —que es justo lo que antes aportaba la metadata al llegar.
 	trackIdentidad := track
-	if trackIdentidad == nil && (isrc != "" || spotifyID != "" || deezerID != "" || tidalID != "" || qobuzID != "") {
+	if trackIdentidad == nil && (trackName != "" || artistName != "" || isrc != "" || spotifyID != "" || deezerID != "" || tidalID != "" || qobuzID != "") {
 		trackIdentidad = &provider.TrackResult{
 			ID:        quitarPrefijoConocido(trackID),
 			Title:     trackName,
@@ -78,7 +124,7 @@ func GetStreamPackage(
 	streamProvider := ""
 	if preferredProvider != "" && esProviderStreaming(preferredProvider) {
 		inicioAtajo := time.Now()
-		url, err := intentarStream(reg, preferredProvider, trackID, track, quality)
+		url, err := intentarStream(reg, preferredProvider, trackID, trackIdentidad, quality)
 		log.Printf("[play] atajo propio %.0fms -> ok=%v err=%v",
 			float64(time.Since(inicioAtajo).Microseconds())/1000, url != "", err)
 		if err == nil && url != "" {
@@ -88,7 +134,10 @@ func GetStreamPackage(
 	}
 
 	if streamURL == "" {
-		url, prov, attempted, verified := rescueStream(reg, trackIdentidad, trackName, artistName, quality)
+		// identidadProbada=false: acá NO corrió la fase de identificadores de
+		// RescueStreamURL — el atajo propio sondeó un solo proveedor, no la
+		// identidad contra todas las fuentes de audio.
+		url, prov, attempted, verified := rescueStream(reg, trackIdentidad, trackName, artistName, quality, false)
 		if url != "" {
 			streamURL = url
 			streamProvider = prov
@@ -109,6 +158,18 @@ func GetStreamPackage(
 	// player never loops "Error decoding audio"; only http(s) URLs stream.
 	if !esURLReproducible(streamURL) {
 		return nil, fmt.Errorf("stream no reproducible en %s (encriptado)", streamProvider)
+	}
+
+	// Cosecha de la metadata que quedó EN VUELO: el audio ya está resuelto, así
+	// que acá solo se decide con qué se completa el paquete. La gracia es corta y
+	// acotada a propósito (ver esperaMetadataTardia): evita que un paquete salga
+	// sin track y dispare una búsqueda por nombre nueva después de haber
+	// resuelto la reproducción. Si la metadata no llega, se sigue sin ella.
+	if track == nil {
+		select {
+		case track = <-chMeta:
+		case <-time.After(esperaMetadataTardia):
+		}
 	}
 
 	pkg := &StreamPackage{

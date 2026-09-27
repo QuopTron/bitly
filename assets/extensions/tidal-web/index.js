@@ -80,11 +80,144 @@ function metadataCacheSet(key, value, ttlMs) {
   return value;
 }
 
+// ORIGEN_TOKEN_TIDAL publica el token de cliente de TIDAL y lo ROTA cuando
+// TIDAL lo cambia (mismo origen que la app usa para las claves de Qobuz). Sin
+// esto, el token de fábrica queda viejo y metadata/search empiezan a responder
+// 401 hasta que alguien lo pegue a mano en Ajustes. El usuario puede apuntarlo a
+// otro origen con el ajuste publicToken de todos modos.
+var ORIGEN_TOKEN_TIDAL = "https://flacdownloader.com/api/tidal/keys";
+
+// FACTORY_PUBLIC_TOKEN es el token con el que se empaqueta la extensión. Si el
+// usuario NO lo cambió (settings trae este mismo valor o vacío), el token es
+// "automático": se guarda el último bueno y se refresca PEREZOSAMENTE, solo
+// cuando la API lo rechaza (401/403).
+var FACTORY_PUBLIC_TOKEN = "49YxDN9a2aFV6RTG";
+
+// ── Refresco PEREZOSO del token público ─────────────────────────────────────
+// Antes initialize() consultaba el origen en CADA arranque. Eso metía una
+// petición a un tercero en cada arranque y, si el origen estaba caído, la
+// primera llamada quedaba esperando hasta el timeout de red. Ahora el token se
+// pide UNA vez (cuando no hay ninguno guardado) y de nuevo solo si la API lo
+// rechaza con 401/403: se guarda el último bueno en storage y se usa hasta que
+// TIDAL lo rechace, momento en el que se refresca y se reintenta esa petición.
+var CLAVE_TOKEN_PUBLICO = "tidal_public_token";
+
+// Cooldown tras consultar el origen (éxito o fracaso). Si TIDAL sigue
+// rechazando, no se martilla un origen de terceros en cada petición.
+var PUBLIC_TOKEN_REINTENTO_MIN_MS = 5 * 60 * 1000;
+var publicTokenUltimoIntentoMs = 0;
+
+// publicTokenEsDelUsuario es true cuando el token lo puso el usuario a mano. En
+// ese caso no se pisa ni se consulta el origen: es su credencial y manda.
+var publicTokenEsDelUsuario = false;
+
+// cargarPublicTokenGuardado lee el último token automático que sirvió. Devuelve
+// {token, countryCode} o null. Best-effort: sin storage o con JSON roto, null.
+function cargarPublicTokenGuardado() {
+  try {
+    if (typeof storage === "undefined" || !storage) return null;
+    var crudo = storage.get(CLAVE_TOKEN_PUBLICO);
+    if (!crudo) return null;
+    var datos = JSON.parse(String(crudo));
+    var token = String((datos && datos.token) || "").trim();
+    if (!token) return null;
+    return {
+      token: token,
+      countryCode: String((datos && datos.countryCode) || "")
+        .trim()
+        .toUpperCase(),
+    };
+  } catch (e) {
+    return null;
+  }
+}
+
+// guardarPublicTokenGuardado persiste el token para el próximo arranque, que así
+// no vuelve a consultar el origen. Best-effort: si falla, el token igual quedó en
+// CONFIG para esta sesión.
+function guardarPublicTokenGuardado(token, countryCode) {
+  try {
+    if (typeof storage === "undefined" || !storage) return;
+    storage.set(
+      CLAVE_TOKEN_PUBLICO,
+      JSON.stringify({ token: token, countryCode: countryCode || "" }),
+    );
+  } catch (e) {
+    // Persistir es best-effort.
+  }
+}
+
+// fetchPublicToken consulta el origen y devuelve {token, countryCode} o null.
+// Best-effort: si el origen está caído o responde otra cosa, devuelve null y
+// queda el token actual.
+function fetchPublicToken() {
+  try {
+    var response = http.get(ORIGEN_TOKEN_TIDAL, {
+      Accept: "application/json",
+      "User-Agent": requestUserAgent(),
+    });
+    if (!response || response.error || response.statusCode !== 200) {
+      return null;
+    }
+    var data = JSON.parse(response.body);
+    var token = String((data && data.token) || "").trim();
+    if (!token) return null;
+    var countryCode = String((data && data.countryCode) || "")
+      .trim()
+      .toUpperCase();
+    log.info("[TidalWeb] Public token actualizado desde el origen");
+    return { token: token, countryCode: countryCode };
+  } catch (e) {
+    log.warn("[TidalWeb] No se pudo refrescar el public token:", String(e));
+    return null;
+  }
+}
+
+// asegurarPublicTokenFresco se llama SOLO cuando la API rechaza el token
+// (401/403) en una petición de metadata/search. Devuelve true si el token cambió
+// y por lo tanto vale la pena reintentar; false en cualquier otro caso (token del
+// usuario, cooldown vigente, origen sin respuesta o token idéntico al anterior).
+// El cooldown se arma en CADA intento, así un origen caído no se consulta en
+// cada petición rechazada.
+function asegurarPublicTokenFresco() {
+  if (publicTokenEsDelUsuario) return false;
+  var ahora = Date.now();
+  if (ahora - publicTokenUltimoIntentoMs < PUBLIC_TOKEN_REINTENTO_MIN_MS) {
+    return false;
+  }
+  publicTokenUltimoIntentoMs = ahora;
+  var anterior = String(CONFIG.publicToken || "").trim();
+  var fresco = fetchPublicToken();
+  if (!fresco || !fresco.token) return false;
+  guardarPublicTokenGuardado(fresco.token, fresco.countryCode);
+  if (fresco.countryCode) CONFIG.countryCode = fresco.countryCode;
+  if (fresco.token === anterior) return false;
+  log.info("[TidalWeb] Public token refrescado tras un rechazo de la API");
+  CONFIG.publicToken = fresco.token;
+  return true;
+}
+
 function initialize(settings) {
   settings = settings || {};
   var publicToken = String(settings.publicToken || "").trim();
-  if (publicToken) {
+  if (publicToken && publicToken !== FACTORY_PUBLIC_TOKEN) {
+    // Token propio del usuario: manda siempre y no se refresca solo.
     CONFIG.publicToken = publicToken;
+    publicTokenEsDelUsuario = true;
+  } else {
+    publicTokenEsDelUsuario = false;
+    // Sin token propio (o con el de fábrica): se usa el último que se haya
+    // guardado y, si no hay ninguno, el de fábrica. NO se consulta el origen
+    // acá: el refresco es perezoso y ocurre cuando TIDAL responde 401/403.
+    var guardado = cargarPublicTokenGuardado();
+    if (guardado) {
+      CONFIG.publicToken = guardado.token;
+      if (guardado.countryCode) {
+        CONFIG.countryCode = guardado.countryCode;
+      }
+    } else if (publicToken) {
+      CONFIG.publicToken = publicToken;
+    }
   }
 
   var downloadAPIURL = normalizeMirrorBaseURL(settings.downloadApiUrl);
@@ -357,12 +490,27 @@ function buildMetadataURL(path, extraQuery) {
   return CONFIG.apiBaseURL + "/" + normalizedPath + separator + query.join("&");
 }
 
+// getJSON: metadata/search con el token PÚBLICO (x-tidal-token). Si TIDAL lo
+// rechaza (401/403, token vencido) se refresca desde el origen y se reintenta una
+// sola vez con el token nuevo. Es el punto donde el refresco perezoso reemplaza
+// al que antes se hacía en cada arranque.
 function getJSON(url) {
   var response = http.get(url, requestHeaders());
   if (!response || response.error) {
     throw new Error(
       response && response.error ? response.error : "request failed",
     );
+  }
+  if (
+    (response.statusCode === 401 || response.statusCode === 403) &&
+    asegurarPublicTokenFresco()
+  ) {
+    response = http.get(url, requestHeaders());
+    if (!response || response.error) {
+      throw new Error(
+        response && response.error ? response.error : "request failed",
+      );
+    }
   }
   if (response.statusCode !== 200) {
     throw new Error("HTTP " + response.statusCode + " for " + url);
@@ -1435,8 +1583,11 @@ function fetchDirectDownloadInfo(trackID, quality) {
     encodeURIComponent(CONFIG.countryCode);
 
   // Se reintenta con cada token del pool hasta que Tidal acepte uno. Si no
-  // queda ninguno vivo, recién ahí se apaga la ruta directa.
-  var intentos = tidalTokenPool.length > 1 ? tidalTokenPool.length : 1;
+  // queda ninguno vivo, recién ahí se apaga la ruta directa. El +1 es para el
+  // caso en que el 401 lo cause el token PÚBLICO (x-tidal-token) y no el access
+  // token: se refresca el público y se reintenta el acceso UNA vez.
+  var intentos = (tidalTokenPool.length > 1 ? tidalTokenPool.length : 1) + 1;
+  var publicoRefrescado = false;
   var response = null;
   var payload = null;
   for (var intento = 0; intento < intentos; intento++) {
@@ -1447,6 +1598,13 @@ function fetchDirectDownloadInfo(trackID, quality) {
       );
     }
     if (response.statusCode === 401 || response.statusCode === 403) {
+      // El rechazo puede venir del token PÚBLICO (compartido por toda la
+      // sesión) y no del access token del pool: se refresca el público y se
+      // reintenta antes de gastar una rotación del pool.
+      if (!publicoRefrescado && asegurarPublicTokenFresco()) {
+        publicoRefrescado = true;
+        continue;
+      }
       // Token inválido o expirado: si hay otro en el pool se rota y se
       // reintenta; si no, se desactiva la ruta directa y sigue el respaldo.
       if (tidalRotarToken()) continue;
@@ -2320,8 +2478,9 @@ function formatTrack(track, context) {
   );
 
   return {
+    // Sin spotify_id: el id de Tidal no es de Spotify (mismo criterio que en
+    // deezer). El id propio ya viaja en `id` y en `tidal_id`.
     id: withPrefix(track.id),
-    spotify_id: withPrefix(track.id),
     tidal_id: String(track.id),
     name: tidalTrackTitle(track),
     artists: joinArtistNames(track.artists || []),
@@ -3506,6 +3665,179 @@ function completeGrant() {
   return session.completeGrant();
 }
 
+// ─────────────────────────────────────────────────────────────
+// HOME FEED — /v1/pages/home.
+//
+// Por qué ESA ruta: es la portada real del cliente web de TIDAL y responde con
+// el token público que la extensión ya usa para la búsqueda (comprobado a mano:
+// 5 filas con módulos TRACK_LIST/ALBUM_LIST/PLAYLIST_LIST, sin cuenta).
+// Otras rutas editoriales clásicas (/featured/..., /editorial/...) ya no
+// existen: devuelven 404, así que no se intentan.
+//
+// Cada MÓDULO es una sección con su propio título ("New Tracks", "New
+// Albums", "The Hits"...), así que el feed se arma solo con lo que TIDAL
+// publica hoy en esa región —CONFIG.countryCode manda— sin hardcodear títulos.
+// Un módulo de un tipo que no sabemos leer se SALTA (se registra en el log)
+// en vez de romper el feed completo.
+//
+// Los ids salen con el prefijo de siempre (`tidal:<id>`), así el toque desde el
+// feed recorre getTrack/getAlbum/getPlaylist ya probados.
+// ─────────────────────────────────────────────────────────────
+
+var HOME_FEED_MAX_POR_MODULO = 20;
+
+// aItemFeedHome adapta un item de TIDAL al contrato del feed: la búsqueda usa
+// nombres con `_` (item_type) y el feed espera `type`.
+function aItemFeedHome(item, tipo) {
+  if (!item || !item.id) return null;
+  return {
+    id: String(item.id || ""),
+    uri: String(item.external_urls || ""),
+    type: String(tipo || item.item_type || "track"),
+    name: String(item.name || ""),
+    artists: String(item.artists || ""),
+    album_id: String(item.album_id || ""),
+    album_name: String(item.album_name || ""),
+    duration_ms: Number(item.duration_ms || 0),
+    cover_url: String(item.cover_url || ""),
+    isrc: String(item.isrc || ""),
+    provider_id: "tidal-web",
+  };
+}
+
+// Los conversores devuelven la forma "de búsqueda" (con item_type) y
+// itemsDeModuloFeedHome la traduce UNA vez al contrato del feed.
+function trackFeedHome(track) {
+  var album = track.album || {};
+  return {
+    id: withPrefix(track.id),
+    name: String(track.title || ""),
+    artists: joinArtistNames(track.artists),
+    album_id: album.id ? withPrefix(album.id) : "",
+    album_name: String(album.title || ""),
+    // TIDAL expone la duración en SEGUNDOS; el contrato del feed es en ms.
+    duration_ms: Number(track.duration || 0) * 1000,
+    cover_url: imageURL(album.cover, "640x640"),
+    external_urls: String(track.url || ""),
+    isrc: String(track.isrc || ""),
+    item_type: "track",
+  };
+}
+
+function albumFeedHome(album) {
+  return {
+    id: withPrefix(album.id),
+    name: String(album.title || ""),
+    artists: joinArtistNames(album.artists),
+    album_id: withPrefix(album.id),
+    album_name: String(album.title || ""),
+    cover_url: imageURL(album.cover, "640x640"),
+    external_urls: String(album.url || ""),
+    item_type: "album",
+  };
+}
+
+function playlistFeedHome(playlist) {
+  return {
+    id: withPrefix(playlist.uuid),
+    name: String(playlist.title || ""),
+    cover_url: imageURL(playlist.squareImage || playlist.image, "640x640"),
+    external_urls: String(playlist.url || ""),
+    item_type: "playlist",
+  };
+}
+
+function artistFeedHome(artist) {
+  return {
+    id: withPrefix(artist.id),
+    name: String(artist.name || ""),
+    cover_url: imageURL(artist.picture, "640x640"),
+    item_type: "artist",
+  };
+}
+
+// itemsDeModuloFeedHome convierte los items de un módulo de la portada según su
+// TIPO de lista. Devuelve [] para los tipos que no se saben leer.
+function itemsDeModuloFeedHome(modulo) {
+  var crudos = (modulo.pagedList && modulo.pagedList.items) || [];
+  var tipo = String(modulo.type || "").toUpperCase();
+  var convertir = null;
+  var itemType = "track";
+
+  if (tipo === "TRACK_LIST" || tipo === "VIDEO_LIST") {
+    convertir = trackFeedHome;
+    itemType = "track";
+  } else if (tipo === "ALBUM_LIST") {
+    convertir = albumFeedHome;
+    itemType = "album";
+  } else if (tipo === "PLAYLIST_LIST") {
+    convertir = playlistFeedHome;
+    itemType = "playlist";
+  } else if (tipo === "ARTIST_LIST") {
+    convertir = artistFeedHome;
+    itemType = "artist";
+  } else {
+    log.debug("[TidalWeb] feed: módulo " + tipo + " ignorado");
+    return [];
+  }
+
+  var items = [];
+  for (
+    var i = 0;
+    i < crudos.length && items.length < HOME_FEED_MAX_POR_MODULO;
+    i++
+  ) {
+    var item = aItemFeedHome(convertir(crudos[i]), itemType);
+    if (item && item.id) items.push(item);
+  }
+  return items;
+}
+
+function getHomeFeed() {
+  var cacheKey = "tidal-web:homefeed";
+  var cacheado = metadataCacheGet(cacheKey);
+  if (cacheado) return cacheado;
+
+  try {
+    var pagina = getJSON(buildMetadataURL("pages/home", null));
+    var filas = (pagina && pagina.rows) || [];
+    var secciones = [];
+
+    for (var r = 0; r < filas.length; r++) {
+      var modulos = (filas[r] && filas[r].modules) || [];
+      for (var m = 0; m < modulos.length; m++) {
+        var modulo = modulos[m] || {};
+        var titulo = String(modulo.title || "").trim();
+        try {
+          var items = itemsDeModuloFeedHome(modulo);
+          if (!titulo || !items.length) continue;
+          secciones.push({ uri: "", title: titulo, items: items });
+        } catch (e) {
+          log.warn(
+            "[TidalWeb] feed: módulo " +
+              titulo +
+              " no disponible: " +
+              e.message,
+          );
+        }
+      }
+    }
+
+    if (!secciones.length) {
+      return { success: false, error: "TIDAL sin portada", sections: [] };
+    }
+    log.info("[TidalWeb] Home feed: " + secciones.length + " secciones");
+    return metadataCacheSet(
+      cacheKey,
+      { success: true, greeting: "", sections: secciones },
+      CONFIG.metadataCacheTtlMs,
+    );
+  } catch (e) {
+    log.error("[TidalWeb] getHomeFeed failed: " + String(e));
+    return { success: false, error: String(e), sections: [] };
+  }
+}
+
 registerExtension({
   initialize: initialize,
   cleanup: cleanup,
@@ -3520,6 +3852,7 @@ registerExtension({
   getPlaylist: getPlaylist,
   enrichTrack: enrichTrack,
   searchTracks: searchTracks,
+  getHomeFeed: getHomeFeed,
 });
 
 log.info("[TidalWeb] TIDAL web metadata extension loaded");

@@ -281,7 +281,13 @@ function persistirJson(k, v) {
   if (!persistenciaDisponible()) return;
   try {
     storage.set(PERSIST_PREFIX + k, JSON.stringify({ v: v, t: now() }));
-  } catch (e) {}
+  } catch (e) {
+    if (k === "clientHealth")
+      L(
+        "warn",
+        "[InnerTube] salud de clientes: FALLO al escribir: " + String(e),
+      );
+  }
 }
 
 function leerJsonPersistido(k, ttlMs) {
@@ -293,6 +299,8 @@ function leerJsonPersistido(k, ttlMs) {
     if (!e || !e.t || (ttlMs && now() - e.t > ttlMs)) return null;
     return e.v;
   } catch (err) {
+    if (k === "clientHealth")
+      L("warn", "[InnerTube] salud de clientes: FALLO al leer: " + String(err));
     return null;
   }
 }
@@ -346,7 +354,73 @@ const CLIENT_BLOCK_HARD_MS = 30 * 60 * 1000; // deprecated/account-level: 30 min
 const CLIENT_BLOCK_SOFT_MS = 8 * 60 * 1000; // 4xx / bot-adjacent: 8 min
 const CLIENT_BLOCK_TRANSIENT_MS = 3 * 60 * 1000; // 429/5xx/network: 3 min
 
+// ── El libro de salud se PERSISTE ─────────────────────────────────────────
+//
+// Por qué: vive en memoria del proceso, y la app se relanza seguido, así que
+// cada arranque arrancaba con el libro VACÍO y volvía a probar los clientes
+// que ya sabíamos muertos. Medido en el aparato de un usuario: la primera
+// canción después de cada arranque pagaba 7 pruebas seguidas (~1 s) mientras
+// que la segunda, con el libro ya tibio, sólo probaba una y sonaba en 3 s.
+//
+// Señal de bloqueo que se persiste es sólo "a qué hora vence": las duraciones
+// ya vienen decididas por noteInnerTubeClientBlock (30/8/3 min), así que un
+// arranque no puede revivir un cliente antes de tiempo.
+//
+// Es optimización PURA: si el sandbox no expone `storage`, o el JSON quedó
+// roto, se sigue con el libro en memoria como antes. Nunca puede romper la
+// resolución.
+var _clientHealthCargado = false;
+
+// Carga (una sola vez) el libro guardado, descartando lo vencido.
+function cargarSaludClientes() {
+  if (_clientHealthCargado) return;
+  _clientHealthCargado = true;
+  if (!persistenciaDisponible()) {
+    L(
+      "warn",
+      "[InnerTube] salud de clientes: sin storage, se usa solo memoria",
+    );
+    return;
+  }
+  var guardado = leerJsonPersistido("clientHealth", 0);
+  if (!guardado || typeof guardado !== "object") {
+    L("info", "[InnerTube] salud de clientes: nada guardado todavía");
+    return;
+  }
+  var ahora = now();
+  for (var nombre in guardado) {
+    var hasta = guardado[nombre];
+    if (typeof hasta === "number" && hasta > ahora) {
+      _clientHealth.set(nombre, { until: hasta });
+    }
+  }
+  L(
+    "info",
+    "[InnerTube] salud de clientes: " +
+      _clientHealth.size +
+      " bloqueados recuperados del disco",
+  );
+}
+
+// Escribe el libro, sin las entradas ya vencidas.
+function guardarSaludClientes() {
+  var salida = {};
+  var ahora = now();
+  _clientHealth.forEach(function (entrada, nombre) {
+    if (entrada && entrada.until > ahora) salida[nombre] = entrada.until;
+  });
+  persistirJson("clientHealth", salida);
+  L(
+    "info",
+    "[InnerTube] salud de clientes: " +
+      Object.keys(salida).length +
+      " guardados" +
+      (persistenciaDisponible() ? "" : " (sin storage)"),
+  );
+}
+
 function innerTubeClientBlocked(name) {
+  cargarSaludClientes();
   var e = _clientHealth.get(name);
   if (!e) return false;
   if (now() >= e.until) {
@@ -411,6 +485,9 @@ function noteInnerTubeClientBlock(name, err) {
     ttl = CLIENT_BLOCK_TRANSIENT_MS;
   }
   _clientHealth.set(name, { until: now() + ttl });
+  // Se guarda al toque: si la app se cierra antes, el próximo arranque no
+  // vuelve a pagar la prueba de este cliente.
+  guardarSaludClientes();
   L(
     "info",
     "[InnerTube] client health: " +
@@ -1249,8 +1326,111 @@ function getGvsPoToken(videoID, clientConfig, visitorData, bypassCache) {
   return "";
 }
 
-function extractYouTubeVisitorData(text) {
+// ── Bloque de arranque de la página de YouTube ─────────────────────────────
+//
+// La página arranca su propio player con `ytcfg.set({...})`, y esos objetos son
+// la superficie estable de la página: ahí viven VISITOR_DATA, PLAYER_JS_URL y las
+// claves del cliente web. Leer de ahí es el mismo rescate que se hizo en el
+// client_id de SoundCloud (bloque de hidratación en vez de raspar todo el HTML),
+// y tiene una ventaja concreta: `"jsUrl"` aparece 12 veces en el watch page y
+// PLAYER_JS_URL una sola — la regex sobre el HTML entero puede quedarse con un
+// valor viejo, la clave del bloque no.
+//
+// Se juntan VARIOS bloques porque YouTube reparte la config; no todos son JSON
+// válido (el de TIMING_INFO usa comillas simples), así que cuando JSON.parse
+// falla se rescatan las claves que interesan por regex DENTRO del bloque ya
+// delimitado (no sobre la página entera).
+var YTCFG_CLAVES = [
+  "VISITOR_DATA",
+  "PLAYER_JS_URL",
+  "JS_URL",
+  "INNERTUBE_API_KEY",
+  "INNERTUBE_CONTEXT_CLIENT_VERSION",
+];
+
+// objetoJsonBalanceado devuelve el objeto {...} que empieza en `inicio`,
+// respetando comillas (simples, dobles y backtick) y escapes.
+function objetoJsonBalanceado(texto, inicio) {
+  var html = String(texto || "");
+  if (html.charAt(inicio) !== "{") return "";
+  var profundidad = 0;
+  var comilla = "";
+  for (var i = inicio; i < html.length; i++) {
+    var c = html.charAt(i);
+    if (comilla) {
+      if (c === "\\") {
+        i++;
+        continue;
+      }
+      if (c === comilla) comilla = "";
+      continue;
+    }
+    if (c === '"' || c === "'" || c === "`") {
+      comilla = c;
+      continue;
+    }
+    if (c === "{") {
+      profundidad++;
+      continue;
+    }
+    if (c === "}") {
+      profundidad--;
+      if (profundidad === 0) return html.substring(inicio, i + 1);
+    }
+  }
+  return "";
+}
+
+// clavesDeBloqueYtcfg es el respaldo cuando el bloque NO es JSON válido.
+function clavesDeBloqueYtcfg(cuerpo) {
+  var out = {};
+  for (var i = 0; i < YTCFG_CLAVES.length; i++) {
+    var clave = YTCFG_CLAVES[i];
+    var m = String(cuerpo || "").match(
+      new RegExp('"' + clave + '"\\s*:\\s*[\'"]([^\'"]*)'),
+    );
+    if (m && m[1]) out[clave] = m[1];
+  }
+  return out;
+}
+
+function extraerYtcfg(texto) {
+  var html = String(texto || "");
+  var cfg = {};
+  var marca = "ytcfg.set(";
+  var desde = 0;
+  while (desde < html.length) {
+    var i = html.indexOf(marca, desde);
+    if (i < 0) break;
+    var j = i + marca.length;
+    desde = j;
+    while (j < html.length && /\s/.test(html.charAt(j))) j++;
+    // ytcfg.set("clave", valor) no trae objeto: no hay nada que leer ahí.
+    if (html.charAt(j) !== "{") continue;
+    var cuerpo = objetoJsonBalanceado(html, j);
+    if (!cuerpo) continue;
+    var obj = null;
+    try {
+      obj = JSON.parse(cuerpo);
+    } catch (e) {
+      obj = null;
+    }
+    if (!obj) obj = clavesDeBloqueYtcfg(cuerpo);
+    for (var k in obj) {
+      if (Object.prototype.hasOwnProperty.call(obj, k)) cfg[k] = obj[k];
+    }
+  }
+  return cfg;
+}
+
+function extractYouTubeVisitorData(text, cfg) {
   var html = String(text || "");
+  // 1) Bloque de arranque (el camino del player web).
+  if (cfg) {
+    var delBloque = String(cfg.VISITOR_DATA || cfg.visitorData || "").trim();
+    if (delBloque) return delBloque.replace(/\\u0026/g, "&");
+  }
+  // 2) Respaldo: patrones sobre el HTML (páginas servidas sin el bloque).
   var patterns = [
     /"VISITOR_DATA"\s*:\s*"([^"]+)"/,
     /"visitorData"\s*:\s*"([^"]+)"/,
@@ -1263,14 +1443,25 @@ function extractYouTubeVisitorData(text) {
   return "";
 }
 
-function extractYouTubePlayerURL(text) {
+function extractYouTubePlayerURL(text, cfg) {
   var html = String(text || "");
+  // 1) Bloque de arranque: PLAYER_JS_URL es el valor con el que el propio
+  // player de la página se va a cargar (exacto, uno solo, sin ambigüedad).
+  if (cfg && cfg.PLAYER_JS_URL) {
+    var delBloque = String(cfg.PLAYER_JS_URL).trim().replace(/\\\//g, "/");
+    if (delBloque) return normalizarYouTubePlayerURL(delBloque);
+  }
+  // 2) Respaldo: patrones sobre el HTML.
   var match =
     html.match(/"jsUrl"\s*:\s*"([^"]+)"/) ||
     html.match(/"PLAYER_JS_URL"\s*:\s*"([^"]+)"/) ||
     html.match(/(\/s\/player\/[^"']+\/base\.js)/);
   if (!match) return "";
   var playerURL = String(match[1] || match[0] || "").replace(/\\\//g, "/");
+  return normalizarYouTubePlayerURL(playerURL);
+}
+
+function normalizarYouTubePlayerURL(playerURL) {
   if (!playerURL) return "";
   if (playerURL.indexOf("//") === 0) return "https:" + playerURL;
   if (playerURL.charAt(0) === "/") return "https://www.youtube.com" + playerURL;
@@ -1401,9 +1592,12 @@ function getYouTubePageInfo(videoID) {
   } catch (e) {
     html = "";
   }
+  // El bloque de arranque se lee UNA vez y alimenta a los dos extractores; si la
+  // página no lo trae, cfg queda vacío y cada uno usa sus patrones de respaldo.
+  var ytcfg = extraerYtcfg(html);
   var pageInfo = {
-    visitorData: extractYouTubeVisitorData(html),
-    playerUrl: extractYouTubePlayerURL(html),
+    visitorData: extractYouTubeVisitorData(html, ytcfg),
+    playerUrl: extractYouTubePlayerURL(html, ytcfg),
   };
   if (pageInfo.visitorData || pageInfo.playerUrl) {
     // A healthy watch-page fetch proves the gate lifted — allow the next one.

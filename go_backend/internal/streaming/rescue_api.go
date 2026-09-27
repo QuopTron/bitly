@@ -2,6 +2,7 @@ package streaming
 
 import (
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -22,29 +23,22 @@ func rescuePorIdentificadores(reg *provider.Registry, quality, isrc, spotifyID, 
 	// fuentes que pueden darlo van primero y con un turno extra (ver
 	// ordenProvidersStreamingCalidad / workersRescate).
 	names := ordenProvidersStreamingCalidad(reg, quality)
-	// Presupuesto original (5s): esta fase corre EN PARALELO con la búsqueda por
-	// nombre, así que su presupuesto no suma a la latencia percibida.
+	// Presupuesto de 5s. Los proveedores de ESTA fase corren en paralelo entre sí
+	// (así que 5s es el tope del conjunto, no la suma), pero la fase ENTERA corre
+	// antes del rescate: su tiempo SÍ suma a la latencia percibida del toque. Es
+	// el mismo defecto de forma que se corrigió en play_package.go (una fase
+	// "de mejora" delante de la que consigue el audio), y se deja acá a
+	// propósito: ver la nota de latencia en RescueStreamURL.
+	// La misma resolución por identidad que usa la fase exacta del rescate: una
+	// extensión traduce el ISRC/los ids a su propio id con checkAvailability y el
+	// resto cae a GetTrackByISRC (ver rescue_identidad.go).
+	d := datosIdentidad{
+		isrc: isrc, spotifyID: spotifyID, deezerID: deezerID,
+		tidalID: tidalID, qobuzID: qobuzID,
+		title: trackName, artist: artistName, durationMS: queryDurationMS,
+	}
 	url, prov, verified := carreraPorConfianzaCalidad(reg, names, 5*time.Second, workersRescate(quality), func(name string, p provider.Provider) (string, bool) {
-		resolvedID := ""
-		if ep, ok := p.(*provider.ExtensionProvider); ok {
-			if id, found := ep.CheckAvailability(isrc, trackName, artistName, spotifyID, deezerID, tidalID, qobuzID, 0); found && id != "" {
-				resolvedID = id
-			}
-		}
-		if resolvedID == "" && isrc != "" {
-			if t, err := p.GetTrackByISRC(isrc); err == nil && t != nil && t.ID != "" {
-				resolvedID = t.ID
-			}
-		}
-		if resolvedID == "" {
-			return "", false
-		}
-		// Mismo guard que la fase 1 de rescueStream: nunca streamear un
-		// candidato sin verificar cuando conocemos el titulo/artista pedido.
-		if trackName != "" && verificarMatchStream(p, resolvedID, trackName, artistName, isrc, true, queryDurationMS) == "" {
-			return "", false
-		}
-		return rescueProviderUnaVez(p, resolvedID, quality)
+		return resolverStreamPorIdentidad(p, quality, d)
 	}, quality)
 	return url, prov, verified
 }
@@ -57,10 +51,21 @@ func rescuePorIdentificadores(reg *provider.Registry, quality, isrc, spotifyID, 
 // stream" pass used before the slow download pipeline for tracks whose
 // preferred source (tidal/apple/amazon/qobuz/spotify-web) exposes no direct
 // stream. Returns (url, provider, err).
-func RescueStreamURL(reg *provider.Registry, quality, isrc, spotifyID, deezerID, tidalID, qobuzID, trackName, artistName, queryAlbum string, queryDurationMS int) (string, string, error) {
+func RescueStreamURL(reg *provider.Registry, quality, isrc, spotifyID, deezerID, tidalID, qobuzID, trackName, artistName, queryAlbum string, queryDurationMS int) (urlOut, provOut string, errOut error) {
 	if reg == nil {
 		return "", "", fmt.Errorf("no inicializado")
 	}
+	// Instrumentación de LATENCIA del TAP: este es el camino que corre en cada
+	// toque real (allowFallback=true) y hasta ahora no tenía ninguna marca
+	// temporal — no había forma de saber si los segundos se iban en la fase de
+	// identificadores o en el rescate. Es el mismo tipo de número que el
+	// [play] metadata de play_package.go: sin él no se encontró aquella fase
+	// serial, y sin él no se puede decidir si vale tocar esta.
+	inicioTotal := time.Now()
+	defer func() {
+		log.Printf("[play] tap TOTAL %.0fms -> prov=%q url=%v verify=%v err=%v",
+			float64(time.Since(inicioTotal).Microseconds())/1000, provOut, urlOut != "", urlOut == "" && provOut != "", errOut)
+	}()
 	// Serialize rescue walks so batch play (3+ concurrent getStreamPackage)
 	// does not flood providers with parallel requests that trigger rate limits
 	// (tidal 429 → VERIFY_REQUIRED, soundcloud 401).  A buffered channel of 2
@@ -88,23 +93,48 @@ func RescueStreamURL(reg *provider.Registry, quality, isrc, spotifyID, deezerID,
 	// proveedor que no indexa ISRC / ids cross-provider (p. ej. youtube) — una
 	// cancion sonando siempre gana a un modal de verificacion, asi que el
 	// veredicto solo se devuelve cuando nada streamea.
+	// NOTA DE LATENCIA: esta fase corre ENTERA antes del rescate, así que sus
+	// segundos suman al toque — a diferencia de las fases internas de
+	// rescueStream, que corren en paralelo entre sí. Solaparla se evaluó y NO se
+	// hace: sumarle una búsqueda por id en YouTube/ytmusic haría que las dos fases
+	// pelearan por los mismos proveedores y volvería el triplicado de latencia que
+	// ya se midió y se revirtió (2,2s → 5,8-11,2s). El orden queda como está y es
+	// el presupuesto de 5s el que acota el daño.
+	//
+	// La MISMA resolución por identidad la usan las dos fases (aquí y en la fase
+	// exacta de rescueStream, ver rescue_identidad.go), y por eso el rescate sabe
+	// que esta ya se intentó y no la repite — salvo que un ISRC nuevo llegue
+	// derivado en vuelo.
 	var idVerify string
-	if url, prov, verified := rescuePorIdentificadores(reg, quality, isrc, spotifyID, deezerID, tidalID, qobuzID, trackName, artistName, queryDurationMS); url != "" {
-		return url, prov, nil
-	} else if verified {
-		idVerify = prov
+	inicioIDs := time.Now()
+	urlIDs, provIDs, verifiedIDs := rescuePorIdentificadores(reg, quality, isrc, spotifyID, deezerID, tidalID, qobuzID, trackName, artistName, queryDurationMS)
+	msIDs := float64(time.Since(inicioIDs).Microseconds()) / 1000
+	if urlIDs != "" {
+		log.Printf("[play] tap: identificadores %.0fms -> %s", msIDs, provIDs)
+		return urlIDs, provIDs, nil
 	}
+	if verifiedIDs {
+		idVerify = provIDs
+	}
+	log.Printf("[play] tap: identificadores %.0fms sin stream (verify=%q): arranca el rescate", msIDs, idVerify)
 	// La duración entra para que la verificación por fase (y la fase exacta por
 	// ISRC) pueda descartar un remix/directo con el título parecido, y el álbum
 	// para que el ranking por nombre prefiera la toma del disco pedido.
 	track := &provider.TrackResult{
-		ISRC:     isrc,
-		Title:    trackName,
-		Artist:   artistName,
-		Album:    queryAlbum,
-		Duration: queryDurationMS,
+		ISRC:      isrc,
+		Title:     trackName,
+		Artist:    artistName,
+		Album:     queryAlbum,
+		Duration:  queryDurationMS,
+		SpotifyID: spotifyID,
+		DeezerID:  deezerID,
+		TidalID:   tidalID,
+		QobuzID:   qobuzID,
 	}
-	url, prov, attempted, verified := rescueStream(reg, track, trackName, artistName, quality)
+	// La identidad que acaba de probar la fase de arriba: la fase exacta del
+	// rescate no la repite (solo corre si un ISRC nuevo llega derivado en vuelo).
+	identidadProbada := isrc != "" || spotifyID != "" || deezerID != "" || tidalID != "" || qobuzID != ""
+	url, prov, attempted, verified := rescueStream(reg, track, trackName, artistName, quality, identidadProbada)
 	if url != "" {
 		return url, prov, nil
 	}

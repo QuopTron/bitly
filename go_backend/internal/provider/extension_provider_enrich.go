@@ -25,7 +25,7 @@ func (p *ExtensionProvider) EnrichTrack(trackObj map[string]interface{}) *Enrich
 		return nil
 	}
 	out := &EnrichTrackResult{
-		ISRC:      getString(m, "isrc"),
+		ISRC:      ISRCDeCampo(m),
 		DeezerID:  getString(m, "deezer_id"),
 		TidalID:   getString(m, "tidal_id"),
 		QobuzID:   getString(m, "qobuz_id"),

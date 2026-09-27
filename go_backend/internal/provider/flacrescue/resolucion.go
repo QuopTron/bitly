@@ -133,6 +133,18 @@ func (c *Client) resolverPorISRC(isrc string, formatos []string) (string, string
 		}
 	}
 
+	// Canal stash-relay (ver stash_relay.go): un relay público del proyecto
+	// Stash mintea una URL de CDN de Qobuz desde el id de la pista SIN cuenta
+	// propia. Va después de Qobuz firmado (que usa las credenciales del usuario)
+	// y ANTES de arcod, cuyo pool público lleva meses vacío: este está vivo y
+	// entrega el mismo FLAC con rangos.
+	if len(formatos) > 0 {
+		if enlace, err := c.resolverStashRelay(isrc, formatos[0]); err == nil {
+			c.guardarCacheTTL(claveCache, enlace, nombreStashRelay, ttlStashEnlace)
+			return enlace, nombreStashRelay, nil
+		}
+	}
+
 	// Canal arcod (ver arcod.go): entrega el FLAC REAL del catálogo de Qobuz
 	// sin cuenta, con soporte de Range, así que sirve para reproducir Y para
 	// descargar. Va antes de los espejos porque los públicos llevan meses sin

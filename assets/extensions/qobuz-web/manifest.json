@@ -1,7 +1,7 @@
 {
   "name": "qobuz-web",
   "displayName": "Qobuz",
-  "version": "1.6.0",
+  "version": "1.6.5",
   "description": "Qobuz metadata and download provider. Toda la metadata viene de la API PÚBLICA de Qobuz (www.qobuz.com/api.json/0.2, sin gateway y sin verificación de humano) y el audio se baja DIRECTO del CDN con tu propia cuenta (Ajustes → Credenciales → Qobuz).",
   "homepage": "https://github.com/zarzet/SpotiFLAC-Mobile",
   "type": ["metadata_provider", "download_provider"],
@@ -41,6 +41,7 @@
     }
   ],
   "capabilities": {
+    "homeFeed": true,
     "downloadFallbackTier": "lossless",
     "networkTimeoutSeconds": 15,
     "replacesBuiltInProviders": ["qobuz"],

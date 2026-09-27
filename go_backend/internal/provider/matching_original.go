@@ -9,7 +9,22 @@ func artistaEnTitulo(queryArtist, title string) bool {
 	if qa == "" {
 		return false
 	}
-	t := FoldTrack(title)
+	// Los créditos parentéticos NO cuentan como el artista dentro del título.
+	//
+	// Por qué: "el artista aparece en el título" es el sello de un re-subido
+	// ("Shakira - DAI DAI" subido por un canal cualquiera). Pero los discos de
+	// covers/tributo/versiones acreditan al artista ORIGINAL en un paréntesis
+	// final —"BbY WOW (KAROL G, Judeline, rusowsky)" de un ensamble, "(Originally
+	// Performed by ...)", "(feat. ...)"— y con la comprobación anterior ese
+	// crédito alcanzaba para que el cover pasara como el original: se servía su
+	// ISRC y su audio (la versión de piano/orquesta) en vez de la grabación
+	// pedida. Restando los tramos entre paréntesis/corchetes, un re-subido sigue
+	// contando (el artista va junto al título, no dentro de un crédito) y el
+	// cover deja de colarse.
+	t := FoldTrack(sinCreditosParenteticos(title))
+	if t == "" {
+		return false
+	}
 	tokens := strings.Fields(qa)
 	for _, tok := range tokens {
 		if len(tok) >= 3 && strings.Contains(t, tok) {
@@ -17,6 +32,54 @@ func artistaEnTitulo(queryArtist, title string) bool {
 		}
 	}
 	return false
+}
+
+// sinCreditosParenteticos quita los tramos encerrados entre paréntesis,
+// corchetes o llaves. Lo que queda es el título sin los créditos accesorios
+// ("(feat. X)", "[Official Video]", "(KAROL G, ...)").
+func sinCreditosParenteticos(s string) string {
+	var b strings.Builder
+	prof := 0
+	for _, r := range s {
+		switch r {
+		case '(', '[', '{':
+			prof++
+		case ')', ']', '}':
+			if prof > 0 {
+				prof--
+			}
+		default:
+			if prof == 0 {
+				b.WriteRune(r)
+			}
+		}
+	}
+	return b.String()
+}
+
+// artistaDeVersion reporta si el campo Artist del candidato se anuncia como una
+// interpretación derivada: una orquesta, un ensamble, un pianista, un canal de
+// "slowed", un karaoke. No es un rechazo del candidato —sigue disponible por
+// nombre— sino el veto a la evidencia "artista dentro del título": quien firma
+// como versión no puede pasar por el original aunque su título acredite al
+// artista original. Se evalúa solo ahí para no descartar artistas cuyo NOMBRE
+// legítimo coincide con un marcador (p. ej. la banda "Live").
+func artistaDeVersion(artist string) bool {
+	artist = strings.TrimSpace(artist)
+	if artist == "" {
+		return false
+	}
+	return IsNonOriginalTitle(artist)
+}
+
+// artistaEnTituloDelCandidato es la evidencia "artista dentro del título" con el
+// veto por artista de versión aplicado: un cover/orquesta que acredita al
+// artista original en el título no la obtiene.
+func artistaEnTituloDelCandidato(queryArtist string, t TrackResult) bool {
+	if !artistaEnTitulo(queryArtist, t.Title) {
+		return false
+	}
+	return !artistaDeVersion(t.Artist)
 }
 
 // canalesResubida son palabras que delatan un canal de re-subida (YouTube
@@ -61,7 +124,7 @@ func evidenciaArtista(queryArtist string, t TrackResult) bool {
 	if FieldScore(queryArtist, t.Artist) >= 1 {
 		return true
 	}
-	return artistaEnTitulo(queryArtist, t.Title) || EsCanalDeResubida(t.Artist)
+	return artistaEnTituloDelCandidato(queryArtist, t) || EsCanalDeResubida(t.Artist)
 }
 
 // OriginalStrength reports whether the candidate is the ORIGINAL track for the
@@ -77,11 +140,13 @@ func OriginalStrength(queryTitle, queryArtist string, t TrackResult) (float64, b
 	if tt < 2 {
 		return tt + aa, false
 	}
-	if IsNonOriginalVariant(t.Title, queryTitle) {
+	// El marcador de versión puede estar en el título, en el artista o en el
+	// álbum: cada catálogo lo pone donde lo tiene (ver IsNonOriginalTrack).
+	if IsNonOriginalTrack(t, queryTitle, queryArtist) {
 		return tt + aa, false
 	}
 	strong := aa >= 2
-	if !strong && artistaEnTitulo(queryArtist, t.Title) {
+	if !strong && artistaEnTituloDelCandidato(queryArtist, t) {
 		strong = true
 	}
 	return tt + aa, strong
@@ -126,7 +191,7 @@ func RankOriginalCandidates(queryTitle, queryArtist string, results []TrackResul
 		eff := make([]cand, 0, len(results))
 		for i := range results {
 			tt := FieldScore(queryTitle, results[i].Title)
-			if tt < 2 || IsNonOriginalVariant(results[i].Title, queryTitle) {
+			if tt < 2 || IsNonOriginalTrack(results[i], queryTitle, queryArtist) {
 				continue
 			}
 			eff = append(eff, cand{i, puntajeEfectivo(queryTitle, queryArtist, results[i])})

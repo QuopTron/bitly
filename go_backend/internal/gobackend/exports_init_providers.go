@@ -8,6 +8,7 @@ import (
 	"github.com/zarz/bitly/go_backend/internal/provider"
 	"github.com/zarz/bitly/go_backend/internal/provider/apple"
 	"github.com/zarz/bitly/go_backend/internal/provider/deezer"
+	"github.com/zarz/bitly/go_backend/internal/provider/flacdownloader"
 	"github.com/zarz/bitly/go_backend/internal/provider/flacrescue"
 	"github.com/zarz/bitly/go_backend/internal/provider/internetarchive"
 	"github.com/zarz/bitly/go_backend/internal/provider/lastfm"
@@ -80,6 +81,12 @@ func inicializarProviders(reg *provider.Registry) []bundled_extensions.Registere
 		spotify.NewClient(nil, "", ""),
 		youtube.NewClient(ytdlpPath),
 		musicbrainz.NewClient(nil, ""),
+		// flacdownloader: RESOLVEDOR DE IDENTIDAD (solo metadata). El mismo
+		// servicio que publica las claves de Qobuz expone la búsqueda de Qobuz/
+		// TIDAL, así que resuelve el ISRC y los ids cross-proveedor sin sesión ni
+		// extensión. No entrega audio: aporta la identidad para que el rescate
+		// entre a la fase exacta por ISRC y al canal FLAC.
+		flacdownloader.NewClient(nil),
 		// Last.fm: SOLO identidad y el video OFICIAL de YouTube de cada pista
 		// (no entrega audio ni ISRC). No aparece en la búsqueda: lo usan la
 		// identidad entre extensiones y el rescate cuando todas las fuentes

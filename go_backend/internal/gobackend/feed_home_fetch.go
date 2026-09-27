@@ -95,6 +95,14 @@ func obtenerFeedHome(prov *provider.ExtensionProvider, name string, all *[]FeedS
 				AlbumName:  item.AlbumName,
 				CoverURL:   coverURL,
 				Source:     prov.Name(),
+				// La identidad viaja con el item cuando la extensión la conoce
+				// (ver HomeFeedItem): sin esto el toque desde el feed perdía el
+				// ISRC y había que resolver por nombre.
+				ISRC:      item.ISRC,
+				SpotifyID: item.SpotifyID,
+				DeezerID:  item.DeezerID,
+				TidalID:   item.TidalID,
+				QobuzID:   item.QobuzID,
 			})
 		}
 		total += len(items)

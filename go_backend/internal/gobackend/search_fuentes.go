@@ -39,6 +39,10 @@ var fuentesSoloRespaldo = map[string]bool{
 	// de YouTube. No entrega audio, así que no es un catálogo que se le pueda
 	// ofrecer al usuario; trabaja por dentro (ver provider/lastfm).
 	"lastfm": true,
+	// flacdownloader es un RESOLVEDOR DE IDENTIDAD: resuelve el ISRC y los ids
+	// de Qobuz/TIDAL por HTTP, pero no es un catálogo navegable ni entrega audio
+	// (ver provider/flacdownloader). Trabaja por dentro.
+	"flacdownloader": true,
 }
 
 // esFuenteDeBusqueda dice si un proveedor puede ofrecerse/evaluarse como fuente

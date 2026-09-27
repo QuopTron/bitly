@@ -32,6 +32,11 @@ var streamingProviders = []string{
 	"youtube", "deezer", "qobuz", "tidal", "qobuz-web", "tidal-web", "amazon",
 	"ytmusic-spotiflac", "apple-music", "spotify-web", "soundcloud",
 	"flac-rescue", "internetarchive", "soulseek",
+	// flacdownloader aporta IDENTIDAD, no audio: resuelve el ISRC y los ids de
+	// Qobuz/TIDAL por HTTP sin sesión ni extensión. Sumarlo acá hace que el
+	// enriquecimiento de identidad de la reproducción lo consulte (ver
+	// play_metadata.go); NO va en proveedoresAudio.
+	"flacdownloader",
 	// tidal-hifi aporta IDENTIDAD, no audio: publica el ISRC y la duración de
 	// su catálogo sin sesión, así que resuelve por ISRC temas que el catálogo
 	// de Qobuz no tiene. Su audio sale solo por descarga (ver

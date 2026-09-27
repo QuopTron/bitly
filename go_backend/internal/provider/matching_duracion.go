@@ -84,7 +84,7 @@ const bonusEvidenciaArtista = 0.5
 func puntajeEfectivo(queryTitle, queryArtist string, t TrackResult) float64 {
 	tt := FieldScore(queryTitle, t.Title)
 	aa := FieldScore(queryArtist, t.Artist)
-	if tt >= 2 && aa < 2 && artistaEnTitulo(queryArtist, t.Title) {
+	if tt >= 2 && aa < 2 && artistaEnTituloDelCandidato(queryArtist, t) {
 		aa = 2
 	}
 	s := tt + aa

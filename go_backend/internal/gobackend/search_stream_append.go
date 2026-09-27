@@ -11,14 +11,16 @@ func anexarSearchStream(gen int64, items []FeedItemGo) {
 	if currentSearchStream.generation != gen {
 		return // search was superseded by a new query
 	}
-	agregados := false
-	for _, item := range items {
-		if esItemBusquedaDuplicado(currentSearchStream.items, item) {
-			continue
-		}
-		currentSearchStream.items = append(currentSearchStream.items, item)
-		agregados = true
-	}
+	// Un índice del buffer por lote: la deduplicación dejó de ser un barrido
+	// contra todo lo ya recibido (O(n²) en pares y en normalizaciones de texto).
+	// Ver search_stream_indice.go. Se arma por lote y no se guarda entre lotes:
+	// así siempre describe el buffer tal como está —incluso después de que
+	// propagarISRC() escriba sobre items ya guardados— y no deja estado que haya
+	// que resetear con cada búsqueda.
+	antes := len(currentSearchStream.items)
+	ix := nuevoIndiceBusqueda(currentSearchStream.items)
+	currentSearchStream.items = ix.agregar(currentSearchStream.items, items)
+	agregados := len(currentSearchStream.items) > antes
 	// Con el lote nuevo adentro, se completa el ISRC que faltaba usando el que
 	// otra extensión ya trajo para el mismo track. Se hace acá, sobre TODO el
 	// buffer, porque el ISRC puede llegar después del primer lote (cada fuente
@@ -28,7 +30,11 @@ func anexarSearchStream(gen int64, items []FeedItemGo) {
 	//
 	// Se aprovecha para saber si algo cambió de verdad: solo entonces hay que
 	// tirar la respuesta serializada (ver jsonCache).
-	if propagarISRC(currentSearchStream.items) {
+	//
+	// Se le pasa el índice de claves que acaba de armar el dedup: tiene
+	// exactamente la misma forma (clave → posiciones) y volver a construirlo
+	// sería normalizar dos veces el mismo lote. nil si nunca hizo falta.
+	if propagarISRCCon(currentSearchStream.items, ix.porClave) {
 		agregados = true
 	}
 	if agregados {
@@ -47,21 +53,33 @@ func anexarSearchStream(gen int64, items []FeedItemGo) {
 //
 // Para colecciones: dedup por type+id.
 func esItemBusquedaDuplicado(existing []FeedItemGo, item FeedItemGo) bool {
+	return posicionDuplicadoLineal(existing, item) >= 0
+}
+
+// posicionDuplicadoLineal devuelve la POSICIÓN del item dentro de `existing` si
+// ya está (mismo criterio que describe esItemBusquedaDuplicado) o -1 si es
+// nuevo.
+//
+// Es la versión de REFERENCIA, la del barrido lineal: en producción la reemplaza
+// el índice (ver search_stream_indice.go), y existe para que los tests tengan
+// contra qué compararlo. Devuelve la posición, y no un bool, porque quien
+// descarta un duplicado necesita saber a quién fusionarle el ISRC (fusionarISRC).
+func posicionDuplicadoLineal(existing []FeedItemGo, item FeedItemGo) int {
 	if item.Type == "track" {
-		for _, e := range existing {
+		for i, e := range existing {
 			if e.Type == "track" && esElMismoTrack(e, item) {
-				return true
+				return i
 			}
 		}
-		return false
+		return -1
 	}
 	// Albums/artists/playlists: dedup by type+id
-	for _, e := range existing {
+	for i, e := range existing {
 		if e.Type == item.Type && e.ID == item.ID {
-			return true
+			return i
 		}
 	}
-	return false
+	return -1
 }
 
 // registrarProveedorStream anota cómo le fue a UNA fuente en la sesión de

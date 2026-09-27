@@ -3,6 +3,13 @@
 // construye la hoja del modal de info de canción (carátula, título,
 // artista, filas de datos y botón de compartir) sobre el mismo fondo
 // reactivo a la carátula que el resto de los modales.
+//
+// Las filas son las etiquetas de `loc.infoCancion` (l10n) y los valores
+// salen del ítem; si el usuario pidió traducir los datos, cada valor
+// pasa por el mapa de traducciones antes de pintarse (ver
+// servicio_traduccion_texto.dart). Las fechas y los códigos NO se
+// traducen: no son texto de idioma.
+//
 // Se conecta con: modal_info_cancion.dart (misma library) +
 // modal_info_cancion_widgets (_filaInfo/_botonCompartir) + fondo reactivo.
 // Parte del flujo: Reproductor → info de canción.
@@ -20,7 +27,15 @@ Widget _construirHojaInfoCancion({
   required String duracion,
   required Color fondoModal,
   required bool esOscuro,
+  required Map<String, String>? traducciones,
+  required bool traduciendo,
+  required String? idiomaOrigen,
+  required VoidCallback onTraducir,
 }) {
+  final i = loc.infoCancion;
+  // Valor pintado: el traducido si hay, si no el original.
+  String v(String original) => traducciones?[original] ?? original;
+
   // Lado de la carátula: proporcional al ancho pero ACOTADO. Sin tope, en una
   // pantalla ancha o de DPI alto (PC/tablet) la carátula crecía al 50% del
   // ancho y la hoja quedaba deformada — el diseño debe verse igual en
@@ -79,7 +94,7 @@ Widget _construirHojaInfoCancion({
                 ),
               SizedBox(height: r.spacingL),
               Text(
-                item.name,
+                v(item.name),
                 style: TextStyle(
                   fontSize: r.subtitleSize + 2,
                   fontWeight: FontWeight.bold,
@@ -91,7 +106,7 @@ Widget _construirHojaInfoCancion({
               ),
               SizedBox(height: r.spacingXS),
               Text(
-                item.artists ?? '',
+                item.artists == null ? '' : v(item.artists!),
                 style: TextStyle(
                   fontSize: r.subtitleSize,
                   color: onBg.withValues(alpha: 0.6),
@@ -101,28 +116,22 @@ Widget _construirHojaInfoCancion({
                 overflow: TextOverflow.ellipsis,
               ),
               SizedBox(height: r.spacingL),
-              _filaInfo(
+              // ── Cabecera de la sección + botón de traducir los datos ──
+              _cabeceraInfo(
+                context,
                 r,
                 onBg,
-                Icons.music_note,
-                loc.setup.feedSubtitleTrack,
-                item.name,
+                loc,
+                traduciendo,
+                traducciones != null,
+                onTraducir,
               ),
-              if (item.albumName != null)
-                _filaInfo(
-                  r,
-                  onBg,
-                  Icons.album,
-                  loc.setup.feedSubtitleAlbum,
-                  item.albumName!,
-                ),
-              _filaInfo(
-                r,
-                onBg,
-                Icons.timer_outlined,
-                loc.setup.trackDuration,
-                duracion,
-              ),
+              _filaInfo(r, onBg, Icons.music_note, i.campoCancion, v(item.name)),
+              if (item.artists != null && item.artists!.isNotEmpty)
+                _filaInfo(r, onBg, Icons.person_outline, i.campoArtista, v(item.artists!)),
+              if (item.albumName != null && item.albumName!.isNotEmpty)
+                _filaInfo(r, onBg, Icons.album, i.campoAlbum, v(item.albumName!)),
+              _filaInfo(r, onBg, Icons.timer_outlined, i.campoDuracion, duracion),
               if (item.type != 'track')
                 _filaInfo(
                   r,
@@ -131,6 +140,16 @@ Widget _construirHojaInfoCancion({
                   loc.setup.trackType,
                   item.type,
                 ),
+              // Fecha e ISRC: son datos del proveedor, no texto de idioma, así
+              // que van tal cual (no entran en la traducción).
+              if (item.releaseDate != null && item.releaseDate!.isNotEmpty)
+                _filaInfo(r, onBg, Icons.event_outlined, i.campoLanzamiento, item.releaseDate!),
+              if (item.isrc != null && item.isrc!.isNotEmpty)
+                _filaInfo(r, onBg, Icons.fingerprint, i.campoIsrc, item.isrc!),
+              if (item.source != null && item.source!.isNotEmpty)
+                _filaInfo(r, onBg, Icons.dns_outlined, i.campoOrigen, item.source!),
+              if (traducciones != null)
+                _pieTraduccion(r, onBg, loc, idiomaOrigen, onTraducir),
               SizedBox(height: r.spacingL),
               _botonCompartir(context, r, onBg, item),
               // + menú de navegación del sistema (la hoja se ancla al borde).

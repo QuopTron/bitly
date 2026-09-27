@@ -3,14 +3,17 @@
 // carátula, nombre, artista, filas de detalle y compartir. El fondo es
 // el reactivo a la carátula, igual que el resto de los modales. Las
 // piezas visuales viven en modal_info_cancion_widgets.dart.
-// Se conecta con: imagen_portada + cubit_cola + l10n + servicio_compartir.
+// Se conecta con: imagen_portada + cubit_cola + l10n + servicio_compartir
+// + servicio_traduccion_texto (traducir los datos a pedido).
 // Parte del flujo: acciones de ítem (info) — todas las vistas.
 // ─────────────────────────────────────────────────────────────
 
 import 'package:flutter/material.dart';
 
+import '../../../../app/inyeccion/inyeccion.dart';
 import '../../../../core/modelos/feed/item_feed.dart';
 import '../../../../core/servicios/compartir/base/servicio_compartir.dart';
+import '../../../../core/servicios/traduccion/servicio_traduccion_texto.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../utilidades/modales/mostrar_modal.dart';
 import '../../../utilidades/plataforma/pantalla/insets_sistema.dart';

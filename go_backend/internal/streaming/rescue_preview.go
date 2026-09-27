@@ -93,38 +93,52 @@ func tamanoEsperadoBytes(duracionMs int, quality string) int64 {
 }
 
 // tamanoRemotoBytes pregunta SOLO por el tamaño total (Range de un byte).
-// Devuelve 0 cuando no se puede saber (sin Content-Range, error, timeout):
-// en ese caso no se juzga y el candidato pasa.
-func tamanoRemotoBytes(u string) int64 {
+// Devuelve (tamaño, roto): tamaño 0 = no se pudo saber; roto = true cuando el
+// servidor contestó con un ERROR (4xx/5xx).
+//
+// Por qué el segundo valor: "no se pudo medir" y "el servidor dijo que no hay
+// audio" son dos cosas distintas, y antes se trataban igual. Un enlace que
+// contesta 502 es un enlace MUERTO (medido: el CDN del canal arcod devolvía 502
+// y el candidato pasaba como "no se pudo juzgar", así que el reproductor recibía
+// una URL que no suena). Un timeout o un DNS que no resuelve sí se siguen
+// tratando como "sin evidencia" y no rechazan nada.
+func tamanoRemotoBytes(u string) (int64, bool) {
 	req, err := http.NewRequest(http.MethodGet, u, nil)
 	if err != nil {
-		return 0
+		return 0, false
 	}
 	req.Header.Set("Range", "bytes=0-0")
 	req.Header.Set("User-Agent", "Mozilla/5.0")
 	cliente := &http.Client{Timeout: 2 * time.Second}
 	resp, err := cliente.Do(req)
 	if err != nil {
-		return 0
+		return 0, false
 	}
 	defer resp.Body.Close()
 	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1))
+	if resp.StatusCode >= 400 {
+		return 0, true
+	}
 	if cr := resp.Header.Get("Content-Range"); cr != "" {
 		if i := strings.LastIndex(cr, "/"); i >= 0 {
 			if n, err := strconv.ParseInt(strings.TrimSpace(cr[i+1:]), 10, 64); err == nil && n > 0 {
-				return n
+				return n, false
 			}
 		}
 	}
 	if n, err := strconv.ParseInt(resp.Header.Get("Content-Length"), 10, 64); err == nil && n > 0 {
-		return n
+		return n, false
 	}
-	return 0
+	return 0, false
 }
 
-// EsPreviewStream decide si [u] es un clip en vez de la canción pedida.
-// [fuente] es el nombre del proveedor que la resolvió; [duracionMs] la
-// duración del catálogo (0 = desconocida).
+// EsPreviewStream decide si [u] NO sirve la canción completa: es un clip de
+// muestra, o un enlace MUERTO. [fuente] es el nombre del proveedor que la
+// resolvió; [duracionMs] la duración del catálogo (0 = desconocida).
+//
+// Las dos cosas terminan en el mismo camino a propósito (rechazar el candidato
+// y dejar que el pipeline siga): un clip y un 502 son igual de inútiles para el
+// reproductor, y antes el 502 pasaba como "no se pudo medir".
 func EsPreviewStream(u, fuente string, duracionMs int, quality string) bool {
 	if u == "" {
 		return false
@@ -139,7 +153,10 @@ func EsPreviewStream(u, fuente string, duracionMs int, quality string) bool {
 	if esperado <= 0 {
 		return false
 	}
-	real := tamanoRemotoBytes(u)
+	real, roto := tamanoRemotoBytes(u)
+	if roto {
+		return true
+	}
 	if real <= 0 {
 		return false
 	}

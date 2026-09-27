@@ -132,6 +132,15 @@ type Client struct {
 
 	clavesMu sync.Mutex
 	claves   clavesQobuz
+
+	// Canal "stash-relay" (ver stash_relay.go): relay público que mintea una
+	// URL de CDN de Qobuz sin cuenta propia. Encendido de fábrica; el ajuste
+	// "stash_relay" lo apaga o lo repunta.
+	stashConfMu    sync.RWMutex
+	stashActivo    bool
+	stashConfigURL string
+	stashRelayCfg  relayStash
+	stashInstall   string
 }
 
 type cacheEntry struct {
@@ -146,18 +155,24 @@ type cacheEntry struct {
 
 // NewClient crea el provider con la configuración por defecto.
 func NewClient() *Client {
-	return &Client{
+	c := &Client{
 		mirrors:     append([]string(nil), defaultMirrors...),
 		origin:      defaultOrigin,
 		formato:     "FLAC",
-		http:        &http.Client{Timeout: timeoutPorPedido},
+		http:        &http.Client{Timeout: timeoutPorPedido, Transport: transporteRescate},
 		cache:       map[string]cacheEntry{},
 		sinCuentas:  map[string]time.Time{},
 		sitios:      append([]sitioFLAC(nil), sitiosConocidos...),
 		idsArcods:   map[string]string{},
 		arcodBase:   baseArcod,
 		arcodActivo: arcodPorDefecto,
+		stashActivo: stashRelayPorDefecto,
 	}
+	// El precalentado sale en segundo plano (ver stash_relay.go) y no bloquea
+	// el registro del provider. En los tests del paquete el canal arranca
+	// apagado (testmain_test.go), así que esto no toca la red.
+	c.precalentarStashRelay()
+	return c
 }
 
 // ttlEspejoSinCuentas es cuánto se recuerda que un espejo se quedó sin cuentas.
@@ -202,6 +217,8 @@ func (c *Client) Name() string { return "flac-rescue" }
 //	mirrors → "https://a,https://b" o JSON ["https://a","https://b"]
 //	origin  → cabecera Origin/Referer (por defecto la de monochrome)
 //	format  → FLAC | MP3_320 | MP3_128 (formato preferido)
+//	proxy   → salida de TODO el rescate (espejos, sitios, arcod, Qobuz);
+//	          ver proxy.go. Vacío = directo.
 //
 // Es best-effort: un valor inválido se ignora y se conserva el actual,
 // para que un ajuste mal pegado no rompa el rescate.
@@ -209,9 +226,11 @@ func (c *Client) SetSettings(settings map[string]string) {
 	if len(settings) == 0 {
 		return
 	}
+	c.aplicarAjusteProxy(settings)
 	c.aplicarAjustesEspejos(settings)
 	c.habilitarSitios(settings)
 	c.aplicarAjusteArcod(settings)
+	c.aplicarAjusteStash(settings)
 	c.SetSettingsQobuz(settings)
 }
 

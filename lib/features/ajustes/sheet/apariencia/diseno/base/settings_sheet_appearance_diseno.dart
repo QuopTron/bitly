@@ -75,6 +75,44 @@ class _DisenoCard extends StatelessWidget {
                   onChanged: (v) => AparienciaEspacios.cambiarRadio(context, v),
                 ),
                 _ayuda(t.radioAyuda),
+                SizedBox(height: r.spacingM),
+                // Tamaño de letras y de iconos. Se aplican EN VIVO: el texto por
+                // el `textScaler` del árbol entero y los iconos por las piezas
+                // compartidas (tarjetas y barras).
+                _Deslizador(
+                  etiqueta: t.letrasTitulo,
+                  valor: prefs.escalaTexto,
+                  minimo: PreferenciasApariencia.minEscala,
+                  maximo: PreferenciasApariencia.maxEscala,
+                  divisiones: 11,
+                  formato: (v) => '${(v * 100).round()}%',
+                  onChanged:
+                      (v) => AparienciaEspacios.cambiarEscalaTexto(context, v),
+                ),
+                _ayuda(t.letrasAyuda),
+                SizedBox(height: r.spacingM),
+                _Deslizador(
+                  etiqueta: t.iconosTitulo,
+                  valor: prefs.escalaIconos,
+                  minimo: PreferenciasApariencia.minEscala,
+                  maximo: PreferenciasApariencia.maxEscala,
+                  divisiones: 11,
+                  formato: (v) => '${(v * 100).round()}%',
+                  onChanged:
+                      (v) => AparienciaEspacios.cambiarEscalaIconos(context, v),
+                ),
+                _ayuda(t.iconosAyuda),
+                SizedBox(height: r.spacingS),
+                // Afinado por componente (títulos / textos / iconos de tarjetas
+                // y de barras), detrás de un desplegable para no ensuciar el
+                // bloque: el 90% usa los dos controles generales de arriba.
+                _SeccionAvanzadoEscala(
+                  prefs: prefs,
+                  t: t,
+                  glowColor: glowColor,
+                  onBg: onBg,
+                  r: r,
+                ),
                 SizedBox(height: r.spacingS),
                 _SeccionAvanzadoDiseno(
                   prefs: prefs,

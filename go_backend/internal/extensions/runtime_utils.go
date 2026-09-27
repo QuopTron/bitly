@@ -109,8 +109,15 @@ func registrarGlobalUtils(s *Sandbox) {
 		if sleepMs <= 0 {
 			return vm.ToValue(true)
 		}
-		if sleepMs > 5*60*1000 {
-			sleepMs = 5 * 60 * 1000
+		// El sueño corre con el candado del sandbox TOMADO y dentro de una función
+		// de Go, así que el interrupt de tiempo no lo corta: un `sleep` largo deja a
+		// esa extensión inutilizable para todos los demás llamadores (que esperan
+		// 20 s y se rinden, ver tryLock). El tope se alinea con esa espera: por
+		// encima de cualquier backoff real de las extensiones (cientos de ms a unos
+		// pocos segundos) y por debajo de lo que un llamador está dispuesto a
+		// esperar.
+		if sleepMs > 20*1000 {
+			sleepMs = 20 * 1000
 		}
 		deadline := time.Now().Add(time.Duration(sleepMs) * time.Millisecond)
 		for {

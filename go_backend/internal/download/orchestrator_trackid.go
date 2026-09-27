@@ -43,33 +43,17 @@ func resolverTrackIDProvider(p provider.Provider, name string, req Request) (str
 		// correct one so amazon can resolve via Deezer/Spotify/ISRC no matter
 		// which feed produced the track (Spotify feed -> 22-char id, deezer feed
 		// -> numeric id, tidal -> numeric id, amazon -> ASIN).
-		spotifyID := req.SpotifyID
-		deezerID := req.DeezerID
-		tidalID := req.TidalID
-		qobuzID := req.QobuzID
 		// Feed items only carry the source provider's TrackID, but extensions
 		// resolve via their own native id — so derive the right cross-provider
 		// id from the TrackID shape (spotify=22 base62, deezer/tidal/qobuz=
 		// numeric) so amazon & friends can resolve from ANY feed, exactly like
-		// igual que el middleware de referencia deriva estos ids para CheckAvailability.
-		switch {
-		case req.Provider == "spotify" || req.Provider == "spotify-web":
-			if spotifyID == "" && provider.IsSpotifyID(quitarPrefijoTrack(req.TrackID)) {
-				spotifyID = quitarPrefijoTrack(req.TrackID)
-			}
-		case req.Provider == "deezer" || req.Provider == "deezer-web":
-			if deezerID == "" && provider.IsNumericID(quitarPrefijoTrack(req.TrackID)) {
-				deezerID = quitarPrefijoTrack(req.TrackID)
-			}
-		case req.Provider == "tidal" || req.Provider == "tidal-web":
-			if tidalID == "" && provider.IsNumericID(quitarPrefijoTrack(req.TrackID)) {
-				tidalID = quitarPrefijoTrack(req.TrackID)
-			}
-		case req.Provider == "qobuz" || req.Provider == "qobuz-web":
-			if qobuzID == "" && provider.IsNumericID(quitarPrefijoTrack(req.TrackID)) {
-				qobuzID = quitarPrefijoTrack(req.TrackID)
-			}
-		}
+		// el middleware de referencia deriva estos ids para CheckAvailability. La
+		// regla vive en provider.DerivarIDsCrossDesdeFuente para que el STREAMING
+		// derive EXACTAMENTE lo mismo (antes no lo hacía y su rescate por
+		// identidad perdía el id del ítem de feed, cayendo a búsqueda por nombre).
+		spotifyID, deezerID, tidalID, qobuzID := provider.DerivarIDsCrossDesdeFuente(
+			req.Provider, req.TrackID, req.SpotifyID, req.DeezerID, req.TidalID, req.QobuzID,
+		)
 		if id, found := ep.CheckAvailability(req.ISRC, req.Title, req.Artist, spotifyID, deezerID, tidalID, qobuzID, req.DurationMS); found && id != "" {
 			return id, title, artist
 		}

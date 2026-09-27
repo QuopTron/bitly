@@ -361,6 +361,11 @@ class MainActivity : AudioServiceActivity() {
                 }
             }
 
+        // Actualizaciones: la descarga del APK corre en un servicio nativo
+        // (para seguir con la app en segundo plano y anunciarse en la barra de
+        // notificaciones). Ver UpdateDownloader.kt.
+        UpdateDownloader.registrar(flutterEngine.dartExecutor.binaryMessenger, this)
+
         flutterReady = true
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->

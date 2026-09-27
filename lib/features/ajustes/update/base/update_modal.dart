@@ -8,6 +8,7 @@
 // Parte del flujo: Ajustes → Versión → actualización.
 // ─────────────────────────────────────────────────────────────
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -16,6 +17,7 @@ import 'package:open_filex/open_filex.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../../../../core/plataforma/actualizacion/actualizacion_servicio.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../../shared/tema/colores_app.dart';
 import '../../../../shared/utilidades/modales/mostrar_modal.dart';
@@ -56,8 +58,132 @@ class _HojaActualizacion extends StatefulWidget {
 
 class _EstadoHojaActualizacion extends State<_HojaActualizacion> {
   bool _descargando = false;
+
+  /// La versión YA está bajada y en disco: el botón pasa a "Instalar".
+  bool _descargada = false;
   double _progreso = 0;
   String? _error;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    // En Android la descarga la hace un servicio en segundo plano: al abrir la
+    // hoja hay que averiguar si esa versión ya está bajada (para no pedirla de
+    // nuevo) o si hay una descarga corriendo (para retomar su progreso).
+    if (ActualizacionServicio.soportado) _preparar();
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  /// Mira el disco y el servicio antes de mostrar nada. Así la hoja nunca
+  /// miente: o dice "ya la tenés", o retoma el progreso real.
+  Future<void> _preparar() async {
+    try {
+      final ya = await ActualizacionServicio.yaDescargada(widget.info.version);
+      if (!mounted) return;
+      if (ya != null) {
+        setState(() => _descargada = true);
+        return;
+      }
+      final p = await ActualizacionServicio.estado();
+      if (!mounted) return;
+      if (p.estado == EstadoDescargaActualizacion.descargando &&
+          p.version == widget.info.version) {
+        setState(() {
+          _descargando = true;
+          _progreso = p.tieneTotal ? p.progreso / 100 : 0;
+        });
+        _seguirEstado();
+      }
+    } catch (e) {
+      debugPrint('[Actualizacion] preparar: $e');
+    }
+  }
+
+  /// Sigue el avance del servicio mientras la hoja está abierta.
+  void _seguirEstado() {
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(milliseconds: 400), (_) async {
+      final p = await ActualizacionServicio.estado();
+      if (!mounted || p.version != widget.info.version) return;
+      switch (p.estado) {
+        case EstadoDescargaActualizacion.descargando:
+          setState(() {
+            _descargando = true;
+            _progreso = p.tieneTotal ? p.progreso / 100 : 0;
+          });
+        case EstadoDescargaActualizacion.listo:
+          _pararTimer();
+          setState(() {
+            _descargando = false;
+            _descargada = true;
+            _progreso = 1;
+          });
+        case EstadoDescargaActualizacion.error:
+          _pararTimer();
+          setState(() {
+            _descargando = false;
+            _progreso = 0;
+            _error = p.error ?? 'Error al descargar';
+          });
+        case EstadoDescargaActualizacion.cancelado:
+        case EstadoDescargaActualizacion.inactivo:
+          _pararTimer();
+          setState(() {
+            _descargando = false;
+            _progreso = 0;
+          });
+      }
+    });
+  }
+
+  void _pararTimer() {
+    _timer?.cancel();
+    _timer = null;
+  }
+
+  /// Android: deja el APK bajando en segundo plano, con su notificación.
+  Future<void> _descargarEnFondo() async {
+    if (_descargando) return;
+    setState(() {
+      _descargando = true;
+      _progreso = 0;
+      _error = null;
+    });
+    // Los textos de la notificación viajan desde acá: la dibuja Android.
+    await ActualizacionServicio.enviarTextos(AppLocalizations.of(context));
+    await ActualizacionServicio.descargar(
+      url: widget.info.downloadUrl,
+      version: widget.info.version,
+      nombreAsset: widget.info.nombreAsset ?? '',
+    );
+    _seguirEstado();
+  }
+
+  /// Abre el instalador del sistema con lo ya bajado.
+  Future<void> _instalarLoBajado() async {
+    final ok = await ActualizacionServicio.instalar(widget.info.version);
+    if (!mounted) return;
+    if (!ok) {
+      setState(() => _error = 'No se pudo abrir el instalador');
+    }
+  }
+
+  /// Corta la descarga en curso (y borra lo a medias).
+  Future<void> _cancelarDescarga() async {
+    await ActualizacionServicio.cancelar();
+    _pararTimer();
+    if (!mounted) return;
+    setState(() {
+      _descargando = false;
+      _progreso = 0;
+    });
+  }
 
   @override
   Widget build(BuildContext context) =>

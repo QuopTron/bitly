@@ -58,5 +58,25 @@ void main() {
       expect(AjustesRescate.cobaltActivo(''), isFalse);
       expect(AjustesRescate.cobaltActivo('https://mi.cobalt'), isTrue);
     });
+
+    test('el proxy acepta solo los esquemas que Go entiende', () {
+      expect(AjustesRescate.proxyValido('http://127.0.0.1:8080'), isTrue);
+      expect(AjustesRescate.proxyValido('https://proxy.mio:3128'), isTrue);
+      expect(AjustesRescate.proxyValido('socks5://127.0.0.1:1080'), isTrue);
+      expect(AjustesRescate.proxyValido('socks5h://u:p@proxy.mio:1080'), isTrue);
+
+      expect(AjustesRescate.proxyValido(''), isFalse);
+      expect(AjustesRescate.proxyValido('   '), isFalse);
+      expect(AjustesRescate.proxyValido('127.0.0.1:8080'), isFalse);
+      expect(AjustesRescate.proxyValido('ftp://proxy.mio:21'), isFalse);
+      expect(AjustesRescate.proxyValido('http://'), isFalse);
+    });
+
+    test('el proxy se guarda sin espacios de sobra', () {
+      expect(
+        AjustesRescate.normalizarProxy('  socks5://127.0.0.1:1080  '),
+        'socks5://127.0.0.1:1080',
+      );
+    });
   });
 }

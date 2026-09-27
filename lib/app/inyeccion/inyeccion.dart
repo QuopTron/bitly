@@ -33,6 +33,7 @@ import '../../core/cache/reproduccion/stats/reproduccion_stats.dart';
 import '../../core/servicios/estadisticas/caratulas_escucha.dart';
 import '../../core/servicios/estadisticas/detalle_escucha.dart';
 import '../../core/servicios/traduccion/servicio_traduccion_letras.dart';
+import '../../core/servicios/traduccion/servicio_traduccion_texto.dart';
 import '../../core/cache/reproduccion/detalle/reproduccion_detalle_local.dart';
 import '../../core/cache/reproduccion/base/reproduccion_sync.dart';
 import '../../core/modelos/usuario/perfil/perfil_rendimiento.dart';

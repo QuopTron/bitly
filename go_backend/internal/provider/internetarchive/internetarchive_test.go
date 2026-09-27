@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -474,7 +475,8 @@ func TestBusquedaPrefiereTituloYReservaAlTextoLibre(t *testing.T) {
 	c := NewClient(nil)
 	c.SetBaseURL(srv.URL)
 
-	// 1) Con resultados por título: una sola consulta, y es la del título.
+	// 1) Con resultados por título: una sola consulta, y es la del título con
+	// el sesgo a sin pérdida (el intento que más rinde es el primero).
 	if _, err := c.buscarItems("kind of blue", 5); err != nil {
 		t.Fatalf("buscarItems: %v", err)
 	}
@@ -484,8 +486,12 @@ func TestBusquedaPrefiereTituloYReservaAlTextoLibre(t *testing.T) {
 	if !strings.Contains(consultas[0], `title:"kind of blue"`) {
 		t.Errorf("la primera consulta debía ser la frase en el título: %q", consultas[0])
 	}
+	if !strings.Contains(consultas[0], filtroSinPerdida) {
+		t.Errorf("el primer intento debía venir sesgado a FLAC: %q", consultas[0])
+	}
 
-	// 2) Sin resultados por título: entra el texto libre como reserva.
+	// 2) Sin resultados por título: título sin filtro y después el texto libre,
+	// los dos como reserva para no perder cobertura.
 	c2 := NewClient(nil)
 	c2.SetBaseURL(srv.URL)
 	consultas = nil
@@ -493,14 +499,56 @@ func TestBusquedaPrefiereTituloYReservaAlTextoLibre(t *testing.T) {
 	if _, err := c2.buscarItems("so what miles davis", 5); err != nil {
 		t.Fatalf("buscarItems (reserva): %v", err)
 	}
+	if len(consultas) != 3 {
+		t.Fatalf("esperaba título+FLAC, título y texto libre+FLAC, hubo %d: %v", len(consultas), consultas)
+	}
+	if !strings.Contains(consultas[0], filtroSinPerdida) || !strings.Contains(consultas[0], "title:") {
+		t.Errorf("el primer intento debía ser el título con FLAC: %q", consultas[0])
+	}
+	if strings.Contains(consultas[1], filtroSinPerdida) {
+		t.Errorf("el segundo intento ya no debe llevar el filtro: %q", consultas[1])
+	}
+	if !strings.Contains(consultas[1], `title:"so what miles davis"`) {
+		t.Errorf("el segundo intento debía seguir siendo el título: %q", consultas[1])
+	}
+	if strings.Contains(consultas[2], "title:") {
+		t.Errorf("la reserva no debe volver a filtrar por título: %q", consultas[2])
+	}
+	if !strings.Contains(consultas[2], "so what miles davis") {
+		t.Errorf("la reserva debía ser el texto libre: %q", consultas[2])
+	}
+}
+
+// TestBusquedaNoPierdeCoberturaSinFlac fija la propiedad que hace seguro al
+// sesgo: si NADA publica FLAC, la cadena igual cae al intento sin filtro y
+// devuelve lo mismo que devolvía antes. Un catálogo sin FLAC no se pierde.
+func TestBusquedaNoPierdeCoberturaSinFlac(t *testing.T) {
+	var consultas []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query().Get("q")
+		consultas = append(consultas, q)
+		resp := respuestaBusqueda{}
+		// Solo responde el título SIN el filtro de pérdida: simula el item
+		// viejo que tiene la canción pero no publica FLAC.
+		if strings.Contains(q, "title:") && !strings.Contains(q, filtroSinPerdida) {
+			resp.Response.Docs = []docItem{{Identifier: "solo-mp3", Title: "La Cancion"}}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer srv.Close()
+
+	c := NewClient(nil)
+	c.SetBaseURL(srv.URL)
+	items, err := c.buscarItems("la cancion", 5)
+	if err != nil {
+		t.Fatalf("buscarItems: %v", err)
+	}
+	if len(items) != 1 || items[0].identificador != "solo-mp3" {
+		t.Fatalf("se perdió el resultado sin FLAC: %+v (consultas %v)", items, consultas)
+	}
 	if len(consultas) != 2 {
-		t.Fatalf("esperaba título + reserva, hubo %d: %v", len(consultas), consultas)
-	}
-	if strings.Contains(consultas[1], "title:") {
-		t.Errorf("la reserva no debe volver a filtrar por título: %q", consultas[1])
-	}
-	if !strings.Contains(consultas[1], "so what miles davis") {
-		t.Errorf("la reserva debía ser el texto libre: %q", consultas[1])
+		t.Fatalf("esperaba el intento con filtro y el de reserva, hubo %d: %v", len(consultas), consultas)
 	}
 }
 
@@ -731,6 +779,47 @@ func TestItemRestringidoNoSeSirve(t *testing.T) {
 
 	if _, err := c.GetStreamURL("solo-streaming/"+restringido.Files[0].Name, "flac"); err == nil {
 		t.Error("el item restringido no debía resolver audio")
+	}
+}
+
+// TestRedSesgoSinPerdida mide contra la API REAL cuántos items devuelve cada
+// intento, con y sin el filtro de sin pérdida. Es la medición con la que se
+// decidió el sesgo (ver filtroSinPerdida en busqueda.go): sin él, los primeros
+// items publicaban solo MP3 y la hidratación —secuencial y de 0,3-6 s por item—
+// se gastaba sin poder dar lossless.
+//
+// Corre solo a pedido: BITLY_IA_RED=1 go test ./internal/provider/internetarchive/ -run TestRedSesgoSinPerdida -v
+func TestRedSesgoSinPerdida(t *testing.T) {
+	if os.Getenv("BITLY_IA_RED") == "" {
+		t.Skip("define BITLY_IA_RED=1 para medir contra archive.org")
+	}
+	c := NewClient(nil)
+	// Se miden las DOS estrategias de la cadena: la frase en el título (la del
+	// buscador) y el texto libre (la que usa el rescate, que consulta
+	// "título artista").
+	estrategias := []struct {
+		nombre string
+		buscar func(q string, soloFlac bool) ([]itemResumen, error)
+	}{
+		{"título", func(q string, soloFlac bool) ([]itemResumen, error) { return c.buscarPorTitulo(q, 6, soloFlac) }},
+		{"texto libre", func(q string, soloFlac bool) ([]itemResumen, error) { return c.buscar(q, mediatypesAudio, soloFlac, 6) }},
+	}
+	for _, consulta := range []string{"Kind of Blue", "So What Miles Davis", "grateful dead cornell 77"} {
+		for _, est := range estrategias {
+			conFiltro, errF := est.buscar(consulta, true)
+			sinFiltro, errS := est.buscar(consulta, false)
+			if errF != nil || errS != nil {
+				t.Logf("[%s|%s] errores: con=%v sin=%v", consulta, est.nombre, errF, errS)
+				continue
+			}
+			t.Logf("[%s|%s] items con filtro FLAC=%d | sin filtro=%d", consulta, est.nombre, len(conFiltro), len(sinFiltro))
+			for i, it := range conFiltro {
+				t.Logf("   con[%d] %s | %s", i, it.identificador, it.titulo)
+			}
+			for i, it := range sinFiltro {
+				t.Logf("   sin[%d] %s | %s", i, it.identificador, it.titulo)
+			}
+		}
 	}
 }
 

@@ -52,7 +52,10 @@ func LoadDirExtensionsInto(reg *Registry, dirPath, dataDir string) int {
 		// initExtensionSystem is not clobbered by a later loadExtensionsFromDir.
 		if sb := reg.Runtime().Sandbox(extID); sb != nil {
 			if sb.DataDir == "" || sb.DataDir == "." {
-				sb.DataDir = dataDir
+				// SetDataDir (no una asignación suelta): mueve también el Store,
+				// que si no se quedaba escribiendo en el CWD y la extensión perdía
+				// todo lo persistido sin enterarse.
+				sb.SetDataDir(dataDir)
 			}
 			continue
 		}

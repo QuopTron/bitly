@@ -9,9 +9,10 @@
 // catálogos era SERIAL, así que cada proveedor sumaba su latencia.
 //
 // Regla de oro acá: la metadata es una MEJORA, nunca un requisito. El audio sale
-// del rescate, que corre después con su propia identidad (ISRC/ids del pedido y
-// DerivarISRC). Un proveedor lento no puede retener la reproducción: se le da su
-// ventana, se lo abandona y el resultado tardío se aprovecha para la caché.
+// del rescate, que corre EN PARALELO con su propia identidad (ISRC/ids del
+// pedido y DerivarISRC). Un proveedor lento no puede retener la reproducción: se
+// le da su ventana, se lo abandona y el resultado tardío se aprovecha para la
+// caché.
 //
 // Se conecta con: play_metadata.go (lo usa) + play_metacache.go (caché segura
 // para escrituras concurrentes).
@@ -55,6 +56,14 @@ const (
 	// alcance a un proveedor posterior que respondió un pelo antes: mantiene la
 	// preferencia de orden sin pagar la latencia del recorrido serial.
 	ventanaOrden = 120 * time.Millisecond
+	// esperaMetadataTardia es la gracia que se le da a una metadata que YA está
+	// en vuelo cuando el audio se resolvió antes que ella. No es una espera
+	// nueva: es lo que evita el peor final. Medido (amazon→Percuma): metadata
+	// 2,49s contra rescate 2,22s — sin esta ventana el paquete salía sin track y
+	// disparaba una búsqueda por nombre NUEVA (1-3s) justo después de haber
+	// resuelto la reproducción. Es un tope: si la metadata sigue colgada, se
+	// sigue sin ella como siempre.
+	esperaMetadataTardia = 300 * time.Millisecond
 )
 
 // resolverConPresupuesto ejecuta [fn] y devuelve su resultado solo si llega

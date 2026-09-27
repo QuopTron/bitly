@@ -312,3 +312,21 @@ jobs:
           tag_name: ${{ inputs.tag }}
           files: dist/*.ipa
           fail_on_unmatched_files: true
+
+  # Espejo de los binarios al repo PÚBLICO de releases, igual que en
+  # release.yml. Se llama al MISMO workflow: espeja todo lo que haya en la
+  # release privada en ese momento, así que corre después de los dos jobs de
+  # Apple (con always(), porque el espejo igual sirve si uno falló) y termina
+  # completando el repo público con el .dmg y el .ipa.
+  #
+  # El tag sale del input `tag` cuando se adjuntó a una release existente; si el
+  # workflow se disparó solo para compilar (upload_release=false), no hay tag y
+  # no hay nada que espejar todavía.
+  release-publico:
+    name: Espejar binarios al repo público
+    needs: [release-macos, release-ios]
+    if: always() && inputs.upload_release && inputs.tag != ''
+    uses: ./.github/workflows/espejo-releases.yml
+    with:
+      tag: ${{ inputs.tag }}
+    secrets: inherit

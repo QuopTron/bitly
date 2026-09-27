@@ -19,11 +19,19 @@
 // Parte del flujo: Mi Espacio → tuerca → Ajustes.
 // ─────────────────────────────────────────────────────────────
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../core/plataforma/actualizacion/actualizacion_servicio.dart';
 import '../../../core/servicios/conexion/novedades/conexion_novedades.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../shared/utilidades/formato/apariencia/base/apariencia_helper.dart';
+import '../update/base/update_info.dart';
 import '../update/base/update_service.dart';
+
+/// Versión que YA se avisó por notificación. Sin esto el aviso de "hay una
+/// versión nueva" volvería a aparecer en cada apertura de la app.
+const _claveVersionAvisada = 'update_version_avisada';
 
 /// Cuántas cosas hay sin ver (el número del mininumerito).
 final ValueNotifier<int> notificacionesTuerca = ValueNotifier<int>(0);
@@ -45,11 +53,44 @@ Future<void> refrescarNotificacionesTuerca() async {
     novedadesConexion.addListener(_recontar);
   }
   try {
-    hayActualizacion.value = await UpdateService().checkForUpdate() != null;
+    final info = await UpdateService().checkForUpdate();
+    hayActualizacion.value = info != null;
+    if (info != null) await _avisarVersionNueva(info);
   } catch (e) {
     debugPrint('[Tuerca] no se pudo ver si hay versión nueva: $e');
   }
   _recontar();
+}
+
+/// Avisa por la barra de notificaciones que hay una versión nueva, una sola vez
+/// por versión, y de paso limpia los APKs de versiones viejas que hayan quedado
+/// bajados.
+///
+/// Es best-effort de punta a punta: sin internet, sin permiso de
+/// notificaciones o fuera de Android, no hace nada y la app sigue igual (el
+/// numerito de la tuerca es el que avisa in-app).
+Future<void> _avisarVersionNueva(UpdateInfo info) async {
+  if (!ActualizacionServicio.soportado) return;
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getString(_claveVersionAvisada) == info.version) return;
+    // El l10n sin árbol de widgets: la notificación la dibuja Android, así que
+    // los textos se resuelven acá con el locale del sistema.
+    final loc = await AppLocalizations.delegate.load(
+      WidgetsBinding.instance.platformDispatcher.locale,
+    );
+    await ActualizacionServicio.enviarTextos(loc);
+    await ActualizacionServicio.notificar(
+      version: info.version,
+      texto: loc.update.nuevaVersion(info.version),
+    );
+    await prefs.setString(_claveVersionAvisada, info.version);
+    // Ya que estamos: los APKs de versiones anteriores no sirven más y solo
+    // ocupan lugar (y confunden al instalador).
+    await ActualizacionServicio.limpiarAntiguas(conservar: info.version);
+  } catch (e) {
+    debugPrint('[Tuerca] no se pudo avisar la versión nueva: $e');
+  }
 }
 
 /// Suma lo de adentro de la app con la versión nueva.

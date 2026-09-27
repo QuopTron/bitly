@@ -83,6 +83,11 @@ func InvokeExtensionAction(payload string) string {
 	if respuesta, manejada := invocarAccionFlacRescue(params.Provider, params.Action); manejada {
 		return respuesta
 	}
+	// qobuz-web también tiene acciones propias (informe del pool): la extensión
+	// JS no las exporta, así que se atienden acá con el mismo contrato.
+	if respuesta, manejada := invocarAccionQobuzWeb(params.Provider, params.Action); manejada {
+		return respuesta
+	}
 	if reg == nil {
 		return jsonErrorString("no inicializado")
 	}

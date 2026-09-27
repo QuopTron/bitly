@@ -37,6 +37,9 @@ extension InicializacionTextos on AppLocalizations {
     reproductor = isEn ? StringsReproductor.en : StringsReproductor.es;
     verificacion = isEn ? StringsVerificacion.en : StringsVerificacion.es;
     update = isEn ? StringsActualizacion.en : StringsActualizacion.es;
+    accionesRapidas =
+        isEn ? StringsAccionesRapidas.en : StringsAccionesRapidas.es;
+    infoCancion = isEn ? StringsInfoCancion.en : StringsInfoCancion.es;
     biblioteca = isEn ? StringsBiblioteca.en : StringsBiblioteca.es;
     niveles = isEn ? StringsNiveles.en : StringsNiveles.es;
     acciones = isEn ? StringsAcciones.en : StringsAcciones.es;
@@ -51,6 +54,7 @@ extension InicializacionTextos on AppLocalizations {
     redConexion = isEn ? StringsConexionRed.en : StringsConexionRed.es;
     traspasoConexion = isEn ? StringsTraspaso.en : StringsTraspaso.es;
     rescate = isEn ? StringsRescate.en : StringsRescate.es;
+    poolQobuz = isEn ? StringsPoolQobuz.en : StringsPoolQobuz.es;
     fiesta = isEn ? StringsFiesta.en : StringsFiesta.es;
   }
 }

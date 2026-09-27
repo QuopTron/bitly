@@ -40,6 +40,7 @@ import (
 	"fmt"
 	"log"
 	"net/url"
+	"strings"
 	"time"
 )
 
@@ -123,6 +124,38 @@ func (c *Client) marcarSiSinCuentas(err error) {
 	}
 }
 
+// marcasPoolArcod son los textos con los que el sitio delata un pool de tokens
+// vacío en el CUERPO de la respuesta. El caso normal no es un JSON de error
+// limpio sino un 500 con ese mensaje dentro (ver clasificarFalloArcod).
+var marcasPoolArcod = []string{
+	"no healthy qobuz tokens",
+	"healthy qobuz tokens",
+	"tokens available",
+	"add or reset tokens",
+}
+
+// clasificarFalloArcod traduce un fallo HTTP del canal a su error propio cuando
+// el CUERPO delata un pool de tokens vacío.
+//
+// Por qué existe: cuando el sitio se queda sin cuentas NO contesta un JSON de
+// error con 200 —contesta un 500 y el motivo viaja en el cuerpo—, así que el
+// error quedaba como un genérico "el canal respondió 500" y NO activaba el
+// backoff. Medido en el emulador: cinco reintentos pagando la espera completa
+// dentro de un solo toque. Con esto ese 500 cuenta como fallo de pool y el
+// canal se saltea unos minutos, como cualquier otro "esta fuente no aporta".
+func clasificarFalloArcod(err error, cuerpo []byte) error {
+	if err == nil {
+		return nil
+	}
+	texto := strings.ToLower(err.Error() + " " + detalleSitio(cuerpo))
+	for _, marca := range marcasPoolArcod {
+		if strings.Contains(texto, marca) {
+			return fmt.Errorf("%w: %v", errArcodSinCuentas, err)
+		}
+	}
+	return err
+}
+
 // idPistaArcod busca el ISRC en el catálogo del sitio y devuelve el id de la
 // pista que coincide. El id se memoriza (ver arcod_memoria.go): es estable y
 // ahorra una petición en cada reproducción.
@@ -139,6 +172,7 @@ func (c *Client) idPistaArcod(isrc string, fin time.Time) (string, error) {
 	}.Encode()
 	cuerpo, err := c.pedirArcod(destino)
 	if err != nil {
+		err = clasificarFalloArcod(err, cuerpo)
 		return "", fmt.Errorf("arcod: la búsqueda falló: %w (%s)", err, detalleSitio(cuerpo))
 	}
 	pistas, err := pistasArcod(cuerpo)

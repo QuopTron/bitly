@@ -8,8 +8,12 @@
 //	itemsAJSON              frontera de la API: serializa los items una vez por
 //	                        fuente cuando el camino NO es el streaming.
 //	anexarSearchStream      lo que corre MIENTRAS las fuentes responden: dedup
-//	                        lineal por item nuevo y propagación de ISRC sobre
-//	                        todo el buffer, o sea O(n²) en el tamaño de la lista.
+//	                        del lote contra el buffer y propagación de ISRC.
+//	                        Era O(n²) (barrido lineal por item nuevo + doble
+//	                        barrido en la propagación); desde el índice de
+//	                        dedup es O(k·n) con k = fuentes que responden.
+//	                        Hay dos formas de lote: una con todos los ISRC
+//	                        (el caso barato) y otra con la mitad (el realista).
 //
 // El tamaño 120 es el de un resultado real de "Todas" (~112 items medidos en
 // la optimización anterior), así que los números de acá son los del aparato.
@@ -114,6 +118,50 @@ func BenchmarkBusquedaItemsAJSON(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				if out := itemsAJSON(items); len(out) < 2 {
 					b.Fatal("serialización vacía")
+				}
+			}
+		})
+	}
+}
+
+// itemsBusquedaBenchISRCParcial arma el lote REALISTA de "Todas": la mitad de
+// las fuentes publica el ISRC y la otra mitad no (YouTube y SoundCloud no lo
+// traen en la búsqueda). Ese es el caso que hace trabajar a la propagación:
+// con todos los items con ISRC el trabajo ni arranca, así que medir solo con
+// itemsBusquedaBench escondería justo el camino lento.
+func itemsBusquedaBenchISRCParcial(n int) []FeedItemGo {
+	items := itemsBusquedaBench(n)
+	for i := range items {
+		if i%2 == 1 {
+			items[i].ISRC = ""
+		}
+	}
+	return items
+}
+
+// BenchmarkBusquedaAnexarLoteISRCParcial mide el mismo lote pero con la mitad
+// de los ISRC ausentes: la propagación tiene que emparejar por nombre+artista
+// normalizados y duración. Antes eso era un doble barrido que recalculaba las
+// dos claves en cada par; ahora la clave se calcula una vez por item.
+func BenchmarkBusquedaAnexarLoteISRCParcial(b *testing.B) {
+	for _, n := range []int{20, 120} {
+		lote := itemsBusquedaBenchISRCParcial(n)
+		b.Run(fmt.Sprintf("items=%d", n), func(b *testing.B) {
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				b.StopTimer()
+				currentSearchStream.mu.Lock()
+				currentSearchStream.generation = int64(i) + 1
+				currentSearchStream.items = nil
+				currentSearchStream.jsonCache = ""
+				currentSearchStream.mu.Unlock()
+				b.StartTimer()
+
+				anexarSearchStream(int64(i)+1, lote)
+
+				if len(currentSearchStream.items) != n {
+					b.Fatalf("se esperaban %d items, quedaron %d", n, len(currentSearchStream.items))
 				}
 			}
 		})

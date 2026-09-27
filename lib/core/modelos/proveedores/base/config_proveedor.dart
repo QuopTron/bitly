@@ -26,10 +26,22 @@ class ConfigProveedor {
   /// tienen campo visible, pero deben sobrevivir a los reinicios).
   final List<String> claves;
 
+  /// Si es true, el proveedor se empuja al arrancar AUNQUE no haya ninguna
+  /// credencial guardada (mapa vacío).
+  ///
+  /// Por qué existe: hay extensiones con un ORIGEN DE FÁBRICA que sólo se
+  /// activa cuando el backend recibe el push de ajustes. Qobuz es el caso: el
+  /// backend, al ver el push de `qobuz-web`, arma el pool desde el `/pool` del
+  /// Worker propio (sessionpool.QobuzPoolURLsPorDefecto) incluso si el usuario
+  /// no configuró nada. Sin este push con el mapa vacío, el default nunca se
+  /// dispararía y "apuntado por defecto" sería letra muerta.
+  final bool empujarSiempre;
+
   const ConfigProveedor({
     required this.id,
     required this.nombreMostrado,
     required this.claves,
+    this.empujarSiempre = false,
   });
 
   /// Todos los proveedores con credenciales (definidos en

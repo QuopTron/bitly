@@ -45,6 +45,25 @@ const maxItemsHidratados = 6
 // los que traen artista, fecha y recinto reales en su metadata.
 const mediatypesAudio = "(audio OR etree)"
 
+// filtroSinPerdida exige que el ITEM publique al menos un FLAC. Es el filtro que
+// hace que la fuente sea lo que dice ser: sin él la búsqueda devolvía items con
+// MP3 y el sin pérdida quedaba para DESPUÉS de hidratar (o no llegaba nunca).
+//
+// Medido contra la API real (2026-09) con `title:"Kind of Blue"`:
+//
+//	sin filtro → 22 items, y de los 6 primeros que se hidratan 5 publican SOLO
+//	             MP3 (VBR MP3 / Ogg Vorbis) y el sexto es un programa de radio
+//	con filtro  → 7 items, y los 6 primeros publican Flac
+//
+// La hidratación es lo caro: 0,3-6 s por item y SECUENCIAL, porque archive.org
+// castiga las ráfagas (ver maxItemsHidratados). Gastarla entera en items que no
+// pueden aportar sin pérdida es exactamente lo que este filtro evita.
+//
+// No rompe etree: `mediatype:etree AND format:Flac` devuelve 14.506 shows de
+// Grateful Dead con Flac, y el índice también acepta los items que publican
+// "24bit Flac" (probado con `title:"Kind of Blue" AND format:Flac`, que trae uno).
+const filtroSinPerdida = "format:Flac"
+
 // coleccionesNoMusica son colecciones cuyo TÍTULO contiene canciones pero cuyo
 // contenido no es la canción: radios, podcasts y programas.
 //
@@ -174,25 +193,67 @@ func (c *Client) SearchPlaylists(query string, limit int) ([]provider.PlaylistRe
 
 // buscarItems consulta el índice de audio, ordenado por popularidad y cacheado.
 //
-// Estrategia de consulta, medida contra el servicio: el texto libre de
-// advancedsearch busca en TODOS los campos (incluida la descripción), así que
-// "Miles Davis Kind of Blue" devolvía colecciones de 1925 y programas de radio
-// en vez del disco. Buscar la frase en el título devuelve la coincidencia
-// correcta en el puesto 1 ("Miles Davis' Kind of Blue"). Por eso primero se
-// prueba el título y, solo si no hay NADA, se cae al texto libre — que es el
-// único modo que funciona con consultas que mezclan título y artista
-// ("So What Miles Davis", como arma el rescate).
+// Estrategia de consulta, medida contra el servicio:
+//
+//  1. la frase en el título + FLAC
+//  2. la frase en el título (sin filtro)
+//  3. el texto libre + FLAC
+//  4. el texto libre (sin filtro, reserva final)
+//
+// El texto libre de advancedsearch busca en TODOS los campos (incluida la
+// descripción), así que "Miles Davis Kind of Blue" devolvía colecciones de 1925
+// y programas de radio en vez del disco, mientras que la frase en el título
+// devuelve la coincidencia correcta en el puesto 1 ("Miles Davis' Kind of
+// Blue"). Por eso el título va primero — pero el texto libre es el ÚNICO modo
+// que funciona con consultas que mezclan título y artista ("So What Miles
+// Davis", como arma el rescate).
+//
+// Y el filtro de sin pérdida va DELANTE de cada uno, no de reserva: no resta
+// cobertura —detrás queda el mismo intento sin filtro— y delante evita el
+// desperdicio medido en filtroSinPerdida. Cuesta una consulta más al índice
+// (decenas de ms) solo cuando el intento filtrado no encuentra nada.
+//
+// ── Por qué el texto libre NO se acota a título/creador (evaluado y descartado) ──
+// Medido contra la API real (2026-09). El texto libre es ruidoso y la tentación
+// es acotarlo por campo, término por término: `(title:x OR creator:x) AND …`.
+// No se hace, porque el ruido es el PRECIO de que esta fuente sirva para lo que
+// sirve: encontrar la CANCIÓN dentro de un show o un álbum.
+//
+//	texto libre "Scarlet Begonias Grateful Dead" → 4.365 items, y los primeros
+//	  son conciertos (Splintered Sunlight, ZenDog) cuyo TÍTULO no menciona la
+//	  canción: el match salió de la descripción y de los nombres de archivo, que
+//	  es donde archive.org guarda el repertorio. Acotado → 0 items.
+//	texto libre "So What Miles Davis" → shows de otras bandas; acotado → 1 item
+//	  (un pack de samples MIDI). Acotado en la forma real del rescate
+//	  ("Columbia Quevedo") → 0 items.
+//
+// O sea: acotar cambia ruido por CERO justo en el caso que más importa. El ruido
+// tampoco rompe la reproducción —la verificación de match descarta lo que no
+// coincide—, así que cuesta TIEMPO, y el tiempo lo ataca el filtro de sin
+// pérdida (filtroSinPerdida), no la precisión de la consulta. (El índice de
+// archive.org reformula el texto libre a un AND sobre `text` y `text__reviews`,
+// o sea descripción, nombres de archivo y reseñas: por eso alcanza el repertorio.)
 func (c *Client) buscarItems(query string, filas int) ([]itemResumen, error) {
-	items, err := c.buscarPorTitulo(query, filas)
-	if err == nil && len(items) > 0 {
+	var errTitulo error
+	if items, err := c.buscarPorTitulo(query, filas, true); err == nil && len(items) > 0 {
+		return items, nil
+	} else if err != nil {
+		errTitulo = err
+	}
+	if items, err := c.buscarPorTitulo(query, filas, false); err == nil && len(items) > 0 {
+		return items, nil
+	} else if err != nil && errTitulo == nil {
+		errTitulo = err
+	}
+	if items, err := c.buscar(query, mediatypesAudio, true, filas); err == nil && len(items) > 0 {
 		return items, nil
 	}
-	libres, errLibre := c.buscar(query, mediatypesAudio, filas)
+	libres, errLibre := c.buscar(query, mediatypesAudio, false, filas)
 	if errLibre != nil {
 		// La reserva también falló: se propaga el error del intento principal
 		// si lo hubo, porque describe mejor el problema.
-		if err != nil {
-			return nil, err
+		if errTitulo != nil {
+			return nil, errTitulo
 		}
 		return nil, errLibre
 	}
@@ -202,27 +263,30 @@ func (c *Client) buscarItems(query string, filas int) ([]itemResumen, error) {
 // buscarPorTitulo busca la consulta como FRASE dentro del título del item.
 // Las comillas dobles del usuario se descartan: se encierran en comillas
 // propias, así que dejarlas rompería la sintaxis de la consulta.
-func (c *Client) buscarPorTitulo(query string, filas int) ([]itemResumen, error) {
+func (c *Client) buscarPorTitulo(query string, filas int, soloFlac bool) ([]itemResumen, error) {
 	frase := strings.TrimSpace(strings.ReplaceAll(query, `"`, ""))
 	if frase == "" {
 		return nil, fmt.Errorf("%s: búsqueda vacía", name)
 	}
-	return c.buscar(`title:"`+frase+`"`, mediatypesAudio, filas)
+	return c.buscar(`title:"`+frase+`"`, mediatypesAudio, soloFlac, filas)
 }
 
-// buscarColecciones consulta el índice de colecciones.
+// buscarColecciones consulta el índice de colecciones. Va SIN el filtro de
+// pérdida: una colección es un conjunto, no un archivo, y su formato no dice
+// nada de lo que hay adentro.
 func (c *Client) buscarColecciones(query string, filas int) ([]itemResumen, error) {
-	return c.buscar(query, "collection", filas)
+	return c.buscar(query, "collection", false, filas)
 }
 
 // buscar ejecuta advancedsearch restringido a [mediatype]. [mediatype] acepta
 // una expresión (p. ej. "(audio OR etree)"), no solo un valor suelto.
-func (c *Client) buscar(query string, mediatype string, filas int) ([]itemResumen, error) {
+// [soloFlac] agrega el filtro que exige que el item publique FLAC.
+func (c *Client) buscar(query string, mediatype string, soloFlac bool, filas int) ([]itemResumen, error) {
 	query = strings.TrimSpace(query)
 	if query == "" {
 		return nil, fmt.Errorf("%s: búsqueda vacía", name)
 	}
-	clave := mediatype + "|" + strings.ToLower(query) + "|" + fmt.Sprint(filas)
+	clave := mediatype + "|" + fmt.Sprint(soloFlac) + "|" + strings.ToLower(query) + "|" + fmt.Sprint(filas)
 	if v, ok := c.busquedasItems.Get(clave); ok {
 		return v, nil
 	}
@@ -238,6 +302,11 @@ func (c *Client) buscar(query string, mediatype string, filas int) ([]itemResume
 	// responde 401, así que son resultados que no se pueden reproducir.
 	// (access-restricted-item es un campo indexado: se filtra en la consulta.)
 	consulta += " AND -access-restricted-item:true AND -collection:stream_only"
+	// El sesgo a sin pérdida va al final para que el filtro de mediatype y las
+	// exclusiones sigan leyéndose igual (y los tests que las fijan, también).
+	if soloFlac {
+		consulta += " AND " + filtroSinPerdida
+	}
 
 	valores := url.Values{}
 	valores.Set("q", consulta)

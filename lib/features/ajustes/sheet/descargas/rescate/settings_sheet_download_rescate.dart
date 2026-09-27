@@ -33,8 +33,10 @@ class _DownloadRescateCard extends StatefulWidget {
 class _DownloadRescateCardState extends State<_DownloadRescateCard> {
   final TextEditingController _instancia = TextEditingController();
   final TextEditingController _clave = TextEditingController();
+  final TextEditingController _proxy = TextEditingController();
 
   bool _sitios = true;
+  bool _relay = true;
   bool _cargado = false;
   bool _abierto = false;
   bool _guardado = false;
@@ -49,6 +51,7 @@ class _DownloadRescateCardState extends State<_DownloadRescateCard> {
   void dispose() {
     _instancia.dispose();
     _clave.dispose();
+    _proxy.dispose();
     super.dispose();
   }
 
@@ -58,6 +61,9 @@ class _DownloadRescateCardState extends State<_DownloadRescateCard> {
     final cache = sl<CacheAjustes>();
     final sitios = await cache.getAjuste(
       '${AjustesRescate.idRescate}_${AjustesRescate.claveSitios}',
+    );
+    final relay = await cache.getAjuste(
+      '${AjustesRescate.idRescate}_${AjustesRescate.claveStashRelay}',
     );
     final url =
         await cache.getAjuste(
@@ -69,11 +75,18 @@ class _DownloadRescateCardState extends State<_DownloadRescateCard> {
           '${AjustesRescate.idYoutube}_${AjustesRescate.claveToken}',
         ) ??
         '';
+    final proxy =
+        await cache.getAjuste(
+          '${AjustesRescate.idRescate}_${AjustesRescate.claveProxy}',
+        ) ??
+        '';
     if (!mounted) return;
     setState(() {
       _sitios = AjustesRescate.sitiosActivos(sitios);
+      _relay = AjustesRescate.relayActivo(relay);
       _instancia.text = url;
       _clave.text = clave;
+      _proxy.text = proxy;
       _cargado = true;
     });
   }
@@ -89,13 +102,29 @@ class _DownloadRescateCardState extends State<_DownloadRescateCard> {
     });
   }
 
-  Future<void> _guardarCobalt() async {
+  /// El relay sin pérdida: mismo camino que los sitios. Apagado, el backend no
+  /// le hace ni una petición (ver stash_relay_ajustes.go).
+  Future<void> _cambiarRelay(bool activo) async {
+    setState(() => _relay = activo);
+    await _servicio().guardarYReinicializar(AjustesRescate.idRescate, {
+      AjustesRescate.claveStashRelay: AjustesRescate.valorRelay(activo),
+    });
+  }
+
+  /// Guarda la sección avanzada: la instancia de cobalt (youtube) y el proxy
+  /// del rescate (flac-rescue) en un solo toque de Guardar.
+  Future<void> _guardarAvanzado() async {
     final url = AjustesRescate.normalizarInstancia(_instancia.text);
     // Una URL a medio pegar no se guarda: el campo ya lo está avisando.
     if (url.isNotEmpty && !AjustesRescate.instanciaValida(url)) return;
+    final proxy = AjustesRescate.normalizarProxy(_proxy.text);
+    if (proxy.isNotEmpty && !AjustesRescate.proxyValido(proxy)) return;
     await _servicio().guardarYReinicializar(AjustesRescate.idYoutube, {
       AjustesRescate.claveInstancia: url,
       AjustesRescate.claveToken: _clave.text.trim(),
+    });
+    await _servicio().guardarYReinicializar(AjustesRescate.idRescate, {
+      AjustesRescate.claveProxy: proxy,
     });
     if (!mounted) return;
     setState(() => _guardado = true);
@@ -110,13 +139,16 @@ class _DownloadRescateCardState extends State<_DownloadRescateCard> {
       context: context,
       instancia: _instancia,
       clave: _clave,
+      proxy: _proxy,
       sitios: _sitios,
+      relay: _relay,
       abierto: _abierto,
       guardado: _guardado,
       glowColor: widget.glowColor,
       onSitios: _cambiarSitios,
+      onRelay: _cambiarRelay,
       onToggleAvanzado: () => setState(() => _abierto = !_abierto),
-      onGuardar: _guardarCobalt,
+      onGuardar: _guardarAvanzado,
       onCampoCambiado: () => setState(() {}),
     );
   }

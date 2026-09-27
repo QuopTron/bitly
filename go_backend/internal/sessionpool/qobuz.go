@@ -41,6 +41,42 @@ const (
 // correoRe reconoce algo con forma de email dentro de una credencial.
 var correoRe = regexp.MustCompile(`^[^@\s]+@[^@\s]+\.[^@\s]+$`)
 
+// QobuzPoolURLInyectada es la URL del /pool del Worker propio, INYECTADA EN EL
+// BUILD (no escrita acá):
+//
+//	-ldflags "-X github.com/zarz/bitly/go_backend/internal/sessionpool.QobuzPoolURLInyectada=https://tu-worker.workers.dev/pool/<secreto>"
+//
+// Está VACÍA en el repo A PROPÓSITO: apuntar el default a un Worker personal
+// desde un repo abierto publica su URL y su secreto a cualquiera que quiera usar
+// (y quemar) tu cuota. Quien compile pone la suya; el helper
+// scripts/dev/qobuz_inyeccion.sh la arma leyendo un archivo gitignoreado. Cómo
+// levantar el Worker, en selfhost/qobuz-pool/README.md.
+var QobuzPoolURLInyectada = ""
+
+// QobuzPoolURLsPorDefecto es la fuente de pool que la app usa cuando el usuario
+// NO configuró ninguna en `qobuzPoolUrls`. Espeja defaultKeysURLs del canal
+// firmado (provider/flacrescue/qobuz_claves.go): si el build la trae puesta, el
+// usuario no tiene que pegar nada para tener sesión.
+//
+// Sin inyección queda VACÍO: el pool de fábrica está apagado y el usuario
+// configura su `qobuzPoolUrls` (al no estar vacío, REEMPLAZA a este default: no
+// se suman). El Worker sirve la lista en el formato que ExtraerCredencialesQobuz
+// sabe leer (una línea "user_auth_token=<token>" por cuenta); con
+// QOBUZ_POOL_SECRET configurado, la URL tiene que llevar el secreto en la ruta
+// (`.../pool/<secreto>`): sin él, /pool responde 403.
+//
+// Es una var (y no una const) por el mismo motivo que defaultKeysURLs: los
+// tests apuntan el default a un servidor local en vez de salir a Internet.
+var QobuzPoolURLsPorDefecto = poolDeFabrica()
+
+// poolDeFabrica arma el default a partir del valor inyectado en el build.
+func poolDeFabrica() []string {
+	if v := strings.TrimSpace(QobuzPoolURLInyectada); v != "" {
+		return []string{v}
+	}
+	return nil
+}
+
 // ExtraerCredencialesQobuz saca candidatos "email:password" y tokens
 // sueltos de un texto cualquiera.
 func ExtraerCredencialesQobuz(texto string) []string {

@@ -1,12 +1,13 @@
 // ─────────────────────────────────────────────────────────────────────────
 // play_metadata.go — Fase de IDENTIDAD de la reproducción: resuelve el track
-// (título, artista, ISRC, ids cross-proveedor) antes de pedir el stream.
+// (título, artista, ISRC, ids cross-proveedor) EN PARALELO con el pedido del
+// stream (ver play_package.go), nunca delante de él.
 //
 // La metadata es una MEJORA, no un requisito: el audio lo consigue el rescate
-// (rescue_stream.go). Por eso cada paso acá tiene PRESUPUESTO y los recorridos
-// corren en PARALELO (ver play_metadata_limite.go): medido, una sola llamada a
-// una extensión lenta retenía la reproducción 65s aunque el rescate resolvía la
-// canción en 3,5s.
+// (rescue_stream.go) con la identidad del PEDIDO. Por eso cada paso acá tiene
+// PRESUPUESTO y los recorridos corren en PARALELO (ver play_metadata_limite.go):
+// medido, una sola llamada a una extensión lenta retenía la reproducción 65s
+// aunque el rescate resolvía la canción en 3,5s.
 //
 // Se conecta con: play_metadata_limite.go (presupuestos) + play_metadata_enrich
 // .go (ISRC por identidad) + play_metacache.go (caché por identidad estable).

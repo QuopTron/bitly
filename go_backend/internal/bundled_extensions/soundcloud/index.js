@@ -56,6 +56,166 @@ function initialize(config) {
 }
 
 function cleanup() {
+  persistirClientId();
+}
+
+function userAgentForURL(url) {
+  return utils.randomUserAgent();
+}
+
+// ============================================
+// CLIENT ID EXTRACTION
+// ============================================
+
+// ── CÓMO SE OBTIENE EL client_id ─────────────────────────────
+//
+// Por qué hay VARIAS estrategias y todas se VALIDAN: SoundCloud fue moviendo
+// dónde publica su client_id, y cada formato nuevo dejaba la fuente muerta de a
+// ratos —no solo el feed: la búsqueda y la descarga también salen por esa API.
+// Medido: dos corridas seguidas en la misma máquina, una con client_id y la otra
+// agotando ~30 bundles para no encontrar nada y responder 401.
+//
+// Lo que cambió el juego: la página YA trae el id en su bloque de arranque
+// (`window.__sc_hydration`, entrada `apiClient`), así que en el caso normal
+// alcanza con UNA petición que no es un bundle. El recorrido de bundles queda
+// como último recurso, porque es el lento (~2-3s) y el que más se rompe.
+//
+// Y cada candidato se COMPRUEBA contra la API antes de guardarlo. Un id con
+// formato válido pero muerto era indistinguible de uno bueno hasta que la
+// búsqueda ya había fallado; así el rescate de client_id no queda envenenado 24h.
+
+// PATRONES_CLIENT_ID son las formas conocidas del id en un texto (HTML o JS).
+// El orden importa: primero las que incluyen la clave del dato, después las
+// sueltas.
+var PATRONES_CLIENT_ID = [
+  /"client_id"\s*:\s*"([a-zA-Z0-9]{32})"/,
+  /client_id["']?\s*[:=]\s*["']([a-zA-Z0-9]{32})["']/,
+  /client_id=([a-zA-Z0-9]{32})/,
+  /"clientId"\s*:\s*"([a-zA-Z0-9]{32})"/,
+];
+
+// PAGINAS_CLIENT_ID son las páginas donde SoundCloud publica el bloque de
+// arranque, en orden de preferencia. La principal alcanza en el uso normal; las
+// otras dos cubren la variante de frontend y la redirección regional, que son
+// justo los casos "de a ratos".
+var PAGINAS_CLIENT_ID = [
+  "https://soundcloud.com/",
+  "https://soundcloud.com/discover",
+  "https://m.soundcloud.com/",
+];
+
+// bajarTextoRecurso hace un GET de navegador y devuelve el cuerpo ("" si no se
+// pudo). Nunca lanza: quien llama decide si prueba otra página.
+function bajarTextoRecurso(url, accept) {
+  try {
+    var resp = http.get(url, {
+      "User-Agent": utils.randomUserAgent(),
+      "Accept-Encoding": "identity",
+      Accept: accept || "text/html,application/xhtml+xml,*/*",
+    });
+    if (!resp || resp.error || resp.statusCode !== 200) return "";
+    return resp.body || "";
+  } catch (e) {
+    log.debug("[SC] GET falló para " + url + ": " + e.message);
+    return "";
+  }
+}
+
+// clientIdDesdeHydration lee el id del bloque con el que la SPA arranca:
+// window.__sc_hydration = [..., {"hydratable":"apiClient",
+// "data":{"id":"<32 chars>","isExpiring":false}}, ...].
+//
+// Se busca por posicional: el JSON llega minificado y el orden de las claves no
+// es estable entre builds, así que se ubica "apiClient" y se mira una ventana
+// alrededor por si el id está antes o después.
+function clientIdDesdeHydration(cuerpo) {
+  var idx = cuerpo.indexOf("apiClient");
+  if (idx === -1) return "";
+
+  var desde = Math.max(0, idx - 300);
+  var hasta = Math.min(cuerpo.length, idx + 300);
+  var ventana = cuerpo.substring(desde, hasta);
+
+  var m = ventana.match(
+    /["']data["']\s*:\s*\{[^{}]{0,200}?["']id["']\s*:\s*["']([a-zA-Z0-9]{32})["']/,
+  );
+  if (m) return m[1];
+  m = ventana.match(/["']id["']\s*:\s*["']([a-zA-Z0-9]{32})["']/);
+  return m ? m[1] : "";
+}
+
+// clientIdDeTexto aplica los patrones conocidos a un texto cualquiera.
+function clientIdDeTexto(texto) {
+  if (!texto) return "";
+  for (var i = 0; i < PATRONES_CLIENT_ID.length; i++) {
+    var m = texto.match(PATRONES_CLIENT_ID[i]);
+    if (m) return m[1];
+  }
+  return "";
+}
+
+// verificarClientId comprueba el candidato con la llamada autenticada más
+// barata que existe (una búsqueda de un resultado).
+//
+// Devuelve "ok" | "rechazado" | "sin-verificar". Solo un rechazo EXPLÍCITO de
+// autorización invalida el candidato: un 429, un 5xx o un fallo de red no
+// dicen nada del id, y descartarlo por eso dejaría la fuente muerta cuando el
+// problema era nuestro.
+function verificarClientId(id) {
+  if (!id) return "rechazado";
+  try {
+    var resp = http.get(
+      SC_API + "/search/tracks?q=a&limit=1&client_id=" + encodeURIComponent(id),
+      {
+        "User-Agent": utils.randomUserAgent(),
+        Accept: "application/json",
+      },
+    );
+    if (resp && resp.statusCode === 200) return "ok";
+    if (resp && (resp.statusCode === 401 || resp.statusCode === 403)) {
+      log.debug("[SC] client_id candidato rechazado: HTTP " + resp.statusCode);
+      return "rechazado";
+    }
+    log.debug(
+      "[SC] client_id sin poder verificar: HTTP " +
+        (resp ? resp.statusCode : "sin respuesta"),
+    );
+    return "sin-verificar";
+  } catch (e) {
+    return "sin-verificar";
+  }
+}
+
+// invalidarClientId borra el id cacheado y lo saca del storage. Se usa cuando el
+// id recién rescatado tampoco sirvió: sin esto quedaría 24h guardado y cada
+// arranque de la app lo volvería a usar para volver a fallar.
+function invalidarClientId() {
+  state.clientId = null;
+  state.clientIdExpiry = 0;
+  state.clientIdNextRetry = Date.now() + 30 * 1000;
+  try {
+    if (
+      typeof storage !== "undefined" &&
+      storage &&
+      typeof storage.remove === "function"
+    ) {
+      storage.remove("sc_state");
+    }
+  } catch (e) {}
+}
+
+// guardarClientId deja el id listo para usar y lo persiste.
+function guardarClientId(id, origen) {
+  state.clientId = id;
+  state.clientIdExpiry = Date.now() + 24 * 60 * 60 * 1000; // 24h
+  state.clientIdNextRetry = 0;
+  persistirClientId();
+  log.info("[SC] client_id obtenido de " + origen);
+}
+
+// persistirClientId guarda el estado en el storage de la extensión para que un
+// reinicio de la app no pague otra vez el rescate.
+function persistirClientId() {
   try {
     storage.set(
       "sc_state",
@@ -68,133 +228,132 @@ function cleanup() {
   } catch (e) {}
 }
 
-function userAgentForURL(url) {
-  return utils.randomUserAgent();
+// esElMismoIdMuerto dice si el candidato es el id con el que la API acaba de
+// responder 401. Ese id está muerto por definición: adoptarlo sería cachear 24h
+// un id que ya falló, y comprobarlo sería gastar una petición para que la API
+// repita lo que ya dijo.
+function esElMismoIdMuerto(candidato, idAnterior) {
+  return !!idAnterior && candidato === idAnterior;
 }
 
-// ============================================
-// CLIENT ID EXTRACTION
-// ============================================
-
-function fetchClientId() {
-  log.info("[SC] Fetching SoundCloud client_id...");
-
-  var response = http.get("https://soundcloud.com/", {
-    "User-Agent": utils.randomUserAgent(),
-    "Accept-Encoding": "identity",
-  });
-
-  if (!response || response.error || response.statusCode !== 200) {
-    throw new Error(
-      "Failed to fetch soundcloud.com: HTTP " +
-        (response ? response.statusCode : "no response"),
-    );
-  }
-
-  var body = response.body || "";
-
-  // Extract __sc_version for cache key
-  var versionMatch = body.match(/__sc_version="(\d{10})"/);
-  if (versionMatch) {
-    var newVersion = versionMatch[1];
-    if (newVersion === state.scVersion && state.clientId) {
-      log.info("[SC] SoundCloud version unchanged, reusing cached client_id");
-      return;
+// candidatoClientId prueba las estrategias sobre UNA página ya descargada y
+// devuelve {id, origen} o null.
+//
+// opciones:
+//   idAnterior    el id con el que la API acaba de dar 401 (ver
+//                 esElMismoIdMuerto).
+//   sinVerificar  salta la comprobación previa contra la API. Se usa SOLO en el
+//                 camino del 401, donde el reintento con el id nuevo ES la
+//                 verificación: comprobar antes duplicaba las peticiones para
+//                 obtener la misma información.
+function candidatoClientId(cuerpo, opciones) {
+  var op = opciones || {};
+  var propuestas = [
+    { id: clientIdDesdeHydration(cuerpo), origen: "__sc_hydration" },
+    { id: clientIdDeTexto(cuerpo), origen: "HTML" },
+  ];
+  for (var i = 0; i < propuestas.length; i++) {
+    if (!propuestas[i].id) continue;
+    if (esElMismoIdMuerto(propuestas[i].id, op.idAnterior)) continue;
+    if (
+      !op.sinVerificar &&
+      verificarClientId(propuestas[i].id) === "rechazado"
+    ) {
+      continue;
     }
-    state.scVersion = newVersion;
+    return propuestas[i];
   }
+  return null;
+}
 
-  // Strategy 1: Look for client_id directly in HTML
-  var directMatch = body.match(/client_id[:=]["']([a-zA-Z0-9]{32})["']/);
-  if (directMatch) {
-    state.clientId = directMatch[1];
-    state.clientIdExpiry = Date.now() + 24 * 60 * 60 * 1000; // 24h
-    log.info("[SC] Found client_id in HTML");
-    return;
-  }
-
-  // Strategy 2: Extract from JS bundles at a-v2.sndcdn.com
-  var scriptMatches = body.match(
+// clientIdDeBundles es el último recurso: recorrer los scripts de la página.
+// Antes era el PRIMER camino y por eso la fuente fallaba cuando SoundCloud
+// renombraba sus chunks; ahora se usa solo si el bloque de arranque no dio un id
+// usable. Se escanea completo (no solo los últimos): el id ha viajado en chunks
+// distintos entre builds.
+function clientIdDeBundles(cuerpo, opciones) {
+  var op = opciones || {};
+  var scriptMatches = cuerpo.match(
     /src="(https:\/\/a-v2\.sndcdn\.com\/assets\/[^"]+\.js)"/g,
   );
   if (!scriptMatches) {
-    // Fallback: any script with sndcdn
-    scriptMatches = body.match(/src="(https:\/\/[^"]*sndcdn\.com[^"]*\.js)"/g);
+    scriptMatches = cuerpo.match(
+      /src="(https?:\/\/[^"]*sndcdn\.com[^"]*\.js)"/g,
+    );
   }
+  if (!scriptMatches) return "";
 
-  if (scriptMatches) {
-    // Process from last to first (client_id is usually in later bundles), but
-    // scan ALL scripts, not just the last 8: SoundCloud rotates which chunk
-    // carries client_id (observed in the 55-*.js chunk), and the last-8 window
-    // missed it — forcing a second full scan on the next search. ~1s for the
-    // extra chunks is cheaper than a guaranteed repeat failure.
-    var scanStart = scriptMatches.length - 1;
-    var scanEnd = 0;
-    for (var i = scanStart; i >= scanEnd; i--) {
-      var srcMatch = scriptMatches[i].match(/src="([^"]+)"/);
-      if (!srcMatch) continue;
+  for (var i = scriptMatches.length - 1; i >= 0; i--) {
+    var srcMatch = scriptMatches[i].match(/src="([^"]+)"/);
+    if (!srcMatch) continue;
 
-      var bundleURL = srcMatch[1];
-      log.debug(
-        "[SC] Checking bundle:",
-        bundleURL.substring(bundleURL.lastIndexOf("/") + 1),
-      );
+    var bundleURL = srcMatch[1];
+    log.debug(
+      "[SC] Checking bundle:",
+      bundleURL.substring(bundleURL.lastIndexOf("/") + 1),
+    );
 
-      try {
-        var bundleResp = http.get(bundleURL, {
-          "User-Agent": utils.randomUserAgent(),
-          "Accept-Encoding": "identity",
-        });
+    var bundleBody = bajarTextoRecurso(bundleURL, "application/javascript,*/*");
+    if (!bundleBody) continue;
 
-        if (bundleResp && !bundleResp.error && bundleResp.statusCode === 200) {
-          var bundleBody = bundleResp.body || "";
-
-          // Look for client_id pattern: client_id:"XXXX" or client_id=XXXX
-          var cidMatch = bundleBody.match(
-            /client_id[:=]["']([a-zA-Z0-9]{32})["']/,
-          );
-          if (!cidMatch) {
-            // Alternative pattern: ("client_id=XXXXX")
-            cidMatch = bundleBody.match(/\("client_id=([a-zA-Z0-9]{32})"\)/);
-          }
-          if (!cidMatch) {
-            // client_id=XXXXX within a string
-            var idx = bundleBody.indexOf("client_id=");
-            if (idx !== -1) {
-              var start = idx + 10;
-              var end = start;
-              var chars =
-                "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-              while (
-                end < bundleBody.length &&
-                end - start < 32 &&
-                chars.indexOf(bundleBody.charAt(end)) !== -1
-              ) {
-                end++;
-              }
-              if (end - start === 32) {
-                cidMatch = [null, bundleBody.substring(start, end)];
-              }
-            }
-          }
-
-          if (cidMatch) {
-            state.clientId = cidMatch[1];
-            state.clientIdExpiry = Date.now() + 24 * 60 * 60 * 1000;
-            log.info("[SC] Found client_id in JS bundle");
-            return;
-          }
-        }
-      } catch (e) {
-        log.debug("[SC] Bundle fetch failed:", e.message);
-      }
+    var candidato = clientIdDeTexto(bundleBody);
+    if (!candidato) continue;
+    if (esElMismoIdMuerto(candidato, op.idAnterior)) continue;
+    if (!op.sinVerificar && verificarClientId(candidato) === "rechazado") {
+      continue;
     }
+    return candidato;
   }
-
-  throw new Error("Could not find SoundCloud client_id in page or JS bundles");
+  return "";
 }
 
-function ensureClientId() {
+function fetchClientId(opciones) {
+  var op = opciones || {};
+  log.info("[SC] Fetching SoundCloud client_id...");
+
+  var ultimoMotivo = "";
+  for (var p = 0; p < PAGINAS_CLIENT_ID.length; p++) {
+    var pagina = PAGINAS_CLIENT_ID[p];
+    var cuerpo = bajarTextoRecurso(pagina);
+    if (!cuerpo) {
+      ultimoMotivo = "sin respuesta de " + pagina;
+      continue;
+    }
+
+    // __sc_version dice si la página cambió. Si es la misma y ya tenemos id,
+    // no se vuelve a rescatar: es el mismo dato de la vez pasada.
+    var versionMatch = cuerpo.match(/__sc_version="(\d{10})"/);
+    if (versionMatch) {
+      if (versionMatch[1] === state.scVersion && state.clientId) {
+        log.info("[SC] SoundCloud version unchanged, reusing cached client_id");
+        return;
+      }
+      state.scVersion = versionMatch[1];
+    }
+
+    var candidato = candidatoClientId(cuerpo, op);
+    if (candidato) {
+      guardarClientId(candidato.id, candidato.origen);
+      return;
+    }
+
+    var deBundle = clientIdDeBundles(cuerpo, op);
+    if (deBundle) {
+      guardarClientId(deBundle, "bundle JS");
+      return;
+    }
+
+    ultimoMotivo = "la página " + pagina + " no publicó un client_id usable";
+  }
+
+  throw new Error(
+    "Could not find SoundCloud client_id in page or JS bundles (" +
+      ultimoMotivo +
+      ")",
+  );
+}
+
+function ensureClientId(opciones) {
   if (state.clientId && Date.now() < state.clientIdExpiry) {
     return;
   }
@@ -210,7 +369,7 @@ function ensureClientId() {
   }
   state.clientIdBusy = true;
   try {
-    fetchClientId();
+    fetchClientId(opciones);
   } finally {
     state.clientIdBusy = false;
     if (!state.clientId) {
@@ -276,7 +435,20 @@ function scGet(path, extraParams) {
     var idAnterior = state.clientId;
     state.clientId = null;
     state.clientIdExpiry = 0;
-    ensureClientId();
+    try {
+      // sinVerificar: en este camino el reintento de abajo ES la verificación.
+      // idAnterior: si el rescate devuelve el mismo id muerto, se descarta sin
+      // gastar una petición en confirmarlo.
+      ensureClientId({ idAnterior: idAnterior, sinVerificar: true });
+    } catch (e) {
+      // El rescate no encontró un id usable. Para el host esto NO es "sin
+      // resultados", es la fuente sin poder servir: el marcador "HTTP 401" es
+      // el que hace que Go la enfríe en vez de repetir la caminata por cada
+      // canción del lote.
+      throw new Error(
+        "SoundCloud API failed after retry: HTTP 401 (client_id no renovable)",
+      );
+    }
     if (!state.clientId || state.clientId === idAnterior) {
       throw new Error(
         "SoundCloud API failed after retry: HTTP 401 (client_id no renovable)",
@@ -291,6 +463,8 @@ function scGet(path, extraParams) {
       Accept: "application/json",
     });
     if (!response || response.statusCode !== 200) {
+      // El id nuevo tampoco sirvió: no se deja cacheado uno que ya falló.
+      invalidarClientId();
       throw new Error(
         "SoundCloud API failed after retry: HTTP " +
           (response ? response.statusCode : "no response"),
@@ -1349,6 +1523,155 @@ function searchTracks(query, limit) {
 }
 
 // ============================================
+// HOME FEED
+// ============================================
+
+// ─────────────────────────────────────────────────────────────
+// Qué se pide y por qué SOLO eso (medido a mano contra la API pública):
+//   · /charts?kind=trending&genre=soundcloud:genres:all-music  → tracks
+//     Es la ÚNICA combinación que responde con datos: kind=top y los géneros
+//     concretos (reggaeton, latin, pop, hiphoprap...) devuelven {""} vacío con
+//     el client_id público. Pedirlos solo gastaría peticiones para nada.
+//   · /mixed-selections?kind=top → listas curadas de SoundCloud, cada selección
+//     con su propio título ("Artists to watch out for", "Curated by
+//     SoundCloud"...), así el feed se arma con lo que ellos publican.
+//
+// Las selecciones de tipo system-playlist se DESCARTAN: su id es un urn
+// ("soundcloud:system-playlists:...") y el detalle se abre por permalink, no
+// por id — servirlas en el feed daría un tap que no resuelve. Quedan las
+// listas normales, cuyo id numérico es el que ya usa getPlaylist.
+//
+// El client_id lo resuelve scGet (con su caché y su reintento por 401), así que
+// el feed no abre ningún camino de autenticación nuevo.
+// ─────────────────────────────────────────────────────────────
+
+var HOME_FEED_TTL_MS = 10 * 60 * 1000;
+var HOME_FEED_MAX_POR_LISTA = 20;
+var homeFeedCache = null;
+
+// aItemFeedHome traduce un item del formato de la extensión al contrato del
+// feed: acá se usa `item_type` interno y el feed espera `type`.
+function aItemFeedHome(item, tipo) {
+  if (!item || !item.id) return null;
+  return {
+    id: String(item.id || ""),
+    uri: String(item.external_urls || ""),
+    type: String(tipo || item.item_type || "track"),
+    name: String(item.name || ""),
+    artists: String(item.artists || ""),
+    album_id: String(item.album_id || ""),
+    album_name: String(item.album_name || ""),
+    duration_ms: Number(item.duration_ms || 0),
+    cover_url: String(item.cover_url || ""),
+    isrc: String(item.isrc || ""),
+    provider_id: "soundcloud",
+  };
+}
+
+// tendenciasSoundCloud devuelve los tracks del chart de tendencias.
+function tendenciasSoundCloud(limit) {
+  var payload = scGet(
+    "charts",
+    "kind=trending&genre=soundcloud:genres:all-music&limit=" +
+      encodeURIComponent(limit) +
+      "&offset=0",
+  );
+  var coleccion = (payload && payload.collection) || [];
+  var items = [];
+  for (var i = 0; i < coleccion.length; i++) {
+    // El chart envuelve cada track: {track: {...}, score: N}.
+    var item = aItemFeedHome(
+      formatTrack(coleccion[i] && coleccion[i].track),
+      "track",
+    );
+    if (item && item.id) items.push(item);
+  }
+  return items;
+}
+
+// seleccionesSoundCloud devuelve las secciones curadas: una por selección.
+function seleccionesSoundCloud(limit) {
+  var payload = scGet(
+    "mixed-selections",
+    "kind=top&limit=" + encodeURIComponent(limit),
+  );
+  var selecciones = (payload && payload.collection) || [];
+  var secciones = [];
+  for (var s = 0; s < selecciones.length; s++) {
+    var seleccion = selecciones[s] || {};
+    var crudos = (seleccion.items && seleccion.items.collection) || [];
+    var items = [];
+    for (
+      var i = 0;
+      i < crudos.length && items.length < HOME_FEED_MAX_POR_LISTA;
+      i++
+    ) {
+      var crudo = crudos[i] || {};
+      // Solo listas con id usable (ver la nota de arriba sobre system-playlist).
+      if (String(crudo.kind || "") !== "playlist" && !crudo.set_type) continue;
+      var item = aItemFeedHome(
+        formatPlaylistOrAlbum(crudo),
+        String(crudo.set_type || "") === "album" ? "album" : "playlist",
+      );
+      if (item && item.id) items.push(item);
+    }
+    var titulo = String(seleccion.title || "").trim();
+    if (titulo && items.length) {
+      secciones.push({ uri: "", title: titulo, items: items });
+    }
+  }
+  return secciones;
+}
+
+function getHomeFeed() {
+  if (
+    homeFeedCache &&
+    Date.now() - homeFeedCache.createdAt < HOME_FEED_TTL_MS
+  ) {
+    return homeFeedCache.value;
+  }
+
+  try {
+    var secciones = [];
+
+    // Cada bloque es independiente: si el chart falla, las listas curadas
+    // igual se devuelven (y al revés).
+    try {
+      var tendencias = tendenciasSoundCloud(HOME_FEED_MAX_POR_LISTA);
+      if (tendencias.length) {
+        secciones.push({ uri: "", title: "Tendencias", items: tendencias });
+      }
+    } catch (e) {
+      log.warn("[SC] feed: tendencias no disponibles: " + e.message);
+    }
+
+    try {
+      var curadas = seleccionesSoundCloud(4);
+      for (var i = 0; i < curadas.length; i++) secciones.push(curadas[i]);
+    } catch (e) {
+      log.warn("[SC] feed: selecciones no disponibles: " + e.message);
+    }
+
+    var resultado;
+    if (!secciones.length) {
+      resultado = {
+        success: false,
+        error: "SoundCloud sin feed",
+        sections: [],
+      };
+    } else {
+      log.info("[SC] Home feed: " + secciones.length + " secciones");
+      resultado = { success: true, greeting: "", sections: secciones };
+    }
+    homeFeedCache = { value: resultado, createdAt: Date.now() };
+    return resultado;
+  } catch (e) {
+    log.error("[SC] getHomeFeed failed: " + String(e));
+    return { success: false, error: String(e), sections: [] };
+  }
+}
+
+// ============================================
 // REGISTER EXTENSION
 // ============================================
 
@@ -1363,6 +1686,7 @@ registerExtension({
   getPlaylist: getPlaylist,
   searchTracks: searchTracks,
   enrichTrack: enrichTrack,
+  getHomeFeed: getHomeFeed,
 
   // Download provider
   checkAvailability: checkAvailability,

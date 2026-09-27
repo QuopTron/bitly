@@ -42,6 +42,22 @@ class EfectosApp {
   /// Lo enciende [MonitorFrames] midiendo frames reales.
   static final ValueNotifier<bool> efectosMinimos = ValueNotifier<bool>(false);
 
+  /// Tercer escalón de degradación: cuando ni siquiera sin desenfoques ni con
+  /// el color por tarjeta apagado se llega al ritmo, se apaga lo que queda y es
+  /// lo más caro: las FOTOS a pantalla completa. Es una textura escalada del
+  /// tamaño de la pantalla, compuesta en CADA frame, y en una GPU de gama baja
+  /// eso sola alcanza para que el desplazamiento vaya a saltos.
+  ///
+  /// En su lugar el fondo pinta el COLOR DOMINANTE del cover: el diseño se
+  /// mantiene y el color sigue siendo el de la canción.
+  /// Lo enciende [MonitorFrames] midiendo frames reales.
+  ///
+  /// Va aparte de [modoFluido] a propósito: ese es una elección de la persona
+  /// y nunca se revierte solo, mientras que esto es una reacción a lo que el
+  /// equipo demuestra que puede.
+  static final ValueNotifier<bool> fotosApagadasPorMonitor =
+      ValueNotifier<bool>(false);
+
   /// Modo fluido: elección EXPLÍCITA del usuario (Ajustes → Rendimiento) para
   /// los equipos donde la app se siente pesada.
   ///
@@ -67,6 +83,7 @@ class EfectosApp {
     permitirDesenfoque,
     sigmaMaximo,
     efectosMinimos,
+    fotosApagadasPorMonitor,
     modoFluido,
   ]);
 
@@ -85,7 +102,12 @@ class EfectosApp {
   /// ¿Se pintan las FOTOS a pantalla completa (fondos ambiente, cabeceras y
   /// modales)? Es la capa más cara que queda en una GPU de gama baja: una
   /// textura escalada del tamaño de la pantalla, en cada frame.
-  static bool get fotoPantallaCompletaActiva => !modoFluido.value;
+  ///
+  /// La apaga el modo fluido (elección del usuario) o el monitor de frames
+  /// cuando el equipo ya demostró que no llega ni sin desenfoques ni con el
+  /// color por tarjeta apagado.
+  static bool get fotoPantallaCompletaActiva =>
+      !modoFluido.value && !fotosApagadasPorMonitor.value;
 
   /// Aplica el coste visual del perfil activo (lo llama el arranque).
   static void aplicar({
@@ -108,6 +130,7 @@ class EfectosApp {
     permitirDesenfoque.value = true;
     sigmaMaximo.value = 26;
     efectosMinimos.value = false;
+    fotosApagadasPorMonitor.value = false;
     modoFluido.value = false;
   }
 }

@@ -53,6 +53,9 @@ class _AppearanceTab extends StatelessWidget {
           // ── Diseño personalizable (separación y redondeo de las cards) ──
           _DisenoCard(glowColor: glowColor, onBg: onBg, r: r, loc: loc),
           SizedBox(height: r.spacingS),
+          // ── Acciones rápidas: qué hace cada gesto sobre una canción ──
+          TarjetaAccionesRapidas(glowColor: glowColor, onBg: onBg, r: r),
+          SizedBox(height: r.spacingS),
           // ── Language ──
           SettingsLanguageSection(
             onBg: onBg,

@@ -69,7 +69,7 @@ func SetExtensionSettings(payload string) string {
 	// Pool de sesiones: si la extensión trae fuentes configuradas, se
 	// arman en SEGUNDO PLANO (descargar + validar no puede bloquear el
 	// guardado de ajustes) y cuando están listas se re-empujan.
-	if tieneFuentesDePool(settings) {
+	if tieneFuentesDePool(params.ExtensionID, settings) {
 		go expandirPoolDeSesiones(params.ExtensionID, copiarAjustes(settings))
 	}
 
@@ -98,14 +98,47 @@ func SetExtensionSettings(payload string) string {
 // armar y no se toca la red.
 var clavesFuentesDePool = []string{"arlPoolUrls", "tidalPoolUrls", "qobuzPoolUrls"}
 
-// tieneFuentesDePool indica si el usuario configuró alguna fuente.
-func tieneFuentesDePool(settings map[string]string) bool {
+// credencialesPropiasQobuz arma las credenciales PROPIAS del usuario para el
+// pool: las del campo `qobuzPool` (tokens sueltos o cuentas) más, si están, el
+// par email:password de los campos propios. El par va PRIMERO porque manda
+// sobre lo demás (misma prioridad que usa ConstruirPool).
+func credencialesPropiasQobuz(settings map[string]string) []string {
+	propias := sessionpool.SepararCredenciales(settings["qobuzPool"])
+	if correo, clave := strings.TrimSpace(settings["email"]), settings["password"]; correo != "" && clave != "" {
+		propias = append([]string{correo + ":" + clave}, propias...)
+	}
+	return propias
+}
+
+// fuentesPoolQobuz elige las URLs de pool de Qobuz a descargar: las que el
+// usuario configuró, o si no puso ninguna, el ORIGEN DE FÁBRICA (el /pool del
+// Worker propio, ver sessionpool.QobuzPoolURLsPorDefecto).
+//
+// No se SUMAN a propósito: una URL propia reemplaza al default. Además de ser
+// lo esperable ("mi pool manda"), eso da una forma de APAGAR el de fábrica:
+// alcanza con poner cualquier URL propia.
+func fuentesPoolQobuz(settings map[string]string) []string {
+	if fuentes := sessionpool.SepararCredenciales(settings["qobuzPoolUrls"]); len(fuentes) > 0 {
+		return fuentes
+	}
+	return append([]string(nil), sessionpool.QobuzPoolURLsPorDefecto...)
+}
+
+// tieneFuentesDePool indica si hay fuentes que descargar para [extID].
+//
+// Dos caminos:
+//  1. el usuario pegó alguna URL (cualquier clave de clavesFuentesDePool), o
+//  2. la extensión trae un origen de FÁBRICA (hoy sólo Qobuz: el /pool del
+//     Worker propio, ver sessionpool.QobuzPoolURLsPorDefecto). Sin este
+//     segundo caso, "apuntado por defecto" no serviría de nada: el push de
+//     arranque llega con los ajustes vacíos y el pool no se armaría nunca.
+func tieneFuentesDePool(extID string, settings map[string]string) bool {
 	for _, clave := range clavesFuentesDePool {
 		if strings.TrimSpace(settings[clave]) != "" {
 			return true
 		}
 	}
-	return false
+	return extID == "qobuz-web" && len(sessionpool.QobuzPoolURLsPorDefecto) > 0
 }
 
 // copiarAjustes clona el mapa para que la goroutine del pool no comparta
@@ -145,14 +178,7 @@ func expandirPoolDeSesiones(extID string, settings map[string]string) {
 		settings["tidalAccessToken"] = res.Usables[0]
 		settings["tidalTokenPool"] = strings.Join(res.Usables, "\n")
 	case "qobuz-web":
-		// La credencial propia es la cuenta (email:password); si además
-		// hay una sola cuenta en los campos sueltos, se arma el par.
-		propias := sessionpool.SepararCredenciales(settings["qobuzPool"])
-		if correo, clave := strings.TrimSpace(settings["email"]), settings["password"]; correo != "" && clave != "" {
-			propias = append([]string{correo + ":" + clave}, propias...)
-		}
-		fuentes := sessionpool.SepararCredenciales(settings["qobuzPoolUrls"])
-		res := sessionpool.ConstruirPoolQobuz(nil, propias, fuentes, "", "")
+		res := sessionpool.ConstruirPoolQobuz(nil, credencialesPropiasQobuz(settings), fuentesPoolQobuz(settings), "", "")
 		if !hayCredenciales(extID, res) {
 			return
 		}

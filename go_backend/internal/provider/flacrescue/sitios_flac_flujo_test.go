@@ -94,7 +94,9 @@ func TestResolverSitioExigeTituloYArtista(t *testing.T) {
 	}
 }
 
-// TestAjusteSitiosApagaYLimita fija el ajuste "sitios" que llega de la app.
+// TestAjusteSitiosApagaYLimita fija el ajuste "sitios" que llega de la app:
+// apagarlo, limitarlo a una lista conocida y —nuevo— habilitar una instancia
+// que no está en la lista de fábrica (comparte el protocolo).
 func TestAjusteSitiosApagaYLimita(t *testing.T) {
 	cliente := NewClient()
 	cliente.SetSettings(map[string]string{"sitios": "off"})
@@ -105,8 +107,20 @@ func TestAjusteSitiosApagaYLimita(t *testing.T) {
 	if len(cliente.listaSitios()) != 1 {
 		t.Fatal("el sitio de la lista debería quedar habilitado")
 	}
+	// Una URL desconocida SÍ se habilita: superflac es una instancia de muchos
+	// del mismo software, y el ajuste acepta apuntar el canal a otra instancia
+	// sin tocar el código.
 	cliente.SetSettings(map[string]string{"sitios": "https://otracosa.com"})
-	if len(cliente.listaSitios()) != 0 {
-		t.Fatal("una URL desconocida no debe encender nada")
+	sitios := cliente.listaSitios()
+	if len(sitios) != 1 || sitios[0].base() != "https://otracosa.com" {
+		t.Fatalf("una URL de instancia nueva debe quedar habilitada: %v", sitios)
+	}
+	// Un valor con basura (sin ninguna URL) no apaga el rescate: vuelven los
+	// sitios de fábrica. Un ajuste mal pegado no puede dejar al usuario sin
+	// ninguna vía de rescate.
+	cliente.SetSettings(map[string]string{"sitios": "no-es-una-url"})
+	sitios = cliente.listaSitios()
+	if len(sitios) != 1 || sitios[0].nombre() != "superflac" {
+		t.Fatalf("un valor sin URLs debe dejar los sitios de fábrica: %v", sitios)
 	}
 }

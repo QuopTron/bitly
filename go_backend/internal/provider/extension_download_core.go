@@ -52,9 +52,9 @@ func (p *ExtensionProvider) Download(trackID, quality, outputPath string, onProg
 		dr.Success = s
 	}
 	dr.FilePath = getString(m, "file_path", "filePath")
-	dr.Title = getString(m, "title")
-	dr.Artist = getString(m, "artist")
-	dr.Album = getString(m, "album")
+	dr.Title = TextoDeCampo(m, "title", "name")
+	dr.Artist = TextoDeCampo(m, "artist", "artists", "album_artist")
+	dr.Album = TextoDeCampo(m, "album", "album_name", "album_title")
 	if e, ok := m["encrypted"].(bool); ok {
 		dr.Encrypted = e
 	}

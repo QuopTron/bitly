@@ -214,12 +214,15 @@ func filtrarOriginales(items []FeedItemGo, queryTitle, queryArtist string) []Fee
 			noTracks = append(noTracks, item)
 			continue
 		}
-		variante := provider.IsNonOriginalVariant(item.Name, queryTitle)
 		tr := provider.TrackResult{
 			Title:  item.Name,
 			Artist: item.Artists,
+			Album:  item.AlbumName,
 			ISRC:   item.ISRC,
 		}
+		// La versión no original puede marcarse en el título, el artista o el
+		// álbum: se revisan los tres, no solo el título.
+		variante := provider.IsNonOriginalTrack(tr, queryTitle, queryArtist)
 		if _, ok := provider.OriginalStrength(queryTitle, queryArtist, tr); ok {
 			estrictos = append(estrictos, item)
 			continue

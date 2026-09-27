@@ -121,8 +121,7 @@ class _BarraProgresoAnimadaState extends State<_BarraProgresoAnimada>
               // pinta aunque esté reproduciendo, que es justo cuando más se
               // nota (el miniplayer es global).
               final conPulso = widget.reproduciendo && _pulsoPermitido;
-              final radioGlow =
-                  conPulso ? 6.0 + (_pulsoAnim.value * 6.0) : 0.0;
+              final radioGlow = conPulso ? 6.0 + (_pulsoAnim.value * 6.0) : 0.0;
               final escalaPulgar =
                   conPulso ? 0.8 + (_pulsoAnim.value * 0.4) : 1.0;
 

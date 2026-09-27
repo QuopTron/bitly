@@ -115,6 +115,37 @@ func TestRescueRaceAllStuck(t *testing.T) {
 	t.Logf("returned empty in %s — no deadlock", elapsed.Round(10*time.Millisecond))
 }
 
+// TestRescueRaceNoDescartaFuentesSinTurno fija la regresión de fiabilidad: con
+// el pool (2 turnos) ocupado por dos búsquedas lentas, una fuente POSTERIOR ya
+// no se descarta. Antes, al no conseguir turno en 1s, se la salteaba y la
+// canción quedaba sin stream aunque esa fuente la tuviera; ahora el intento
+// queda encolado y reclama el primer turno que se libera.
+func TestRescueRaceNoDescartaFuentesSinTurno(t *testing.T) {
+	reg := provider.NewRegistry()
+	for _, n := range []string{"lento1", "lento2"} {
+		reg.Register(&stubProvider{name: n, resolve: func() (string, error) {
+			time.Sleep(1500 * time.Millisecond)
+			return "", nil
+		}})
+	}
+	reg.Register(&stubProvider{name: "salvador", resolve: func() (string, error) {
+		return "http://salvador/stream", nil
+	}})
+
+	inicio := time.Now()
+	url, name, _ := carreraRescue(reg, []string{"lento1", "lento2", "salvador"}, 4*time.Second, 2, func(n string, p provider.Provider) (string, bool) {
+		u, err := p.GetStreamURL(n, "high")
+		if err != nil || u == "" {
+			return "", false
+		}
+		return u, false
+	})
+	if url != "http://salvador/stream" || name != "salvador" {
+		t.Fatalf("se descartó la fuente sin turno: url=%q name=%q (tardó %s)",
+			url, name, time.Since(inicio).Round(10*time.Millisecond))
+	}
+}
+
 // TestRescueRaceFastWins: the fastest provider wins within budget and order is
 // honored when results tie.
 func TestRescueRaceFastWins(t *testing.T) {

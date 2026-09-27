@@ -16,14 +16,21 @@ import (
 // tema salía varias veces en "Todas" — "One More Time" no coincidía con
 // "One More Time (Remastered)" ni "Daft Punk" con "Daft Punk, Pharrell".
 //
-// Se resuelve en dos pasos, en ese orden:
+// Se resuelve en tres pasos, en ese orden:
 //
-//  1. PROPAGAR el ISRC real cuando otra extensión lo trae para el mismo
-//     track (nombre + artista normalizados y misma duración). No se inventa
-//     nada: se toma prestado el ISRC que ya existe en la respuesta.
-//  2. Si aun así no hay ISRC, el track se compara por CLAVE CANÓNICA
-//     (nombre + artista principal + duración). Sirve para deduplicar, y
-//     NUNCA se disfraza de ISRC — ver [claveCanonicaTrack].
+//  1. FUSIONAR: cuando el mismo track llega desde otra fuente CON ISRC, el
+//     item se descarta como duplicado pero su ISRC se queda en el que ya
+//     estaba guardado (ver [fusionarISRC]). Es el camino principal, y el que
+//     de verdad hacía falta: YouTube y SoundCloud no publican ISRC en la
+//     búsqueda, así que su versión suele llegar primero y la fuente que sí lo
+//     trae (Deezer, Tidal) llegaba después… y se tiraba con su ISRC adentro.
+//  2. PROPAGAR el ISRC real entre los items que ya entraron, cuando otra
+//     extensión lo trae para el mismo track (nombre + artista normalizados y
+//     misma duración). No se inventa nada: se toma prestado el ISRC que ya
+//     existe en la respuesta.
+//  3. Si aun así no hay ISRC, el track se compara por CLAVE CANÓNICA
+//     (nombre + artista principal + duración). Sirve para deduplicar, y NUNCA
+//     se disfraza de ISRC.
 // ─────────────────────────────────────────────────────────────────────────
 
 // toleranciaDuracionMs es cuánta diferencia de duración se tolera para
@@ -164,6 +171,37 @@ func esElMismoTrack(a, b FeedItemGo) bool {
 	return true
 }
 
+// fusionarISRC pasa el ISRC del item DESCARTADO al que ya estaba en el buffer,
+// cuando el guardado no traía ninguno. Devuelve true si lo completó.
+//
+// Sin esto el ISRC se perdía justo cuando más hace falta: la versión sin ISRC
+// (YouTube, SoundCloud) suele llegar primero, y cuando después llega la que sí
+// lo trae, el dedup la descarta como duplicado — y con ella se iba el ISRC, la
+// llave con la que después se cruzan likes, descargas y biblioteca local entre
+// extensiones. El item descartado ya no aporta nada más (se guarda el primero
+// que llegó), así que lo único que hay que rescatar es su identidad.
+//
+// No se pisa un ISRC existente: si el que quedó ya tiene uno, el par no era un
+// duplicado (esElMismoTrack resuelve por ISRC cuando están los dos) o el que
+// llegó no aporta nada nuevo.
+//
+// Solo tracks: un álbum o una playlist pueden traer el campo `isrc` de la
+// canción que los originó, pero la identidad de un álbum es su id, no el ISRC
+// de una de sus pistas. Dejarlo pasar contaminaría el dedup de colecciones.
+func fusionarISRC(buffer []FeedItemGo, pos int, item FeedItemGo) bool {
+	if item.Type != "track" || item.ISRC == "" {
+		return false
+	}
+	if pos < 0 || pos >= len(buffer) {
+		return false
+	}
+	if buffer[pos].Type != "track" || buffer[pos].ISRC != "" {
+		return false
+	}
+	buffer[pos].ISRC = item.ISRC
+	return true
+}
+
 // propagarISRC completa el ISRC que le falta a un resultado usando el que otra
 // extensión ya trajo para la MISMA grabación (nombre+artista normalizados y
 // duración coincidente). Es best-effort: lo que no se puede confirmar con
@@ -172,35 +210,86 @@ func esElMismoTrack(a, b FeedItemGo) bool {
 // Devuelve true si completó al menos un ISRC, para que el llamador sepa si el
 // contenido cambió y hay que invalidar la respuesta serializada.
 func propagarISRC(items []FeedItemGo) bool {
-	rellenados := false
+	return propagarISRCCon(items, nil)
+}
+
+// propagarISRCCon es propagarISRC con la opción de recibir YA ARMADO el índice
+// de claves canónicas (clave → posiciones de los tracks), que es exactamente lo
+// que anexarSearchStream acaba de calcular para deduplicar el lote. Pasarlo
+// evita normalizar dos veces la misma lista; nil = se arma acá.
+//
+// El índice que llega tiene que cubrir todos los tracks de `items` (el del
+// dedup lo hace: se arma con el buffer completo y cada track que entra después
+// se anota al agregarse).
+func propagarISRCCon(items []FeedItemGo, grupos map[string][]int) bool {
+	if len(items) < 2 {
+		return false
+	}
+	// Primer filtro barato: lo que puede prestarse (track con ISRC y duración)
+	// y lo que puede recibirlo. Sin las dos cosas no hay nada que hacer, y así
+	// el caso común (lote ya completo, o lote sin ningún ISRC) se resuelve sin
+	// armar el índice ni normalizar un solo texto.
+	sinISRC, conISRC := 0, 0
 	for i := range items {
-		if items[i].Type != "track" || items[i].ISRC != "" {
+		if items[i].Type != "track" || items[i].DurationMs <= 0 {
 			continue
 		}
-		for j := range items {
-			if i == j || items[j].Type != "track" || items[j].ISRC == "" {
+		if items[i].ISRC == "" {
+			sinISRC++
+		} else {
+			conISRC++
+		}
+	}
+	if sinISRC == 0 || conISRC == 0 {
+		return false
+	}
+	// Se agrupa por clave canónica (nombre+artista normalizados). Dos items de
+	// grupos distintos NUNCA pueden ser la misma grabación, así que el barrido
+	// interno queda dentro del grupo en vez de sobre toda la lista: la clave se
+	// calcula UNA vez por item y no dos por cada par (que era el término O(n²)
+	// más caro de todo el append).
+	if grupos == nil {
+		grupos = make(map[string][]int, len(items))
+		for i := range items {
+			if items[i].Type != "track" {
 				continue
 			}
-			// Acá la duración es obligatoria en los dos: es el único
-			// respaldo cuando no hay ISRC, y prestar un ISRC equivocado
-			// contamina todo lo que depende de la identidad.
-			if items[i].DurationMs <= 0 || items[j].DurationMs <= 0 {
+			clave := claveNombre(items[i].Name, items[i].Artists)
+			grupos[clave] = append(grupos[clave], i)
+		}
+	}
+	rellenados := false
+	for _, indices := range grupos {
+		if len(indices) < 2 {
+			continue
+		}
+		// `indices` va en orden de posición (se armó recorriendo la lista), así
+		// que el primer candidato que encaja es el mismo que elegía el doble
+		// barrido. Los ISRC que se van completando se escriben sobre `items`, y
+		// el barrido vuelve a pasar por los mismos grupos: un item posterior
+		// puede tomar prestado lo que se completó antes, igual que antes.
+		for _, i := range indices {
+			if items[i].ISRC != "" || items[i].DurationMs <= 0 {
 				continue
 			}
-			if claveNombre(items[i].Name, items[i].Artists) !=
-				claveNombre(items[j].Name, items[j].Artists) {
-				continue
+			for _, j := range indices {
+				if j == i || items[j].ISRC == "" || items[j].DurationMs <= 0 {
+					continue
+				}
+				// Acá la duración es obligatoria en los dos: es el único respaldo
+				// cuando no hay ISRC, y prestar un ISRC equivocado contamina todo
+				// lo que depende de la identidad.
+				dif := items[i].DurationMs - items[j].DurationMs
+				if dif < 0 {
+					dif = -dif
+				}
+				if dif > toleranciaDuracionMs {
+					continue
+				}
+				items[i].ISRC = items[j].ISRC
+				rellenados = true
+				break
 			}
-			dif := items[i].DurationMs - items[j].DurationMs
-			if dif < 0 {
-				dif = -dif
-			}
-			if dif > toleranciaDuracionMs {
-				continue
-			}
-			items[i].ISRC = items[j].ISRC
-			rellenados = true
-			break
 		}
 	}
 	return rellenados

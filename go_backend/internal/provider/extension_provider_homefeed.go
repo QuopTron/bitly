@@ -3,6 +3,7 @@ package provider
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 type HomeFeedSection struct {
@@ -22,6 +23,44 @@ type HomeFeedItem struct {
 	AlbumID    string `json:"album_id,omitempty"`
 	AlbumName  string `json:"album_name,omitempty"`
 	ThumbURL   string `json:"cover_url,omitempty"`
+	// Identidad opcional del item. Un catálogo que la conoce (deezer, qobuz,
+	// tidal...) la manda y el toque desde el feed resuelve por identidad exacta
+	// (CheckAvailability / ISRC) en vez de una búsqueda lenta por nombre, que es
+	// justo donde el matching entre fuentes puede fallar. Las extensiones que no
+	// la tienen la omiten y todo sigue igual.
+	ISRC      string `json:"isrc,omitempty"`
+	SpotifyID string `json:"spotify_id,omitempty"`
+	DeezerID  string `json:"deezer_id,omitempty"`
+	TidalID   string `json:"tidal_id,omitempty"`
+	QobuzID   string `json:"qobuz_id,omitempty"`
+}
+
+// UnmarshalJSON lee el item del feed con el MISMO normalizador que el resto de
+// las vistas: cada extensión escribe el feed a su manera y un `artists` en
+// arreglo o un `album` en objeto hacían fallar el unmarshal entero (campo string
+// con arreglo) y la fuente quedaba sin feed. Con esto, las nueve se leen igual.
+func (h *HomeFeedItem) UnmarshalJSON(b []byte) error {
+	var m map[string]interface{}
+	if err := json.Unmarshal(b, &m); err != nil {
+		return err
+	}
+	h.Name = TextoDeCampo(m, "name", "title")
+	h.Artists = TextoDeCampo(m, "artists", "artist", "album_artist", "artist_name")
+	h.DurationMs = DuracionDeCampo(m, "duration_ms", "durationMs", "duration")
+	h.ItemType = getString(m, "type", "item_type")
+	h.ItemID = getString(m, "id", "item_id")
+	h.AlbumID = getString(m, "album_id", "albumId", "albumID")
+	h.AlbumName = TextoDeCampo(m, "album_name", "album_title", "albumName", "album")
+	h.ThumbURL = PortadaDeCampo(m)
+	h.ISRC = ISRCDeCampo(m)
+	h.SpotifyID = getString(m, "spotify_id", "spotifyId")
+	h.DeezerID = getString(m, "deezer_id", "deezerId")
+	h.TidalID = getString(m, "tidal_id", "tidalId")
+	h.QobuzID = getString(m, "qobuz_id", "qobuzId")
+	if strings.TrimSpace(h.ItemType) == "" {
+		h.ItemType = "track"
+	}
+	return nil
 }
 
 // GetHomeFeed calls the extension's getHomeFeed() JS function.

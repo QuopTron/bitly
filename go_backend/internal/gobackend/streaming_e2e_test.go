@@ -41,6 +41,13 @@ func TestStreamDiagE2E(t *testing.T) {
 			`{"preferredProvider":"apple-music","trackID":"7zoVtzzASRtacCvgQKLFaS","quality":"high","fetchLyrics":"false","trackName":"neo roneo","artistName":"rusowsky, LATIN MAFIA","isrc":"USWB12403528","durationMs":186000,"spotifyId":"7zoVtzzASRtacCvgQKLFaS","allowFallback":false}`,
 		},
 		{
+			// Ítem de FEED: sólo trae source + trackID (sin spotifyId). Antes el
+			// streaming no derivaba el id y este caso caía a búsqueda por nombre;
+			// ahora debe resolver igual que el caso con spotifyId explícito.
+			"spotify-web FEED sin spotifyId (derivado del trackID)",
+			`{"preferredProvider":"spotify-web","trackID":"6XbtvPmIpyCbjuT0e8cQtp","quality":"high","fetchLyrics":"false","trackName":"Columbia","artistName":"Quevedo","isrc":"","durationMs":212000,"allowFallback":false}`,
+		},
+		{
 			"RE-RUN same→Columbia (client-health warm)",
 			`{"preferredProvider":"spotify-web","trackID":"6XbtvPmIpyCbjuT0e8cQtp","quality":"high","fetchLyrics":"false","trackName":"Columbia","artistName":"Quevedo","isrc":"BK4DA2310533","durationMs":212000,"spotifyId":"6XbtvPmIpyCbjuT0e8cQtp","allowFallback":false}`,
 		},

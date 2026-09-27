@@ -17,11 +17,14 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/tema/colores_app.dart';
+import '../../ajustes/update/base/update_service.dart';
 import '../../../shared/utilidades/plataforma/responsive.dart';
 import '../bloc/splash_bloc.dart';
 import '../bloc/splash_evento.dart';
 
-const _urlReleases = 'https://github.com/QuopTron/bitly/releases/latest';
+// Al repo PÚBLICO de releases (ver UpdateService.repoPublico): el del código es
+// privado y esa página no se puede abrir sin sesión.
+const _urlReleases = UpdateService.releasesPagina;
 
 /// Panel de error de la PWA: explica por qué la web necesita el servidor.
 class PanelErrorWeb extends StatelessWidget {

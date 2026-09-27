@@ -4,6 +4,10 @@
 // fotos a pantalla completa) SIN llevarse el color por tarjeta, que es parte
 // del diseño que la persona eligió.
 //
+// También fija el escalón equivalente del MONITOR de frames, que puede soltar
+// las fotos por su cuenta cuando el equipo no llega — sin tocar la elección
+// del usuario.
+//
 // Por qué importa: el modo fluido se agregó después de haber "optimizado"
 // borrando capas del diseño, así que acá queda escrito qué apaga y qué no.
 // ─────────────────────────────────────────────────────────────
@@ -34,7 +38,8 @@ void main() {
     expect(
       EfectosApp.colorPorTarjetaActivo,
       isTrue,
-      reason: 'el tinte por tarjeta es parte del diseño y su coste está '
+      reason:
+          'el tinte por tarjeta es parte del diseño y su coste está '
           'amortizado: se extrae una vez por cover, no en cada frame',
     );
   });
@@ -57,6 +62,30 @@ void main() {
     expect(EfectosApp.desenfoqueActivo, isFalse);
     expect(EfectosApp.sigmaMaximo.value, 26, reason: 'el perfil no se toca');
   });
+
+  test(
+    'el monitor puede soltar las fotos sin tocar la elección del usuario',
+    () {
+      // El monitor detecta que ni sin desenfoques ni sin color por tarjeta se
+      // llega al ritmo, y suelta la capa más cara: la foto a pantalla completa.
+      EfectosApp.aplicar(efectosPesados: false, sigmaMax: 0);
+      EfectosApp.efectosMinimos.value = true;
+      EfectosApp.fotosApagadasPorMonitor.value = true;
+
+      expect(EfectosApp.fotoPantallaCompletaActiva, isFalse);
+      expect(
+        EfectosApp.modoFluido.value,
+        isFalse,
+        reason:
+            'el modo fluido es la elección de la persona: el monitor no la '
+            'enciende ni la apaga',
+      );
+
+      // Y reiniciar (arranque, tests) lo repone.
+      EfectosApp.reiniciar();
+      expect(EfectosApp.fotoPantallaCompletaActiva, isTrue);
+    },
+  );
 
   test('cambiosEfectos avisa para que las animaciones se detengan', () {
     var avisos = 0;

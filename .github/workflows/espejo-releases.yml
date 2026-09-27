@@ -1,0 +1,261 @@
+# Espejo PÚBLICO de los binarios (workflow reutilizable + red de seguridad)
+#
+# Por qué existe: el repo del CÓDIGO es privado, y en GitHub los assets de una
+# release privada solo se pueden bajar con un token. Ni la app ni el sitio web
+# pueden llevar uno (viajan dentro de un APK o de una página pública), así que
+# ambos consultaban la API pública, recibían 404 y no mostraban ninguna descarga.
+#
+# La salida es separar las dos cosas:
+#   · el CÓDIGO se queda acá, privado;
+#   · los BINARIOS se publican ADEMÁS en un repo PÚBLICO sin código, solo con
+#     Releases. Ahí la API responde sin autenticación y los assets se bajan por
+#     URL directa, que es lo que necesitan tanto UpdateService.releaseUrl
+#     (dentro de la app) como src/lib/releases.ts (en el sitio).
+#
+# NO recompila: la release privada es la fuente de verdad y este workflow copia
+# sus assets al repo público con el mismo tag. Lo que se publica se decide en un
+# solo lugar.
+#
+# ── Cómo se evita que quede una release a medias ─────────────────────────────
+# Corre por tres vías y las tres hacen lo mismo (dejar el tag igual en el espejo):
+#   1. workflow_call desde release.yml       (Android + Windows x64/ARM64 + PWA)
+#   2. workflow_call desde release-macos.yml (macOS + iOS)
+#   El primero que termina sube lo suyo; el segundo deja el tag completo.
+#   3. schedule cada 6 h + workflow_dispatch manual: red de seguridad para lo que
+#      se publique por otro camino (un `gh release upload` a mano, un tag creado
+#      desde la web, un job que falló). Compara asset por asset y sube solo lo
+#      que falta o cambió de tamaño, así que en el caso normal no baja ni sube
+#      nada.
+#
+# Configuración (una sola vez):
+#   1. Crear el repo público de releases (QuopTron/bitly-releases), vacío: no
+#      lleva código, solo Releases.
+#   2. Crear un PAT (classic o fine-grained) con permiso Contents: Read and
+#      write SOLO sobre ese repo, y guardarlo como secret RELEASES_TOKEN en
+#      ESTE repo.
+#   3. (Opcional) variable PUBLIC_RELEASES_REPO si el repo se llama distinto.
+#
+# Sin RELEASES_TOKEN avisa y se saltea: nunca rompe el release.
+name: Espejo de releases
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: "Tag a espejar. Vacío = sincronizar las últimas releases."
+        type: string
+        required: false
+        default: ""
+      limite:
+        description: "Cuántas releases mira en modo sincronizar"
+        type: number
+        required: false
+        default: 3
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag a espejar (ej. v0.9.26). Vacío = sincronizar las últimas."
+        type: string
+        required: false
+        default: ""
+      limite:
+        description: "Cuántas releases sincroniza si no se indica un tag"
+        type: number
+        required: false
+        default: 3
+  schedule:
+    # Cada 6 h. Es una red de seguridad, no el camino principal: lo normal es que
+    # el espejo corra junto al release. Un cron más seguido gastaría minutos de
+    # runner sin cambiar el resultado.
+    - cron: "23 */6 * * *"
+
+concurrency:
+  group: espejo-releases
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  espejar:
+    name: Espejar binarios al repo público
+    runs-on: ubuntu-latest
+    steps:
+      - name: ¿Está configurado el espejo público?
+        id: check
+        env:
+          TOKEN: ${{ secrets.RELEASES_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "::warning::Falta el secret RELEASES_TOKEN: no se espeja al repo público (la app y el sitio no podrán ofrecer descargas)."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publicar en el espejo
+        if: steps.check.outputs.ok == 'true'
+        env:
+          # Dos tokens con alcances distintos: el del workflow solo lee el repo
+          # privado; el PAT es lo único que puede escribir en el repo público.
+          GH_PRIV: ${{ github.token }}
+          GH_PUB: ${{ secrets.RELEASES_TOKEN }}
+          PRIV: ${{ github.repository }}
+          PUB: ${{ vars.PUBLIC_RELEASES_REPO }}
+          TAG: ${{ inputs.tag }}
+          LIMITE: ${{ inputs.limite }}
+        run: |
+          set -uo pipefail
+          [ -n "$PUB" ] || PUB="QuopTron/bitly-releases"
+          LIMITE="${LIMITE:-3}"
+          [ "$LIMITE" -ge 1 ] 2>/dev/null || LIMITE=3
+
+          rele_privada() { GH_TOKEN="$GH_PRIV" gh api "$@"; }
+          rele_publica() { GH_TOKEN="$GH_PUB" gh api "$@"; }
+
+          # Las notas escritas a mano (el changelog de la versión) sí se copian,
+          # porque son las que muestra el aviso de actualización de la app.
+          # generate_release_notes, en cambio, agrega al final las notas
+          # automáticas con los COMMITS del repo privado: esas se cortan.
+          notas() {
+            rele_privada "repos/$PRIV/releases/tags/$1" --jq '.body // ""' > notas.md 2>/dev/null || true
+            sed -i '/^##[[:space:]]*What.s Changed/,$d' notas.md
+            sed -i '/^\*\*Full Changelog\*\*/,$d' notas.md
+            [ -s notas.md ] || printf 'Binarios de la version %s.\n' "$1" > notas.md
+          }
+
+          # Sin tag: sincroniza las últimas releases publicadas (sin borradores
+          # ni pre-releases, igual que /releases/latest).
+          TAGS=()
+          if [ -n "$TAG" ]; then
+            TAGS=("$TAG")
+          else
+            while IFS= read -r t; do TAGS+=("$t"); done < <(
+              rele_privada "repos/$PRIV/releases?per_page=$LIMITE" \
+                --jq '.[] | select(.draft == false and .prerelease == false) | .tag_name'
+            )
+          fi
+
+          if [ "${#TAGS[@]}" -eq 0 ]; then
+            echo "::notice::No hay releases publicadas que espejar."
+            exit 0
+          fi
+
+          resumen=""
+          for tag in "${TAGS[@]}"; do
+            echo "════════ $tag ════════"
+
+            # Lo que tiene que existir en el espejo: los assets de la release
+            # privada con su tamaño.
+            declare -a NOMBRES=() TAMANOS=()
+            while IFS=$'\t' read -r n t; do
+              [ -n "$n" ] || continue
+              NOMBRES+=("$n"); TAMANOS+=("$t")
+            done < <(rele_privada "repos/$PRIV/releases/tags/$tag" \
+              --jq '.assets[] | [.name, (.size|tostring)] | @tsv')
+
+            if [ "${#NOMBRES[@]}" -eq 0 ]; then
+              echo "::warning::La release $tag todavía no tiene assets: no hay nada que espejar."
+              resumen="$resumen\n$tag: (sin assets)"
+              continue
+            fi
+
+            # Estado actual del espejo: nombre -> tamaño.
+            rele_publica "repos/$PUB/releases/tags/$tag" \
+              --jq '.assets[] | [.name, (.size|tostring)] | @tsv' > publico.tsv 2>/dev/null || true
+            declare -A PUBLICOS=()
+            while IFS=$'\t' read -r n t; do
+              [ -n "$n" ] && PUBLICOS["$n"]="$t"
+            done < publico.tsv
+            RID=$(rele_publica "repos/$PUB/releases/tags/$tag" --jq '.id' 2>/dev/null || echo "")
+
+            # La release del espejo tiene que existir ANTES de subir assets.
+            creada=0
+            if [ -z "$RID" ]; then
+              rele_privada "repos/$PRIV/releases/tags/$tag" --jq '.name // empty' > titulo.txt 2>/dev/null || true
+              [ -s titulo.txt ] || printf 'Bitly %s' "$tag" > titulo.txt
+              notas "$tag"
+              RID=$(rele_publica --method POST "repos/$PUB/releases" \
+                -f tag_name="$tag" -f target=main -f draft=false -f prerelease=false \
+                -f name="$(cat titulo.txt)" -f body="$(cat notas.md)" \
+                --jq '.id' 2>/dev/null || echo "")
+              if [ -z "$RID" ]; then
+                echo "::error::No se pudo crear la release $tag en $PUB: el espejo queda sin espejar."
+                resumen="$resumen\n$tag: ERROR (no se pudo crear en el espejo)"
+                continue
+              fi
+              creada=1
+              echo "  release $tag creada en $PUB"
+            fi
+
+            # Sube solo lo que falta o cambió de tamaño, en el orden de la
+            # release privada (así el primero es el asset principal de cada
+            # plataforma).
+            faltan=0
+            subidos=0
+            for i in "${!NOMBRES[@]}"; do
+              n="${NOMBRES[$i]}"; t="${TAMANOS[$i]}"
+              if [ "${PUBLICOS[$n]:-}" = "$t" ]; then
+                echo "  = $n (ya está, $t bytes)"
+                continue
+              fi
+              echo "  > $n ($t bytes)"
+              tmp="descargas/$tag"
+              mkdir -p "$tmp"
+              if ! GH_TOKEN="$GH_PRIV" gh release download "$tag" --repo "$PRIV" --dir "$tmp" --clobber --pattern "$n"; then
+                echo "::warning::No se pudo bajar $n de la release privada; se sigue con los demás."
+                faltan=$((faltan + 1))
+                continue
+              fi
+              if [ ! -f "$tmp/$n" ]; then
+                echo "::warning::$n no apareció al bajarlo."
+                faltan=$((faltan + 1))
+                continue
+              fi
+              if ! GH_TOKEN="$GH_PUB" gh release upload "$tag" "$tmp/$n" --repo "$PUB" --clobber; then
+                echo "::error::No se pudo subir $n al repo público."
+                faltan=$((faltan + 1))
+                continue
+              fi
+              subidos=$((subidos + 1))
+              echo "  + $n (espejado, $(wc -c < "$tmp/$n" | tr -d ' ') bytes)"
+            done
+            rm -rf descargas
+
+            # Si se creó el tag en el espejo pero no entró ningún asset, se borra:
+            # una release pública sin binarios es un 404 para la app, y además
+            # pasaría a ser /releases/latest.
+            if [ "$creada" = "1" ] && [ "$subidos" = "0" ]; then
+              rele_publica --method DELETE "repos/$PUB/releases/$RID" --silent || true
+              echo "  release $tag eliminada del espejo (no entró ningún asset)"
+              creada=0
+            fi
+
+            # Avisar si a alguna plataforma le falta su binario: el sitio y la
+            # app van a ofrecer la última versión que sí lo tenga, pero que quede
+            # a la vista en el run.
+            nombres_publicos=$(rele_publica "repos/$PUB/releases/tags/$tag" \
+              --jq '[.assets[].name] | join(" ")' 2>/dev/null || echo "")
+            falta=""
+            case " $nombres_publicos " in *".apk"*) ;; *) falta="$falta Android(.apk)" ;; esac
+            case " $nombres_publicos " in *".exe"*) ;; *) falta="$falta Windows(.exe)" ;; esac
+            case " $nombres_publicos " in *".dmg"*) ;; *) falta="$falta macOS(.dmg)" ;; esac
+            case " $nombres_publicos " in *".ipa"*) ;; *) falta="$falta iOS(.ipa)" ;; esac
+            if [ -n "$falta" ]; then
+              echo "::warning::La release $tag en $PUB no tiene:$falta"
+              echo "::warning::El sitio y la app van a ofrecer la última versión CON ese binario para esas plataformas."
+              echo "::warning::Para dejarla completa, compilá y publicá la plataforma que falta."
+            else
+              echo "  $tag completa: apk + exe + dmg + ipa"
+            fi
+
+            if [ "$faltan" -gt 0 ]; then
+              resumen="$resumen\n$tag: INCOMPLETA ($faltan asset(s) sin espejar)"
+            else
+              resumen="$resumen\n$tag: ok ($subidos subidos, ${#NOMBRES[@]} en total)"
+            fi
+            rm -f titulo.txt notas.md publico.tsv
+          done
+
+          echo -e "\n════════ resumen ════════$resumen"
+          echo "Espejo: https://github.com/$PUB/releases"

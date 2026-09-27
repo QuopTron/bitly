@@ -34,6 +34,7 @@ const List<ConfigProveedor> proveedoresRescate = [
       'sitios', // Sitios raspables de FLAC (superflac, arcod, etc.).
       'arcod', // URL propia del canal sin pérdida (o 'off').
       'arcod_token', // Sesión de una instancia arcod con cuenta.
+      'proxy', // Salida de TODO el rescate (espejos, sitios, arcod, Qobuz).
     ],
   ),
 ];

@@ -10,8 +10,8 @@
 //	qobuz_keys_url    → URL que publica {appId, appSecret}: alternativa a
 //	                    pegarlos a mano (la app los refresca sola si rotan)
 //	qobuz_user_token  → token de usuario (opcional; va por CABECERA)
-//	qobuz_api_base    → API a usar (por defecto la de Qobuz; sirve para
-//	                    apuntar a un proxy propio)
+//	qobuz_api_base    → API a usar (por defecto el Worker propio; sirve para
+//	                    apuntar a la API de Qobuz directo o a otro proxy)
 //	qobuz_format_id   → id de formato del stream (por defecto 5 = FLAC)
 //
 // El canal queda apagado (ni una petición) si no hay ni claves a mano ni

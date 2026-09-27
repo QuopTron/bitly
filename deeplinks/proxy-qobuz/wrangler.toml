@@ -1,0 +1,42 @@
+# ─────────────────────────────────────────────────────────────
+# wrangler.toml — Despliegue del Worker de Qobuz (Cloudflare Workers).
+#
+# Con esto, desde esta carpeta: `npx wrangler deploy` (sin argumentos) publica
+# `worker.js` con las rutas /keys, /pool y /api.json/0.2/*.
+#
+# LOS SECRETOS NO VAN ACÁ. `var` es texto plano y queda en el repo/paquete.
+# Cargá los sensibles como secretos (una sola vez, quedan cifrados):
+#   npx wrangler secret put QOBUZ_APP_SECRET
+#   npx wrangler secret put QOBUZ_AUTH_TOKENS   # tu pool, separado por comas
+#   npx wrangler secret put QOBUZ_POOL_SECRET   # protege /pool
+#   npx wrangler secret put QOBUZ_RELAY_SECRET  # protege /keys y /api.json/0.2/*
+#   npx wrangler secret put QOBUZ_USER_TOKEN    # opcional (suscripción: FLAC)
+#
+# Y los no sensibles, o bien como `var` acá (descomentá y poné el valor), o con
+# el mismo `secret put` (no importa: el Worker los lee igual):
+#   QOBUZ_APP_ID  (el app_id de tus claves)
+#
+# Tras desplegar, apuntá el default de la app a tu subdominio
+# (go_backend/internal/sessionpool/qobuz.go → QobuzPoolURLsPorDefecto):
+#   https://qobuz-proxy.guttural-engineer.workers.dev/pool/<secreto>
+# ─────────────────────────────────────────────────────────────
+
+name = "qobuz-proxy"
+main = "worker.js"
+compatibility_date = "2026-09-01"
+
+# Los secretos van por `wrangler secret put` (ver arriba), NO acá.
+[vars]
+# QOBUZ_APP_ID = ""
+
+# Rate limiting por IP (binding que usa worker.js). Corta el abuso antes de que
+# agote la cuota diaria del plan gratis (100.000 peticiones; al pasarlas el
+# Worker deja de responder). `limit`/`period` son por IP y por ubicación de
+# Cloudflare, y el `period` sólo admite 10 o 60 segundos. 100/min por IP deja
+# lugar de sobra a un usuario real (una canción son 1-2 peticiones).
+[[ratelimits]]
+name = "LIMITADOR"
+namespace_id = "1001"
+[ratelimits.simple]
+limit = 100
+period = 60

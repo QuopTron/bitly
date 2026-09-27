@@ -1,6 +1,6 @@
 // ============================================
 // Apple Music Extension for SpotiFLAC Mobile
-// Version: 1.4.3
+// Version: 1.5.0
 //
 // Uses Apple Music's public catalog API (amp-api)
 // to fetch metadata including ISRC. No login required.
@@ -9,8 +9,10 @@
 // subscription). Supports word-by-word syllable sync,
 // translations, and pronunciation/romanization via TTML.
 //
-// Token is obtained from the music.apple.com web page
-// (Apple's own developer token embedded in the HTML).
+// Token is obtained from the music.apple.com web page or, failing that, from
+// the MusicKit SDK / the main JS bundle. Every candidate is VERIFIED (ES256 +
+// kid:WebPlayKid + exp futura) before being adopted, so a wrong or expired JWT
+// is never cached.
 // ============================================
 
 const API_BASE = "https://amp-api.music.apple.com/v1/catalog/";
@@ -295,6 +297,171 @@ function httpGetWithRetry(url, headers, label) {
 // TOKEN MANAGEMENT
 // ============================================
 
+// Prefijos del developer token del web player de Apple Music (el header JWT
+// lleva kid:WebPlayKid). El orden de los campos ha variado, así que se aceptan
+// las dos variantes conocidas.
+var APPLE_JWT_PREFIXES = [
+  "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IldlYlBsYXlLaWQifQ.",
+  "eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiIsImtpZCI6IldlYlBsYXlLaWQifQ.",
+];
+var APPLE_JWT_CHARS =
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-.";
+
+// MusicKit es el SDK que carga el navegador y NO lleva hash en el nombre (a
+// diferencia de /assets/index~<hash>.js, cuyo nombre rota). Medido en sep-2026:
+// musickit.js NO publica el token (solo aparece la propiedad `developerToken`),
+// pero se prueba por DELANTE de los bundles porque es el sitio preferido si
+// Apple lo mueve ahí, y cuesta una sola petición por renovación (~70 días).
+var MUSICKIT_URLS = [
+  "https://music.apple.com/includes/js-cdn/musickit/v3/amp/musickit.js",
+  "https://js-cdn.music.apple.com/musickit/v3/musickit.js",
+];
+
+// tokensJWTApple devuelve TODOS los candidatos con header WebPlayKid presentes
+// en [str] (indexOf en vez de regex: los bundles pesan varios MB y el token que
+// sirve es uno solo entre varios JWT distintos que trae el archivo).
+function tokensJWTApple(str) {
+  var salida = [];
+  str = String(str || "");
+  for (var p = 0; p < APPLE_JWT_PREFIXES.length; p++) {
+    var prefijo = APPLE_JWT_PREFIXES[p];
+    var idx = str.indexOf(prefijo);
+    while (idx !== -1) {
+      var fin = idx;
+      while (
+        fin < str.length &&
+        APPLE_JWT_CHARS.indexOf(str.charAt(fin)) !== -1
+      ) {
+        fin++;
+      }
+      salida.push(str.substring(idx, fin));
+      idx = str.indexOf(prefijo, idx + prefijo.length);
+    }
+  }
+  return salida;
+}
+
+// verificarJWTApple valida el token ANTES de adoptarlo y devuelve su payload, o
+// null si no sirve. Un token truncado, de otro kid o ya vencido no falla acá:
+// falla como un 401 en CADA llamada a la API, y además queda cacheado y
+// persistido, así que el arranque siguiente lo reusa y sigue roto. El bundle
+// trae varios JWT (p. ej. kid LT2ZDZSNNQ / 97DQU9QUD6, que NO son el del web
+// player); exigir ES256 + WebPlayKid + exp futura filtra los que no sirven.
+function verificarJWTApple(token) {
+  var partes = String(token || "").split(".");
+  if (partes.length !== 3 || !partes[0] || !partes[1] || !partes[2])
+    return null;
+
+  var cabecera;
+  var carga;
+  try {
+    cabecera = JSON.parse(decodeBase64URL(partes[0]));
+    carga = JSON.parse(decodeBase64URL(partes[1]));
+  } catch (e) {
+    return null;
+  }
+  if (
+    !cabecera ||
+    typeof cabecera !== "object" ||
+    cabecera.alg !== "ES256" ||
+    cabecera.kid !== "WebPlayKid"
+  ) {
+    return null;
+  }
+  if (!carga || typeof carga !== "object") return null;
+  var exp = Number(carga.exp || 0);
+  if (!exp || exp * 1000 <= Date.now()) return null;
+  return carga;
+}
+
+// primerTokenValidoApple recorre los candidatos y devuelve el primero que pasa
+// la verificación.
+function primerTokenValidoApple(str) {
+  var candidatos = tokensJWTApple(str);
+  for (var i = 0; i < candidatos.length; i++) {
+    if (verificarJWTApple(candidatos[i])) return candidatos[i];
+  }
+  return null;
+}
+
+// adoptarTokenApple verifica y adopta [token]; devuelve false (sin tocar el
+// estado) si no sirve, dejando que fetchToken pruebe la siguiente fuente.
+function adoptarTokenApple(token, origen) {
+  if (!verificarJWTApple(token)) {
+    log.warn(
+      "[AppleMusic] token de " +
+        origen +
+        " descartado: no es un JWT ES256/WebPlayKid con exp futura",
+    );
+    return false;
+  }
+  state.token = token;
+  parseTokenExpiry();
+  log.info("[AppleMusic] token adoptado desde " + origen);
+  return true;
+}
+
+function tokenDevTokenApple(str) {
+  var m = String(str || "").match(
+    /devToken=([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)/,
+  );
+  return m ? m[1] : null;
+}
+
+function buscarTokenEnMusickit() {
+  for (var i = 0; i < MUSICKIT_URLS.length; i++) {
+    try {
+      var resp = httpGetWithRetry(
+        MUSICKIT_URLS[i],
+        { "User-Agent": utils.randomUserAgent() },
+        "musickit",
+      );
+      if (!resp || resp.error || resp.statusCode !== 200) continue;
+      var token = primerTokenValidoApple(resp.body || "");
+      if (token && adoptarTokenApple(token, "musickit.js")) return true;
+    } catch (e) {
+      log.debug("MusicKit fetch failed:", e.message);
+    }
+  }
+  return false;
+}
+
+function buscarTokenEnBundles(body) {
+  log.info("Token not in HTML or MusicKit, checking JS bundles...");
+  var bundleMatches = body.match(/src="(\/assets\/index[^"]*\.js)"/g);
+  if (!bundleMatches) {
+    bundleMatches = body.match(/src="(\/assets\/[^"]*\.js)"/g);
+  }
+  if (!bundleMatches) return false;
+
+  for (var i = 0; i < bundleMatches.length && i < 6; i++) {
+    var srcMatch = bundleMatches[i].match(/src="([^"]+)"/);
+    if (!srcMatch) continue;
+    // Skip legacy bundles — they're duplicates and may be larger
+    if (srcMatch[1].indexOf("-legacy") !== -1) continue;
+    var bundleURL = "https://music.apple.com" + srcMatch[1];
+    log.debug("Checking bundle:", srcMatch[1]);
+    try {
+      var bundleResp = httpGetWithRetry(
+        bundleURL,
+        { "User-Agent": utils.randomUserAgent() },
+        "developer token bundle",
+      );
+      if (bundleResp && !bundleResp.error && bundleResp.statusCode === 200) {
+        var bundleBody = bundleResp.body || "";
+        log.debug("Bundle size:", bundleBody.length, "bytes");
+        var token = primerTokenValidoApple(bundleBody);
+        if (token && adoptarTokenApple(token, "bundle " + srcMatch[1])) {
+          return true;
+        }
+      }
+    } catch (e) {
+      log.debug("Bundle fetch failed:", e.message);
+    }
+  }
+  return false;
+}
+
 function fetchToken() {
   log.info("Fetching Apple Music developer token...");
 
@@ -316,114 +483,22 @@ function fetchToken() {
   var body = response.body || "";
 
   // Strategy 1: Token in an iframe devToken= parameter (browser-rendered HTML)
-  var tokenMatch = body.match(
-    /devToken=([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)/,
+  var devToken = tokenDevTokenApple(body);
+  if (devToken && adoptarTokenApple(devToken, "devToken de la página")) return;
+
+  // Strategy 2: JWT directly in the HTML (both header field orderings)
+  var enHTML = primerTokenValidoApple(body);
+  if (enHTML && adoptarTokenApple(enHTML, "HTML de la página")) return;
+
+  // Strategy 3: MusicKit SDK (archivo estable) antes que los bundles rotativos.
+  if (buscarTokenEnMusickit()) return;
+
+  // Strategy 4: main JS bundle (/assets/index~<hash>.js) — find and fetch it.
+  if (buscarTokenEnBundles(body)) return;
+
+  throw new Error(
+    "Could not find a valid developer token in page HTML, MusicKit, or JS bundles",
   );
-
-  // Strategy 2: JWT directly in the HTML (match both header field orderings)
-  if (!tokenMatch) {
-    tokenMatch = body.match(
-      /((?:eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IldlYlBsYXlLaWQifQ|eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiIsImtpZCI6IldlYlBsYXlLaWQifQ)\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)/,
-    );
-  }
-
-  // Strategy 3: Token is in the main JS bundle — find and fetch it
-  if (!tokenMatch) {
-    log.info("Token not in HTML, checking JS bundles...");
-    var bundleMatches = body.match(/src="(\/assets\/index[^"]*\.js)"/g);
-    if (!bundleMatches) {
-      bundleMatches = body.match(/src="(\/assets\/[^"]*\.js)"/g);
-    }
-    if (bundleMatches) {
-      for (var i = 0; i < bundleMatches.length && i < 6; i++) {
-        var srcMatch = bundleMatches[i].match(/src="([^"]+)"/);
-        if (!srcMatch) continue;
-        // Skip legacy bundles — they're duplicates and may be larger
-        if (srcMatch[1].indexOf("-legacy") !== -1) continue;
-        var bundleURL = "https://music.apple.com" + srcMatch[1];
-        log.debug("Checking bundle:", srcMatch[1]);
-        try {
-          var bundleResp = httpGetWithRetry(
-            bundleURL,
-            {
-              "User-Agent": utils.randomUserAgent(),
-            },
-            "developer token bundle",
-          );
-          if (
-            bundleResp &&
-            !bundleResp.error &&
-            bundleResp.statusCode === 200
-          ) {
-            var bundleBody = bundleResp.body || "";
-            log.debug("Bundle size:", bundleBody.length, "bytes");
-            // Use indexOf for speed on large strings instead of regex
-            var token = extractJWTFromString(bundleBody);
-            if (token) {
-              log.info("Found token in JS bundle:", srcMatch[1]);
-              state.token = token;
-              parseTokenExpiry();
-              return;
-            }
-          }
-        } catch (e) {
-          log.debug("Bundle fetch failed:", e.message);
-        }
-      }
-    }
-  }
-
-  if (!tokenMatch) {
-    throw new Error(
-      "Could not find developer token in page HTML or JS bundles",
-    );
-  }
-
-  state.token = tokenMatch[1];
-  parseTokenExpiry();
-}
-
-/**
- * Extract a JWT token from a large string using indexOf (avoids regex on multi-MB strings).
- * Looks for the known Apple Music JWT header prefix.
- */
-function extractJWTFromString(str) {
-  // Apple Music's web token uses the WebPlayKid key id but the JWT header
-  // field order has varied over time, so match both known orderings:
-  //   {"alg":"ES256","typ":"JWT","kid":"WebPlayKid"}
-  //   {"typ":"JWT","alg":"ES256","kid":"WebPlayKid"}
-  var prefixes = [
-    "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IldlYlBsYXlLaWQifQ.",
-    "eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiIsImtpZCI6IldlYlBsYXlLaWQifQ.",
-  ];
-  var idx = -1;
-  for (var p = 0; p < prefixes.length; p++) {
-    idx = str.indexOf(prefixes[p]);
-    if (idx !== -1) break;
-  }
-  if (idx === -1) return null;
-
-  // Read from the start of the JWT until we hit a non-JWT character
-  var start = idx;
-  var end = start;
-  var jwtChars =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-.";
-  while (end < str.length && jwtChars.indexOf(str.charAt(end)) !== -1) {
-    end++;
-  }
-
-  var candidate = str.substring(start, end);
-  // A valid JWT has exactly 3 parts separated by dots
-  var parts = candidate.split(".");
-  if (
-    parts.length === 3 &&
-    parts[0].length > 0 &&
-    parts[1].length > 0 &&
-    parts[2].length > 0
-  ) {
-    return candidate;
-  }
-  return null;
 }
 
 function parseTokenExpiry() {
@@ -2796,7 +2871,172 @@ function findTrackId(trackName, artistName, albumName, durationSec) {
 // REGISTER EXTENSION
 // ============================================
 
+// ============================================
+// HOME FEED
+// ============================================
+//
+// El feed NO sale de la API con token: la propia página de Apple trae la lista
+// ya renderizada para el navegador en el bloque `serialized-server-data`
+// (`<script id="serialized-server-data">`). Ese JSON es contenido PÚBLICO
+// —sin cuenta y sin developer token— y es lo mismo que Apple Music pinta en su
+// pestaña Browse/New. Las secciones traen su título en
+// `header.item.titleLink.title` y cada ítem su identidad en `contentDescriptor`
+// (kind + storeAdamID). Sólo se adoptan los tipos que el resto de la extensión
+// sabe abrir (song/album/playlist/artist); radio, vídeos y links de navegación
+// se descartan.
+//
+// Medido en sep-2026: `/us/browse` trae 19 secciones (Best New Songs, New This
+// Week, Updated Playlists, Daily Top 100...). El bloque no lleva JWT, así que
+// este camino funciona aunque el developer token esté roto.
+
+const HOME_FEED_CACHE_TTL_MS = 10 * 60 * 1000;
+const APPLE_FEED_ART_SIZE = 600;
+const APPLE_FEED_KINDS = {
+  song: "track",
+  album: "album",
+  playlist: "playlist",
+  artist: "artist",
+};
+
+// appleFeedArtwork convierte la URL plantilla de Apple (`...{w}x{h}{c}.{f}`) en
+// una concreta: {w}/{h} tamaño, {c} recorte ("bb"), {f} formato ("jpg").
+function appleFeedArtwork(item) {
+  var dicc = item && item.artwork && item.artwork.dictionary;
+  var url = dicc && dicc.url ? String(dicc.url) : "";
+  if (!url) return "";
+  return url
+    .replace("{w}", String(APPLE_FEED_ART_SIZE))
+    .replace("{h}", String(APPLE_FEED_ART_SIZE))
+    .replace("{c}", "bb")
+    .replace("{f}", "jpg");
+}
+
+// appleFeedItem traduce un ítem del bloque SSR al ítem del contrato del feed.
+// Devuelve null para los tipos que la extensión no sabe abrir.
+function appleFeedItem(item) {
+  var descriptor = (item && item.contentDescriptor) || {};
+  var tipo = APPLE_FEED_KINDS[descriptor.kind];
+  if (!tipo) return null;
+  var id =
+    descriptor.identifiers && descriptor.identifiers.storeAdamID
+      ? String(descriptor.identifiers.storeAdamID)
+      : "";
+  if (!id) return null;
+  var nombre =
+    item.title ||
+    (item.titleLinks && item.titleLinks[0] && item.titleLinks[0].title) ||
+    "";
+  if (!nombre) return null;
+  var artistas =
+    (item.subtitleLinks &&
+      item.subtitleLinks[0] &&
+      item.subtitleLinks[0].title) ||
+    "";
+  return {
+    id: id,
+    type: tipo,
+    name: String(nombre),
+    artists: String(artistas),
+    cover_url: appleFeedArtwork(item),
+  };
+}
+
+// appleSeccionesSsr recorre el bloque serialized-server-data y devuelve las
+// secciones del contrato (title + items). Se recorre el array raíz entero y se
+// toma `.data.sections` de cada entrada que lo traiga.
+function appleSeccionesSsr(raiz) {
+  var secciones = [];
+  var entradas = raiz && raiz.data ? raiz.data : [];
+  if (!Array.isArray(entradas)) return secciones;
+
+  for (var i = 0; i < entradas.length; i++) {
+    var pagina = entradas[i] && entradas[i].data;
+    var crudas = (pagina && pagina.sections) || [];
+    if (!Array.isArray(crudas)) continue;
+
+    for (var j = 0; j < crudas.length; j++) {
+      var seccion = crudas[j] || {};
+      var titulo =
+        (seccion.header &&
+          seccion.header.item &&
+          seccion.header.item.titleLink &&
+          seccion.header.item.titleLink.title) ||
+        "";
+      if (!titulo) continue;
+
+      var items = [];
+      var lista = seccion.items || [];
+      for (var k = 0; k < lista.length; k++) {
+        var item = appleFeedItem(lista[k]);
+        if (item) items.push(item);
+      }
+      if (items.length) {
+        secciones.push({ uri: "", title: String(titulo), items: items });
+      }
+    }
+  }
+  return secciones;
+}
+
+// getHomeFeed lee el bloque SSR de la página de Apple. No usa token: el HTML es
+// público y ya viene renderizado para el navegador.
+function getHomeFeed() {
+  var cacheKey = "apple-music:homefeed:" + String(state.storefront || "us");
+  var cacheado = cacheGet(cacheKey);
+  if (cacheado) return cacheado;
+
+  try {
+    var url =
+      "https://music.apple.com/" +
+      encodeURIComponent(state.storefront || "us") +
+      "/browse";
+    var response = httpGetWithRetry(
+      url,
+      { "User-Agent": utils.randomUserAgent() },
+      "home feed",
+    );
+    if (!response || response.error || response.statusCode !== 200) {
+      return {
+        success: false,
+        error: "HTTP " + (response ? response.statusCode : "no response"),
+        sections: [],
+      };
+    }
+
+    var bloque = String(response.body || "").match(
+      /<script[^>]*id="serialized-server-data"[^>]*>([\s\S]*?)<\/script>/,
+    );
+    if (!bloque) {
+      log.warn("[AppleMusic] feed: la página no trajo serialized-server-data");
+      return { success: false, error: "sin bloque de feed", sections: [] };
+    }
+
+    var raiz;
+    try {
+      raiz = JSON.parse(bloque[1]);
+    } catch (e) {
+      log.warn("[AppleMusic] feed: bloque SSR ilegible:", e.message);
+      return { success: false, error: "bloque SSR ilegible", sections: [] };
+    }
+
+    var secciones = appleSeccionesSsr(raiz);
+    if (!secciones.length) {
+      return { success: false, error: "feed sin secciones", sections: [] };
+    }
+    log.info("[AppleMusic] Home feed: " + secciones.length + " secciones");
+    return cacheSet(
+      cacheKey,
+      { success: true, greeting: "", sections: secciones },
+      HOME_FEED_CACHE_TTL_MS,
+    );
+  } catch (e) {
+    log.error("[AppleMusic] getHomeFeed failed:", e.message || String(e));
+    return { success: false, error: String(e), sections: [] };
+  }
+}
+
 registerExtension({
+  getHomeFeed: getHomeFeed,
   initialize: initialize,
   cleanup: cleanup,
   customSearch: customSearch,

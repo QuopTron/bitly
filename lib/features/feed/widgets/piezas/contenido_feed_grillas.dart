@@ -160,13 +160,21 @@ Widget _cabeceraSeccion(
       children: [
         Icon(icono, size: r.footerSize, color: onBg.withValues(alpha: 0.6)),
         SizedBox(width: r.spacingS),
-        Text(
-          titulo,
-          style: TextStyle(
-            fontSize: r.subtitleSize,
-            fontWeight: FontWeight.w700,
-            letterSpacing: -0.2,
-            color: onBg,
+        // Flexible + recorte: el título de sección lo pone el proveedor
+        // ("Spotify — Novedades para vos", etc.), así que puede ser largo. Sin
+        // esto el Text se lleva todo el ancho que quiera y la fila se desborda
+        // (los "píxeles amarillos") al chocar con el divisor Expanded.
+        Flexible(
+          child: Text(
+            titulo,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: r.subtitleSize,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.2,
+              color: onBg,
+            ),
           ),
         ),
         const SizedBox(width: 12),

@@ -32,6 +32,7 @@ import '../../../shared/tema/colores_app.dart';
 import '../../../shared/tema/especificaciones/especificaciones_plataforma.dart';
 import '../../../core/modelos/ajustes_descarga.dart';
 import '../../../core/modelos/ajustes_rescate.dart';
+import '../../../core/modelos/ajustes_pool_qobuz.dart';
 import '../../../core/servicios/proveedores/base/servicio_credenciales_proveedor.dart';
 import '../../../core/modelos/usuario/perfil/estado_premium.dart';
 import '../../../core/cache/reproduccion/base/reproduccion_cache.dart';
@@ -94,6 +95,7 @@ import '../../../shared/utilidades/formato/apariencia/visual/apariencia_muestra_
 import '../../../shared/widgets/barras/barra_adornada.dart';
 import '../../../shared/utilidades/formato/apariencia/barras/apariencia_espacios_helper.dart';
 import '../../../shared/utilidades/formato/apariencia/base/apariencia_helper.dart';
+import 'apariencia/general/piezas/tarjeta_acciones_rapidas.dart';
 part 'base/entrada/settings_sheet_entry.dart';
 
 part 'apariencia/general/base/settings_sheet_background.dart';
@@ -117,6 +119,7 @@ part 'apariencia/barras/cofre/piezas/settings_sheet_appearance_barras_cofre_text
 part 'apariencia/diseno/base/settings_sheet_appearance_diseno.dart';
 part 'apariencia/diseno/controles/settings_sheet_appearance_diseno_deslizador.dart';
 part 'apariencia/diseno/controles/settings_sheet_appearance_diseno_avanzado.dart';
+part 'apariencia/diseno/controles/settings_sheet_appearance_escala_avanzado.dart';
 part 'apariencia/diseno/previa/settings_sheet_appearance_diseno_vista_previa.dart';
 part 'apariencia/diseno/base/settings_sheet_appearance_diseno_restablecer.dart';
 part 'apariencia/general/piezas/settings_sheet_appearance_theme.dart';
@@ -149,6 +152,9 @@ part 'descargas/calidad/settings_sheet_download_quality.dart';
 part 'descargas/rescate/settings_sheet_download_rescate.dart';
 part 'descargas/rescate/settings_sheet_download_rescate_build.dart';
 part 'descargas/rescate/settings_sheet_download_rescate_piezas.dart';
+part 'descargas/qobuz/settings_sheet_download_pool_qobuz.dart';
+part 'descargas/qobuz/settings_sheet_download_pool_qobuz_build.dart';
+part 'descargas/qobuz/settings_sheet_download_pool_qobuz_piezas.dart';
 part 'descargas/base/settings_sheet_download_rows.dart';
 part 'descargas/base/settings_sheet_download_picker.dart';
 part 'descargas/base/settings_sheet_download_labels.dart';

@@ -40,9 +40,6 @@ import (
 )
 
 const (
-	// qobuzAPIBasePorDefecto es la API pública de Qobuz (configurable
-	// para apuntar a un proxy propio).
-	qobuzAPIBasePorDefecto = "https://www.qobuz.com/api.json/0.2"
 	// qobuzFormatoFLAC es el format_id que Qobuz usa para servir el
 	// stream sin pérdida (el mismo valor que usa el sitio auditado).
 	qobuzFormatoFLAC = "5"
@@ -54,6 +51,32 @@ const (
 	// exacta gana; pedir más solo alarga la respuesta).
 	maxPistasQobuz = 5
 )
+
+// qobuzAPIBaseOficial es la API de Qobuz de verdad: el destino del respaldo
+// cuando el proxy configurado no responde (ver pedirQobuz) y la base de fábrica
+// cuando no hay inyección. Es una var (y no una const) para que los tests puedan
+// apuntarla a un servidor local.
+var qobuzAPIBaseOficial = "https://www.qobuz.com/api.json/0.2"
+
+// QobuzAPIBaseInyectada es la base de la API del canal INYECTADA EN EL BUILD:
+//
+//	-ldflags "-X github.com/zarz/bitly/go_backend/internal/provider/flacrescue.QobuzAPIBaseInyectada=https://tu-worker.workers.dev/<secreto>/api.json/0.2"
+//
+// Vacía en el repo A PROPÓSITO (publicar la URL del Worker personal en un repo
+// abierto invita a que cualquiera firme con tus claves y queme tu cuota).
+var QobuzAPIBaseInyectada = ""
+
+// baseDeFabrica es la base con la que firma el canal cuando el usuario no
+// configuró `qobuz_api_base`: el Worker inyectado si el build lo trae y, si no,
+// la API de Qobuz DIRECTO (el Worker es opt-in, no un default que arrastre a
+// todos los que compilen). Se resuelve en cada uso —y no en un var de arranque—
+// para que los tests puedan repuntar qobuzAPIBaseOficial y seguir offline.
+func baseDeFabrica() string {
+	if v := strings.TrimSpace(QobuzAPIBaseInyectada); v != "" {
+		return v
+	}
+	return qobuzAPIBaseOficial
+}
 
 // firmaQobuz reproduce el esquema de firma de Qobuz:
 //
@@ -91,7 +114,7 @@ func (c *Client) qobuzConfig() (base, token, formato, keysURL, appID, secreto st
 	defer c.mu.RUnlock()
 	base = strings.TrimRight(c.qobuzBase, "/")
 	if base == "" {
-		base = qobuzAPIBasePorDefecto
+		base = baseDeFabrica()
 	}
 	formato = c.qobuzFormato
 	if formato == "" {
@@ -128,17 +151,33 @@ func (c *Client) qobuzCredenciales() (base, appID, secreto, token, formato strin
 // firmar. Es la misma política que usa el frontend del sitio auditado.
 func (c *Client) pedirQobuz(ctx context.Context, base, ruta string, params map[string]string, destino any) error {
 	_, _, _, keysURL, _, _ := c.qobuzConfig()
-	for intento := 0; ; intento++ {
-		if err := c.unaLlamadaQobuz(ctx, base, ruta, params, destino); err == nil {
+	// [baseActual] arranca en el proxy configurado y puede caer a la API de
+	// Qobuz: cada caída se repara UNA vez, nunca en bucle (la rotación cambia
+	// las claves, el respaldo cambia la base; ninguna vuelve atrás).
+	baseActual := base
+	rotada := false
+	for {
+		err := c.unaLlamadaQobuz(ctx, baseActual, ruta, params, destino)
+		if err == nil {
 			return nil
-		} else if !esFirmaRechazada(err) {
-			return err
-		} else if keysURL == "" || intento >= 1 {
-			return err
 		}
-		// Rotación de claves: se descarta lo cacheado y se reintenta con las
-		// nuevas. Solo una vez, para no entrar en un bucle de reintentos.
-		c.invalidarClaves()
+		if esFirmaRechazada(err) && keysURL != "" && !rotada {
+			// Rotación de claves: se descarta lo cacheado y se reintenta con
+			// las nuevas.
+			rotada = true
+			c.invalidarClaves()
+			continue
+		}
+		if esProxyCaido(err) && baseActual != qobuzAPIBaseOficial {
+			// El proxy no está disponible (caído, 403, 429 por cuota agotada,
+			// 5xx): se vuelve a la API de Qobuz directo, que es lo que hacía la
+			// app antes de tener Worker. Sin este respaldo, agotar las 100.000
+			// peticiones diarias del plan gratis apagaría el canal entero; con
+			// él, sólo se pierde el ocultamiento del app_secret.
+			baseActual = qobuzAPIBaseOficial
+			continue
+		}
+		return err
 	}
 }
 
@@ -179,14 +218,18 @@ func (c *Client) unaLlamadaQobuz(ctx context.Context, base, ruta string, params 
 
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return fmt.Errorf("qobuz-firmado: %v", err)
+		// Red caída: si el fallo fue del proxy, pedirQobuz lo reintenta contra
+		// la API de Qobuz directo.
+		return errProxyCaido(fmt.Sprintf("qobuz-firmado: %v", err))
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusUnauthorized {
 		return errFirmaRechazada(fmt.Sprintf("qobuz-firmado (%d) en %s", resp.StatusCode, ruta))
 	}
 	if resp.StatusCode >= 400 {
-		return fmt.Errorf("qobuz-firmado (%d) en %s", resp.StatusCode, ruta)
+		// 403/429/5xx incluidos: el proxy no está disponible (cuota agotada,
+		// secreto del relay cambiado, caído). Es recuperable cayendo a Qobuz.
+		return errProxyCaido(fmt.Sprintf("qobuz-firmado (%d) en %s", resp.StatusCode, ruta))
 	}
 	if err := json.NewDecoder(resp.Body).Decode(destino); err != nil {
 		return fmt.Errorf("qobuz-firmado: respuesta no interpretada en %s", ruta)

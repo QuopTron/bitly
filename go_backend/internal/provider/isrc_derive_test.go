@@ -1,18 +1,28 @@
 package provider
 
-import "testing"
+import (
+	"testing"
+	"time"
+
+	"github.com/zarz/bitly/go_backend/internal/cooldown"
+)
 
 // isrcMockProvider devuelve lo que el test le diga; cuenta las búsquedas para
-// poder afirmar que la caché evita repetirlas.
+// poder afirmar que la caché evita repetirlas y puede demorar la respuesta para
+// pinchar el paralelismo de la derivación.
 type isrcMockProvider struct {
 	name     string
 	results  []TrackResult
 	llamadas *int
+	demora   time.Duration
 }
 
 func (m *isrcMockProvider) Name() string { return m.name }
 func (m *isrcMockProvider) SearchTracks(q string, l int) ([]TrackResult, error) {
 	*m.llamadas++
+	if m.demora > 0 {
+		time.Sleep(m.demora)
+	}
 	return m.results, nil
 }
 func (m *isrcMockProvider) SearchAlbums(q string, l int) ([]AlbumResult, error)   { return nil, nil }
@@ -124,6 +134,70 @@ func TestProveedoresConISRCMusicBrainzVaAlFinal(t *testing.T) {
 	ultimo := proveedoresConISRC[len(proveedoresConISRC)-1]
 	if ultimo != "musicbrainz" {
 		t.Errorf("el último proveedor es %q, quería musicbrainz (1 req/s)", ultimo)
+	}
+}
+
+// TestDerivarISRCNoSeQuedaSinMusicBrainzPorUnCatalogoLento fija el arreglo del
+// bug de fiabilidad: con el recorrido SERIE, un primer catálogo que tarda (o
+// gasta su timeout) agotaba el presupuesto de 4s y MusicBrainz —la única base
+// de ISRC sin cuenta— NUNCA se consultaba, así que el track quedaba sin ISRC y
+// perdía la fase exacta y el rescate FLAC. En paralelo, el catálogo que responde
+// habilita el ISRC sin esperar al lento.
+func TestDerivarISRCNoSeQuedaSinMusicBrainzPorUnCatalogoLento(t *testing.T) {
+	cooldown.MarkOk("deezer")
+	cooldown.MarkOk("musicbrainz")
+	var lento, rapido int
+	r := NewRegistry()
+	// El catálogo preferido (primero en la lista) responde bien después del
+	// presupuesto: en serie, su turno se comía la ventana entera.
+	r.Register(&isrcMockProvider{
+		name:     "deezer",
+		demora:   presupuestoDerivarISRC + time.Second,
+		llamadas: &lento,
+	})
+	r.Register(&isrcMockProvider{
+		name: "musicbrainz",
+		results: []TrackResult{
+			{ID: "mb-1", Title: "Tema Paralelo Unico", Artist: "Banda Paralela", Duration: 200000, ISRC: "QZPAR0000001"},
+		},
+		llamadas: &rapido,
+	})
+
+	inicio := time.Now()
+	got := DerivarISRC(r, "Tema Paralelo Unico", "Banda Paralela", 200000)
+	tardanza := time.Since(inicio)
+	if got != "QZPAR0000001" {
+		t.Fatalf("DerivarISRC = %q, quería el ISRC del catálogo que sí respondió", got)
+	}
+	if rapido == 0 {
+		t.Fatal("MusicBrainz no fue consultado")
+	}
+	// No se espera al lento: se devuelve apenas responde el que tiene el dato
+	// (más la ventana corta de orden).
+	if tardanza >= presupuestoDerivarISRC {
+		t.Fatalf("la derivación esperó %s: se quedó esperando al catálogo lento", tardanza)
+	}
+}
+
+// TestDerivarISRCClaveIncluyeDuracion: dos TOMAS distintas de la misma canción
+// (mismo título y artista, otra duración) no pueden compartir la entrada de
+// caché — con la clave vieja la segunda recibía el ISRC de la primera, que es
+// exactamente la identidad equivocada que la derivación existe para evitar.
+func TestDerivarISRCClaveIncluyeDuracion(t *testing.T) {
+	var llamadas int
+	r := registroConISRC("deezer", []TrackResult{
+		{ID: "1", Title: "Tema Dos Tomas", Artist: "Artista Dos Tomas", Duration: 200000, ISRC: "ORIG00000001"},
+	}, &llamadas)
+
+	if got := DerivarISRC(r, "Tema Dos Tomas", "Artista Dos Tomas", 200000); got != "ORIG00000001" {
+		t.Fatalf("primera toma = %q", got)
+	}
+	// La versión extendida/directo dura 6 minutos: otra toma, otra entrada.
+	if got := DerivarISRC(r, "Tema Dos Tomas", "Artista Dos Tomas", 360000); got == "ORIG00000001" {
+		t.Fatalf("la segunda toma reusó el ISRC de la primera: %q", got)
+	}
+	if llamadas < 2 {
+		t.Fatalf("la segunda duración debía volver a buscar: hubo %d búsquedas", llamadas)
 	}
 }
 

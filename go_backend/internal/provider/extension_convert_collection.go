@@ -19,12 +19,12 @@ func convertirAAlbumResults(result interface{}, providerName string) ([]AlbumRes
 		}
 		a := AlbumResult{
 			ID:          getString(m, "id"),
-			Title:       getString(m, "name", "title"),
-			Artist:      getString(m, "artists", "artist"),
+			Title:       TextoDeCampo(m, "name", "title"),
+			Artist:      TextoDeCampo(m, "artists", "artist", "album_artist", "artist_name"),
 			ArtistID:    getString(m, "artist_id", "artistId", "artistID"),
 			CoverURL:    obtenerURLPortada(m),
 			ReleaseDate: getString(m, "release_date", "releaseDate"),
-			TrackCount:  toInt(m["total_tracks"]),
+			TrackCount:  EnteroDeCampo(m, "total_tracks", "totalTracks", "track_count", "nb_tracks"),
 			Provider:    providerName,
 		}
 		if a.ID != "" {
@@ -45,12 +45,12 @@ func convertirAAlbumResult(result interface{}, providerName string) (*AlbumResul
 	}
 	a := AlbumResult{
 		ID:          getString(m, "id"),
-		Title:       getString(m, "name", "title"),
-		Artist:      getString(m, "artists", "artist"),
+		Title:       TextoDeCampo(m, "name", "title"),
+		Artist:      TextoDeCampo(m, "artists", "artist", "album_artist", "artist_name"),
 		ArtistID:    getString(m, "artist_id", "artistId", "artistID"),
 		CoverURL:    obtenerURLPortada(m),
 		ReleaseDate: getString(m, "release_date", "releaseDate"),
-		TrackCount:  toInt(m["total_tracks"]),
+		TrackCount:  EnteroDeCampo(m, "total_tracks", "totalTracks", "track_count", "nb_tracks"),
 		Provider:    providerName,
 	}
 	if a.ID != "" {
@@ -73,9 +73,9 @@ func convertirAArtistResults(result interface{}, providerName string) ([]ArtistR
 		}
 		a := ArtistResult{
 			ID:         getString(m, "id"),
-			Name:       getString(m, "name"),
+			Name:       TextoDeCampo(m, "name", "title"),
 			PictureURL: obtenerURLPortada(m),
-			Fans:       toInt(m["listeners"]),
+			Fans:       EnteroDeCampo(m, "listeners", "fans"),
 			Provider:   providerName,
 		}
 		if a.ID != "" {
@@ -96,9 +96,9 @@ func convertirAArtistResult(result interface{}, providerName string) (*ArtistRes
 	}
 	a := ArtistResult{
 		ID:         getString(m, "id"),
-		Name:       getString(m, "name"),
+		Name:       TextoDeCampo(m, "name", "title"),
 		PictureURL: obtenerURLPortada(m),
-		Fans:       toInt(m["listeners"]),
+		Fans:       EnteroDeCampo(m, "listeners", "fans"),
 		Provider:   providerName,
 	}
 	if a.ID != "" {
@@ -121,10 +121,10 @@ func convertirAPlaylistResults(result interface{}, providerName string) ([]Playl
 		}
 		p := PlaylistResult{
 			ID:          getString(m, "id"),
-			Title:       getString(m, "name", "title"),
-			Description: getString(m, "description"),
-			Creator:     getString(m, "owner", "creator", "artist", "artists"),
-			TrackCount:  toInt(m["track_count"]),
+			Title:       TextoDeCampo(m, "name", "title"),
+			Description: TextoDeCampo(m, "description"),
+			Creator:     TextoDeCampo(m, "owner", "creator", "artist", "artists"),
+			TrackCount:  EnteroDeCampo(m, "track_count", "total_tracks", "totalTracks", "itemCount"),
 			CoverURL:    obtenerURLPortada(m),
 			Provider:    providerName,
 		}

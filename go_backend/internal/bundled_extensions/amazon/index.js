@@ -1,5 +1,7 @@
 // Amazon Music Metadata & Download Provider for SpotiFLAC
-// v2.3.8 - Preserves recording ISRCs for cross-catalog matching.
+// v2.4.10 - Corta la búsqueda en cuanto ve el diálogo de servicio (también las
+//           concurrentes), emite album_name en el feed y no gasta cada
+//           storefront antes de rendirse.
 // Uses reverse-engineered Amazon Music web API (skill.music.a2z.com).
 
 var CONFIG = {
@@ -12,6 +14,10 @@ var CONFIG = {
   maxAttempts: 5,
   baseBackoffMs: 250,
   maxBackoffMs: 4000,
+  // Cuando Amazon contesta el diálogo "Error de servicio" en showSearch, la
+  // búsqueda anónima dejó de estar servida: se pausa por este rato (ver
+  // _searchServiceDownUntil) en vez de repetir el recorrido de storefronts.
+  searchServiceCooldownMs: 5 * 60 * 1000,
   cacheTtlMs: 180000,
   cacheMaxEntries: 500,
   resourceCacheMaxEntries: 500,
@@ -515,6 +521,46 @@ function marcarStorefrontMalo(sf, malo) {
   if (!sf || !sf.base) return;
   if (malo) _malosStorefronts[sf.base] = Date.now();
   else delete _malosStorefronts[sf.base];
+}
+
+// ---- Búsqueda anónima caída ----------------------------------------------
+//
+// Medido en vivo (2026-09): showSearch contesta 200 en TODOS los storefronts
+// (na y eu, US/MX/BR/ES…) con un DialogTemplate "Error de servicio" de ~1.2 KB,
+// para cualquier keyword y con cualquier combinación de userHash/IsLibrary. No
+// es geo-bloqueo, ni sesión, ni red: Amazon dejó de servir la búsqueda anónima.
+// (El feed NO se afecta: showHome/showHomeBrowse siguen dando secciones.)
+//
+// Sin este corte, cada búsqueda del host pagaba 6 storefronts × 5 reintentos de
+// fetchWithRetry × 2 peticiones (config.json + showSearch) ≈ 60 peticiones para
+// un resultado que ya se sabe que no existe, y el log se llenaba en bucle. Ahora
+// se detecta el diálogo, se pausa la búsqueda un rato y se falla de inmediato.
+var _searchServiceDownUntil = 0;
+
+// esDialogoDeServicio reconoce el diálogo concreto de servicio no disponible
+// (a diferencia de esDialogoDeError, que también acepta cualquier respuesta sin
+// resultados). Se identifica por su interfaz real y por el encabezado visible.
+function esDialogoDeServicio(data) {
+  var blob = deepStringify(data);
+  if (!blob) return false;
+  return (
+    blob.indexOf("DialogTemplateInterface.DialogTemplate") >= 0 ||
+    blob.indexOf("Error de servicio") >= 0
+  );
+}
+
+// errorBusquedaAmazon arma el error terminal de búsqueda no disponible.
+// retryable=false hace que fetchWithRetry corte de una (no mintiendo intentos
+// nuevos): el estado no es transitorio, así que reintentar solo suma latencia.
+function errorBusquedaAmazon(keyword) {
+  var e = new Error(
+    "Amazon search unavailable for: " +
+      keyword +
+      " (service dialog: anonymous search no longer served)",
+  );
+  e.retryable = false;
+  e.code = "AMAZON_SEARCH_UNAVAILABLE";
+  return e;
 }
 
 function storefrontsEnOrden() {
@@ -1169,6 +1215,20 @@ function callShowSearch(keyword, context, _retried) {
   var ctx =
     context || _currentContext || createAmazonContext(CONFIG.musicBaseURL);
   _currentContext = ctx;
+
+  // Corte temprano: si la última búsqueda encontró el diálogo de servicio, no
+  // se recorre nada hasta que pase la pausa. Va ANTES de initSession(ctx)
+  // porque initSession ya es una petición a config.json por storefront.
+  if (Date.now() < _searchServiceDownUntil) {
+    L(
+      "warn",
+      "[Amazon] búsqueda en pausa (servicio no disponible); reintento en " +
+        Math.ceil((_searchServiceDownUntil - Date.now()) / 1000) +
+        "s",
+    );
+    throw errorBusquedaAmazon(keyword);
+  }
+
   initSession(ctx);
   L("info", "[Amazon] callShowSearch:", keyword);
 
@@ -1181,6 +1241,9 @@ function callShowSearch(keyword, context, _retried) {
   // refreshSession() no puede arreglar el bloqueo geográfico, así que no se
   // repite el recorrido completo (ver más abajo).
   var respuestasOk = 0;
+  // Cuántos storefronts contestaron con el diálogo de servicio. Si al menos uno
+  // lo hizo y ninguno dio resultados, la búsqueda anónima está caída (no es red).
+  var dialogosServicio = 0;
   for (var i = 0; i < lista.length; i++) {
     var sf = lista[i];
     var ctxSf = contextoDeStorefront(sf);
@@ -1208,10 +1271,40 @@ function callShowSearch(keyword, context, _retried) {
       _storefront = sf;
       recordarStorefront(sf);
       marcarStorefrontMalo(sf, false);
+      // Un storefront que SÍ contestó borra la pausa provisional de arriba.
+      _searchServiceDownUntil = 0;
       return data;
+    }
+    if (data && esDialogoDeServicio(data)) {
+      dialogosServicio++;
+      // Corte PROVISIONAL en cuanto se ve el primer diálogo: la caída de la
+      // búsqueda anónima no depende de la keyword, y un toque dispara varias
+      // búsquedas en paralelo — sin esto, cada una de las que arrancan mientras
+      // este recorrido sigue pagaba sus propios 6 storefronts × 2 peticiones.
+      // Si más abajo algún storefront contesta resultados, se borra y no queda
+      // ninguna pausa (ver el `return data` de arriba).
+      _searchServiceDownUntil = Date.now() + CONFIG.searchServiceCooldownMs;
     }
     marcarStorefrontMalo(sf, true);
     L("warn", "[Amazon] storefront sin resultados, probando otro:", sf.base);
+  }
+
+  // El servicio contestó pero con el diálogo: no es red ni sesión, es Amazon
+  // que ya no sirve la búsqueda. Se pausa y se corta de una, para que el
+  // fetchWithRetry de arriba no repita el recorrido completo 5 veces.
+  if (!_retried && dialogosServicio > 0) {
+    _searchServiceDownUntil = Date.now() + CONFIG.searchServiceCooldownMs;
+    L(
+      "error",
+      "[Amazon] servicio de búsqueda no disponible (" +
+        dialogosServicio +
+        "/" +
+        lista.length +
+        " storefronts con diálogo); en pausa por " +
+        Math.round(CONFIG.searchServiceCooldownMs / 1000) +
+        "s",
+    );
+    throw errorBusquedaAmazon(keyword);
   }
 
   if (!_retried && respuestasOk === 0) {
@@ -4796,6 +4889,15 @@ function formatHomeFeedData(data) {
       if (!artistStr && item.secondaryText)
         artistStr = textValue(item.secondaryText);
 
+      // Álbum: en las filas del feed Amazon pone el disco en secondaryText2
+      // (secondaryText1 es el artista y secondaryText3 la duración). El guard de
+      // secondaryText1 evita confundir el álbum con el artista en las filas de
+      // VA donde secondaryText2 es el artista. Sin esto el ítem llegaba con
+      // album_name vacío y el toque perdía el desempate por álbum, que es el que
+      // separa el original del recopilatorio/cover homónimo.
+      if (item.secondaryText2 && item.secondaryText1)
+        albumName = textValue(item.secondaryText2);
+
       // Cover image
       if (item.image) coverUrl = ensureHighResCoverUrl(item.image);
 
@@ -4814,6 +4916,12 @@ function formatHomeFeedData(data) {
       if (!itemName && item.imageAltText) itemName = String(item.imageAltText);
       if (!itemName) continue;
 
+      // Sin ISRC a propósito: el payload de showHomeBrowse NO lo trae (solo lo
+      // trae el detalle de una pista, vía schema.isrcCode) y pedirlo por ítem
+      // costaría una petición por cada fila del inicio (~36 en un arranque
+      // medido). La identidad se resuelve al tocar: el backend deriva el ISRC
+      // en vuelo y el desempate por título/artista/álbum/duración ya distingue
+      // el original del cover homónimo.
       items.push({
         id: itemId,
         uri: deeplink,

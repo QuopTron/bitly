@@ -53,6 +53,14 @@ class AparienciaEspacios {
   static double radioCards(BuildContext context) =>
       AparienciaHelper.actual(context).radioCards;
 
+  /// Multiplicador del TAMAÑO DE LAS LETRAS de toda la app.
+  static double escalaTexto(BuildContext context) =>
+      AparienciaHelper.actual(context).escalaTexto;
+
+  /// Multiplicador del TAMAÑO DE LOS ICONOS de las piezas compartidas.
+  static double escalaIconos(BuildContext context) =>
+      AparienciaHelper.actual(context).escalaIconos;
+
   /// Opacidad de la línea que separa las filas de CANCIÓN.
   static double opacidadLineaYCancion(BuildContext context) =>
       AparienciaHelper.actual(context).opacidadLineaYCancion;
@@ -123,5 +131,47 @@ class AparienciaEspacios {
       AparienciaHelper.cambiar(
         context,
         AparienciaHelper.actual(context).copiarCon(radioCards: valor),
+      );
+
+  /// Cambia el tamaño de las letras de la app.
+  static void cambiarEscalaTexto(BuildContext context, double valor) =>
+      AparienciaHelper.cambiar(
+        context,
+        AparienciaHelper.actual(context).copiarCon(escalaTexto: valor),
+      );
+
+  /// Cambia el tamaño de los iconos de las piezas compartidas.
+  static void cambiarEscalaIconos(BuildContext context, double valor) =>
+      AparienciaHelper.cambiar(
+        context,
+        AparienciaHelper.actual(context).copiarCon(escalaIconos: valor),
+      );
+
+  /// Cambia SOLO el tamaño de los títulos de las tarjetas.
+  static void cambiarEscalaTitulos(BuildContext context, double valor) =>
+      AparienciaHelper.cambiar(
+        context,
+        AparienciaHelper.actual(context).copiarCon(escalaTitulos: valor),
+      );
+
+  /// Cambia SOLO el tamaño de los textos secundarios.
+  static void cambiarEscalaTextos(BuildContext context, double valor) =>
+      AparienciaHelper.cambiar(
+        context,
+        AparienciaHelper.actual(context).copiarCon(escalaTextos: valor),
+      );
+
+  /// Cambia SOLO el tamaño de los iconos de las tarjetas.
+  static void cambiarEscalaIconosCards(BuildContext context, double valor) =>
+      AparienciaHelper.cambiar(
+        context,
+        AparienciaHelper.actual(context).copiarCon(escalaIconosCards: valor),
+      );
+
+  /// Cambia SOLO el tamaño de los iconos de las barras (navbar y miniplayer).
+  static void cambiarEscalaIconosBarras(BuildContext context, double valor) =>
+      AparienciaHelper.cambiar(
+        context,
+        AparienciaHelper.actual(context).copiarCon(escalaIconosBarras: valor),
       );
 }

@@ -2,6 +2,7 @@ package streaming
 
 import (
 	"log"
+	"sync"
 	"time"
 
 	"github.com/zarz/bitly/go_backend/internal/provider"
@@ -35,7 +36,12 @@ func albumQuery(track *provider.TrackResult) string {
 	return track.Album
 }
 
-func rescueStream(reg *provider.Registry, track *provider.TrackResult, trackName, artistName, quality string) (url, prov string, attempted []string, verified bool) {
+// [identidadProbada] reporta que la identidad del pedido (ISRC / ids
+// cross-proveedor) YA se resolvió contra las fuentes de audio antes de entrar
+// acá — es la fase de identificadores de RescueStreamURL. En ese caso la fase
+// exacta no se repite salvo que un ISRC NUEVO llegue derivado en vuelo (ese dato
+// no existía cuando se sondeó), para no duplicar carga ni disparar 429s.
+func rescueStream(reg *provider.Registry, track *provider.TrackResult, trackName, artistName, quality string, identidadProbada bool) (url, prov string, attempted []string, verified bool) {
 	inicioTotal := time.Now()
 	// Instrumentación de LATENCIA: cada fase termina cuando vence su presupuesto
 	// o cuando TODOS sus workers terminan, así que el total percibido es la SUMA
@@ -61,9 +67,31 @@ func rescueStream(reg *provider.Registry, track *provider.TrackResult, trackName
 		dur := duracionQuery(track)
 		go func() { chISRC <- provider.DerivarISRC(reg, trackName, artistName, dur) }()
 	}
+	// El ISRC con el que se resuelve la fase EXACTA puede llegar DESPUÉS (derivado
+	// en vuelo) y lo leen dos goroutines: la búsqueda por nombre —para preferir el
+	// candidato de la MISMA grabación— y la fase exacta al lanzarse. Se guarda
+	// bajo mutex en vez de reasignar `track`: aquel `track = &copia` era una
+	// carrera de datos real contra la goroutine de nombre, que leía el puntero a
+	// la vez que el colector lo reemplazaba.
+	var isrcMu sync.RWMutex
+	isrcActual := ""
+	if track != nil {
+		isrcActual = track.ISRC
+	}
+	leerISRC := func() string {
+		isrcMu.RLock()
+		defer isrcMu.RUnlock()
+		return isrcActual
+	}
+	fijarISRC := func(v string) {
+		isrcMu.Lock()
+		isrcActual = v
+		isrcMu.Unlock()
+	}
 	// Sin pérdida, las fuentes que pueden entregarlo van primero (y con un turno
-	// extra): es la única forma de que su resultado gane por política en vez de
-	// quedar salteado por falta de slot. Ver ordenProvidersStreamingCalidad.
+	// extra): el orden decide quién ARRANCA primero, y con menos turnos que fuentes
+	// eso decide quién alcanza a entregar antes de que la fase devuelva. Ver
+	// ordenProvidersStreamingCalidad.
 	names := ordenProvidersStreamingCalidad(reg, quality)
 	// Un proveedor que tiene la cancion exacta pero necesita su sesion
 	// verificada se RECUERDA, nunca es fatal: la siguiente fase (busqueda por
@@ -78,8 +106,9 @@ func rescueStream(reg *provider.Registry, track *provider.TrackResult, trackName
 	// carrera recorría ~14 proveedores, catálogos incluidos, y solaparla duplicaba
 	// la carga sobre las extensiones —medido en el emulador: metadata 2,2s →
 	// 5,8-11,2s y stream 12,6s → 17-20s—. Con los catálogos FUERA del audio (ver
-	// proveedoresAudio) quedan 6 fuentes reales y la fase exacta solo puede
-	// aportar algo con flac-rescue, así que solapar ya no compite: reparte.
+	// proveedoresAudio) quedan pocas fuentes reales y cada una sabe resolver la
+	// identidad por su cuenta (checkAvailability / índice ISRC), así que la fase
+	// exacta ya no compite por los mismos proveedores: reparte.
 	//
 	// Y es necesario, no un lujo: sin solapar, la fase por ISRC corría ANTES de
 	// que YouTube —la fuente de audio obligatoria— tuviera su primer turno.
@@ -102,9 +131,10 @@ func rescueStream(reg *provider.Registry, track *provider.TrackResult, trackName
 				cands := matchesRankeados(trackName, artistName, albumQuery(track), duracionQuery(track), results)
 				// Con ISRC conocido, la candidata que lo declara va primero: entre
 				// subidas con el mismo título, la que coincide con la identidad
-				// exacta es la grabación pedida.
-				if track != nil && track.ISRC != "" {
-					cands = provider.PreferirISRC(track.ISRC, cands)
+				// exacta es la grabación pedida. Se lee del holder porque el ISRC
+				// puede haber llegado mientras esta búsqueda corría.
+				if isr := leerISRC(); isr != "" {
+					cands = provider.PreferirISRC(isr, cands)
 				}
 				var sawVerify bool
 				for _, cand := range cands {
@@ -148,14 +178,20 @@ func rescueStream(reg *provider.Registry, track *provider.TrackResult, trackName
 		}()
 	}
 
-	// FASE 1: la GRABACIÓN EXACTA por ISRC. Ahora la atiende prácticamente solo
-	// flac-rescue (su índice ES el ISRC): los catálogos salieron del audio, así
-	// que ya no hay un deezer/qobuz que resuelva por ISRC sin cuenta.
+	// FASE 1: la GRABACIÓN EXACTA por IDENTIDAD (ISRC, y los ids cross-proveedor
+	// cuando el pedido los trae). La atienden TODAS las fuentes de audio que sepan
+	// traducir esa identidad a un id propio: una extensión lo hace por su
+	// checkAvailability —YTMusic resuelve el ISRC al video de YouTube Music
+	// verificado por título/artista/duración, que es el audio que sí existe— y
+	// flac-rescue por su índice, que ES el ISRC. Antes esta fase ERA solo
+	// GetTrackByISRC, así que en la práctica únicamente flac-rescue podía
+	// contestar y un track sin ISRC propio (YouTube/SoundCloud) se quedaba sin la
+	// fuente que mejor lo tiene. Ver rescue_identidad.go.
 	//
-	// Por eso el presupuesto es de 3s: si flac-rescue tiene el FLAC lo resuelve en
-	// 1-2s, y si no lo tiene, esperar más solo retrasa lo que la fase de nombre
-	// (que corre en paralelo) ya tiene listo. Un resultado suyo sigue ganando: es
-	// identidad exacta y sin pérdida.
+	// Por eso el presupuesto sigue siendo de 3s: si una fuente tiene la grabación
+	// la resuelve en 1-2s, y si no, esperar más solo retrasa lo que la fase de
+	// nombre (que corre en paralelo) ya tiene listo. Un resultado exacto sigue
+	// ganando: es identidad, no parecido.
 	//
 	// Se lanza en su PROPIA goroutine para poder COSECHARLA junto a la fase de
 	// nombre: antes se esperaba la fase 1 COMPLETA —hasta 3s— antes de mirar la
@@ -163,29 +199,43 @@ func rescueStream(reg *provider.Registry, track *provider.TrackResult, trackName
 	// entero aunque el stream ya estuviera servido (medido: 3s de un tap de 3,7s).
 	chExacto := make(chan resultadoFase, 1)
 	exactoLanzado, exactoPendiente := false, false
+	// ¿El ISRC que habilita la fase exacta llegó DERIVADO en vuelo? Solo entonces
+	// la fase exacta aporta algo que la fase de identificadores no pudo probar.
+	isrcDeDerivacion := false
 	lanzarFaseExacta := func() {
-		if exactoLanzado || track == nil || track.ISRC == "" {
+		if exactoLanzado {
+			return
+		}
+		isrcExacto := leerISRC()
+		if isrcExacto == "" {
+			return
+		}
+		if identidadProbada && !isrcDeDerivacion {
 			return
 		}
 		exactoLanzado, exactoPendiente = true, true
-		isrcExacto := track.ISRC
+		// La identidad completa (ISRC + ids cross-proveedor + título/artista +
+		// duración) se arma ACÁ, en la goroutine del llamador, y se pasa por
+		// valor: la resolución por identidad de cada fuente corre en paralelo y
+		// no toca el estado compartido.
+		ident := identidadDeTrack(track, trackName, artistName)
+		ident.isrc = isrcExacto
 		go func() {
 			inicioFase := time.Now()
-			u, provName, v := carreraPorConfianzaCalidad(reg, names, 3*time.Second, workersRescate(quality), func(name string, p provider.Provider) (string, bool) {
-				trackByISRC, err := p.GetTrackByISRC(isrcExacto)
-				if err != nil || trackByISRC == nil || trackByISRC.ID == "" {
-					return "", false
-				}
-				// Even an ISRC-resolved candidate is verified against the queried
-				// title/artist when we have them: an extension whose ISRC search
-				// silently falls back to a name search (e.g. SoundCloud re-uploads
-				// or a wrong mapping) must never serve an unrelated song.
-				if trackName != "" && verificarMatchStream(p, trackByISRC.ID, trackName, artistName, isrcExacto, true, duracionQuery(track)) == "" {
-					return "", false
-				}
-				return rescueProviderUnaVez(p, trackByISRC.ID, quality)
+			// Presupuesto 4s (antes 3s): la fase ahora también pasa por
+			// checkAvailability de las extensiones, que resuelve el ISRC a su
+			// propio id con una búsqueda — negarle ese segundo dejaba afuera a la
+			// fuente que sí lo tiene. No alarga el caso exitoso (el colector sirve
+			// el primero que llegue) ni el fallido (lo domina la fase de nombre).
+			u, provName, v := carreraPorConfianzaCalidad(reg, names, 4*time.Second, workersRescate(quality), func(name string, p provider.Provider) (string, bool) {
+				// Antes esto ERA solo GetTrackByISRC, así que en la práctica
+				// únicamente flac-rescue podía contestar por ISRC. Ahora toda
+				// fuente que sepa traducir la identidad lo intenta primero por su
+				// checkAvailability (YTMusic resuelve el ISRC al video verificado)
+				// y el resto cae a GetTrackByISRC. Ver rescue_identidad.go.
+				return resolverStreamPorIdentidad(p, quality, ident)
 			}, quality)
-			log.Printf("[rescue] fase 1 (ISRC) %.0fms -> prov=%q url=%v verify=%v",
+			log.Printf("[rescue] fase 1 (identidad exacta) %.0fms -> prov=%q url=%v verify=%v",
 				float64(time.Since(inicioFase).Microseconds())/1000, provName, u != "", v)
 			chExacto <- resultadoFase{u, provName, v}
 		}()
@@ -222,12 +272,11 @@ func rescueStream(reg *provider.Registry, track *provider.TrackResult, trackName
 			} else {
 				attempted = append(attempted, names...)
 			}
-		case isrcDerivado := <-chISRC:
+		case derivado := <-chISRC:
 			rastreandoISRC = false
-			if isrcDerivado != "" && track != nil && track.ISRC == "" {
-				copia := *track
-				copia.ISRC = isrcDerivado
-				track = &copia
+			if derivado != "" && leerISRC() == "" {
+				fijarISRC(derivado)
+				isrcDeDerivacion = true
 				// El ISRC habilita la fase exacta (y el rescate FLAC) en pleno vuelo.
 				lanzarFaseExacta()
 			}

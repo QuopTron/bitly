@@ -150,3 +150,15 @@ installed_base.apk
 prefs_check.xml
 prefs_dump.xml
 go_backend/all_ext_test.go
+
+# ── Config del Worker de Qobuz (host + secretos) ────────────────────
+# La URL del Worker lleva su secreto en la ruta: escribirla en el repo
+# (público) publica el secreto y cualquiera usa/quema tu cuota. Los valores
+# se INYECTAN en el build; ver scripts/dev/qobuz_inyeccion.sh.
+/qobuz-worker.env
+
+# ── Artefactos sueltos de verificacion local (raiz) ─────────────────
+# Salen de scripts/dev (uiautomator/instalacion); nunca van al repo.
+_inst.apk
+_nav.xml
+_t*.xml

@@ -32,6 +32,22 @@ class StringsApariencia {
   final String personalizado;
   final String radioTitulo;
   final String radioAyuda;
+  final String letrasTitulo;
+  final String letrasAyuda;
+  final String iconosTitulo;
+  final String iconosAyuda;
+  final String escalaAvanzadoTitulo;
+  final String escalaAvanzadoAyuda;
+  final String escalaGrupoLetras;
+  final String escalaTitulos;
+  final String escalaTitulosAyuda;
+  final String escalaTextos;
+  final String escalaTextosAyuda;
+  final String escalaGrupoIconos;
+  final String escalaIconosCards;
+  final String escalaIconosCardsAyuda;
+  final String escalaIconosBarras;
+  final String escalaIconosBarrasAyuda;
   final String vistaPreviaTitulo;
   final String vistaPreviaAyuda;
   final String restablecer;
@@ -55,6 +71,22 @@ class StringsApariencia {
     required this.personalizado,
     required this.radioTitulo,
     required this.radioAyuda,
+    required this.letrasTitulo,
+    required this.letrasAyuda,
+    required this.iconosTitulo,
+    required this.iconosAyuda,
+    required this.escalaAvanzadoTitulo,
+    required this.escalaAvanzadoAyuda,
+    required this.escalaGrupoLetras,
+    required this.escalaTitulos,
+    required this.escalaTitulosAyuda,
+    required this.escalaTextos,
+    required this.escalaTextosAyuda,
+    required this.escalaGrupoIconos,
+    required this.escalaIconosCards,
+    required this.escalaIconosCardsAyuda,
+    required this.escalaIconosBarras,
+    required this.escalaIconosBarrasAyuda,
     required this.vistaPreviaTitulo,
     required this.vistaPreviaAyuda,
     required this.restablecer,
@@ -81,6 +113,29 @@ class StringsApariencia {
     radioTitulo: 'Redondeo de las cards',
     radioAyuda:
         'Qué tan curvas son las esquinas de las cards. En 0 quedan cuadradas.',
+    letrasTitulo: 'Tamaño de las letras',
+    letrasAyuda:
+        'Agranda o achica los textos de toda la app. Se suma al tamaño de fuente que ya tengas puesto en el teléfono.',
+    iconosTitulo: 'Tamaño de los iconos',
+    iconosAyuda:
+        'Agranda o achica los iconos de las tarjetas y las barras, para que acompañen a las letras.',
+    escalaAvanzadoTitulo: 'Avanzado (por separado)',
+    escalaAvanzadoAyuda:
+        'Los dos controles de arriba mueven todo junto. Acá agrandás una sola cosa: por ejemplo los títulos sin tocar los textos.',
+    escalaGrupoLetras: 'Letras',
+    escalaTitulos: 'Títulos',
+    escalaTitulosAyuda:
+        'El nombre de la canción en las filas y el del álbum, playlist o artista en las grillas.',
+    escalaTextos: 'Textos secundarios',
+    escalaTextosAyuda:
+        'Lo que va debajo del título: el artista, el año y los datos de la fila.',
+    escalaGrupoIconos: 'Iconos',
+    escalaIconosCards: 'De las tarjetas',
+    escalaIconosCardsAyuda:
+        'Los botones de cada fila: me gusta, descargar, compartir e información.',
+    escalaIconosBarras: 'De las barras',
+    escalaIconosBarrasAyuda:
+        'El navbar de abajo y los controles del miniplayer (play, siguiente, anterior).',
     vistaPreviaTitulo: 'Cómo se ve',
     vistaPreviaAyuda: 'Se actualiza mientras movés los controles.',
     restablecer: 'Volver al diseño original',
@@ -106,6 +161,29 @@ class StringsApariencia {
     personalizado: 'Custom',
     radioTitulo: 'Card roundness',
     radioAyuda: 'How round the card corners are. At 0 they become square.',
+    letrasTitulo: 'Text size',
+    letrasAyuda:
+        'Scales the text across the whole app. It adds to the font size your phone already has set.',
+    iconosTitulo: 'Icon size',
+    iconosAyuda:
+        'Scales the icons on cards and bars so they follow the text size.',
+    escalaAvanzadoTitulo: 'Advanced (one by one)',
+    escalaAvanzadoAyuda:
+        'The two controls above move everything together. Here you can grow a single thing: titles without touching the secondary text, for example.',
+    escalaGrupoLetras: 'Text',
+    escalaTitulos: 'Titles',
+    escalaTitulosAyuda:
+        'The song name on rows and the album, playlist or artist name on grids.',
+    escalaTextos: 'Secondary text',
+    escalaTextosAyuda:
+        'What sits under the title: the artist, the year and the row details.',
+    escalaGrupoIconos: 'Icons',
+    escalaIconosCards: 'On cards',
+    escalaIconosCardsAyuda:
+        'The buttons on each row: like, download, share and info.',
+    escalaIconosBarras: 'On bars',
+    escalaIconosBarrasAyuda:
+        'The bottom navbar and the miniplayer controls (play, next, previous).',
     vistaPreviaTitulo: 'Preview',
     vistaPreviaAyuda: 'Updates as you move the controls.',
     restablecer: 'Back to the original design',

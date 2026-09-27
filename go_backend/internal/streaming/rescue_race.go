@@ -2,6 +2,7 @@ package streaming
 
 import (
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/zarz/bitly/go_backend/internal/cooldown"
@@ -95,27 +96,60 @@ func carreraRescueConFiltro(reg *provider.Registry, names []string, budget time.
 	if len(names) == 0 {
 		return "", "", false
 	}
-	results := make(chan rescueOut, len(names))
+	// Capacidad 2×: un worker puede mandar DOS mensajes (su url y su acuse de
+	// bloqueante). Con capacidad N, el que no cabía se quedaba BLOQUEADO en el
+	// send sosteniendo su turno del pool — y ese turno nunca volvía, que es
+	// justamente el "worker colgado" que el spawn loop de abajo intenta esquivar.
+	results := make(chan rescueOut, 2*len(names))
 	verifyCh := make(chan string, len(names))
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, workers)
 	deadline := time.Now().Add(budget)
-	// BLOQUEANTES realmente lanzados y TODAVÍA EN VUELO: mientras quede al menos
-	// uno, un resultado retenido espera (ver politicaCarrera). Cada bloqueante
-	// que termina manda su acuse (rescueOut.finBloqueante) y el contador baja:
-	// sin eso, un re-subido (yt-dlp) esperaba la gracia COMPLETA —hasta 6s con
-	// calidad sin pérdida— aunque Soulseek, Internet Archive y los catálogos ya
-	// hubieran contestado "no tengo nada" en medio segundo. Ver el acuse en
-	// recogerResultados.
-	bloqueantesEnVuelo := 0
+	// [carreraViva] se cierra al volver de recogerResultados (la carrera ya tiene
+	// su ganador o se le acabó el presupuesto): los intentos ENCOLADOS que todavía
+	// no consiguieron turno se rinden ahí mismo en vez de arrancar una búsqueda
+	// cuando la fase ya terminó.
+	carreraViva := make(chan struct{})
+	defer close(carreraViva)
+	// BLOQUEANTES que van a intentarlo (en vuelo o en cola) y TODAVÍA no
+	// acusaron. Mientras quede al menos uno, un resultado retenido espera (ver
+	// politicaCarrera). Cada bloqueante manda su acuse (rescueOut.finBloqueante)
+	// y el contador baja: sin eso, un re-subido (yt-dlp) esperaba la gracia
+	// COMPLETA —hasta 6s con calidad sin pérdida— aunque Soulseek, Internet
+	// Archive y los catálogos ya hubieran contestado "no tengo nada" en medio
+	// segundo. Es atómico porque ahora hay bloqueantes que arrancan DESPUÉS de
+	// que el colector ya está leyendo (los encolados).
+	var bloqueantes int32
+
+	// reportar es el cuerpo de un worker: intenta, manda su resultado y —si es
+	// bloqueante— su acuse. El acuse va SIEMPRE al final y por el mismo canal que
+	// el resultado: así el colector lo lee después de la url (si la hubo) y nunca
+	// se puede "liberar" un retenido un instante antes de que llegue un
+	// bloqueante que sí encontró stream.
+	reportar := func(name string, p provider.Provider, esBloqueante bool) {
+		if esBloqueante {
+			defer func() { results <- rescueOut{finBloqueante: true} }()
+		}
+		url, verified := attempt(name, p)
+		if verified {
+			verifyCh <- name
+		} else if url != "" {
+			results <- rescueOut{name: name, url: url}
+		}
+	}
 
 	// Spawn workers, but NEVER let the semaphore block the caller: a worker
 	// leaked from a previous race (a JS call that never returns holds its
 	// sandbox mutex + its sem slot) would otherwise deadlock this spawn loop
-	// BEFORE cualquier budget existe — el whole solicitud hangs forever. Each
-	// provider gets a short window to claim a slot (a fast provider frees its
-	// slot in ~1s); if none frees, skip that provider and try the next, so a
-	// permanently-stuck slot costs seconds, not the whole budget.
+	// BEFORE cualquier budget existe — el whole solicitud hangs forever.
+	//
+	// Por eso ya no se ESPERA un turno acá: si hay uno libre se lo toma (así los
+	// primeros de la lista conservan la prioridad), y si no, el intento queda
+	// ENCOLADO en su goroutine y reclama el primer turno que se libere dentro del
+	// presupuesto. Antes, sin turno en 1s, la fuente se DESCARTABA: con dos turnos
+	// ocupados por búsquedas lentas, internetarchive/flac-rescue/soundcloud nunca
+	// llegaban a intentarlo. Además el spawn loop ya no retrasa al colector (que
+	// arrancaba recién después de recorrer toda la lista).
 	for _, name := range names {
 		name := name
 		p := reg.Get(name)
@@ -125,37 +159,33 @@ func carreraRescueConFiltro(reg *provider.Registry, names []string, budget time.
 		if cooldown.IsCooled(name) {
 			continue
 		}
-		wait := time.Second
-		if rem := time.Until(deadline); rem < wait {
-			wait = rem
-		}
 		esBloqueante := pol.bloquea(name)
+		if esBloqueante {
+			atomic.AddInt32(&bloqueantes, 1)
+		}
+		wg.Add(1)
 		select {
 		case sem <- struct{}{}:
-			if esBloqueante {
-				bloqueantesEnVuelo++
-			}
-			wg.Add(1)
 			go func() {
 				defer wg.Done()
 				defer func() { <-sem }()
-				url, verified := attempt(name, p)
-				if verified {
-					verifyCh <- name
-				} else if url != "" {
-					results <- rescueOut{name: name, url: url}
-				}
-				// El acuse va SIEMPRE al final y por el mismo canal que el
-				// resultado: así el colector lo lee después de la url (si la
-				// hubo) y nunca se puede "liberar" un retenido un instante
-				// antes de que llegue un bloqueante que sí encontró stream.
-				if esBloqueante {
-					results <- rescueOut{finBloqueante: true}
-				}
+				reportar(name, p, esBloqueante)
 			}()
-		case <-time.After(wait):
-			// No slot freed in time — skip this provider; anything already
-			// running may still report via drainResults.
+		default:
+			go func() {
+				defer wg.Done()
+				if !reclamarTurno(sem, deadline, carreraViva) {
+					// No hubo turno dentro del presupuesto: si era bloqueante, avisa
+					// que YA no está en vuelo (si no, un retenido esperaría por él
+					// la gracia entera sin motivo).
+					if esBloqueante {
+						results <- rescueOut{finBloqueante: true}
+					}
+					return
+				}
+				defer func() { <-sem }()
+				reportar(name, p, esBloqueante)
+			}()
 		}
 	}
 	// El canal de resultados se CIERRA cuando termina el último worker, en vez
@@ -167,7 +197,39 @@ func carreraRescueConFiltro(reg *provider.Registry, names []string, budget time.
 	// stream" intermitente, que aparecía justo bajo carga).
 	go func() { wg.Wait(); close(results) }()
 
-	return recogerResultados(results, verifyCh, &deadline, bloqueantesEnVuelo, pol)
+	return recogerResultados(results, verifyCh, &deadline, &bloqueantes, pol)
+}
+
+// esperaTurnoMax es el tope de la espera por un turno del pool. Más corto que
+// los presupuestos de las fases a propósito: el caso NORMAL es que un turno se
+// libere apenas un proveedor falla (youtube responde su "no tengo ISRC" en
+// milisegundos), así que una cola corta alcanza para que la fuente que sigue
+// entre — que era justamente la que antes se descartaba. Esperar el presupuesto
+// entero por un turno estiraría el camino de FALLO (todos los proveedores
+// encolados en serie) sin mejorar la cobertura real.
+const esperaTurnoMax = 2500 * time.Millisecond
+
+// reclamarTurno espera un turno libre del pool hasta [deadline] (con el tope
+// [esperaTurnoMax]) o hasta que la carrera termine ([carreraViva] cerrada).
+// Devuelve false si no lo consiguió (el intento se abandona sin tocar la red).
+func reclamarTurno(sem chan struct{}, deadline time.Time, carreraViva <-chan struct{}) bool {
+	restante := time.Until(deadline)
+	if restante <= 0 {
+		return false
+	}
+	if restante > esperaTurnoMax {
+		restante = esperaTurnoMax
+	}
+	t := time.NewTimer(restante)
+	defer t.Stop()
+	select {
+	case sem <- struct{}{}:
+		return true
+	case <-t.C:
+		return false
+	case <-carreraViva:
+		return false
+	}
 }
 
 // carreraPorConfianza es la carrera de rescate consciente de la CONFIANZA de

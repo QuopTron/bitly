@@ -1,7 +1,6 @@
 package gobackend
 
 import (
-	"strconv"
 	"strings"
 
 	"github.com/zarz/bitly/go_backend/internal/provider"
@@ -23,59 +22,22 @@ func providerPorNombre(name string) provider.Provider {
 	return nil
 }
 
+// stringDetalle delega en el normalizador compartido del paquete provider: así
+// el detalle lee `artists`/`album` en string, arreglo u objeto igual que la
+// búsqueda y el feed, en vez de perder el dato cuando la extensión manda un
+// arreglo.
 func stringDetalle(m map[string]interface{}, keys ...string) string {
-	for _, k := range keys {
-		if v, ok := m[k]; ok && v != nil {
-			if s, ok := v.(string); ok && s != "" {
-				return s
-			}
-		}
-	}
-	return ""
+	return provider.TextoDeCampo(m, keys...)
 }
 
-// detailInt reads the first non-zero int from a list of keys.
+// detailInt reads the first non-zero int from a list of keys (normalizador
+// compartido: acepta número o string numérico).
 func intDetalle(m map[string]interface{}, keys ...string) int {
-	for _, k := range keys {
-		if v, ok := m[k]; ok && v != nil {
-			switch n := v.(type) {
-			case float64:
-				return int(n)
-			case int64:
-				return int(n)
-			case int:
-				return n
-			case string:
-				if out, err := strconv.Atoi(n); err == nil {
-					return out
-				}
-			}
-		}
-	}
-	return 0
+	return provider.EnteroDeCampo(m, keys...)
 }
 
-// detailCover resolves a cover URL from the common key shapes.
+// detailCover resolves a cover URL from the common key shapes (normalizador
+// compartido: string, objeto {url} o arreglo de imágenes).
 func portadaDetalle(m map[string]interface{}) string {
-	for _, k := range []string{"cover_url", "coverUrl", "cover", "images", "image_url", "imageUrl", "picture", "picture_xl", "thumbnail"} {
-		v, ok := m[k]
-		if !ok || v == nil {
-			continue
-		}
-		if s, ok := v.(string); ok && s != "" {
-			return s
-		}
-		// images can be an array of {url} or a string
-		if arr, ok := v.([]interface{}); ok && len(arr) > 0 {
-			if first, ok := arr[0].(map[string]interface{}); ok {
-				if s := stringDetalle(first, "url", "href", "src"); s != "" {
-					return s
-				}
-			}
-			if s, ok := arr[0].(string); ok {
-				return s
-			}
-		}
-	}
-	return ""
+	return provider.PortadaDeCampo(m)
 }

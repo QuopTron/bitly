@@ -824,8 +824,11 @@ function formatTrack(trackData, context) {
   );
 
   return {
+    // Sin spotify_id: el id de Deezer NO es de Spotify, y ponerlo ahí hacía que
+    // los cruces de identidad (checkAvailability / enrich) creyeran tener un id
+    // de Spotify y pagaran una petición al vacío. El id propio ya viaja en
+    // `id` y en `deezer_id`.
     id: itemID,
-    spotify_id: itemID,
     deezer_id: String(trackData.id),
     name: String(trackData.title || trackData.title_short || ""),
     artists: artistName,
@@ -2021,7 +2024,130 @@ function completeGrant() {
   return session.completeGrant();
 }
 
+// ─────────────────────────────────────────────────────────────
+// HOME FEED — /chart de la API PÚBLICA de Deezer.
+//
+// Por qué el chart y no el buscador: el feed tiene que mostrar algo SIN que el
+// usuario haya escrito nada, y /chart/0 es lo único editorial que Deezer sirve
+// sin cuenta (el resto de la portada vive detrás de su web con sesión). Son
+// tres listas del momento (canciones, álbumes y listas), cada una UNA petición.
+//
+// Cada lista es INDEPENDIENTE: si una falla (o el país no tiene chart de
+// álbumes) las otras dos igual se devuelven, porque un feed a medias es mejor
+// que un feed vacío. Sin ninguna lista, se devuelve success:false para que el
+// backend lo registre como "esta fuente no aportó" y no como un feed vacío.
+//
+// Los items se arman con formatSearchItem, la MISMA forma que devuelve la
+// búsqueda: así el toque desde el feed resuelve por el camino de siempre (el id
+// con prefijo `deezer:`, el álbum y la carátula) sin una rama nueva que
+// mantener.
+// ─────────────────────────────────────────────────────────────
+
+// Tope de items por lista. El TTL lo pone cacheSet (CONFIG.metadataCacheTtlMs,
+// 5 minutos): es lo que tarda en moverse un chart y evita que abrir el feed
+// tres veces seguidas gaste tres veces las mismas peticiones.
+var HOME_FEED_MAX_POR_LISTA = 20;
+
+// aItemFeedHome adapta un resultado de formatSearchItem al contrato del feed.
+//
+// Por qué hace falta: la búsqueda usa `item_type` (snake) y el feed espera
+// `type`. Sin esta traducción el item llegaba SIN tipo y la app no podía
+// agruparlo ni ofrecerle la acción correcta (medido: las cuatro secciones del
+// chart salían con type vacío).
+function aItemFeedHome(item, tipo) {
+  if (!item) return null;
+  return {
+    id: String(item.id || ""),
+    uri: String(item.external_urls || ""),
+    type: String(tipo || item.item_type || "track"),
+    name: String(item.name || ""),
+    artists: String(item.artists || item.album_artist || ""),
+    album_id: String(item.album_id || ""),
+    album_name: String(item.album_name || ""),
+    duration_ms: Number(item.duration_ms || 0),
+    cover_url: String(item.cover_url || item.images || ""),
+    isrc: String(item.isrc || ""),
+    provider_id: "deezer",
+  };
+}
+
+function chartItems(path, itemType, limit) {
+  var data = deezerGet(path + "?limit=" + encodeURIComponent(limit));
+  var items = data && data.data ? data.data : [];
+  var salida = [];
+  for (var i = 0; i < items.length; i++) {
+    var item = aItemFeedHome(formatSearchItem(items[i], itemType), itemType);
+    if (item && item.id) salida.push(item);
+  }
+  return salida;
+}
+
+// seccionFeedHome arma una sección del contrato del feed (title + items).
+// Devuelve null cuando no hay nada que mostrar.
+function seccionFeedHome(titulo, items) {
+  if (!items || !items.length) return null;
+  return { uri: "", title: titulo, items: items };
+}
+
+function getHomeFeed() {
+  var cacheKey = "deezer:homefeed";
+  var cacheado = cacheGet(cacheKey);
+  if (cacheado) return cacheado;
+
+  try {
+    var secciones = [];
+    var listas = [
+      { titulo: "Top canciones", path: "/chart/0/tracks", tipo: "track" },
+      { titulo: "Álbumes del momento", path: "/chart/0/albums", tipo: "album" },
+      {
+        titulo: "Playlists destacadas",
+        path: "/chart/0/playlists",
+        tipo: "playlist",
+      },
+      {
+        titulo: "Artistas del momento",
+        path: "/chart/0/artists",
+        tipo: "artist",
+      },
+    ];
+    for (var i = 0; i < listas.length; i++) {
+      try {
+        var seccion = seccionFeedHome(
+          listas[i].titulo,
+          chartItems(listas[i].path, listas[i].tipo, HOME_FEED_MAX_POR_LISTA),
+        );
+        if (seccion) secciones.push(seccion);
+      } catch (e) {
+        log.warn(
+          "[DeezerExt] feed: " +
+            listas[i].titulo +
+            " no disponible: " +
+            e.message,
+        );
+      }
+    }
+
+    if (!secciones.length) {
+      return {
+        success: false,
+        error: "Deezer chart sin contenido",
+        sections: [],
+      };
+    }
+    log.info("[DeezerExt] Home feed: " + secciones.length + " secciones");
+    return cacheSet(cacheKey, {
+      success: true,
+      greeting: "",
+      sections: secciones,
+    });
+  } catch (e) {
+    log.error("[DeezerExt] getHomeFeed failed: " + String(e));
+    return { success: false, error: String(e), sections: [] };
+  }
+}
+
 registerExtension({
+  getHomeFeed: getHomeFeed,
   initialize: initialize,
   cleanup: cleanup,
   completeGrant: completeGrant,

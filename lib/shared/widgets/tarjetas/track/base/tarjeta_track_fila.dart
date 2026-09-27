@@ -28,78 +28,95 @@ Widget _filaContenidoTrack(
     padding: EdgeInsets.all(r.spacingS),
     child: Row(
       children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: Container(
-            width: r.subtitleSize * 5.5,
-            height: r.subtitleSize * 5.5,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(10),
-              color: t.coverUrl == null ? fondoFallback : null,
-              border: Border.all(color: ColoresApp.borde(esOscuro), width: 0.5),
-              boxShadow:
-                  efectosPesados
-                      ? [
-                        BoxShadow(
-                          color: ColoresApp.sombra(
-                            esOscuro,
-                          ).withValues(alpha: 0.4),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
+        // El toque de la tarjeta debe funcionar en TODA su superficie. La
+        // miniatura y los textos se declaran transparentes al hit-test para que
+        // el InkWell de fondo (tarjeta_track_cuerpo) reciba el toque que cae
+        // encima; antes la carátula y el `Text` absorbían el tap y la tarjeta
+        // solo respondía en los huecos. Solo el cluster de acciones conserva
+        // sus propios gestos.
+        IgnorePointer(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              width: r.subtitleSize * 5.5,
+              height: r.subtitleSize * 5.5,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+                color: t.coverUrl == null ? fondoFallback : null,
+                border: Border.all(
+                  color: ColoresApp.borde(esOscuro),
+                  width: 0.5,
+                ),
+                boxShadow:
+                    efectosPesados
+                        ? [
+                          BoxShadow(
+                            color: ColoresApp.sombra(
+                              esOscuro,
+                            ).withValues(alpha: 0.4),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ]
+                        : null,
+              ),
+              child:
+                  t.coverUrl != null
+                      ? imagenDesdeUrl(
+                        t.coverUrl,
+                        ajuste: BoxFit.cover,
+                        // Tamaño del hueco real: sin esto la imagen se decodifica
+                        // a resolución completa para pintarse en ~90 px.
+                        ancho: r.subtitleSize * 5.5,
+                        alto: r.subtitleSize * 5.5,
+                        fallback: Icon(
+                          Icons.music_note,
+                          color: colorIconoFallback,
+                          size: 34,
                         ),
-                      ]
-                      : null,
-            ),
-            child:
-                t.coverUrl != null
-                    ? imagenDesdeUrl(
-                      t.coverUrl,
-                      ajuste: BoxFit.cover,
-                      // Tamaño del hueco real: sin esto la imagen se decodifica
-                      // a resolución completa para pintarse en ~90 px.
-                      ancho: r.subtitleSize * 5.5,
-                      alto: r.subtitleSize * 5.5,
-                      fallback: Icon(
+                      )
+                      : Icon(
                         Icons.music_note,
                         color: colorIconoFallback,
                         size: 34,
                       ),
-                    )
-                    : Icon(
-                      Icons.music_note,
-                      color: colorIconoFallback,
-                      size: 34,
-                    ),
+            ),
           ),
         ),
         SizedBox(width: r.spacingS),
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                t.titulo,
-                style: TextStyle(
-                  fontSize: r.subtitleSize * ts,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: -0.3,
-                  color: fg,
+          child: IgnorePointer(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  t.titulo,
+                  style: TextStyle(
+                    // El factor de TÍTULOS suma el general ("Letras") y el afinado
+                    // del bloque "Avanzado": así subir el general sigue
+                    // agrandando lo que el usuario ya había separado.
+                    fontSize: r.subtitleSize * ts * EscalaUi.factorTitulos,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.3,
+                    color: fg,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              SizedBox(height: 2),
-              Text(
-                t.subtitulo,
-                style: TextStyle(
-                  fontSize: (r.footerSize + 1) * ts,
-                  color: colorApagado,
+                SizedBox(height: 2),
+                Text(
+                  t.subtitulo,
+                  style: TextStyle(
+                    // Texto secundario (artista y datos): su propio factor.
+                    fontSize: (r.footerSize + 1) * ts * EscalaUi.factorTextos,
+                    color: colorApagado,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
+              ],
+            ),
           ),
         ),
         if (t.mostrarAcciones)

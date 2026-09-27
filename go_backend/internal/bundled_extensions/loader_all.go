@@ -2,9 +2,27 @@ package bundled_extensions
 
 import (
 	"encoding/json"
+	"os"
 
 	"github.com/zarz/bitly/go_backend/internal/extensions"
 )
+
+// dirAlmacenExtensiones devuelve el directorio escribible donde las
+// extensiones empaquetadas persisten su estado (almacén KV, sesiones firmadas).
+//
+// Antes estas extensiones se registraban con ".", así que su Store nacía
+// apuntando al directorio de trabajo del proceso: en Android el CWD es "/", no
+// escribible, y cada os.WriteFile fallaba en silencio — la extensión logueaba
+// "guardado" y el arranque siguiente leía vacío. El host ya publica la ruta
+// real en BITLY_DATA_DIR antes de registrar extensiones (SetAppDataDir), así
+// que se usa esa y "." queda solo como último recurso (tests, escritorio sin
+// data dir configurado).
+func dirAlmacenExtensiones() string {
+	if dir := os.Getenv("BITLY_DATA_DIR"); dir != "" {
+		return dir
+	}
+	return "."
+}
 
 func LoadAllToRegistry(reg *extensions.Registry) []RegisteredExtension {
 	dirs, err := List()
@@ -128,7 +146,7 @@ func LoadAllToRegistry(reg *extensions.Registry) []RegisteredExtension {
 			dir,
 			manifest.Name,
 			cfg,
-			".",
+			dirAlmacenExtensiones(),
 		)
 
 		// Attach signed session config from manifest to the sandbox.

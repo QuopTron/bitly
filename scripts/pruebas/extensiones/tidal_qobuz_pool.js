@@ -2,10 +2,11 @@
 // Tidal y de Qobuz. Offline: stubea `http`, así que no toca la red.
 //
 // POR QUÉ EXISTE
-// Tidal (access token) y Qobuz (email + password) también limitan el uso por
-// cuenta, así que ambas extensiones aceptan varias credenciales y rotan cuando
-// una rebota con 401. Sin rotación, una credencial vencida deja a esa fuente sin
-// FLAC y el síntoma es "Tidal/Qobuz ya no descarga", no "falta rotar".
+// Tidal (access token) y Qobuz (email + password, o un user_auth_token ya
+// emitido) también limitan el uso por cuenta, así que ambas extensiones aceptan
+// varias credenciales y rotan cuando una rebota con 401. Sin rotación, una
+// credencial vencida deja a esa fuente sin FLAC y el síntoma es "Tidal/Qobuz ya
+// no descarga", no "falta rotar".
 //
 // QUÉ VERIFICA (las dos fuentes, mismo contrato)
 //   1. La credencial propia va PRIMERO y sin duplicados.
@@ -13,6 +14,16 @@
 //      (no se rinde en el primer 401).
 //   3. Con TODAS muertas falla con código UNAUTHORIZED (no en silencio).
 //   4. Tidal: sin pool directo, hasDirectTidalSession() se apaga.
+//
+// QUÉ **NO** CUBRE
+// El access token del pool es una cosa y el token PÚBLICO de la API (`x-tidal-
+// token`, que la extensión refresca desde un origen de terceros) es otra: el
+// stub de `http.get` de este verificador solo atiende el primero, y las
+// peticiones sin `Authorization` se responden 404 para dejarlas fuera del
+// conteo. El público ya NO se consulta en initialize (el refresco es perezoso,
+// solo ante un 401/403), así que a lo sumo aparece una consulta al origen cuando
+// alguna rotación rebota. Si se agrega otra credencial a la extensión, este
+// archivo es el lugar donde decidir si entra al contrato.
 //
 // Uso: node scripts/pruebas_extensiones/tidal_qobuz_pool.js <ruta-tidal> <ruta-qobuz>
 
@@ -28,7 +39,9 @@ if (!RUTA_TIDAL || !RUTA_QOBUZ) {
 
 let fallos = 0;
 const check = (nombre, ok, extra) => {
-  console.log((ok ? "  ok    " : "  FALLA ") + nombre + (extra ? "  -> " + extra : ""));
+  console.log(
+    (ok ? "  ok    " : "  FALLA ") + nombre + (extra ? "  -> " + extra : ""),
+  );
   if (!ok) fallos++;
 };
 
@@ -43,8 +56,22 @@ function base(extra) {
   return Object.assign(
     {
       console,
-      Date, Map, JSON, Number, String, Object, Array, Error, isFinite, RegExp,
-      encodeURIComponent, decodeURIComponent, parseInt, parseFloat, atob, btoa,
+      Date,
+      Map,
+      JSON,
+      Number,
+      String,
+      Object,
+      Array,
+      Error,
+      isFinite,
+      RegExp,
+      encodeURIComponent,
+      decodeURIComponent,
+      parseInt,
+      parseFloat,
+      atob,
+      btoa,
       fetch: undefined,
       registerExtension: () => true,
       log: { info() {}, warn() {}, error() {}, debug() {} },
@@ -73,12 +100,23 @@ const tidal = cargar(
     http: {
       get(url, headers) {
         const auth = String((headers && headers.Authorization) || "");
+        // Solo se registran los intentos con ACCESS TOKEN de TIDAL, que es lo
+        // que rota el pool. El origen del token PÚBLICO (otro servicio, otra
+        // URL, sin Authorization) se consulta ahora solo cuando un 401 dispara
+        // el refresco perezoso: contarlo acá mezclaba dos credenciales distintas
+        // y hacía fallar la comprobación de rotación, que es de los access tokens.
+        if (!auth.startsWith("Bearer ")) {
+          return { statusCode: 404, body: "{}" };
+        }
         llamadasTidal.push(auth.replace("Bearer ", "").slice(0, 10));
         if (auth === "Bearer " + T_VIVO) {
           // Responde con PREVIEW: prueba que la petición SÍ pasó el filtro de auth.
           return {
             statusCode: 200,
-            body: JSON.stringify({ assetPresentation: "PREVIEW", manifest: "x" }),
+            body: JSON.stringify({
+              assetPresentation: "PREVIEW",
+              manifest: "x",
+            }),
           };
         }
         return {
@@ -123,7 +161,9 @@ check(
 check(
   "no se rindió con UNAUTHORIZED",
   !errTidal || errTidal.code !== "UNAUTHORIZED",
-  errTidal ? errTidal.code + " / " + errTidal.message.slice(0, 50) : "sin error",
+  errTidal
+    ? errTidal.code + " / " + errTidal.message.slice(0, 50)
+    : "sin error",
 );
 
 console.log("\n3) Con TODOS los tokens muertos se apaga y avisa");
@@ -157,7 +197,10 @@ const qobuz = cargar(
         const datos = JSON.parse(body || "{}");
         llamadasQobuz.push(datos.email);
         if (datos.email === BUENA && datos.password === "claveBuena") {
-          return { statusCode: 200, body: JSON.stringify({ user_auth_token: "TOKEN_OK" }) };
+          return {
+            statusCode: 200,
+            body: JSON.stringify({ user_auth_token: "TOKEN_OK" }),
+          };
         }
         return {
           statusCode: 401,
@@ -177,10 +220,25 @@ const ordenQobuz = qobuz.poolDeCuentasQobuz({
   password: "claveBuena",
   qobuzPool: MALA + ":claveMala\n" + BUENA + ":claveBuena",
 });
+const etiqueta = (e) => (e.token ? "token" : e.email + ":" + e.password);
 check(
   "cuenta propia primero y sin duplicados",
-  ordenQobuz.length === 2 && ordenQobuz[0] === BUENA + ":claveBuena",
-  ordenQobuz.join(" | "),
+  ordenQobuz.length === 2 &&
+    ordenQobuz[0].email === BUENA &&
+    ordenQobuz[0].password === "claveBuena",
+  ordenQobuz.map(etiqueta).join(" | "),
+);
+
+console.log("\n1b) Un token suelto del pool entra sin contraseña");
+const soloToken = qobuz.poolDeCuentasQobuz({
+  qobuzPool: "TOKEN-DEL-POOL-1234567890",
+});
+check(
+  "token suelto aceptado sin credenciales",
+  soloToken.length === 1 &&
+    soloToken[0].token === "TOKEN-DEL-POOL-1234567890" &&
+    soloToken[0].email === "",
+  soloToken.map(etiqueta).join(" | "),
 );
 
 console.log("\n2) Rotación real: cuenta mala primero -> rota a la buena");
@@ -195,7 +253,9 @@ try {
 }
 check(
   "rotó de la cuenta mala a la buena",
-  llamadasQobuz.length === 2 && llamadasQobuz[0] === MALA && llamadasQobuz[1] === BUENA,
+  llamadasQobuz.length === 2 &&
+    llamadasQobuz[0] === MALA &&
+    llamadasQobuz[1] === BUENA,
   llamadasQobuz.join(" -> "),
 );
 check(

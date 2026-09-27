@@ -23,8 +23,10 @@ class AjustesRescate {
   static const Set<String> apagados = {'off', '0', 'no', 'false', 'apagado'};
 
   static const String claveSitios = 'sitios';
+  static const String claveStashRelay = 'stash_relay';
   static const String claveInstancia = 'cobalt';
   static const String claveToken = 'cobalt_token';
+  static const String claveProxy = 'proxy';
 
   /// El texto con el que se apaga un ajuste.
   static const String valorApagado = 'off';
@@ -43,6 +45,15 @@ class AjustesRescate {
 
   /// El valor a guardar según el switch.
   static String valorSitios(bool activos) => activos ? '' : valorApagado;
+
+  /// ¿El relay sin pérdida (Stash) está encendido? Igual que los sitios: un
+  /// valor vacío significa "de fábrica", y de fábrica viene encendido, así que
+  /// el ajuste solo se guarda cuando el usuario lo apaga.
+  static bool relayActivo(String? valor) =>
+      !apagados.contains((valor ?? '').trim().toLowerCase());
+
+  /// El valor a guardar según el switch del relay.
+  static String valorRelay(bool activo) => activo ? '' : valorApagado;
 
   /// La URL de la instancia sin barras finales: es como la espera Go al
   /// armar `base + "/"`.
@@ -63,4 +74,26 @@ class AjustesRescate {
   /// ¿Hay una instancia propia configurada? (Sin ella el respaldo no se usa
   /// y no abre ninguna conexión.)
   static bool cobaltActivo(String? url) => instanciaValida(url ?? '');
+
+  /// Esquemas de proxy que el backend entiende (ver proxy.go de flacrescue).
+  static const Set<String> esquemasProxy = {
+    'http',
+    'https',
+    'socks5',
+    'socks5h',
+  };
+
+  /// La URL del proxy sin espacios: es como la espera Go.
+  static String normalizarProxy(String url) => url.trim();
+
+  /// ¿Es un proxy que el backend puede usar? Un valor basura pegado no se
+  /// guarda (y el campo avisa antes), así el rescate no queda sin salida.
+  static bool proxyValido(String url) {
+    final limpia = normalizarProxy(url);
+    if (limpia.isEmpty) return false;
+    final uri = Uri.tryParse(limpia);
+    return uri != null &&
+        esquemasProxy.contains(uri.scheme.toLowerCase()) &&
+        uri.host.isNotEmpty;
+  }
 }

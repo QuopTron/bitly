@@ -33,6 +33,21 @@ const (
 	// PresupuestoSinPerdida acota lo que el canal puede tardar por su
 	// cuenta: dos peticiones al sitio (buscar el ISRC + pedir el enlace).
 	PresupuestoSinPerdida = 2 * time.Second
+	// VentanaSinPerdidaDerivada es la ventana del canal cuando el pedido NO
+	// traía ISRC y hay que DERIVARLO antes de poder pedir el FLAC (título y
+	// artista presentes). Es más larga que VentanaSinPerdida porque el canal
+	// paga dos fases en serie —buscar el ISRC en los catálogos y recién
+	// después pedir el enlace sin pérdida— y sin ese margen un tema de
+	// YouTube/SoundCloud nunca alcanzaría a preferir el FLAC y se quedaría
+	// con el stream lossy por nombre.
+	//
+	// Sigue siendo acotada a propósito: se paga recién cuando el camino
+	// rápido YA tiene un audio en la mano (no es silencio lo que sufre el
+	// usuario) y solo con calidad sin pérdida, que es el pedido explícito.
+	// Es, además, una ventana TOTAL desde que se abrió el canal, no por
+	// consulta: el llamador puede mirar el canal dos veces y no vuelve a
+	// esperar el margen entero (ver paqueteConElMejorAudio).
+	VentanaSinPerdidaDerivada = 2500 * time.Millisecond
 )
 
 // CalidadPideLossless informa si la calidad pedida es sin pérdida.
@@ -48,7 +63,11 @@ func fuentesLosslessDeStreaming(reg *provider.Registry) []string {
 	}
 	var out []string
 	for _, name := range ordenProvidersStreaming(reg) {
-		if esFuenteLosslessSiempre(name) {
+		// Sin sesión: las de la lista fija (flac-rescue/Internet Archive).
+		// Con sesión lista: también las extensiones de catálogo que pueden
+		// entregar FLAC en vivo (deezer/qobuz-web/tidal-web/amazon), que son
+		// las que un pedido sin ISRC no alcanzaba a aprovechar.
+		if esFuenteLosslessSiempre(name) || (esProveedorLossless(name) && fuenteStreameableAhora(reg, name)) {
 			out = append(out, name)
 		}
 	}

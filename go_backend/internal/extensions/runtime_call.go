@@ -46,6 +46,30 @@ func (r *Runtime) CallMethod(extID, method string, args ...interface{}) (ret int
 	return callMethodLocked(sandbox, method, args)
 }
 
+// limiteLlamadaJS es el techo de UNA llamada a un método de extensión.
+//
+// Por qué existe (memoria): goja NO tiene tope de memoria —corre sobre el
+// heap de Go— así que un bucle sin fin en una extensión no solo cuelga al
+// llamador: asigna sin freno mientras Android no la mata por OOM. El único
+// freno que goja ofrece es Interrupt, y hasta ahora se LIMPIABA pero nunca se
+// ARMABA (ver Close), o sea que no había ninguno.
+//
+// El valor se elige por encima de cualquier llamada legítima medida (la más
+// larga ronda los 40 s) y por debajo del techo que ya tiene el llamador en
+// Android (45 s): así no corta trabajo real, y una extensión colgada termina
+// en un minuto en vez de quedarse viva con su memoria para siempre.
+//
+// Límite honesto: si el script está bloqueado dentro de una función de Go (una
+// descarga sincrónica, por ejemplo), el interrupt recién surte efecto cuando el
+// control vuelve al bytecode. No es una bala de plata: es el freno que faltaba.
+// Es var (y no const) para que un test pueda acortarlo; el valor real es 60 s.
+var limiteLlamadaJS = 60 * time.Second
+
+// motivoLlamadaJSAgotada es el texto con el que se corta una llamada que se
+// pasó de [limiteLlamadaJS]. Va como motivo del interrupt para que el log del
+// llamador diga QUÉ pasó y no un "interrupted" pelado.
+const motivoLlamadaJSAgotada = "la llamada superó el límite de ejecución"
+
 // callMethodLocked es el cuerpo real de una llamada JS: exige el sandbox ya
 // compilado Y con su candado tomado.
 //
@@ -56,6 +80,19 @@ func callMethodLocked(sandbox *Sandbox, method string, args []interface{}) (inte
 	if sandbox.VM == nil {
 		return nil, fmt.Errorf("ext %s not loaded", sandbox.ID)
 	}
+
+	// Freno por tiempo (ver limiteLlamadaJS). Se arma con el candado tomado, así
+	// que una sola llamada está en vuelo por sandbox y el defer de abajo no
+	// pisa el interrupt de otra.
+	reloj := time.AfterFunc(limiteLlamadaJS, func() {
+		sandbox.VM.Interrupt(motivoLlamadaJSAgotada)
+	})
+	defer func() {
+		reloj.Stop()
+		// Se limpia SIEMPRE: el interrupt queda pegado en la VM hasta que alguien
+		// lo borra, y si no, la PRÓXIMA llamada a esta extensión fallaría sola.
+		sandbox.VM.ClearInterrupt()
+	}()
 
 	// Marca el inicio de ESTA llamada: utils.getResolutionRemainingMs() mide el
 	// presupuesto de resolución contra este instante. Se escribe con el lock

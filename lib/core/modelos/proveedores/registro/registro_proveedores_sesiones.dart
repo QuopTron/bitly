@@ -28,5 +28,10 @@ const List<ConfigProveedor> proveedoresSesiones = [
     id: 'qobuz-web',
     nombreMostrado: 'Qobuz',
     claves: ['email', 'password', 'qobuzPool', 'qobuzPoolUrls'],
+    // Qobuz tiene un origen de pool de FÁBRICA: el /pool del Worker propio
+    // (sessionpool.QobuzPoolURLsPorDefecto). Para que el backend lo arme al
+    // arrancar hay que empujarle los ajustes aunque estén vacíos; si no, el
+    // push se saltea y el default no se dispara nunca.
+    empujarSiempre: true,
   ),
 ];

@@ -31,6 +31,8 @@ class _DownloadsTab extends StatelessWidget {
           _DownloadQualityCard(glowColor: glowColor),
           SizedBox(height: r.spacingS),
           _DownloadRescateCard(glowColor: glowColor),
+          SizedBox(height: r.spacingS),
+          _DownloadPoolQobuzCard(glowColor: glowColor),
           // No download priority section — the app handles provider
           // ordering internally.
         ],

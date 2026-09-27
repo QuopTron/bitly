@@ -27,12 +27,17 @@ import (
 // nuevaSesionSitio arma un cliente con su propio frasco de cookies y un
 // User-Agent de navegador: el token anti-CSRF viaja atado a la sesión y el
 // sitio rechaza clientes desconocidos.
+//
+// Comparte `transporteRescate` (proxy.go) con el resto del paquete: así el
+// ajuste de proxy cubre TAMBIÉN a los sitios raspables, que son los que más
+// restringen por región. El frasco de cookies va en el cliente, no en el
+// transporte, así que compartirlo no mezcla sesiones entre sitios.
 func nuevaSesionSitio() (*http.Client, error) {
 	frasco, err := cookiejar.New(nil)
 	if err != nil {
 		return nil, err
 	}
-	return &http.Client{Timeout: timeoutSitio, Jar: frasco}, nil
+	return &http.Client{Timeout: timeoutSitio, Jar: frasco, Transport: transporteRescate}, nil
 }
 
 // pedirSitio hace un GET de navegador (el sitio responde una página completa o

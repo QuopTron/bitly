@@ -123,7 +123,7 @@ func (r *ranker) puntaje(i interpretacion, tr provider.TrackResult) float64 {
 
 	// ── Non-original variant penalty (remix / live / cover / ...) ───────
 	// When the reading doesn't contain the marker, penalize results that do.
-	if i.title != "" && provider.IsNonOriginalVariant(tr.Title, i.title) {
+	if i.title != "" && provider.IsNonOriginalTrack(tr, i.title, i.artist) {
 		s -= 30
 	}
 

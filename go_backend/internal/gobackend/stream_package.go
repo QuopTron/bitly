@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/zarz/bitly/go_backend/internal/provider"
 	"github.com/zarz/bitly/go_backend/internal/streaming"
 )
 
@@ -30,6 +31,23 @@ type streamPackageParams struct {
 	QobuzID   string `json:"qobuzId"`
 }
 
+// derivarIDsCross completa los ids cross-proveedor del pedido a partir del id
+// NATIVO de la fuente (ver provider.DerivarIDsCrossDesdeFuente).
+//
+// Por qué: un ítem de feed/búsqueda sólo trae `preferredProvider` + `trackID`,
+// y la app manda los ids cross-proveedor SOLO en los tracks de detalle. La
+// descarga ya derivaba el id del ítem (orchestrator_trackid.go) y por eso podía
+// resolver la grabación EXACTA en cualquier fuente; el STREAMING no, así que un
+// ítem de Tidal/Deezer/Qobuz/Spotify caía a una búsqueda por nombre —la vía
+// donde aparecen los re-subidos— en vez de rescatar por identidad con el id que
+// el pedido ya tenía. Derivar acá, ANTES de StreamQuick/RescueStreamURL, es lo
+// que le da al streaming la misma capacidad de rescate que la descarga.
+func (p *streamPackageParams) derivarIDsCross() {
+	p.SpotifyID, p.DeezerID, p.TidalID, p.QobuzID = provider.DerivarIDsCrossDesdeFuente(
+		p.PreferredProvider, p.TrackID, p.SpotifyID, p.DeezerID, p.TidalID, p.QobuzID,
+	)
+}
+
 // GetStreamPackage returns a complete stream package: audio URL + metadata + lyrics + cover.
 // Hace fallback entre providers si el especificado no tiene stream.
 func GetStreamPackage(payload string) string {
@@ -40,6 +58,10 @@ func GetStreamPackage(payload string) string {
 	if err := json.Unmarshal([]byte(payload), &params); err != nil {
 		return `{"error":"payload inválido"}`
 	}
+	// Los ids cross-proveedor que el pedido no trae se derivan del id nativo de
+	// la fuente, para que el rescate por identidad (StreamQuick / RescueStreamURL
+	// / descarga) resuelva la grabación EXACTA aunque sea un ítem de feed.
+	params.derivarIDsCross()
 	fetchL := params.FetchLyrics == "true" || params.FetchLyrics == "1"
 
 	// Real playback (AllowFallback=true).

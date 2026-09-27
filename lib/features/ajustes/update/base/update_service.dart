@@ -19,8 +19,23 @@ import 'update_info.dart';
 import 'package:flutter/foundation.dart';
 /// Detecta versión/arquitectura y resuelve el asset del release.
 class UpdateService {
+  /// Repo PÚBLICO donde se espejan los binarios (ver release.yml,
+  /// job `release-publico`).
+  ///
+  /// Por qué no el repo del código: es PRIVADO, y un asset de una release
+  /// privada solo se baja con un token. Este chequeo es anónimo (no hay dónde
+  /// esconder un token: vive en un APK que cualquiera abre), así que contra el
+  /// repo privado la API responde 404 y el aviso de versión nueva nunca
+  /// aparecía. El repo público no lleva código: solo Releases con los binarios
+  /// ya compilados, que es lo único que este detector necesita leer.
+  static const repoPublico = 'QuopTron/bitly-releases';
+
   static const releaseUrl =
-      'https://api.github.com/repos/QuopTron/bitly/releases/latest';
+      'https://api.github.com/repos/$repoPublico/releases/latest';
+
+  /// Página pública de las releases (la usa la UI para "ver todas").
+  static const releasesPagina =
+      'https://github.com/$repoPublico/releases';
 
   static const _cabeceras = {'Accept': 'application/vnd.github.v3+json'};
 

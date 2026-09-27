@@ -69,6 +69,10 @@ class TarjetaIdioma extends StatelessWidget {
               Expanded(
                 child: Text(
                   name,
+                  // Un nombre largo ("Portugués (Brasil)") no puede empujar el
+                  // check fuera de la tarjeta.
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: r.subtitleSize,
                     color: selected ? onBg : onBg.withValues(alpha: 0.65),

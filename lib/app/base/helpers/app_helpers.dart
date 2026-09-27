@@ -13,12 +13,14 @@ import 'package:go_router/go_router.dart';
 
 import '../../inyeccion/inyeccion.dart' as di;
 import '../../../core/cache/almacenes/sistema/cache_ajustes.dart';
+import '../../../core/modelos/ajustes_acciones_rapidas.dart';
 import '../../../core/modelos/resultado_enlace.dart';
 import '../../../core/servicios/compartir/datos/datos_compartido.dart';
 import '../../../core/servicios/compartir/base/servicio_compartir.dart';
 import '../../../core/modelos/usuario/preferencias/preferencias_apariencia.dart';
 import '../../../core/modelos/usuario/preferencias/preferencias_estilo.dart';
 import '../../../core/plataforma/sistema/enlaces/servicio_deep_link.dart';
+import '../../../shared/utilidades/plataforma/pantalla/escala_ui.dart';
 import '../../../core/servicios/proveedores/base/servicio_enlaces.dart';
 import '../../../estado/cola/cubit_cola.dart';
 import '../../../router/route_names.dart';
@@ -85,6 +87,14 @@ Future<void> cargarAjustesGuardadosApp({
     if (estaMontado()) {
       ajustes.preferenciasApariencia.value = aparienciaGuardada;
     }
+    // Escala de letras e iconos: va con la apariencia porque es parte de ella.
+    // El texto se aplica desde `protegerLayout` (el `textScaler` del árbol) y
+    // los iconos los consultan las tarjetas y las barras.
+    EscalaUi.aplicarDesde(aparienciaGuardada);
+    // Gestos de las tarjetas de canción (Ajustes → Apariencia → Acciones
+    // rápidas). Va acá y no en la hoja de Ajustes para que las tarjetas ya
+    // pintadas al arrancar usen lo guardado y no el valor de fábrica.
+    await cargarAccionesRapidas(cache);
   } catch (e) {
     debugPrint("[App] $e");
   }

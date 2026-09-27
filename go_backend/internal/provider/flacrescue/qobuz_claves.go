@@ -43,8 +43,28 @@ import (
 //
 // El usuario puede reemplazarlos (o apagarlos) desde Ajustes → Credenciales:
 // si pega su origen o su propio app_id/app_secret, eso manda.
-var defaultKeysURLs = []string{
-	"https://flacdownloader.com/api/qobuz/keys",
+var defaultKeysURLs = keysURLsDeFabrica()
+
+// QobuzKeysURLInyectada es la ruta /keys del Worker propio, INYECTADA EN EL
+// BUILD:
+//
+//	-ldflags "-X github.com/zarz/bitly/go_backend/internal/provider/flacrescue.QobuzKeysURLInyectada=https://tu-worker.workers.dev/<secreto>/keys"
+//
+// Vacía en el repo A PROPÓSITO (mismo motivo que QobuzPoolURLInyectada: no
+// publicar la URL ni el secreto de un Worker personal en un repo abierto).
+var QobuzKeysURLInyectada = ""
+
+// keysURLsDeFabrica arma la lista de orígenes de fábrica: el Worker inyectado
+// (si el build lo trae) y SIEMPRE el origen público de siempre, que no es un
+// secreto y mantiene el canal funcionando con claves de app aunque nadie haya
+// inyectado nada.
+func keysURLsDeFabrica() []string {
+	urls := make([]string, 0, 2)
+	if v := strings.TrimSpace(QobuzKeysURLInyectada); v != "" {
+		urls = append(urls, v)
+	}
+	urls = append(urls, "https://flacdownloader.com/api/qobuz/keys")
+	return urls
 }
 
 const (
@@ -74,6 +94,20 @@ func (e errFirmaRechazada) Error() string { return string(e) }
 // esFirmaRechazada reporta si [err] es un rechazo de firma.
 func esFirmaRechazada(err error) bool {
 	var r errFirmaRechazada
+	return errors.As(err, &r)
+}
+
+// errProxyCaido marca un fallo del PROXY configurado (no de la firma): red
+// caída, 403, 429 o 5xx. Se distingue del rechazo de firma para poder caer a la
+// API de Qobuz directo en vez de apagar el canal cuando el Worker se cae o
+// agota su cuota diaria (ver pedirQobuz).
+type errProxyCaido string
+
+func (e errProxyCaido) Error() string { return string(e) }
+
+// esProxyCaido reporta si [err] es un fallo del proxy.
+func esProxyCaido(err error) bool {
+	var r errProxyCaido
 	return errors.As(err, &r)
 }
 

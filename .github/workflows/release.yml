@@ -466,3 +466,19 @@ jobs:
           tag_name: ${{ github.ref_name }}
           files: dist/bitly-pwa-*.zip
           fail_on_unmatched_files: true
+
+  # Espejo de los binarios al repo PÚBLICO de releases: lo que se publica acá
+  # (privado) queda disponible sin token para la app y el sitio.
+  # Corre después de TODOS los jobs que suben assets, y también si alguno falló
+  # (always): se espeja lo que sí se publicó. El workflow de Apple (.github/
+  # workflows/release-macos.yml) llama al mismo espejo, así que la release
+  # queda completa sin importar qué workflow se ejecutó último.
+  release-publico:
+    name: Espejar binarios al repo público
+    needs:
+      [release-android, release-windows, release-windows-arm64, release-web]
+    if: always()
+    uses: ./.github/workflows/espejo-releases.yml
+    with:
+      tag: ${{ github.ref_name }}
+    secrets: inherit

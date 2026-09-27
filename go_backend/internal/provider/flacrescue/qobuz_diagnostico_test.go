@@ -46,6 +46,33 @@ func responderCodigo(codigo int) http.HandlerFunc {
 	}
 }
 
+// mp3Degradado es la respuesta de /track/getFileUrl cuando Qobuz no da FLAC:
+// 200, pero MP3 y marcado como no autenticado. Es la MISMA para un token vencido
+// y para una cuenta sin suscripción; por eso el informe necesita el control de
+// sesión para separar las dos causas.
+const mp3Degradado = `{"url":"https://cdn.example/x.mp3","mime_type":"audio/mpeg","restrictions":[{"code":"UserUnauthenticated"}]}`
+
+// servidorQobuzConToken levanta un Qobuz de mentira que contesta además el
+// control de sesión (favorite/getUserFavorites), que es lo que distingue un
+// token inválido de una cuenta sin suscripción.
+func servidorQobuzConToken(t *testing.T, archivo, sesion http.HandlerFunc) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.Contains(r.URL.Path, "/catalog/search"):
+			responderJson(pistaFalsa)(w, r)
+		case strings.Contains(r.URL.Path, "/track/getFileUrl"):
+			archivo(w, r)
+		case strings.Contains(r.URL.Path, "/favorite/getUserFavorites"):
+			sesion(w, r)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
 // sinOrigenesPorDefecto deja el cliente sin orígenes de fábrica durante el
 // test y los restaura al terminar (los defaults apuntan a Internet: un test
 // nunca debe tocarlos).
@@ -198,5 +225,77 @@ func TestDiagnosticoDesdeOrigenDeClaves(t *testing.T) {
 	}
 	if diag.Fuente != "origen" {
 		t.Errorf("fuente = %q, se esperaba origen", diag.Fuente)
+	}
+}
+
+// TestDiagnosticoTokenInvalidoSeSeparaDeSinSuscripcion fija lo que el audio no
+// distingue: con el token vencido Qobuz contesta MP3, igual que con una cuenta
+// sin suscripción. El control de sesión (401) es lo que permite decirle al
+// usuario que el problema es el token y no el plan.
+func TestDiagnosticoTokenInvalidoSeSeparaDeSinSuscripcion(t *testing.T) {
+	srv := servidorQobuzConToken(t, responderJson(mp3Degradado),
+		responderCodigo(http.StatusUnauthorized))
+	c := NewClient()
+	c.SetSettingsQobuz(map[string]string{
+		"qobuz_api_base":   srv.URL,
+		"qobuz_app_id":     "1",
+		"qobuz_app_secret": "2",
+		"qobuz_user_token": "token-vencido",
+	})
+
+	diag := c.DiagnosticoQobuz()
+	if diag.Estado != EstadoTokenInvalido {
+		t.Fatalf("estado = %q, se esperaba %q (detalle: %s)", diag.Estado, EstadoTokenInvalido, diag.Detalle)
+	}
+	if diag.Formato != "MP3_320" {
+		t.Errorf("formato = %q, se esperaba MP3_320", diag.Formato)
+	}
+	if !strings.Contains(diag.Detalle, "vencido") && !strings.Contains(diag.Detalle, "revocado") {
+		t.Errorf("el detalle debería acusar al token: %q", diag.Detalle)
+	}
+}
+
+// TestDiagnosticoTokenValidoSinSuscripcion fija el otro caso: el token sirve
+// (Qobuz lo acepta) y aun así el audio llega en MP3 porque la cuenta no tiene
+// plan. Mandar al usuario a pegar otro token acá sería un diagnóstico falso.
+func TestDiagnosticoTokenValidoSinSuscripcion(t *testing.T) {
+	srv := servidorQobuzConToken(t, responderJson(mp3Degradado),
+		responderJson(`{"tracks":{"items":[]}}`))
+	c := NewClient()
+	c.SetSettingsQobuz(map[string]string{
+		"qobuz_api_base":   srv.URL,
+		"qobuz_app_id":     "1",
+		"qobuz_app_secret": "2",
+		"qobuz_user_token": "token-valido",
+	})
+
+	diag := c.DiagnosticoQobuz()
+	if diag.Estado != EstadoSinSuscripcion {
+		t.Fatalf("estado = %q, se esperaba %q (detalle: %s)", diag.Estado, EstadoSinSuscripcion, diag.Detalle)
+	}
+	if !strings.Contains(diag.Detalle, "suscripción") {
+		t.Errorf("el detalle debería hablar de la suscripción: %q", diag.Detalle)
+	}
+}
+
+// TestDiagnosticoTokenSinConfirmarQuedaEnMp3: si el control de sesión no
+// responde, el informe NO inventa un veredicto; informa el MP3 con el aviso.
+func TestDiagnosticoTokenSinConfirmarQuedaEnMp3(t *testing.T) {
+	srv := servidorQobuzConToken(t, responderJson(mp3Degradado),
+		responderCodigo(http.StatusInternalServerError))
+	c := NewClient()
+	c.SetSettingsQobuz(map[string]string{
+		"qobuz_api_base":   srv.URL,
+		"qobuz_app_id":     "1",
+		"qobuz_app_secret": "2",
+		"qobuz_user_token": "token-x",
+	})
+
+	diag := c.DiagnosticoQobuz()
+	if diag.Estado != EstadoMp3 {
+		t.Fatalf("estado = %q, se esperaba %q", diag.Estado, EstadoMp3)
+	}
+	if !strings.Contains(diag.Detalle, "confirmar") {
+		t.Errorf("el detalle debería decir que no se pudo confirmar: %q", diag.Detalle)
 	}
 }

@@ -65,6 +65,10 @@ Widget _bloqueInfoDe(
           child: Text(
             '${t.contadorReproducciones} '
             '${AppLocalizations.of(context).setup.reproductions}',
+            // El chip es chico y la palabra viene de la traducción: recorta en
+            // vez de envolverse y romper la línea de la grilla.
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontSize: r.footerSize - 3,
               color: Colors.white.withValues(alpha: 0.85),

@@ -45,7 +45,9 @@ Widget _botonPlayMini(
                       ? Icons.pause_rounded
                       : Icons.play_arrow_rounded,
                   color: fg,
-                  size: lado * 0.66,
+                  // Escala de iconos de las BARRAS (navbar y miniplayer),
+                  // separada de la de las tarjetas.
+                  size: lado * 0.66 * EscalaUi.factorIconosBarras,
                 ),
       ),
     ),

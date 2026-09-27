@@ -37,6 +37,15 @@ func claveCacheMetadata(isrc, spotifyID, deezerID, tidalID, qobuzID, trackID, tr
 	return "n:" + q
 }
 
+// metadataCacheadaDelPedido es el atajo SÍNCRONO de obtenerMetadata para el
+// arranque de GetStreamPackage: si la identidad de ESTE pedido ya está resuelta
+// (tap repetido, prefetch, vecino de cola), mirarla no cuesta nada y evita abrir
+// la goroutine de metadata y su ventana de cosecha. Misma clave que
+// obtenerMetadata, así que un hit acá es un hit allá.
+func metadataCacheadaDelPedido(isrc, spotifyID, deezerID, tidalID, qobuzID, trackID, trackName, artistName string) *provider.TrackResult {
+	return metadataCacheada(claveCacheMetadata(isrc, spotifyID, deezerID, tidalID, qobuzID, trackID, trackName, artistName))
+}
+
 func metadataCacheada(key string) *provider.TrackResult {
 	if key == "" {
 		return nil

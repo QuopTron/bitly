@@ -14,6 +14,11 @@ part of '../../../settings_sheet_new.dart';
 class _Deslizador extends StatelessWidget {
   final String etiqueta;
   final double valor;
+
+  /// Mínimo del deslizador. Por defecto 0 (separaciones), pero la escala de
+  /// letras y de iconos arranca en 0.85: sin esto el pulgar llegaría al 0%,
+  /// el valor se acotaría igual y quedaría rebotando contra el borde.
+  final double minimo;
   final double maximo;
   final ValueChanged<double> onChanged;
 
@@ -32,6 +37,7 @@ class _Deslizador extends StatelessWidget {
     required this.valor,
     required this.maximo,
     required this.onChanged,
+    this.minimo = 0,
     this.formato,
     this.divisiones,
   });
@@ -72,7 +78,8 @@ class _Deslizador extends StatelessWidget {
               inactiveTrackColor: onBg.withValues(alpha: 0.12),
             ),
             child: Slider(
-              value: valor.clamp(0, maximo),
+              value: valor.clamp(minimo, maximo),
+              min: minimo,
               max: maximo,
               divisions: divisiones,
               onChanged: onChanged,

@@ -1,7 +1,7 @@
 {
   "name": "tidal-web",
   "displayName": "Tidal",
-  "version": "1.4.0",
+  "version": "1.4.4",
   "description": "TIDAL metadata, search and download provider. Metadata comes from TIDAL's public web endpoints and audio can be downloaded DIRECTLY with your own TIDAL session (Ajustes → Credenciales → TIDAL), sin gateway ni verificación.",
   "homepage": "https://github.com/zarzet/SpotiFLAC-Mobile",
   "type": ["metadata_provider", "download_provider"],
@@ -13,6 +13,7 @@
       "api.tidal.com",
       "www.tidal.com",
       "listen.tidal.com",
+      "flacdownloader.com",
       "resources.tidal.com",
       "*.audio.tidal.com",
       "*.manifest.tidal.com"
@@ -53,6 +54,7 @@
     }
   ],
   "capabilities": {
+    "homeFeed": true,
     "downloadFallbackTier": "lossless",
     "networkTimeoutSeconds": 15,
     "requiresNativeContainerConversion": true,
@@ -111,7 +113,7 @@
       "label": "Public Web Token",
       "type": "string",
       "default": "49YxDN9a2aFV6RTG",
-      "description": "Public TIDAL web token used for metadata/search requests."
+      "description": "Public TIDAL web token used for metadata/search requests. Si se deja vacío, se usa el último token automático guardado y se refresca solo desde flacdownloader.com/api/tidal/keys cuando TIDAL lo rechaza (401/403), no en cada arranque."
     },
     {
       "key": "countryCode",

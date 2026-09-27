@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  update_file_paths.xml — Lo único que el FileProvider de actualizaciones
+  expone: la carpeta de APKs descargados.
+
+  Android 7+ prohíbe pasar una ruta `file://` al instalador (el sistema tira
+  FileUriExposedException), así que el APK tiene que salir por un content://
+  del FileProvider. Se expone solo `updates/` de la carpeta privada externa de
+  la app (`getExternalFilesDir`), que es donde el servicio deja el archivo: no
+  se abre nada más del almacenamiento de la app.
+-->
+<paths>
+    <external-files-path name="updates" path="updates/" />
+    <!-- Respaldo: en equipos sin almacenamiento externo la descarga cae en la
+         carpeta interna y el instalador también tiene que poder leerla. -->
+    <files-path name="updates_interno" path="updates/" />
+</paths>

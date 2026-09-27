@@ -12,6 +12,8 @@ import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
+import '../../../utilidades/plataforma/pantalla/efectos_app.dart';
+
 part 'imagen_portada_helpers.dart';
 
 /// Widget de portada con borde redondeado, shimmer opcional y glow.
@@ -52,13 +54,21 @@ class ImagenPortada extends StatelessWidget {
 
     Widget imagen = _construirImagen(context);
 
-    if (colorGlow != null) {
+    // El glow es una sombra con `MaskFilter.blur`: una máscara difusa del
+    // tamaño de CADA portada, compuesta en CADA frame. Con muchas tarjetas en
+    // pantalla es de lo más caro que queda en una GPU de gama baja, así que
+    // respeta el interruptor global de desenfoques igual que el resto de las
+    // tarjetas: sin esto, el monitor apagaba los desenfoques midiendo el equipo
+    // y cada portada seguía pagando su glow. El diseño no se pierde: la imagen
+    // y su borde redondeado quedan igual.
+    final glow = colorGlow;
+    if (glow != null && EfectosApp.desenfoqueActivo) {
       imagen = Container(
         decoration: BoxDecoration(
           borderRadius: radio,
           boxShadow: [
             BoxShadow(
-              color: colorGlow!.withValues(alpha: 0.35),
+              color: glow.withValues(alpha: 0.35),
               blurRadius: dispersionGlow * 2,
               spreadRadius: dispersionGlow,
             ),

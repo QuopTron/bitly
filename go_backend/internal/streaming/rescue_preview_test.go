@@ -1,6 +1,11 @@
 package streaming
 
-import "testing"
+import (
+	"net/http"
+	"net/http/httptest"
+	"strconv"
+	"testing"
+)
 
 // El guard existe por un bug real: un espejo/Archive devolvía un clip de 30s y
 // la canción se cortaba. Estos tests fijan las dos reglas: (1) las URL de
@@ -72,5 +77,46 @@ func TestEsPreviewStreamURLMuertaNoBloquea(t *testing.T) {
 	u := "http://127.0.0.1:1/abc.flac"
 	if EsPreviewStream(u, "flac-rescue", 200000, "FLAC") {
 		t.Fatal("una medición fallida no debe declarar clip")
+	}
+}
+
+// TestEsPreviewStreamRechazaEnlaceQueNoSirveAudio fija el bug medido: el CDN del
+// canal arcod contestaba 502 y el candidato pasaba como "no se pudo medir", así
+// que el reproductor recibía una URL que no suena (síntoma: "la canción no
+// reproduce" al tocar un tema de una fuente que cae en el rescate). Una
+// RESPUESTA de error del servidor es evidencia de que el enlace no sirve.
+func TestEsPreviewStreamRechazaEnlaceQueNoSirveAudio(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadGateway)
+		_, _ = w.Write([]byte("error code: 502"))
+	}))
+	defer srv.Close()
+
+	if !EsPreviewStream(srv.URL+"/v2/stream/play?t=v1.abc", "flac-rescue", 226000, "FLAC") {
+		t.Fatal("un enlace que contesta 502 no puede pasar como reproducible")
+	}
+}
+
+// TestEsPreviewStreamMideElTamanoReal fija los dos lados del control de tamaño:
+// un archivo completo pasa y un clip de una fracción se rechaza.
+func TestEsPreviewStreamMideElTamanoReal(t *testing.T) {
+	const duracionMS = 226000
+	completo := tamanoEsperadoBytes(duracionMS, "FLAC")
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// El archivo que se sirve depende del tamaño pedido en la URL.
+		n, _ := strconv.ParseInt(r.URL.Query().Get("n"), 10, 64)
+		w.Header().Set("Content-Range", "bytes 0-0/"+strconv.FormatInt(n, 10))
+		w.WriteHeader(http.StatusPartialContent)
+		_, _ = w.Write([]byte{0})
+	}))
+	defer srv.Close()
+
+	if EsPreviewStream(srv.URL+"/a.flac?n="+strconv.FormatInt(completo, 10), "flac-rescue", duracionMS, "FLAC") {
+		t.Fatal("un archivo del tamaño esperado es la canción completa")
+	}
+	clip := completo / 10
+	if !EsPreviewStream(srv.URL+"/a.flac?n="+strconv.FormatInt(clip, 10), "flac-rescue", duracionMS, "FLAC") {
+		t.Fatal("un archivo de una décima parte es un clip")
 	}
 }

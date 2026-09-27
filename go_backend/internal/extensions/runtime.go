@@ -160,6 +160,23 @@ func (r *Runtime) compileDeferred(extID string, def *deferredExt) error {
 	return nil
 }
 
+// SetDataDir apunta el sandbox —y su almacén persistente— al directorio real.
+//
+// Se usa cuando el sandbox nació con un dataDir provisional (".", el valor con
+// el que se registran las extensiones empaquetadas) y el host confirma después
+// el directorio escribible. Tiene que mover las DOS cosas: si solo se cambia
+// DataDir, el Store queda escribiendo en el CWD y todo lo que la extensión
+// persista se pierde sin error.
+func (s *Sandbox) SetDataDir(dir string) {
+	if dir == "" || dir == "." {
+		return
+	}
+	s.DataDir = dir
+	if s.Store != nil {
+		s.Store.Repoint(dir, s.ID)
+	}
+}
+
 // newSandbox arma el sandbox sin VM: lo que no depende de haber compilado.
 func newSandbox(extID string, cfg RuntimeConfig, dataDir string) *Sandbox {
 	return &Sandbox{

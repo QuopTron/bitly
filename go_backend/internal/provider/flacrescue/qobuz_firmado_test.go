@@ -24,6 +24,7 @@
 package flacrescue
 
 import (
+	"context"
 	"crypto/md5"
 	"encoding/hex"
 	"encoding/json"
@@ -328,5 +329,83 @@ func TestQobuzBusquedaPorNombreTraeISRC(t *testing.T) {
 	}
 	if *nBusqueda != 1 {
 		t.Fatalf("búsquedas = %d, se esperaba 1", *nBusqueda)
+	}
+}
+
+// servidorQobuzConEstado arma un servidor que SIEMPRE contesta [estado], para
+// medir el respaldo del proxy con 429/5xx (que es lo que devuelve un Worker que
+// agotó su cuota o está caído).
+func servidorQobuzConEstado(estado int) (*httptest.Server, *atomic.Int64) {
+	var peticiones atomic.Int64
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		peticiones.Add(1)
+		w.Header().Set("content-type", "application/json")
+		w.WriteHeader(estado)
+		_, _ = w.Write([]byte(`{}`))
+		// El cuerpo sólo importa cuando el estado es 2xx; en los tests este
+		// servidor se usa para 429/5xx.
+	}))
+	return srv, &peticiones
+}
+
+// TestPedirQobuzCaeAQobuzDirectoSiElProxyNoResponde fija el punto del pedido:
+// si el proxy propio (qobuz_api_base) falla con 429/5xx, el canal NO se apaga —
+// se reintenta UNA vez contra la API de Qobuz directo. Sin esto, agotar las
+// 100.000 peticiones diarias del Worker gratis apagaría el rescate entero.
+func TestPedirQobuzCaeAQobuzDirectoSiElProxyNoResponde(t *testing.T) {
+	oficial, nOficial := servidorQobuzConEstado(http.StatusOK)
+	defer oficial.Close()
+	proxy, nProxy := servidorQobuzConEstado(http.StatusTooManyRequests)
+	defer proxy.Close()
+
+	// El respaldo apunta a la API "oficial": en el test es un servidor local.
+	previo := qobuzAPIBaseOficial
+	qobuzAPIBaseOficial = oficial.URL
+	t.Cleanup(func() { qobuzAPIBaseOficial = previo })
+
+	c := clienteConQobuz(proxy.URL)
+	var destino struct {
+		OK bool `json:"ok"`
+	}
+	err := c.pedirQobuz(context.Background(), proxy.URL, "/catalog/search",
+		map[string]string{"query": "flac"}, &destino)
+	if err != nil {
+		t.Fatalf("con el proxy en 429 el canal debería caer a Qobuz: %v", err)
+	}
+	if nProxy.Load() != 1 {
+		t.Fatalf("peticiones al proxy = %d, se esperaba 1", nProxy.Load())
+	}
+	if nOficial.Load() != 1 {
+		t.Fatalf("peticiones a Qobuz = %d, se esperaba 1 (el respaldo)", nOficial.Load())
+	}
+}
+
+// TestPedirQobuzNoEntraEnBucleSiLosDosEstanCaidos acota el respaldo: si Qobuz
+// tampoco responde, se devuelve el error. Un bucle acá colgaría cada
+// reproducción en vez de degradar a los espejos.
+func TestPedirQobuzNoEntraEnBucleSiLosDosEstanCaidos(t *testing.T) {
+	oficial, nOficial := servidorQobuzConEstado(http.StatusInternalServerError)
+	defer oficial.Close()
+	proxy, nProxy := servidorQobuzConEstado(http.StatusInternalServerError)
+	defer proxy.Close()
+
+	previo := qobuzAPIBaseOficial
+	qobuzAPIBaseOficial = oficial.URL
+	t.Cleanup(func() { qobuzAPIBaseOficial = previo })
+
+	c := clienteConQobuz(proxy.URL)
+	var destino struct {
+		OK bool `json:"ok"`
+	}
+	err := c.pedirQobuz(context.Background(), proxy.URL, "/catalog/search",
+		map[string]string{"query": "flac"}, &destino)
+	if err == nil {
+		t.Fatal("con los dos caídos tiene que devolver el error, no nil")
+	}
+	if !esProxyCaido(err) {
+		t.Fatalf("el error tenía que ser de proxy caído: %v", err)
+	}
+	if nProxy.Load() != 1 || nOficial.Load() != 1 {
+		t.Fatalf("peticiones = %d proxy / %d Qobuz, se esperaba 1 y 1 (sin bucle)", nProxy.Load(), nOficial.Load())
 	}
 }

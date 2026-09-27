@@ -23,11 +23,64 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
 )
+
+// timeoutComprobarEnlace es el techo de la comprobación del enlace firmado. Es
+// una petición MÍNIMA (Range de un byte), así que un segundo sobra; 2s deja aire
+// para redes lentas sin comerse el presupuesto del canal.
+const timeoutComprobarEnlace = 2 * time.Second
+
+// comprobarEnlaceArcod es la comprobación que se le hace al enlace antes de
+// entregarlo. Es una variable por dos motivos: los tests del paquete son
+// offline por contrato (TestMain la sustituye) y una instancia PROPIA con un
+// lector distinto puede reemplazarla. Ver enlaceArcodSirveAudio.
+var comprobarEnlaceArcod = enlaceArcodSirveAudio
+
+// enlaceArcodSirveAudio comprueba que el enlace firmado SIRVA audio de verdad
+// antes de que el reproductor lo reciba.
+//
+// Por qué existe: el sitio empezó a devolver enlaces a OTRO host
+// (api.arcod.xyz/v2/stream/play?t=…) que a veces contesta 502. El canal
+// entregaba ese enlace igual, y el síntoma era "la canción no reproduce" en
+// cualquier fuente que cayera en el rescate (medido: un toque desde el feed de
+// Amazon terminaba con un 502 en la mano). Comprobar con una petición de un
+// byte lo detecta en el momento, y el rescate sigue con las otras fuentes en vez
+// de dejar al usuario sin audio.
+//
+// Un fallo de RED al comprobar NO invalida el enlace (puede ser ruido del
+// sondeo); lo que invalida es una RESPUESTA de error del servidor, que es
+// evidencia directa de que el enlace no sirve.
+func enlaceArcodSirveAudio(enlace string, fin time.Time) error {
+	if enlace == "" {
+		return errors.New("arcod: enlace vacío")
+	}
+	tope := timeoutComprobarEnlace
+	if restante := time.Until(fin); restante > 0 && restante < tope {
+		tope = restante
+	}
+	req, err := http.NewRequest(http.MethodGet, enlace, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Range", "bytes=0-0")
+	req.Header.Set("User-Agent", userAgent)
+	resp, err := (&http.Client{Timeout: tope}).Do(req)
+	if err != nil {
+		return nil
+	}
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1))
+	if resp.StatusCode >= http.StatusBadRequest {
+		return fmt.Errorf("arcod: el enlace no sirve audio (%d)", resp.StatusCode)
+	}
+	return nil
+}
 
 // puertaArcod es una forma de pedir el enlace de audio: cómo se arma la
 // petición y cómo se lee la respuesta.
@@ -136,7 +189,7 @@ func (c *Client) enlaceStreamArcod(id, formato string, fin time.Time) (string, e
 		if time.Now().After(fin) {
 			break
 		}
-		enlace, err := c.probarPuertaArcod(puerta, id, calidad, formato)
+		enlace, err := c.probarPuertaArcod(puerta, id, calidad, formato, fin)
 		if err != nil {
 			ultimo = err
 			continue
@@ -165,9 +218,14 @@ func (c *Client) puertasArcodAProbar() []puertaArcod {
 // probarPuertaArcod hace la petición de una puerta y valida la respuesta: un
 // pedido sin pérdida que vuelve en MP3 es una degradación, y se falla a
 // propósito para que las fuentes que sí pueden dar FLAC conserven su turno.
-func (c *Client) probarPuertaArcod(p puertaArcod, id string, calidad int, formato string) (string, error) {
+//
+// El último control es el del ENLACE: que entregue audio de verdad, no un 502
+// del CDN (ver enlaceArcodSirveAudio). Sin él, el enlace muerto se cacheaba 5
+// minutos y el reproductor no tenía forma de sonar.
+func (c *Client) probarPuertaArcod(p puertaArcod, id string, calidad int, formato string, fin time.Time) (string, error) {
 	cuerpo, err := c.pedirArcod(p.destino(c.baseArcodActiva(), id, calidad))
 	if err != nil {
+		err = clasificarFalloArcod(err, cuerpo)
 		return "", fmt.Errorf("arcod: el stream no se pudo pedir: %w (%s)", err, detalleSitio(cuerpo))
 	}
 	enlace, mime, err := p.leer(cuerpo)
@@ -176,6 +234,9 @@ func (c *Client) probarPuertaArcod(p puertaArcod, id string, calidad int, format
 	}
 	if normalizarFormato(formato) == "FLAC" && mime != "" && !strings.HasPrefix(mime, "audio/flac") {
 		return "", fmt.Errorf("arcod: el sitio degradó a %q, no es sin pérdida", mime)
+	}
+	if err := comprobarEnlaceArcod(enlace, fin); err != nil {
+		return "", err
 	}
 	return enlace, nil
 }

@@ -1,6 +1,9 @@
 package streaming
 
-import "time"
+import (
+	"sync/atomic"
+	"time"
+)
 
 // needs verification usually fails in ~1s, while a working provider may take a
 // few seconds to resolve (e.g. youtube search + stream extraction ~2-4s). The
@@ -20,6 +23,10 @@ const verifyGrace = 4 * time.Second
 // deadline passes, honoring provider order when several finish together. A
 // fresh timer per call is used (never a consumed one) so returning from the
 // spawn loop on deadline can't wedge on an already-fired channel.
+// [bloqueantesEnVuelo] es atómico porque hay bloqueantes que arrancan (o se
+// rinden) MIENTRAS el colector ya está leyendo: los intentos encolados esperan
+// un turno del pool después de que la carrera arrancó.
+//
 // [bloqueantesEnVuelo] y [pol] implementan la preferencia por la MEJOR fuente:
 // un resultado retenido (un re-subido como YouTube/YouTube Music/SoundCloud, o
 // —cuando la calidad pedida es sin pérdida— cualquier fuente que no pueda dar
@@ -29,7 +36,7 @@ const verifyGrace = 4 * time.Second
 // descarta lo bueno por haber respondido tarde. Se acepta igual si el
 // bloqueante llega a tiempo, si todos terminaron, o si la gracia expira (una
 // canción sonando es mejor que un fallo de reproducción).
-func recogerResultados(results <-chan rescueOut, verifyCh <-chan string, deadline *time.Time, bloqueantesEnVuelo int, pol politicaCarrera) (string, string, bool) {
+func recogerResultados(results <-chan rescueOut, verifyCh <-chan string, deadline *time.Time, bloqueantesEnVuelo *int32, pol politicaCarrera) (string, string, bool) {
 	var verifyName string
 	var graceCh <-chan time.Time
 	var graceTimer *time.Timer
@@ -55,17 +62,17 @@ func recogerResultados(results <-chan rescueOut, verifyCh <-chan string, deadlin
 				return "", "", false
 			}
 			if r.finBloqueante {
-				// Un bloqueante terminó sin stream. Si era el último, ya no hay
-				// NADA que pueda mejorar lo retenido dentro de esta fase: se
-				// sirve YA, sin esperar a que expire la gracia (que era tiempo
-				// muerto puro).
-				if bloqueantesEnVuelo > 0 {
-					bloqueantesEnVuelo--
+				// Un bloqueante terminó sin stream (o se quedó sin turno). Si era el
+				// último, ya no hay NADA que pueda mejorar lo retenido dentro de
+				// esta fase: se sirve YA, sin esperar a que expire la gracia (que
+				// era tiempo muerto puro).
+				if atomic.LoadInt32(bloqueantesEnVuelo) > 0 {
+					atomic.AddInt32(bloqueantesEnVuelo, -1)
 				}
 				// Con una verificación de sesión pendiente se mantiene la espera
 				// (verifyGrace): mostrar el modal para desbloquear el FLAC sigue
 				// teniendo sentido mientras esa decisión está en el aire.
-				if bloqueantesEnVuelo == 0 && pendiente != nil && verifyName == "" {
+				if atomic.LoadInt32(bloqueantesEnVuelo) == 0 && pendiente != nil && verifyName == "" {
 					if graceTimer != nil {
 						graceTimer.Stop()
 					}
@@ -81,7 +88,7 @@ func recogerResultados(results <-chan rescueOut, verifyCh <-chan string, deadlin
 			// todavía puede llegar: se retiene mientras queden bloqueantes.
 			// Si ya había uno retenido y este es MEJOR (p. ej. un FLAC real
 			// después de un 320kbps), reemplaza al que esperaba.
-			if pol.retiene(r.name) && bloqueantesEnVuelo > 0 {
+			if pol.retiene(r.name) && atomic.LoadInt32(bloqueantesEnVuelo) > 0 {
 				if pendiente == nil || pol.prefiere(r.name, pendiente.name) {
 					rr := r
 					pendiente = &rr

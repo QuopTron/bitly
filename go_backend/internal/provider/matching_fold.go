@@ -70,19 +70,53 @@ func IsNonOriginalTitle(rawTitle string) bool {
 // es el titulo oficial de la cancion de Beyonce, asi que un candidato con el
 // mismo "remix" es el original, no una variante.
 func IsNonOriginalVariant(rawTitle, queryTitle string) bool {
-	titulo := tituloParaMarcadores(rawTitle)
+	return marcadorNoOriginalFueraDeConsulta(rawTitle, queryTitle)
+}
+
+// marcadorNoOriginalFueraDeConsulta reporta si [texto] lleva un marcador de
+// versión (remix/live/cover/piano/karaoke/...) que la [consulta] NO lleva. Es la
+// regla por la que "MORNING DEW (DONK) REMIX" sigue siendo el original de
+// Beyoncé: el marcador solo cuenta si el PEDIDO no lo trae ya.
+func marcadorNoOriginalFueraDeConsulta(texto, consulta string) bool {
+	titulo := tituloParaMarcadores(texto)
+	if titulo == "" {
+		return false
+	}
 	palabras := palabrasDelTitulo(titulo)
-	consulta := tituloParaMarcadores(queryTitle)
-	palabrasConsulta := palabrasDelTitulo(consulta)
+	cons := tituloParaMarcadores(consulta)
+	palabrasConsulta := palabrasDelTitulo(cons)
 	for _, m := range nonOriginalMarkers {
 		if !marcadorPresente(titulo, palabras, m) {
 			continue
 		}
 		// Solo es variante si el PEDIDO no trae el mismo marcador (mismo
 		// criterio por palabra que arriba).
-		if !marcadorPresente(consulta, palabrasConsulta, m) {
+		if !marcadorPresente(cons, palabrasConsulta, m) {
 			return true
 		}
+	}
+	return false
+}
+
+// IsNonOriginalTrack reporta si el candidato [t] es una versión NO original por
+// CUALQUIERA de sus campos —título, artista o álbum—, no solo por el título.
+//
+// Por qué importa: cada extensión pone el marcador donde su catálogo lo tiene.
+// Un disco de covers se llama a sí mismo "Piano Covers" o firma como "Slowed
+// Sounds"/"Epic Symphonic Orchestra", con un título pelado ("BbY WOW"). Mirando
+// solo el título, esos covers pasaban como el original y su ISRC/audio (la
+// versión de piano) se servía en vez de la grabación pedida. El álbum no tiene
+// contraparte en la consulta, así que un marcador ahí siempre identifica una
+// edición derivada ("Live at ...", "The Remixes").
+func IsNonOriginalTrack(t TrackResult, queryTitle, queryArtist string) bool {
+	if marcadorNoOriginalFueraDeConsulta(t.Title, queryTitle) {
+		return true
+	}
+	if marcadorNoOriginalFueraDeConsulta(t.Artist, queryArtist) {
+		return true
+	}
+	if strings.TrimSpace(t.Album) != "" && IsNonOriginalTitle(t.Album) {
+		return true
 	}
 	return false
 }

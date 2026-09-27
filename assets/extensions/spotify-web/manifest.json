@@ -1,7 +1,7 @@
 {
   "name": "spotify-web",
   "displayName": "Spotify Web",
-  "version": "1.10.2",
+  "version": "1.10.3",
   "description": "Spotify metadata provider for SpotiFLAC Mobile with complete native release, disc, catalog ID, credits, and artwork metadata plus guarded genre enrichment.",
   "homepage": "https://github.com/zarzet/spotify-web",
   "type": ["metadata_provider"],
@@ -23,6 +23,7 @@
       "clienttoken.spotify.com",
       "i.scdn.co",
       "*.scdn.co",
+      "*.spotifycdn.com",
       "api.deezer.com"
     ],
     "storage": true,

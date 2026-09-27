@@ -11,10 +11,13 @@ part of '../../settings_sheet_new.dart';
 /// última release y la lista completa de releases de GitHub. Vive aparte
 /// para mantener el archivo del widget bajo el límite de líneas.
 mixin _VersionSheetLoader on State<_VersionSheet> {
+  // Las dos URLs salen del repo PÚBLICO de releases (ver UpdateService): el
+  // repo del código es privado y sus assets exigen token, así que listarlos
+  // desde acá daría 404 y la hoja de versiones saldría vacía.
   static const _releasesUrl =
-      'https://api.github.com/repos/QuopTron/bitly/releases';
+      'https://api.github.com/repos/${UpdateService.repoPublico}/releases';
   static const _latestUrl =
-      'https://api.github.com/repos/QuopTron/bitly/releases/latest';
+      'https://api.github.com/repos/${UpdateService.repoPublico}/releases/latest';
 
   Future<void> _load() async {
     final state = this as _VersionSheetState;

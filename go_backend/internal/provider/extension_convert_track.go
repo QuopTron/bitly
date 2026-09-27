@@ -36,9 +36,9 @@ func getString(m map[string]interface{}, keys ...string) string {
 }
 
 func obtenerURLPortada(m map[string]interface{}) string {
-	return getString(m, "cover_url", "coverUrl", "cover",
-		"images", "image_url", "picture_xl", "picture_big",
-		"picture_medium", "picture")
+	// Delega en el normalizador compartido: además del string directo entiende
+	// `images` como objeto o como arreglo de imágenes (Spotify/Apple).
+	return PortadaDeCampo(m)
 }
 
 // convertirATrackResults normaliza un arreglo JS de tracks a []TrackResult.
@@ -55,13 +55,13 @@ func convertirATrackResults(result interface{}, providerName string) ([]TrackRes
 		}
 		t := TrackResult{
 			ID:        getString(m, "id"),
-			Title:     getString(m, "name", "title"),
-			Artist:    getString(m, "artists", "artist"),
+			Title:     TextoDeCampo(m, "name", "title"),
+			Artist:    TextoDeCampo(m, "artists", "artist", "album_artist", "artist_name"),
 			ArtistID:  getString(m, "artist_id", "artistId", "artistID"),
-			Album:     getString(m, "album_name", "album"),
+			Album:     TextoDeCampo(m, "album_name", "album_title", "albumName", "album"),
 			AlbumID:   getString(m, "album_id", "albumId", "albumID"),
-			Duration:  toInt(m["duration_ms"]),
-			ISRC:      getString(m, "isrc"),
+			Duration:  DuracionDeCampo(m, "duration_ms", "durationMs", "duration"),
+			ISRC:      ISRCDeCampo(m),
 			CoverURL:  obtenerURLPortada(m),
 			Provider:  providerName,
 			SpotifyID: getString(m, "spotify_id", "spotifyId"),
@@ -95,13 +95,13 @@ func convertirATrackResult(result interface{}, providerName string) (*TrackResul
 	}
 	t := TrackResult{
 		ID:        getString(m, "id"),
-		Title:     getString(m, "name", "title"),
-		Artist:    getString(m, "artists", "artist"),
+		Title:     TextoDeCampo(m, "name", "title"),
+		Artist:    TextoDeCampo(m, "artists", "artist", "album_artist", "artist_name"),
 		ArtistID:  getString(m, "artist_id", "artistId", "artistID"),
-		Album:     getString(m, "album_name", "album"),
+		Album:     TextoDeCampo(m, "album_name", "album_title", "albumName", "album"),
 		AlbumID:   getString(m, "album_id", "albumId", "albumID"),
-		Duration:  toInt(m["duration_ms"]),
-		ISRC:      getString(m, "isrc"),
+		Duration:  DuracionDeCampo(m, "duration_ms", "durationMs", "duration"),
+		ISRC:      ISRCDeCampo(m),
 		CoverURL:  obtenerURLPortada(m),
 		Provider:  providerName,
 		SpotifyID: getString(m, "spotify_id", "spotifyId"),

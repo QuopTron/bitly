@@ -19,6 +19,7 @@ import '../../../../../core/cache/reproduccion/stats/reproduccion_stats.dart';
 import '../../../../../core/modelos/usuario/disenos/base/catalogo_disenos_barra_lista.dart';
 import '../../../../../core/modelos/usuario/preferencias/preferencias_apariencia.dart';
 import '../../../../../core/servicios/conexion/base/base/tipo_aparato.dart';
+import '../../../plataforma/pantalla/escala_ui.dart';
 
 /// Acceso a las preferencias de diseño del usuario.
 class AparienciaHelper {
@@ -63,8 +64,13 @@ class AparienciaHelper {
   }
 
   /// Guarda las preferencias nuevas (repinta y persiste).
+  ///
+  /// Es el ÚNICO camino de escritura de la apariencia, así que acá también se
+  /// pone al día la escala global de letras e iconos: el control de Ajustes
+  /// mueve el tamaño y se ve al instante en toda la app, sin reiniciar.
   static void cambiar(BuildContext context, PreferenciasApariencia prefs) {
     notifier().value = prefs;
+    EscalaUi.aplicarDesde(prefs);
     sl<CacheAjustes>().guardarPreferenciasApariencia(prefs);
   }
 

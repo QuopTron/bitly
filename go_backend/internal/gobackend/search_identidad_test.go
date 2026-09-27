@@ -136,6 +136,42 @@ func TestPropagarISRCPrestaElDelOtroCatalogo(t *testing.T) {
 	}
 }
 
+// TestPropagarISRC_MantieneElOrdenDelBarrido fija las dos reglas de orden que
+// el índice por clave canónica tiene que conservar (si las cambiara, el ISRC
+// que termina puesto —y con él todo el dedup— podría ser otro):
+//
+//   - lo que se completa se ve para los items siguientes (un tercero puede
+//     tomar prestado de un segundo que se completó recién);
+//   - cuando dos fuentes encajan, gana la de posición más temprana.
+func TestPropagarISRC_MantieneElOrdenDelBarrido(t *testing.T) {
+
+	// Cadena: el del medio recibe el ISRC y el último solo puede tomarlo de él
+	// (la diferencia con el primero supera la tolerancia).
+	cadena := []FeedItemGo{
+		{Type: "track", Name: "Tema", Artists: "A", DurationMs: 1000, ISRC: "ISRC11111111"},
+		{Type: "track", Name: "Tema", Artists: "A", DurationMs: 3000},
+		{Type: "track", Name: "Tema", Artists: "A", DurationMs: 5000},
+	}
+	if !propagarISRC(cadena) {
+		t.Fatal("debía completar ISRC")
+	}
+	if cadena[1].ISRC != "ISRC11111111" || cadena[2].ISRC != "ISRC11111111" {
+		t.Fatalf("la propagación no encadenó: %q / %q", cadena[1].ISRC, cadena[2].ISRC)
+	}
+
+	// Dos fuentes dentro de la tolerancia: se elige la de posición más
+	// temprana, no la "más parecida".
+	desempate := []FeedItemGo{
+		{Type: "track", Name: "Tema", Artists: "A", DurationMs: 1000, ISRC: "PRIMERO11111"},
+		{Type: "track", Name: "Tema", Artists: "A", DurationMs: 3000, ISRC: "SEGUNDO11111"},
+		{Type: "track", Name: "Tema", Artists: "A", DurationMs: 2000},
+	}
+	propagarISRC(desempate)
+	if desempate[2].ISRC != "PRIMERO11111" {
+		t.Fatalf("debe ganar la primera fuente en posición: %q", desempate[2].ISRC)
+	}
+}
+
 // TestElMismoTemaNoSeRepiteEntreExtensiones reproduce el síntoma de "Todas":
 // el mismo tema llegando desde cuatro extensiones, cada una escribiéndolo a su
 // manera. Antes entraban los cuatro; ahora entra uno —el que trae el ISRC— y

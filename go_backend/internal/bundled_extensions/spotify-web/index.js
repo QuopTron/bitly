@@ -1,6 +1,6 @@
 // ============================================
 // Spotify Web Extension for SpotiFLAC
-// Version: 1.10.0
+// Version: 1.10.3
 //
 // This extension uses Spotify's internal GraphQL API
 // to fetch metadata. It can access personalized playlists
@@ -10,6 +10,14 @@
 // break at any time. Use at your own risk.
 // ============================================
 
+// TOTP_SECRETS es la copia de FÁBRICA de la tabla con la que el web player de
+// Spotify firma /api/token, en el formato que consume generateTOTP() (los bytes
+// del secreto). Spotify ROTA la versión (59 → 60 → 61) y, cuando lo hace, el
+// endpoint empieza a responder 400/401 y la fuente entera se cae hasta que
+// alguien pegue la tabla nueva a mano. Por eso el secreto vive acá (arranque sin
+// peticiones extra) Y el rescate de abajo la reemplaza sola en caliente: lee la
+// tabla vigente de la MISMA fuente que usa el navegador — el bloque de arranque
+// de la página publica la URL del bundle del web player, y ahí está la tabla.
 const TOTP_SECRETS = {
   59: [
     123, 105, 79, 70, 110, 59, 52, 125, 60, 49, 80, 70, 89, 75, 80, 86, 63, 53,
@@ -25,8 +33,19 @@ const TOTP_SECRETS = {
   ],
 };
 
-const TOTP_VERSION = 61;
+// let (no const): rescatarSecretosTOTP() la sube cuando Spotify rota la tabla.
+let TOTP_VERSION = 61;
 const TOKEN_EXPIRY_SKEW_MS = 60 * 1000;
+
+// El rescate cuesta dos peticiones (página + bundle) y se intenta solo cuando el
+// endpoint ya falló, así que no se paga en el camino feliz. El tope evita que un
+// rechazo persistente (IP bloqueada, endpoint caído) reintente en cada tema.
+const TOTP_RESCUE_COOLDOWN_MS = 5 * 60 * 1000;
+// La tabla adoptada se recuerda 6h: si la app se relanza después de una rotación
+// de Spotify, no vuelve a pagar el fallo + el rescate en cada arranque.
+const TOTP_RESCUE_TTL_MS = 6 * 60 * 60 * 1000;
+const TOTP_RESCUE_STORAGE_KEY = "totp_webplayer";
+let totpRescueNextTry = 0;
 
 let clientState = {
   accessToken: null,
@@ -100,6 +119,10 @@ function initialize(config) {
     );
   }
 
+  // Tabla TOTP adoptada en un arranque anterior (ver rescatarSecretosTOTP):
+  // evita pagar el fallo del endpoint otra vez solo para volver a rescatarla.
+  cargarTOTPRescatado();
+
   return true;
 }
 
@@ -167,6 +190,206 @@ function generateTOTP() {
   const code = generateTOTPCode(secret, counter);
 
   return { code: code, version: TOTP_VERSION };
+}
+
+// ── Rescate de la tabla TOTP (bloque de arranque → bundle) ──────────────────
+//
+// Qué se rompe sin esto: cuando Spotify rota la versión del secreto, TODAS las
+// peticiones fallan con 400/401 hasta que alguien actualice TOTP_SECRETS a mano.
+// El navegador no tiene ese problema porque el secreto viaja en el bundle del web
+// player; acá se lee de ahí, en dos pasos y con la URL que publica la propia
+// página en su bloque de arranque:
+//
+//   1. GET https://open.spotify.com  →  <script id="__CDN_FILE_URLS__"> trae el
+//      mapa base64 de assets, con la URL de build/web-player/web-player.<hash>.js
+//      (la ruta SIN hash responde 404: el hash es obligatorio, por eso se lee del
+//      bloque y no se adivina).
+//   2. GET del bundle  →  la tabla literal [{secret:'…',version:61},…].
+//
+// Lo que se adopta se comprueba solo: si el código nuevo no sirve, el reintento
+// contra /api/token vuelve a fallar y la extensión sigue con lo de fábrica hasta
+// el próximo intento (no se persiste nada a medias).
+
+// desescaparLiteralJS resuelve los escapes del literal del bundle (\', \", \\,
+// \/). Un escape desconocido se deja tal cual: el secreto es una cadena opaca y
+// "arreglarla" de más lo corrompería.
+function desescaparLiteralJS(crudo) {
+  const texto = String(crudo || "");
+  let salida = "";
+  for (let i = 0; i < texto.length; i++) {
+    const c = texto.charAt(i);
+    if (c !== "\\") {
+      salida += c;
+      continue;
+    }
+    const sig = texto.charAt(i + 1);
+    if (sig === "\\" || sig === "'" || sig === '"' || sig === "/") {
+      salida += sig;
+      i++;
+      continue;
+    }
+    salida += c;
+  }
+  return salida;
+}
+
+// parsearSecretosTOTP devuelve {version: [bytes]} — exactamente el formato de
+// TOTP_SECRETS, para que la tabla adoptada sea intercambiable con la de fábrica.
+function parsearSecretosTOTP(texto) {
+  const salida = {};
+  const patron =
+    /\{secret:\s*(['"])((?:\\.|(?!\1)[^\\])*)\1\s*,\s*version:\s*(\d+)\}/g;
+  let m;
+  while ((m = patron.exec(String(texto || ""))) !== null) {
+    const version = Number(m[3] || 0);
+    const secreto = desescaparLiteralJS(m[2]);
+    if (!version || !secreto) continue;
+    const bytes = [];
+    for (let i = 0; i < secreto.length; i++) {
+      bytes.push(secreto.charCodeAt(i));
+    }
+    salida[version] = bytes;
+  }
+  return salida;
+}
+
+// bundleWebPlayerDesdePagina saca la URL del bundle. Primero del bloque de
+// arranque; si el bloque no está (página servida distinto), del propio HTML.
+function bundleWebPlayerDesdePagina(html) {
+  const texto = String(html || "");
+
+  const bloque = texto.match(
+    /<script[^>]*id="__CDN_FILE_URLS__"[^>]*>([^<]+)<\/script>/,
+  );
+  if (bloque) {
+    try {
+      const mapa = JSON.parse(atob(bloque[1]));
+      // Se exige un hash entre "web-player." y ".js": la ruta SIN hash
+      // (build/web-player/web-player.js) responde 404, así que aceptarla dejaría
+      // el rescate leyendo una URL inexistente.
+      const patronBundle =
+        /^build\/web-player\/web-player\.[A-Za-z0-9_-]+\.js$/;
+      for (const ruta in mapa) {
+        if (!Object.prototype.hasOwnProperty.call(mapa, ruta)) continue;
+        if (patronBundle.test(ruta)) {
+          const url = String(mapa[ruta] || "").trim();
+          if (url) return url;
+        }
+      }
+    } catch (e) {
+      log.warn("TOTP rescue: bloque __CDN_FILE_URLS__ ilegible:", String(e));
+    }
+  }
+
+  const src = texto.match(/src="([^"]*web-player[^"]*\.js)"/);
+  if (src && src[1]) {
+    return src[1].indexOf("http") === 0
+      ? src[1]
+      : "https://open.spotify.com" + src[1];
+  }
+  return "";
+}
+
+function cargarTOTPRescatado() {
+  try {
+    const crudo = storage.get(TOTP_RESCUE_STORAGE_KEY);
+    if (!crudo) return;
+    const guardado = JSON.parse(crudo);
+    const hasta = Number((guardado && guardado.hasta) || 0);
+    const tabla = (guardado && guardado.tabla) || null;
+    if (!tabla || Date.now() > hasta) return;
+    let mejor = 0;
+    for (const v in tabla) {
+      if (!Object.prototype.hasOwnProperty.call(tabla, v)) continue;
+      const version = Number(v);
+      if (!version || !Array.isArray(tabla[v]) || !tabla[v].length) continue;
+      TOTP_SECRETS[version] = tabla[v];
+      if (version > mejor) mejor = version;
+    }
+    if (mejor) {
+      TOTP_VERSION = mejor;
+      log.info("TOTP rescue: tabla recordada (versión " + TOTP_VERSION + ")");
+    }
+  } catch (e) {
+    log.warn("TOTP rescue: no se pudo leer la tabla recordada:", String(e));
+  }
+}
+
+function persistirTOTPRescatado(tabla) {
+  try {
+    storage.set(
+      TOTP_RESCUE_STORAGE_KEY,
+      JSON.stringify({ tabla: tabla, hasta: Date.now() + TOTP_RESCUE_TTL_MS }),
+    );
+  } catch (e) {
+    log.warn("TOTP rescue: no se pudo guardar la tabla:", String(e));
+  }
+}
+
+// rescatarSecretosTOTP adopta la tabla vigente y devuelve true si cambió algo.
+function rescatarSecretosTOTP() {
+  const ahora = Date.now();
+  if (ahora < totpRescueNextTry) return false;
+  totpRescueNextTry = ahora + TOTP_RESCUE_COOLDOWN_MS;
+
+  try {
+    const headers = { "User-Agent": utils.randomUserAgent() };
+    const pagina = http.get("https://open.spotify.com", headers);
+    if (!pagina || pagina.error || pagina.statusCode !== 200) {
+      log.warn(
+        "TOTP rescue: la página no respondió",
+        pagina ? pagina.statusCode : "no response",
+      );
+      return false;
+    }
+
+    const url = bundleWebPlayerDesdePagina(pagina.body);
+    if (!url) {
+      log.warn("TOTP rescue: la página no publicó el bundle del web player");
+      return false;
+    }
+
+    const bundle = http.get(url, headers);
+    if (!bundle || bundle.error || bundle.statusCode !== 200) {
+      log.warn(
+        "TOTP rescue: el bundle no respondió",
+        bundle ? bundle.statusCode : "no response",
+      );
+      return false;
+    }
+
+    const tabla = parsearSecretosTOTP(bundle.body);
+    const versiones = Object.keys(tabla)
+      .map(Number)
+      .filter(function (v) {
+        return v > 0;
+      })
+      .sort(function (a, b) {
+        return b - a;
+      });
+    if (!versiones.length) {
+      log.warn("TOTP rescue: el bundle no traía la tabla");
+      return false;
+    }
+
+    for (let i = 0; i < versiones.length; i++) {
+      TOTP_SECRETS[versiones[i]] = tabla[versiones[i]];
+    }
+    // La más nueva del bundle es la que el navegador está usando hoy.
+    TOTP_VERSION = versiones[0];
+    persistirTOTPRescatado(tabla);
+    log.warn(
+      "TOTP rescue: tabla del web player adoptada (versión " +
+        TOTP_VERSION +
+        ", " +
+        versiones.length +
+        " versiones)",
+    );
+    return true;
+  } catch (e) {
+    log.warn("TOTP rescue failed:", e.message || String(e));
+    return false;
+  }
 }
 
 function base32Encode(bytes) {
@@ -333,9 +556,7 @@ function getSessionInfo() {
   persistClientState();
 }
 
-function getAccessToken() {
-  const totp = generateTOTP();
-
+function pedirAccessToken(totp) {
   const url =
     "https://open.spotify.com/api/token?reason=init&productType=web-player" +
     "&totp=" +
@@ -355,7 +576,23 @@ function getAccessToken() {
     headers["Cookie"] = cookieHeader;
   }
 
-  const response = http.get(url, headers);
+  return http.get(url, headers);
+}
+
+function getAccessToken() {
+  let totp = generateTOTP();
+  let response = pedirAccessToken(totp);
+
+  // Rescate: un rechazo acá suele ser que la tabla TOTP de fábrica quedó vieja
+  // (Spotify rotó la versión). Se lee la vigente del web player y se reintenta
+  // UNA vez; si el rechazo era otra cosa (IP, cookie), el reintento falla igual
+  // y el error de abajo reporta el estado real del último intento.
+  if (!response || response.error || response.statusCode !== 200) {
+    if (rescatarSecretosTOTP()) {
+      totp = generateTOTP();
+      response = pedirAccessToken(totp);
+    }
+  }
 
   if (!response || response.error || response.statusCode !== 200) {
     throw new Error(

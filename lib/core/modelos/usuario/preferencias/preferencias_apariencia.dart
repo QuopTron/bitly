@@ -97,6 +97,30 @@ class PreferenciasApariencia {
   /// Redondeo de las cards, en píxeles lógicos.
   final double radioCards;
 
+  /// Multiplicador del TAMAÑO DE LAS LETRAS de la app (1 = el de fábrica).
+  /// Se aplica ENCIMA del tamaño que pide el sistema, así que respeta la
+  /// accesibilidad del teléfono en vez de pisarla.
+  final double escalaTexto;
+
+  /// Multiplicador del TAMAÑO DE LOS ICONOS (1 = el de fábrica).
+  final double escalaIconos;
+
+  /// Afinado por COMPONENTE (bloque "Avanzado" de los tamaños). Se multiplica
+  /// con el general en vez de reemplazarlo, así el control de arriba sigue
+  /// moviendo todo junto.
+  ///
+  /// Títulos de las tarjetas (nombre de la canción, del álbum o de la lista).
+  final double escalaTitulos;
+
+  /// Textos secundarios: el artista y los datos que van debajo del título.
+  final double escalaTextos;
+
+  /// Iconos de las TARJETAS (me gusta, descargar, compartir, info).
+  final double escalaIconosCards;
+
+  /// Iconos de las BARRAS: navbar y controles del miniplayer.
+  final double escalaIconosBarras;
+
   const PreferenciasApariencia({
     this.trazoBarra = TrazoBarra.suave,
     this.radioNavbar = 20,
@@ -113,6 +137,12 @@ class PreferenciasApariencia {
     this.grillaX = 1,
     this.grillaY = 1,
     this.radioCards = 14,
+    this.escalaTexto = 1,
+    this.escalaIconos = 1,
+    this.escalaTitulos = 1,
+    this.escalaTextos = 1,
+    this.escalaIconosCards = 1,
+    this.escalaIconosBarras = 1,
   });
 
   /// Diseño de fábrica: el que trae la app sin tocar nada.
@@ -125,6 +155,12 @@ class PreferenciasApariencia {
   /// Rango admitido del redondeo de las cards.
   static const minRadio = 0.0;
   static const maxRadio = 28.0;
+
+  /// Rango admitido del tamaño de letras e iconos. Llega a 1.4 y no más: por
+  /// arriba, los diseños de tamaño fijo (cards, barras, filas de botones) se
+  /// desbordan — es el mismo techo que se le pone a la escala del sistema.
+  static const minEscala = 0.85;
+  static const maxEscala = 1.4;
 
   /// Rango admitido del redondeo de las esquinas de arriba de las barras.
   /// Llega a 40 porque el diseño "pastilla" las curva al máximo.
@@ -200,6 +236,12 @@ class PreferenciasApariencia {
     double? grillaX,
     double? grillaY,
     double? radioCards,
+    double? escalaTexto,
+    double? escalaIconos,
+    double? escalaTitulos,
+    double? escalaTextos,
+    double? escalaIconosCards,
+    double? escalaIconosBarras,
   }) {
     var cx = cancionX ?? this.cancionX;
     var cy = cancionY ?? this.cancionY;
@@ -241,6 +283,36 @@ class PreferenciasApariencia {
       grillaX: acotar(gx, minEspacio, maxEspacio),
       grillaY: acotar(gy, minEspacio, maxEspacio),
       radioCards: acotar(radioCards ?? this.radioCards, minRadio, maxRadio),
+      escalaTexto: acotar(
+        escalaTexto ?? this.escalaTexto,
+        minEscala,
+        maxEscala,
+      ),
+      escalaIconos: acotar(
+        escalaIconos ?? this.escalaIconos,
+        minEscala,
+        maxEscala,
+      ),
+      escalaTitulos: acotar(
+        escalaTitulos ?? this.escalaTitulos,
+        minEscala,
+        maxEscala,
+      ),
+      escalaTextos: acotar(
+        escalaTextos ?? this.escalaTextos,
+        minEscala,
+        maxEscala,
+      ),
+      escalaIconosCards: acotar(
+        escalaIconosCards ?? this.escalaIconosCards,
+        minEscala,
+        maxEscala,
+      ),
+      escalaIconosBarras: acotar(
+        escalaIconosBarras ?? this.escalaIconosBarras,
+        minEscala,
+        maxEscala,
+      ),
     );
   }
 
@@ -259,7 +331,13 @@ class PreferenciasApariencia {
       (cancionY - deFabrica.cancionY).abs() < 0.001 &&
       (grillaX - deFabrica.grillaX).abs() < 0.001 &&
       (grillaY - deFabrica.grillaY).abs() < 0.001 &&
-      (radioCards - deFabrica.radioCards).abs() < 0.001;
+      (radioCards - deFabrica.radioCards).abs() < 0.001 &&
+      (escalaTexto - deFabrica.escalaTexto).abs() < 0.001 &&
+      (escalaIconos - deFabrica.escalaIconos).abs() < 0.001 &&
+      (escalaTitulos - deFabrica.escalaTitulos).abs() < 0.001 &&
+      (escalaTextos - deFabrica.escalaTextos).abs() < 0.001 &&
+      (escalaIconosCards - deFabrica.escalaIconosCards).abs() < 0.001 &&
+      (escalaIconosBarras - deFabrica.escalaIconosBarras).abs() < 0.001;
 
   /// Serializa a JSON para persistencia.
   Map<String, dynamic> aJson() => {
@@ -278,6 +356,12 @@ class PreferenciasApariencia {
     'grillaX': grillaX,
     'grillaY': grillaY,
     'radioCards': radioCards,
+    'escalaTexto': escalaTexto,
+    'escalaIconos': escalaIconos,
+    'escalaTitulos': escalaTitulos,
+    'escalaTextos': escalaTextos,
+    'escalaIconosCards': escalaIconosCards,
+    'escalaIconosBarras': escalaIconosBarras,
   };
 
   /// Deserializa desde JSON (con acotado de rangos).
@@ -325,6 +409,38 @@ class PreferenciasApariencia {
         (json['radioCards'] as num?)?.toDouble() ?? deFabrica.radioCards,
         minRadio,
         maxRadio,
+      ),
+      escalaTexto: acotar(
+        (json['escalaTexto'] as num?)?.toDouble() ?? deFabrica.escalaTexto,
+        minEscala,
+        maxEscala,
+      ),
+      escalaIconos: acotar(
+        (json['escalaIconos'] as num?)?.toDouble() ?? deFabrica.escalaIconos,
+        minEscala,
+        maxEscala,
+      ),
+      escalaTitulos: acotar(
+        (json['escalaTitulos'] as num?)?.toDouble() ?? deFabrica.escalaTitulos,
+        minEscala,
+        maxEscala,
+      ),
+      escalaTextos: acotar(
+        (json['escalaTextos'] as num?)?.toDouble() ?? deFabrica.escalaTextos,
+        minEscala,
+        maxEscala,
+      ),
+      escalaIconosCards: acotar(
+        (json['escalaIconosCards'] as num?)?.toDouble() ??
+            deFabrica.escalaIconosCards,
+        minEscala,
+        maxEscala,
+      ),
+      escalaIconosBarras: acotar(
+        (json['escalaIconosBarras'] as num?)?.toDouble() ??
+            deFabrica.escalaIconosBarras,
+        minEscala,
+        maxEscala,
       ),
     );
   }

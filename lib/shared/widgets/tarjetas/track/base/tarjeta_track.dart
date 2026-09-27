@@ -11,8 +11,11 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../app/inyeccion/inyeccion.dart';
+import '../../../../../core/modelos/ajustes_acciones_rapidas.dart';
 import '../../../../../core/modelos/feed/item_feed.dart';
 import '../../../../../estado/cola/cubit_cola.dart';
+import '../../../../../estado/descargas/cubit_descargas.dart';
+import '../../../../../features/detalle/comun/base/navegador_detalle.dart';
 import '../../../../../core/modelos/usuario/perfil/perfil_rendimiento.dart';
 import '../../../../../core/modelos/usuario/preferencias/preferencias_apariencia.dart';
 import '../../../../../core/modelos/usuario/preferencias/preferencias_estilo.dart';
@@ -24,6 +27,7 @@ import '../../../../utilidades/portada/paleta/paleta_portada.dart';
 import '../../../../utilidades/formato/comun/formato/estilo_helper.dart';
 import '../../../../utilidades/plataforma/responsive.dart';
 import '../../../../utilidades/plataforma/pantalla/efectos_app.dart';
+import '../../../../utilidades/plataforma/pantalla/escala_ui.dart';
 import '../../../fondos/ambiente/atenuado_por_nivel.dart';
 import '../../portada/imagen_portada.dart';
 import '../../../indicadores/descarga/indicador_descarga.dart';
@@ -107,7 +111,9 @@ class TarjetaTrack extends StatelessWidget {
   /// Color dominante del cover (modo Spotify) para teñir la tarjeta.
   final Color? colorDominante;
 
-  /// Canción de la tarjeta; no-null habilita deslizar→derecha para encolar.
+  /// Canción de la tarjeta; no-null habilita los gestos rápidos (Ajustes →
+  /// Apariencia → Acciones rápidas), que de fábrica son deslizar a la
+  /// derecha para encolar.
   final ItemFeed? item;
 
   const TarjetaTrack({
@@ -157,7 +163,12 @@ class TarjetaTrack extends StatelessWidget {
               final colorIconoFallback = ColoresApp.enSuperficieApagado(
                 esOscuro,
               );
-              final tamanoIcono = r.footerSize * 1.6 * escalaTexto;
+              // El tamaño de los iconos suma la escala elegida en Ajustes →
+              // Apariencia (`EscalaUi`), que es global: así el control mueve
+              // TODAS las tarjetas a la vez y en vivo. La tarjeta ya escucha las
+              // preferencias de apariencia, así que repinta al mover el control.
+              final tamanoIcono =
+                  r.footerSize * 1.6 * escalaTexto * EscalaUi.factorIconosCards;
               // Las sombras con blur son el resto caro que queda en gama baja
               // (un `MaskFilter.blur` por tarjeta y por frame). Se consulta
               // TAMBIÉN `EfectosApp`, que es el interruptor que mueve el monitor
@@ -201,7 +212,7 @@ class TarjetaTrack extends StatelessWidget {
                   colorDominante == null &&
                   coverUrl != null &&
                   EfectosApp.colorPorTarjetaActivo) {
-                tarjeta = _conDeslizarCola(
+                tarjeta = _conGestosRapidos(
                   this,
                   context,
                   r,
@@ -211,7 +222,7 @@ class TarjetaTrack extends StatelessWidget {
                   ),
                 );
               } else {
-                tarjeta = _conDeslizarCola(
+                tarjeta = _conGestosRapidos(
                   this,
                   context,
                   r,

@@ -1,6 +1,7 @@
 package gobackend
 
 import (
+	"strings"
 	"sync"
 
 	"github.com/zarz/bitly/go_backend/internal/extensions"
@@ -105,6 +106,23 @@ func getAjustesExtension(extID string) map[string]string {
 	extSettingsMu.RLock()
 	defer extSettingsMu.RUnlock()
 	return extSettings[extID]
+}
+
+// ajusteExtensionNoVacio reporta si alguna de [claves] tiene un valor no vacío
+// en los ajustes de [extID]. Lee BAJO EL CANDADO, a diferencia de
+// getAjustesExtension (que devuelve el mapa vivo, que el pool de credenciales
+// puede estar reemplazando): quien decide si una fuente puede streamear no
+// puede arriesgar un data race por leer un ajuste mientras el pool lo reescribe.
+func ajusteExtensionNoVacio(extID string, claves ...string) bool {
+	extSettingsMu.RLock()
+	defer extSettingsMu.RUnlock()
+	s := extSettings[extID]
+	for _, clave := range claves {
+		if strings.TrimSpace(s[clave]) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func setAjustesExtension(extID string, settings map[string]string) {

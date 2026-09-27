@@ -16,6 +16,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import 'package:bitly/core/backend_go/nucleo/base/contrato_backend.dart';
+import 'package:bitly/features/ajustes/update/base/update_service.dart';
 import 'package:bitly/features/splash/bloc/splash_bloc.dart';
 import 'package:bitly/features/splash/bloc/splash_estado.dart';
 import 'package:bitly/features/splash/widgets/panel_error_web.dart';
@@ -168,8 +169,10 @@ void main() {
       // Sin handler de url_launcher en tests el launch falla; el panel tiene
       // que seguir en pie y dejar la URL visible para copiarla a mano.
       expect(tester.takeException(), isNull);
+      // La URL es la del repo PÚBLICO de releases (ver UpdateService): el repo
+      // del código es privado y esa página no se puede abrir sin sesión.
       expect(
-        find.text('https://github.com/QuopTron/bitly/releases/latest'),
+        find.text(UpdateService.releasesPagina),
         findsOneWidget,
       );
     });

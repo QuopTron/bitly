@@ -19,6 +19,9 @@ void registrarServiciosYEstado(BackendService backend) {
   sl.registerLazySingleton<ServicioTraduccionLetras>(
     () => ServicioTraduccionLetras(cache: sl<AlmacenTraducciones>()),
   );
+  // Traducción de datos cortos (título/artista/álbum de la info de canción):
+  // singleton para que su caché de sesión se comparta entre aperturas.
+  sl.registerLazySingleton<ServicioTraduccionTexto>(ServicioTraduccionTexto.new);
   sl.registerLazySingleton<ServicioDominioPlaylist>(
     () => ServicioDominioPlaylist(backend),
   );

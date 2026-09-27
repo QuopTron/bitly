@@ -55,25 +55,167 @@ var DIRECT_SESSION_DISABLED = false;
 
 // ── Pool de cuentas de Qobuz ────────────────────────────────────────────────
 // El backend de Go arma el pool: junta la cuenta propia del usuario con las
-// que saca de las fuentes que él configure, y VALIDA cada una haciendo un
-// login real antes de mandarla. Acá solo rotamos: si Qobuz rechaza la cuenta
-// en uso, se pasa a la siguiente sola y se pide un token nuevo.
-var qobuzCuentas = []; // "email:password"
+// que saca de las fuentes que él configure, y VALIDA cada una antes de
+// mandarla (con un login real o, si la credencial es un token ya emitido,
+// contra un endpoint que exige sesión). Acá solo se usa: si Qobuz rechaza la
+// credencial en uso, se pasa a la siguiente sola.
+//
+// Cada entrada es {email, password, token}: una CUENTA ("email:password") o un
+// TOKEN suelto (user_auth_token ya emitido, sin contraseña con la que volver a
+// loguear). Se aceptan las dos formas porque el backend manda las dos.
+var qobuzCuentas = [];
 var qobuzCuentaIndex = 0;
 
-// qobuzRotarCuenta avanza a la siguiente cuenta del pool. Devuelve false
+// QOBUZ_CORREO_RE reconoce algo con forma de email (mismo criterio que el
+// backend, sessionpool/qobuz.go).
+var QOBUZ_CORREO_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
+// La sesión de un token suelto del pool dura lo mismo que la de un login: si el
+// proceso sigue vivo pasadas esas horas se renueva en memoria, porque sin
+// contraseña no hay forma de pedir otro.
+var QOBUZ_TOKEN_SESION_MS = 6 * 60 * 60 * 1000;
+
+// qobuzEntradaDePool interpreta una credencial del pool. Devuelve
+// {email, password, token} o null si el texto no es ninguna de las dos formas.
+function qobuzEntradaDePool(texto) {
+  var t = String(texto || "").trim();
+  if (!t) return null;
+  var i = t.indexOf(":");
+  if (i > 0) {
+    var correo = String(t.substring(0, i)).trim();
+    var clave = String(t.substring(i + 1));
+    if (QOBUZ_CORREO_RE.test(correo) && clave) {
+      return { email: correo, password: clave, token: "" };
+    }
+  }
+  // Token ya emitido: cadena larga y sin espacios (mismo criterio que el
+  // backend). Se guarda tal cual y se usa sin login.
+  if (t.length >= 16 && !/\s/.test(t)) {
+    return { email: "", password: "", token: t };
+  }
+  return null;
+}
+
+// qobuzAplicarEntrada deja la entrada en CONFIG. Una entrada de token ya trae
+// sesión: se usa directo y no hay login que hacer.
+function qobuzAplicarEntrada(entrada) {
+  CONFIG.userEmail = String((entrada && entrada.email) || "").trim();
+  CONFIG.userPassword = String((entrada && entrada.password) || "");
+  CONFIG.userAuthToken = String((entrada && entrada.token) || "");
+  CONFIG.userAuthTokenExpiresAt = CONFIG.userAuthToken
+    ? Date.now() + QOBUZ_TOKEN_SESION_MS
+    : 0;
+  userAuthTokenDeStorage = false;
+}
+
+// qobuzRotarCuenta avanza a la siguiente entrada del pool. Devuelve false
 // cuando no queda ninguna distinta que probar.
 function qobuzRotarCuenta() {
   if (qobuzCuentas.length <= 1) return false;
   qobuzCuentaIndex = (qobuzCuentaIndex + 1) % qobuzCuentas.length;
-  var partes = String(qobuzCuentas[qobuzCuentaIndex] || "").split(":");
-  CONFIG.userEmail = String(partes.shift() || "").trim();
-  CONFIG.userPassword = partes.join(":");
-  // Otra cuenta: el token cacheado ya no vale.
-  CONFIG.userAuthToken = "";
-  CONFIG.userAuthTokenExpiresAt = 0;
-  log.warn("[QobuzWeb] Cuenta rechazada: rotando a la siguiente del pool");
+  qobuzAplicarEntrada(qobuzCuentas[qobuzCuentaIndex]);
+  log.warn("[QobuzWeb] Credencial rechazada: rotando a la siguiente del pool");
   return true;
+}
+
+// ── Sesión de descarga persistida ───────────────────────────────────────────
+// El user_auth_token es lo ÚNICO que Qobuz exige para bajar el FLAC y el login
+// cuesta una petición. Antes se perdía al cerrar la app, así que la PRIMERA
+// descarga de cada arranque pagaba ese login. Se persiste {email, token,
+// expiraEn} para reusarlo mientras siga vigente (TTL de 6 h del login) y sea de
+// la MISMA cuenta: un token de otra cuenta se descarta aunque el usuario haya
+// estado logueado con ella (ver cargarTokenGuardado).
+var CLAVE_TOKEN_QOBUZ = "qobuz_auth_token";
+
+// userAuthTokenDeStorage es true cuando CONFIG.userAuthToken salió del storage
+// (no de un login de esta sesión). Sirve para saber si un UserUnauthenticated es
+// "el token persistido quedó muerto" (reintentar con login fresco) o "la cuenta
+// no autoriza" (apagar la ruta directa, como antes).
+var userAuthTokenDeStorage = false;
+
+// cargarTokenGuardado devuelve {token, expiraEn} del token persistido, o null si
+// no hay, si venció, si es de otra cuenta o si el storage no está disponible.
+function cargarTokenGuardado(email) {
+  try {
+    if (typeof storage === "undefined" || !storage) return null;
+    var crudo = storage.get(CLAVE_TOKEN_QOBUZ);
+    if (!crudo) return null;
+    var datos = JSON.parse(String(crudo));
+    var token = String((datos && datos.token) || "").trim();
+    var expiraEn = Number((datos && datos.expiraEn) || 0);
+    var cuenta = String((datos && datos.email) || "").trim();
+    if (!token || !(expiraEn > Date.now())) return null;
+    if (cuenta !== String(email || "").trim()) return null;
+    return { token: token, expiraEn: expiraEn };
+  } catch (e) {
+    return null;
+  }
+}
+
+// guardarTokenGuardado persiste el token para el próximo arranque. Best-effort:
+// si el storage falla, el token igual quedó en CONFIG para esta sesión.
+function guardarTokenGuardado(email, token, expiraEn) {
+  try {
+    if (typeof storage === "undefined" || !storage) return;
+    storage.set(
+      CLAVE_TOKEN_QOBUZ,
+      JSON.stringify({
+        email: String(email || "").trim(),
+        token: token,
+        expiraEn: expiraEn,
+      }),
+    );
+  } catch (e) {
+    // Persistir es best-effort.
+  }
+}
+
+// invalidarTokenGuardado borra el token persistido: el que había quedó muerto y
+// no debe reusarse en el próximo arranque.
+function invalidarTokenGuardado() {
+  try {
+    if (typeof storage === "undefined" || !storage) return;
+    if (typeof storage.delete === "function") {
+      storage.delete(CLAVE_TOKEN_QOBUZ);
+    } else if (typeof storage.remove === "function") {
+      storage.remove(CLAVE_TOKEN_QOBUZ);
+    }
+  } catch (e) {
+    // Best-effort.
+  }
+}
+
+// leerTokenGuardadoCrudo devuelve {email, token, expiraEn} del registro tal
+// cual, sin validar vencimiento ni cuenta. Sirve para saber a QUIÉN pertenece
+// el token guardado antes de decidir si hay que borrarlo.
+function leerTokenGuardadoCrudo() {
+  try {
+    if (typeof storage === "undefined" || !storage) return null;
+    var crudo = storage.get(CLAVE_TOKEN_QOBUZ);
+    if (!crudo) return null;
+    var datos = JSON.parse(String(crudo));
+    if (!datos || typeof datos !== "object") return null;
+    return {
+      email: String(datos.email || "").trim(),
+      token: String(datos.token || "").trim(),
+      expiraEn: Number(datos.expiraEn || 0),
+    };
+  } catch (e) {
+    return null;
+  }
+}
+
+// invalidarTokenGuardadoDe borra el token persistido SOLO si es de [email].
+// Sirve para no tirar el token de OTRA cuenta del pool cuando cambia la cuenta
+// propia: el registro es de una sola cuenta, así que si es de la que se está
+// reemplazando hay que borrarlo (si no, quedaría huérfano y se reusaría al
+// volver a esa cuenta), pero si es de una cuenta distinta se conserva para
+// cuando le toque el turno.
+function invalidarTokenGuardadoDe(email) {
+  var guardado = leerTokenGuardadoCrudo();
+  if (!guardado) return;
+  if (guardado.email !== String(email || "").trim()) return;
+  invalidarTokenGuardado();
 }
 
 function metadataCacheGet(key) {
@@ -467,6 +609,18 @@ function initialize(settings) {
   var email = String(settings.email || settings.userEmail || "").trim();
   var password = String(settings.password || settings.userPassword || "");
   if (email !== CONFIG.userEmail || password !== CONFIG.userPassword) {
+    // El token persistido puede pertenecer a la configuración ANTERIOR. Si el
+    // usuario borró sus credenciales o cambió de cuenta, ese token queda
+    // huérfano y no debe sobrevivir (si no, al volver a esa cuenta se reusaría
+    // uno que ya no le corresponde)... pero SOLO si el token guardado es de ESA
+    // cuenta: si es de otra cuenta del pool, se conserva. Solo se limpia cuando
+    // HABÍA una cuenta previa: en el primer initialize CONFIG.userEmail todavía
+    // está vacío y hay que dejar que el token guardado de la MISMA cuenta se
+    // cargue más abajo.
+    if (CONFIG.userEmail || CONFIG.userPassword) {
+      invalidarTokenGuardadoDe(CONFIG.userEmail);
+      userAuthTokenDeStorage = false;
+    }
     CONFIG.userEmail = email;
     CONFIG.userPassword = password;
     // Otra cuenta (o se borraron las credenciales): el token cacheado ya no vale.
@@ -479,29 +633,48 @@ function initialize(settings) {
   qobuzCuentas = poolDeCuentasQobuz(settings);
   qobuzCuentaIndex = 0;
   if (qobuzCuentas.length > 0) {
-    var primera = String(qobuzCuentas[0]).split(":");
-    CONFIG.userEmail = String(primera.shift() || "").trim();
-    CONFIG.userPassword = primera.join(":");
+    qobuzAplicarEntrada(qobuzCuentas[0]);
     DIRECT_SESSION_DISABLED = false;
+  }
+
+  // Token de sesión persistido: si es de la MISMA cuenta (email) y no venció, se
+  // usa para no repetir el login en la primera descarga tras cada arranque. El
+  // TTL de 6 h del login se respeta con el vencimiento guardado.
+  userAuthTokenDeStorage = false;
+  var tokenGuardado = cargarTokenGuardado(CONFIG.userEmail);
+  if (tokenGuardado) {
+    CONFIG.userAuthToken = tokenGuardado.token;
+    CONFIG.userAuthTokenExpiresAt = tokenGuardado.expiraEn;
+    userAuthTokenDeStorage = true;
   }
 
   return true;
 }
 
-// poolDeCuentasQobuz arma la lista de "email:password" a rotar. La cuenta
-// propia SIEMPRE va primera: su cuenta manda sobre cualquier fuente.
+// poolDeCuentasQobuz arma la lista de entradas a rotar. La cuenta propia SIEMPRE
+// va primera: su cuenta manda sobre cualquier fuente. Se aceptan "email:password"
+// y tokens sueltos, y se descartan los duplicados.
 function poolDeCuentasQobuz(settings) {
   settings = settings || {};
   var lista = [];
+  var vistos = {};
+  function agregar(entrada) {
+    if (!entrada) return;
+    var clave = entrada.token
+      ? "t:" + entrada.token
+      : "a:" + String(entrada.email || "").toLowerCase();
+    if (vistos[clave]) return;
+    vistos[clave] = true;
+    lista.push(entrada);
+  }
   var propioEmail = String(settings.email || settings.userEmail || "").trim();
   var propioPassword = String(settings.password || settings.userPassword || "");
   if (propioEmail && propioPassword) {
-    lista.push(propioEmail + ":" + propioPassword);
+    agregar({ email: propioEmail, password: propioPassword, token: "" });
   }
   var partes = String(settings.qobuzPool || "").split("\n");
   for (var i = 0; i < partes.length; i++) {
-    var p = String(partes[i] || "").trim();
-    if (p.indexOf(":") > 0 && lista.indexOf(p) < 0) lista.push(p);
+    agregar(qobuzEntradaDePool(partes[i]));
   }
   return lista;
 }
@@ -2886,6 +3059,16 @@ function qobuzDirectLogin() {
   var payload = null;
 
   for (var intento = 0; intento < intentos; intento++) {
+    // Entrada de token suelto del pool: ya trae sesión, no hay login que hacer.
+    if (!CONFIG.userEmail && !CONFIG.userPassword && CONFIG.userAuthToken) {
+      CONFIG.userAuthTokenExpiresAt = Date.now() + QOBUZ_TOKEN_SESION_MS;
+      return CONFIG.userAuthToken;
+    }
+    if (!CONFIG.userEmail || !CONFIG.userPassword) {
+      // Entrada sin credenciales con las que loguear: se rota a la siguiente.
+      if (qobuzRotarCuenta()) continue;
+      break;
+    }
     try {
       payload = postJSON(
         loginURL,
@@ -2930,6 +3113,14 @@ function qobuzDirectLogin() {
     // El token sobra para una sesión de descarga; se renueva a las 6 h para no
     // arrastrar una sesión muerta en la siguiente apertura de la app.
     CONFIG.userAuthTokenExpiresAt = Date.now() + 6 * 60 * 60 * 1000;
+    // Se persiste (atado a la cuenta y con vencimiento) para no volver a loguear
+    // en la primera descarga del próximo arranque.
+    userAuthTokenDeStorage = false;
+    guardarTokenGuardado(
+      CONFIG.userEmail,
+      token,
+      CONFIG.userAuthTokenExpiresAt,
+    );
     return token;
   }
 
@@ -2953,63 +3144,94 @@ function directDownloadRestrictionCodes(payload) {
 }
 
 function fetchDirectDownloadInfo(trackID, qualityCode) {
-  var token = qobuzDirectLogin();
   var url = qobuzSignedURL("track", "getFileUrl", {
     track_id: String(trackID || "").trim(),
     format_id: String(qualityCode || "6"),
     intent: "stream",
   });
 
-  var payload = getJSON(
-    url,
-    requestHeaders(url, {
-      "X-App-Id": CONFIG.previewAppID,
-      "X-User-Auth-Token": token,
-    }),
+  // Un UserUnauthenticated puede venir de un token muerto (el persistido o uno
+  // suelto del pool): en vez de apagar la ruta directa entera, se descarta esa
+  // credencial y se prueba la siguiente. Se acota a una vuelta por credencial
+  // del pool más una para el token persistido.
+  var intentos = (qobuzCuentas.length > 1 ? qobuzCuentas.length : 1) + 1;
+  for (var intento = 0; intento < intentos; intento++) {
+    var token = qobuzDirectLogin();
+    var payload = getJSON(
+      url,
+      requestHeaders(url, {
+        "X-App-Id": CONFIG.previewAppID,
+        "X-User-Auth-Token": token,
+      }),
+    );
+
+    var codes = directDownloadRestrictionCodes(payload);
+    if (codes.indexOf("UserUnauthenticated") >= 0) {
+      if (userAuthTokenDeStorage) {
+        // El token persistido quedó muerto (se cambió la contraseña o se cerró
+        // la sesión en Qobuz). En vez de apagar la ruta directa por un token
+        // viejo, se descarta y se reintenta con un login fresco. Sin esto la
+        // persistencia sería una regresión: el primer arranque podría apagar la
+        // descarga directa por culpa del token guardado.
+        invalidarTokenGuardado();
+        CONFIG.userAuthToken = "";
+        CONFIG.userAuthTokenExpiresAt = 0;
+        userAuthTokenDeStorage = false;
+        continue;
+      }
+      // Token SUELTO del pool muerto: no hay contraseña con la que reloguear,
+      // así que se rota a la siguiente entrada (si la hay).
+      if (!CONFIG.userEmail && CONFIG.userAuthToken && qobuzRotarCuenta()) {
+        continue;
+      }
+      // La sesión no autoriza la lectura completa: se desactiva la ruta directa
+      // para no repetir el rechazo en cada intento ni en cada calidad.
+      DIRECT_SESSION_DISABLED = true;
+      var unauthenticatedError = new Error(
+        "Qobuz direct: sesión no autorizada (UserUnauthenticated)",
+      );
+      unauthenticatedError.code = "UNAUTHORIZED";
+      throw unauthenticatedError;
+    }
+
+    var directURL = String((payload && payload.url) || "").trim();
+    if (!directURL) {
+      var unavailableError = new Error(
+        "Qobuz direct: sin URL para formato " +
+          String(qualityCode || "") +
+          (codes.length ? " (" + codes.join(", ") + ")" : ""),
+      );
+      unavailableError.code = "QUALITY_UNAVAILABLE";
+      throw unavailableError;
+    }
+    // sample=true son los 30 s de vista previa: nunca es el archivo bueno.
+    if (payload.sample === true) {
+      var sampleError = new Error("Qobuz direct returned SAMPLE asset");
+      sampleError.code = "QUALITY_UNAVAILABLE";
+      throw sampleError;
+    }
+
+    var sampleRate = Number(payload.sampling_rate || 0);
+    if (sampleRate > 0 && sampleRate < 1000) {
+      sampleRate = Math.round(sampleRate * 1000);
+    }
+
+    return {
+      directURL: directURL,
+      bitDepth: Number(payload.bit_depth || 0),
+      sampleRate: sampleRate,
+      provider: "qobuz-direct",
+      qualityCode: String(qualityCode || ""),
+      candidateKey: "qobuz-direct@" + String(qualityCode || ""),
+    };
+  }
+
+  DIRECT_SESSION_DISABLED = true;
+  var agotado = new Error(
+    "Qobuz direct: ninguna credencial del pool pudo entregar el archivo",
   );
-
-  var codes = directDownloadRestrictionCodes(payload);
-  if (codes.indexOf("UserUnauthenticated") >= 0) {
-    // La sesión no autoriza la lectura completa: se desactiva la ruta directa
-    // para no repetir el rechazo en cada intento ni en cada calidad.
-    DIRECT_SESSION_DISABLED = true;
-    var unauthenticatedError = new Error(
-      "Qobuz direct: sesión no autorizada (UserUnauthenticated)",
-    );
-    unauthenticatedError.code = "UNAUTHORIZED";
-    throw unauthenticatedError;
-  }
-
-  var directURL = String((payload && payload.url) || "").trim();
-  if (!directURL) {
-    var unavailableError = new Error(
-      "Qobuz direct: sin URL para formato " +
-        String(qualityCode || "") +
-        (codes.length ? " (" + codes.join(", ") + ")" : ""),
-    );
-    unavailableError.code = "QUALITY_UNAVAILABLE";
-    throw unavailableError;
-  }
-  // sample=true son los 30 s de vista previa: nunca es el archivo bueno.
-  if (payload.sample === true) {
-    var sampleError = new Error("Qobuz direct returned SAMPLE asset");
-    sampleError.code = "QUALITY_UNAVAILABLE";
-    throw sampleError;
-  }
-
-  var sampleRate = Number(payload.sampling_rate || 0);
-  if (sampleRate > 0 && sampleRate < 1000) {
-    sampleRate = Math.round(sampleRate * 1000);
-  }
-
-  return {
-    directURL: directURL,
-    bitDepth: Number(payload.bit_depth || 0),
-    sampleRate: sampleRate,
-    provider: "qobuz-direct",
-    qualityCode: String(qualityCode || ""),
-    candidateKey: "qobuz-direct@" + String(qualityCode || ""),
-  };
+  agotado.code = "UNAUTHORIZED";
+  throw agotado;
 }
 
 function resolveDownloadInfo(trackID, requestedQuality, rejectedCandidates) {
@@ -3488,6 +3710,173 @@ function completeGrant() {
   return result;
 }
 
+// ─────────────────────────────────────────────────────────────
+// HOME FEED — /album/getFeatured y /playlist/getFeatured.
+//
+// Por qué esos dos: son lo único EDITORIAL que la API pública sirve sin
+// sesión (el país de CONFIG manda, igual que en la búsqueda). Comprobado a
+// mano con el app_id del widget: new-releases y most-streamed devuelven
+// álbumes; editor-picks devuelve listas. press-awards viene vacío para esta
+// región, así que no se pide: una sección vacía solo gasta una petición.
+//
+// Cada sección es INDEPENDIENTE (best-effort): si Qobuz rota un tipo o deja
+// de responder, las otras siguen. Sin ninguna, success:false para que el
+// backend lo cuente como "esta fuente no aportó".
+//
+// Los ids salen con el MISMO prefijo que los de la búsqueda (`qobuz:<id>`), así
+// el toque desde el feed recorre el camino ya probado (getAlbum/getPlaylist)
+// en vez de una rama nueva.
+// ─────────────────────────────────────────────────────────────
+
+var HOME_FEED_MAX_POR_LISTA = 20;
+
+// aItemFeedHome adapta un resultado de la búsqueda al contrato del feed: la
+// búsqueda usa `item_type` y el feed espera `type`.
+function aItemFeedHome(item, tipo) {
+  if (!item || !item.id) return null;
+  return {
+    id: String(item.id || ""),
+    uri: String(item.external_urls || ""),
+    type: String(tipo || item.item_type || "track"),
+    name: String(item.name || ""),
+    artists: String(item.artists || ""),
+    album_id: String(item.album_id || ""),
+    album_name: String(item.album_name || ""),
+    duration_ms: Number(item.duration_ms || 0),
+    cover_url: String(item.cover_url || item.images || ""),
+    isrc: String(item.isrc || ""),
+    provider_id: "qobuz-web",
+  };
+}
+
+// albumDestacadoAItem arma el item de un álbum destacado con los MISMOS
+// helpers que la búsqueda (albumDisplayTitle/albumImage/joinArtistNames), para
+// que el id y la carátula no diverjan entre los dos caminos.
+function albumDestacadoAItem(album) {
+  return aItemFeedHome(
+    {
+      id: withPrefix(album.id),
+      name: albumDisplayTitle(album),
+      artists: joinArtistNames(
+        album.artists || [],
+        album.artist && album.artist.name,
+      ),
+      album_id: withPrefix(album.id),
+      album_name: albumDisplayTitle(album),
+      cover_url: albumImage(album),
+      duration_ms: 0,
+      external_urls: qobuzAlbumURL(album),
+      item_type: "album",
+    },
+    "album",
+  );
+}
+
+// playlistDestacadaAItem arma el item de una lista editorial. La carátula
+// buena es image_rectangle (la portada compuesta de 4 discos); images[] son
+// las tapas sueltas y se usa la primera como respaldo.
+function playlistDestacadaAItem(playlist) {
+  var caratula = String(playlist.image_rectangle || "");
+  if (!caratula && playlist.images && playlist.images.length) {
+    caratula = String(playlist.images[0] || "");
+  }
+  return aItemFeedHome(
+    {
+      id: withPrefix(playlist.id),
+      name: String(playlist.name || ""),
+      artists: String((playlist.owner && playlist.owner.name) || ""),
+      cover_url: upscaleImageURL(caratula),
+      external_urls:
+        CONFIG.openBaseURL + "/playlist/" + String(playlist.id || ""),
+      item_type: "playlist",
+    },
+    "playlist",
+  );
+}
+
+// destacadosQobuz pide un bloque de destacados y devuelve su lista de items.
+// [clave] es "albums" o "playlists" (así se llama el contenedor en la API).
+function destacadosQobuz(ruta, params, clave) {
+  var payload = getMetadataJSON(ruta, params, function (response) {
+    return !!(response && response[clave] && response[clave].items);
+  });
+  return (payload[clave] && payload[clave].items) || [];
+}
+
+function getHomeFeed() {
+  var cacheKey = "qobuz-web:homefeed";
+  var cacheado = metadataCacheGet(cacheKey);
+  if (cacheado) return cacheado;
+
+  try {
+    var secciones = [];
+
+    // Cada entrada del plan es una sección: su ruta, el `type` que exige la
+    // API, el contenedor de la respuesta y cómo se convierte cada item.
+    var plan = [
+      {
+        titulo: "Novedades",
+        ruta: "album/getFeatured",
+        tipo: "new-releases",
+        clave: "albums",
+        aItem: albumDestacadoAItem,
+      },
+      {
+        titulo: "Lo más escuchado",
+        ruta: "album/getFeatured",
+        tipo: "most-streamed",
+        clave: "albums",
+        aItem: albumDestacadoAItem,
+      },
+      {
+        titulo: "Selección del editor",
+        ruta: "playlist/getFeatured",
+        tipo: "editor-picks",
+        clave: "playlists",
+        aItem: playlistDestacadaAItem,
+      },
+    ];
+
+    for (var s = 0; s < plan.length; s++) {
+      var entrada = plan[s];
+      try {
+        var params = {
+          type: entrada.tipo,
+          limit: HOME_FEED_MAX_POR_LISTA,
+          offset: 0,
+          app_id: CONFIG.widgetAppID,
+        };
+        var crudos = destacadosQobuz(entrada.ruta, params, entrada.clave);
+        var items = [];
+        for (var i = 0; i < crudos.length; i++) {
+          var item = entrada.aItem(crudos[i]);
+          if (item && item.id) items.push(item);
+        }
+        if (items.length) {
+          secciones.push({ uri: "", title: entrada.titulo, items: items });
+        }
+      } catch (e) {
+        log.warn(
+          "[QobuzWeb] feed: " + entrada.titulo + " no disponible: " + e.message,
+        );
+      }
+    }
+
+    if (!secciones.length) {
+      return { success: false, error: "Qobuz sin destacados", sections: [] };
+    }
+    log.info("[QobuzWeb] Home feed: " + secciones.length + " secciones");
+    return metadataCacheSet(
+      cacheKey,
+      { success: true, greeting: "", sections: secciones },
+      CONFIG.metadataCacheTtlMs,
+    );
+  } catch (e) {
+    log.error("[QobuzWeb] getHomeFeed failed: " + String(e));
+    return { success: false, error: String(e), sections: [] };
+  }
+}
+
 registerExtension({
   initialize: initialize,
   cleanup: cleanup,
@@ -3502,6 +3891,7 @@ registerExtension({
   getPlaylist: getPlaylist,
   enrichTrack: enrichTrack,
   searchTracks: searchTracks,
+  getHomeFeed: getHomeFeed,
 });
 
 log.info("[QobuzWeb] Qobuz extension loaded");

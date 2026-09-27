@@ -71,7 +71,11 @@ class ServicioCredencialesProveedor {
       }
     }
 
-    if (ajustes.isEmpty) {
+    // Sin nada guardado se saltea el push... salvo que el proveedor tenga un
+    // origen de fábrica que se activa con el push (ver ConfigProveedor.
+    // empujarSiempre): ahí el mapa vacío es justamente lo que dispara el
+    // pool por defecto en el backend.
+    if (ajustes.isEmpty && !proveedor.empujarSiempre) {
       debugPrint(
         '[CredencialesProveedor] Sin credenciales guardadas de ${proveedor.nombreMostrado}',
       );
