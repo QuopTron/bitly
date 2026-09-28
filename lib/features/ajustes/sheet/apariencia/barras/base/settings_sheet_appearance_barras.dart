@@ -22,6 +22,7 @@ class _BarrasCard extends StatefulWidget {
   final AppLocalizations loc;
 
   const _BarrasCard({
+    super.key,
     required this.glowColor,
     required this.onBg,
     required this.r,
@@ -84,6 +85,16 @@ class _BarrasCardState extends State<_BarrasCard> {
                   r: r,
                   onBg: onBg,
                 ),
+                // Tamaño y forma son del MINIPLAYER: el navbar no tiene
+                // carátula que agrandar ni se despega del borde.
+                if (!_navbar)
+                  _MiniplayerPresets(
+                    prefs: prefs,
+                    t: t.barras,
+                    r: r,
+                    onBg: onBg,
+                    glowColor: widget.glowColor,
+                  ),
                 SizedBox(height: r.spacingM),
                 _CofreDisenos(
                   navbar: _navbar,

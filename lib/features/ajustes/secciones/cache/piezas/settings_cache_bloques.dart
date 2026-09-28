@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────
 // settings_cache_bloques.dart — Cabecera de la sección de caché de
-// streaming: ícono, título y spinner o botón "Limpiar".
+// streaming: ícono, título y esqueleto o botón "Limpiar".
 // Se conecta con: settings_cache_section.dart (la usa).
 // Parte del flujo: Ajustes → Rendimiento/Descargas (caché).
 // ─────────────────────────────────────────────────────────────
@@ -9,8 +9,9 @@ import 'package:flutter/material.dart';
 
 import '../../../../../l10n/app_localizations.dart';
 import '../../../../../shared/utilidades/plataforma/responsive.dart';
+import '../../../../../shared/widgets/esqueletos/esqueleto_carga.dart';
 
-/// Cabecera de la sección de caché: ícono, título, spinner o botón Limpiar.
+/// Cabecera de la sección de caché: ícono, título, esqueleto o botón Limpiar.
 Widget cacheHeaderRow({
   required BuildContext context,
   required Responsive r,
@@ -35,14 +36,14 @@ Widget cacheHeaderRow({
           ),
         ),
       ),
+      // Mientras se calcula el tamaño no se pone un circulito: el hueco toma
+      // la forma del botón que va a aparecer ahí (mismo alto y esquinas), así
+      // la fila no cambia de alto cuando termina de cargar.
       if (loading)
-        SizedBox(
-          width: 18,
-          height: 18,
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            color: onBg.withValues(alpha: 0.3),
-          ),
+        EsqueletoEtiqueta(
+          ancho: r.footerSize * 3 + 30,
+          alto: r.footerSize + 9,
+          radioBorde: 8,
         ),
       if (!loading)
         GestureDetector(
@@ -56,15 +57,14 @@ Widget cacheHeaderRow({
                       : Colors.redAccent.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(8),
             ),
+            // Limpiando: en vez del circulito, una barra con la forma de la
+            // etiqueta del botón (que es lo que vuelve cuando termina).
             child:
                 clearing
-                    ? SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: onBg.withValues(alpha: 0.4),
-                      ),
+                    ? EsqueletoEtiqueta(
+                      ancho: r.footerSize * 3 + 18,
+                      alto: r.footerSize + 1,
+                      radioBorde: 4,
                     )
                     : Row(
                       mainAxisSize: MainAxisSize.min,

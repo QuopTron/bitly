@@ -20,10 +20,20 @@ class EnvoltorioColorDinamico extends StatelessWidget {
   builder;
   final ThemeMode? themeModeOverride;
 
+  /// Familia tipográfica con la que se pinta TODA la app (Ajustes → Apariencia
+  /// → Tipografía).
+  ///
+  /// Antes la app empaquetaba Google Sans Flex y nunca la aplicaba: el
+  /// `ThemeData` no declaraba `fontFamily`, así que todo se dibujaba con la
+  /// tipografía del sistema. Con esto la elección del usuario llega de verdad
+  /// al tema. null = la del sistema (mientras la elegida se termina de bajar).
+  final String? fontFamily;
+
   const EnvoltorioColorDinamico({
     super.key,
     required this.builder,
     this.themeModeOverride,
+    this.fontFamily,
   });
 
   @override
@@ -46,6 +56,7 @@ class EnvoltorioColorDinamico extends StatelessWidget {
       brightness: Brightness.light,
       colorSchemeSeed: const Color(0xFF333333), // Neutro
       scaffoldBackgroundColor: const Color(0xFFF5F5F5),
+      fontFamily: fontFamily,
     );
   }
 
@@ -55,6 +66,7 @@ class EnvoltorioColorDinamico extends StatelessWidget {
       brightness: Brightness.dark,
       colorSchemeSeed: const Color(0xFFE0E0E0), // Neutro
       scaffoldBackgroundColor: const Color(0xFF121212),
+      fontFamily: fontFamily,
     );
   }
 }

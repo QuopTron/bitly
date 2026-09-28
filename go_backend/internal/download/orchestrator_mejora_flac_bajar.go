@@ -1,14 +1,20 @@
 // ─────────────────────────────────────────────────────────────
 // orchestrator_mejora_flac_bajar.go — Bajada del FLAC de la mejora:
-// arma las URLs candidatas (SITIOS RASPABLES primero, contrato de
-// espejos después), baja la primera que pase la validación y reemplaza
-// el archivo con pérdida.
+// arma las URLs candidatas (SITIOS RASPABLES y contrato de espejos a la
+// vez), baja la primera validada y reemplaza el archivo con pérdida.
 //
-// Por qué los sitios primero: los espejos con contrato se quedaron sin
-// cuentas vivas y el canal Qobuz firmado devuelve una muestra de 30 s
-// sin token de suscriptor, así que el contrato de espejos hoy casi nunca
-// da audio. Los sitios raspables (superflac) entregan el FLAC real sin
-// cuenta en unos segundos.
+// Por qué los dos caminos van en PARALELO: son independientes y cada uno
+// tiene su presupuesto (los sitios, hasta 45s). En serie, el que se
+// quedaba sin cuentas arrastraba su espera completa al otro aunque el
+// segundo ya tuviera el FLAC en la mano: el usuario veía "mejorando…"
+// durante casi un minuto por una fuente muerta.
+//
+// Por qué ya no hay "sitios primero": los dos caminos terminan en un
+// archivo VALIDADO (FLAC de verdad y de la duración pedida, ver
+// descargarFLACValidado), así que el primero que llegue sirve. La
+// preferencia histórica por los sitios era porque el contrato de espejos
+// "casi nunca daba audio"; con el canal sin pérdida (stash/arcod) eso
+// dejó de ser cierto.
 //
 // Se conecta con: mejora_flac.go y orchestrator_mejora_flac.go.
 // Parte del flujo: descargas (después de entregar).
@@ -20,6 +26,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/zarz/bitly/go_backend/internal/provider"
 )
@@ -39,6 +46,14 @@ type urlFLAC struct {
 	origen    string
 	url       string
 	soloUnUso bool
+}
+
+// candidatasResueltas es lo que devuelve UN camino de resolución: los enlaces
+// que propone y los motivos de los que ya fallaron antes de bajar nada (para
+// que el log diga POR QUÉ no hubo FLAC).
+type candidatasResueltas struct {
+	candidatas []urlFLAC
+	motivos    []string
 }
 
 // bajarFLACDe resuelve la canción en [name] y baja el archivo sin pérdida ya
@@ -61,14 +76,22 @@ func (o *Orchestrator) bajarFLACDe(t trabajoMejoraFLAC, name string, p provider.
 		return destino, nil
 	}
 
-	candidatas, motivos := o.urlsFLACCandidatas(t, name, p)
-	for _, candidata := range candidatas {
-		ruta, err := o.descargarFLACValidado(t, candidata)
-		if err != nil {
+	// Los dos caminos se resuelven A LA VEZ y cada uno se usa apenas llega: si
+	// el de los sitios se quedó colgado esperando su cupo, el de los espejos
+	// baja el FLAC igual, sin esperar a que el otro termine de rendirse.
+	var motivos []string
+	for resueltas := range resolverEnParalelo(
+		func() candidatasResueltas { return o.candidatasSitios(t, p) },
+		func() candidatasResueltas { return o.candidatasEspejos(t, name, p) },
+	) {
+		motivos = append(motivos, resueltas.motivos...)
+		for _, candidata := range resueltas.candidatas {
+			ruta, err := o.descargarFLACValidado(t, candidata)
+			if err == nil {
+				return ruta, nil
+			}
 			motivos = append(motivos, candidata.origen+": "+err.Error())
-			continue
 		}
-		return ruta, nil
 	}
 	if len(motivos) == 0 {
 		motivos = append(motivos, "sin fuentes que consultar")
@@ -76,42 +99,63 @@ func (o *Orchestrator) bajarFLACDe(t trabajoMejoraFLAC, name string, p provider.
 	return "", fmt.Errorf("%s", strings.Join(motivos, "; "))
 }
 
-// urlsFLACCandidatas arma, en orden de intento, los enlaces que pueden entregar
-// el sin pérdida de esta canción, junto con los motivos de los canales que ya
-// fallaron antes de bajar nada (para que el log diga POR QUÉ no hubo FLAC).
-func (o *Orchestrator) urlsFLACCandidatas(t trabajoMejoraFLAC, name string, p provider.Provider) ([]urlFLAC, []string) {
-	var candidatas []urlFLAC
-	var motivos []string
-
-	// 1) Sitios raspables (flac-rescue los implementa). Necesitan el título y
-	// el artista del catálogo: son la única forma de confirmar que el sitio
-	// devolvió la canción pedida, porque busca por texto y no por ISRC.
-	if sitios, ok := p.(resolutorSitioFLAC); ok {
-		switch {
-		case t.req.ISRC == "":
-			motivos = append(motivos, "sitios: sin ISRC con el que buscar")
-		default:
-			url, sitio, err := sitios.ResolverSitioFLAC(t.req.ISRC, t.req.Title, t.req.Artist, t.req.DurationMS, "FLAC")
-			if err != nil || url == "" {
-				motivos = append(motivos, fmt.Sprintf("sitios: %v", err))
-			} else {
-				candidatas = append(candidatas, urlFLAC{origen: "sitio " + sitio, url: url, soloUnUso: true})
-			}
-		}
+// resolverEnParalelo corre las [resoluciones] a la vez y entrega el resultado
+// de cada una APENAS está, en el orden en que van llegando. El canal se cierra
+// cuando terminaron todas: quien lo consume sabe que ya no va a llegar nada más
+// (y así puede cortar apenas una le sirve, sin esperar a las lentas).
+//
+// Se asume a cambio que el camino que queda en vuelo NO se cancela (el contrato
+// del resolutor no lleva contexto): termina solo, acotado por su propio
+// presupuesto, y su resultado se descarta al cerrarse el canal. Es el precio de
+// no hacer esperar la descarga al camino más lento, y el presupuesto de cada uno
+// ya acota ese trabajo de más.
+func resolverEnParalelo(resoluciones ...func() candidatasResueltas) <-chan candidatasResueltas {
+	listos := make(chan candidatasResueltas, len(resoluciones))
+	var wg sync.WaitGroup
+	for _, resolucion := range resoluciones {
+		wg.Add(1)
+		go func(r func() candidatasResueltas) {
+			defer wg.Done()
+			listos <- r()
+		}(resolucion)
 	}
+	go func() { wg.Wait(); close(listos) }()
+	return listos
+}
 
-	// 2) Contrato de espejos / Qobuz firmado del propio provider.
+// candidatasSitios resuelve por los SITIOS raspables. Necesitan el título y el
+// artista del catálogo: son la única forma de confirmar que el sitio devolvió la
+// canción pedida, porque busca por texto y no por ISRC.
+func (o *Orchestrator) candidatasSitios(t trabajoMejoraFLAC, p provider.Provider) candidatasResueltas {
+	sitios, ok := p.(resolutorSitioFLAC)
+	if !ok {
+		return candidatasResueltas{}
+	}
+	if t.req.ISRC == "" {
+		return candidatasResueltas{motivos: []string{"sitios: sin ISRC con el que buscar"}}
+	}
+	url, sitio, err := sitios.ResolverSitioFLAC(t.req.ISRC, t.req.Title, t.req.Artist, t.req.DurationMS, "FLAC")
+	if err != nil || url == "" {
+		return candidatasResueltas{motivos: []string{fmt.Sprintf("sitios: %v", err)}}
+	}
+	return candidatasResueltas{
+		candidatas: []urlFLAC{{origen: "sitio " + sitio, url: url, soloUnUso: true}},
+	}
+}
+
+// candidatasEspejos resuelve por el contrato de espejos / canal sin pérdida del
+// propio provider (flac-rescue los reúne: Qobuz firmado, stash-relay, arcod y
+// los espejos por ISRC).
+func (o *Orchestrator) candidatasEspejos(t trabajoMejoraFLAC, name string, p provider.Provider) candidatasResueltas {
 	id, _, _ := resolverTrackIDProvider(p, name, t.req)
 	if id == "" {
-		motivos = append(motivos, "espejos: no se pudo identificar la canción")
-		return candidatas, motivos
+		return candidatasResueltas{motivos: []string{"espejos: no se pudo identificar la canción"}}
 	}
 	url, err := p.GetStreamURL(id, "FLAC")
 	if err != nil || url == "" {
-		motivos = append(motivos, fmt.Sprintf("espejos: %v", err))
-		return candidatas, motivos
+		return candidatasResueltas{motivos: []string{fmt.Sprintf("espejos: %v", err)}}
 	}
-	return append(candidatas, urlFLAC{origen: "espejos", url: url}), motivos
+	return candidatasResueltas{candidatas: []urlFLAC{{origen: "espejos", url: url}}}
 }
 
 // descargarFLACValidado baja [url] y solo la devuelve si el archivo es un FLAC

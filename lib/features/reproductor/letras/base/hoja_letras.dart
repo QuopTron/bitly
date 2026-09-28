@@ -24,6 +24,7 @@ import '../../../../shared/utilidades/portada/paleta/paleta_portada.dart';
 import '../../../../shared/utilidades/modales/mostrar_modal.dart';
 import '../../../../shared/utilidades/plataforma/responsive.dart';
 import '../../../../l10n/app_localizations.dart';
+import '../../../../shared/widgets/esqueletos/esqueleto_carga.dart';
 import '../../../../shared/widgets/texto/mini_karaoke_letra.dart';
 import '../../../../shared/widgets/texto/texto_linea_letra.dart';
 import '../../../../shared/widgets/vidrio/base/fondo_reactivo_portada.dart';

@@ -19,6 +19,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 )
 
 // proxyDePrueba arma un servidor que acepta peticiones en forma de proxy y
@@ -88,6 +89,29 @@ func TestProxyCubreSitiosRaspables(t *testing.T) {
 	}
 	if NewClient().http.Transport != transporteRescate {
 		t.Fatal("el cliente de espejos/arcod/Qobuz no usa el transporte compartido")
+	}
+}
+
+// TestProxyCubreLaComprobacionDelEnlaceArcod: la comprobación que se le hace al
+// enlace firmado de arcod NO puede salir directa. Va a OTRO host
+// (api.arcod.xyz) que el catálogo, y si la región del usuario está bloqueada esa
+// comprobación fallaba por su cuenta: el canal creía que el enlace no servía y
+// el rescate seguía de largo sin motivo.
+func TestProxyCubreLaComprobacionDelEnlaceArcod(t *testing.T) {
+	proxy, recibidos := proxyDePrueba(t)
+	SetProxy(proxy.URL)
+
+	const enlace = "http://cdn-arcod.invalid/v2/stream/play?t=v1.abc"
+	if err := enlaceArcodSirveAudio(enlace, time.Now().Add(2*time.Second)); err != nil {
+		t.Fatalf("el enlace (200 del proxy) debería servir: %v", err)
+	}
+	if len(*recibidos) == 0 {
+		t.Fatal("la comprobación salió directo: el proxy no la vio")
+	}
+	for _, host := range *recibidos {
+		if host != "cdn-arcod.invalid" {
+			t.Fatalf("el proxy recibió el host %q, se esperaba cdn-arcod.invalid", host)
+		}
 	}
 }
 

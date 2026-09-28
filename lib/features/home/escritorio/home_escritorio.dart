@@ -20,7 +20,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/cache/estado/estado_cola.dart';
 import '../../../estado/cola/cubit_cola.dart';
 import '../../../shared/tema/colores_app.dart';
+import '../../../shared/utilidades/formato/apariencia/barras/miniplayer_geometria.dart';
 import '../../../shared/utilidades/plataforma/responsive.dart';
+import '../../../shared/widgets/reproductor/base/marco_miniplayer.dart';
 import '../../../shared/tema/especificaciones/especificaciones_plataforma.dart';
 import '../../../shared/widgets/fondos/ambiente/fondo_ambiente.dart';
 import '../../tutorial_interactivo/motor/base/tutorial_controller.dart';
@@ -51,7 +53,10 @@ class HomeEscritorio extends StatefulWidget {
 
 class _HomeEscritorioState extends State<HomeEscritorio>
     with SingleTickerProviderStateMixin {
-  int _tab = 1; // Inicio por defecto.
+  /// Sección abierta: se lee del notificador compartido con los otros dos
+  /// shells (ver `pestanaHomeInicial`), así volver a la Home —o cambiar de
+  /// escritorio a celular— cae donde el usuario estaba.
+  late int _tab;
 
   /// Última pestaña que pidió el tutorial (para no repetir el cambio).
   int? _pestanaTutorialAplicada;
@@ -68,6 +73,7 @@ class _HomeEscritorioState extends State<HomeEscritorio>
   @override
   void initState() {
     super.initState();
+    _tab = pestanaHomeInicial();
     _transicion = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 340),
@@ -86,6 +92,7 @@ class _HomeEscritorioState extends State<HomeEscritorio>
 
   void _cambiarTab(int i) {
     if (i == _tab) return;
+    guardarPestanaHome(i);
     setState(() => _tab = i);
     _transicion.forward(from: 0);
   }

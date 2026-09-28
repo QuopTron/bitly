@@ -87,10 +87,13 @@ class _ProfileStatsViewState extends State<_ProfileStatsView> {
     final onBg = ColoresApp.enSuperficie(isDark);
     final glow = widget.glowColor;
 
+    // Mientras llegan los números se muestra un esqueleto con LA FORMA de lo
+    // que va a aparecer (el resumen de contadores arriba y las filas de las
+    // más escuchadas abajo) y no una ruedita: la ruedita no dice qué esperar y
+    // el contenido después "salta" de la nada. Las medidas son las mismas de
+    // las piezas reales, así el cambio no mueve nada de lugar.
     if (_loading) {
-      return Center(
-        child: CircularProgressIndicator(strokeWidth: 2, color: glow),
-      );
+      return _EsqueletoStats(glowColor: glow, onBg: onBg, r: r);
     }
 
     return SingleChildScrollView(
@@ -118,4 +121,73 @@ class _ProfileStatsViewState extends State<_ProfileStatsView> {
       ),
     );
   }
+}
+
+/// Esqueleto de las estadísticas: la silueta del resumen y de las filas.
+///
+/// No inventa formas nuevas: repite la estructura de `_StatsSummarySection`
+/// (un bloque de contadores) y de `_StatsTopTracksSection` (filas de canción),
+/// con los mismos paddings del contenido real.
+class _EsqueletoStats extends StatelessWidget {
+  final Color glowColor;
+  final Color onBg;
+  final Responsive r;
+
+  const _EsqueletoStats({
+    required this.glowColor,
+    required this.onBg,
+    required this.r,
+  });
+
+  @override
+  Widget build(BuildContext context) => SingleChildScrollView(
+    padding: EdgeInsets.all(r.spacingL),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Los contadores: cuatro tubos, como los números reales.
+        EsqueletoCarga(alto: r.spacingL, radioBorde: 10),
+        SizedBox(height: r.spacingS),
+        Row(
+          children: [
+            for (var i = 0; i < 4; i++) ...[
+              if (i > 0) SizedBox(width: r.spacingS),
+              Expanded(
+                child: EsqueletoCarga(alto: r.spacingL * 2, radioBorde: 12),
+              ),
+            ],
+          ],
+        ),
+        SizedBox(height: r.spacingM),
+        // Y las filas de "más escuchadas": carátula + dos líneas.
+        for (var i = 0; i < 5; i++) ...[
+          if (i > 0) SizedBox(height: r.spacingS),
+          Row(
+            children: [
+              EsqueletoCarga(
+                ancho: r.spacingL * 1.4,
+                alto: r.spacingL * 1.4,
+                radioBorde: 10,
+              ),
+              SizedBox(width: r.spacingS),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    EsqueletoCarga(alto: r.footerSize, radioBorde: 6),
+                    SizedBox(height: r.spacingXS),
+                    FractionallySizedBox(
+                      alignment: Alignment.centerLeft,
+                      widthFactor: 0.55,
+                      child: EsqueletoCarga(alto: r.footerSize, radioBorde: 6),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ],
+    ),
+  );
 }

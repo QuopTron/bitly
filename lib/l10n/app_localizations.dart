@@ -31,6 +31,10 @@ import 'strings/sistema/app/strings_premium.dart';
 import 'strings/ajustes/apariencia/strings_apariencia.dart';
 import 'strings/ajustes/apariencia/strings_apariencia_estilo.dart';
 import 'strings/ajustes/apariencia/strings_acciones_rapidas.dart';
+import 'strings/ajustes/apariencia/strings_fuentes.dart';
+import 'strings/ajustes/apariencia/strings_fuentes_idiomas.dart';
+import 'strings/ajustes/apariencia/strings_vistas.dart';
+import 'strings/ajustes/apariencia/strings_vistas_idiomas.dart';
 import 'strings/ajustes/cofre/strings_cofre_paletas.dart';
 import 'strings/ajustes/cofre/strings_cofre_paletas_idiomas.dart';
 import 'strings/reproduccion/descargas/strings_descargas.dart';
@@ -64,6 +68,12 @@ export 'strings/ajustes/apariencia/strings_acciones_rapidas.dart';
 export 'strings/ajustes/cofre/strings_cofre_paletas.dart';
 // Y los datos de sus dos idiomas (cofreEs / cofreEn).
 export 'strings/ajustes/cofre/strings_cofre_paletas_idiomas.dart';
+// Y los de la tipografía (StringsFuentes), con sus dos idiomas.
+export 'strings/ajustes/apariencia/strings_fuentes.dart';
+export 'strings/ajustes/apariencia/strings_fuentes_idiomas.dart';
+// Y los del diseño por vista (StringsVistas), con sus dos idiomas.
+export 'strings/ajustes/apariencia/strings_vistas.dart';
+export 'strings/ajustes/apariencia/strings_vistas_idiomas.dart';
 // Los textos del menú de Ajustes se exportan igual (StringsAjustes).
 export 'strings/ajustes/base/strings_ajustes.dart';
 // Los de la conexión con Google también (StringsConexionGoogle).
@@ -125,6 +135,8 @@ class AppLocalizations {
   late final StringsAccionesRapidas accionesRapidas;
   late final StringsInfoCancion infoCancion;
   late final StringsCofrePaletas cofre;
+  late final StringsFuentes fuentes;
+  late final StringsVistas vistas;
   late final StringsAjustes ajustes;
   late final StringsConexionGoogle google;
   late final StringsSoulseek soulseek;

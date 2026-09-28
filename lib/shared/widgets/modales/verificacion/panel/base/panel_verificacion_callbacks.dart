@@ -11,6 +11,17 @@
 
 part of '../web/panel_verificacion_web.dart';
 
+/// onProgress: avance real de carga del WebView, en 0-100 → 0..1.
+///
+/// Se ignora si la página ya terminó (el aviso llega tarde y volvería a
+/// mostrar la barra) y si el valor no cambió (evita repintar por cada punto).
+void _progreso(_PanelVerificacionWebState st, int progreso) {
+  if (st._paginaCargada || st._fallo) return;
+  final valor = progreso.clamp(0, 100) / 100;
+  if (st._progresoCarga == valor) return;
+  st._setProgreso(valor);
+}
+
 void _chequear(_PanelVerificacionWebState st, String? url) {
   if (url == null) return;
   // Parser TOLERANTE (mismo que el loopback y el puente JS): la URL de

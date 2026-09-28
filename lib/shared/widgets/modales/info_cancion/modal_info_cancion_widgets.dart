@@ -161,15 +161,10 @@ Widget _cabeceraInfo(
             ),
           ),
         ),
+        // Traduciendo: el hueco del botón de traducir se ve como el ícono que
+        // va a volver, del mismo tamaño.
         if (traduciendo)
-          SizedBox(
-            width: 16,
-            height: 16,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: onBg.withValues(alpha: 0.6),
-            ),
-          )
+          EsqueletoMarca(lado: r.footerSize + 4)
         else
           Semantics(
             button: true,

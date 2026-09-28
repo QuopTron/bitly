@@ -33,8 +33,13 @@ Widget _construirTarjetaGrilla(TarjetaGrilla t, BuildContext context) {
                 sl<ValueNotifier<PerfilRendimiento>>().value.efectosPesados &&
                 EfectosApp.desenfoqueActivo;
 
-            // Intensidad del color del cover en las cards (0 = card del tema).
-            final nivel = prefs.cardsGrilla;
+            // Intensidad del color en las cards (0 = card del tema). Si ESTA
+            // vista tiene una paleta del cofre, manda ella y tiene un piso.
+            final nivel = TinteVista.nivelDeCards(context, prefs.cardsGrilla);
+            // El color que puso la vista (si puso alguno) y el acento final:
+            // la paleta MANDA sobre el color del cover.
+            final acentoVista = TinteVista.acentoDe(context);
+            final acento = TinteVista.acentoDeCards(context, t.colorDominante);
 
             // Líneas del modo "unido" (tipo Spotify): aparecen solas cuando la
             // separación llega al extremo (0). La de abajo separa filas; la de la
@@ -123,8 +128,11 @@ Widget _construirTarjetaGrilla(TarjetaGrilla t, BuildContext context) {
                     );
                   }
 
+                  // Con paleta de vista NO se extrae el dominante del cover: ya
+                  // sabemos el color.
                   if (nivel > 0 &&
                       t.colorDominante == null &&
+                      acentoVista == null &&
                       t.coverUrl != null) {
                     return conLineas(
                       _TarjetaGrillaColorWrapper(
@@ -133,7 +141,7 @@ Widget _construirTarjetaGrilla(TarjetaGrilla t, BuildContext context) {
                       ),
                     );
                   }
-                  return conLineas(cuerpo(t.colorDominante));
+                  return conLineas(cuerpo(acento));
                 },
               ),
             );

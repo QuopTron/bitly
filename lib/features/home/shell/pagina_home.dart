@@ -4,8 +4,7 @@
 // TV (navegación arriba), escritorio/web/pantalla ancha (sidebar) y
 // celular/tablet vertical (navbar flotante + PageView). La TV se
 // pregunta primero porque también entra en el layout de escritorio.
-// Recibe las 3 secciones y el miniplayer como slots; se completa
-// cuando se migren Search/Feed/MiEspacio.
+// Recibe las 3 secciones y el miniplayer como slots.
 // Se conecta con: deteccion_plataforma (selectores) + home_movil +
 // home_escritorio + home_tv.
 // Parte del flujo: Home (ruta '/home' tras el splash/setup).
@@ -25,18 +24,12 @@ class PaginaHome extends StatelessWidget {
   final Widget miEspacio;
   final Widget miniPlayer;
 
-  /// Overlay de preparación de sesiones (solo relevante en móvil).
-  final bool preparando;
-  final VoidCallback? onSaltarEspera;
-
   const PaginaHome({
     super.key,
     required this.buscador,
     required this.feed,
     required this.miEspacio,
     required this.miniPlayer,
-    this.preparando = false,
-    this.onSaltarEspera,
   });
 
   @override
@@ -44,6 +37,10 @@ class PaginaHome extends StatelessWidget {
     // Tres variantes: TV (navegación ARRIBA, ver home_tv), PC (barra lateral)
     // y celular (navbar flotante + PageView). La TV se pregunta PRIMERO porque
     // una tele ancha también entraría en el layout de escritorio.
+    //
+    // Los tres shells comparten la pestaña activa (ver `pestanaHomeInicial` en
+    // ensamblador_home.dart), así que cambiar de tamaño/plataforma o volver a
+    // la Home no reinicia dónde estabas.
     if (usarLayoutTv(context)) {
       return HomeTv(
         buscador: buscador,
@@ -67,8 +64,6 @@ class PaginaHome extends StatelessWidget {
       feed: feed,
       miEspacio: miEspacio,
       miniPlayer: miniPlayer,
-      preparando: preparando,
-      onSaltarEspera: onSaltarEspera,
     );
   }
 }

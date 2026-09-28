@@ -88,13 +88,12 @@ Widget _construirFormularioSoulseek(
             ),
             child:
                 cargando
-                    ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
+                    // Conectando: barra con la forma de la etiqueta que vuelve
+                    // cuando termina.
+                    ? const EsqueletoEtiqueta(
+                      ancho: 100,
+                      alto: 15,
+                      sobreColor: true,
                     )
                     : Text(
                       s.botonPrincipal(conectada: conectada),

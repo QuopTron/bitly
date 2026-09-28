@@ -29,11 +29,12 @@ import '../../../../../shared/utilidades/plataforma/responsive.dart';
 import '../../../../../shared/widgets/esqueletos/esqueleto_busqueda.dart';
 import '../../../../../shared/widgets/tarjetas/grilla/base/tarjeta_grilla.dart';
 import '../../../../../shared/widgets/tarjetas/track/base/tarjeta_track.dart';
-import '../../../../../shared/utilidades/formato/comun/formato/estilo_helper.dart';
 import '../../../../../core/servicios/compartir/base/servicio_compartir.dart';
 import '../../../bloc/base/busqueda_estado.dart';
 import '../../../../../shared/utilidades/formato/apariencia/barras/apariencia_espacios_helper.dart';
 import '../../../../../shared/utilidades/formato/apariencia/base/apariencia_helper.dart';
+import '../../../../../shared/utilidades/formato/apariencia/vistas/grilla_vista.dart';
+import '../../../../../shared/utilidades/formato/apariencia/vistas/tinte_vista_helper.dart';
 
 part '../piezas/resultados_busqueda_estados.dart';
 part '../piezas/resultados_busqueda_grilla.dart';

@@ -1,22 +1,23 @@
 // home_movil.dart — Shell de la Home para LAYOUT MÓVIL (celular/tablet
 // vertical): PageView con las 3 secciones (Buscar, Inicio, Mi Espacio)
-// animadas, miniplayer arriba de la navbar flotante y overlay de
-// "Preparando fuentes" mientras se adquieren sesiones. Recibe las páginas
-// y el miniplayer como slots (seccion animada en home_movil_seccion.dart).
+// animadas y mantenidas vivas, y miniplayer arriba de la navbar flotante.
+// Recibe las páginas y el miniplayer como slots (seccion animada en
+// home_movil_seccion.dart).
+//
+// La pestaña activa se lee y se escribe en el notificador compartido con el
+// escritorio y la TV (ver ensamblador_home.dart), así volver a la Home cae
+// donde el usuario estaba y no siempre en Inicio.
 
 import 'package:flutter/material.dart';
-import '../../../../l10n/app_localizations.dart';
 import '../../../../shared/tema/colores_app.dart';
 import '../../../../shared/utilidades/plataforma/pantalla/insets_sistema.dart';
-import '../../../../shared/utilidades/plataforma/responsive.dart';
-import '../../../../shared/tema/especificaciones/especificaciones_plataforma.dart';
+import '../../../../shared/widgets/reproductor/base/marco_miniplayer.dart';
 import '../../../../shared/widgets/fondos/ambiente/fondo_ambiente.dart';
 import '../../../tutorial_interactivo/motor/base/tutorial_controller.dart';
 import '../../shell/ensamblador_home.dart';
 import '../../widgets/flotante/barra_navegacion_flotante.dart';
 
 part '../piezas/home_movil_barra_inferior.dart';
-part '../piezas/home_movil_overlay.dart';
 part 'home_movil_seccion.dart';
 part '../piezas/home_movil_tutorial.dart';
 
@@ -28,18 +29,12 @@ class HomeMovil extends StatefulWidget {
   final Widget miEspacio;
   final Widget miniPlayer;
 
-  /// Overlay de bloqueo mientras se preparan las sesiones (null = listo).
-  final bool preparando;
-  final VoidCallback? onSaltarEspera;
-
   const HomeMovil({
     super.key,
     required this.buscador,
     required this.feed,
     required this.miEspacio,
     required this.miniPlayer,
-    this.preparando = false,
-    this.onSaltarEspera,
   });
 
   @override
@@ -60,7 +55,8 @@ class _HomeMovilState extends State<HomeMovil> {
   @override
   void initState() {
     super.initState();
-    _tab = 1; // Inicio por defecto (índice central).
+    // Donde el usuario dejó la Home la última vez (Inicio la primera vez).
+    _tab = pestanaHomeInicial();
     _pageCtrl = PageController(initialPage: _tab);
   }
 
@@ -76,6 +72,12 @@ class _HomeMovilState extends State<HomeMovil> {
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeOutCubic,
     );
+  }
+
+  void _alCambiarPagina(int i) {
+    if (i == _tab) return;
+    guardarPestanaHome(i);
+    setState(() => _tab = i);
   }
 
   @override
@@ -99,11 +101,14 @@ class _HomeMovilState extends State<HomeMovil> {
           bottom: false,
           child: Stack(
             children: [
-              // PageView de secciones con animación de opacidad/escala.
+              // PageView de secciones con animación de opacidad/escala. Cada
+              // una se queda viva al salir de pantalla (ver _SeccionAnimada):
+              // así la búsqueda, la pestaña y el scroll de una sección no se
+              // reinician al ir a otra y volver.
               Positioned.fill(
                 child: PageView(
                   controller: _pageCtrl,
-                  onPageChanged: (i) => setState(() => _tab = i),
+                  onPageChanged: _alCambiarPagina,
                   children: [
                     _SeccionAnimada(
                       index: 0,
@@ -130,10 +135,7 @@ class _HomeMovilState extends State<HomeMovil> {
                 currentIndex: _tab,
                 onTap: _onNavTap,
               ),
-              // Overlay de preparación de fuentes.
-              if (widget.preparando)
-                _OverlayPreparacion(onSaltarEspera: widget.onSaltarEspera),
-              // (El tutorial interactivo ya no va acá: lo monta TutorialHost
+              // (El tutorial interactivo no va acá: lo monta TutorialHost
               // en el Overlay raíz, así queda también por encima de los
               // modales, como la hoja de ajustes.)
             ],

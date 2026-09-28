@@ -1,7 +1,12 @@
 // ─────────────────────────────────────────────────────────────
-// resolucion.go — Resolución de un ISRC a URL de audio: cascada de
-// formatos (FLAC → MP3_320 → MP3_128) por todos los espejos, con
-// presupuesto de tiempo, caché y errores legibles.
+// resolucion.go — Resolución de un ISRC a URL de audio: la CARRERA
+// de canales (Qobuz firmado, stash-relay, arcod y los espejos por
+// formato), con caché, presupuestos por canal y errores legibles.
+//
+// El orden de intentos ya no es una lista serial: los canales corren
+// a la vez y la preferencia se aplica reteniendo un resultado, no
+// esperándolo antes de empezar (ver resolucion_carrera.go, que
+// explica por qué y qué se conserva).
 //
 // Se conecta con: client.go (configuración) y el orquestador de
 // descarga/streaming, que llama a GetStreamURL.
@@ -19,6 +24,13 @@ import (
 	"strings"
 	"time"
 )
+
+// nombreQobuzFirmado es cómo se reporta el canal de credenciales propias
+// (también es la clave con la que queda en la caché).
+const nombreQobuzFirmado = "qobuz-firmado"
+
+// nombreEspejos es cómo se reporta el canal de los espejos por ISRC.
+const nombreEspejos = "espejos"
 
 // errNoCatalogo es el error de los métodos que flac-rescue no soporta.
 func errNoCatalogo(qué string) error {
@@ -98,8 +110,24 @@ func (c *Client) calidadAFormatos(quality string) []string {
 	}
 }
 
-// resolverPorISRC recorre formatos y espejos hasta encontrar audio.
-// Cachea el resultado positivo y respeta el presupuesto total.
+// ttlDeCanal es lo que se recuerda la URL que entregó [canal]. Los enlaces
+// firmados de terceros caducan, así que su TTL es más corto que el de una URL de
+// CDN de primera mano.
+func ttlDeCanal(canal string) time.Duration {
+	switch canal {
+	case nombreArcod:
+		return ttlArcods
+	case nombreStashRelay:
+		return ttlStashEnlace
+	default:
+		return cacheTTL
+	}
+}
+
+// resolverPorISRC corre TODOS los canales a la vez y devuelve el primero que
+// entregue audio, reteniendo un resultado de menor preferencia una gracia corta
+// a que llegue uno mejor. Cachea el resultado positivo y respeta el presupuesto
+// de cada canal.
 func (c *Client) resolverPorISRC(isrc string, formatos []string) (string, string, error) {
 	c.mu.RLock()
 	espejos := append([]string(nil), c.mirrors...)
@@ -116,50 +144,51 @@ func (c *Client) resolverPorISRC(isrc string, formatos []string) (string, string
 	}
 	c.cacheMu.Unlock()
 
-	// Canal Qobuz firmado PRIMERO cuando hay credenciales: devuelve una URL de
-	// CDN directa (suena al instante, sin bajar ni descifrar el archivo), así
-	// que pagar los espejos antes sería cambiar velocidad por nada. Sin
-	// credenciales esto no hace NI UNA petición (ver qobuzCredenciales), y va
-	// ANTES del control de espejos porque no los necesita.
-	//
-	// Para un pedido SIN PÉRDIDA la respuesta se verifica (ver qobuz_archivo.go):
-	// sin token de suscriptor Qobuz degrada a MP3, y en ese caso el canal falla a
-	// propósito para que los espejos (que sí pueden traer el FLAC) sigan teniendo
-	// la oportunidad.
-	if len(formatos) > 0 {
-		if audioURL, err := c.resolverQobuzFirmado(isrc, formatos[0]); err == nil {
-			c.guardarCache(claveCache, audioURL, "qobuz-firmado")
-			return audioURL, "qobuz-firmado", nil
-		}
+	if len(formatos) == 0 {
+		return "", "", c.guardarFallo(claveCache, errors.New("sin formato que pedir"))
 	}
+	mejor := formatos[0]
+	// Lo que el pedido espera: con calidad sin pérdida, un resultado degradado
+	// (solo los espejos pueden entregarlo) espera a que llegue el FLAC.
+	sinPerdida := mejor == "FLAC"
 
-	// Canal stash-relay (ver stash_relay.go): un relay público del proyecto
-	// Stash mintea una URL de CDN de Qobuz desde el id de la pista SIN cuenta
-	// propia. Va después de Qobuz firmado (que usa las credenciales del usuario)
-	// y ANTES de arcod, cuyo pool público lleva meses vacío: este está vivo y
-	// entrega el mismo FLAC con rangos.
-	if len(formatos) > 0 {
-		if enlace, err := c.resolverStashRelay(isrc, formatos[0]); err == nil {
-			c.guardarCacheTTL(claveCache, enlace, nombreStashRelay, ttlStashEnlace)
-			return enlace, nombreStashRelay, nil
-		}
-	}
+	canales := make([]canalRescate, 0, 4)
 
-	// Canal arcod (ver arcod.go): entrega el FLAC REAL del catálogo de Qobuz
-	// sin cuenta, con soporte de Range, así que sirve para reproducir Y para
-	// descargar. Va antes de los espejos porque los públicos llevan meses sin
-	// cuentas vivas, y después de Qobuz firmado porque aquel es una URL de CDN
-	// de primera mano cuando el usuario tiene credenciales.
-	if len(formatos) > 0 {
-		if enlace, err := c.resolverArcod(isrc, formatos[0]); err == nil {
-			c.guardarCacheTTL(claveCache, enlace, nombreArcod, ttlArcods)
-			return enlace, nombreArcod, nil
-		}
-	}
+	// 1) Qobuz firmado (credenciales propias). Sin credenciales contesta al
+	// instante sin hacer NI UNA petición, así que no retiene nada.
+	canales = append(canales, canalRescate{
+		nombre:     nombreQobuzFirmado,
+		grado:      gradoCredenciales,
+		sinPerdida: sinPerdida,
+		correr: func() (string, bool, error) {
+			audioURL, err := c.resolverQobuzFirmado(isrc, mejor)
+			return audioURL, !sinPerdida, err
+		},
+	})
 
-	if len(espejos) == 0 {
-		return "", "", errors.New("flac-rescue: sin espejos configurados")
-	}
+	// 2) stash-relay: relay público que mintea la URL del CDN de Qobuz. Solo
+	// sirve sin pérdida (un pedido con pérdida se rechaza solo).
+	canales = append(canales, canalRescate{
+		nombre:     nombreStashRelay,
+		grado:      gradoSinPerdida,
+		sinPerdida: true,
+		correr: func() (string, bool, error) {
+			enlace, err := c.resolverStashRelay(isrc, mejor)
+			return enlace, false, err
+		},
+	})
+
+	// 3) arcod: el FLAC real del catálogo de Qobuz, sin cuenta y con rangos (así
+	// que sirve para reproducir Y para descargar).
+	canales = append(canales, canalRescate{
+		nombre:     nombreArcod,
+		grado:      gradoSinPerdida,
+		sinPerdida: sinPerdida,
+		correr: func() (string, bool, error) {
+			enlace, err := c.resolverArcod(isrc, mejor)
+			return enlace, !sinPerdida, err
+		},
+	})
 
 	// Los espejos que ya avisaron que no tienen cuentas vivas se saltan: probarlos
 	// cuesta un timeout entero por formato para un error que no va a cambiar en
@@ -171,32 +200,73 @@ func (c *Client) resolverPorISRC(isrc string, formatos []string) (string, string
 		}
 		vivos = append(vivos, espejo)
 	}
-	if len(vivos) == 0 {
-		return "", "", c.guardarFallo(claveCache, errors.New("todos los espejos est\u00e1n sin cuentas vivas"))
-	}
-	espejos = vivos
 
-	// La cascada de formatos sigue siendo SERIAL (primero FLAC, después MP3):
-	// lo que va en paralelo son los espejos DENTRO de cada formato, así que el
-	// tiempo pasa a ser el del espejo más rápido en vez de la suma de todos.
-	fin := time.Now().Add(presupuestoTotal)
-	var ultimo error
-	for _, formato := range formatos {
-		if time.Now().After(fin) {
-			return "", "", c.guardarFallo(claveCache, fmt.Errorf("tiempo agotado (%v)", ultimo))
-		}
-		audioURL, espejo, err := c.carreraPorFormato(espejos, isrc, formato, fin)
-		if err != nil {
-			ultimo = err
-			continue
-		}
-		c.guardarCache(claveCache, audioURL, espejo)
-		return audioURL, espejo, nil
+	// Con todos los espejos marcados, el canal no existe y guardamos su motivo
+	// para poder decirlo si no hay nada más.
+	var errorEspejos error
+	if len(espejos) > 0 && len(vivos) == 0 {
+		errorEspejos = errors.New("todos los espejos están sin cuentas vivas")
+	} else if len(espejos) == 0 {
+		errorEspejos = errors.New("sin espejos configurados")
 	}
-	if ultimo == nil {
-		ultimo = errors.New("sin respuesta de los espejos")
+
+	// 4) Espejos por ISRC. La cascada de FORMATOS sigue siendo serial (primero
+	// FLAC, después MP3): lo que va en paralelo son los espejos DENTRO de cada
+	// formato, así que el tiempo es el del más rápido en vez de la suma.
+	if len(vivos) > 0 {
+		canales = append(canales, canalRescate{
+			nombre:     nombreEspejos,
+			grado:      gradoEspejos,
+			sinPerdida: true,
+			correr: func() (string, bool, error) {
+				fin := time.Now().Add(presupuestoTotal)
+				var ultimo error
+				for _, formato := range formatos {
+					if time.Now().After(fin) {
+						break
+					}
+					audioURL, _, err := c.carreraPorFormato(vivos, isrc, formato, fin)
+					if err != nil {
+						ultimo = err
+						continue
+					}
+					return audioURL, formato != "FLAC", nil
+				}
+				if ultimo == nil {
+					ultimo = errors.New("sin respuesta de los espejos")
+				}
+				return "", false, ultimo
+			},
+		})
 	}
-	return "", "", c.guardarFallo(claveCache, ultimo)
+
+	// Con pérdida pedida no se espera a nadie (el primero que llegue sirve);
+	// con calidad sin pérdida se retiene para no entregar un MP3 que estaba a
+	// un segundo de ser FLAC.
+	politica := politicaEspera{}
+	if sinPerdida {
+		politica = politicaEspera{
+			conPerdida:     graciaRescateLossless,
+			porPreferencia: graciaRescatePreferencia,
+		}
+	}
+	audioURL, fuente, err := carreraDeCanales(canales, politica)
+	// Segunda defensa (la primera está en la carrera): una URL vacía NUNCA es un
+	// stream. Si algo contestara "sin error" y sin enlace, esto evita cachear un
+	// vacío que el reproductor recibiría como éxito y mostraría como silencio.
+	if err == nil && strings.TrimSpace(audioURL) == "" {
+		err = errors.New("rescate: la carrera no devolvió enlace de audio")
+	}
+	if err != nil {
+		// Si no hubo ni un canal que pudiera entregar algo, el motivo útil es
+		// el de los espejos (es el que el usuario configuró).
+		if errors.Is(err, errNingunCanalDioAudio) && errorEspejos != nil {
+			err = errorEspejos
+		}
+		return "", "", c.guardarFallo(claveCache, err)
+	}
+	c.guardarCacheTTL(claveCache, audioURL, fuente, ttlDeCanal(fuente))
+	return audioURL, fuente, nil
 }
 
 // guardarFallo memoriza un fallo por [ttlFallo] y devuelve el error ya

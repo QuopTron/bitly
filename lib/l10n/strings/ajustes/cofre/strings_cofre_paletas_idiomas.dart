@@ -58,6 +58,9 @@ const cofreEs = StringsCofrePaletas(
     'movil_jade': 'Jade',
     // Colores de todos los aparatos.
     'paleta_regalo_100': 'Vidrio de fábrica',
+    // Los cálidos de fábrica: los primeros que se pueden aplicar.
+    'paleta_ambar': 'Ámbar',
+    'paleta_terracota': 'Terracota',
     'paleta_aurora': 'Aurora',
     'paleta_atardecer': 'Atardecer',
     'paleta_menta': 'Menta',
@@ -66,6 +69,14 @@ const cofreEs = StringsCofrePaletas(
     'paleta_rosa': 'Rosa',
     'paleta_nocturno': 'Nocturno',
     'paleta_fuego': 'Fuego',
+    'paleta_mandarina': 'Mandarina',
+    'paleta_coral': 'Coral',
+    'paleta_miel': 'Miel',
+    'paleta_cobre': 'Cobre',
+    'paleta_ocaso': 'Ocaso',
+    'paleta_glaciar': 'Glaciar',
+    'paleta_selva': 'Selva',
+    'paleta_brasas': 'Brasas',
   },
 );
 
@@ -108,6 +119,9 @@ const cofreEn = StringsCofrePaletas(
     'movil_pegada': 'Flush',
     'movil_jade': 'Jade',
     'paleta_regalo_100': 'Factory glass',
+    // Factory warm colours: the first ones that can be applied.
+    'paleta_ambar': 'Amber',
+    'paleta_terracota': 'Terracotta',
     'paleta_aurora': 'Aurora',
     'paleta_atardecer': 'Sunset',
     'paleta_menta': 'Mint',
@@ -116,5 +130,13 @@ const cofreEn = StringsCofrePaletas(
     'paleta_rosa': 'Pink',
     'paleta_nocturno': 'Nocturne',
     'paleta_fuego': 'Fire',
+    'paleta_mandarina': 'Tangerine',
+    'paleta_coral': 'Coral',
+    'paleta_miel': 'Honey',
+    'paleta_cobre': 'Copper',
+    'paleta_ocaso': 'Dusk',
+    'paleta_glaciar': 'Glacier',
+    'paleta_selva': 'Jungle',
+    'paleta_brasas': 'Embers',
   },
 );

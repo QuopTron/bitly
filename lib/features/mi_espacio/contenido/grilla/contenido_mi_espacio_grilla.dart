@@ -108,16 +108,13 @@ Widget _vistaGrilla(
                 builder: (context, restricciones) {
                   // `crossAxisExtent` es el ancho REAL del hueco de la grilla
                   // (ya descontado el padding), así la cuenta de columnas sigue
-                  // al ancho del box y no al de la pantalla.
-                  final disponible = restricciones.crossAxisExtent;
-                  var columnas = 2;
-                  if (disponible > 1000) {
-                    columnas = 6;
-                  } else if (disponible > 700) {
-                    columnas = 4;
-                  } else if (disponible > 340) {
-                    columnas = 3;
-                  }
+                  // al ancho del box y no al de la pantalla. La cuenta vive en
+                  // `columnasDeGrilla`, que además respeta el tope que el
+                  // usuario le puso a ESTA vista (Ajustes → Apariencia → Vistas).
+                  final columnas = columnasDeGrilla(
+                    context,
+                    restricciones.crossAxisExtent,
+                  );
                   return SliverGrid.builder(
                     gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: columnas,

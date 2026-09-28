@@ -20,40 +20,47 @@ class _PerformanceTab extends StatelessWidget {
     );
     final loc = AppLocalizations.of(context);
 
-    return SingleChildScrollView(
-      padding: EdgeInsets.all(r.spacingL),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(height: r.spacingS),
-          // Header row (no nested box — the section below is the card).
-          Row(
-            children: [
-              Icon(Icons.speed_rounded, color: glowColor, size: r.subtitleSize),
-              SizedBox(width: r.spacingS),
-              Text(
-                loc.setup.performanceProfile,
-                style: TextStyle(
-                  fontSize: r.subtitleSize,
-                  fontWeight: FontWeight.w700,
-                  color: onBg,
-                ),
+    // El rótulo de la pestaña queda FIJO y abajo se GIRA un ajuste por
+    // pantalla (mismo carrusel que Apariencia): el que viene a prender el audio
+    // en segundo plano no pasa por los tres perfiles ni por el modo fluido.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: EdgeInsets.fromLTRB(r.spacingL, r.spacingS, r.spacingL, 0),
+          child: _TituloApartado(
+            titulo: loc.setup.performanceProfile,
+            bajada: loc.setup.performanceHelp,
+            glowColor: glowColor,
+          ),
+        ),
+        Expanded(
+          child: CarruselAjustes(
+            key: const ValueKey('carrusel-rendimiento'),
+            etiqueta: loc.setup.performanceProfile,
+            glowColor: glowColor,
+            onBg: onBg,
+            r: r,
+            paginas: [
+              SettingsPerformanceSection(
+                onBg: onBg,
+                glowColor: glowColor,
+                parte: ParteRendimiento.perfil,
+              ),
+              SettingsPerformanceSection(
+                onBg: onBg,
+                glowColor: glowColor,
+                parte: ParteRendimiento.fluido,
+              ),
+              SettingsPerformanceSection(
+                onBg: onBg,
+                glowColor: glowColor,
+                parte: ParteRendimiento.audio,
               ),
             ],
           ),
-          SizedBox(height: 4),
-          Text(
-            loc.setup.performanceHelp,
-            style: TextStyle(
-              fontSize: r.footerSize - 1,
-              color: onBg.withValues(alpha: 0.5),
-              height: 1.3,
-            ),
-          ),
-          SizedBox(height: r.spacingM),
-          SettingsPerformanceSection(onBg: onBg, glowColor: glowColor),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

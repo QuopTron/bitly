@@ -24,6 +24,7 @@ import '../../../../estado/like/base/cubit_like.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../../shared/utilidades/descarga/estrategia_descarga.dart';
 import '../../../../shared/utilidades/plataforma/responsive.dart';
+import '../../../../shared/widgets/esqueletos/esqueleto_carga.dart';
 import '../../../../shared/widgets/modales/descarga/base/hoja_opciones_descarga.dart';
 import '../../../../shared/widgets/modales/agregar_a/base/modal_agregar_a.dart';
 import '../../../../shared/widgets/modales/info_cancion/modal_info_cancion.dart';
@@ -36,6 +37,7 @@ import '../../modelos_item.dart';
 import '../../../../core/servicios/compartir/base/servicio_compartir.dart';
 import '../../../../shared/utilidades/formato/apariencia/barras/apariencia_espacios_helper.dart';
 import '../../../../shared/utilidades/formato/apariencia/base/apariencia_helper.dart';
+import '../../../../shared/utilidades/formato/apariencia/vistas/grilla_vista.dart';
 
 part '../lista/contenido_mi_espacio_canciones.dart';
 part '../grilla/contenido_mi_espacio_grilla.dart';
@@ -98,16 +100,12 @@ class ContenidoMiEspacio extends StatelessWidget {
     final onBg = esOscuro ? Colors.white : Colors.black;
 
     if (cargando) {
-      return Center(
-        child: SizedBox(
-          width: r.footerSize + 4,
-          height: r.footerSize + 4,
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            color: onBg.withValues(alpha: 0.3),
-          ),
-        ),
-      );
+      // El hueco se ve como la pestaña que va a llegar: fila de tarjetas de
+      // track o grilla de tarjetas. Antes era un círculo en medio de la
+      // pantalla, que no decía ni qué forma ni cuánto venía.
+      return pestanaSeleccionada == 0
+          ? const EsqueletoFeed()
+          : _esqueletoGrilla(r, context);
     }
 
     if (pestanaSeleccionada == 1 && items.isEmpty) {

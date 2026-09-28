@@ -139,6 +139,10 @@ class _ItemNavTv extends StatelessWidget {
 /// Miniplayer de TV: barra ancha al pie, SIN sombra (en una tele la sombra se
 /// recompone en cada frame y a metros no se ve) y se oculta cuando no hay nada
 /// sonando.
+///
+/// El margen lateral y el ancho máximo salen de la GEOMETRÍA (22 px de margen
+/// con la forma de siempre), así el preset de Ajustes puede pegarlo al borde,
+/// separarlo más o acotarle el ancho para que no cruce la tele entera.
 class _MiniplayerTv extends StatelessWidget {
   final Widget miniPlayer;
 
@@ -156,15 +160,17 @@ class _MiniplayerTv extends StatelessWidget {
         final esOscuro = Theme.of(context).brightness == Brightness.dark;
         final onBg = ColoresApp.enSuperficie(esOscuro);
         return Padding(
-          padding: const EdgeInsets.fromLTRB(22, 4, 22, 16),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: onBg.withValues(alpha: 0.10)),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: miniPlayer,
+          padding: const EdgeInsets.only(top: 4, bottom: 16),
+          child: MarcoMiniplayer(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: onBg.withValues(alpha: 0.10)),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: miniPlayer,
+              ),
             ),
           ),
         );

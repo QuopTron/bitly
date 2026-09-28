@@ -31,12 +31,10 @@ Widget _lineaSoulseek(_SlideGraciasState st, Color onBg, Color glowColor) {
     child: Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
+        // Conectando: el hueco del ícono (hub lleno o vacío) se ve como el
+        // ícono que va a quedar ahí, del mismo tamaño.
         if (conectando)
-          SizedBox(
-            width: st.widget.r.footerSize,
-            height: st.widget.r.footerSize,
-            child: CircularProgressIndicator(strokeWidth: 2, color: glowColor),
-          )
+          EsqueletoMarca(lado: st.widget.r.footerSize + 1)
         else
           Icon(
             ok ? Icons.hub_rounded : Icons.hub_outlined,

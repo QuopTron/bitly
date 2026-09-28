@@ -16,6 +16,10 @@ part of '../../../app.dart';
 Widget _construirRaizApp(_BitlyAppState st) {
   return EnvoltorioColorDinamico(
     themeModeOverride: st._ajustes.themeMode.value,
+    // Tipografía elegida por el usuario (Ajustes → Apariencia → Tipografía).
+    // Mientras una bajada está en camino esto queda en null y la app se ve con
+    // la del sistema; al terminar, el notifier avisa y el tema se repinta.
+    fontFamily: st._ajustes.familiaTipografia.value,
     builder: (temaClaro, temaOscuro, modoTema) {
       return MultiBlocProvider(
         providers: [

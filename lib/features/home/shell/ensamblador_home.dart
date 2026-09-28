@@ -22,9 +22,11 @@ import '../../../estado/descargas/cubit_descargas.dart';
 import '../../../estado/like/base/cubit_like.dart';
 import '../../../estado/playlists/cubit_playlists.dart';
 import '../../../estado/reproductor/cubit_reproductor.dart';
+import '../../../core/modelos/usuario/disenos/vistas/vista_app.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/base/comun/transiciones_pagina.dart';
 import '../../../shared/widgets/reproductor/base/miniplayer.dart';
+import '../../../shared/widgets/vista/base/diseno_de_vista.dart';
 import '../../busqueda/bloc/base/busqueda_bloc.dart';
 import '../../busqueda/pagina/base/pagina_busqueda.dart';
 import '../../feed/bloc/feed_bloc.dart';
@@ -42,6 +44,25 @@ import 'pagina_home.dart';
 // El TutorialProvider vive en tutorial_provider.dart; se re-exporta para que
 // quien lea la Home siga encontrándolo por este archivo.
 export '../../tutorial_interactivo/motor/base/tutorial_provider.dart';
+
+/// Cuántas secciones tiene la Home (Buscar, Inicio, Mi Espacio).
+const int cantidadPestanasHome = 3;
+
+/// Pestaña de la Home que el usuario dejó abierta (0=Buscar, 1=Inicio,
+/// 2=Mi Espacio).
+///
+/// Vive en la inyección para que los TRES shells (celular, escritorio y TV)
+/// coincidan: cambiar de sección en uno no deja a los otros desubicados. El
+/// valor es por sesión: la primera vez se abre en Inicio, que es el centro.
+int pestanaHomeInicial() {
+  final n = sl<ValueNotifier<int>>().value;
+  return n.clamp(0, cantidadPestanasHome - 1);
+}
+
+/// Guarda la pestaña activa de la Home (la llaman los shells al cambiar).
+void guardarPestanaHome(int i) {
+  sl<ValueNotifier<int>>().value = i.clamp(0, cantidadPestanasHome - 1);
+}
 
 /// Ensambla la Home: blocs + cubits + slots → shell.
 class EnsambladorHome extends StatefulWidget {
@@ -86,9 +107,16 @@ class _EnsambladorHomeState extends State<EnsambladorHome> {
   }
 
   void _abrirReproductor(BuildContext context) {
+    // El reproductor es su propia vista: puede tener un diseño distinto al del
+    // resto de la app (Ajustes → Apariencia → Vistas).
     Navigator.push(
       context,
-      RutaDeslizarArriba(pagina: const ReproductorPagina()),
+      RutaDeslizarArriba(
+        pagina: const DisenoDeVista(
+          vista: VistaApp.reproductor,
+          child: ReproductorPagina(),
+        ),
+      ),
     );
   }
 
@@ -125,14 +153,26 @@ class _EnsambladorHomeState extends State<EnsambladorHome> {
             BlocProvider<BlocBusqueda>.value(value: _blocBusqueda),
             BlocProvider<BlocFeed>.value(value: _blocFeed),
           ],
+          // Cada slot es una VISTA: se envuelve acá y de ahí para adentro todo
+          // —cards, grillas, separaciones— ya obedece al diseño que el usuario
+          // le puso a esa vista en Ajustes → Apariencia → Vistas.
           child: PaginaHome(
-            buscador: PaginaBusqueda(
-              onNavegarItem: (item) => navegarItemFeed(context, item),
+            buscador: DisenoDeVista(
+              vista: VistaApp.busqueda,
+              child: PaginaBusqueda(
+                onNavegarItem: (item) => navegarItemFeed(context, item),
+              ),
             ),
-            feed: PaginaFeed(
-              onNavegarItem: (item) => navegarItemFeed(context, item),
+            feed: DisenoDeVista(
+              vista: VistaApp.feed,
+              child: PaginaFeed(
+                onNavegarItem: (item) => navegarItemFeed(context, item),
+              ),
             ),
-            miEspacio: const PaginaMiEspacio(),
+            miEspacio: const DisenoDeVista(
+              vista: VistaApp.miEspacio,
+              child: PaginaMiEspacio(),
+            ),
             miniPlayer: KeyedSubtree(
               key: keyTutorialMiniplayer,
               child: Miniplayer(

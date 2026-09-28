@@ -6,9 +6,11 @@
 // quede sin color, y que el contador de regalos cuente bien.
 // ─────────────────────────────────────────────────────────────
 
+import 'package:bitly/core/modelos/usuario/disenos/barra/catalogo_disenos_barra_colores.dart';
 import 'package:bitly/core/modelos/usuario/disenos/base/catalogo_disenos_barra_lista.dart';
 import 'package:bitly/core/modelos/usuario/dispositivos/dispositivo_conectado.dart';
 import 'package:bitly/core/modelos/usuario/preferencias/preferencias_apariencia.dart';
+import 'package:bitly/l10n/app_localizations.dart' show cofreEn, cofreEs;
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -34,13 +36,46 @@ void main() {
     }
   });
 
-  test('sin horas ni versión solo se abre el regalo', () {
+  test('sin horas ni versión se abre el regalo y los cálidos de fábrica', () {
     final abiertos =
         catalogoDisenosBarra
             .where((d) => disenoDesbloqueado(d, horas: 0, version: 0))
             .map((d) => d.id)
             .toList();
-    expect(abiertos, ['paleta_regalo_100']);
+    // Un catálogo donde TODO está con candado se ve roto: el usuario elige y no
+    // cambia nada. Por eso los cálidos de fábrica vienen abiertos.
+    expect(abiertos, ['paleta_regalo_100', 'paleta_ambar', 'paleta_terracota']);
+  });
+
+  test('los cálidos de fábrica son cálidos y se distinguen entre sí', () {
+    final ambar = disenoPorId('paleta_ambar')!;
+    final terracota = disenoPorId('paleta_terracota')!;
+    for (final d in [ambar, terracota]) {
+      expect(d.desbloqueo, DesbloqueoBarra.libre, reason: '${d.id} se aplica ya');
+      expect(d.tienePaleta, isTrue);
+      for (final c in d.paleta) {
+        final r = (c >> 16) & 0xFF;
+        final b = c & 0xFF;
+        // Cálido de verdad: manda el rojo sobre el azul, no alcanza con el
+        // nombre en el idioma.
+        expect(r, greaterThan(b), reason: '${d.id} no es cálido: $c');
+      }
+    }
+    // Y no son la misma paleta con otro nombre: si se parecieran, elegir entre
+    // las dos no cambiaría nada en la pantalla.
+    expect(ambar.paleta, isNot(equals(terracota.paleta)));
+    expect(ambar.paleta.first, isNot(terracota.paleta.first));
+  });
+
+  test('la escalera cálida sigue dando algo que ganar', () {
+    // Los de fábrica son dos; el resto de los cálidos se abre escuchando, si no
+    // la escalera de horas perdería su sentido en la mitad del catálogo.
+    for (final id in const ['paleta_mandarina', 'paleta_brasas']) {
+      final d = disenoPorId(id)!;
+      expect(d.desbloqueo, DesbloqueoBarra.horas, reason: id);
+      expect(disenoDesbloqueado(d, horas: 0, version: 0), isFalse, reason: id);
+      expect(disenoDesbloqueado(d, horas: d.valor, version: 0), isTrue, reason: id);
+    }
   });
 
   test('las horas abren el diseño de su nivel', () {
@@ -265,6 +300,33 @@ void main() {
       );
     }
     expect(vistos.length, catalogoDisenosBarra.length);
+  });
+
+  test('el cofre muestra NOMBRES, no ids, en los dos idiomas', () {
+    // Un id sin texto se ve crudo en la pantalla ("paleta_ocaso"), y eso pasa
+    // justo cuando se agrega un diseño nuevo y se olvida su nombre. Los nombres
+    // se resuelven por id, así que se revisan TODOS contra los dos idiomas.
+    for (final d in catalogoDisenosBarra) {
+      for (final t in [cofreEs, cofreEn]) {
+        expect(t.nombre(d.id), isNot(d.id), reason: '${d.id} sin nombre');
+      }
+    }
+  });
+
+  test('la escalera de colores va de menos a más horas', () {
+    // El orden no es cosmético: el cofre se lee como una progresión (y los
+    // abiertos van primero), así que una paleta barata al final descoloca a
+    // todo el que entra a mirar qué le falta abrir.
+    // Sólo la escalera COMÚN: los colores de un aparato se agregan al final
+    // (son de la TV, la PC o el celular) y no tienen por qué seguir el orden.
+    final horas =
+        disenosColorBarra
+            .where((d) => d.desbloqueo == DesbloqueoBarra.horas)
+            .map((d) => d.valor)
+            .toList();
+    expect(horas, [...horas]..sort());
+    // Y lo abierto va arriba de todo.
+    expect(disenosColorBarra.first.desbloqueo, DesbloqueoBarra.libre);
   });
 
   test('ningún id se repite (el cofre no muestra duplicados)', () {

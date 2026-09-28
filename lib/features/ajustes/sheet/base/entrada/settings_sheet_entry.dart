@@ -62,16 +62,23 @@ Future<void> showSettingsSheet(
     context: context,
     backgroundColor: Colors.transparent,
     isScrollControlled: true,
+    // La hoja es su propia VISTA: puede tener un diseño distinto al del resto
+    // de la app (Ajustes → Apariencia → Vistas). El envoltorio va acá, en el
+    // único punto por el que se abre la hoja, para que valga para todas sus
+    // pestañas y también para el tutorial que la abre.
     builder:
-        (_) => BlocProvider<CubitCola>.value(
-          value: sl<CubitCola>(),
-          child: SettingsSheet(
-            username: username,
-            isDark: isDark,
-            onThemeChanged: onThemeChanged,
-            likedCount: likedCount,
-            downloadedCount: downloadedCount,
-            tutorial: tutorial,
+        (_) => DisenoDeVista(
+          vista: VistaApp.ajustes,
+          child: BlocProvider<CubitCola>.value(
+            value: sl<CubitCola>(),
+            child: SettingsSheet(
+              username: username,
+              isDark: isDark,
+              onThemeChanged: onThemeChanged,
+              likedCount: likedCount,
+              downloadedCount: downloadedCount,
+              tutorial: tutorial,
+            ),
           ),
         ),
   );
@@ -90,6 +97,7 @@ class SettingsSheet extends StatefulWidget {
   /// Si el tutorial interactivo abrió la hoja, para seguirlo pestaña por
   /// pestaña. null = uso normal.
   final TutorialController? tutorial;
+
 
   const SettingsSheet({
     super.key,

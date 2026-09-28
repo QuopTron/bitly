@@ -6,8 +6,14 @@
 // detalle (portada circular + fila). La fila animada vive en el
 // part esqueleto_fila.dart y la variante de búsqueda en
 // esqueleto_busqueda.dart.
+//
+// También viven acá EsqueletoEtiqueta y EsqueletoMarca: el mismo
+// shimmer pero con la FORMA de lo que va a aparecer en el hueco
+// (el texto de un botón, el valor de una fila, la marca de un
+// tile). Son la alternativa a dejar un círculo girando en el
+// medio de un espacio que ya se sabe cómo va a quedar.
 // Se conecta con: nada (solo tema del context).
-// Parte del flujo: feed, detalle, búsqueda (loading).
+// Parte del flujo: feed, detalle, búsqueda y acciones de Ajustes (loading).
 // ─────────────────────────────────────────────────────────────
 
 import 'package:flutter/material.dart';
@@ -23,11 +29,22 @@ class EsqueletoCarga extends StatefulWidget {
   final double alto;
   final double radioBorde;
 
+  /// Color del bloque. En `null` sale del tema (blanco al 6% sobre fondo
+  /// oscuro, negro al 5% sobre claro), que es lo correcto casi siempre.
+  /// Se pasa cuando el hueco NO está sobre el fondo sino sobre un color
+  /// (un botón relleno): ahí el blanco al 6% no se vería.
+  final Color? color;
+
+  /// Color del brillo que barre el gradiente. Misma idea que [color].
+  final Color? colorBrillo;
+
   const EsqueletoCarga({
     super.key,
     this.ancho = double.infinity,
     this.alto = 16,
     this.radioBorde = 8,
+    this.color,
+    this.colorBrillo,
   });
 
   @override
@@ -77,13 +94,15 @@ class _EsqueletoCargaState extends State<EsqueletoCarga>
   Widget build(BuildContext context) {
     final oscuro = Theme.of(context).brightness == Brightness.dark;
     final base =
-        oscuro
+        widget.color ??
+        (oscuro
             ? Colors.white.withValues(alpha: 0.06)
-            : Colors.black.withValues(alpha: 0.05);
+            : Colors.black.withValues(alpha: 0.05));
     final brillo =
-        oscuro
+        widget.colorBrillo ??
+        (oscuro
             ? Colors.white.withValues(alpha: 0.12)
-            : Colors.black.withValues(alpha: 0.08);
+            : Colors.black.withValues(alpha: 0.08));
     final estatico = !EfectosApp.desenfoqueActivo;
 
     return AnimatedBuilder(
@@ -109,6 +128,68 @@ class _EsqueletoCargaState extends State<EsqueletoCarga>
       },
     );
   }
+}
+
+/// Bloque con la forma de una ETIQUETA: el texto de un botón, el valor de una
+/// fila, una línea de título. Se usa en el hueco que hoy ocupa un spinner, para
+/// que el lugar se vea como lo que está por llegar y no como un círculo suelto.
+class EsqueletoEtiqueta extends StatelessWidget {
+  final double ancho;
+  final double alto;
+
+  /// Radio de las esquinas. En `null` es una pastilla (la mitad del alto);
+  /// un botón con esquinas de 8 px pasa las suyas para no cambiar de forma.
+  final double? radioBorde;
+
+  /// `true` cuando el hueco va encima de un color (un botón relleno verde o
+  /// rojo): el shimmer del tema es blanco al 6% y ahí desaparecería.
+  final bool sobreColor;
+
+  const EsqueletoEtiqueta({
+    super.key,
+    this.ancho = double.infinity,
+    this.alto = 14,
+    this.radioBorde,
+    this.sobreColor = false,
+  });
+
+  @override
+  Widget build(BuildContext context) => EsqueletoCarga(
+    ancho: ancho,
+    alto: alto,
+    radioBorde: radioBorde ?? alto / 2,
+    color: sobreColor ? Colors.white.withValues(alpha: 0.22) : null,
+    colorBrillo: sobreColor ? Colors.white.withValues(alpha: 0.4) : null,
+  );
+}
+
+/// Bloque con la forma de una MARCA: el icono, el tilde, el candado o el badge
+/// que va en ese hueco.
+class EsqueletoMarca extends StatelessWidget {
+  final double lado;
+
+  /// Radio de las esquinas. En `null`, un cuadrado apenas redondeado; para un
+  /// badge redondo se pasa la mitad del lado.
+  final double? radioBorde;
+
+  /// Misma idea que en [EsqueletoEtiqueta].
+  final bool sobreColor;
+
+  const EsqueletoMarca({
+    super.key,
+    required this.lado,
+    this.radioBorde,
+    this.sobreColor = false,
+  });
+
+  @override
+  Widget build(BuildContext context) => EsqueletoCarga(
+    ancho: lado,
+    alto: lado,
+    radioBorde: radioBorde ?? lado * 0.3,
+    color: sobreColor ? Colors.white.withValues(alpha: 0.22) : null,
+    colorBrillo: sobreColor ? Colors.white.withValues(alpha: 0.4) : null,
+  );
 }
 
 /// Esqueleto de página completa para feed / carga de listas.

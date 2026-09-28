@@ -24,9 +24,10 @@ List<Widget> _seccionGrilla(
   String? titulo,
 }) {
   final esOscuro = Theme.of(context).brightness == Brightness.dark;
-  // Con la grilla cargada de color del cover, las cards se separan menos:
-  // el espacio se cierra de a poco mientras crece la intensidad.
-  final nivelGrilla = EstiloHelper.cardsGrilla(context);
+  // Con la grilla cargada de color, las cards se separan menos: el espacio se
+  // cierra de a poco mientras crece la intensidad. La misma medida que usan las
+  // cards (`TinteVista`), para que una paleta de esta vista cierre las dos.
+  final nivelGrilla = TinteVista.nivelDeGrilla(context);
   final gap = r.spacingXS * (1 - 0.5 * nivelGrilla);
   // El margen lateral también se cierra con la intensidad: la grilla con
   // color del cover aprovecha casi todo el ancho.
@@ -76,15 +77,12 @@ List<Widget> _seccionGrilla(
         builder: (context, restricciones) {
           // `crossAxisExtent` es el ancho REAL del hueco de la grilla, así la
           // cuenta de columnas sigue al ancho del box y no al de la pantalla.
-          final disponible = restricciones.crossAxisExtent;
-          var columnas = 2;
-          if (disponible > 1000) {
-            columnas = 6;
-          } else if (disponible > 700) {
-            columnas = 4;
-          } else if (disponible > 340) {
-            columnas = 3;
-          }
+          // La cuenta vive en `columnasDeGrilla`, que además respeta el tope
+          // que el usuario le puso a ESTA vista (Ajustes → Apariencia → Vistas).
+          final columnas = columnasDeGrilla(
+            context,
+            restricciones.crossAxisExtent,
+          );
           return SliverGrid.builder(
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: columnas,

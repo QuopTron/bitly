@@ -70,7 +70,13 @@ func enlaceArcodSirveAudio(enlace string, fin time.Time) error {
 	}
 	req.Header.Set("Range", "bytes=0-0")
 	req.Header.Set("User-Agent", userAgent)
-	resp, err := (&http.Client{Timeout: tope}).Do(req)
+	// Transporte COMPARTIDO del paquete (proxy.go): la comprobación sale por el
+	// proxy del rescate como el resto de sus peticiones. El enlace apunta a OTRO
+	// host (api.arcod.xyz), así que sin esto la comprobación salía directa y un
+	// ajuste de proxy por región dejaba al canal creyendo que el enlace no sirve.
+	// De paso reusa las conexiones ya abiertas en vez de armar un cliente nuevo
+	// por comprobación (una por canción).
+	resp, err := (&http.Client{Timeout: tope, Transport: transporteRescate}).Do(req)
 	if err != nil {
 		return nil
 	}

@@ -91,7 +91,8 @@ rm -f android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.jav
 export INCLUDE_X86_64="${INCLUDE_X86_64:-true}"
 
 echo "==> Compilando APKs (split-per-abi, INCLUDE_X86_64=$INCLUDE_X86_64)..."
-flutter build apk --release --split-per-abi
+flutter build apk --release --split-per-abi \
+  --split-debug-info=build/symbols
 # Nombres consistentes (los que ya genera Flutter — no se renombran):
 APKS=(
   "build/app/outputs/flutter-apk/app-arm64-v8a-release.apk"

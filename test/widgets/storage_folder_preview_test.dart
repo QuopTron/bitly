@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
 import 'package:bitly/features/setup/widgets/tarjetas/base/vista_previa_carpeta.dart';
+import 'package:bitly/shared/widgets/esqueletos/esqueleto_carga.dart';
 
 void main() {
   group('VistaPreviaCarpeta', () {
@@ -53,7 +54,9 @@ void main() {
       expect(find.text('No folder'), findsOneWidget);
     });
 
-    testWidgets('shows loading spinner when picking', (tester) async {
+    testWidgets('mientras elige, el hueco tiene la forma del ícono', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -71,10 +74,12 @@ void main() {
         ),
       );
 
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      // El bloque ocupa el lugar del ícono (chevron o chequeo), del mismo
+      // tamaño: antes era un circulito que empujaba la fila.
+      expect(find.byType(EsqueletoMarca), findsOneWidget);
     });
 
-    testWidgets('hides spinner when not picking', (tester) async {
+    testWidgets('sin elegir no hay hueco', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -92,7 +97,7 @@ void main() {
         ),
       );
 
-      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(find.byType(EsqueletoMarca), findsNothing);
     });
   });
 }

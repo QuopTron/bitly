@@ -67,13 +67,24 @@ class _DownloadPoolQobuzCardState extends State<_DownloadPoolQobuzCard> {
 
   /// Pregunta al backend por qué el pool quedó como quedó. Nunca lanza: una
   /// respuesta rota se pinta como estado de error, no como un "todo bien".
+  ///
+  /// El `try` no es decorativo: si la llamada revienta (el backend todavía no
+  /// está listo, el canal se cae), la excepción se escapaba del `initState`,
+  /// la tarjeta se quedaba girando para siempre y no se veía ni el estado ni
+  /// el campo para pegar la URL propia. Una respuesta `null` ya es el estado de
+  /// error, así que el fallo se cuenta igual que una respuesta inválida.
   Future<void> _consultar() async {
     if (!mounted) return;
     setState(() => _consultando = true);
-    final respuesta = await sl<BackendService>().invokeExtensionAction(
-      AjustesPoolQobuz.id,
-      AjustesPoolQobuz.accionEstado,
-    );
+    Map<String, dynamic>? respuesta;
+    try {
+      respuesta = await sl<BackendService>().invokeExtensionAction(
+        AjustesPoolQobuz.id,
+        AjustesPoolQobuz.accionEstado,
+      );
+    } catch (_) {
+      respuesta = null;
+    }
     if (!mounted) return;
     setState(() {
       _estado = AjustesPoolQobuz.estadoDeRespuesta(respuesta);

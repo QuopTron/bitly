@@ -14,6 +14,7 @@ import 'package:media_kit_video/media_kit_video.dart';
 import '../../../core/modelos/feed/item_feed.dart';
 import '../../../shared/tema/especificaciones/especificaciones_plataforma.dart';
 import '../../../shared/utilidades/plataforma/responsive.dart';
+import '../../../shared/widgets/esqueletos/esqueleto_carga.dart';
 import '../../../shared/widgets/tarjetas/portada/imagen_portada.dart';
 
 /// Portada o video visualizador del track con botones de alternancia.
@@ -118,16 +119,16 @@ class AreaPortadaVideo extends StatelessWidget {
                       right: 10,
                       child:
                           videoCargando
+                              // Cargando el video: el chip oscuro se ve como el
+                              // chip que va a quedar (ícono de cámara).
+                              // `sobreColor` porque el fondo es negro translúcido.
                               ? _chipVideo(
                                 chipRadius,
                                 r.spacingM,
-                                SizedBox(
-                                  width: esp.iconoBoton,
-                                  height: esp.iconoBoton,
-                                  child: const CircularProgressIndicator(
-                                    strokeWidth: 2.5,
-                                    color: Colors.white,
-                                  ),
+                                EsqueletoMarca(
+                                  lado: esp.iconoBoton,
+                                  radioBorde: 4,
+                                  sobreColor: true,
                                 ),
                               )
                               : GestureDetector(

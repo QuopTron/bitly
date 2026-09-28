@@ -95,6 +95,14 @@ type Client struct {
 	idsArcodsMu sync.Mutex
 	idsArcods   map[string]string
 
+	// idsQobuz memoriza ISRC → id de pista del catálogo de Qobuz y lleva las
+	// búsquedas EN VUELO: los dos canales que necesitan ese id (el Qobuz firmado
+	// y el stash-relay) corren a la vez en la carrera, así que sin esto el mismo
+	// ISRC pagaba DOS búsquedas idénticas. Ver qobuz_memoria.go.
+	idsQobuzMu    sync.Mutex
+	idsQobuz      map[string]string
+	idsQobuzVuelo map[string]*vueloIDQobuz
+
 	// arcodBase es la dirección del canal arcod. Es un campo (y no la constante)
 	// para poder apuntarlo a una instancia PROPIA desde Ajustes y a un servidor
 	// de prueba en los tests.
@@ -156,17 +164,19 @@ type cacheEntry struct {
 // NewClient crea el provider con la configuración por defecto.
 func NewClient() *Client {
 	c := &Client{
-		mirrors:     append([]string(nil), defaultMirrors...),
-		origin:      defaultOrigin,
-		formato:     "FLAC",
-		http:        &http.Client{Timeout: timeoutPorPedido, Transport: transporteRescate},
-		cache:       map[string]cacheEntry{},
-		sinCuentas:  map[string]time.Time{},
-		sitios:      append([]sitioFLAC(nil), sitiosConocidos...),
-		idsArcods:   map[string]string{},
-		arcodBase:   baseArcod,
-		arcodActivo: arcodPorDefecto,
-		stashActivo: stashRelayPorDefecto,
+		mirrors:       append([]string(nil), defaultMirrors...),
+		origin:        defaultOrigin,
+		formato:       "FLAC",
+		http:          &http.Client{Timeout: timeoutPorPedido, Transport: transporteRescate},
+		cache:         map[string]cacheEntry{},
+		sinCuentas:    map[string]time.Time{},
+		sitios:        append([]sitioFLAC(nil), sitiosConocidos...),
+		idsArcods:     map[string]string{},
+		idsQobuz:      map[string]string{},
+		idsQobuzVuelo: map[string]*vueloIDQobuz{},
+		arcodBase:     baseArcod,
+		arcodActivo:   arcodPorDefecto,
+		stashActivo:   stashRelayPorDefecto,
 	}
 	// El precalentado sale en segundo plano (ver stash_relay.go) y no bloquea
 	// el registro del provider. En los tests del paquete el canal arranca
@@ -269,6 +279,9 @@ func (c *Client) SetSettingsQobuz(settings map[string]string) {
 	c.cacheMu.Lock()
 	c.cache = map[string]cacheEntry{} // credenciales nuevas, resoluciones viejas fuera
 	c.cacheMu.Unlock()
+	// Y con ellas los ids y las búsquedas en vuelo: otro Worker/otras claves
+	// pueden apuntar a otro catálogo, así que un id memorizado ya no vale.
+	c.olvidarIDsQobuz()
 }
 
 // Mirrors devuelve una copia de la lista actual (estado/debug).

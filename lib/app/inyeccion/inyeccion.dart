@@ -37,6 +37,7 @@ import '../../core/servicios/traduccion/servicio_traduccion_texto.dart';
 import '../../core/cache/reproduccion/detalle/reproduccion_detalle_local.dart';
 import '../../core/cache/reproduccion/base/reproduccion_sync.dart';
 import '../../core/modelos/usuario/perfil/perfil_rendimiento.dart';
+import '../../core/modelos/usuario/disenos/vistas/preferencias_vistas.dart';
 import '../../core/modelos/usuario/preferencias/preferencias_apariencia.dart';
 import '../../core/modelos/usuario/preferencias/preferencias_estilo.dart';
 import '../../core/servicios/playlist/editor/editor_playlist.dart';
@@ -72,6 +73,15 @@ Future<void> configurarDependencias() async {
   // Diseño personalizable (borde del reproductor, separación y redondeo).
   sl.registerLazySingleton<ValueNotifier<PreferenciasApariencia>>(
     () => ValueNotifier(PreferenciasApariencia.deFabrica),
+  );
+  // Diseño POR VISTA (v1.0.0): qué vista se sale del diseño global.
+  sl.registerLazySingleton<ValueNotifier<PreferenciasVistas>>(
+    () => ValueNotifier(PreferenciasVistas.deFabrica),
+  );
+  // Familia tipográfica ACTIVA: la publica ServicioFuentes cuando la baja (o
+  // cuando usa la empaquetada) y la pinta el tema de la app entera.
+  sl.registerLazySingleton<ValueNotifier<String?>>(
+    () => ValueNotifier<String?>(null),
   );
   sl.registerLazySingleton<ValueNotifier<PerfilRendimiento>>(
     () => ValueNotifier(PerfilRendimiento.medio),

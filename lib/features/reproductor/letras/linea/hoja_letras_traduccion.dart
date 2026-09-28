@@ -23,14 +23,12 @@ Widget _botonTraducir(
 ) {
   final loc = AppLocalizations.of(context).letras;
   final fg = esOscuro ? Colors.white : Colors.black;
+  // Traduciendo: el hueco del botón de idiomas (el mundo) se ve como el ícono
+  // que va a volver, del tamaño del IconButton.
   if (st._traduciendo) {
     return const Padding(
       padding: EdgeInsets.all(12),
-      child: SizedBox(
-        width: 18,
-        height: 18,
-        child: CircularProgressIndicator(strokeWidth: 2),
-      ),
+      child: EsqueletoMarca(lado: 24),
     );
   }
   final activa = st._traducciones != null;

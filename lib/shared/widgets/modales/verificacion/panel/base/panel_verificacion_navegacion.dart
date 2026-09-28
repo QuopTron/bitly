@@ -18,6 +18,11 @@ part of '../web/panel_verificacion_web.dart';
 /// onPageStarted cubre el mismo caso (chequear el grant en cada URL).
 NavigationDelegate _crearDelegate(_PanelVerificacionWebState state) {
   return NavigationDelegate(
+    // onProgress: el WebView reporta 0-100 mientras carga. Es el único dato
+    // real de avance que hay en esta espera, así que se usa para el medidor.
+    // (Si una plataforma no lo implementa, no llega nada y la barra queda en
+    // `null`, sin valor: sigue siendo honesta.)
+    onProgress: (progreso) => _progreso(state, progreso),
     onNavigationRequest: (solicitud) {
       final grant = grantDeCadena(solicitud.url);
       if (grant != null) {

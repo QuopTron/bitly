@@ -93,6 +93,21 @@ abstract class BackendService {
     String? coverUrl,
   });
 
+  // ── Tipografías (Ajustes → Apariencia → Tipografía) ───
+  /// Baja el .ttf de una tipografía al disco local y devuelve su ruta
+  /// ABSOLUTA (null si no se pudo). Con el archivo ya bajado no toca la red.
+  ///
+  /// Ante un null, Flutter se queda con la tipografía empaquetada: una bajada
+  /// fallida nunca deja la app sin tipografía.
+  Future<String?> descargarFuente({
+    required String id,
+    required String url,
+    String sha256 = '',
+  });
+
+  /// Borra las tipografías bajadas (Ajustes → Apariencia → liberar espacio).
+  Future<void> borrarFuentes();
+
   // ── Caché de streaming ────────────────────────────────
   Future<Map<String, dynamic>> getStreamCacheStats();
   Future<Map<String, dynamic>> clearStreamCache();

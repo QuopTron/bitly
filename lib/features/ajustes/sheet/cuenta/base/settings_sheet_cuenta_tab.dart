@@ -77,28 +77,38 @@ class _CuentaTabState extends State<_CuentaTab> {
     final r = Responsive(context);
     final t = AppLocalizations.of(context).ajustes;
 
-    return SingleChildScrollView(
-      padding: EdgeInsets.all(r.spacingL),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(height: r.spacingS),
-          _TituloApartado(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: EdgeInsets.fromLTRB(r.spacingL, r.spacingS, r.spacingL, 0),
+          child: _TituloApartado(
             titulo: t.cuenta,
             bajada: t.cuentaAyuda,
             glowColor: widget.glowColor,
           ),
-          SizedBox(height: r.spacingL),
-          _PremiumCardWidget(
+        ),
+        Expanded(
+          child: CarruselAjustes(
+            key: const ValueKey('carrusel-cuenta'),
+            etiqueta: t.cuenta,
             glowColor: widget.glowColor,
-            premium: widget.premium,
-            trialRemaining: _trialRemaining,
-            onPremiumChanged: widget.onPremiumChanged,
+            onBg: ColoresApp.enSuperficie(
+              Theme.of(context).brightness == Brightness.dark,
+            ),
+            r: r,
+            paginas: [
+              _PremiumCardWidget(
+                glowColor: widget.glowColor,
+                premium: widget.premium,
+                trialRemaining: _trialRemaining,
+                onPremiumChanged: widget.onPremiumChanged,
+              ),
+              _GoogleConnectionCard(glowColor: widget.glowColor),
+            ],
           ),
-          SizedBox(height: r.spacingM),
-          _GoogleConnectionCard(glowColor: widget.glowColor),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

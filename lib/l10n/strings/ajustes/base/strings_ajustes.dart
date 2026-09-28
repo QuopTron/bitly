@@ -36,6 +36,13 @@ class StringsAjustes {
   final String premiumActivar;
   final String premiumActivarExpirado;
 
+  /// Aviso del carrusel de ajustes: que se puede girar para ver el siguiente.
+  final String girar;
+
+  /// Plantilla del contador del carrusel: lleva %a (el que se está viendo) y
+  /// %n (cuántos hay).
+  final String _tplDeTotal;
+
   const StringsAjustes({
     required this.apariencia,
     required this.descargas,
@@ -62,7 +69,13 @@ class StringsAjustes {
     required this.premiumBeneficios,
     required this.premiumActivar,
     required this.premiumActivarExpirado,
-  });
+    required this.girar,
+    required String tplDeTotal,
+  }) : _tplDeTotal = tplDeTotal;
+
+  /// "2 de 8": en qué ajuste está y cuántos hay, para saber si falta girar.
+  String deTotal(int actual, int total) =>
+      _tplDeTotal.replaceFirst('%a', '$actual').replaceFirst('%n', '$total');
 
   /// Etiquetas en el MISMO orden que `_bubbleTabs`: el índice de la burbuja
   /// es el índice de esta lista y el de la pestaña.
@@ -111,6 +124,8 @@ class StringsAjustes {
     premiumBeneficios: 'Tu cuenta con todos los beneficios',
     premiumActivar: 'Tocá para activar un código premium',
     premiumActivarExpirado: 'Activá Premium para descargar sin límite',
+    girar: 'Deslizá para girar',
+    tplDeTotal: '%a de %n',
   );
 
   /// Textos en inglés.
@@ -143,5 +158,7 @@ class StringsAjustes {
     premiumBeneficios: 'Your account with every benefit',
     premiumActivar: 'Tap to activate a premium code',
     premiumActivarExpirado: 'Activate Premium to download without a limit',
+    girar: 'Swipe to turn',
+    tplDeTotal: '%a of %n',
   );
 }

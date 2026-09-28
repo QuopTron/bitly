@@ -22,6 +22,7 @@ import '../../../../estado/like/base/cubit_like.dart';
 import '../../../../estado/reproductor/cubit_reproductor.dart';
 import '../../../../shared/utilidades/interaccion/haptico.dart';
 import '../../../../shared/utilidades/plataforma/responsive.dart';
+import '../../../../shared/widgets/esqueletos/esqueleto_carga.dart';
 import '../../fiesta/boton_fiesta.dart';
 
 part 'fila_controles_botones.dart';

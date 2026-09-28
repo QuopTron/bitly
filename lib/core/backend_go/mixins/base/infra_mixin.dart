@@ -84,6 +84,43 @@ mixin InfraMixin on BackendService {
     }
   }
 
+  // ── Tipografías ──
+  //
+  // Igual que las carátulas: el backend baja el archivo y devuelve la RUTA.
+  // Si el backend que está corriendo es viejo (la app se actualizó pero el
+  // binario nativo todavía no), el método no existe: `rpcCall` lanza, el catch
+  // devuelve null y ServicioFuentes se queda con la tipografía empaquetada. La
+  // app no se rompe por eso — sólo no se puede cambiar la tipografía todavía.
+  @override
+  Future<String?> descargarFuente({
+    required String id,
+    required String url,
+    String sha256 = '',
+  }) async {
+    try {
+      final ruta = await rpcCall('descargarFuente', {
+        'id': id,
+        'url': url,
+        'sha256': sha256,
+      });
+      if (ruta is String && ruta.isNotEmpty) return ruta;
+      debugPrint('[Backend] descargarFuente($id): sin ruta (¿espejo caído?)');
+      return null;
+    } catch (e) {
+      debugPrint('[Backend] descargarFuente falló: $e');
+      return null;
+    }
+  }
+
+  @override
+  Future<void> borrarFuentes() async {
+    try {
+      await rpcCall('borrarFuentes');
+    } catch (e) {
+      debugPrint('[Backend] borrarFuentes falló: $e');
+    }
+  }
+
   @override
   Future<bool> resetAllData() async {
     try {

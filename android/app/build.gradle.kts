@@ -109,10 +109,20 @@ android {
             } else {
                 signingConfigs.getByName("debug")
             }
-            // Minify/shrink breaks the native Go backend bridge (bitly.aar) and
-            // ffmpeg-kit's JNI registration, leaving the app stuck on the splash
-            // screen in release builds. Disabled so release behaves like debug.
-            isMinifyEnabled = false
+            // R8 renombra/tira el código Java que "no se usa". El backend Go
+            // (bitly.aar) y ffmpeg-kit se llaman por reflexión/JNI, así que
+            // antes esto dejaba la app clavada en el splash y se apagó. Hoy
+            // está prendido CON las reglas de proguard-rules.pro que conservan
+            // cada puente (nativos, servicios y clases del manifest).
+            //
+            // Lo que se gana: classes.dex + classes4.dex son ~6,9 MB de los
+            // ~38 MB del APK arm64 — el pedazo más grande después de las .so.
+            //
+            // NOTA: shrinkResources queda apagado a propósito. `res/` entera
+            // pesa 0,6 MB y algunos recursos (los PNG de banderas) se buscan
+            // POR NOMBRE en tiempo de ejecución: sacarlos rompería sin ahorrar
+            // casi nada.
+            isMinifyEnabled = true
             isShrinkResources = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }

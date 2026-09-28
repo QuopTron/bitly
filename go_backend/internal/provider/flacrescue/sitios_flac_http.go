@@ -107,8 +107,16 @@ func pedirDescargaSitio(sesion *http.Client, base string, c candidatoSitio, cali
 func esperarEnlaceSitio(sesion *http.Client, trabajo string) (string, error) {
 	fin := time.Now().Add(esperaEnlaceSitio)
 	var detalle string
+	// La PRIMERA consulta va sin esperar: si el sitio ya tenía el archivo (su
+	// caché, o un tema corto que terminó rápido) el enlace está listo y la espera
+	// de 900ms era un peaje fijo por intento. Las siguientes sí respetan el paso:
+	// es el ritmo que evita castigar al sitio con sondeos seguidos.
+	espera := time.Duration(0)
 	for time.Now().Before(fin) {
-		time.Sleep(pasoConsultaSitio)
+		if espera > 0 {
+			time.Sleep(espera)
+		}
+		espera = pasoConsultaSitio
 		pagina, err := pedirSitio(sesion, trabajo)
 		if err != nil {
 			detalle = err.Error()

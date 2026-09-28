@@ -1,7 +1,7 @@
 name: bitly
 description: Download Spotify tracks in FLAC from Tidal, Qobuz & Deezer
 publish_to: "none"
-version: 0.9.27+16076
+version: 0.9.28+16077
 
 environment:
   sdk: ^3.7.0
@@ -91,7 +91,12 @@ dependencies:
   audio_session: ^0.2.4
   translator: ^1.0.4+1
   qr_flutter: ^4.1.0
-  mobile_scanner: ^7.4.2
+  # Cámara + lector de QR. Antes esto era `mobile_scanner`, que arrastra ML Kit
+  # COMPLETO dentro del APK (libbarhopper_v3.so + los modelos .tflite): ~3 MB
+  # por APK para una pantalla que sólo se usa al vincular un aparato. Acá se
+  # abre la misma cámara y el QR lo decodifica `zxing2`, que es Dart puro.
+  camera: ^0.12.0+2
+  zxing2: ^0.2.4
 
 dev_dependencies:
   flutter_test:

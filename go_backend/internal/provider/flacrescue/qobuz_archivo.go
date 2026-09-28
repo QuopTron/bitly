@@ -145,7 +145,9 @@ func (c *Client) resolverQobuzFirmado(id, formatoPedido string) (string, error) 
 
 	trackID := strings.TrimSpace(id)
 	if !esIDNumerico(trackID) {
-		encontrado, err := c.trackIDPorISRC(ctx, base, trackID)
+		// Compartida con el stash-relay (qobuz_memoria.go): los dos canales
+		// necesitan este id y corren a la vez en la carrera.
+		encontrado, err := c.trackIDPorISRCCompartido(ctx, base, trackID)
 		if err != nil {
 			return "", err
 		}

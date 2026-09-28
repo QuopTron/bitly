@@ -57,6 +57,65 @@ class _ColaConexion extends StatelessWidget {
   }
 }
 
+/// Esqueleto de la pestaña Conexión: la silueta del cupo y de las filas de
+/// aparatos, con los mismos aire y radio que el contenido real.
+///
+/// No es una ruedita: la ruedita no dice qué va a aparecer, y al llegar los
+/// aparatos el contenido salta de la nada. Acá la forma ya está puesta.
+class _EsqueletoConexion extends StatelessWidget {
+  final Color glowColor;
+  final Responsive r;
+
+  const _EsqueletoConexion({required this.glowColor, required this.r});
+
+  @override
+  Widget build(BuildContext context) => SingleChildScrollView(
+    padding: EdgeInsets.all(r.spacingL),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // La tarjeta del cupo.
+        EsqueletoCarga(alto: r.spacingL * 3, radioBorde: 16),
+        SizedBox(height: r.spacingS),
+        // Dos aparatos declarados en la cuenta.
+        for (var i = 0; i < 2; i++) ...[
+          if (i > 0) SizedBox(height: r.spacingS),
+          Row(
+            children: [
+              EsqueletoCarga(
+                ancho: r.spacingL * 1.6,
+                alto: r.spacingL * 1.6,
+                radioBorde: 12,
+              ),
+              SizedBox(width: r.spacingS),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    EsqueletoCarga(alto: r.footerSize, radioBorde: 6),
+                    SizedBox(height: r.spacingXS),
+                    FractionallySizedBox(
+                      alignment: Alignment.centerLeft,
+                      widthFactor: 0.45,
+                      child: EsqueletoCarga(
+                        alto: r.footerSize,
+                        radioBorde: 6,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+        SizedBox(height: r.spacingM),
+        // El bloque de los aparatos de la misma red.
+        EsqueletoCarga(alto: r.spacingL * 3, radioBorde: 16),
+      ],
+    ),
+  );
+}
+
 /// Encabezado corto que explica de qué va la pestaña o una nota al pie.
 class _AyudaSeccion extends StatelessWidget {
   final String texto;

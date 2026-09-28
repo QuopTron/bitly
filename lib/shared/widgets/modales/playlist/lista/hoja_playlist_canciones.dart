@@ -77,12 +77,10 @@ Widget _chipFuente(
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // Ocupado: el hueco del ícono se ve como el ícono que va a volver
+            // (la etiqueta del chip se queda, así se lee qué está pasando).
             if (onTap == null)
-              SizedBox(
-                width: r.footerSize + 1,
-                height: r.footerSize + 1,
-                child: CircularProgressIndicator(strokeWidth: 2, color: brillo),
-              )
+              EsqueletoMarca(lado: r.footerSize + 1)
             else
               Icon(icono, size: r.footerSize + 1, color: brillo),
             SizedBox(width: 4),

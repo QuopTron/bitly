@@ -47,8 +47,12 @@ if [ "$SOLO_INSTALAR" != "--solo-instalar" ]; then
   rm -f "$APK"
 
   info "Compilando APK x86_64 (INCLUDE_X86_64=true)..."
+  # `--split-debug-info` saca los SÍMBOLOS del APK: son para leer un crash
+  # report, no para que el teléfono los tenga, así que hoy viajaban de más
+  # dentro de libapp.so. Se guardan en build/symbols (gitignored) para poder
+  # simbolizar después; sin ellos, un stack del AOT es ilegible.
   INCLUDE_X86_64=true flutter build apk --release --split-per-abi \
-    --target-platform android-x64
+    --target-platform android-x64 --split-debug-info=build/symbols
 
   [ -f "$APK" ] || fail "no se generó $APK (¿el build falló?)"
   ok "APK: $APK ($(du -h "$APK" | cut -f1))"

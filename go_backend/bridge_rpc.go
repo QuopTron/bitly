@@ -186,6 +186,10 @@ func dispatchGomobile(metodo string, params map[string]interface{}) (interface{}
 		return backend.SaveCover(paramObj(params)), ""
 	case "deleteCover":
 		return backend.DeleteCover(paramObj(params)), ""
+	case "descargarFuente":
+		return backend.DescargarFuente(paramObj(params)), ""
+	case "borrarFuentes":
+		return backend.BorrarFuentes(), ""
 	}
 
 	// Extras: extensiones, OAuth, sesiones firmadas, premium, playback,

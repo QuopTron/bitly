@@ -42,14 +42,12 @@ Widget _cabeceraHoja(
             ),
           ),
         ),
+        // Guardando: el hueco del botón de guardar se ve como el tilde que va
+        // a volver, del mismo tamaño (el Padding del IconButton se mantiene).
         if (st._guardando)
           Padding(
             padding: EdgeInsets.all(r.spacingS),
-            child: SizedBox(
-              width: r.subtitleSize + 4,
-              height: r.subtitleSize + 4,
-              child: CircularProgressIndicator(strokeWidth: 2, color: brillo),
-            ),
+            child: EsqueletoMarca(lado: r.subtitleSize + 4),
           )
         else
           IconButton(

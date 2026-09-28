@@ -34,12 +34,59 @@ class _ListaDetalle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (cargando) {
-      return Center(
-        child: SizedBox(
-          width: 20,
-          height: 20,
-          child: CircularProgressIndicator(strokeWidth: 2, color: glowColor),
-        ),
+      // Esqueleto de las filas: puesto, carátula y dos líneas, con la misma
+      // medida y el mismo radio que _FilaDetalle. Al llegar los datos nada se
+      // corre de lugar (y se ve que lo que viene es una lista, no "algo").
+      final lado = r.subtitleSize * 1.9;
+      return ListView.separated(
+        padding: EdgeInsets.fromLTRB(r.spacingM, 0, r.spacingM, r.spacingS),
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: 6,
+        separatorBuilder: (_, _) => SizedBox(height: r.spacingXS * 0.8),
+        itemBuilder:
+            (_, _) => Container(
+              padding: EdgeInsets.symmetric(
+                horizontal: r.spacingS,
+                vertical: r.spacingXS * 1.2,
+              ),
+              decoration: BoxDecoration(
+                color: onBg.withValues(alpha: 0.04),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: r.footerSize * 1.5,
+                    child: Center(
+                      child: EsqueletoCarga(
+                        ancho: r.footerSize * 0.6,
+                        alto: r.footerSize * 0.6,
+                        radioBorde: 4,
+                      ),
+                    ),
+                  ),
+                  EsqueletoCarga(ancho: lado, alto: lado, radioBorde: 10),
+                  SizedBox(width: r.spacingS),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        EsqueletoCarga(alto: r.footerSize, radioBorde: 6),
+                        SizedBox(height: r.spacingXS),
+                        FractionallySizedBox(
+                          alignment: Alignment.centerLeft,
+                          widthFactor: 0.6,
+                          child: EsqueletoCarga(
+                            alto: r.footerSize - 2,
+                            radioBorde: 6,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
       );
     }
     if (visibles.isEmpty) {

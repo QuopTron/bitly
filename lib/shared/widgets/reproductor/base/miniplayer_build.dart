@@ -24,6 +24,9 @@ Widget _buildMiniplayerConPrefs(
   PreferenciasApariencia prefs,
 ) {
   final r = Responsive(context);
+  // Las medidas del miniplayer (carátula, iconos) salen de la geometría, que ya
+  // resolvió el aparato Y el preset de tamaño elegido en Ajustes.
+  final g = geometriaMiniplayerDe(context);
   final esOscuro = Theme.of(context).brightness == Brightness.dark;
   final fg = ColoresApp.enSuperficie(esOscuro);
   return BlocBuilder<CubitCola, EstadoCola>(
@@ -83,7 +86,10 @@ Widget _buildMiniplayerConPrefs(
                 }
               },
               child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: r.width * 0.04),
+                // El relleno se mide contra la BARRA (no contra la pantalla):
+                // con el ancho acotado, el 4% de una pantalla enorme se comía
+                // el contenido.
+                padding: EdgeInsets.symmetric(horizontal: g.paddingInterno),
                 child: BarraAdornada(
                   adorno: adorno,
                   olas: olas,
@@ -125,6 +131,7 @@ Widget _buildMiniplayerConPrefs(
                             _filaTrackMini(
                               st,
                               r,
+                              g,
                               fg,
                               esOscuro,
                               cola,

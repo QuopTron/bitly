@@ -5,14 +5,17 @@
 // ─────────────────────────────────────────────────────────────
 
 import 'package:flutter/material.dart';
-import '../../../../shared/utilidades/plataforma/responsive.dart';
 import '../../../../core/cache/almacenes/sistema/cache_ajustes.dart';
 import '../../../../core/plataforma/sistema/base/servicio_foco_audio.dart';
 import '../../../../app/inyeccion/inyeccion.dart';
 import '../../../../l10n/app_localizations.dart';
+import '../comun/base/ajuste_toggle_row.dart';
 
 // Toggle de audio en segundo plano: si esta activo, la musica sigue
 // sonando aunque otra app toque audio. Con warning explicativo.
+//
+// La fila en sí (icono, textos, switch, esqueleto) vive en AjusteToggleRow:
+// acá sólo queda LA DECISIÓN (leer la preferencia, aplicarla, guardarla).
 class AudioSegundoPlanoRow extends StatefulWidget {
   final Color onBg;
   final Color glowColor;
@@ -54,86 +57,16 @@ class AudioSegundoPlanoRowState extends State<AudioSegundoPlanoRow> {
 
   @override
   Widget build(BuildContext context) {
-    final r = Responsive(context);
     final loc = AppLocalizations.of(context);
-    return GestureDetector(
-      onTap: _cargando ? null : () => _alternar(!_activo),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: EdgeInsets.all(r.spacingS),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(10),
-          color:
-              _activo
-                  ? widget.glowColor.withValues(alpha: 0.08)
-                  : widget.onBg.withValues(alpha: 0.03),
-          border: Border.all(
-            color:
-                _activo
-                    ? widget.glowColor.withValues(alpha: 0.4)
-                    : widget.onBg.withValues(alpha: 0.1),
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              Icons.volume_up_rounded,
-              size: r.subtitleSize + 4,
-              color:
-                  _activo
-                      ? widget.glowColor
-                      : widget.onBg.withValues(alpha: 0.5),
-            ),
-            SizedBox(width: r.spacingS),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    loc.setup.audioFondoTitulo,
-                    style: TextStyle(
-                      fontSize: r.subtitleSize + 1,
-                      fontWeight: FontWeight.w600,
-                      color: widget.onBg,
-                    ),
-                  ),
-                  SizedBox(height: 2),
-                  Text(
-                    loc.setup.audioFondoDesc,
-                    style: TextStyle(
-                      fontSize: r.footerSize - 1,
-                      color: widget.onBg.withValues(alpha: 0.5),
-                      height: 1.3,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (_cargando)
-              SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: widget.glowColor,
-                ),
-              )
-            else
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 200),
-                child: Icon(
-                  _activo ? Icons.toggle_on_rounded : Icons.toggle_off_rounded,
-                  key: ValueKey(_activo),
-                  size: 32,
-                  color:
-                      _activo
-                          ? widget.glowColor
-                          : widget.onBg.withValues(alpha: 0.3),
-                ),
-              ),
-          ],
-        ),
-      ),
+    return AjusteToggleRow(
+      onBg: widget.onBg,
+      glowColor: widget.glowColor,
+      icono: Icons.volume_up_rounded,
+      titulo: loc.setup.audioFondoTitulo,
+      descripcion: loc.setup.audioFondoDesc,
+      activo: _activo,
+      cargando: _cargando,
+      onTap: () => _alternar(!_activo),
     );
   }
 }

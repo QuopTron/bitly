@@ -11,8 +11,10 @@ class _SettingsSheetState extends State<SettingsSheet>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
-  /// Pestaña activa. Arranca en la PRIMERA burbuja (Apariencia): el usuario
-  /// abre Ajustes para tocar algo, no para mirar un tablero de estadísticas.
+  /// Pestaña activa. Arranca SIEMPRE en la PRIMERA burbuja (Apariencia): el
+  /// usuario abre Ajustes para tocar algo, no para mirar un tablero de
+  /// estadísticas, y adivinar dónde lo dejó la vez pasada desubicaba (se probó
+  /// recordarla y la hoja abría en Descargas sin motivo aparente).
   /// null = vista de perfil/estadísticas (a la que se llega destildando una
   /// burbuja, no al abrir).
   int? _selectedTab = 0;

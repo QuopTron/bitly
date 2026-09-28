@@ -71,6 +71,17 @@ class _PaginaMiEspacioState extends State<PaginaMiEspacio> {
   FiltrosMiEspacio _filtros = const FiltrosMiEspacio();
   bool _mostrarBusqueda = false;
 
+  /// El texto de la búsqueda vive ACÁ y no en la barra: plegar el acordeón
+  /// desmonta la barra, y con el controlador adentro se perdía lo escrito
+  /// —volver a desplegarlo dejaba el campo vacío y había que buscar de nuevo—.
+  final _ctrlBusqueda = TextEditingController();
+
+  @override
+  void dispose() {
+    _ctrlBusqueda.dispose();
+    super.dispose();
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();

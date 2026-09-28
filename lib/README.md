@@ -326,11 +326,15 @@ Ya aplicado en las SIETE vistas partidas: `PaginaHome` → `HomeTv` (nav arriba
 (feed), Mi Espacio, Splash, Setup y Tutorial (`<x>_tv` / `<x>_escritorio` /
 `<x>_movil`).
 
-PENDIENTE: las vistas que todavía son de UNA sola variante no se partieron:
-**detalle (álbum/artista/playlist), reproductor, Ajustes y el tutorial
-interactivo**. Ahí PC y celular comparten el diseño actual; el próximo paso es
-darles su `<x>_tv` con el panel plano y, donde tenga sentido, partir también
-PC/celular.
+Ya aplicado también en las tres que faltaban y que antes eran de UNA sola
+variante: **detalle** (`detalle/comun/vistas/detalle_{tv,escritorio,movil}.dart`,
+compartido por álbum/artista/playlist), **reproductor**
+(`reproductor/vistas/reproductor_{tv,escritorio,movil}.dart`) y **Ajustes**
+(`ajustes/sheet/vistas/{tv,escritorio,movil}` sobre `ajustes_marco.dart`).
+
+PENDIENTE: el **tutorial interactivo** (el overlay de pasos) sigue siendo de una
+sola forma; su capa se dibuja en el Overlay raíz, así que partirla pide otra
+estrategia que la de una página común.
 
 ### Vistas (features/) — empezando por el Splash
 
@@ -538,3 +542,563 @@ features/feed/
   velo, o el color dominante en modo Spotify) reemplaza las copias privadas del
   karaoke, la cola, "agregar a", info de canción y la hoja de descarga; también
   lo usan la hoja de playlist y el selector de playlists.
+
+### Diseño POR VISTA + tipografía (v1.0.0) — el motor del "santo grial"
+
+El diseño dejó de ser UNO para toda la app: cada vista puede salirse y las demás
+heredan. Dos piezas nuevas, las dos con el mismo criterio de "lo que no toca, no
+cambia":
+
+```
+core/modelos/usuario/disenos/vistas/vista_app.dart            — las 7 vistas (clave estable)
+core/modelos/usuario/disenos/vistas/diseno_vista.dart         — qué sobrescribe cada uno
+core/modelos/usuario/disenos/vistas/preferencias_vistas.dart  — el mapa (solo lo tocado)
+core/modelos/usuario/disenos/vistas/preferencias_vistas_json.dart — codec tolerante
+shared/utilidades/formato/apariencia/vistas/apariencia_vistas_helper.dart — la cascada
+core/modelos/usuario/fuentes/{fuente_app,catalogo_fuentes}.dart — catálogo de tipografías
+core/servicios/fuentes/servicio_fuentes.dart                  — baja, registra y publica
+core/backend_go/.../infra_mixin.dart (descargarFuente)        — puerta al backend
+```
+
+- **La cascada es `vista → global → fábrica`.** `AparienciaVistas.de(context,
+vista)` devuelve valores YA resueltos (nada en null): lo que declara la vista, o
+si no el estilo global del usuario, o si no el de fábrica. Es lo que permite
+personalización extrema sin que la app quede incoherente: el que no entra a
+Ajustes ve todo como siempre.
+- **Solo se persiste lo TOCADO.** `PreferenciasVistas` guarda nada más las
+vistas personalizadas, así que agregar una vista nueva en el futuro no obliga a
+migrar nada y "Restablecer" no deja entradas fantasma.
+- **La tipografía estaba empaquetada y SIN USAR.** `assets/fonts/GoogleSansFlex.ttf`
+viajaba en cada build pero `EnvoltorioColorDinamico` armaba el `ThemeData` sin
+`fontFamily`: toda la app se dibujaba con la tipografía del sistema. Ahora el
+tema la declara y `ServicioFuentes` publica la familia activa por un notifier
+(`ValueNotifier<String?>`) para que el repintado llegue sin reiniciar.
+- **Una bajada fallida nunca deja la app sin tipografía.** Si el backend no
+responde (binario viejo, espejo caído, sin red) se vuelve a la empaquetada y se
+informa el estado; `ServicioFuentes.estado` es lo que lee Ajustes. En web se usa
+la empaquetada a propósito: la ruta que devuelve el backend remoto no es un
+archivo de ESTE dispositivo.
+- **El backend valida antes de guardar:** id como nombre de archivo seguro
+(`^[a-z0-9_]{1,32}$` — sin eso un `../` escribe fuera de la carpeta), firma sfnt
+(un portal cautivo que contesta 200 con HTML no se guarda como `.ttf`), sha256
+opcional, tope de 16 MB y escritura atómica (temporal + rename).
+
+### El ÁMBITO por vista: cómo llega el diseño a las cards sin tocarlas
+
+Resuelto el modelo, faltaba lo difícil: que una card de adentro de una vista
+obedezca a ESA vista sin que cada tarjeta sepa que existen las vistas. La
+solución es un `InheritedWidget`:
+
+```
+shared/widgets/vista/base/ambito_vista.dart   — el ámbito (lleva declarado + resuelto)
+shared/widgets/vista/base/diseno_de_vista.dart — quien lo monta y resuelve la cascada
+shared/utilidades/formato/apariencia/barras/apariencia_espacios_helper.dart — quien lo LEE
+```
+
+- **Cada eje necesita su CONSUMIDOR, si no el control miente.** El redondeo y el
+  aire llegan solos por `AparienciaEspacios`; las columnas necesitaron extraer
+  la cuenta que estaba **copiada en tres grillas** (feed, búsqueda y mi espacio:
+  2/3/4/6 según el ancho) a `vistas/grilla_vista.dart`. De paso: tres copias de
+  la misma fórmula es la forma más segura de que dos queden viejas.
+- **Las columnas no heredan del global**, a diferencia del resto: no hay un
+  "columnas del estilo global", las decide el ancho de la pantalla. Por eso su
+  marca dice "Automático" y no "Heredado", y el tope **sólo puede reducir**
+  (pedirle 6 columnas a un cajón de 400 px daría portadas del tamaño de un
+  sello). `_VistasEje` acepta `marcaVacia` justo para eso.
+- **Se envuelve UNA vez por vista** y de ahí para adentro todo obedece:
+  `ensamblador_home` (buscador/feed/mi espacio/reproductor), `navegador_detalle`
+  (las tres de detalle), `showSettingsSheet` (la hoja entera) y `TutorialPagina`.
+- **El truco está en `AparienciaEspacios`.** Las cards ya pedían
+  `radioCards(context)` y `espacioXCancion(context)`; esos getters ahora pasan
+  por el ámbito, así que la personalización por vista llegó a TODAS las cards y
+  grillas **sin tocar una sola tarjeta**. Si mañana se agrega una card nueva,
+  hereda el comportamiento sola.
+- **El ámbito guarda las DOS caras:** `declarado` (lo que la vista pidió, para
+  saber si eligió algo propio) y `resuelto` (lo que hay que pintar). Con sólo el
+  resuelto no se podría distinguir "heredó el radio global" de "eligió justo
+  ese radio", y el control de Ajustes no sabría si marcar "Heredado" o "Propio".
+- **`DisenoDeVista` es `StatefulWidget` a propósito:** escucha la preferencia por
+  vista, la global y el registro de familias tipográficas, y así repinta cuando
+  cualquiera cambia (un `ValueListenableBuilder` anidado tres veces sería peor).
+- **La densidad MULTIPLICA, no reemplaza** (`base * densidad`): mover el control
+  general sigue moviendo todas las vistas juntas y la que se aparta lo hace en su
+  medida. Con un reemplazo, personalizar una vista la desconectaría del control
+  global para siempre.
+
+**Aprendizaje de esta tanda:** una fuente elegida por vista necesita su propio
+camino de carga. `activar()` cambia la tipografía GLOBAL, así que se agregó
+`asegurarFamilia()` (baja y registra sin publicar familia ni estado) más un
+`ValueNotifier` de generación para que la vista repinte cuando el `.ttf` termina
+de llegar. Sin eso, la vista elegía otra letra y seguía mostrando la vieja hasta
+el próximo repintado de casualidad.
+
+### El COLOR por vista: el cofre tiñe las cards de esa pantalla
+
+Es el primer eje por vista que **pinta** (los demás mueven medidas) y el único
+que no tiene equivalente global: el cofre vive en las barras, así que una paleta
+solo puede ser de una vista.
+
+```
+shared/utilidades/formato/apariencia/vistas/tinte_vista_helper.dart — las reglas del tinte
+```
+
+- **La paleta MANDA sobre el color de la carátula.** El acento de una card salía
+  siempre de `EstiloHelper` + el dominante del cover; ahora
+  `TinteVista.acentoDeCards(context, delCover)` deja ganar a la vista. Si el
+  cover pudiera pisarla, elegir una paleta no serviría de nada.
+- **Tiene PISO de intensidad (0.6).** El tinte se apaga con el deslizador de
+  Estilo; si una paleta elegida con ese control en 0 no se viera, sería un
+  control que miente. Por encima del piso, el deslizador sigue mandando.
+- **Con paleta NO se extrae el dominante del cover** (`TinteVista.
+  extraerDelCover`). Beneficio gratis: se evita esa decodificación por tarjeta en
+  toda la pantalla.
+- **Una sola intensidad por pantalla.** El espaciado de las grillas se CIERRA a
+  medida que crece la intensidad del color, así que la grilla tiene que medir lo
+  mismo que sus cards: `TinteVista.nivelDeGrilla`. Antes medía el global y con
+  una paleta puesta las cards salían teñidas y la grilla con el aire de "sin
+  color": dos piezas de la misma pantalla diciendo cosas distintas del mismo
+  ajuste.
+- **Hay cálidos de FÁBRICA (Ámbar y Terracota), abiertos desde el minuto cero.**
+  Un catálogo donde todo está con candado se ve roto: el usuario entra, elige un
+  color y no cambia nada. El resto de los cálidos (Mandarina 10 h, Brasas
+  750 h) sigue en la escalera, así la mitad del catálogo todavía da algo que
+  ganar escuchando. El test los verifica **cálidos de verdad** (el rojo pesa más
+  que el azul), no por el nombre en el idioma.
+- **Un eje por PESTAÑA.** La tarjeta tiene cinco controles —color, letra, forma,
+  aire y grilla— y apilados eran un rollo donde había que bajar mucho para
+  llegar al último, con cuatro deslizadores juntos sin saber cuál movía qué. La
+  tira de pestañas lleva un PUNTO en los ejes que esa pantalla ya tiene propios
+  (se ve dónde se salió del diseño general sin abrir una por una) y el selector
+  de pantalla y la previa son compartidos: no se elige la pantalla cinco veces.
+- **El catálogo de colores va de menos a más horas** y los de fábrica primero,
+  así el cofre se lee como una progresión. Un test lo sostiene (`la escalera va
+  de menos a más`) y otro verifica que **cada diseño tenga nombre en los dos
+  idiomas**: un id sin texto se ve crudo en pantalla ("paleta_ocaso") y eso pasa
+  justo cuando se agrega un diseño y se olvida su nombre.
+- **Se eligen MIRANDO**: cada paleta es una tarjeta con su muestra en grande, su
+  nombre y el estado con el mismo vocabulario que el cofre ("En uso" / "Usar" /
+  cómo se abre). Una muestra chica al lado del nombre no deja comparar dos
+  paletas.
+- **La previa es FIEL:** se dibuja un texto de muestra **en la tipografía de la
+  vista**, con su color, su redondeo y su aire en la misma pieza. Cuatro previas
+  separadas obligarían al usuario a imaginarse la combinación.
+- **Sólo se ofrecen las paletas del cofre**, y del aparato (`coloresParaAparato`),
+  con las mismas reglas de apertura que en Barras: lo bloqueado se VE, con
+  candado y con cómo se abre —esconderlo dejaría un eje con una sola opción, que
+  parece roto—. `disenoId` guarda el id del diseño entero para que el día que la
+  forma también se consuma no haya que migrar lo ya guardado.
+- **La muestra en vivo también se tiñe** (`_VistasMuestra.paleta`): elegir el
+  color y no verlo ahí obligaría a cerrar Ajustes para comprobarlo.
+
+### Guardar y volver a leer: el error que no ve ningún test de modelo
+
+Guardar y leer son dos caminos distintos, y el error clásico es que falte uno de
+los dos: se elige, se ve en el momento, y **al reabrir la app volvió todo al
+diseño de fábrica**. Ningún test de modelo lo ve (el JSON está perfecto) ni el de
+la tarjeta (la elección se ve al instante). Se ve recién al reabrir, así que hay
+un test que simula el arranque REAL: notificadores de fábrica y después
+`cargarAjustesGuardadosApp` —lo que corre la app al abrir—, y comprueba que los
+cinco ejes de la vista vuelven y que una instalación nueva **no** inventa
+preferencias que el usuario nunca eligió (`test/unit/ajustes_reinicio_test.dart`).
+
+**Aprendizaje de esta tanda (importante para los tests):** `pumpAndSettle` NO
+espera a las consultas reales. La tarjeta de Vistas saca las horas de escucha
+—que son las que abren tipografías y paletas— de una consulta a drift, y la zona
+de tiempo falso del widget test no avanza el reloj real: la tarjeta se quedaba en
+0 horas y la prueba pasaba con el catálogo vacío **por el motivo equivocado** (el
+comentario del arnés decía que esperaba la carga async, y no la esperaba). Se
+arregla con un turno de reloj real (`tester.runAsync(() => Future.delayed(...))`)
+antes de asentar el árbol: ver `asentarDatos` en
+`test/widgets/ajustes_apariencia_smoke_test.dart`.
+
+**Aprendizaje de esta tanda (importante para los tests):** `GetIt.reset()` es
+ASÍNCRONO. Llamarlo y registrar en la línea siguiente NO alcanza: el reset
+pendiente termina después y se lleva puesto el registro, y el test falla con
+`type X is not registered` recién cuando aparece un `await` (o sea, casi
+siempre). Los `setUp` que resetean tienen que ser `asyn`c y hacer
+`await di.sl.reset();` antes de registrar. Se ve en
+`test/unit/servicio_fuentes_test.dart` y `test/unit/apariencia_vistas_cascada_test.dart`.
+
+### Geometría del MINIPLAYER (v1.0.0) — tamaño, forma y ancho, con acotadas
+
+El miniplayer tenía UNA sola forma por aparato y los números repartidos en tres
+archivos (el celular lo pegaba al borde, la PC le ponía `sobre(18,30)` con
+sombra, la tele 22 fijo sin sombra). Con los números en tres lugares, un preset
+era imposible: cualquier ajuste se desincronizaba en dos de los tres.
+
+```
+shared/utilidades/formato/apariencia/barras/miniplayer_geometria.dart
+shared/widgets/reproductor/base/marco_miniplayer.dart               ← margen + tope, compartido por los 3 shells
+core/modelos/usuario/preferencias/preferencias_apariencia.dart      ← TamanoMiniplayer / FormaMiniplayer / AnchoMiniplayer
+```
+
+- **Los tres shells envuelven el miniplayer con `MarcoMiniplayer`.** Antes cada
+  uno escribía sus márgenes a mano (celular 0, PC `sobre(18,30)`, tele 22): con
+  el tope de ancho, repetir la cuenta en tres lugares es garantía de que dos
+  queden mal. El marco toca SÓLO el eje horizontal (el vertical sigue siendo de
+  cada shell: no es lo mismo la barra pegada a la navbar que la tarjeta con
+  aire de la PC) y va por FUERA del adorno del shell (borde, sombra, esquinas):
+  si el ancho se acotara por dentro, la tarjeta seguiría ocupando la pantalla
+  entera con una barrita centrada adentro.
+- **`AnchoMiniplayer.auto` es un MÁXIMO, no un objetivo:** sólo acota arriba de
+  su tope (1600), así que en un monitor normal no cambia absolutamente nada. La
+  barra acotada va centrada; con el preset de fábrica la app se ve igual.
+- **El relleno interno se mide contra la BARRA, no contra la pantalla.** El
+  miniplayer usaba `r.width * 0.04`: el 4% de una pantalla de 3840 son 153 px y,
+  dentro de una barra acotada a 1600, se comía el contenido. Ahora es el 4% de
+  la pantalla **acotado al 8% de la barra** (en un celular da 15.6, igual que
+  antes).
+- **Los chips de "Automático" dicen a qué equivalen** (`Automático · Pegado al
+  borde`, `Automático · Ancho completo`). Sin eso el usuario elige el preset de
+  fábrica, no ve ningún cambio en su pantalla y parece que el control está
+  roto — que es exactamente el caso de `auto` en la mayoría de los aparatos.
+
+- **Los presets multiplican las medidas base del aparato, no las reemplazan.**
+  Con `normal` + `auto` los números salen **exactamente** como antes: el que no
+  toca nada ve la app de siempre. Por eso `calcular` recibe `baseCaratula`,
+  `baseRadioCaratula` y `baseMargen` (lo de HOY) en vez de inventarlos.
+- **`FormaMiniplayer.auto` existe a propósito.** El default no es un valor sino
+  "la de siempre en este aparato": pegado en el celular (si no queda un hueco
+  contra la navbar) y flotante en PC/TV. Un default plano obligaba a elegir
+  mal en dos de los tres aparatos.
+- **Las acotadas son la razón de que sea una función PURA** y no una cuenta
+  suelta en cada shell. El margen nunca pasa el 6% del ancho y la carátula el
+  22%: con "grande" en una ventana angosta, la carátula se comía el título y
+  los controles. Los iconos crecen menos que la carátula, por lo mismo.
+- **`_acotarArriba` resuelve `max <= min`.** En una ventana más angosta que
+  2× el margen mínimo, el `clamp` de Dart tira excepción cuando el mínimo queda
+  arriba del máximo: ahí manda el techo, porque en una pantalla así de chica
+  cualquier margen es peor que el piso.
+- **La sombra es parte de la forma flotante**, no del aparato: si el usuario
+  elige "pegado al borde", no hay dónde caer. (La tele nunca la lleva: se
+  recompone en cada frame y a metros no se ve.)
+
+**Aprendizaje de esta tanda:** un ternario donde una rama es `0` (int) y la otra
+un `double` se infiere **`num`**, y después no entra en un campo `double`. La
+solución es el tipo explícito (`final double margen = ...`), no castear después.**Aprendizaje de esta tanda:** `json['x'] as String?` **NO es tolerante**: tira
+`type 'int' is not a subtype of type 'String?'` si el valor guardado es un
+número. En un codec que existe para no romper el arranque, hay que preguntar por
+el tipo (`json[clave] is String`) en vez de castear. Lo cubren
+`test/unit/miniplayer_geometria_test.dart` y `test/widgets/ajustes_apariencia_smoke_test.dart`.
+
+### Peso del APK (v1.0.0) — R8, la tipografía, el QR y los carruseles
+
+La app bajó **~10 MB por APK (−21% en x86_64, −27% en arm64)** sin perder nada
+visible. Las tres palancas grandes, en orden de tamaño:
+
+```
+android/app/build.gradle.kts     ← isMinifyEnabled = true (R8)
+android/app/proguard-rules.pro   ← las reglas que hacen que R8 no rompa JNI/manifest
+assets/fonts/GoogleSansFlex.ttf  ← 4,15 MB → 0,28 MB (sólo los ejes que la app usa)
+scripts/build/optimizar_fuente.py + verificar_fuente.py
+lib/features/ajustes/sheet/conexion/qr/base/lector_qr.dart   ← QR sin ML Kit
+```
+
+- **R8 (minify) encendido** ahorra **~4,9 MB** de dex, y `shrinkResources` queda
+  APAGADO a propósito: `res/` entera pesa 0,6 MB y los PNG de banderas se buscan
+  **por nombre** en tiempo de ejecución, así que sacarlos rompe sin ahorrar casi
+  nada. Las reglas de `proguard-rules.pro` conservan nativos, anotaciones y las
+  clases del manifest: sin ellas la app se clavaba en el splash (todo JNI/reflexión
+  se renombra a `a.b.c`).
+- **ffmpeg-kit NO es `com.arthenica.ffmpegkit`.** El fork que se usa
+  (`ffmpeg_kit_flutter_new_audio`) declara el paquete
+  **`com.antonkarpenko.ffmpegkit`**. Se descubrió en el logcat
+  (`FFmpegKitFlutterPlugin created com.antonkarpenko.ffmpegkit.FFmpegKitFlutterPlugin`),
+  no leyendo el pubspec. Las dos reglas quedaron puestas, por las dudas.
+- **La tipografía pesaba 4,15 MB y NO era por cantidad de letras** (el archivo
+  tenía 535 entradas en el cmap): Google Sans Flex es una VARIABLE con SEIS ejes
+  (`opsz, wdth, wght, GRAD, ROND, slnt`) y la app sólo mueve `wght` vía
+  `FontWeight`. Fijar los otros cinco en su DEFAULT y dejar `wght` variable lo
+  deja en 0,28 MB **sin cambiar un píxel**, porque fijar un eje en su default es
+  exactamente cómo se estaba dibujando. `optimizar_fuente.py` lo hace y
+  `verificar_fuente.py` lo COMPRUEBA: compara avances y contornos (compilados)
+  de la original y la optimizada en cada peso.
+- **Generar una estática por peso se midió y se rechazó**: 5 estáticas sumaban
+  6,98 MB (cada una repite los contornos completos), más que el original.
+- **El QR salió de ML Kit**: `mobile_scanner` se reemplazó por `camera` +
+  `zxing2` (puro Dart). Eso sacó 3 bundles nativos del APK (~3 MB):
+  `libbarhopper_v3.so` + 3 modelos `.tflite`. `LectorQr.leer` usa el plano Y de
+  la cámara como luminancia (con `bytesPorFila`, porque la cámara puede traer
+  relleno entre filas) y `HybridBinarizer`, que aguanta luz despareja.
+
+**Medición final** (`flutter build apk --release --split-per-abi`, con
+`INCLUDE_X86_64=true`): arm64 36,0 MB · armeabi-v7a 44,7 MB · x86_64 37,7 MB ·
+universal 135,3 MB. Sobre el arm64 no se pudo reconstruir un "antes" confiable
+(el número que se había anotado salía de un APK **sin** `libapp.so`/`libflutter.so`,
+ver abajo); el antes/después medido en x86_64 con la misma receta fue
+**50.065.740 → 39.536.068 bytes**.
+
+- **`emulador.sh` arma SÓLO x86_64** (`--target-platform android-x64`) pero
+  Gradle igual emite los splits de arm64/armeabi: esos APKs salen **sin
+  `libapp.so` ni `libflutter.so`** (el motor sólo se prepara para el target
+  pedido) y pesarían ~10 MB menos que los de verdad. No sirven para medir ni
+  para instalar en un teléfono: para eso está `scripts/release/release.sh` (y el
+  CI), que corren el build completo.
+- **Los carruseles de Ajustes son un solo widget compartido**
+  (`shared/widgets/carrusel/base/carrusel_ajustes.dart`): cada pestaña pasa sus
+  tarjetas y el carrusel pone el aviso de girar, el contador, los puntos y las
+  flechas. Con UNA sola página no dibuja nada de sí mismo. Las flechas llevan
+  clave propia (`carrusel-anterior` / `carrusel-siguiente`) porque el ícono de
+  chevron lo usan un montón de filas de adentro: sin clave, "la flecha de este
+  carrusel" no se distingue de la decorativa de una tarjeta.
+- **La tarjeta del pool de Qobuz prometía "nunca lanza" y sí lanzaba**: la
+  consulta al backend se hacía sin `try`, así que una excepción se escapaba del
+  `initState`, la tarjeta quedaba girando para siempre y no se veía ni el estado
+  ni el campo para pegar la URL propia. Una respuesta `null` ya es el estado de
+  error, así que el fallo ahora se cuenta como respuesta inválida.
+- **Todo lo que gira lo cubre la prueba**: un `testWidgets` por pestaña
+  (`otrosCarruseles` en `test/widgets/ajustes_apariencia_smoke_test.dart`)
+  verifica que exista el carrusel de esa pestaña, que arranque en el primero con
+  su contador, que esté el aviso de girar y que se llegue a la última página.
+  Suite completa: **872 pasan, 2 salteadas**.
+
+**Aprendizajes de esta tanda:**
+
+- Al comparar una fuente variable optimizada hay que **compilarla antes de
+  comparar** (guardar y volver a leer). La tabla `glyf` de una variable tiene
+  coordenadas en `float` en memoria y recién se redondean al guardar: comparando
+  sin compilar aparecen "diferencias" de media milésima que el archivo final
+  nunca tiene. Compiladas, quedan diferencias de **≤1 unidad sobre 2000 por em**
+  (0,007 px a 14 px) en 4 glifos de 682, y los avances son idénticos: es
+  redondeo, no un cambio de dibujo.
+- En `fontTools` el default de un eje del `fvar` se lee en `eje.defaultValue`
+  (no `eje.default`), y esos valores hay que leerlos DEL ARCHIVO en vez de
+  hardcodearlos: si el default cambia, el script tiene que seguir comparando lo
+  que la app dibuja de verdad.
+- Dentro de una función local de Dart no se puede llamar a otra función local
+  **declarada más abajo** (`referenced_before_declaration`): los helpers
+  genéricos van primero y los envoltorios (`giraA`) después.
+
+### Huecos con forma (v1.0.0) — 26 spinners menos en toda la app
+
+En Ajustes no queda **ningún** `CircularProgressIndicator` (13 convertidos) y
+fuera de Ajustes se convirtieron **otros 13**. Cada lugar donde giraba un círculo
+muestra un bloque con la forma de lo que va a aparecer ahí, con las dos formas
+nuevas de `shared/widgets/esqueletos/esqueleto_carga.dart`:
+
+- **`EsqueletoEtiqueta`** — barra: el texto de un botón o el valor de una fila.
+- **`EsqueletoMarca`** — cuadrado apenas redondeado: el hueco de un ícono (o
+  redondo con `radioBorde: lado / 2` para un badge).
+
+- **La forma no es decoración: evita que el layout salte.** Un círculo de 18 px
+  donde después va el botón "Limpiar" (72×23) cambiaba el alto de la fila al
+  terminar de cargar; con la barra del mismo tamaño la fila se queda quieta.
+  Por eso cada hueco copia SU forma y no una genérica: la barra del texto del
+  botón (Activando / Enviando / Conectando), el cuadrado del ícono (chevron de
+  la carpeta, marca de descarga de la tipografía, refrescar de Qobuz), el
+  cuadrado blanco del QR que va a llegar con su código, y la tarjeta entera en
+  los tiles que se consultan solos (Google, Soulseek, estado de versión).
+- **`sobreColor` es el detalle que se ve a simple vista:** el shimmer del tema
+  es blanco al 6%, y encima de un botón relleno verde o rojo eso es invisible.
+  Los bloques que van sobre un color piden blanco al 22% (brillo 40%). Los dos
+  parámetros nuevos de `EsqueletoCarga` (`color`, `colorBrillo`) son `null` por
+  defecto, así que ningún esqueleto que ya existía cambió de color.
+- **Cuándo sigue siendo correcto el círculo** (quedan **10**, todos con motivo):
+  (1) esperas de arranque donde no hay forma que imitar — el overlay
+  "Preparando…" del home, el chequeo inicial del setup, el cuerpo del panel de
+  fiesta y la tarjeta "completando la configuración" del setup; (2) **progreso
+  de verdad** — el anillo de descarga y la cuenta regresiva usan `value:`, son
+  medidores, no placeholders; (3) **buffering** del reproductor (dos lugares),
+  que es el único aviso de que el stream va a arrancar; (4) el spinner sobre el
+  WebView de verificación, donde lo que viene es una página web, sin forma
+  conocida; (5) el "verificando" por proveedor del setup, que es el estado de
+  esa fila. La regla completa quedó en la cabecera de `esqueleto_carga.dart`.
+- **Los casos nuevos, en una línea cada uno:** lista de canciones de la
+  playlist y de Mi Espacio → `EsqueletoFeed` (ya existía, es la misma fila de
+  tarjeta); grilla de Mi Espacio → un esqueleto propio con la MISMA cuenta de
+  columnas y `childAspectRatio` que la grilla real; selector de playlists →
+  filas con portada, nombre y conteo; y en el resto, el hueco del ícono o de la
+  etiqueta (letras, traducir, carpeta, guardar, chip de video, cuenta de
+  Soulseek en el setup).
+- **`BotonVidrio` merece su párrafo**: el estado de carga reemplazaba icono +
+  etiqueta con un cuadradito, así que el botón se encogía y volvía a crecer. La
+  barra ahora mide **el ancho exacto de la etiqueta**, medido con el mismo
+  `TextStyle` (`TextPainter`), así el botón no cambia de tamaño al terminar.
+- Lo fijan `test/widgets/esqueleto_formas_test.dart` (6 pruebas: tamaño, radio
+  de pastilla vs. radio del botón, marca cuadrada vs. badge redondo, y que
+  `sobreColor` cambie el color) y las dos pruebas que antes medían el spinner y
+  ahora miden el hueco (`glass_button_test.dart` —incluido que la barra mida lo
+  que mide la etiqueta— y `storage_folder_preview_test.dart`).
+
+#### Revisión de los 8 que quedaron: ¿alguno puede ser un medidor honesto?
+
+De los 10 que se habían dejado, **dos se convirtieron** a medidores de verdad y
+**dos ya lo eran**; los otros cuatro no tienen nada medible y se quedan
+indeterminados a propósito.
+
+- **Verificación del setup → contador real** (`slide_verificacion_widgets.dart`).
+  El paso recorre 7 proveedores, uno por uno: había un spinner POR FILA y ningún
+  dato de conjunto (siete círculos girando sin saber cuánto falta). Ahora hay
+  **"N de 7 verificados" + barra determinada** que salen del estado real de cada
+  proveedor (`_estados`), así que avanzan solos. El spinner por fila se fue: cada
+  fila ya tenía su propio icono de estado (reloj de arena, sync, tilde, error).
+- **Panel del WebView → barra de carga real** (`panel_verificacion_web.dart`).
+  El spinner centrado tapaba el dato que el WebView SÍ da: `onProgress` (0-100).
+  Ahora es una barra arriba, como el navegador, **determinada** cuando llega el
+  avance y sin valor (`value: null`) mientras no haya ningún aviso — que es lo
+  honesto en las plataformas que no lo implementan, en vez de mentir con un 0%.
+- **Ya eran medidores honestos** y no se tocaron: el anillo de descarga
+  (`indicador_descarga_dots`) y la cuenta regresiva del setup
+  (`slide_gracias_widgets`) usan `value:`, o sea que miden de verdad.
+- **La tarjeta "completando la configuración" del setup NO puede ser un
+  medidor.** Se miró a fondo: `_persistirSetup` son unas escrituras locales en
+  bucle (`CacheAjustes.completarSetup`) y, si hay código premium, otra escritura
+  local (`activarPremium`) — milisegundos, sin etapas que mostrar. Un "3 de 12
+  ajustes" sería teatro, no medición: el spinner indeterminado es la respuesta
+  correcta para una espera sin progreso observable.
+- **Los otros tres tampoco tienen qué medir**: el cuerpo del panel de fiesta
+  (espera a que el modo fiesta se inicialice), el chequeo inicial del setup (dos
+  lecturas locales) y el **buffering** del reproductor — la app no consume
+  `player.stream.buffer`, y "cuánto del stream está bufferizado" no es un
+  porcentaje que el usuario pueda interpretar en un botón de play.
+- **Hallazgo: el overlay "Preparando tus fuentes…" era código muerto.**
+  `PaginaHome.preparando` nunca llegaba en `true` (el ensamblador no lo pasaba),
+  así que ese spinner no se veía en ninguna plataforma. Se **borró** (ver
+  "Lo que el usuario tenía abierto, sigue abierto").
+- Lo cubre `test/widgets/setup_verificacion_medidor_test.dart` (4 pruebas: las
+  7 filas, que el medidor no aparezca antes de arrancar, que cuente los
+  verificados de verdad —7 de 7, con barra al 100%— y que no vuelva ningún
+  spinner por fila).
+
+### Lo que el usuario tenía abierto, sigue abierto (0.9.28)
+
+El fallo que reportó el usuario: *"busco una canción en Mi Espacio, me voy a
+Buscar y al volver la búsqueda estaba en blanco"*. No era un problema de Mi
+Espacio: era el **shell móvil**.
+
+- **La causa.** La PC y la TV muestran las tres secciones con un `IndexedStack`
+  (las deja montadas). El celular usa un **`PageView`**, y un `PageView`
+  **descarta** la sección que sale de pantalla: al volver, su `State` nacía de
+  cero y con él se iban el texto buscado, la pestaña abierta, los filtros y el
+  scroll. Por eso se sentía "en todo lado": pasaba en las tres secciones.
+- **El arreglo:** `_SeccionAnimada` (en `home_movil_seccion.dart`) pasó a ser
+  `StatefulWidget` con `AutomaticKeepAliveClientMixin` y `wantKeepAlive => true`.
+  Es el mecanismo que Flutter tiene para exactamente esto: la sección fuera de
+  pantalla no se pinta pero sigue viva. Celular, PC y TV se comportan igual.
+- **La prueba no es cosmética: mide nacimientos de `State`.**
+  `test/widgets/home_secciones_vivas_test.dart` monta el shell real con tres
+  secciones falsas que anotan cuántas veces nació su estado. Cambiar de sección y
+  volver tiene que dar **3 nacimientos en total** (una por sección) y los toques
+  hechos en Inicio tienen que seguir ahí. Se verificó que **falla** si se pone
+  `wantKeepAlive => false` (da 4+), así que no es una prueba que pasa por
+  casualidad.
+- **De paso: el PageView dejó de reconstruir las tres secciones por frame.** El
+  `PageController` notifica en cada frame del gesto, y cada notificación
+  reconstruía los tres envoltorios (opacidad + escala). Ahora el envoltorio se
+  guarda y se reusa mientras el child sea el mismo y el cambio de opacidad/escala
+  quede por debajo de 0,004: devolver la misma instancia hace que Flutter corte
+  ahí y no baje al subárbol. Es lo mismo que se veía, con menos trabajo por frame.
+- **La pestaña de la Home ahora es compartida por los tres shells.**
+  `inyeccion` registraba un `ValueNotifier<int>` "de la pestaña activa" que
+  **nadie leía ni escribía**: era un comentario, no una función. Ahora los tres
+  shells lo leen al montar (`pestanaHomeInicial`) y lo escriben al cambiar
+  (`guardarPestanaHome`), así volver a la Home (enlace compartido, cambio de
+  tamaño, remontaje) cae donde el usuario estaba y no siempre en Inicio.
+- **Mi Espacio: el texto de la búsqueda ya no vive en la barra.** El acordeón
+  monta y desmonta la barra; con el `TextEditingController` adentro, plegarlo
+  destruía lo escrito. Ahora el controlador lo presta la página
+  (`_ctrlBusqueda`), y plegar el panel **no borra nada**: el texto, el filtro y el
+  orden quedan y vuelven a verse al desplegarlo. Además el botón de limpiar
+  aparece **con el primer carácter** (antes dependía de que otro widget repintara
+  la fila) y limpiar **cancela el debounce** — si no, el filtro que estaba por
+  salir volvía a caer después de borrar. Lo fijan las 3 pruebas de
+  `test/widgets/mi_espacio_busqueda_barra_test.dart`.
+- **Se borró el overlay muerto** "Preparando tus fuentes…":
+  `home_movil_overlay.dart`, los parámetros `preparando`/`onSaltarEspera` de
+  `PaginaHome`/`HomeMovil` y los dos textos de `StringsNavegacion` que solo
+  usaba él. Menos código y una API que ya no promete algo que no hace.
+
+#### ¿"Los ajustes se pierden"? Se auditaron los dos caminos de arranque
+
+Guardar y leer son caminos distintos, y el error clásico es que falte el
+segundo —se elige, se ve al instante y al reabrir volvió todo—. Estaba cubierto
+el diseño (global y por vista) en `ajustes_reinicio_test.dart`; ahora también:
+
+- **tema e idioma** (los lee `cargarAjustesGuardadosApp`, clave `theme_mode` /
+  `locale`) y **perfil de rendimiento + modo fluido** (los lee
+  `cargarPerfilRendimiento`, otro camino del arranque: `inyeccion_perfil.dart`).
+  El del perfil importa: la elección del usuario tiene que mandar sobre la gama
+  detectada, y el modo fluido no puede revertirse solo.
+- **Ningún ajuste es "solo escritura".** Se revisó, clave por clave,
+  `CacheAjustes` y el API genérico (`guardarAjuste`/`getAjuste`): ruta de
+  descargas, ajustes de descarga, datos del setup, estilo, apariencia, vistas,
+  perfil, fluido, audio en segundo plano, prioridad de proveedores, historial de
+  compartidos, datos de Conexión, token de LAN y credenciales de proveedores —
+  **todos** tienen su lectura. Lo único que a propósito **no** se guarda entre
+  arranques es la pestaña de Ajustes: la hoja abre siempre en Apariencia (se
+  probó recordarla y abría en Descargas "sin motivo", desubicando al usuario).
+
+`lib/features/ajustes/sheet/base/hoja/settings_sheet_sheet_state.dart` quedó
+anotado con esa decisión para que no se "arregle" de nuevo.
+
+### El rescate rápido: los canales ahora CORREN, no se suceden (0.9.28)
+
+El rescate de audio por ISRC (`go_backend/internal/provider/flacrescue`) tenía un
+defecto de **forma**: recorría sus canales en serie (Qobuz firmado → stash-relay
+→ arcod → espejos), así que el tiempo era la **suma** de sus presupuestos —hasta
+~17 s— aunque el espejo que sí tenía el FLAC respondiera en 300 ms. Como el
+rescate es la PRIMERA fase de la reproducción, ese peor caso se sentía como un
+tap roto.
+
+- **El arreglo: `resolucion_carrera.go`.** Todos los canales salen a la vez y
+gana el que primero entrega audio. La preferencia ya no se paga **antes** de
+empezar, se paga **reteniendo**: un resultado con pérdida espera
+`graciaRescateLossless = 1200 ms` a que llegue el sin pérdida que está en vuelo
+(ahí hay CALIDAD en juego), y cambiar de canal por uno mejor con la MISMA calidad
+espera apenas `graciaRescatePreferencia = 300 ms`. En cuanto los canales mejores
+contestan "no tengo nada", el retenido gana **al instante**: esperar la gracia
+entera por una fuente que ya dijo que no es lo que se siente como tap muerto. El
+`techoRescate = 15 s` es solo la red de seguridad si un canal se cuelga más allá
+de su propio contexto.
+- **La calidad no se pierde por correr en paralelo.** Es lo que fija
+`TestElFLACGanaAlMP3AunqueLlegueDespues`: el espejo tiene MP3 al instante y arcod
+el FLAC 600 ms después → suena el FLAC. Y `TestEspejosCorrenJuntoAlCanalLento`
+fija el caso real que motivó todo: con arcod colgado, los espejos ganan en
+**301 ms** (antes ~1,2 s, porque esperaban a que el canal lento terminara de
+fallar).
+- **Lo que NO cambió (es lo que sostiene la robustez):** cada canal conserva su
+presupuesto, su pausa/backoff y su caché (arcod guarda la puerta del stream que
+funcionó; los espejos marcan los suyos sin cuentas y se saltan; el relay cachea
+su config 6 h y precalienta en segundo plano); la cascada de FORMATOS de los
+espejos sigue siendo serial (FLAC → MP3_320 → MP3_128) y lo paralelo son los
+espejos DENTRO de cada formato; y la caché de resolución pasó a tener TTL por
+canal (`ttlDeCanal`): el enlace firmado de arcod caduca, una URL de CDN no.
+- **Dos arreglos puntuales que se comían cientos de ms por intento:**
+  - `arcod_stream.go` comprobaba el enlace firmado (un `Range` de 1 byte) con un
+    cliente DIRECTO contra `api.arcod.xyz`, así que con un proxy por región
+    configurado el canal creía que el enlace estaba muerto. Ahora usa el
+    transporte compartido del rescate (`transporteRescate`), como el resto.
+  - `sitios_flac_http.go` dormía `pasoConsultaSitio` **antes de la primera**
+    consulta: un peaje fijo de ~900 ms por intento aunque el sitio ya tuviera el
+    archivo listo. Ahora la primera va sin espera y el paso se respeta de la
+    segunda en adelante.
+- **Descargas: los dos caminos de la mejora a FLAC también corren juntos.**
+`orchestrator_mejora_flac_bajar.go` resolvía primero los sitios raspables (hasta
+45 s de presupuesto) y recién después los espejos/canal sin pérdida: un sitio sin
+cuentas arrastraba su espera entera al camino que ya tenía el FLAC. Ahora
+`candidatasSitios` y `candidatasEspejos` corren por `resolverEnParalelo` y la
+primera candidata que **valida** (FLAC real y de la duración pedida) gana.
+- **Una búsqueda de id compartida (esta pasada).** El id de pista de Qobuz lo
+necesitan DOS canales (el Qobuz firmado y el stash-relay, que traduce el ISRC por
+catálogo) y, al correr a la vez, pagaban la MISMA búsqueda dos veces.
+`qobuz_memoria.go` la comparte: el primero la paga, los demás esperan su
+resultado (broadcast) y la siguiente vuelta sale de la memoria. **Los fallos NO
+se comparten** a propósito: el que esperaba hace su propio intento, porque atar
+el destino de un canal al del otro es perder robustez justo donde se necesita.
+- **Y un modo de fallo silencioso que quedó cerrado (esta pasada).** Un canal que
+contesta "sin error" y con la URL **vacía** era una trampa: el llamador lo
+tomaba por un stream, lo cacheaba y el usuario oía silencio sin ningún error. La
+carrera lo normaliza a fallo (`contestó sin enlace de audio`) y `resolverPorISRC`
+tiene una segunda defensa: nunca devuelve ni cachea un vacío como acierto.
+- **La carrera deja UNA línea de log:**
+`[rescate] carrera 601ms ganó=arcod canales=4 fallos=[stash-relay: canal apagado | …]`.
+Sin eso no había forma de saber, con el log de una app real, si el FLAC vino de
+las credenciales, del relay, de arcod o de los espejos, ni cuánto se pagó por él.
+
+Lo cubren, además de las pruebas de red que ya existían,
+`resolucion_carrera_test.go` (gana el más rápido · se retiene lo con pérdida por
+el FLAC · se suelta apenas no queda nadie mejor · vence la gracia · sin nada
+devuelve el error · no se acepta un "éxito" sin URL) y `qobuz_memoria_test.go`
+(una sola búsqueda para N canales, memoria entre vueltas y fallos no
+compartidos). `TestProxyCubreLaComprobacionDelEnlaceArcod` fija el arreglo del
+proxy: se verificó que **falla** sin el transporte compartido.

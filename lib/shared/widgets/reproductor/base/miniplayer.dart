@@ -27,6 +27,7 @@ import '../../../utilidades/plataforma/pantalla/escala_ui.dart';
 import '../../../utilidades/plataforma/responsive.dart';
 import '../../tarjetas/portada/imagen_portada.dart';
 import '../../../utilidades/formato/apariencia/barras/apariencia_barras_helper.dart';
+import '../../../utilidades/formato/apariencia/barras/miniplayer_geometria.dart';
 import '../../../utilidades/formato/apariencia/base/apariencia_disenos_helper.dart';
 import '../../../utilidades/formato/apariencia/visual/apariencia_paleta_helper.dart';
 import '../../../utilidades/formato/apariencia/base/apariencia_helper.dart';

@@ -29,6 +29,8 @@ extension InicializacionTextos on AppLocalizations {
     aparienciaEstilo =
         isEn ? StringsAparienciaEstilo.en : StringsAparienciaEstilo.es;
     cofre = isEn ? cofreEn : cofreEs;
+    fuentes = isEn ? fuentesEn : fuentesEs;
+    vistas = isEn ? vistasEn : vistasEs;
     ajustes = isEn ? StringsAjustes.en : StringsAjustes.es;
     google = isEn ? StringsConexionGoogle.en : StringsConexionGoogle.es;
     soulseek = isEn ? StringsSoulseek.en : StringsSoulseek.es;

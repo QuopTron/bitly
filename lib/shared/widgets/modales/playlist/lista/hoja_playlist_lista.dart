@@ -17,16 +17,9 @@ Widget _listaCanciones(
   Color onBg,
 ) {
   if (st._cargando) {
-    return Center(
-      child: SizedBox(
-        width: 22,
-        height: 22,
-        child: CircularProgressIndicator(
-          strokeWidth: 2,
-          color: onBg.withValues(alpha: 0.4),
-        ),
-      ),
-    );
+    // La lista de canciones que va a venir ya tiene forma (fila de tarjeta de
+    // track): se reusa el mismo esqueleto del feed en vez de un circulito.
+    return const EsqueletoFeed();
   }
   if (st._canciones.isEmpty) return _cancionesVacias(r, loc, onBg);
   return ListView.builder(

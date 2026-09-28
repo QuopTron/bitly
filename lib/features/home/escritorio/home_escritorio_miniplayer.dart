@@ -22,8 +22,10 @@ class _MiniplayerEscritorio extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final esOscuro = Theme.of(context).brightness == Brightness.dark;
-    // La tarjeta flotante mide por aparato: radio de tarjeta del aparato y
-    // márgenes que crecen en pantallas grandes (y en la tele).
+    // La tarjeta flotante mide por aparato (radio de tarjeta del aparato) y
+    // encima respeta los presets de tamaño, forma y ancho que el usuario eligió
+    // en Ajustes → Apariencia → Barras. Lo HORIZONTAL lo pone MarcoMiniplayer,
+    // que es el mismo para los tres shells.
     final r = Responsive(context);
     final radius = BorderRadius.circular(
       EspecificacionesPlataforma.de(context).radioTarjeta,
@@ -36,24 +38,32 @@ class _MiniplayerEscritorio extends StatelessWidget {
       builder: (context, cola) {
         if (!cola.tieneActual) return const SizedBox.shrink();
         return Padding(
-          padding: EdgeInsets.fromLTRB(
-            r.sobre(18, 30),
-            r.spacingXS,
-            r.sobre(18, 30),
-            r.sobre(14, 24),
+          padding: EdgeInsets.only(
+            top: r.spacingXS,
+            bottom: r.sobre(14, 24),
           ),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              borderRadius: radius,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: esOscuro ? 0.45 : 0.14),
-                  blurRadius: 26,
-                  offset: const Offset(0, 10),
-                ),
-              ],
+          child: MarcoMiniplayer(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: radius,
+                // La sombra es parte de la forma FLOTANTE: si el usuario eligió
+                // "pegado al borde", la tarjeta se apoya contra los cantos y la
+                // sombra no tiene dónde caer.
+                boxShadow:
+                    geometriaMiniplayerDe(context).conSombra
+                        ? [
+                          BoxShadow(
+                            color: Colors.black.withValues(
+                              alpha: esOscuro ? 0.45 : 0.14,
+                            ),
+                            blurRadius: 26,
+                            offset: const Offset(0, 10),
+                          ),
+                        ]
+                        : null,
+              ),
+              child: ClipRRect(borderRadius: radius, child: miniPlayer),
             ),
-            child: ClipRRect(borderRadius: radius, child: miniPlayer),
           ),
         );
       },

@@ -20,23 +20,23 @@ class _DownloadsTab extends StatelessWidget {
     );
     final loc = AppLocalizations.of(context);
 
-    return SingleChildScrollView(
-      padding: EdgeInsets.all(r.spacingL),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(height: r.spacingS),
-          SettingsStorageSection(onBg: onBg, glowColor: glowColor, loc: loc),
-          SizedBox(height: r.spacingS),
-          _DownloadQualityCard(glowColor: glowColor),
-          SizedBox(height: r.spacingS),
-          _DownloadRescateCard(glowColor: glowColor),
-          SizedBox(height: r.spacingS),
-          _DownloadPoolQobuzCard(glowColor: glowColor),
-          // No download priority section — the app handles provider
-          // ordering internally.
-        ],
-      ),
+    // Los ajustes de Descargas se GIRAN, uno por pantalla (mismo carrusel que
+    // Apariencia): así el que entra a cambiar la calidad no tiene que pasar por
+    // el almacenamiento ni por el rescate.
+    return CarruselAjustes(
+      key: const ValueKey('carrusel-descargas'),
+      etiqueta: loc.ajustes.descargas,
+      glowColor: glowColor,
+      onBg: onBg,
+      r: r,
+      paginas: [
+        SettingsStorageSection(onBg: onBg, glowColor: glowColor, loc: loc),
+        _DownloadQualityCard(glowColor: glowColor),
+        _DownloadRescateCard(glowColor: glowColor),
+        _DownloadPoolQobuzCard(glowColor: glowColor),
+        // No download priority section — the app handles provider
+        // ordering internally.
+      ],
     );
   }
 }

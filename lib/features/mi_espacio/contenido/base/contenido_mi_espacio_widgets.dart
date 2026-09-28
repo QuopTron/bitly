@@ -11,6 +11,43 @@
 
 part of 'contenido_mi_espacio.dart';
 
+/// Esqueleto de la GRILLA (playlists/álbumes/artistas): la misma cuenta de
+/// columnas y el mismo `childAspectRatio` que la grilla real, con la forma de
+/// cada tarjeta (carátula + título + bajada).
+Widget _esqueletoGrilla(Responsive r, BuildContext context) {
+  return LayoutBuilder(
+    builder: (context, restricciones) {
+      final ancho = restricciones.maxWidth - r.spacingM * 2;
+      final columnas = columnasDeGrilla(context, ancho);
+      return GridView.builder(
+        padding: EdgeInsets.symmetric(
+          horizontal: r.spacingM,
+          vertical: r.spacingS,
+        ),
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: columnas,
+          mainAxisSpacing: r.spacingS,
+          crossAxisSpacing: r.spacingS,
+          childAspectRatio: 0.72,
+        ),
+        itemCount: columnas * 2,
+        itemBuilder: (context, _) => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: EsqueletoCarga(radioBorde: 12)),
+            SizedBox(height: r.spacingXS),
+            EsqueletoEtiqueta(ancho: 92, alto: r.footerSize - 2),
+            const SizedBox(height: 4),
+            EsqueletoEtiqueta(ancho: 60, alto: r.footerSize - 4),
+          ],
+        ),
+      );
+    },
+  );
+}
+
 /// Botón compacto (icono + etiqueta) para acciones secundarias.
 Widget _botonMini(
   ContenidoMiEspacio c,

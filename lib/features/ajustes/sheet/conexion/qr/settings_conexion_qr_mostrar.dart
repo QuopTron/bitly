@@ -99,9 +99,19 @@ class _HojaMostrarQrState extends State<_HojaMostrarQr> {
             if (sinRed)
               _AyudaSeccion(texto: t.fallo, onBg: widget.onBg, r: r)
             else if (dato == null)
-              const Padding(
-                padding: EdgeInsets.all(24),
-                child: CircularProgressIndicator(strokeWidth: 2),
+              // Mientras llega el vínculo, el hueco tiene la FORMA del QR que
+              // va a aparecer: el cuadro blanco y, abajo, el código grande.
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  EsqueletoCarga(
+                    ancho: r.val(180, 150, 240),
+                    alto: r.val(180, 150, 240),
+                    radioBorde: r.val(16, 12, 24),
+                  ),
+                  SizedBox(height: r.spacingS),
+                  EsqueletoEtiqueta(ancho: 150, alto: r.titleSize),
+                ],
               )
             else ...[
               _CuadroQr(dato: dato, r: r),

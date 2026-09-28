@@ -66,7 +66,7 @@ List<Widget> _filasPlaylists(
   AppLocalizations loc,
 ) {
   final playlists = st._playlists;
-  if (playlists == null) return [_cargandoPlaylists(r, onBg)];
+  if (playlists == null) return [_cargandoPlaylists(r)];
   if (playlists.isEmpty) return [_sinPlaylists(r, onBg, loc)];
   return playlists.map((p) => _filaPlaylist(st, r, onBg, loc, p)).toList();
 }
@@ -117,19 +117,38 @@ Widget _filaPlaylist(
   );
 }
 
-/// Mientras se leen las playlists creadas de la base.
-Widget _cargandoPlaylists(Responsive r, Color onBg) {
+/// Mientras se leen las playlists creadas de la base: filas con la forma de
+/// las que vienen (portada, nombre y conteo), en vez de un circulito que no
+/// dice ni cuántas ni cómo van a quedar.
+Widget _cargandoPlaylists(Responsive r) {
   return Padding(
-    padding: EdgeInsets.all(r.spacingL),
-    child: Center(
-      child: SizedBox(
-        width: 20,
-        height: 20,
-        child: CircularProgressIndicator(
-          strokeWidth: 2,
-          color: onBg.withValues(alpha: 0.4),
-        ),
-      ),
+    padding: EdgeInsets.symmetric(
+      horizontal: r.spacingM,
+      vertical: r.spacingS,
+    ),
+    child: Column(
+      children: [
+        for (var i = 0; i < 3; i++)
+          Padding(
+            padding: EdgeInsets.symmetric(vertical: r.spacingS),
+            child: Row(
+              children: [
+                const EsqueletoCarga(ancho: 36, alto: 36, radioBorde: 8),
+                SizedBox(width: r.spacingM),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      EsqueletoEtiqueta(ancho: 130, alto: r.subtitleSize - 1),
+                      const SizedBox(height: 5),
+                      EsqueletoEtiqueta(ancho: 70, alto: r.footerSize - 2),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
     ),
   );
 }

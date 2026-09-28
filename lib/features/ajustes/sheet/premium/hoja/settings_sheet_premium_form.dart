@@ -108,13 +108,12 @@ class _PremiumCodeForm extends StatelessWidget {
                         ],
                       )
                       : sending
-                      ? SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
+                      // Activando: el hueco toma la forma de la etiqueta del
+                      // botón (barra blanca, porque va encima del verde).
+                      ? const EsqueletoEtiqueta(
+                        ancho: 90,
+                        alto: 16,
+                        sobreColor: true,
                       )
                       : Text(
                         AppLocalizations.of(context).premium.activar,

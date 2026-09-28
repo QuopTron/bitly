@@ -1,7 +1,8 @@
 // ─────────────────────────────────────────────────────────────
 // boton_vidrio.dart — Botón glassmorphism global: ancho completo,
-// con icono/label opcionales, estado de carga (spinner) y color de
-// acento. Centraliza el estilo de botones de la app para no repetir
+// con icono/label opcionales, estado de carga (esqueleto con la
+// forma del icono y de la etiqueta) y color de acento. Centraliza
+// el estilo de botones de la app para no repetir
 // ElevatedButton.styleFrom en cada vista.
 //
 // El alto, el radio, el texto y el ícono salen de las especificaciones
@@ -17,6 +18,7 @@ import 'package:flutter/material.dart';
 
 import '../../../tema/colores_app.dart';
 import '../../../tema/especificaciones/especificaciones_plataforma.dart';
+import '../../../widgets/esqueletos/esqueleto_carga.dart';
 
 /// Botón glass de ancho completo con estado de carga.
 class BotonVidrio extends StatelessWidget {
@@ -80,16 +82,7 @@ class BotonVidrio extends StatelessWidget {
     Color accent,
     bool habilitado,
   ) {
-    if (isLoading) {
-      return SizedBox(
-        width: e.iconoBoton,
-        height: e.iconoBoton,
-        child: CircularProgressIndicator(
-          strokeWidth: 2,
-          color: accent.withValues(alpha: 0.7),
-        ),
-      );
-    }
+    if (isLoading) return _cargando(e);
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       mainAxisSize: MainAxisSize.min,
@@ -109,5 +102,44 @@ class BotonVidrio extends StatelessWidget {
           ),
       ],
     );
+  }
+
+  /// Mientras carga, el hueco tiene la forma de lo que VUELVE: el icono (si
+  /// hay) y una barra del ancho EXACTO de la etiqueta, medida con el estilo con
+  /// el que se dibuja. Antes era un cuadradito con un círculo adentro, así que
+  /// el botón se encogía a `iconoBoton` y volvía a crecer al terminar.
+  Widget _cargando(EspecificacionesPlataforma e) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (icon != null) ...[
+          EsqueletoMarca(lado: e.iconoBoton),
+          SizedBox(width: e.grosorFoco > 0 ? 10 : 6),
+        ],
+        if (label != null)
+          EsqueletoEtiqueta(
+            ancho: _anchoEtiqueta(e),
+            alto: e.textoBoton,
+            radioBorde: e.textoBoton / 3,
+          ),
+      ],
+    );
+  }
+
+  /// Ancho que va a ocupar la etiqueta, con el estilo con el que se dibuja.
+  double _anchoEtiqueta(EspecificacionesPlataforma e) {
+    final pintor = TextPainter(
+      text: TextSpan(
+        text: label!,
+        style: TextStyle(
+          fontSize: e.textoBoton,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      maxLines: 1,
+      textDirection: TextDirection.ltr,
+    )..layout();
+    return pintor.width;
   }
 }

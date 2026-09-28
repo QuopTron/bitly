@@ -14,7 +14,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../core/modelos/usuario/disenos/vistas/vista_app.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../../shared/widgets/vista/base/diseno_de_vista.dart';
 import '../../../shared/tema/colores_app.dart';
 import '../../../shared/utilidades/plataforma/deteccion_plataforma.dart';
 import '../../../shared/utilidades/plataforma/responsive.dart';
@@ -91,12 +93,16 @@ class _TutorialPaginaState extends State<TutorialPagina> {
     final controles = _construirControles(this, pasos.length);
 
     // Tres variantes: TV (panel plano y más alto), PC y celular.
+    final Widget pagina;
     if (usarLayoutTv(context)) {
-      return TutorialTv(cuerpo: cuerpo, controles: controles);
+      pagina = TutorialTv(cuerpo: cuerpo, controles: controles);
+    } else if (usarLayoutEscritorio(context)) {
+      pagina = TutorialEscritorio(cuerpo: cuerpo, controles: controles);
+    } else {
+      pagina = TutorialMovil(cuerpo: cuerpo, controles: controles);
     }
-    return usarLayoutEscritorio(context)
-        ? TutorialEscritorio(cuerpo: cuerpo, controles: controles)
-        : TutorialMovil(cuerpo: cuerpo, controles: controles);
+    // El tutorial es su propia vista: puede tener un diseño propio.
+    return DisenoDeVista(vista: VistaApp.tutorial, child: pagina);
   }
 }
 

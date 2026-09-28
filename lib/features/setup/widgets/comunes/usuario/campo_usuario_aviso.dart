@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../../l10n/app_localizations.dart';
 import '../../../../../shared/utilidades/plataforma/responsive.dart';
+import '../../../../../shared/widgets/esqueletos/esqueleto_carga.dart';
 import '../../../../../shared/widgets/vidrio/base/contenedor_vidrio.dart';
 import '../../../bloc/base/setup_estado.dart';
 
@@ -104,15 +105,10 @@ class AvisoEstadoUsuario extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
+          // Creando la cuenta: el hueco del ícono (error o hub) se ve como el
+          // ícono que va a volver, del mismo tamaño.
           if (creando)
-            SizedBox(
-              width: r.footerSize - 1,
-              height: r.footerSize - 1,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: onBg.withValues(alpha: 0.55),
-              ),
-            )
+            EsqueletoMarca(lado: r.footerSize - 1)
           else
             Icon(
               bloqueado ? Icons.error_outline : Icons.hub_rounded,

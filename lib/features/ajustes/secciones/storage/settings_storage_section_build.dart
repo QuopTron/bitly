@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────
 // settings_storage_section_build.dart — PART de
 // settings_storage_section.dart: tarjeta visual de la carpeta de
-// descargas (icono, título, ruta actual, chevron o spinner) y el
+// descargas (icono, título, ruta actual, chevron o esqueleto) y el
 // snackbar de aviso con el color de acento.
 // Se conecta con: settings_storage_section.dart (misma library).
 // Parte del flujo: Ajustes → Descargas → carpeta destino.
@@ -81,12 +81,10 @@ Widget _seccionAlmacenamiento(_SettingsStorageSectionState st) {
               ],
             ),
           ),
+          // Eligiendo carpeta: el hueco del chevron se vuelve un bloque del
+          // mismo tamaño, en vez de un circulito que empuja el layout.
           if (st._eligiendo)
-            SizedBox(
-              width: r.footerSize,
-              height: r.footerSize,
-              child: CircularProgressIndicator(strokeWidth: 2, color: glow),
-            )
+            EsqueletoMarca(lado: r.footerSize + 2)
           else
             Icon(
               Icons.chevron_right,

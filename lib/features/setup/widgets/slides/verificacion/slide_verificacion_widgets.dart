@@ -46,6 +46,12 @@ Widget _listaProveedores(
               color: onBg.withValues(alpha: 0.65),
             ),
           ),
+          // El medidor aparece recién cuando la verificación arrancó: antes de
+          // eso sería un "0 de 7" que no aporta nada.
+          if (st._verificacionIniciada) ...[
+            SizedBox(height: st.widget.r.spacingM),
+            _medidorVerificacion(st, onBg, glowColor),
+          ],
           SizedBox(height: st.widget.r.spacingM),
           ..._SlideVerificacionState._proveedores.map(
             (p) => _filaProveedor(st, p.$1, p.$2, onBg, glowColor),
@@ -64,6 +70,9 @@ Widget _filaProveedor(
   Color glowColor,
 ) {
   final estado = st._estados[extId] ?? _EstadoProveedor.pendiente;
+  // El icono de cada fila YA dice su estado (reloj de arena, sync, tilde,
+  // error): el spinner que había al final repetía lo mismo y no medía nada.
+  // Cuánto falta se ve en el medidor de arriba.
   final icono = switch (estado) {
     _EstadoProveedor.pendiente => Icons.hourglass_empty,
     _EstadoProveedor.verificando => Icons.sync,
@@ -95,14 +104,46 @@ Widget _filaProveedor(
             ),
           ),
         ),
-        if (estado == _EstadoProveedor.verificando)
-          SizedBox(
-            width: st.widget.r.footerSize,
-            height: st.widget.r.footerSize,
-            child: CircularProgressIndicator(strokeWidth: 2, color: glowColor),
-          ),
       ],
     ),
+  );
+}
+
+/// Medidor del paso: cuántos proveedores ya quedaron verificados.
+///
+/// Es lo que el spinner por fila no decía — siete círculos girando sin saber
+/// cuánto falta. El número y la barra salen del estado REAL de cada proveedor,
+/// así que avanzan solos a medida que cada verificación termina.
+Widget _medidorVerificacion(
+  _SlideVerificacionState st,
+  Color onBg,
+  Color glowColor,
+) {
+  final total = _SlideVerificacionState._proveedores.length;
+  final hechos = st._estados.values
+      .where((e) => e == _EstadoProveedor.verificado)
+      .length;
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        st.widget.loc.setup.verificados(hechos, total),
+        style: TextStyle(
+          fontSize: st.widget.r.footerSize - 1,
+          color: onBg.withValues(alpha: 0.65),
+        ),
+      ),
+      SizedBox(height: st.widget.r.spacingXS),
+      ClipRRect(
+        borderRadius: BorderRadius.circular(3),
+        child: LinearProgressIndicator(
+          value: total == 0 ? 0 : hechos / total,
+          minHeight: 6,
+          backgroundColor: onBg.withValues(alpha: 0.08),
+          color: glowColor,
+        ),
+      ),
+    ],
   );
 }
 

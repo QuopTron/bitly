@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
+import 'package:bitly/shared/widgets/esqueletos/esqueleto_carga.dart';
 import 'package:bitly/shared/widgets/vidrio/botones/boton_vidrio.dart';
 
 void main() {
@@ -30,7 +31,7 @@ void main() {
       expect(pressed, isTrue);
     });
 
-    testWidgets('shows spinner when isLoading', (tester) async {
+    testWidgets('mientras carga muestra el hueco de la etiqueta', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -43,12 +44,67 @@ void main() {
         ),
       );
 
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
-      // Label should not be visible while loading
+      // La barra ocupa el lugar del texto (y el texto no se ve), en vez del
+      // circulito que encogía el botón.
+      expect(find.byType(EsqueletoEtiqueta), findsOneWidget);
       expect(find.text('Loading'), findsNothing);
     });
 
-    testWidgets('does not show spinner when not loading', (tester) async {
+    testWidgets('con ícono también deja su hueco', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: BotonVidrio(
+              label: 'Siguiente',
+              icon: const Icon(Icons.arrow_forward),
+              onPressed: () {},
+              isLoading: true,
+            ),
+          ),
+        ),
+      );
+
+      // Icono + etiqueta: los dos huecos, con su forma.
+      expect(find.byType(EsqueletoMarca), findsOneWidget);
+      expect(find.byType(EsqueletoEtiqueta), findsOneWidget);
+    });
+
+    testWidgets('la barra mide exactamente lo que mide la etiqueta', (tester) async {
+      // Es lo que evita que el botón salte de tamaño al terminar de cargar.
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: BotonVidrio(label: 'Loading', onPressed: () {}),
+          ),
+        ),
+      );
+      final anchoEtiqueta = tester.getSize(find.text('Loading')).width;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: BotonVidrio(
+              label: 'Loading',
+              onPressed: () {},
+              isLoading: true,
+            ),
+          ),
+        ),
+      );
+
+      final barra = tester.widget<Container>(
+        find.descendant(
+          of: find.byType(EsqueletoEtiqueta),
+          matching: find.byType(Container),
+        ),
+      );
+      expect(
+        barra.constraints!.maxWidth,
+        moreOrLessEquals(anchoEtiqueta, epsilon: 1),
+      );
+    });
+
+    testWidgets('sin cargar no hay huecos: se ve la etiqueta', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -61,7 +117,8 @@ void main() {
         ),
       );
 
-      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(find.byType(EsqueletoEtiqueta), findsNothing);
+      expect(find.text('Not loading'), findsOneWidget);
     });
 
     testWidgets('renders customChild when provided', (tester) async {

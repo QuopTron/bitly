@@ -153,7 +153,10 @@ func (c *Client) resolverStashRelay(id, formatoPedido string) (string, error) {
 			return "", fmt.Errorf("stash-relay: sin claves de Qobuz para resolver el ISRC")
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), presupuestoQobuz)
-		encontrado, err := c.trackIDPorISRC(ctx, base, trackID)
+		// La búsqueda se COMPARTE con el canal Qobuz firmado (qobuz_memoria.go):
+		// los dos necesitan este id y corren a la vez en la carrera, así que sin
+		// esto el mismo ISRC pagaba dos búsquedas idénticas.
+		encontrado, err := c.trackIDPorISRCCompartido(ctx, base, trackID)
 		cancel()
 		if err != nil {
 			return "", err

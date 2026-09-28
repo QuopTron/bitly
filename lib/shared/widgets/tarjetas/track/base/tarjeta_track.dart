@@ -32,6 +32,7 @@ import '../../../fondos/ambiente/atenuado_por_nivel.dart';
 import '../../portada/imagen_portada.dart';
 import '../../../indicadores/descarga/indicador_descarga.dart';
 import '../../../../utilidades/formato/apariencia/barras/apariencia_espacios_helper.dart';
+import '../../../../utilidades/formato/apariencia/vistas/tinte_vista_helper.dart';
 
 part '../acciones/tarjeta_track_descarga.dart';
 part '../acciones/tarjeta_track_deslizar.dart';
@@ -177,8 +178,19 @@ class TarjetaTrack extends StatelessWidget {
               final efectosPesados =
                   sl<ValueNotifier<PerfilRendimiento>>().value.efectosPesados &&
                   EfectosApp.desenfoqueActivo;
-              // Intensidad del color del cover en las cards (0 = card del tema).
-              final nivel = prefs.cardsCancion;
+              // Intensidad del color en las cards (0 = card del tema). Si ESTA
+              // vista tiene una paleta del cofre puesta (Ajustes → Apariencia →
+              // Vistas), manda ella y tiene un piso: elegir una paleta con el
+              // estilo con cover apagado igual tiene que verse.
+              final nivel = TinteVista.nivelDeCards(
+                context,
+                prefs.cardsCancion,
+              );
+              // El color que puso la vista, si puso alguno.
+              final acentoVista = TinteVista.acentoDe(context);
+              // El acento final: la paleta de la vista MANDA sobre el cover (si
+              // el cover pudiera pisarla, elegirla no serviría de nada).
+              final acento = TinteVista.acentoDeCards(context, colorDominante);
 
               // Las letras se calculan CON el color del cover ya resuelto: con
               // una carátula clara al 100% la card queda clara y el blanco de
@@ -224,8 +236,12 @@ class TarjetaTrack extends StatelessWidget {
               // `colorPorTarjetaActivo`: en equipos que no llegan al ritmo, el
               // monitor de frames apaga la extracción de la paleta por tarjeta
               // (es lo que escala con la cantidad de items en pantalla).
+              // Con paleta de vista NO se extrae el dominante del cover: ya
+              // sabemos el color, así que se evita esa decodificación en todas
+              // las cards de la pantalla.
               if (nivel > 0 &&
                   colorDominante == null &&
+                  acentoVista == null &&
                   coverUrl != null &&
                   EfectosApp.colorPorTarjetaActivo) {
                 tarjeta = _conGestosRapidos(
@@ -238,12 +254,7 @@ class TarjetaTrack extends StatelessWidget {
                   ),
                 );
               } else {
-                tarjeta = _conGestosRapidos(
-                  this,
-                  context,
-                  r,
-                  contenido(colorDominante),
-                );
+                tarjeta = _conGestosRapidos(this, context, r, contenido(acento));
               }
               return _conLineaUnida(context, tarjeta);
             },

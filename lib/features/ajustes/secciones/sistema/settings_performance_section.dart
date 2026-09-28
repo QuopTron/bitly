@@ -1,8 +1,14 @@
 // ─────────────────────────────────────────────────────────────
-// settings_performance_section.dart — Selector de perfil de rendimiento (Bajo/Medio/Alto) y toggle de
-// audio en segundo plano. Al cambiar el perfil persiste la elección,
-// ajusta calidad de audio y sincroniza concurrencia/buffer con Go.
-// Se conecta con: cache_ajustes + backend_go + servicio_foco_audio.
+// settings_performance_section.dart — Selector de perfil de rendimiento (Bajo/Medio/Alto) y sus
+// dos interruptores vecinos (Modo fluido y audio en segundo plano). Al cambiar
+// el perfil persiste la elección, ajusta calidad de audio y sincroniza
+// concurrencia/buffer con Go.
+//
+// Está partido en TRES piezas ([ParteRendimiento]) porque la pestaña las gira
+// como páginas de un carrusel: el que entra a prender "audio en segundo plano"
+// no tiene que pasar por los tres perfiles ni por el modo fluido.
+//
+// Se conecta con: cache_ajustes + backend_go + efectos_app + servicio_foco_audio.
 // Parte del flujo: Ajustes → Rendimiento.
 // ─────────────────────────────────────────────────────────────
 
@@ -14,22 +20,37 @@ import '../../../../core/modelos/usuario/perfil/perfil_rendimiento.dart';
 import '../../../../core/cache/almacenes/sistema/cache_ajustes.dart';
 import '../../../../core/backend_go/nucleo/base/contrato_backend.dart';
 import '../../../../app/inyeccion/inyeccion.dart';
-import '../../../../shared/widgets/vidrio/base/contenedor_vidrio.dart';
 
 import 'settings_audio_fondo.dart';
 import 'settings_modo_fluido.dart';
 
-/// Selector de perfil de rendimiento (Bajo / Medio / Alto).
-/// Al cambiar, persiste el perfil, ajusta la calidad de audio por defecto
-/// y sincroniza concurrencia/buffer con el backend Go.
+/// Qué pieza de Rendimiento se dibuja. Una por página del carrusel.
+enum ParteRendimiento {
+  /// Los tres niveles (Bajo / Medio / Alto). Van juntos porque son UNA
+  /// elección: tocar uno deselecciona los otros.
+  perfil,
+
+  /// El interruptor del modo fluido.
+  fluido,
+
+  /// El interruptor del audio en segundo plano.
+  audio,
+}
+
+/// Pieza del panel de rendimiento.
+///
+/// Al elegir un perfil se persiste, se ajusta la calidad de audio por defecto
+/// y se sincroniza concurrencia/buffer con el backend Go.
 class SettingsPerformanceSection extends StatefulWidget {
   final Color onBg;
   final Color glowColor;
+  final ParteRendimiento parte;
 
   const SettingsPerformanceSection({
     super.key,
     required this.onBg,
     required this.glowColor,
+    this.parte = ParteRendimiento.perfil,
   });
 
   @override
@@ -44,7 +65,9 @@ class _SettingsPerformanceSectionState
   @override
   void initState() {
     super.initState();
-    _cargar();
+    // Sólo la página del perfil necesita saber cuál está elegido; las otras dos
+    // son interruptores que se leen solos y no gastan una lectura de más.
+    if (widget.parte == ParteRendimiento.perfil) _cargar();
   }
 
   Future<void> _cargar() async {
@@ -84,6 +107,23 @@ class _SettingsPerformanceSectionState
 
   @override
   Widget build(BuildContext context) {
+    switch (widget.parte) {
+      case ParteRendimiento.fluido:
+        return ModoFluidoRow(
+          onBg: widget.onBg,
+          glowColor: widget.glowColor,
+        );
+      case ParteRendimiento.audio:
+        return AudioSegundoPlanoRow(
+          onBg: widget.onBg,
+          glowColor: widget.glowColor,
+        );
+      case ParteRendimiento.perfil:
+        return _perfiles(context);
+    }
+  }
+
+  Widget _perfiles(BuildContext context) {
     final r = Responsive(context);
     final loc = AppLocalizations.of(context);
     final perfiles = [
@@ -107,38 +147,15 @@ class _SettingsPerformanceSectionState
       ),
     ];
 
-    return ContenedorVidrio(
-      borderRadius: 16,
-      borderColor: widget.onBg.withValues(alpha: 0.08),
-      bgColor: widget.onBg.withValues(alpha: 0.03),
-      margin: EdgeInsets.symmetric(horizontal: r.spacingM),
-      padding: EdgeInsets.all(r.spacingM),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            loc.setup.performanceProfile,
-            style: TextStyle(
-              fontSize: r.subtitleSize + 1,
-              fontWeight: FontWeight.w600,
-              color: widget.onBg,
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final p in perfiles)
+          Padding(
+            padding: EdgeInsets.only(bottom: r.spacingS),
+            child: _opcion(p.$1, p.$2, p.$3, p.$4, r),
           ),
-          // Modo fluido PRIMERO: es la respuesta directa para quien siente la
-          // app pesada, y es una elección suya (el perfil de abajo es el ajuste
-          // automático por gama del equipo).
-          ModoFluidoRow(onBg: widget.onBg, glowColor: widget.glowColor),
-          SizedBox(height: r.spacingM),
-          ...perfiles.map(
-            (p) => Padding(
-              padding: EdgeInsets.only(bottom: r.spacingS),
-              child: _opcion(p.$1, p.$2, p.$3, p.$4, r),
-            ),
-          ),
-          SizedBox(height: r.spacingS),
-          AudioSegundoPlanoRow(onBg: widget.onBg, glowColor: widget.glowColor),
-        ],
-      ),
+      ],
     );
   }
 

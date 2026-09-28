@@ -52,6 +52,11 @@ class _PanelVerificacionWebState extends State<PanelVerificacionWeb> {
   bool _fallo = false;
   bool _paginaCargada = false;
   Timer? _timerCarga;
+
+  /// Avance REAL de carga que reporta el WebView (0..1), o `null` mientras no
+  /// haya reportado nada. Es el medidor de la espera: con valor la barra dice
+  /// cuánto falta, sin valor se muestra sin valor (no miente con un 0%).
+  double? _progresoCarga;
   // El grant puede dispararse desde varios delegados para la misma URL —
   // dispararlo una sola vez para popear el dialog una sola vez.
   bool _grantDisparado = false;
@@ -101,6 +106,11 @@ class _PanelVerificacionWebState extends State<PanelVerificacionWeb> {
     if (mounted) setState(() => _fallo = true);
   }
 
+  /// Guarda el avance de carga reportado por el WebView.
+  void _setProgreso(double valor) {
+    if (mounted) setState(() => _progresoCarga = valor);
+  }
+
   /// Marca la página como cargada y descarta un fallo previo.
   void _marcarCargada() {
     if (mounted) {
@@ -132,8 +142,21 @@ class _PanelVerificacionWebState extends State<PanelVerificacionWeb> {
       alignment: Alignment.center,
       children: [
         WebViewWidget(controller: _controlador),
+        // Barra de carga ARRIBA, como el navegador: con `value` es un medidor de
+        // verdad (el avance que reporta el WebView); en `null` queda sin valor,
+        // que es lo honesto mientras no haya ningún aviso de avance.
         if (!_paginaCargada)
-          CircularProgressIndicator(strokeWidth: 2, color: widget.colorCarga),
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: LinearProgressIndicator(
+              value: _progresoCarga,
+              minHeight: 3,
+              backgroundColor: widget.colorCarga.withValues(alpha: 0.15),
+              color: widget.colorCarga,
+            ),
+          ),
       ],
     );
   }

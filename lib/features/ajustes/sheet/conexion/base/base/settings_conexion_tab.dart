@@ -78,64 +78,75 @@ class _ConexionTabState extends State<_ConexionTab> {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context).conexion;
+    final t = AppLocalizations.of(context).ajustes;
     final servicio = _servicio;
     final r = widget.r;
+    // Mientras el servicio no contestó se muestra la silueta de la pestaña
+    // (la tarjeta del cupo y las filas de aparatos) y no una ruedita: ya se ve
+    // qué va a aparecer y al llegar los datos nada salta de lugar.
     if (servicio == null) {
-      return Center(
-        child: CircularProgressIndicator(
-          color: widget.glowColor,
-          strokeWidth: 2,
-        ),
-      );
+      return _EsqueletoConexion(glowColor: widget.glowColor, r: r);
     }
     final ahora = DateTime.now().millisecondsSinceEpoch;
     void pintar() => setState(() {});
 
-    return ListView(
-      padding: EdgeInsets.all(r.spacingL),
-      children: [
-        if (_novedades.isNotEmpty) ...[
-          _AvisoNovedades(
-            novedades: _novedades,
-            glowColor: widget.glowColor,
-            onBg: widget.onBg,
-            r: r,
-          ),
-          SizedBox(height: r.spacingS),
-        ],
-        _AyudaSeccion(texto: loc.ayuda, onBg: widget.onBg, r: r),
-        SizedBox(height: r.spacingS),
-        _TarjetaCupo(
-          servicio: servicio,
-          glowColor: widget.glowColor,
-          onBg: widget.onBg,
-          r: r,
-        ),
-        SizedBox(height: r.spacingS),
-        for (final d in servicio.dispositivos)
-          Padding(
-            padding: EdgeInsets.only(bottom: r.spacingS),
-            child: _TarjetaAparato(
-              dispositivo: d,
+    // Tres preguntas distintas, tres páginas: ¿qué aparatos hay en mi cuenta?,
+    // ¿cuáles se ven en mi red? y ¿qué está viajando? Apiladas obligaban a
+    // bajar hasta el final para ver la cola.
+    return CarruselAjustes(
+      key: const ValueKey('carrusel-conexion'),
+      etiqueta: t.conexion,
+      glowColor: widget.glowColor,
+      onBg: widget.onBg,
+      r: r,
+      paginas: [
+        // Página 1: la cuenta y sus aparatos.
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (_novedades.isNotEmpty) ...[
+              _AvisoNovedades(
+                novedades: _novedades,
+                glowColor: widget.glowColor,
+                onBg: widget.onBg,
+                r: r,
+              ),
+              SizedBox(height: r.spacingS),
+            ],
+            _AyudaSeccion(texto: loc.ayuda, onBg: widget.onBg, r: r),
+            SizedBox(height: r.spacingS),
+            _TarjetaCupo(
               servicio: servicio,
-              ahoraMs: ahora,
               glowColor: widget.glowColor,
               onBg: widget.onBg,
               r: r,
-              onCambio: pintar,
             ),
-          ),
-        if (servicio.dispositivos.length == 1)
-          _AyudaSeccion(texto: loc.vacio, onBg: widget.onBg, r: r),
-        SizedBox(height: r.spacingS),
-        // El vínculo de verdad: los aparatos que se ven en la misma red.
+            SizedBox(height: r.spacingS),
+            for (final d in servicio.dispositivos)
+              Padding(
+                padding: EdgeInsets.only(bottom: r.spacingS),
+                child: _TarjetaAparato(
+                  dispositivo: d,
+                  servicio: servicio,
+                  ahoraMs: ahora,
+                  glowColor: widget.glowColor,
+                  onBg: widget.onBg,
+                  r: r,
+                  onCambio: pintar,
+                ),
+              ),
+            if (servicio.dispositivos.length == 1)
+              _AyudaSeccion(texto: loc.vacio, onBg: widget.onBg, r: r),
+          ],
+        ),
+        // Página 2: el vínculo de verdad, los aparatos de la misma red.
         _RedConexion(
           servicio: servicio,
           glowColor: widget.glowColor,
           onBg: widget.onBg,
           r: r,
         ),
-        SizedBox(height: r.spacingS),
+        // Página 3: lo que está viajando.
         _ColaConexion(
           servicio: servicio,
           glowColor: widget.glowColor,

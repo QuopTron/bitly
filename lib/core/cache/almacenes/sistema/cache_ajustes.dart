@@ -17,6 +17,8 @@ import '../../../modelos/ajustes_descarga.dart';
 import '../../../modelos/datos_setup.dart';
 import '../../../modelos/usuario/perfil/perfil_rendimiento.dart';
 import '../../../plataforma/sistema/base/deteccion_gama.dart';
+import '../../../modelos/usuario/disenos/vistas/preferencias_vistas.dart';
+import '../../../modelos/usuario/disenos/vistas/preferencias_vistas_json.dart';
 import '../../../modelos/usuario/preferencias/preferencias_apariencia.dart';
 import '../../../modelos/usuario/preferencias/preferencias_estilo.dart';
 import '../../../modelos/usuario/preferencias/preferencias_estilo_json.dart';
@@ -99,6 +101,19 @@ class CacheAjustes {
 
   Future<void> guardarPreferenciasApariencia(PreferenciasApariencia prefs) =>
       _dao.set(_clavePreferenciasApariencia, prefs.toJsonString());
+
+  // ── Diseño POR VISTA (Apariencia → Vistas) ──
+  static const _clavePreferenciasVistas = 'view_preferences';
+
+  /// Solo las vistas que el usuario personalizó; el resto hereda el diseño
+  /// global. Lo que no esté guardado (o esté roto) queda heredando.
+  Future<PreferenciasVistas> getPreferenciasVistas() async {
+    final raw = await _dao.get(_clavePreferenciasVistas);
+    return PreferenciasVistasJson.decodificar(raw);
+  }
+
+  Future<void> guardarPreferenciasVistas(PreferenciasVistas prefs) =>
+      _dao.set(_clavePreferenciasVistas, PreferenciasVistasJson.codificar(prefs));
 
   static const _clavePerf = 'perf_profile';
 

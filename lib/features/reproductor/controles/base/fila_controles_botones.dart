@@ -107,16 +107,11 @@ Widget _botonLetras(FilaControlesReproductor f, Color apagado) {
   final r = f.r;
   return GestureDetector(
     onTap: f.letrasCargando ? null : f.onAlternarLetras,
+    // Cargando la letra: el hueco del ícono de letras toma su forma y su
+    // tamaño, así el botón no se mueve cuando aparece.
     child:
         f.letrasCargando
-            ? SizedBox(
-              width: r.subtitleSize + 4,
-              height: r.subtitleSize + 4,
-              child: CircularProgressIndicator(
-                strokeWidth: 2.5,
-                color: apagado.withValues(alpha: 0.6),
-              ),
-            )
+            ? EsqueletoMarca(lado: r.subtitleSize + 5)
             : Icon(
               Icons.lyrics_outlined,
               color: apagado,

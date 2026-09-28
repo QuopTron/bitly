@@ -61,6 +61,9 @@ class _SoulseekTileVisual extends StatelessWidget {
     );
   }
 
+  /// Mientras se resuelve el estado, el tile muestra su PROPIA forma: el badge
+  /// redondo, el título, la bajada y el chevron. Antes era un círculo girando
+  /// dentro de una tarjeta vacía de la misma altura.
   Widget _cargandoBox() => Container(
     padding: EdgeInsets.all(r.spacingM),
     decoration: BoxDecoration(
@@ -68,12 +71,23 @@ class _SoulseekTileVisual extends StatelessWidget {
       borderRadius: BorderRadius.circular(14),
       border: Border.all(color: onBg.withValues(alpha: 0.1)),
     ),
-    child: Center(
-      child: SizedBox(
-        width: 18,
-        height: 18,
-        child: CircularProgressIndicator(strokeWidth: 2, color: glow),
-      ),
+    child: Row(
+      children: [
+        const EsqueletoMarca(lado: 36, radioBorde: 18),
+        SizedBox(width: r.spacingM),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              EsqueletoEtiqueta(ancho: 110, alto: r.subtitleSize - 1),
+              const SizedBox(height: 6),
+              EsqueletoEtiqueta(ancho: 160, alto: r.footerSize - 2),
+            ],
+          ),
+        ),
+        SizedBox(width: r.spacingM),
+        EsqueletoMarca(lado: r.subtitleSize),
+      ],
     ),
   );
 

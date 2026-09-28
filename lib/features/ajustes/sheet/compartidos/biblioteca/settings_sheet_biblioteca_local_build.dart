@@ -69,15 +69,11 @@ Widget _construirBibliotecaLocal(
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              // Importando: el hueco se ve como el ícono que va a volver (una
+              // carpeta), del mismo tamaño, en vez de un circulito al lado del
+              // texto que ya dice "Importando…".
               if (importando)
-                SizedBox(
-                  width: r.subtitleSize,
-                  height: r.subtitleSize,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: glowColor,
-                  ),
-                )
+                EsqueletoMarca(lado: r.subtitleSize + 2)
               else
                 Icon(
                   Icons.create_new_folder_rounded,

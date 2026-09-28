@@ -2,6 +2,10 @@
 // navegador_detalle.dart — Punto ÚNICO de navegación a las páginas
 // de detalle (álbum/playlist/artista) desde cualquier vista
 // (Feed, Búsqueda, Mi Espacio) con la transición compartida.
+//
+// Envuelve las tres con el diseño de la vista DETALLE: son la misma
+// pantalla conceptual, así que comparten su propia personalización
+// (Ajustes → Apariencia → Vistas) en vez de heredar la de quien las abrió.
 // Se conecta con: transiciones_pagina + páginas de detalle reales
 // (album/playlist/artista) + vistas que navegan a detalle.
 // Parte del flujo: navegación a detalle (feed/busqueda/mi_espacio).
@@ -11,12 +15,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../app/inyeccion/inyeccion.dart';
+import '../../../../core/modelos/usuario/disenos/vistas/vista_app.dart';
 import '../../../../estado/cola/cubit_cola.dart';
 import '../../../../estado/descargas/cubit_descargas.dart';
 import '../../../../estado/like/base/cubit_like.dart';
 import '../../../../estado/playlists/cubit_playlists.dart';
 import '../../../../estado/reproductor/cubit_reproductor.dart';
 import '../../../../shared/widgets/base/comun/transiciones_pagina.dart';
+import '../../../../shared/widgets/vista/base/diseno_de_vista.dart';
 import '../../album/base/album_detalle_pagina.dart';
 import '../../artista/base/artista_detalle_pagina.dart';
 import '../../playlist/base/playlist_detalle_pagina.dart';
@@ -25,15 +31,18 @@ import '../../playlist/base/playlist_detalle_pagina.dart';
 /// Navigator raíz (fuera del árbol de la Home) y sin esto las páginas
 /// lanzan "Provider not found" (pantalla roja) al usar likes/descargas/cola.
 Widget _envolverDetalle(Widget pagina) {
-  return MultiBlocProvider(
-    providers: [
-      BlocProvider<CubitCola>.value(value: sl<CubitCola>()),
-      BlocProvider<CubitLikes>.value(value: sl<CubitLikes>()),
-      BlocProvider<CubitDescargas>.value(value: sl<CubitDescargas>()),
-      BlocProvider<CubitPlaylists>.value(value: sl<CubitPlaylists>()),
-      BlocProvider<CubitReproductor>.value(value: sl<CubitReproductor>()),
-    ],
-    child: pagina,
+  return DisenoDeVista(
+    vista: VistaApp.detalle,
+    child: MultiBlocProvider(
+      providers: [
+        BlocProvider<CubitCola>.value(value: sl<CubitCola>()),
+        BlocProvider<CubitLikes>.value(value: sl<CubitLikes>()),
+        BlocProvider<CubitDescargas>.value(value: sl<CubitDescargas>()),
+        BlocProvider<CubitPlaylists>.value(value: sl<CubitPlaylists>()),
+        BlocProvider<CubitReproductor>.value(value: sl<CubitReproductor>()),
+      ],
+      child: pagina,
+    ),
   );
 }
 

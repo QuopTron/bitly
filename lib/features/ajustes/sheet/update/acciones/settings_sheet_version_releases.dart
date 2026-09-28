@@ -38,11 +38,49 @@ class _ReleaseList extends StatelessWidget {
     final glow = glowColor;
 
     if (loading) {
-      return Center(
-        child: CircularProgressIndicator(
-          strokeWidth: 2,
-          color: glow.withValues(alpha: 0.5),
-        ),
+      // Esqueleto de las versiones: una tarjeta por versión, con la misma
+      // altura, radio y margen que _ReleaseTile, para que al llegar la lista
+      // real nada salte. Antes era una ruedita centrada que no decía qué
+      // estaba trayendo.
+      return ListView.builder(
+        padding: EdgeInsets.symmetric(horizontal: r.spacingM),
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: 4,
+        itemBuilder:
+            (_, _) => Container(
+              margin: EdgeInsets.only(bottom: r.spacingS),
+              padding: EdgeInsets.all(r.spacingM),
+              decoration: BoxDecoration(
+                color: onBg.withValues(alpha: 0.03),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: onBg.withValues(alpha: 0.06)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  EsqueletoCarga(
+                    ancho: r.spacingL * 3,
+                    alto: r.footerSize,
+                    radioBorde: 8,
+                  ),
+                  SizedBox(height: r.spacingXS),
+                  FractionallySizedBox(
+                    alignment: Alignment.centerLeft,
+                    widthFactor: 0.7,
+                    child: EsqueletoCarga(
+                      alto: r.footerSize - 2,
+                      radioBorde: 6,
+                    ),
+                  ),
+                  SizedBox(height: r.spacingS),
+                  EsqueletoCarga(
+                    ancho: r.spacingL * 2.5,
+                    alto: r.spacingL,
+                    radioBorde: 10,
+                  ),
+                ],
+              ),
+            ),
       );
     }
     if (releases.isEmpty) {

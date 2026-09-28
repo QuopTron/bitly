@@ -2,6 +2,10 @@
 // encima de la navbar flotante, anclada al pie y reservando el menú de
 // navegación del sistema (atrás / home / recientes) para que nunca tape
 // los controles.
+//
+// El margen lateral y el ancho máximo del miniplayer los decide su GEOMETRÍA
+// (MarcoMiniplayer): con la forma de siempre el margen vale 0 (pegado al borde,
+// sin hueco contra la navbar) y con la flotante deja la tarjeta separada.
 
 part of '../base/home_movil.dart';
 
@@ -31,7 +35,7 @@ class _BarraInferiorShell extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            miniPlayer,
+            MarcoMiniplayer(child: miniPlayer),
             BarraNavegacionFlotante(
               isDark: isDark,
               currentIndex: currentIndex,

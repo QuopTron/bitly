@@ -23,6 +23,7 @@ import '../../../estado/cola/cubit_cola.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/tema/colores_app.dart';
 import '../../../shared/widgets/fondos/ambiente/fondo_ambiente.dart';
+import '../../../shared/widgets/reproductor/base/marco_miniplayer.dart';
 import '../../tutorial_interactivo/motor/base/tutorial_controller.dart';
 import '../shell/ensamblador_home.dart';
 
@@ -49,7 +50,9 @@ class HomeTv extends StatefulWidget {
 }
 
 class _HomeTvState extends State<HomeTv> with SingleTickerProviderStateMixin {
-  int _tab = 1; // Inicio por defecto.
+  /// Sección abierta: sale del notificador compartido con los otros shells
+  /// (ver `pestanaHomeInicial` en ensamblador_home.dart).
+  late int _tab;
 
   /// Última pestaña que pidió el tutorial (para no repetir el cambio).
   int? _pestanaTutorialAplicada;
@@ -65,6 +68,7 @@ class _HomeTvState extends State<HomeTv> with SingleTickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
+    _tab = pestanaHomeInicial();
     _transicion = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 340),
@@ -82,6 +86,7 @@ class _HomeTvState extends State<HomeTv> with SingleTickerProviderStateMixin {
 
   void _cambiarTab(int i) {
     if (i == _tab) return;
+    guardarPestanaHome(i);
     setState(() => _tab = i);
     _transicion.forward(from: 0);
   }

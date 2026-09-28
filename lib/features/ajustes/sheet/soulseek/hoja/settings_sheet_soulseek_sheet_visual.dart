@@ -88,15 +88,36 @@ class _SoulseekSheetVisual extends StatelessWidget {
               ),
               SizedBox(height: r.spacingM),
               if (!datosListos)
+                // Esqueleto del formulario: el rótulo, la propuesta y los dos
+                // campos, con la forma y el alto que van a tener de verdad.
+                // Una ruedita no anticipa nada y el formulario "aparecía" de
+                // golpe.
                 Padding(
-                  padding: EdgeInsets.all(r.spacingL),
-                  child: SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: glow,
-                    ),
+                  padding: EdgeInsets.symmetric(vertical: r.spacingS),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      EsqueletoCarga(
+                        ancho: r.spacingL * 3,
+                        alto: r.footerSize,
+                        radioBorde: 6,
+                      ),
+                      SizedBox(height: r.spacingM),
+                      EsqueletoCarga(
+                        alto: r.spacingL * 2.2,
+                        radioBorde: 12,
+                      ),
+                      SizedBox(height: r.spacingS),
+                      EsqueletoCarga(
+                        alto: r.spacingL * 2.2,
+                        radioBorde: 12,
+                      ),
+                      SizedBox(height: r.spacingM),
+                      EsqueletoCarga(
+                        alto: r.spacingL * 1.6,
+                        radioBorde: 12,
+                      ),
+                    ],
                   ),
                 )
               else

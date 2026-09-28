@@ -24,26 +24,36 @@ class _ProveedoresTab extends StatelessWidget {
     final r = Responsive(context);
     final t = AppLocalizations.of(context).ajustes;
 
-    return SingleChildScrollView(
-      padding: EdgeInsets.all(r.spacingL),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(height: r.spacingS),
-          _TituloApartado(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: EdgeInsets.fromLTRB(r.spacingL, r.spacingS, r.spacingL, 0),
+          child: _TituloApartado(
             titulo: t.proveedores,
             bajada: t.proveedoresAyuda,
             glowColor: glowColor,
           ),
-          SizedBox(height: r.spacingL),
-          // Soulseek: cuenta propia en un click (nombre + Siguiente) para el
-          // catálogo en FLAC que no pide invitación, pago ni datos.
-          _SoulseekCard(glowColor: glowColor),
-          SizedBox(height: r.spacingM),
-          // Música propia del usuario (importación local + dedupe por ISRC)
-          _BibliotecaLocalCard(glowColor: glowColor),
-        ],
-      ),
+        ),
+        Expanded(
+          child: CarruselAjustes(
+            key: const ValueKey('carrusel-proveedores'),
+            etiqueta: t.proveedores,
+            glowColor: glowColor,
+            onBg: ColoresApp.enSuperficie(
+              Theme.of(context).brightness == Brightness.dark,
+            ),
+            r: r,
+            paginas: [
+              // Soulseek: cuenta propia en un click (nombre + Siguiente) para el
+              // catálogo en FLAC que no pide invitación, pago ni datos.
+              _SoulseekCard(glowColor: glowColor),
+              // Música propia del usuario (importación local + dedupe por ISRC)
+              _BibliotecaLocalCard(glowColor: glowColor),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

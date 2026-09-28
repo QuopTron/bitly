@@ -2,9 +2,9 @@
 // miniplayer (carátula + info + controles) y el icono genérico. El botón
 // play y el progreso viven en miniplayer_controles.dart.
 //
-// Las medidas salen del `Responsive` que recibe del padre, que ya sabe del
-// aparato: en la TV la carátula y los botones del miniplayer son más grandes
-// (es la barra que está en TODAS las pantallas, así que se nota).
+// Las medidas salen de la GEOMETRÍA del miniplayer, que ya resolvió el aparato
+// (en la TV la carátula y los botones son más grandes, porque es la barra que
+// está en TODAS las pantallas) y le aplicó el preset que eligió el usuario.
 
 part of '../base/miniplayer.dart';
 
@@ -12,6 +12,7 @@ part of '../base/miniplayer.dart';
 Widget _filaTrackMini(
   _MiniplayerState st,
   Responsive r,
+  MiniplayerGeometria g,
   Color fg,
   bool esOscuro,
   EstadoCola cola,
@@ -20,8 +21,8 @@ Widget _filaTrackMini(
   String? caratula,
   bool buffering,
 ) {
-  final lado = r.val(36, 32, 64);
-  final radio = r.val(6, 5, 12);
+  final lado = g.ladoCaratula;
+  final radio = g.radioCaratula;
   return Row(
     children: [
       GestureDetector(
@@ -87,6 +88,7 @@ Widget _filaTrackMini(
         fg,
         cola.shuffle ? Icons.shuffle_rounded : Icons.shuffle,
         activo: cola.shuffle,
+        factor: g.factorIconos,
         onTap: () => st.context.read<CubitCola>().alternarShuffle(),
       ),
       _iconoControlMini(
@@ -96,9 +98,10 @@ Widget _filaTrackMini(
         Icons.skip_previous_rounded,
         tamanoExtra: 3,
         atenuado: true,
+        factor: g.factorIconos,
         onTap: () => st.context.read<CubitReproductor>().anterior(),
       ),
-      _botonPlayMini(st, r, fg, player, buffering),
+      _botonPlayMini(st, r, fg, player, buffering, factor: g.factorIconos),
       _iconoControlMini(
         st,
         r,
@@ -106,6 +109,7 @@ Widget _filaTrackMini(
         Icons.skip_next_rounded,
         tamanoExtra: 3,
         atenuado: true,
+        factor: g.factorIconos,
         onTap: () => st.context.read<CubitReproductor>().siguiente(),
       ),
       _iconoControlMini(
@@ -116,6 +120,7 @@ Widget _filaTrackMini(
             ? Icons.repeat_one_rounded
             : Icons.repeat_rounded,
         activo: cola.modoRepeticion != ModoRepeticion.ninguno,
+        factor: g.factorIconos,
         onTap: () => st.context.read<CubitCola>().ciclarModoRepeticion(),
       ),
     ],
@@ -131,6 +136,7 @@ Widget _iconoControlMini(
   bool activo = false,
   bool atenuado = false,
   double? tamanoExtra,
+  double factor = 1.0,
   required VoidCallback onTap,
 }) {
   return GestureDetector(
@@ -139,7 +145,7 @@ Widget _iconoControlMini(
       padding: const EdgeInsets.all(3),
       child: Icon(
         icono,
-        size: r.footerSize + 8 + (tamanoExtra ?? 0),
+        size: (r.footerSize + 8 + (tamanoExtra ?? 0)) * factor,
         color:
             activo
                 ? fg

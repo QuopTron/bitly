@@ -8,13 +8,20 @@
 // que se ajusta en Ajustes → Apariencia → Diseño.
 //
 // Lee del mismo notifier global, así tocar un control repinta al instante.
+//
+// ACÁ es donde el diseño por VISTA llega a todas las cards y grillas sin
+// tocarlas: el redondeo y la separación que la vista eligió se aplican al
+// pasar cerca de un AmbitoVista. Una card sigue pidiendo `radioCards(context)`
+// y ya obedece a la vista en la que está, sin saber que existen las vistas.
+//
 // Se conecta con: apariencia_helper.dart (leer/cambiar las preferencias) +
-// las vistas con cards y grillas.
+// ambito_vista.dart (lo que la vista eligió) + las vistas con cards y grillas.
 // Parte del flujo: presentación (espaciado de cards y grillas).
 // ─────────────────────────────────────────────────────────────
 
 import 'package:flutter/material.dart';
 
+import '../../../../widgets/vista/base/ambito_vista.dart';
 import '../base/apariencia_helper.dart';
 
 /// Separación, redondeo y líneas de las cards y las grillas.
@@ -23,34 +30,45 @@ class AparienciaEspacios {
 
   /// Separación horizontal GENERAL (promedio de los componentes).
   static double espacioX(BuildContext context) =>
-      AparienciaHelper.actual(context).espacioX;
+      _deLaVista(context, AparienciaHelper.actual(context).espacioX);
 
   /// Separación vertical GENERAL.
   static double espacioY(BuildContext context) =>
-      AparienciaHelper.actual(context).espacioY;
+      _deLaVista(context, AparienciaHelper.actual(context).espacioY);
 
   /// Separa el eje horizontal de las cards de CANCIÓN.
   static double espacioXCancion(BuildContext context) =>
-      AparienciaHelper.actual(context).cancionX;
+      _deLaVista(context, AparienciaHelper.actual(context).cancionX);
 
   /// Separa el eje vertical de las cards de canción.
   static double espacioYCancion(BuildContext context) =>
-      AparienciaHelper.actual(context).cancionY;
+      _deLaVista(context, AparienciaHelper.actual(context).cancionY);
 
   /// Separa el eje horizontal de las cards de GRILLA.
   static double espacioXGrilla(BuildContext context) =>
-      AparienciaHelper.actual(context).grillaX;
+      _deLaVista(context, AparienciaHelper.actual(context).grillaX);
 
   /// Separa el eje vertical de las cards de grilla.
   static double espacioYGrilla(BuildContext context) =>
-      AparienciaHelper.actual(context).grillaY;
+      _deLaVista(context, AparienciaHelper.actual(context).grillaY);
+
+  /// Aplica la DENSIDAD que pidió la vista a una separación global.
+  ///
+  /// La densidad multiplica en vez de reemplazar: mover el control global sigue
+  /// moviendo todas las vistas juntas, y la que se aparta lo hace en su medida.
+  static double _deLaVista(BuildContext context, double base) {
+    final densidad = AmbitoVista.densidadDe(context);
+    return densidad == 1 ? base : base * densidad;
+  }
 
   /// ¿Los cuatro valores van iguales? (para el chip "Personalizado").
   static bool separacionUniforme(BuildContext context) =>
       AparienciaHelper.actual(context).separacionUniforme;
 
-  /// Redondeo de las cards.
+  /// Redondeo de las cards: el que eligió la VISTA si tiene uno propio; si no,
+  /// el global del usuario.
   static double radioCards(BuildContext context) =>
+      AmbitoVista.radioDe(context) ??
       AparienciaHelper.actual(context).radioCards;
 
   /// Multiplicador del TAMAÑO DE LAS LETRAS de toda la app.

@@ -41,6 +41,95 @@ enum TrazoBarra {
   }
 }
 
+/// Tamaño del miniplayer, en presets.
+///
+/// "Normal" es el miniplayer de SIEMPRE: los presets multiplican las medidas
+/// base del aparato (que ya vienen escaladas por `Responsive`) en vez de
+/// reemplazarlas, así el que no toca nada ve exactamente lo de antes y el que
+/// elige "grande" no se lleva un salto de diseño en la tele.
+enum TamanoMiniplayer {
+  compacto('compacto', 0.8, 0.9),
+  normal('normal', 1.0, 1.0),
+  grande('grande', 1.25, 1.15);
+
+  final String clave;
+
+  /// Cuánto crece la carátula.
+  final double factorCaratula;
+
+  /// Cuánto crecen los iconos. Menos que la carátula a propósito: agrandar los
+  /// toques de más termina empujando el título a tres letras.
+  final double factorIconos;
+
+  const TamanoMiniplayer(this.clave, this.factorCaratula, this.factorIconos);
+
+  /// Convierte una clave guardada. Una que no exista deja el de fábrica.
+  static TamanoMiniplayer desdeClave(String? clave) {
+    for (final v in TamanoMiniplayer.values) {
+      if (v.clave == clave) return v;
+    }
+    return TamanoMiniplayer.normal;
+  }
+}
+
+/// Cómo se apoya el miniplayer en el borde.
+enum FormaMiniplayer {
+  /// La de SIEMPRE en cada aparato: pegado al borde en el celular (así no
+  /// queda un hueco contra la navbar) y flotante en PC y TV.
+  auto('auto'),
+
+  /// Ancho completo, sin márgenes laterales.
+  pegado('pegado'),
+
+  /// Tarjeta con márgenes laterales (y sombra donde conviene).
+  flotante('flotante');
+
+  final String clave;
+
+  const FormaMiniplayer(this.clave);
+
+  /// Convierte una clave guardada. Una que no exista deja el de fábrica.
+  static FormaMiniplayer desdeClave(String? clave) {
+    for (final v in FormaMiniplayer.values) {
+      if (v.clave == clave) return v;
+    }
+    return FormaMiniplayer.auto;
+  }
+}
+
+/// Ancho máximo de la barra del miniplayer en pantallas anchas.
+///
+/// Por qué existe: en una tele grande (o una ventana enorme) una barra de lado a
+/// lado cruza la pantalla entera y el ojo tiene que viajar de un control a otro.
+/// Acotarla y centrarla es lo que hace cualquier reproductor de escritorio.
+enum AnchoMiniplayer {
+  /// La de siempre hasta que la pantalla es enorme: recién arriba del tope se
+  /// acota. En un monitor normal no cambia absolutamente nada.
+  auto('auto', 1600),
+
+  /// Siempre acotada, también en pantallas medianas: la barra se lee como una
+  /// tarjeta contenida en vez de ocupar el ancho.
+  contenido('contenido', 900),
+
+  /// Sin tope nunca: ancho completo, como el diseño anterior a la v1.0.0.
+  completo('completo', 0);
+
+  final String clave;
+
+  /// Ancho máximo en píxeles lógicos. 0 = sin tope.
+  final double tope;
+
+  const AnchoMiniplayer(this.clave, this.tope);
+
+  /// Convierte una clave guardada. Una que no exista deja el de fábrica.
+  static AnchoMiniplayer desdeClave(String? clave) {
+    for (final v in AnchoMiniplayer.values) {
+      if (v.clave == clave) return v;
+    }
+    return AnchoMiniplayer.auto;
+  }
+}
+
 /// Preferencias de diseño del usuario.
 class PreferenciasApariencia {
   /// Trazo del contorno (navbar y miniplayer comparten el grosor elegido).
@@ -97,6 +186,12 @@ class PreferenciasApariencia {
   /// Redondeo de las cards, en píxeles lógicos.
   final double radioCards;
 
+  /// TIPOGRAFÍA elegida (Ajustes → Apariencia → Tipografía). Es el id del
+  /// catálogo, no el nombre de la familia: resolverla es trabajo de
+  /// catalogo_fuentes. Vacío = la que trae la app (google_sans), que es el
+  /// único valor que funciona sin red.
+  final String fuenteId;
+
   /// Multiplicador del TAMAÑO DE LAS LETRAS de la app (1 = el de fábrica).
   /// Se aplica ENCIMA del tamaño que pide el sistema, así que respeta la
   /// accesibilidad del teléfono en vez de pisarla.
@@ -121,6 +216,15 @@ class PreferenciasApariencia {
   /// Iconos de las BARRAS: navbar y controles del miniplayer.
   final double escalaIconosBarras;
 
+  /// Tamaño del miniplayer (ver TamanoMiniplayer).
+  final TamanoMiniplayer tamanoMiniplayer;
+
+  /// Cómo se apoya el miniplayer (ver FormaMiniplayer).
+  final FormaMiniplayer formaMiniplayer;
+
+  /// Ancho máximo del miniplayer en pantallas anchas (ver AnchoMiniplayer).
+  final AnchoMiniplayer anchoMiniplayer;
+
   const PreferenciasApariencia({
     this.trazoBarra = TrazoBarra.suave,
     this.radioNavbar = 20,
@@ -137,12 +241,16 @@ class PreferenciasApariencia {
     this.grillaX = 1,
     this.grillaY = 1,
     this.radioCards = 14,
+    this.fuenteId = '',
     this.escalaTexto = 1,
     this.escalaIconos = 1,
     this.escalaTitulos = 1,
     this.escalaTextos = 1,
     this.escalaIconosCards = 1,
     this.escalaIconosBarras = 1,
+    this.tamanoMiniplayer = TamanoMiniplayer.normal,
+    this.formaMiniplayer = FormaMiniplayer.auto,
+    this.anchoMiniplayer = AnchoMiniplayer.auto,
   });
 
   /// Diseño de fábrica: el que trae la app sin tocar nada.
@@ -236,12 +344,16 @@ class PreferenciasApariencia {
     double? grillaX,
     double? grillaY,
     double? radioCards,
+    String? fuenteId,
     double? escalaTexto,
     double? escalaIconos,
     double? escalaTitulos,
     double? escalaTextos,
     double? escalaIconosCards,
     double? escalaIconosBarras,
+    TamanoMiniplayer? tamanoMiniplayer,
+    FormaMiniplayer? formaMiniplayer,
+    AnchoMiniplayer? anchoMiniplayer,
   }) {
     var cx = cancionX ?? this.cancionX;
     var cy = cancionY ?? this.cancionY;
@@ -283,6 +395,7 @@ class PreferenciasApariencia {
       grillaX: acotar(gx, minEspacio, maxEspacio),
       grillaY: acotar(gy, minEspacio, maxEspacio),
       radioCards: acotar(radioCards ?? this.radioCards, minRadio, maxRadio),
+      fuenteId: fuenteId ?? this.fuenteId,
       escalaTexto: acotar(
         escalaTexto ?? this.escalaTexto,
         minEscala,
@@ -313,6 +426,9 @@ class PreferenciasApariencia {
         minEscala,
         maxEscala,
       ),
+      tamanoMiniplayer: tamanoMiniplayer ?? this.tamanoMiniplayer,
+      formaMiniplayer: formaMiniplayer ?? this.formaMiniplayer,
+      anchoMiniplayer: anchoMiniplayer ?? this.anchoMiniplayer,
     );
   }
 
@@ -332,12 +448,16 @@ class PreferenciasApariencia {
       (grillaX - deFabrica.grillaX).abs() < 0.001 &&
       (grillaY - deFabrica.grillaY).abs() < 0.001 &&
       (radioCards - deFabrica.radioCards).abs() < 0.001 &&
+      fuenteId == deFabrica.fuenteId &&
       (escalaTexto - deFabrica.escalaTexto).abs() < 0.001 &&
       (escalaIconos - deFabrica.escalaIconos).abs() < 0.001 &&
       (escalaTitulos - deFabrica.escalaTitulos).abs() < 0.001 &&
       (escalaTextos - deFabrica.escalaTextos).abs() < 0.001 &&
       (escalaIconosCards - deFabrica.escalaIconosCards).abs() < 0.001 &&
-      (escalaIconosBarras - deFabrica.escalaIconosBarras).abs() < 0.001;
+      (escalaIconosBarras - deFabrica.escalaIconosBarras).abs() < 0.001 &&
+      tamanoMiniplayer == deFabrica.tamanoMiniplayer &&
+      formaMiniplayer == deFabrica.formaMiniplayer &&
+      anchoMiniplayer == deFabrica.anchoMiniplayer;
 
   /// Serializa a JSON para persistencia.
   Map<String, dynamic> aJson() => {
@@ -356,12 +476,16 @@ class PreferenciasApariencia {
     'grillaX': grillaX,
     'grillaY': grillaY,
     'radioCards': radioCards,
+    'fuenteId': fuenteId,
     'escalaTexto': escalaTexto,
     'escalaIconos': escalaIconos,
     'escalaTitulos': escalaTitulos,
     'escalaTextos': escalaTextos,
     'escalaIconosCards': escalaIconosCards,
     'escalaIconosBarras': escalaIconosBarras,
+    'tamanoMiniplayer': tamanoMiniplayer.clave,
+    'formaMiniplayer': formaMiniplayer.clave,
+    'anchoMiniplayer': anchoMiniplayer.clave,
   };
 
   /// Deserializa desde JSON (con acotado de rangos).
@@ -378,6 +502,11 @@ class PreferenciasApariencia {
     );
     double olas(String clave, double base) =>
         acotar((json[clave] as num?)?.toDouble() ?? base, minOlas, maxOlas);
+    // Un `as String?` NO es tolerante: tira excepción si el valor guardado es
+    // un número o una lista (una preferencia escrita a mano, o por una versión
+    // que guardó otra cosa). Con esto el diseño cae al de fábrica y sigue.
+    String? texto(String clave) =>
+        json[clave] is String ? json[clave] as String : null;
     final vistos = json['regalosVistos'];
     return PreferenciasApariencia(
       // Se lee también la clave vieja 'bordeMiniplayer' (preferencias
@@ -410,6 +539,9 @@ class PreferenciasApariencia {
         minRadio,
         maxRadio,
       ),
+      // Sin clave guardada (preferencia de una versión anterior) queda en '' =
+      // la tipografía de la app.
+      fuenteId: (json['fuenteId'] as String?)?.trim() ?? '',
       escalaTexto: acotar(
         (json['escalaTexto'] as num?)?.toDouble() ?? deFabrica.escalaTexto,
         minEscala,
@@ -442,6 +574,13 @@ class PreferenciasApariencia {
         minEscala,
         maxEscala,
       ),
+      // Sin clave guardada (preferencia de una versión anterior) queda en el
+      // de fábrica, que es el miniplayer de siempre.
+      tamanoMiniplayer: TamanoMiniplayer.desdeClave(
+        texto('tamanoMiniplayer'),
+      ),
+      formaMiniplayer: FormaMiniplayer.desdeClave(texto('formaMiniplayer')),
+      anchoMiniplayer: AnchoMiniplayer.desdeClave(texto('anchoMiniplayer')),
     );
   }
 

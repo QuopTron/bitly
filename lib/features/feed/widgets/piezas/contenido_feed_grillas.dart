@@ -62,9 +62,11 @@ Widget _grillaSliver(
   Responsive r,
   List<ItemFeed> items,
 ) {
-  // Con la grilla cargada de color del cover, las cards se separan menos:
-  // el espacio se cierra de a poco mientras crece la intensidad.
-  final nivelGrilla = EstiloHelper.cardsGrilla(context);
+  // Con la grilla cargada de color, las cards se separan menos: el espacio se
+  // cierra de a poco mientras crece la intensidad. Se mide con `TinteVista`
+  // para que la grilla y sus cards usen la MISMA (una paleta de esta vista
+  // tiene piso: sin esto la grilla quedaría con el aire de "sin color").
+  final nivelGrilla = TinteVista.nivelDeGrilla(context);
   final gap = r.spacingXS * (1 - 0.5 * nivelGrilla);
   // El margen lateral también se cierra con la intensidad: la grilla con
   // color del cover aprovecha casi todo el ancho.
@@ -78,15 +80,12 @@ Widget _grillaSliver(
     padding: EdgeInsets.symmetric(horizontal: padH * factorX),
     sliver: SliverLayoutBuilder(
       builder: (context, restricciones) {
-        var columnas = 2;
-        final disponible = restricciones.crossAxisExtent;
-        if (disponible > 1000) {
-          columnas = 6;
-        } else if (disponible > 700) {
-          columnas = 4;
-        } else if (disponible > 340) {
-          columnas = 3;
-        }
+        // La cuenta vive en `columnasDeGrilla` (una sola vez para las tres
+        // grillas) y respeta el tope de columnas de ESTA vista.
+        final columnas = columnasDeGrilla(
+          context,
+          restricciones.crossAxisExtent,
+        );
         return SliverGrid.builder(
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: columnas,

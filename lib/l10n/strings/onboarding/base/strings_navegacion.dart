@@ -1,26 +1,26 @@
 // ─────────────────────────────────────────────────────────────
-// strings_navegacion.dart — Textos de navegación y arranque: las
-// pestañas de la Home (barra flotante y lateral) y el overlay de
-// "Preparando fuentes". Español primario, inglés secundario.
+// strings_navegacion.dart — Textos de navegación de la Home: las
+// pestañas de la barra flotante (celular) y de la lateral (PC).
+// Español primario, inglés secundario.
 // Se conecta con: app_localizations.dart (lo expone como `nav`) y
-// barra_navegacion_* / home_movil_overlay.
+// barra_navegacion_flotante / barra_navegacion_lateral.
 // Parte del flujo: Home (navegación entre secciones).
+//
+// (Acá vivían `preparando` y `preparandoAviso`, el aviso del overlay
+// "Preparando tus fuentes…": ese overlay nunca llegaba a verse —nadie pasaba
+// `preparando: true`— y se borró junto con sus textos.)
 // ─────────────────────────────────────────────────────────────
 
 class StringsNavegacion {
   final String buscar;
   final String inicio;
   final String miEspacio;
-  final String preparando;
-  final String preparandoAviso;
   final String continuar;
 
   const StringsNavegacion({
     required this.buscar,
     required this.inicio,
     required this.miEspacio,
-    required this.preparando,
-    required this.preparandoAviso,
     required this.continuar,
   });
 
@@ -31,8 +31,6 @@ class StringsNavegacion {
     buscar: 'Buscar',
     inicio: 'Inicio',
     miEspacio: 'Mi Espacio',
-    preparando: 'Preparando tus fuentes de música…',
-    preparandoAviso: 'Si una fuente pide verificación, se abrirá al usarla.',
     continuar: 'Continuar',
   );
 
@@ -40,9 +38,6 @@ class StringsNavegacion {
     buscar: 'Search',
     inicio: 'Home',
     miEspacio: 'My Space',
-    preparando: 'Preparing your music sources…',
-    preparandoAviso:
-        'If a source asks for verification, it will open when used.',
     continuar: 'Continue',
   );
 }

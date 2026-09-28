@@ -75,13 +75,12 @@ Future<void> showReportDialog(BuildContext context, Color glowColor) async {
                 ),
                 child:
                     sending
-                        ? SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
+                        // Enviando: barra con la forma de la etiqueta del botón
+                        // (blanca, porque va encima del color relleno).
+                        ? const EsqueletoEtiqueta(
+                          ancho: 110,
+                          alto: 15,
+                          sobreColor: true,
                         )
                         : Text(
                           loc.setup.reportSend,

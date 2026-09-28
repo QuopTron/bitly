@@ -59,10 +59,14 @@ Widget _construirCuerpo(_PaginaMiEspacioState st, Color onBg) {
                     child: _BotonBusquedaToggle(
                       activo: st._mostrarBusqueda,
                       onBg: onBg,
+                      // Plegar el panel NO borra la búsqueda: el texto, el
+                      // filtro y el orden quedan como estaban y vuelven a
+                      // verse al desplegarlo. (Antes, cerrarlo vaciaba el
+                      // filtro y el campo: parecía que Mi Espacio se
+                      // "reiniciaba". Para limpiar está la X de la barra.)
                       onTap:
                           () => st._aplicar(() {
                             st._mostrarBusqueda = !st._mostrarBusqueda;
-                            if (!st._mostrarBusqueda) st._textoBusqueda = '';
                           }),
                     ),
                   ),
@@ -78,6 +82,9 @@ Widget _construirCuerpo(_PaginaMiEspacioState st, Color onBg) {
                     busquedaVisible
                         ? BarraBusquedaMiEspacio(
                           key: const ValueKey('busqueda'),
+                          // El controlador es de la página: la barra va y
+                          // viene con el acordeón y el texto se queda.
+                          controller: st._ctrlBusqueda,
                           onBusquedaCambiada: st._onBusquedaCambiada,
                           onBg: onBg,
                           hintText: loc.setup.searchHint,

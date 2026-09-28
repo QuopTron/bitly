@@ -41,10 +41,25 @@ class _VersionStatusCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: glow.withValues(alpha: 0.2)),
         ),
+        // Mientras se consulta, la tarjeta toma la forma de lo que va a
+        // mostrar: la fila de "Instalada … vX" y la línea de la última versión.
         child:
             loading
-                ? Center(
-                  child: CircularProgressIndicator(strokeWidth: 2, color: glow),
+                ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        EsqueletoMarca(lado: r.footerSize + 2),
+                        SizedBox(width: r.spacingS),
+                        EsqueletoEtiqueta(ancho: 90, alto: r.footerSize),
+                        const Spacer(),
+                        EsqueletoEtiqueta(ancho: 46, alto: r.subtitleSize),
+                      ],
+                    ),
+                    SizedBox(height: r.spacingS),
+                    EsqueletoEtiqueta(ancho: 150, alto: r.footerSize),
+                  ],
                 )
                 : Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

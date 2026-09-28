@@ -84,6 +84,16 @@ class StringsSetup {
       verificationDone,
       verifyingProvider,
       verificationFailed;
+
+  /// Plantilla del medidor de verificación: lleva %v (ya verificados) y %t
+  /// (cuántos proveedores hay). Se arma con [verificados].
+  final String _tplVerificados;
+
+  /// "3 de 7": cuántos proveedores quedaron verificados de verdad. Es el
+  /// medidor honesto de ese paso: avanza con el estado real de cada uno.
+  String verificados(int hechos, int total) => _tplVerificados
+      .replaceFirst('%v', '$hechos')
+      .replaceFirst('%t', '$total');
   final String noFolder, unknownTrack, secondsAbbrev;
   // ── Feed ────────────────────────────────────────────────────
   final String feedGoodMorning,
@@ -304,6 +314,7 @@ class StringsSetup {
     required this.verificationDone,
     required this.verifyingProvider,
     required this.verificationFailed,
+    required String tplVerificados,
     required this.noFolder,
     required this.unknownTrack,
     required this.secondsAbbrev,
@@ -443,7 +454,7 @@ class StringsSetup {
     required this.reportSend,
     required this.reportSent,
     required this.reportFailed,
-  });
+  }) : _tplVerificados = tplVerificados;
 
   static const en = StringsSetup(
     selectLanguage: 'Select your language',
@@ -560,6 +571,7 @@ class StringsSetup {
     verificationDone: 'Verification complete',
     verifyingProvider: 'Verifying {provider}...',
     verificationFailed: 'Verification failed for {provider}. Try again.',
+    tplVerificados: '%v of %t verified',
     noFolder: 'No folder',
     unknownTrack: 'Unknown',
     secondsAbbrev: 's',
@@ -825,6 +837,7 @@ class StringsSetup {
     verifyingProvider: 'Verificando {provider}...',
     verificationFailed:
         'Verificación fallida para {provider}. Intenta de nuevo.',
+    tplVerificados: '%v de %t verificados',
     noFolder: 'Ninguna carpeta',
     unknownTrack: 'Desconocido',
     secondsAbbrev: 's',

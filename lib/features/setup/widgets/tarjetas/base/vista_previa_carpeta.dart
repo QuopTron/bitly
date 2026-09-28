@@ -10,6 +10,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../shared/utilidades/plataforma/responsive.dart';
+import '../../../../../shared/widgets/esqueletos/esqueleto_carga.dart';
 import '../../../../../shared/widgets/vidrio/base/contenedor_vidrio.dart';
 
 /// Vista previa de la carpeta de descargas seleccionada.
@@ -94,15 +95,10 @@ class VistaPreviaCarpeta extends StatelessWidget {
                 ],
               ),
             ),
+            // Eligiendo carpeta: el hueco se ve como lo que va a aparecer ahí
+            // (el chequeo o el chevron), en vez de un circulito que empuja.
             if (eligiendo)
-              SizedBox(
-                width: r.footerSize,
-                height: r.footerSize,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: glowColor,
-                ),
-              ),
+              EsqueletoMarca(lado: r.footerSize),
           ],
         ),
       ),

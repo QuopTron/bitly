@@ -30,6 +30,7 @@ import '../../portada/imagen_portada.dart';
 import '../../../indicadores/descarga/indicador_descarga.dart';
 import '../../../vidrio/base/desenfoque_adaptativo.dart';
 import '../../../../utilidades/formato/apariencia/barras/apariencia_espacios_helper.dart';
+import '../../../../utilidades/formato/apariencia/vistas/tinte_vista_helper.dart';
 
 part '../estados/tarjeta_grilla_descarga.dart';
 part '../visual/tarjeta_grilla_color_wrapper.dart';

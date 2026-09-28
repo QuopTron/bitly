@@ -4,7 +4,8 @@
 //
 // El botón toma su diámetro del `Responsive` que recibe del padre (que ya
 // sabe del aparato): en la TV es bastante más grande, porque se toca con el
-// puntero del control.
+// puntero del control. Encima de eso lo multiplica el preset de tamaño del
+// miniplayer (`factorIconos`), que crece menos que la carátula.
 
 part of '../base/miniplayer.dart';
 
@@ -14,9 +15,10 @@ Widget _botonPlayMini(
   Responsive r,
   Color fg,
   EstadoAudioReproductor player,
-  bool buffering,
-) {
-  final lado = r.val(42, 38, 78);
+  bool buffering, {
+  double factor = 1.0,
+}) {
+  final lado = r.val(42, 38, 78) * factor;
   return GestureDetector(
     onTap: () {
       Haptico.medio();

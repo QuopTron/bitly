@@ -8,6 +8,8 @@
 // Parte del flujo: arranque + llegada de enlaces compartidos.
 // ─────────────────────────────────────────────────────────────
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -17,9 +19,11 @@ import '../../../core/modelos/ajustes_acciones_rapidas.dart';
 import '../../../core/modelos/resultado_enlace.dart';
 import '../../../core/servicios/compartir/datos/datos_compartido.dart';
 import '../../../core/servicios/compartir/base/servicio_compartir.dart';
+import '../../../core/modelos/usuario/disenos/vistas/preferencias_vistas.dart';
 import '../../../core/modelos/usuario/preferencias/preferencias_apariencia.dart';
 import '../../../core/modelos/usuario/preferencias/preferencias_estilo.dart';
 import '../../../core/plataforma/sistema/enlaces/servicio_deep_link.dart';
+import '../../../core/servicios/fuentes/servicio_fuentes.dart';
 import '../../../shared/utilidades/plataforma/pantalla/escala_ui.dart';
 import '../../../core/servicios/proveedores/base/servicio_enlaces.dart';
 import '../../../estado/cola/cubit_cola.dart';
@@ -34,28 +38,37 @@ class NotificadoresAjustesApp {
     : locale = di.sl<ValueNotifier<Locale>>(),
       themeMode = di.sl<ValueNotifier<ThemeMode>>(),
       preferenciasEstilo = di.sl<ValueNotifier<PreferenciasEstilo>>(),
-      preferenciasApariencia = di.sl<ValueNotifier<PreferenciasApariencia>>();
+      preferenciasApariencia = di.sl<ValueNotifier<PreferenciasApariencia>>(),
+      preferenciasVistas = di.sl<ValueNotifier<PreferenciasVistas>>(),
+      familiaTipografia = di.sl<ValueNotifier<String?>>();
 
   final ValueNotifier<Locale> locale;
   final ValueNotifier<ThemeMode> themeMode;
   final ValueNotifier<PreferenciasEstilo> preferenciasEstilo;
   final ValueNotifier<PreferenciasApariencia> preferenciasApariencia;
+  final ValueNotifier<PreferenciasVistas> preferenciasVistas;
+
+  /// Familia tipográfica activa: cambia cuando una tipografía bajada termina
+  /// de registrarse, y ahí la app entera se repinta con ella.
+  final ValueNotifier<String?> familiaTipografia;
 
   Iterable<Listenable> get _todos => [
     locale,
     themeMode,
     preferenciasEstilo,
     preferenciasApariencia,
+    preferenciasVistas,
+    familiaTipografia,
   ];
 
-  /// Registra el mismo callback en los cuatro notificadores.
+  /// Registra el mismo callback en los seis notificadores.
   void suscribir(VoidCallback onCambio) {
     for (final n in _todos) {
       n.addListener(onCambio);
     }
   }
 
-  /// Quita el callback de los cuatro notificadores.
+  /// Quita el callback de los seis notificadores.
   void liberar(VoidCallback onCambio) {
     for (final n in _todos) {
       n.removeListener(onCambio);
@@ -87,6 +100,19 @@ Future<void> cargarAjustesGuardadosApp({
     if (estaMontado()) {
       ajustes.preferenciasApariencia.value = aparienciaGuardada;
     }
+    // Diseño POR VISTA (v1.0.0): solo las vistas que el usuario se salió del
+    // diseño global. Sin esto, cada arranque las volvía a heredar todas.
+    final vistasGuardadas = await cache.getPreferenciasVistas();
+    if (estaMontado()) {
+      ajustes.preferenciasVistas.value = vistasGuardadas;
+    }
+    // Tipografía elegida: se registra en Flutter y se publica su familia para
+    // que el tema se pinte con ella. SIN esperar (`unawaited`): si hay que
+    // bajarla eso es red, y el arranque no puede quedar colgado de un espejo.
+    // Hasta que llegue se ve la empaquetada, que es lo que se veía antes.
+    unawaited(
+      ServicioFuentes.instancia.activar(aparienciaGuardada.fuenteId),
+    );
     // Escala de letras e iconos: va con la apariencia porque es parte de ella.
     // El texto se aplica desde `protegerLayout` (el `textScaler` del árbol) y
     // los iconos los consultan las tarjetas y las barras.

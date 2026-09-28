@@ -57,8 +57,26 @@ class _GoogleConnectionTileState extends State<_GoogleConnectionTile> {
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: onBg.withValues(alpha: 0.1)),
         ),
-        child: Center(
-          child: CircularProgressIndicator(strokeWidth: 2, color: glow),
+        // Mientras se consulta, la tarjeta muestra su propia forma: el badge
+        // redondo, el título y la bajada, y el chevron. Antes era un círculo
+        // girando dentro de una tarjeta vacía de la misma altura.
+        child: Row(
+          children: [
+            const EsqueletoMarca(lado: 36, radioBorde: 18),
+            SizedBox(width: r.spacingM),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  EsqueletoEtiqueta(ancho: 120, alto: r.subtitleSize - 1),
+                  const SizedBox(height: 6),
+                  EsqueletoEtiqueta(ancho: 170, alto: r.footerSize - 2),
+                ],
+              ),
+            ),
+            SizedBox(width: r.spacingM),
+            EsqueletoMarca(lado: r.subtitleSize),
+          ],
         ),
       );
     }

@@ -69,15 +69,10 @@ Widget _construirTarjetaPoolQobuz({
           alignment: Alignment.centerLeft,
           child: TextButton.icon(
             onPressed: consultando ? null : onRevisar,
+            // Revisando: el hueco del ícono de refrescar se vuelve un bloque
+            // del mismo tamaño (el texto de al lado ya dice "Revisando…").
             icon: consultando
-                ? SizedBox(
-                    width: 14,
-                    height: 14,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: onBg.withValues(alpha: 0.6),
-                    ),
-                  )
+                ? const EsqueletoMarca(lado: 16, radioBorde: 4)
                 : const Icon(Icons.refresh_rounded, size: 16),
             label: Text(
               consultando ? t.revisando : t.revisar,

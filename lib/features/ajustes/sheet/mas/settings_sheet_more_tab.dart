@@ -24,32 +24,42 @@ class _MoreTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final r = Responsive(context);
     final t = AppLocalizations.of(context).ajustes;
+    final onBg = ColoresApp.enSuperficie(
+      Theme.of(context).brightness == Brightness.dark,
+    );
 
-    return SingleChildScrollView(
-      padding: EdgeInsets.all(r.spacingL),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(height: r.spacingS),
+    // El apartado (título + bajada) queda fijo arriba —es lo que explica de qué
+    // va la pestaña— y las tarjetas se GIRAN abajo, una por pantalla.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: EdgeInsets.fromLTRB(r.spacingL, r.spacingS, r.spacingL, 0),
           // Mismo encabezado que Cuenta/Proveedores: título + bajada.
-          _TituloApartado(
+          child: _TituloApartado(
             titulo: t.mas,
             bajada: t.masAyuda,
             glowColor: glowColor,
           ),
-          SizedBox(height: r.spacingL),
-          // Report a bug / suggestion
-          _ReportCardWidget(glowColor: glowColor),
-          SizedBox(height: r.spacingM),
-          // Streaming cache, explained
-          _CacheExplainedCard(glowColor: glowColor),
-          SizedBox(height: r.spacingM),
-          _VersionInfoCard(
+        ),
+        Expanded(
+          child: CarruselAjustes(
+            key: const ValueKey('carrusel-mas'),
+            etiqueta: t.mas,
             glowColor: glowColor,
-            onShowVersions: (ctx) => _abrirVersiones(ctx, glowColor),
+            onBg: onBg,
+            r: r,
+            paginas: [
+              _ReportCardWidget(glowColor: glowColor),
+              _CacheExplainedCard(glowColor: glowColor),
+              _VersionInfoCard(
+                glowColor: glowColor,
+                onShowVersions: (ctx) => _abrirVersiones(ctx, glowColor),
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

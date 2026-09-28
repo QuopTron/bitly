@@ -54,6 +54,9 @@ func dispatchRPC(method string, params map[string]interface{}) (interface{}, str
 	if res, errStr, handled := dispatchMedia(method, params); handled {
 		return res, errStr
 	}
+	if res, errStr, handled := dispatchFuentes(method, params); handled {
+		return res, errStr
+	}
 	if res, errStr, handled := dispatchExtra(method, params); handled {
 		return res, errStr
 	}
