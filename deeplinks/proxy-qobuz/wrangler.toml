@@ -34,6 +34,12 @@ name = "qobuz-proxy"
 main = "worker.js"
 compatibility_date = "2026-09-01"
 
+# Cuenta de Cloudflare del Worker. Sin esto, `wrangler deploy` falla cuando la
+# cuenta tiene más de un miembro/equipo disponible ("More than one account
+# available but unable to select one in non-interactive mode"). No es un
+# secreto: es el ID público de la cuenta (Guttural Engineer).
+account_id = "b7d54194aed8bb1603b8bc16cbda0618"
+
 # Los secretos van por `wrangler secret put` (ver arriba), NO acá.
 [vars]
 # QOBUZ_APP_ID = ""
