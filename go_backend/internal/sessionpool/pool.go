@@ -32,12 +32,29 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 )
 
 // timeoutFuente limita cada descarga de fuente: una URL caída no puede
 // retrasar el guardado de ajustes del usuario.
 const timeoutFuente = 10 * time.Second
+
+// concurrenciaValidacion es cuántas credenciales se validan A LA VEZ contra el
+// servicio real.
+//
+// Por qué importa: validar es una llamada de red por credencial (hasta
+// timeoutValidacion cada una). En serie, una fuente con 20 ARLs podía tardar
+// minutos y dejar colgado el guardado de ajustes; con este tope el tiempo es
+// ~(n/6) veces un timeout, sin abrirle 20 conexiones al mismo servicio.
+const concurrenciaValidacion = 6
+
+// maxValidaciones acota cuántas credenciales de las FUENTES se validan en una
+// corrida. Una fuente hostil (o un HTML enorme) puede devolver cientos de
+// candidatos: sin tope, el guardado de ajustes queda esperando por todos. Las
+// que quedan afuera se cuentan en [Resultado.Omitidas] y el orden de
+// preferencia hace que sobrevivan las primeras del documento.
+const maxValidaciones = 30
 
 // userAgent realista: algunos hosts rechazan clientes desconocidos.
 const userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
@@ -58,6 +75,10 @@ type Resultado struct {
 	Descartadas int
 	// FuentesCaidas son las URLs que no se pudieron descargar.
 	FuentesCaidas []string
+	// Omitidas son las candidatas que ni se probaron porque la corrida
+	// ya había alcanzado [maxValidaciones]. No son "muertas": son
+	// "no evaluadas", y por eso no se cuentan en Descartadas.
+	Omitidas int
 }
 
 // Opciones parametriza una corrida del pool: de dónde sacar los
@@ -67,7 +88,10 @@ type Opciones struct {
 	Fuentes []string
 	// Extraer reconoce las credenciales de esta plataforma en un texto.
 	Extraer func(texto string) []string
-	// Validar dice si una credencial sigue sirviendo.
+	// Validar dice si una credencial sigue sirviendo. Se puede llamar en
+	// PARALELO (varias goroutines a la vez), así que tiene que ser segura
+	// de usar desde varios hilos (las de este paquete solo usan el
+	// *http.Client, que lo es).
 	Validar func(cliente *http.Client, credencial string) bool
 }
 
@@ -108,19 +132,75 @@ func ConstruirPool(cliente *http.Client, o Opciones) Resultado {
 		propiasSet[p] = true
 	}
 
-	// 2) Validación.
-	for _, c := range candidatos {
+	// 2) Qué se valida y qué no. Las propias del usuario pasan SIEMPRE (sin
+	// gastar una llamada) y el resto entra en la cola de validación, en orden
+	// de aparición y sin pasar el tope.
+	usables := make([]bool, len(candidatos))
+	omitidos := make([]bool, len(candidatos))
+	aValidar := make([]int, 0, len(candidatos))
+	for i, c := range candidatos {
 		if propiasSet[c] || o.Validar == nil {
-			res.Usables = append(res.Usables, c)
+			usables[i] = true
 			continue
 		}
-		if o.Validar(cliente, c) {
+		if len(aValidar) >= maxValidaciones {
+			omitidos[i] = true
+			res.Omitidas++
+			continue
+		}
+		aValidar = append(aValidar, i)
+	}
+
+	// 3) Validación en paralelo acotado.
+	validarEnParalelo(cliente, o.Validar, candidatos, aValidar, usables)
+
+	// 4) Resultado en el MISMO orden de los candidatos: la credencial propia
+	// primero y, después, el orden en que aparecieron en las fuentes.
+	for i, c := range candidatos {
+		if omitidos[i] {
+			continue
+		}
+		if usables[i] {
 			res.Usables = append(res.Usables, c)
 		} else {
 			res.Descartadas++
 		}
 	}
 	return res
+}
+
+// validarEnParalelo prueba todas las candidatas de [indices] con hasta
+// [concurrenciaValidacion] goroutines a la vez y deja el veredicto de cada una
+// en su posición de [usables].
+//
+// Cada goroutine escribe SOLO el índice que tomó de la cola, así que no hay
+// estado compartido ni necesidad de candado (el orden del resultado no depende
+// de quién termina primero: se arma después, recorriendo los candidatos).
+func validarEnParalelo(cliente *http.Client, validar func(*http.Client, string) bool, candidatos []string, indices []int, usables []bool) {
+	if len(indices) == 0 {
+		return
+	}
+	trabajadores := concurrenciaValidacion
+	if len(indices) < trabajadores {
+		trabajadores = len(indices)
+	}
+
+	cola := make(chan int)
+	var wg sync.WaitGroup
+	for t := 0; t < trabajadores; t++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := range cola {
+				usables[i] = validar(cliente, candidatos[i])
+			}
+		}()
+	}
+	for _, i := range indices {
+		cola <- i
+	}
+	close(cola)
+	wg.Wait()
 }
 
 // ExtraerParesClaveValor es el extractor por defecto: saca los valores

@@ -15,9 +15,16 @@ import 'package:flutter/foundation.dart';
 class UpdateAssets {
   UpdateAssets._();
 
-  /// Plataforma actual: `android` | `windows` | `linux` | `macos`.
+  /// Plataforma actual: `android` | `ios` | `windows` | `linux` | `macos`.
+  ///
+  /// `ios` y `linux` existen (y no caen en `android`) porque NO hay binario
+  /// que instalar desde acá: en iOS las actualizaciones van por TestFlight/App
+  /// Store (la IPA que publica el CI está sin firmar) y el proyecto no publica
+  /// nada para Linux. Antes iOS caía en `android` y la app le ofrecía un APK a
+  /// un iPhone; Linux, un APK a un escritorio.
   static String get plataforma {
     if (Platform.isAndroid) return 'android';
+    if (Platform.isIOS) return 'ios';
     if (Platform.isWindows) return 'windows';
     if (Platform.isLinux) return 'linux';
     if (Platform.isMacOS) return 'macos';
@@ -76,9 +83,26 @@ class UpdateAssets {
   }
 
   /// Nombres de asset esperados (en orden de preferencia) para [version].
-  static List<String> patronesAsset(String version) {
-    if (plataforma == 'windows') {
-      if (arquitectura.contains('arm')) {
+  ///
+  /// [plataforma] y [arquitectura] se pueden forzar para probar las
+  /// plataformas que no son la de la máquina que corre las pruebas; en la app
+  /// salen del dispositivo.
+  ///
+  /// Devuelve una lista VACÍA cuando no hay nada que ofrecer (iOS y Linux):
+  /// el detector lo trata como "no hay descarga para este aparato".
+  static List<String> patronesAsset(
+    String version, {
+    String? plataforma,
+    String? arquitectura,
+  }) {
+    final p = plataforma ?? UpdateAssets.plataforma;
+    final a = arquitectura ?? UpdateAssets.arquitectura;
+
+    // Sin binario instalable desde acá: ver la nota de [plataforma].
+    if (p == 'ios' || p == 'linux') return const [];
+
+    if (p == 'windows') {
+      if (a.contains('arm')) {
         return [
           'Bitly-Setup-$version-arm64.exe',
           'Bitly-$version-arm64.exe',
@@ -92,7 +116,15 @@ class UpdateAssets {
         'Bitly-Setup-x64.exe',
       ];
     }
-    switch (arquitectura) {
+
+    // macOS se publica como DMG (Bitly-X.Y.Z-macos.dmg, el nombre que arma el
+    // workflow de Apple). Sin este caso, macOS buscaba APKs, no encontraba
+    // nada y el aviso de versión nueva nunca aparecía en esa plataforma.
+    if (p == 'macos') {
+      return ['Bitly-$version-macos.dmg', 'Bitly-$version.dmg'];
+    }
+
+    switch (a) {
       case 'armv7':
         return ['app-armeabi-v7a-release.apk'];
       case 'x86_64':
@@ -107,24 +139,38 @@ class UpdateAssets {
   /// arquitectura, o null si no hay ninguno descargable.
   static Map<String, dynamic>? elegirAsset(
     List<dynamic> assets,
-    String version,
-  ) {
+    String version, {
+    String? plataforma,
+    String? arquitectura,
+  }) {
     if (assets.isEmpty) return null;
+    final p = plataforma ?? UpdateAssets.plataforma;
+    final a = arquitectura ?? UpdateAssets.arquitectura;
 
-    for (final patron in patronesAsset(version)) {
-      for (final a in assets) {
-        if ((a['name'] as String? ?? '') == patron) {
-          return Map<String, dynamic>.from(a as Map);
+    final esperados = patronesAsset(
+      version,
+      plataforma: p,
+      arquitectura: a,
+    );
+    // Sin binario para esta plataforma (iOS, Linux): no hay nada que elegir.
+    if (esperados.isEmpty) return null;
+
+    for (final patron in esperados) {
+      for (final asset in assets) {
+        if ((asset['name'] as String? ?? '') == patron) {
+          return Map<String, dynamic>.from(asset as Map);
         }
       }
     }
 
     // Fallback por extensión + palabra clave de arquitectura.
-    final ext = plataforma == 'windows' ? '.exe' : '.apk';
+    final ext = p == 'windows'
+        ? '.exe'
+        : p == 'macos'
+        ? '.dmg'
+        : '.apk';
     final claves =
-        plataforma == 'windows'
-            ? [arquitectura.contains('arm') ? 'arm64' : 'x64']
-            : <String>[];
+        p == 'windows' ? [a.contains('arm') ? 'arm64' : 'x64'] : <String>[];
     for (final a in assets) {
       final n = ((a['name'] as String?) ?? '').toLowerCase();
       if (!n.endsWith(ext)) continue;
@@ -141,8 +187,18 @@ class UpdateAssets {
   }
 
   /// URL directa de descarga del asset correcto para [version].
-  static String? urlDescarga(List<dynamic> assets, String version) {
-    final asset = elegirAsset(assets, version);
+  static String? urlDescarga(
+    List<dynamic> assets,
+    String version, {
+    String? plataforma,
+    String? arquitectura,
+  }) {
+    final asset = elegirAsset(
+      assets,
+      version,
+      plataforma: plataforma,
+      arquitectura: arquitectura,
+    );
     final url = asset?['browser_download_url'] as String?;
     return (url == null || url.isEmpty) ? null : url;
   }

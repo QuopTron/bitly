@@ -39,6 +39,42 @@ var arlSession = null;
 var arlPool = [];
 var arlPoolIndex = 0;
 
+// errorPareceDeCredencial separa los fallos que son de la CREDENCIAL (sesión
+// inválida, token vencido, sin licencia para streamear, cuenta baneada o
+// limitada) de los que son del TEMA (no está en tu país, sin esa calidad).
+// Solo los primeros justifican gastar una rotación del pool.
+var CREDENCIAL_ERROR_RE =
+  /(session|token|licen[cs]|auth|forbidden|denied|banned|expired|credential|401|403|usr_id|user_id)/i;
+
+function errorPareceDeCredencial(mensaje) {
+  return CREDENCIAL_ERROR_RE.test(String(mensaje || ""));
+}
+
+// invalidarArlSession descarta la sesión en uso y deja el índice en la SIGUIENTE
+// credencial del pool, para que la próxima descarga rote en vez de volver a
+// usar la que Deezer acaba de rechazar.
+//
+// Qué bug cierra: una credencial podía pasar `deezer.getUserData` y rebotar
+// después al pedir el audio (baneada para streams, licencia vencida, cuota
+// agotada). Esa sesión quedaba cacheada ~50 min, así que TODAS las descargas
+// fallaban hasta que se vencía el caché, aunque el pool tuviera credenciales
+// vivas al lado.
+function invalidarArlSession(candidata) {
+  if (!arlSession) return;
+  // Solo se avanza el índice si la que falló es la que está en uso: si otro
+  // intento ya había rotado, mover el índice saltaría una credencial de más.
+  if (
+    (!candidata || candidata === arlSession.credencial) &&
+    arlPool.length > 1
+  ) {
+    arlPoolIndex = (arlPoolIndex + 1) % arlPool.length;
+  }
+  arlSession = null;
+  log.warn(
+    "[DeezerExt] Credencial ARL descartada: la próxima descarga rota a la siguiente del pool",
+  );
+}
+
 function nowMs() {
   return Date.now();
 }
@@ -1652,10 +1688,15 @@ function ensureArlSession() {
     return arlSession;
   }
   var userData = null;
+  // usada es la credencial que consiguió la sesión: se guarda adentro para
+  // poder descartarla si Deezer la rechaza después, al pedir el audio (ver
+  // invalidarArlSession).
+  var usada = "";
   for (var intento = 0; intento < arlPool.length; intento++) {
     var candidata = arlPool[arlPoolIndex % arlPool.length];
     try {
       CONFIG.arl = candidata;
+      usada = candidata;
       arlSession = null;
       userData = arlGatewayCall("deezer.getUserData", {});
       if (sesionVivaDeUserData(userData)) break;
@@ -1682,6 +1723,7 @@ function ensureArlSession() {
   if (options.web_lossless) formats.push("FLAC");
   arlSession = {
     createdAt: nowMs(),
+    credencial: usada,
     apiToken: String(userData.checkForm || ""),
     licenseToken: String(options.license_token || ""),
     userId: String(user.USER_ID || ""),
@@ -1887,12 +1929,21 @@ function downloadViaArl(
   try {
     trackData = fetchArlTrackData(trackID);
   } catch (trackError) {
-    log.debug("[DeezerExt] ARL song.getData falló:", trackError.message);
+    var detalleTrack = String((trackError && trackError.message) || trackError);
+    log.debug("[DeezerExt] ARL song.getData falló:", detalleTrack);
+    if (errorPareceDeCredencial(detalleTrack)) {
+      invalidarArlSession(session.credencial);
+    }
     return null;
   }
 
   var candidates = arlFormatsForQuality(quality);
   var lastError = "";
+  // credencialRechazada se enciende con los fallos que apuntan a la
+  // credencial y no al tema: al final del ciclo se descarta esa sesión para
+  // que la próxima descarga use OTRA del pool (en vez de repetir la misma
+  // durante los ~50 min que dura el caché de la sesión).
+  var credencialRechazada = false;
   for (var i = 0; i < candidates.length; i++) {
     var format = candidates[i];
     if (
@@ -1908,6 +1959,7 @@ function downloadViaArl(
       lastError = String(
         (resolveError && resolveError.message) || resolveError,
       );
+      if (errorPareceDeCredencial(lastError)) credencialRechazada = true;
       log.debug("[DeezerExt] ARL get_url", format, "falló:", lastError);
       continue;
     }
@@ -1922,8 +1974,12 @@ function downloadViaArl(
     );
     if (result) return result;
     lastError = "descarga " + format + " fallida";
+    // El CDN rechazó una URL ya firmada: es el síntoma clásico de una
+    // credencial agotada o degradada a la que ya no le habilitan el stream.
+    credencialRechazada = true;
   }
 
+  if (credencialRechazada) invalidarArlSession(session.credencial);
   log.debug("[DeezerExt] ARL sin formato utilizable:", lastError);
   return null;
 }

@@ -35,7 +35,18 @@
 #      ESTE repo.
 #   3. (Opcional) variable PUBLIC_RELEASES_REPO si el repo se llama distinto.
 #
-# Sin RELEASES_TOKEN avisa y se saltea: nunca rompe el release.
+# ── Es OBLIGATORIO (ya no es best-effort) ───────────────────────────────────
+# El repo del CÓDIGO es privado: sin este paso la release no sirve, porque la
+# app y el sitio solo pueden bajar del repo público. Por eso:
+#   · Si falta RELEASES_TOKEN el job FALLA (con la instrucción de configurarlo).
+#   · Si un asset que existe en la release privada no queda en el espejo (con el
+#     mismo tamaño), el job FALLA: es un espejo roto, no un aviso.
+#   · Ningún APK con un PAT clásico (ghp_…) embebido llega al espejo: se FALLA
+#     (los binarios compilan lib/config/secretos.dart y este repo es público).
+#   · Si a la release le falta el binario de una plataforma (por ejemplo el .dmg
+#     antes de que corra el workflow de Apple), se AVISA: cuál falta, en la
+#     anotación del run y en el resumen, y se puede completar después con el
+#     mismo workflow (llamado desde release-macos.yml o a mano).
 name: Espejo de releases
 
 on:
@@ -87,14 +98,13 @@ jobs:
           TOKEN: ${{ secrets.RELEASES_TOKEN }}
         run: |
           if [ -z "$TOKEN" ]; then
-            echo "::warning::Falta el secret RELEASES_TOKEN: no se espeja al repo público (la app y el sitio no podrán ofrecer descargas)."
-            echo "ok=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "ok=true" >> "$GITHUB_OUTPUT"
+            echo "::error::Falta el secret RELEASES_TOKEN: sin él no se puede espejar, y sin espejo la app y el sitio no ofrecen NINGUNA descarga (leen el repo público)."
+            echo "::error::Configuralo una sola vez: un PAT con Contents: Read and write sobre el repo público, guardado como RELEASES_TOKEN en ESTE repo."
+            exit 1
           fi
+          echo "ok=true" >> "$GITHUB_OUTPUT"
 
       - name: Publicar en el espejo
-        if: steps.check.outputs.ok == 'true'
         env:
           # Dos tokens con alcances distintos: el del workflow solo lee el repo
           # privado; el PAT es lo único que puede escribir en el repo público.
@@ -142,6 +152,11 @@ jobs:
           fi
 
           resumen=""
+          # errores acumula los fallos REALES del espejo (un asset que existía y
+          # no quedó espejado): el job falla al final si hay alguno.
+          errores=0
+          # tabla: resumen legible que se publica en la página del run.
+          tabla=""
           for tag in "${TAGS[@]}"; do
             echo "════════ $tag ════════"
 
@@ -157,6 +172,10 @@ jobs:
             if [ "${#NOMBRES[@]}" -eq 0 ]; then
               echo "::warning::La release $tag todavía no tiene assets: no hay nada que espejar."
               resumen="$resumen\n$tag: (sin assets)"
+              # ${tabla:+...}: el separador `\n` va ANTES de cada renglón salvo
+              # del primero. Sin eso, la tabla arranca con una línea en blanco y
+              # GitHub corta el encabezado (queda ilegible en el resumen).
+              tabla="${tabla:+$tabla\n}| \`$tag\` | 0 | (sin assets) | — |"
               continue
             fi
 
@@ -212,6 +231,30 @@ jobs:
                 faltan=$((faltan + 1))
                 continue
               fi
+              # Última barrera antes de que el asset quede PÚBLICO. Los binarios
+              # compilan lib/config/secretos.dart, así que un PAT CLÁSICO
+              # (ghp_…, con acceso a TODOS los repos de la cuenta) terminaría
+              # embebido en un archivo que cualquiera baja y abre. Pasó de
+              # verdad: el APK de la 0.9.28 salió con el ghp_… del
+              # secretos.dart del momento y hubo que revocar ese token. Acá se
+              # corta antes de publicar.
+              #   · APK: el libapp.so se descomprime con unzip y el grep ve el
+              #     texto del token.
+              #   · .exe/.dmg/.ipa: el payload va comprimido y el grep no ve
+              #     nada; esos los cubre el chequeo de secretos.dart que hace
+              #     release.sh (local) y los workflows de release (CI).
+              if command -v unzip >/dev/null 2>&1; then
+                case "$n" in
+                  *.apk)
+                    if unzip -p "$tmp/$n" 'lib/*/libapp.so' 2>/dev/null \
+                        | grep -qaE 'ghp_[A-Za-z0-9]{30,}'; then
+                      echo "::error::$n lleva un PAT clásico de GitHub (ghp_…) embebido y este repo es PÚBLICO."
+                      echo "::error::Revocá ese token (https://github.com/settings/tokens), compilá con uno fine-grained (Contents: Read sobre bitly_codes_premium) y volvé a espejar."
+                      exit 1
+                    fi
+                    ;;
+                esac
+              fi
               if ! GH_TOKEN="$GH_PUB" gh release upload "$tag" "$tmp/$n" --repo "$PUB" --clobber; then
                 echo "::error::No se pudo subir $n al repo público."
                 faltan=$((faltan + 1))
@@ -231,9 +274,27 @@ jobs:
               creada=0
             fi
 
-            # Avisar si a alguna plataforma le falta su binario: el sitio y la
-            # app van a ofrecer la última versión que sí lo tenga, pero que quede
-            # a la vista en el run.
+            # ── Verificación final del tag ───────────────────────────────
+            # 1) TODO lo que tiene la release privada tiene que estar en el
+            #    espejo con el MISMO tamaño. Si algo no está, es un espejo roto
+            #    (no un aviso): se cuenta como error y el job falla al final.
+            # 2) De las 4 plataformas se avisa CUÁL falta: una release a la que
+            #    le falta el .dmg se completa sola cuando corre el workflow de
+            #    Apple, así que eso no rompe el release de Android/PC.
+            declare -A EN_ESPEJO=()
+            while IFS=$'\t' read -r n t; do
+              # Con if explícito (no con `&&`): una línea vacía dejaba la última
+              # sentencia en 1 y, con `bash -e`, cortaba el job a la mitad.
+              if [ -n "$n" ]; then EN_ESPEJO["$n"]="$t"; fi
+            done < <(rele_publica "repos/$PUB/releases/tags/$tag" \
+              --jq '.assets[] | [.name, (.size|tostring)] | @tsv' 2>/dev/null || true)
+
+            pendientes=""
+            for i in "${!NOMBRES[@]}"; do
+              n="${NOMBRES[$i]}"; t="${TAMANOS[$i]}"
+              [ "${EN_ESPEJO[$n]:-}" = "$t" ] || pendientes="$pendientes $n"
+            done
+
             nombres_publicos=$(rele_publica "repos/$PUB/releases/tags/$tag" \
               --jq '[.assets[].name] | join(" ")' 2>/dev/null || echo "")
             falta=""
@@ -242,20 +303,45 @@ jobs:
             case " $nombres_publicos " in *".dmg"*) ;; *) falta="$falta macOS(.dmg)" ;; esac
             case " $nombres_publicos " in *".ipa"*) ;; *) falta="$falta iOS(.ipa)" ;; esac
             if [ -n "$falta" ]; then
-              echo "::warning::La release $tag en $PUB no tiene:$falta"
-              echo "::warning::El sitio y la app van a ofrecer la última versión CON ese binario para esas plataformas."
-              echo "::warning::Para dejarla completa, compilá y publicá la plataforma que falta."
+              echo "::warning::La release $tag en $PUB todavía no tiene:$falta"
+              echo "::warning::El sitio y la app van a ofrecer la última versión CON ese binario para esas plataformas, y el espejo lo agrega cuando se publique (workflow de Apple / workflow_dispatch del espejo)."
             else
               echo "  $tag completa: apk + exe + dmg + ipa"
             fi
 
-            if [ "$faltan" -gt 0 ]; then
-              resumen="$resumen\n$tag: INCOMPLETA ($faltan asset(s) sin espejar)"
+            if [ -n "$pendientes" ]; then
+              echo "::error::La release $tag tiene assets en el repo privado que NO quedaron en el espejo:$pendientes"
+              errores=$((errores + 1))
+              resumen="$resumen\n$tag: ERROR ($faltan bajada(s) fallida(s), ${#NOMBRES[@]} en la privada)"
             else
               resumen="$resumen\n$tag: ok ($subidos subidos, ${#NOMBRES[@]} en total)"
             fi
+            tabla="${tabla:+$tabla\n}| \`$tag\` | ${#NOMBRES[@]} | ${pendientes:-—} | ${falta:-—} |"
             rm -f titulo.txt notas.md publico.tsv
           done
 
           echo -e "\n════════ resumen ════════$resumen"
+
+          # El resumen también va a la PÁGINA del run (tabla legible), incluso
+          # cuando algo faltó: así el aviso no queda enterrado en los logs.
+          if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+            {
+              echo "### Espejo público de binarios"
+              echo
+              echo "| Tag | Assets en la privada | Sin espejar | Plataformas ausentes |"
+              echo "|---|---|---|---|"
+              printf '%b\n' "$tabla"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
           echo "Espejo: https://github.com/$PUB/releases"
+
+          # OBLIGATORIO: si algo que existía no quedó espejado, la release no
+          # sirve para la app ni para el sitio (leen el repo público). Se falla
+          # fuerte y se dice exactamente cómo arreglarlo.
+          if [ "$errores" -gt 0 ]; then
+            echo "::error::El espejo quedó incompleto en $errores tag(s): la app y el sitio no van a ofrecer los binarios que falten."
+            echo "::error::Reintentá este workflow (workflow_dispatch con el mismo tag) o subí el asset a mano: gh release upload <tag> <archivo> --repo $PUB"
+            exit 1
+          fi
+          echo "✅ Espejo al día para los tags revisados."
