@@ -130,6 +130,13 @@ jobs:
         with:
           node-version: "20"
 
+      # Guard de builds: que ningún binario salga sin la config del Worker
+      # inyectada. No es teórico — la 0.9.28 se publicó sin pool de Qobuz y sin
+      # registro premium porque nadie inyectaba nada (y el -X a una variable ya
+      # renombrada no falla: Go lo ignora en silencio).
+      - name: Guardia de builds (inyección del Worker)
+        run: bash scripts/pruebas/guardia_build.sh
+
       - name: Verificadores de extensiones
         run: |
           set -o pipefail

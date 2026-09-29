@@ -76,6 +76,11 @@ Eso ya está cableado en los tres lugares que compilan el backend Go:
 | `scripts/release/release.sh` (release local) | chequea ANTES de compilar qué va inyectado (y corta si falta el registro) |
 | `.github/workflows/{release,release-macos,build}.yml` | workflow secrets: `QOBUZ_POOL_URL`, `QOBUZ_KEYS_URL`, `QOBUZ_API_BASE`, `PREMIUM_REGISTRO_URL` |
 
+Y un guard en CI lo verifica en cada push (`bash scripts/pruebas/guardia_build.sh`):
+falla si alguien vuelve a compilar Go con un `-ldflags` a mano, si un paso no
+sourcea el helper, si los secrets se copian a los workflows de desarrollo, o si
+un `-X` apunta a una variable que ya no existe (eso Go lo ignora **en silencio**).
+
 Sin `PREMIUM_REGISTRO_URL` el binario **no consulta el registro**: los códigos
 validan (la firma es local) pero **no se marcan como usados**, así que un código
 filtrado sirve para siempre. Por eso:

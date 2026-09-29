@@ -189,6 +189,31 @@ Un 404 persistente con el repo ya público suele ser que la última release es i
 a la instalada (no hay nada que mostrar) o que se agotó el límite anónimo de 60
 consultas por hora y por IP.
 
+## Cerrar el repo de código (checklist)
+
+El repo del código (`QuopTron/bitly`) existe para desarrollarlo; lo que la app y
+el sitio leen es el **espejo público**. Cerrar el de código es un `PATCH`… pero
+antes conviene tener esto verde, porque cada punto ya mordió una vez:
+
+| # | Antes de cerrar | Cómo se comprueba |
+|---|---|---|
+| 1 | El espejo responde **anónimo** con la última versión | `curl -s https://api.github.com/repos/QuopTron/bitly-releases/releases/latest \| grep tag_name` → `200` con el tag nuevo |
+| 2 | El APK de esa versión se baja **sin token** | `curl -sI .../releases/download/vX.Y.Z/app-arm64-v8a-release.apk \| head -1` → `200` |
+| 3 | Ningún binario publicado lleva credenciales | el espejo lo verifica solo (`ghp_…` = falla), pero **lo ya publicado hay que revisarlo**: la 0.9.28 lleva un PAT clásico → revocalo o sacá esos APKs (ver arriba) |
+| 4 | Los secrets de CI con scope mínimo | `RELEASES_TOKEN` con `Contents: RW` SOLO sobre `bitly-releases`: al cerrar el repo, un token con más permisos sigue siendo el eslabón débil |
+| 5 | Saber lo que cambia en los runners | Los minutos de Actions se **facturan** en repos privados, y el runner `windows-11-arm` (el `.exe` ARM64) es gratis **solo en repos públicos**: ese job puede dejar de correr o pasar a costar. macOS multiplica ×10 |
+| 6 | El parque viejo ya migró | Las apps **≤0.9.25** consultan el repo de CÓDIGO; la ventana pública las actualiza a la 0.9.26+. Si cerrás antes, quedan sin actualizaciones para siempre |
+
+```bash
+# Cerrar (y comprobar al instante que el espejo sigue sirviendo igual):
+gh api -X PATCH repos/QuopTron/bitly -f private=true
+curl -s https://api.github.com/repos/QuopTron/bitly-releases/releases/latest | grep tag_name
+```
+
+`QuopTron/bitly-releases` **tiene que seguir público**: es el que leen la app y el
+sitio con `UpdateService.repoPublico` y el que el espejo escribe con
+`RELEASES_TOKEN`.
+
 ## Comprobar que quedó bien
 
 ```bash
