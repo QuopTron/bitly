@@ -42,6 +42,17 @@ concurrency:
   group: release-apple-${{ github.ref }}
   cancel-in-progress: true
 
+# Config del Worker (Qobuz + registro premium) para los builds Go. Las URLs
+# llevan su secreto EN LA RUTA y este repositorio es público, así que NO viven
+# en el repo: se pasan como secrets y se inyectan con -ldflags (ver
+# scripts/dev/qobuz_inyeccion.sh). Sin PREMIUM_REGISTRO_URL el binario sale SIN
+# registro de códigos: los legacy validan igual, pero NO se marcan como usados.
+env:
+  QOBUZ_POOL_URL: ${{ secrets.QOBUZ_POOL_URL }}
+  QOBUZ_KEYS_URL: ${{ secrets.QOBUZ_KEYS_URL }}
+  QOBUZ_API_BASE: ${{ secrets.QOBUZ_API_BASE }}
+  PREMIUM_REGISTRO_URL: ${{ secrets.PREMIUM_REGISTRO_URL }}
+
 jobs:
   release-macos:
     name: Build macOS (DMG)
@@ -67,9 +78,10 @@ jobs:
       # Unix (watchdog_other.go) aplica: vigila el PID de la app y sale solo.
       - name: Build Go backend (macOS arm64)
         run: |
+          source scripts/dev/qobuz_inyeccion.sh
           mkdir -p macos/backend
           cd go_backend
-          GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o ../macos/backend/bitly-backend ./cmd/server
+          GOOS=darwin GOARCH=arm64 go build -ldflags="$QOBUZ_LDFLAGS" -o ../macos/backend/bitly-backend ./cmd/server
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -262,9 +274,10 @@ jobs:
       # "no such file or directory".
       - name: Build Gobackend.xcframework (iOS)
         run: |
+          source scripts/dev/qobuz_inyeccion.sh
           mkdir -p ios/Frameworks
           cd go_backend
-          gomobile bind -target=ios -ldflags="-s -w" -o ../ios/Frameworks/Gobackend.xcframework .
+          gomobile bind -target=ios -ldflags="$QOBUZ_LDFLAGS" -o ../ios/Frameworks/Gobackend.xcframework .
           ls -lh ../ios/Frameworks/
 
       - name: Setup Flutter

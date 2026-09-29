@@ -32,6 +32,16 @@ concurrency:
 permissions:
   contents: read
 
+# Los builds de ESTE workflow NO inyectan la config del Worker a propósito: sus
+# artefactos (APK/EXE de cada push) se pueden bajar del repo, y el repo de código
+# todavía es PÚBLICO — los secretos del Worker (que van en la ruta de la URL) no
+# tienen por qué andar dando vueltas en un artefacto de desarrollo. Los workflows
+# de RELEASE sí la inyectan (ahí el binario es el que se publica igual). Los
+# pasos igual sourcean el helper: así se detecta un error suyo acá (ya pasó: el
+# script se caía en silencio con set -e), solo que sin valores que inyectar.
+# Cuando el repo de código sea privado, se puede copiar el `env:` de release.yml
+# acá y listo.
+
 jobs:
   # ─── Gate de calidad ────────────────────────────────────────────────
   test:
@@ -184,9 +194,11 @@ jobs:
       # El EXE está gitignored; el CMake lo empaqueta junto al runner solo si
       # existe al configurar el build, así que se compila antes que Flutter.
       - name: Build Go backend (Windows)
+        shell: bash # el paso sourcea el script de inyección (y $QOBUZ_LDFLAGS es sintaxis de bash)
         run: |
+          source scripts/dev/qobuz_inyeccion.sh
           cd go_backend
-          go build -ldflags="-s -w" -o "../windows/backend/bitly-backend.exe" ./cmd/server
+          go build -ldflags="$QOBUZ_LDFLAGS" -o "../windows/backend/bitly-backend.exe" ./cmd/server
 
       # Fijada a la versión que compila localmente (3.41.6). `stable` instala
       # la ÚLTIMA versión y su plugin Flutter-Gradle choca con el AGP 8.9.1
@@ -285,12 +297,14 @@ jobs:
       # repo y gomobile seguiría sin encontrar el directorio.
       - name: Build Go backend AAR (Android)
         run: |
+          source scripts/dev/qobuz_inyeccion.sh
           cd go_backend
           mkdir -p ../android/app/libs
-          # -ldflags="-s -w": sin tabla de símbolos ni info de debug. El AAR baja
-          # ~40% (medido: 55,5 MB -> 32,7 MB) y con él el APK, sin tocar una
-          # línea de código. Los símbolos no se usan en release.
-          gomobile bind -target=android -androidapi=24 -ldflags="-s -w" -o "../android/app/libs/bitly.aar" .
+          # QOBUZ_LDFLAGS arranca en "-s -w": sin tabla de símbolos ni info de
+          # debug. El AAR baja ~40% (medido: 55,5 MB -> 32,7 MB) y con él el APK,
+          # sin tocar una línea de código. Los símbolos no se usan en release.
+          # Encima de eso agrega las URLs del Worker si están configuradas.
+          gomobile bind -target=android -androidapi=24 -ldflags="$QOBUZ_LDFLAGS" -o "../android/app/libs/bitly.aar" .
         # ANDROID_* ya están en GITHUB_ENV desde el paso Resolve Android SDK/NDK.
         # (El contexto `env` de Actions no expone las predefinidas del runner.)
         env:
@@ -399,9 +413,10 @@ jobs:
       # El mkdir hace falta porque gomobile NO crea el directorio padre.
       - name: Build Go backend framework (iOS)
         run: |
+          source scripts/dev/qobuz_inyeccion.sh
           mkdir -p ios/Frameworks
           cd go_backend
-          gomobile bind -target=ios -o "../ios/Frameworks/Gobackend.xcframework" .
+          gomobile bind -target=ios -ldflags="$QOBUZ_LDFLAGS" -o "../ios/Frameworks/Gobackend.xcframework" .
 
       # Fijada a la versión que compila localmente (3.41.6). `stable` instala
       # la ÚLTIMA versión y su plugin Flutter-Gradle choca con el AGP 8.9.1
@@ -469,8 +484,9 @@ jobs:
       # El binario Go se compila para Linux (el VPS probablemente es Linux)
       - name: Build Go backend (Linux amd64)
         run: |
+          source scripts/dev/qobuz_inyeccion.sh
           cd go_backend
-          go build -ldflags="-s -w" -o ../build/web/bitly-backend ./cmd/server
+          go build -ldflags="$QOBUZ_LDFLAGS" -o ../build/web/bitly-backend ./cmd/server
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2

@@ -59,11 +59,40 @@ npx wrangler deploy
 | `POST /premium/<secreto>/usar` | lo marca como usado (y **anota** los firmados que no estaban, previa verificación de la firma) |
 | `POST /premium/<secreto>/reporte` | crea el issue de un reporte de la app |
 
-Y el build inyecta la URL (mismo mecanismo que el Worker de Qobuz):
+Y el build inyecta la URL (mismo mecanismo que el Worker de Qobuz): la ruta
+lleva el secreto, así que **no vive en el repo** — vive en `qobuz-worker.env`
+(gitignoreado) o en un secret, y se mete con `-ldflags`:
 
 ```bash
 PREMIUM_REGISTRO_URL=https://<worker>/premium/<secreto>   # en qobuz-worker.env
 source scripts/dev/qobuz_inyeccion.sh                     # exporta QOBUZ_LDFLAGS
+```
+
+Eso ya está cableado en los tres lugares que compilan el backend Go:
+
+| Dónde compila | Cómo llega la URL |
+|---|---|
+| `go_backend/build.sh` (build local, AAR y desktop) | sourcea el script; lee `qobuz-worker.env` |
+| `scripts/release/release.sh` (release local) | chequea ANTES de compilar qué va inyectado (y corta si falta el registro) |
+| `.github/workflows/{release,release-macos,build}.yml` | workflow secrets: `QOBUZ_POOL_URL`, `QOBUZ_KEYS_URL`, `QOBUZ_API_BASE`, `PREMIUM_REGISTRO_URL` |
+
+Sin `PREMIUM_REGISTRO_URL` el binario **no consulta el registro**: los códigos
+validan (la firma es local) pero **no se marcan como usados**, así que un código
+filtrado sirve para siempre. Por eso:
+
+- `release.sh --upload` **corta antes de compilar** con las instrucciones
+  (`PERMITIR_SIN_REGISTRO=true` es el escape hatch para publicar igual, a
+  sabiendas);
+- los workflows de release solo avisan: una URL que falta nunca rompe un build,
+  solo lo deja sin registro.
+
+Los secrets del repo (una vez, para que el CI compile igual que tu máquina):
+
+```bash
+gh secret set QOBUZ_POOL_URL        --body "$(grep '^QOBUZ_POOL_URL='  qobuz-worker.env | cut -d= -f2-)"
+gh secret set QOBUZ_KEYS_URL        --body "$(grep '^QOBUZ_KEYS_URL='  qobuz-worker.env | cut -d= -f2-)"
+gh secret set QOBUZ_API_BASE        --body "$(grep '^QOBUZ_API_BASE='  qobuz-worker.env | cut -d= -f2-)"
+gh secret set PREMIUM_REGISTRO_URL  --body "$(grep '^PREMIUM_REGISTRO_URL=' qobuz-worker.env | cut -d= -f2-)"
 ```
 
 ## Qué pasa si el Worker no está
@@ -74,7 +103,8 @@ source scripts/dev/qobuz_inyeccion.sh                     # exporta QOBUZ_LDFLAG
 | El registro dice `usado` / `cancelado` | Se **bloquea** (es lo que impide reusar un código) |
 | Un código firmado no está anotado | Se acepta y se anota solo (la firma prueba que salió de tu clave privada) |
 | Un código legacy no está anotado | Se rechaza (`codigo_no_encontrado`), como siempre |
-| No hay `PREMIUM_REGISTRO_URL` inyectada | El registro no se consulta: se valida solo la firma (igual que antes de tener token) |
+| No hay `PREMIUM_REGISTRO_URL` inyectada | El registro no se consulta: se valida solo la firma (igual que antes de tener token). **Los legacy no se marcan como usados** → `release.sh --upload` corta antes de compilar |
+| El Worker responde `no_encontrado` a un legacy | Se rechaza (`codigo_no_encontrado`), igual que con el token directo: el código tiene que estar anotado |
 
 ## Pruebas
 

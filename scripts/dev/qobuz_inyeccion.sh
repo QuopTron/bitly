@@ -40,7 +40,12 @@ MODULO="github.com/zarz/bitly/go_backend"
 if [ -f "$ARCHIVO" ]; then
   for clave in QOBUZ_POOL_URL QOBUZ_KEYS_URL QOBUZ_API_BASE PREMIUM_REGISTRO_URL; do
     if [ -z "$(printenv "$clave" 2>/dev/null || true)" ]; then
-      valor="$(grep -E "^${clave}=" "$ARCHIVO" | tail -1 | cut -d= -f2- | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+      # El `|| true` NO es decorativo: este script se SOURCEA (build.sh corre
+      # con `set -e -o pipefail`), y si la clave no está en el archivo `grep`
+      # sale con 1 → con pipefail+errexit la asignación tumba el build entero
+      # (y sin ningún mensaje). Una clave ausente es un caso NORMAL: no se
+      # inyecta y listo.
+      valor="$(grep -E "^${clave}=" "$ARCHIVO" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || true)"
       if [ -n "$valor" ]; then
         export "$clave=$valor"
       fi

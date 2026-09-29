@@ -24,6 +24,25 @@ ok()    { echo -e "\033[1;32m[OK]\033[0m $*"; }
 warn()  { echo -e "\033[1;33m[WARN]\033[0m $*"; }
 fail()  { echo -e "\033[1;31m[FAIL]\033[0m $*"; exit 1; }
 
+# Las URLs del Worker (pool de Qobuz, /keys, api base y el registro premium)
+# llevan su secreto EN LA RUTA y el repo es público: no se escriben en el
+# fuente, se inyectan con -ldflags. Los valores salen de `qobuz-worker.env`
+# (raíz, gitignoreado) o de variables de entorno con el mismo nombre; sin
+# ninguno, el binario queda con los defaults públicos (canal directo a Qobuz,
+# sin pool y sin registro de códigos), que es justo lo que salía antes de
+# que existiera esta inyección.
+QOBUZ_LDFLAGS="-s -w"
+INYECCION="$(cd "$ROOT/.." && pwd)/scripts/dev/qobuz_inyeccion.sh"
+if [ -f "$INYECCION" ]; then
+    # shellcheck source=/dev/null
+    source "$INYECCION"
+fi
+if [ "$QOBUZ_LDFLAGS" = "-s -w" ]; then
+    warn "Sin URLs del Worker inyectadas (qobuz-worker.env o QOBUZ_* / PREMIUM_REGISTRO_URL): el binario sale sin pool de Qobuz y SIN registro de códigos premium."
+else
+    info "Inyectando config del Worker: $QOBUZ_LDFLAGS"
+fi
+
 # Detect Go
 GOOS="${GOOS:-$(go env GOOS)}"
 GOARCH="${GOARCH:-$(go env GOARCH)}"
@@ -34,7 +53,7 @@ build_desktop() {
     info "Building desktop: $os/$arch → $output"
 
     GOOS="$os" GOARCH="$arch" CGO_ENABLED=0 go build \
-        -ldflags="-s -w -X main.version=$VERSION -X main.buildDate=$DATE" \
+        -ldflags="$QOBUZ_LDFLAGS -X main.version=$VERSION -X main.buildDate=$DATE" \
         -o "$output" ./cmd/server/
 
     if [ -f "$output" ]; then
@@ -60,7 +79,7 @@ build_aar() {
     gomobile bind \
         -target="android" \
         -androidapi 24 \
-        -ldflags="-s -w" \
+        -ldflags="$QOBUZ_LDFLAGS" \
         -o "$BUILD_DIR/bitly-backend.aar" \
         .
 
@@ -88,7 +107,7 @@ build_ios() {
     fi
     gomobile bind \
         -target="ios" \
-        -ldflags="-s -w" \
+        -ldflags="$QOBUZ_LDFLAGS" \
         -o "$BUILD_DIR/BitlyBackend.xcframework" \
         ./internal/gobackend/
     ok "iOS: $BUILD_DIR/BitlyBackend.xcframework"

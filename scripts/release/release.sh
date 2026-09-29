@@ -25,6 +25,10 @@
 #   bash scripts/release/release.sh --no-aar     # reusa el AAR Go ya compilado
 #   bash scripts/release/release.sh 0.9.10 --upload   # publica y espeja ya
 #
+# Env opcional:
+#   PERMITIR_SIN_REGISTRO=true   publica aunque falte PREMIUM_REGISTRO_URL
+#                                (los códigos validan pero NO se marcan usados)
+#
 # Parte del flujo: release (Android + Windows).
 
 set -euo pipefail
@@ -68,6 +72,119 @@ ESPEJO_REPO="QuopTron/bitly-releases"
 # acá se corta ANTES de publicar, y el espejo tiene la misma barrera del lado
 # del workflow (es el último paso antes de que el asset quede público).
 PAT_CLASICO_RE='ghp_[A-Za-z0-9]{30,}'
+# ── Inyección del Worker (pool de Qobuz + registro premium) ─────────────
+# Las URLs del Worker llevan su secreto EN LA RUTA, así que no viven en el repo
+# (es público): el build las inyecta con -ldflags desde qobuz-worker.env
+# (gitignoreado) usando scripts/dev/qobuz_inyeccion.sh. Ojo con QUÉ significa
+# que falte una:
+#   · sin QOBUZ_POOL_URL: el binario sale sin pool de Qobuz (canal firmado
+#     directo, sin rotación de ARLs) — molesto, pero la app funciona;
+#   · sin PREMIUM_REGISTRO_URL: la app NO consulta el registro de códigos. Los
+#     legacy VALIDAN igual (la firma/estructura es local), pero NO se marcan
+#     como usados, que es justo lo que evita que un código compartido se reuse
+#     para siempre. Por eso, al PUBLICAR (--upload) esto corta antes de
+#     compilar (así no se pierde el build), y con PERMITIR_SIN_REGISTRO=true
+#     se puede seguir igual a sabiendas.
+# _http_codigo imprime SOLO el código HTTP de una URL (000 = no hubo respuesta:
+# sin red, DNS, timeout). Nunca corta el script: un Worker caído es información,
+# no un error del que llama.
+_http_codigo() {
+  local url="$1" codigo
+  shift
+  codigo="$(curl -s -o /dev/null -w '%{http_code}' --max-time 12 "$@" "$url" 2>/dev/null)" || true
+  printf '%s' "${codigo:-000}"
+}
+
+chequear_inyeccion() {
+  local inyeccion="scripts/dev/qobuz_inyeccion.sh"
+  if [[ ! -f "$inyeccion" ]]; then
+    echo "::warning::No encuentro scripts/dev/qobuz_inyeccion.sh: el build sale sin pool de Qobuz y sin registro de códigos premium."
+    return 0
+  fi
+  # shellcheck source=/dev/null
+  source "$inyeccion"
+
+  # No alcanza con que la URL esté puesta: una ruta sin desplegar o un secreto
+  # viejo dan el mismo "hay URL" y ninguna marca de usado. Por eso se pregunta
+  # al Worker (12 s como máximo, y sin red solo se avisa).
+  if [[ -n "${QOBUZ_POOL_URL:-}" ]]; then
+    local codigo_pool
+    codigo_pool="$(_http_codigo "$QOBUZ_POOL_URL")"
+    case "$codigo_pool" in
+      200) echo "  ✓ Pool de Qobuz en el binario y respondiendo (${QOBUZ_POOL_URL%%/pool/*}/pool/…)" ;;
+      403) echo "::warning::El /pool del Worker rechaza el secreto (403): revisá QOBUZ_POOL_URL contra QOBUZ_POOL_SECRET del Worker." ;;
+      000) echo "::warning::No pude consultar el /pool (sin red o Worker caído): el binario igual sale con la URL inyectada." ;;
+      *)   echo "::warning::El /pool del Worker contestó $codigo_pool (se espera 200)." ;;
+    esac
+  else
+    echo "::warning::Sin QOBUZ_POOL_URL: esta compilación sale SIN pool de fábrica (canal firmado directo a Qobuz; si Qobuz lo restringe no hay ARL de rotación)."
+  fi
+
+  if [[ -n "${QOBUZ_KEYS_URL:-}" ]]; then
+    case "$(_http_codigo "$QOBUZ_KEYS_URL")" in
+      200) echo "  ✓ Origen de claves del Worker respondiendo" ;;
+      403) echo "::warning::El /keys del Worker rechaza el secreto (403): revisá QOBUZ_KEYS_URL contra QOBUZ_RELAY_SECRET del Worker." ;;
+      000) echo "::warning::No pude consultar /keys (sin red o Worker caído)." ;;
+      *)   echo "::warning::El /keys del Worker contestó un código inesperado." ;;
+    esac
+  fi
+
+  if [[ -n "${PREMIUM_REGISTRO_URL:-}" ]]; then
+    # Se le pregunta por un código de prueba inválido: lo que importa no es el
+    # estado que devuelva, sino que la RUTA exista y el secreto sea el correcto
+    # (y que el Worker tenga GITHUB_TOKEN).
+    local salida codigo_premium cuerpo_premium
+    salida="$(curl -s --max-time 12 -w '\n%{http_code}' -X POST \
+      -H 'Content-Type: application/json' -d '{"code":"BITLY2.prueba"}' \
+      "$PREMIUM_REGISTRO_URL/verificar" 2>/dev/null)" || true
+    codigo_premium="${salida##*$'\n'}"
+    cuerpo_premium="${salida%$'\n'*}"
+
+    local problema_premium=""
+    case "$codigo_premium" in
+      200)
+        if [[ "$cuerpo_premium" == *estado* ]]; then
+          echo "  ✓ Registro de códigos premium desplegado y respondiendo (los usados se marcan vía el Worker)"
+          return 0
+        fi
+        # 200 sin "estado": el Worker contesta su cadena de salud a cualquier
+        # ruta → la versión desplegada es la VIEJA (sin /premium).
+        problema_premium="El Worker responde en esa URL, pero SIN la ruta /premium: la versión desplegada es anterior a los códigos. Falta: npx wrangler deploy (desde deeplinks/proxy-qobuz)."
+        ;;
+      403) problema_premium="El Worker rechaza el secreto (403): PREMIUM_SECRET del Worker y el de la URL no coinciden (o PREMIUM_SECRET no está cargado)." ;;
+      404|405) problema_premium="El Worker no tiene la ruta /premium (HTTP $codigo_premium): falta desplegar la versión nueva (npx wrangler deploy)." ;;
+      500) problema_premium="El Worker no tiene GITHUB_TOKEN cargado (HTTP 500): npx wrangler secret put GITHUB_TOKEN." ;;
+      000) echo "::warning::No pude consultar el registro premium (sin red o Worker caído): el binario sale con la URL, y los códigos se marcan usados cuando el Worker vuelva (quedan pendientes)." ;;
+      *)   problema_premium="El registro premium contestó HTTP $codigo_premium (se espera 200 con {\"estado\":…})." ;;
+    esac
+
+    if [[ -n "$problema_premium" ]]; then
+      if [[ "$SUBIR_RELEASE" == "true" && "${PERMITIR_SIN_REGISTRO:-false}" != "true" ]]; then
+        echo "::error::$problema_premium" >&2
+        echo "  Si publicás así, los códigos legacy validan pero NO se marcan como usados (un código filtrado sirve para siempre)." >&2
+        echo "  Para publicar igual (a sabiendas):  PERMITIR_SIN_REGISTRO=true bash scripts/release/release.sh --upload" >&2
+        return 1
+      fi
+      echo "::warning::$problema_premium"
+    fi
+    return 0
+  fi
+
+  if [[ "$SUBIR_RELEASE" == "true" && "${PERMITIR_SIN_REGISTRO:-false}" != "true" ]]; then
+    echo "::error::Esta release saldría SIN registro de códigos premium (falta PREMIUM_REGISTRO_URL en qobuz-worker.env): los códigos legacy validan pero NO se marcan como usados, así que un código que se filtre sirve para siempre." >&2
+    echo "  Se arregla una vez (Worker de Cloudflare):" >&2
+    echo "    1) npx wrangler secret put GITHUB_TOKEN     # PAT fine-grained, Contents: Read+Write SOLO en QuopTron/bitly_codes_premium" >&2
+    echo "    2) npx wrangler secret put PREMIUM_SECRET   # inventá un secreto largo" >&2
+    echo "    3) npx wrangler deploy" >&2
+    echo "    4) echo 'PREMIUM_REGISTRO_URL=https://<worker>/premium/<PREMIUM_SECRET>' >> qobuz-worker.env" >&2
+    echo "  Para publicar igual (a sabiendas):  PERMITIR_SIN_REGISTRO=true bash scripts/release/release.sh --upload" >&2
+    return 1
+  fi
+
+  echo "::warning::Sin PREMIUM_REGISTRO_URL: este build valida los códigos pero NO los marca como usados."
+  return 0
+}
+
 chequear_secretos() {
   local problemas=0
 
@@ -266,6 +383,10 @@ fi
 echo ""
 
 CURRENT=$(grep -E '^version:' pubspec.yaml | sed 's/version: *//' | tr -d ' \r')
+# Se chequea ANTES de tocar la versión y de compilar: si falta algo que hace
+# que la release no marque códigos como usados, mejor saberlo sin gastar build.
+chequear_inyeccion
+
 echo "Versión actual: $CURRENT"
 
 if [[ "$CURRENT" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)\+([0-9]+)$ ]]; then
