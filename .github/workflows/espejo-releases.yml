@@ -186,7 +186,15 @@ jobs:
             while IFS=$'\t' read -r n t; do
               [ -n "$n" ] && PUBLICOS["$n"]="$t"
             done < publico.tsv
-            RID=$(rele_publica "repos/$PUB/releases/tags/$tag" --jq '.id' 2>/dev/null || echo "")
+            # OJO con este lookup: `gh api ... --jq '.id'` sobre un 404 NO sale
+            # vacío — gh imprime el JSON del error (`{"message":"Not Found",…}`)
+            # en STDOUT. Con eso, RID quedaba "lleno", el espejo se saltaba el
+            # paso de crear la release y después `gh release upload` fallaba con
+            # "release not found": una versión NUEVA nunca llegaba al espejo
+            # (pasó con la 0.9.29). Con `.id // empty` el 404 no imprime nada y,
+            # por las dudas, sólo se acepta un id NUMÉRICO.
+            RID=$(rele_publica "repos/$PUB/releases/tags/$tag" --jq '.id // empty' 2>/dev/null || true)
+            [[ "$RID" =~ ^[0-9]+$ ]] || RID=""
 
             # La release del espejo tiene que existir ANTES de subir assets.
             creada=0
@@ -194,12 +202,21 @@ jobs:
               rele_privada "repos/$PRIV/releases/tags/$tag" --jq '.name // empty' > titulo.txt 2>/dev/null || true
               [ -s titulo.txt ] || printf 'Bitly %s' "$tag" > titulo.txt
               notas "$tag"
+              # `-F` (no `-f`) para los booleanos: `-f draft=false` manda el
+              # STRING "false" y la API contesta 422 ("'false' is not a boolean")
+              # — reproducido a mano. Y el error NO se esconde: si esto falla, el
+              # log tiene que decir por qué (antes iba a /dev/null y el job moría
+              # con un incomprensible "release not found").
               RID=$(rele_publica --method POST "repos/$PUB/releases" \
-                -f tag_name="$tag" -f target=main -f draft=false -f prerelease=false \
+                -f tag_name="$tag" -f target=main -F draft=false -F prerelease=false \
                 -f name="$(cat titulo.txt)" -f body="$(cat notas.md)" \
-                --jq '.id' 2>/dev/null || echo "")
+                --jq '.id // empty' 2>crear.err || true)
+              [[ "$RID" =~ ^[0-9]+$ ]] || RID=""
               if [ -z "$RID" ]; then
                 echo "::error::No se pudo crear la release $tag en $PUB: el espejo queda sin espejar."
+                # El motivo, en el log: antes el error iba a /dev/null y el job
+                # terminaba con un "release not found" que no decía nada.
+                echo "::error::Motivo: $(head -c 300 crear.err 2>/dev/null | tr '\n' ' ')"
                 resumen="$resumen\n$tag: ERROR (no se pudo crear en el espejo)"
                 continue
               fi
