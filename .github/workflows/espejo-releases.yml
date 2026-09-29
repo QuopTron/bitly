@@ -246,11 +246,21 @@ jobs:
               if command -v unzip >/dev/null 2>&1; then
                 case "$n" in
                   *.apk)
-                    if unzip -p "$tmp/$n" 'lib/*/libapp.so' 2>/dev/null \
-                        | grep -qaE 'ghp_[A-Za-z0-9]{30,}'; then
-                      echo "::error::$n lleva un PAT clásico de GitHub (ghp_…) embebido y este repo es PÚBLICO."
-                      echo "::error::Revocá ese token (https://github.com/settings/tokens), compilá con uno fine-grained (Contents: Read sobre bitly_codes_premium) y volvé a espejar."
-                      exit 1
+                    # Se CUENTA (grep -c) y no se pregunta con `grep -q`: este job
+                    # corre con `set -o pipefail`, y `grep -q` corta la lectura al
+                    # primer match, unzip muere con SIGPIPE (141) y la condición
+                    # daba FALSA justo cuando el token ESTABA adentro.
+                    n_so=$(unzip -l "$tmp/$n" 2>/dev/null | grep -c 'libapp\.so' || true)
+                    if [ "${n_so:-0}" -eq 0 ]; then
+                      echo "::warning::No encontré libapp.so dentro de $n: no puedo revisarlo por tokens embebidos."
+                    else
+                      n_token=$(unzip -p "$tmp/$n" 'lib/*/libapp.so' 2>/dev/null \
+                        | grep -acE 'ghp_[A-Za-z0-9]{30,}' || true)
+                      if [ "${n_token:-0}" -gt 0 ]; then
+                        echo "::error::$n lleva un PAT clásico de GitHub (ghp_…) embebido y este repo es PÚBLICO."
+                        echo "::error::Revocá ese token (https://github.com/settings/tokens), compilá con uno fine-grained (Contents: Read sobre bitly_codes_premium) y volvé a espejar."
+                        exit 1
+                      fi
                     fi
                     ;;
                 esac

@@ -17,6 +17,7 @@ import 'update_assets.dart';
 import 'update_info.dart';
 
 import 'package:flutter/foundation.dart';
+
 /// Detecta versión/arquitectura y resuelve el asset del release.
 class UpdateService {
   /// [cliente] permite inyectar el cliente HTTP en las pruebas.
@@ -50,8 +51,7 @@ class UpdateService {
       'https://api.github.com/repos/$repoPublico/releases?per_page=30';
 
   /// Página pública de las releases (la usa la UI para "ver todas").
-  static const releasesPagina =
-      'https://github.com/$repoPublico/releases';
+  static const releasesPagina = 'https://github.com/$repoPublico/releases';
 
   static const _cabeceras = {'Accept': 'application/vnd.github.v3+json'};
 
@@ -115,21 +115,45 @@ class UpdateService {
   ///
   /// [versionInstalada] existe para las pruebas (en la app sale de
   /// `PackageInfo`).
-  Future<UpdateInfo?> checkForUpdate({String? versionInstalada}) async {
+  /// [plataforma]/[arquitectura] se pueden forzar en las pruebas: sin eso, la
+  /// detección depende de dónde corre el test (en Linux no hay binario que
+  /// ofrecer y el caso "hay versión nueva" nunca se podría probar en CI).
+  Future<UpdateInfo?> checkForUpdate({
+    String? versionInstalada,
+    String? plataforma,
+    String? arquitectura,
+  }) async {
     try {
       final instalada = versionInstalada ?? await _versionInstalada();
       if (instalada.isEmpty) return null;
 
       final ultimo = await _pedirJson(releaseUrl);
       if (ultimo is Map) {
-        final info = _infoDeRelease(ultimo, instalada);
+        final info = _infoDeRelease(
+          ultimo,
+          instalada,
+          plataforma: plataforma,
+          arquitectura: arquitectura,
+        );
         if (info != null) return info;
       }
 
       final lista = await _pedirJson(releasesUrl);
       if (lista is List) {
-        final release = elegirReleaseMasNueva(lista, instalada);
-        if (release != null) return _infoDeRelease(release, instalada);
+        final release = elegirReleaseMasNueva(
+          lista,
+          instalada,
+          plataforma: plataforma,
+          arquitectura: arquitectura,
+        );
+        if (release != null) {
+          return _infoDeRelease(
+            release,
+            instalada,
+            plataforma: plataforma,
+            arquitectura: arquitectura,
+          );
+        }
       }
       return null;
     } catch (e) {
@@ -149,10 +173,7 @@ class UpdateService {
   /// nunca una excepción hacia la UI.
   Future<dynamic> _pedirJson(String url) async {
     try {
-      final response = await _http.get(
-        Uri.parse(url),
-        headers: _cabeceras,
-      );
+      final response = await _http.get(Uri.parse(url), headers: _cabeceras);
       if (response.statusCode != 200) return null;
       return jsonDecode(response.body);
     } catch (e) {
@@ -164,7 +185,12 @@ class UpdateService {
   /// Traduce un release de GitHub a [UpdateInfo] si es más nuevo que
   /// [instalada] y trae un asset para esta plataforma. Null en cualquier otro
   /// caso.
-  UpdateInfo? _infoDeRelease(Map<dynamic, dynamic> release, String instalada) {
+  UpdateInfo? _infoDeRelease(
+    Map<dynamic, dynamic> release,
+    String instalada, {
+    String? plataforma,
+    String? arquitectura,
+  }) {
     if (release['draft'] == true || release['prerelease'] == true) return null;
 
     final tag = release['tag_name'] as String? ?? '';
@@ -173,7 +199,12 @@ class UpdateService {
     if (esMasNueva(version, instalada) != true) return null;
 
     final assets = release['assets'] as List<dynamic>? ?? const [];
-    final asset = UpdateAssets.elegirAsset(assets, version);
+    final asset = UpdateAssets.elegirAsset(
+      assets,
+      version,
+      plataforma: plataforma,
+      arquitectura: arquitectura,
+    );
     if (asset == null) return null;
 
     final url = asset['browser_download_url'] as String?;
@@ -196,8 +227,10 @@ class UpdateService {
   /// después que la nueva, `latest` apunta hacia atrás.
   static Map<String, dynamic>? elegirReleaseMasNueva(
     List<dynamic> releases,
-    String instalada,
-  ) {
+    String instalada, {
+    String? plataforma,
+    String? arquitectura,
+  }) {
     Map<String, dynamic>? mejor;
     String? mejorVersion;
 
@@ -215,7 +248,13 @@ class UpdateService {
       }
 
       final assets = (r['assets'] as List<dynamic>?) ?? const [];
-      if (UpdateAssets.elegirAsset(assets, version) == null) continue;
+      final asset = UpdateAssets.elegirAsset(
+        assets,
+        version,
+        plataforma: plataforma,
+        arquitectura: arquitectura,
+      );
+      if (asset == null) continue;
 
       mejor = Map<String, dynamic>.from(r);
       mejorVersion = version;
@@ -239,9 +278,8 @@ class UpdateService {
     if (partesA.any((p) => p == null) || partesB.any((p) => p == null)) {
       return null;
     }
-    final largo = partesA.length > partesB.length
-        ? partesA.length
-        : partesB.length;
+    final largo =
+        partesA.length > partesB.length ? partesA.length : partesB.length;
     for (var i = 0; i < largo; i++) {
       final x = i < partesA.length ? partesA[i]! : 0;
       final y = i < partesB.length ? partesB[i]! : 0;

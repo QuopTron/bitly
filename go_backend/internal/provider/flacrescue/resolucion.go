@@ -281,14 +281,9 @@ func (c *Client) guardarFallo(clave string, causa error) error {
 	return fmt.Errorf("flac-rescue: %v", causa)
 }
 
-// guardarCache memoriza un acierto (y acota el tamaño de la caché).
-func (c *Client) guardarCache(clave, url, espejo string) {
-	c.guardarCacheTTL(clave, url, espejo, cacheTTL)
-}
-
-// guardarCacheTTL es igual que guardarCache pero con vida propia: los enlaces
-// firmados de arcod caducan, así que su TTL es más corto que el de una URL de
-// CDN.
+// guardarCacheTTL memoriza un acierto con la vida que le corresponde al canal
+// (y acota el tamaño de la caché). Tiene TTL propio porque los enlaces firmados
+// de arcod caducan: su vida es más corta que la de una URL de CDN.
 func (c *Client) guardarCacheTTL(clave, url, espejo string, ttl time.Duration) {
 	c.cacheMu.Lock()
 	defer c.cacheMu.Unlock()

@@ -23,12 +23,32 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
+import 'package:bitly/features/ajustes/update/base/update_info.dart';
 import 'package:bitly/features/ajustes/update/base/update_service.dart';
+
+/// Plataforma y arquitectura con las que corren estas pruebas. Van FORZADAS a
+/// propósito: si dependieran del host, en CI (Linux) no habría binario que
+/// ofrecer y el caso "hay versión nueva" nunca daría un resultado no nulo.
+const _plataforma = 'android';
+const _arquitectura = 'arm64';
+
+/// Atajo de las pruebas: consulta fijando la plataforma para que el resultado
+/// sea el mismo en Windows, macOS o Linux.
+Future<UpdateInfo?> _chequear(UpdateService service, String instalada) =>
+    service.checkForUpdate(
+      versionInstalada: instalada,
+      plataforma: _plataforma,
+      arquitectura: _arquitectura,
+    );
 
 /// Assets que ESTA plataforma/máquina sí puede usar: uno por cada nombre
 /// esperado, exactamente como los publica el workflow de release.
 List<Map<String, dynamic>> _assetsDeLaPlataforma(String version) {
-  return UpdateService.patronesAsset(version)
+  return UpdateService.patronesAsset(
+        version,
+        plataforma: _plataforma,
+        arquitectura: _arquitectura,
+      )
       .map(
         (n) => {
           'name': n,
@@ -88,74 +108,86 @@ void main() {
   });
 
   group('camino normal: /releases/latest', () {
-    test('devuelve el asset de esta plataforma cuando hay versión nueva', () async {
-      final service = UpdateService(
-        cliente: _githubFalso(latest: _release('0.9.29')),
-      );
+    test(
+      'devuelve el asset de esta plataforma cuando hay versión nueva',
+      () async {
+        final service = UpdateService(
+          cliente: _githubFalso(latest: _release('0.9.29')),
+        );
 
-      final info = await service.checkForUpdate(versionInstalada: '0.9.28');
+        final info = await _chequear(service, '0.9.28');
 
-      expect(info, isNotNull);
-      expect(info!.version, '0.9.29');
-      expect(info.nombreAsset, UpdateService.patronesAsset('0.9.29').first);
-      expect(info.downloadUrl, contains('/v0.9.29/'));
-      expect(info.body, contains('0.9.29'));
-    });
+        expect(info, isNotNull);
+        expect(info!.version, '0.9.29');
+        expect(
+          info.nombreAsset,
+          UpdateService.patronesAsset(
+            '0.9.29',
+            plataforma: _plataforma,
+            arquitectura: _arquitectura,
+          ).first,
+        );
+        expect(info.downloadUrl, contains('/v0.9.29/'));
+        expect(info.body, contains('0.9.29'));
+      },
+    );
 
     test('estando al día no ofrece nada', () async {
       final service = UpdateService(
         cliente: _githubFalso(latest: _release('0.9.28')),
       );
-      expect(await service.checkForUpdate(versionInstalada: '0.9.28'), isNull);
+      expect(await _chequear(service, '0.9.28'), isNull);
     });
 
     test('un draft o un prerelease no cuentan como versión nueva', () async {
       final draft = UpdateService(
         cliente: _githubFalso(latest: _release('0.9.30', draft: true)),
       );
-      expect(await draft.checkForUpdate(versionInstalada: '0.9.28'), isNull);
+      expect(await _chequear(draft, '0.9.28'), isNull);
 
       final beta = UpdateService(
         cliente: _githubFalso(latest: _release('0.9.30', prerelease: true)),
       );
-      expect(await beta.checkForUpdate(versionInstalada: '0.9.28'), isNull);
+      expect(await _chequear(beta, '0.9.28'), isNull);
     });
   });
 
   group('respaldo por lista de releases', () {
-    test('el espejo creó una release vieja después: igual encuentra la nueva',
-        () async {
-      // El caso real: en el repo público, "latest" es la release CREADA más
-      // recientemente, no la de versión más alta. Si el espejo sube tarde una
-      // release vieja, /latest apunta hacia atrás y sin respaldo la app diría
-      // "no hay nada nuevo".
-      final service = UpdateService(
-        cliente: _githubFalso(
-          latest: _release('0.9.20'),
-          lista: [
-            _release('0.9.20'),
-            _release('0.9.31'),
-            _release('0.9.29'),
-          ],
-        ),
-      );
+    test(
+      'el espejo creó una release vieja después: igual encuentra la nueva',
+      () async {
+        // El caso real: en el repo público, "latest" es la release CREADA más
+        // recientemente, no la de versión más alta. Si el espejo sube tarde una
+        // release vieja, /latest apunta hacia atrás y sin respaldo la app diría
+        // "no hay nada nuevo".
+        final service = UpdateService(
+          cliente: _githubFalso(
+            latest: _release('0.9.20'),
+            lista: [_release('0.9.20'), _release('0.9.31'), _release('0.9.29')],
+          ),
+        );
 
-      final info = await service.checkForUpdate(versionInstalada: '0.9.28');
+        final info = await _chequear(service, '0.9.28');
 
-      expect(info, isNotNull);
-      expect(info!.version, '0.9.31');
-    });
+        expect(info, isNotNull);
+        expect(info!.version, '0.9.31');
+      },
+    );
 
     test('la última release no trae el binario de esta plataforma', () async {
       // Release de macOS mezclada en el mismo listado: para esta plataforma no
       // sirve, así que se ofrece la última que SÍ trae el asset correcto.
-      final sinBinario = _release('0.9.31', assets: [
-        {
-          'name': 'Bitly-0.9.31-macos.dmg',
-          'size': 10,
-          'browser_download_url': 'https://github.com/x/Bitly-0.9.31-macos.dmg',
-        },
-      ]);
+      final sinBinario = _release(
+        '0.9.31',
+        assets: [
+          {
+            'name': 'Bitly-0.9.31-macos.dmg',
+            'size': 10,
+            'browser_download_url':
+                'https://github.com/x/Bitly-0.9.31-macos.dmg',
+          },
+        ],
+      );
 
       final service = UpdateService(
         cliente: _githubFalso(
@@ -164,23 +196,32 @@ void main() {
         ),
       );
 
-      final info = await service.checkForUpdate(versionInstalada: '0.9.28');
+      final info = await _chequear(service, '0.9.28');
 
       expect(info, isNotNull);
       expect(info!.version, '0.9.29');
-      expect(info.nombreAsset, UpdateService.patronesAsset('0.9.29').first);
+      expect(
+        info.nombreAsset,
+        UpdateService.patronesAsset(
+          '0.9.29',
+          plataforma: _plataforma,
+          arquitectura: _arquitectura,
+        ).first,
+      );
     });
 
-    test('sin nada más nuevo en la lista, no inventa una actualización',
-        () async {
-      final service = UpdateService(
-        cliente: _githubFalso(
-          latest: _release('0.9.20'),
-          lista: [_release('0.9.28'), _release('0.9.20')],
-        ),
-      );
-      expect(await service.checkForUpdate(versionInstalada: '0.9.28'), isNull);
-    });
+    test(
+      'sin nada más nuevo en la lista, no inventa una actualización',
+      () async {
+        final service = UpdateService(
+          cliente: _githubFalso(
+            latest: _release('0.9.20'),
+            lista: [_release('0.9.28'), _release('0.9.20')],
+          ),
+        );
+        expect(await _chequear(service, '0.9.28'), isNull);
+      },
+    );
   });
 
   group('fallos de red', () {
@@ -188,14 +229,14 @@ void main() {
       final service = UpdateService(
         cliente: _githubFalso(latest: null, lista: null),
       );
-      expect(await service.checkForUpdate(versionInstalada: '0.9.28'), isNull);
+      expect(await _chequear(service, '0.9.28'), isNull);
     });
 
     test('una excepción de red devuelve null en vez de reventar', () async {
       final service = UpdateService(
         cliente: MockClient((_) async => throw const SocketExceptionFalsa()),
       );
-      expect(await service.checkForUpdate(versionInstalada: '0.9.28'), isNull);
+      expect(await _chequear(service, '0.9.28'), isNull);
     });
   });
 
@@ -242,7 +283,10 @@ void main() {
       expect(nombrePara('ios', 'arm64'), isNull);
       expect(nombrePara('linux', 'x64'), isNull);
       expect(UpdateService.patronesAsset('0.9.29', plataforma: 'ios'), isEmpty);
-      expect(UpdateService.patronesAsset('0.9.29', plataforma: 'linux'), isEmpty);
+      expect(
+        UpdateService.patronesAsset('0.9.29', plataforma: 'linux'),
+        isEmpty,
+      );
     });
 
     test('un release sin el binario de esta plataforma no se ofrece', () {
@@ -269,6 +313,8 @@ void main() {
         _release('0.9.28'),
       ],
       '0.9.28',
+      plataforma: _plataforma,
+      arquitectura: _arquitectura,
     );
     expect(elegido?['tag_name'], 'v0.9.29');
   });

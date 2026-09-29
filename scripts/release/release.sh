@@ -104,9 +104,21 @@ chequear_binarios() {
   for f in dist/*.apk; do
     if [ ! -f "$f" ]; then continue; fi
     if command -v unzip >/dev/null 2>&1; then
-      if unzip -p "$f" 'lib/*/libapp.so' 2>/dev/null | grep -qaE "$PAT_CLASICO_RE"; then
-        echo "::error::$f lleva un PAT clásico (ghp_…) embebido: cualquiera lo saca con unzip y este binario va a un repo público." >&2
-        problemas=$((problemas + 1))
+      # Se CUENTA (grep -c) y no se pregunta con `grep -q`: este script corre con
+      # `set -o pipefail`, y `grep -q` corta la lectura apenas encuentra el token,
+      # así que unzip muere con SIGPIPE (141) y la condición daba FALSA justo
+      # cuando el token ESTABA adentro. El conteo lee todo el stream y no rompe.
+      local n_so n_token
+      n_so=$(unzip -l "$f" 2>/dev/null | grep -c 'libapp\.so' || true)
+      if [ "${n_so:-0}" -eq 0 ]; then
+        echo "::warning::No encontré libapp.so dentro de $f: no puedo revisarlo por tokens embebidos." >&2
+      else
+        n_token=$(unzip -p "$f" 'lib/*/libapp.so' 2>/dev/null \
+          | grep -acE "$PAT_CLASICO_RE" || true)
+        if [ "${n_token:-0}" -gt 0 ]; then
+          echo "::error::$f lleva un PAT clásico (ghp_…) embebido: cualquiera lo saca con unzip y este binario va a un repo público." >&2
+          problemas=$((problemas + 1))
+        fi
       fi
     else
       echo "::warning::No encontré unzip: no puedo revisar $f por tokens embebidos." >&2
