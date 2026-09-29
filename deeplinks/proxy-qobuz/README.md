@@ -17,6 +17,39 @@ igual (y no se puede repartir `user_token` sin filtrarlo del teléfono).
 | `GET /keys` | devuelve `{appId, appSecret}` **en vivo** (rotación auto-curada; caché de 5 min) |
 | `GET /pool` | devuelve el **pool de sesiones** (`QOBUZ_AUTH_TOKENS`): una línea `user_auth_token=<token>` por cuenta |
 | `GET /api.json/0.2/*` | reenvía **firmado** a Qobuz, agregando `app_id`, `request_ts` y `request_sig` |
+| `POST /premium/<secreto>/verificar` | dice el estado del código en el registro (`activo`/`usado`/`cancelado`/`libre`/`no_encontrado`) |
+| `POST /premium/<secreto>/usar` | marca el código como usado (y anota los **firmados** que no estaban, previa verificación de la firma) |
+| `POST /premium/<secreto>/reporte` | crea el issue de un reporte de la app (bug/sugerencia) |
+
+## Códigos premium y reportes (`/premium/*`)
+
+El registro de códigos vive en el repo **privado** `QuopTron/bitly_codes_premium`
+(`codes.json`). Antes la app lo leía y lo escribía con un **PAT de GitHub
+compilado adentro** (`lib/config/secretos.dart`), que salía del APK con
+`unzip` + `grep` — y era un token clásico, con acceso a **todos** los repos de la
+cuenta. Ahora la llave vive acá, en el entorno del Worker:
+
+```bash
+npx wrangler secret put GITHUB_TOKEN      # Contents: Read and write SOLO sobre bitly_codes_premium (+ Issues: write para reportes)
+npx wrangler secret put PREMIUM_SECRET    # el secreto que va en la ruta
+npx wrangler deploy
+```
+
+Y el build de la app inyecta la URL con el secreto en la ruta
+(`PREMIUM_REGISTRO_URL=https://<worker>/premium/<secreto>`, ver
+`scripts/dev/qobuz_inyeccion.sh`). Sin inyectar, la app **igual valida** los
+códigos: la firma de un código se verifica **localmente** (Ed25519 con la clave
+pública; ver `go_backend/internal/premium/firmados.go`). El registro es para
+confirmar que el código existe y marcarlo como usado, no para validar la firma.
+
+Reglas de convivencia que importan:
+
+- **Si el Worker no responde, nadie se queda sin activar**: el código se activa
+  igual y el "marcar usado" queda pendiente en el equipo, que lo reintenta al
+  arrancar (`registro_pendiente.go`).
+- **El registro solo crece con códigos firmados**: un código `BITLY2.…` cuyo
+  firma verifica se anota solo; uno legacy tiene que estar ya anotado (su secreto
+  viaja en el binario, así que su firma sola no prueba nada).
 
 Con esto:
 

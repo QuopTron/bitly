@@ -130,7 +130,12 @@ class BackendWeb extends BackendService
       await _garantizarEnMarcha();
       if (await rpcCall('ping') != 'pong') return false;
 
-      await setPremiumGithubToken(tokenGithub);
+      // La app publicada NO lleva token: el registro de códigos pasa por el
+      // Worker (ver go_backend/internal/premium/registro_worker.go). Esto queda
+      // solo para builds de diagnóstico con un token propio.
+      if (tokenGithub.isNotEmpty) {
+        await setPremiumGithubToken(tokenGithub);
+      }
 
       // Estado premium local (drift del navegador) → Go, para que el gate de
       // descargas respete códigos activados en una sesión previa.

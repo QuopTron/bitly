@@ -128,6 +128,11 @@ abstract class BackendService {
   Future<String?> validatePremiumCode(String code);
   Future<void> setPremiumGithubToken(String token);
 
+  /// Manda un reporte (bug / sugerencia) al Worker, que crea el issue con la
+  /// llave que vive en SU entorno (la app no lleva ninguna).
+  /// Devuelve true si se pudo enviar.
+  Future<bool> enviarReporte({required String titulo, required String cuerpo});
+
   /// Sincroniza el estado premium (drift) hacia Go para que el gate de
   /// descargas respete códigos ya activados tras un reinicio.
   Future<void> syncPremiumStatus({

@@ -8,9 +8,18 @@
 // protección de secretos) — solo placeholders.
 // ─────────────────────────────────────────────────────────────
 
-/// Token personal de GitHub usado por el backend Go (internal/premium)
-/// para validar códigos premium contra el repo QuopTron/bitly_codes_premium.
-const String tokenGithub = 'tu_github_token_aqui';
+/// ⚠️ YA NO SE USA: dejar VACÍO.
+///
+/// Antes: token personal de GitHub con el que el backend Go leía y escribía
+/// `codes.json` en el repo privado QuopTron/bitly_codes_premium. Como este valor
+/// termina COMPILADO dentro del APK/exe —y los binarios se publican en un repo
+/// público—, cualquiera lo sacaba con unzip + grep (y era un token clásico, con
+/// acceso a TODOS los repos de la cuenta).
+///
+/// Ahora el registro de códigos lo hace tu Worker, que guarda la llave en su
+/// propio entorno (secreto de Cloudflare) y nunca la manda a la app. Un valor
+/// acá solo tiene sentido en builds de diagnóstico del dueño.
+const String tokenGithub = '';
 
 /// Google OAuth Client ID (tipo: Android) — usado en el flujo nativo de
 /// Google Sign-In (Credential Manager) en Android.

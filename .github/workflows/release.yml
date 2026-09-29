@@ -120,24 +120,13 @@ jobs:
       # con el token guardado como secret PREMIUM_GITHUB_TOKEN.
       - name: Generate secrets.dart
         run: |
+          # El binario YA NO lleva ningún token: el registro de códigos premium
+          # (confirmar que existe + marcarlo como usado) y los reportes pasan por
+          # el Worker, que guarda la llave de GitHub en SU entorno (secreto de
+          # Cloudflare). Antes este paso escribía un PAT acá adentro y salía
+          # publicado dentro del APK, que es un repo público.
+          # Ver: go_backend/internal/premium/registro_worker.go
           cp lib/config/secretos.example.dart lib/config/secretos.dart
-          TOKEN="${{ secrets.PREMIUM_GITHUB_TOKEN }}"
-          # Un PAT CLÁSICO (ghp_…) tiene acceso a TODOS los repos de la cuenta y
-          # este valor queda COMPILADO dentro del APK/exe, que se publica en un
-          # repo PÚBLICO: se extrae con unzip + grep (pasó con la 0.9.28). Si el
-          # secret es clásico, el build se corta acá y el binario no sale.
-          case "$TOKEN" in
-            ghp_*)
-              echo "::error::PREMIUM_GITHUB_TOKEN es un PAT clásico (ghp_…): da acceso a todos los repos y quedaría embebido en un binario que cualquiera baja."
-              echo "  Usá uno fine-grained con Contents: Read SOLO sobre QuopTron/bitly_codes_premium."
-              exit 1
-              ;;
-          esac
-          if [ -n "$TOKEN" ]; then
-            sed -i "s|tu_github_token_aqui|$TOKEN|" lib/config/secretos.dart
-          else
-            echo "::warning::PREMIUM_GITHUB_TOKEN no está configurado: el binario sale SIN token premium y la validación de códigos premium no va a funcionar en la app publicada."
-          fi
 
       - name: Flutter pub get
         run: flutter pub get
@@ -251,24 +240,13 @@ jobs:
       - name: Generate secrets.dart
         shell: bash
         run: |
+          # El binario YA NO lleva ningún token: el registro de códigos premium
+          # (confirmar que existe + marcarlo como usado) y los reportes pasan por
+          # el Worker, que guarda la llave de GitHub en SU entorno (secreto de
+          # Cloudflare). Antes este paso escribía un PAT acá adentro y salía
+          # publicado dentro del APK, que es un repo público.
+          # Ver: go_backend/internal/premium/registro_worker.go
           cp lib/config/secretos.example.dart lib/config/secretos.dart
-          TOKEN="${{ secrets.PREMIUM_GITHUB_TOKEN }}"
-          # Un PAT CLÁSICO (ghp_…) tiene acceso a TODOS los repos de la cuenta y
-          # este valor queda COMPILADO dentro del APK/exe, que se publica en un
-          # repo PÚBLICO: se extrae con unzip + grep (pasó con la 0.9.28). Si el
-          # secret es clásico, el build se corta acá y el binario no sale.
-          case "$TOKEN" in
-            ghp_*)
-              echo "::error::PREMIUM_GITHUB_TOKEN es un PAT clásico (ghp_…): da acceso a todos los repos y quedaría embebido en un binario que cualquiera baja."
-              echo "  Usá uno fine-grained con Contents: Read SOLO sobre QuopTron/bitly_codes_premium."
-              exit 1
-              ;;
-          esac
-          if [ -n "$TOKEN" ]; then
-            sed -i "s|tu_github_token_aqui|$TOKEN|" lib/config/secretos.dart
-          else
-            echo "::warning::PREMIUM_GITHUB_TOKEN no está configurado: el binario sale SIN token premium y la validación de códigos premium no va a funcionar en la app publicada."
-          fi
 
       - name: Flutter pub get
         run: flutter pub get
@@ -375,24 +353,13 @@ jobs:
       - name: Generate secrets.dart
         shell: bash
         run: |
+          # El binario YA NO lleva ningún token: el registro de códigos premium
+          # (confirmar que existe + marcarlo como usado) y los reportes pasan por
+          # el Worker, que guarda la llave de GitHub en SU entorno (secreto de
+          # Cloudflare). Antes este paso escribía un PAT acá adentro y salía
+          # publicado dentro del APK, que es un repo público.
+          # Ver: go_backend/internal/premium/registro_worker.go
           cp lib/config/secretos.example.dart lib/config/secretos.dart
-          TOKEN="${{ secrets.PREMIUM_GITHUB_TOKEN }}"
-          # Un PAT CLÁSICO (ghp_…) tiene acceso a TODOS los repos de la cuenta y
-          # este valor queda COMPILADO dentro del APK/exe, que se publica en un
-          # repo PÚBLICO: se extrae con unzip + grep (pasó con la 0.9.28). Si el
-          # secret es clásico, el build se corta acá y el binario no sale.
-          case "$TOKEN" in
-            ghp_*)
-              echo "::error::PREMIUM_GITHUB_TOKEN es un PAT clásico (ghp_…): da acceso a todos los repos y quedaría embebido en un binario que cualquiera baja."
-              echo "  Usá uno fine-grained con Contents: Read SOLO sobre QuopTron/bitly_codes_premium."
-              exit 1
-              ;;
-          esac
-          if [ -n "$TOKEN" ]; then
-            sed -i "s|tu_github_token_aqui|$TOKEN|" lib/config/secretos.dart
-          else
-            echo "::warning::PREMIUM_GITHUB_TOKEN no está configurado: el binario sale SIN token premium y la validación de códigos premium no va a funcionar en la app publicada."
-          fi
 
       - name: Flutter pub get
         run: flutter pub get
@@ -477,24 +444,13 @@ jobs:
 
       - name: Generate secrets.dart
         run: |
+          # El binario YA NO lleva ningún token: el registro de códigos premium
+          # (confirmar que existe + marcarlo como usado) y los reportes pasan por
+          # el Worker, que guarda la llave de GitHub en SU entorno (secreto de
+          # Cloudflare). Antes este paso escribía un PAT acá adentro y salía
+          # publicado dentro del APK, que es un repo público.
+          # Ver: go_backend/internal/premium/registro_worker.go
           cp lib/config/secretos.example.dart lib/config/secretos.dart
-          TOKEN="${{ secrets.PREMIUM_GITHUB_TOKEN }}"
-          # Un PAT CLÁSICO (ghp_…) tiene acceso a TODOS los repos de la cuenta y
-          # este valor queda COMPILADO dentro del APK/exe, que se publica en un
-          # repo PÚBLICO: se extrae con unzip + grep (pasó con la 0.9.28). Si el
-          # secret es clásico, el build se corta acá y el binario no sale.
-          case "$TOKEN" in
-            ghp_*)
-              echo "::error::PREMIUM_GITHUB_TOKEN es un PAT clásico (ghp_…): da acceso a todos los repos y quedaría embebido en un binario que cualquiera baja."
-              echo "  Usá uno fine-grained con Contents: Read SOLO sobre QuopTron/bitly_codes_premium."
-              exit 1
-              ;;
-          esac
-          if [ -n "$TOKEN" ]; then
-            sed -i "s|tu_github_token_aqui|$TOKEN|" lib/config/secretos.dart
-          else
-            echo "::warning::PREMIUM_GITHUB_TOKEN no está configurado: el binario sale SIN token premium y la validación de códigos premium no va a funcionar en la app publicada."
-          fi
 
       - name: Flutter pub get
         run: flutter pub get

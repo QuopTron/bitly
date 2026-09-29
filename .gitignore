@@ -79,7 +79,7 @@ scripts/**/__pycache__/
 scripts/**/*.py
 scripts/**/*.bat
 scripts/**/*.ps1
-# Claves del sistema de códigos: nunca al repo (ver scripts/release/generate_keys.py)
+# Claves del sistema de códigos: nunca al repo (ver scripts/release/generar_claves.py)
 /scripts/keys/
 
 # old doc files

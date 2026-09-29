@@ -212,6 +212,202 @@ export function firmaQobuz(metodo, params, ts, secreto) {
   return md5Hex(metodo.replace(/\//g, "") + texto + ts + secreto);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Premium: registro de códigos y reportes.
+//
+// Por qué vive acá y no en la app: la app llevaba COMPILADO un PAT de GitHub
+// para leer y escribir `codes.json` del repo privado QuopTron/bitly_codes_premium
+// (y para crear los issues del reporte). Ese token salía del APK con unzip +
+// grep, y era un token CLÁSICO (acceso a todos los repos de la cuenta). Acá la
+// llave vive en el entorno del Worker (`GITHUB_TOKEN`, secreto de Cloudflare) y
+// la app solo manda el código.
+//
+// Rutas (el secreto va en la RUTA, como en /pool: la app no manda cabeceras):
+//   POST /premium/<PREMIUM_SECRET>/verificar  {code}          → {estado}
+//   POST /premium/<PREMIUM_SECRET>/usar       {code, firmado} → {ok}
+//   POST /premium/<PREMIUM_SECRET>/reporte    {titulo,cuerpo} → {ok}
+//
+// Estados: activo | usado | cancelado | libre | no_encontrado.
+// Si el registro no responde, la app NO bloquea la activación (la firma del
+// código se verifica local): el "usado" queda pendiente y se reintenta después.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const CODES_API =
+  "https://api.github.com/repos/QuopTron/bitly_codes_premium/contents/codes.json";
+
+// Clave PÚBLICA de los códigos firmados (Ed25519). Es pública a propósito:
+// verifica y NO permite firmar (la privada vive en la máquina del dueño, ver
+// scripts/keys/ y go_backend/internal/premium/firmados.go).
+const CLAVE_PUBLICA_FIRMADOS = "DPVABxXjluqWrBCKM9d7dh4dpPYDYq6h22s2m+9gJ6g=";
+
+function respuestaJson(datos, estado = 200) {
+  return new Response(JSON.stringify(datos), {
+    status: estado,
+    headers: { "content-type": "application/json" },
+  });
+}
+
+function b64urlABytes(texto) {
+  const normal = String(texto).replace(/-/g, "+").replace(/_/g, "/");
+  const crudo = atob(normal + "=".repeat((4 - (normal.length % 4)) % 4));
+  const bytes = new Uint8Array(crudo.length);
+  for (let i = 0; i < crudo.length; i++) bytes[i] = crudo.charCodeAt(i);
+  return bytes;
+}
+
+// b64Utf8/deB64Utf8: codes.json lleva acentos (la clave "_NOTA"), y btoa() a
+// secas explota con cualquier carácter fuera de latin1.
+function b64Utf8(texto) {
+  let binario = "";
+  for (const b of new TextEncoder().encode(texto))
+    binario += String.fromCharCode(b);
+  return btoa(binario);
+}
+
+function deB64Utf8(b64) {
+  const binario = atob(String(b64).replace(/\n/g, ""));
+  const bytes = Uint8Array.from(binario, (c) => c.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}
+
+// firmaFirmadaValida verifica un código BITLY2.… con la clave pública. Si la
+// plataforma no soporta Ed25519 en WebCrypto devuelve false: nunca se anota un
+// código sin verificar.
+async function firmaFirmadaValida(codigo) {
+  try {
+    const partes = String(codigo).split(".");
+    if (partes.length !== 3 || partes[0].toUpperCase() !== "BITLY2")
+      return false;
+    const clave = await crypto.subtle.importKey(
+      "raw",
+      b64urlABytes(CLAVE_PUBLICA_FIRMADOS),
+      { name: "Ed25519" },
+      false,
+      ["verify"],
+    );
+    return await crypto.subtle.verify(
+      { name: "Ed25519" },
+      clave,
+      b64urlABytes(partes[2]),
+      b64urlABytes(partes[1]),
+    );
+  } catch {
+    return false;
+  }
+}
+
+const cabeceraGithub = (env) => ({
+  Authorization: `token ${env.GITHUB_TOKEN}`,
+  Accept: "application/vnd.github.v3+json",
+  "User-Agent": "bitly-premium-worker",
+});
+
+// leerCodes devuelve {codes, sha} o null si el registro no se pudo leer.
+async function leerCodes(env) {
+  const resp = await fetch(CODES_API, { headers: cabeceraGithub(env) });
+  if (!resp.ok) return null;
+  let meta;
+  try {
+    meta = await resp.json();
+  } catch {
+    return null;
+  }
+  try {
+    return { codes: JSON.parse(deB64Utf8(meta.content || "")), sha: meta.sha };
+  } catch {
+    return null;
+  }
+}
+
+async function escribirCodes(env, codes, sha, mensaje) {
+  const resp = await fetch(CODES_API, {
+    method: "PUT",
+    headers: { ...cabeceraGithub(env), "Content-Type": "application/json" },
+    body: JSON.stringify({
+      message: mensaje,
+      content: b64Utf8(JSON.stringify(codes, null, 2)),
+      sha,
+    }),
+  });
+  return resp.ok;
+}
+
+async function manejarPremium(url, peticion, env) {
+  const partes = url.pathname.split("/").filter(Boolean); // premium/<secreto>/<acción>
+  const secreto = String(env.PREMIUM_SECRET || "").trim();
+  if (!secreto || partes[1] !== secreto) {
+    return respuestaJson({ error: "premium: secreto inválido" }, 403);
+  }
+  if (peticion.method !== "POST")
+    return respuestaJson({ error: "método inválido" }, 405);
+  if (!env.GITHUB_TOKEN)
+    return respuestaJson({ error: "premium: falta GITHUB_TOKEN" }, 500);
+
+  let cuerpo = {};
+  try {
+    cuerpo = await peticion.json();
+  } catch {
+    return respuestaJson({ error: "cuerpo inválido" }, 400);
+  }
+  const accion = partes[2] || "";
+  const code = String(cuerpo.code || "").trim();
+  if (accion !== "reporte" && !code)
+    return respuestaJson({ error: "falta el código" }, 400);
+
+  if (accion === "verificar") {
+    const dados = await leerCodes(env);
+    if (!dados) return respuestaJson({ error: "registro no disponible" }, 502);
+    return respuestaJson({
+      estado: dados.codes[code] ? dados.codes[code] : "no_encontrado",
+    });
+  }
+
+  if (accion === "usar") {
+    const dados = await leerCodes(env);
+    if (!dados) return respuestaJson({ error: "registro no disponible" }, 502);
+    if (!dados.codes[code]) {
+      // Un código FIRMADO no necesita estar anotado: la firma prueba que salió
+      // de la clave privada del dueño. Recién ahí se anota (queda en el
+      // registro); un código legacy sin anotar se rechaza como siempre.
+      const firmado = String(cuerpo.firmado || "") === "true";
+      if (!firmado || !(await firmaFirmadaValida(code))) {
+        return respuestaJson({ error: "no_encontrado" }, 404);
+      }
+    }
+    dados.codes[code] = "usado";
+    const ok = await escribirCodes(
+      env,
+      dados.codes,
+      dados.sha,
+      "premium: código usado",
+    );
+    return respuestaJson(
+      ok ? { ok: true } : { error: "no se pudo guardar" },
+      ok ? 200 : 502,
+    );
+  }
+
+  if (accion === "reporte") {
+    const resp = await fetch(
+      "https://api.github.com/repos/QuopTron/bitly/issues",
+      {
+        method: "POST",
+        headers: { ...cabeceraGithub(env), "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: String(cuerpo.titulo || "Reporte de Bitly").slice(0, 200),
+          body: String(cuerpo.cuerpo || "").slice(0, 20000),
+        }),
+      },
+    );
+    return respuestaJson(
+      resp.ok ? { ok: true } : { error: "no se pudo crear el issue" },
+      resp.ok ? 200 : 502,
+    );
+  }
+
+  return respuestaJson({ error: "acción desconocida" }, 404);
+}
+
 export default {
   async fetch(peticion, env, ctx) {
     const url = new URL(peticion.url);
@@ -261,6 +457,12 @@ export default {
           },
         );
       }
+    }
+
+    // Registro de códigos premium y reportes: acá vive la llave de GitHub, no en
+    // la app (ver manejarPremium). Se atiende antes que el resto de las rutas.
+    if (url.pathname === "/premium" || url.pathname.startsWith("/premium/")) {
+      return await manejarPremium(url, peticion, env);
     }
 
     if (url.pathname === "/keys") {

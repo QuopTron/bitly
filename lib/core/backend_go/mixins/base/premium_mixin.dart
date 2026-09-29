@@ -40,12 +40,38 @@ mixin PremiumMixin on BackendService {
   }
 
   /// Envía el token de GitHub para que el backend Go consulte el registro.
+  ///
+  /// OJO: la app publicada NO lo llama con ningún valor — el registro pasa por
+  /// el Worker (la llave vive en su entorno). Queda para builds de diagnóstico.
   @override
   Future<void> setPremiumGithubToken(String token) async {
     try {
       await rpcCall('setPremiumGithubToken', {'token': token});
     } catch (e) {
       debugPrint("[Backend] $e");
+    }
+  }
+
+  /// Manda un reporte (bug / sugerencia) al Worker. Antes lo hacía la app con el
+  /// token de GitHub compilado adentro; ahora la llave vive en el Worker.
+  @override
+  Future<bool> enviarReporte({
+    required String titulo,
+    required String cuerpo,
+  }) async {
+    try {
+      final raw = await rpcCall('enviarReporte', {
+        'titulo': titulo,
+        'cuerpo': cuerpo,
+      });
+      if (raw is String && raw.isNotEmpty) {
+        final parsed = jsonDecode(raw);
+        if (parsed is Map && parsed['ok'] == true) return true;
+      }
+      return false;
+    } catch (e) {
+      debugPrint('[PremiumMixin] $e');
+      return false;
     }
   }
 

@@ -67,7 +67,12 @@ class BackendIOS extends BackendService
           'getApplicationDocumentsDirectory',
         );
         await _canal.invokeMethod('initGoBackend', {'app_data_dir': dir});
-        await setPremiumGithubToken(tokenGithub);
+        // La app publicada NO lleva token: el registro de códigos pasa por el
+        // Worker (ver go_backend/internal/premium/registro_worker.go). Esto
+        // queda solo para builds de diagnóstico con un token propio.
+        if (tokenGithub.isNotEmpty) {
+          await setPremiumGithubToken(tokenGithub);
+        }
         await _canal.invokeMethod('loadExtensionsFromDir', {
           'dir_path': '$dir/extensions',
         });

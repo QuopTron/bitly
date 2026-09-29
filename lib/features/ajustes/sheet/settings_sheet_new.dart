@@ -57,7 +57,6 @@ import '../../../core/servicios/compartir/datos/compartido_recibido.dart';
 import '../../../core/servicios/compartir/base/servicio_compartir.dart';
 import '../../../core/servicios/compartir/base/servicio_historial_compartidos.dart';
 import '../../../core/servicios/proveedores/soulseek/servicio_soulseek.dart';
-import '../../../config/secretos.dart';
 import '../../../app/inyeccion/inyeccion.dart';
 import '../../../shared/widgets/vidrio/base/contenedor_vidrio.dart';
 import '../../../shared/widgets/esqueletos/esqueleto_carga.dart';

@@ -20,6 +20,16 @@
 #   QOBUZ_KEYS_URL   https://<worker>/<secreto-relay>/keys
 #   QOBUZ_API_BASE   https://<worker>/<secreto-relay>/api.json/0.2
 #
+# Y una que NO es de Qobuz pero se inyecta igual (mismo Worker, mismo motivo:
+# la ruta lleva el secreto y el repo es público):
+#
+#   PREMIUM_REGISTRO_URL  https://<worker>/premium/<secreto>
+#
+# Con eso, el registro de códigos premium (confirmar que existe + marcarlo como
+# usado) y los reportes los hace EL WORKER, que guarda la llave de GitHub en su
+# entorno (`wrangler secret put GITHUB_TOKEN`). Sin inyectar, la app valida los
+# códigos igual (la firma es local) pero no consulta el registro.
+#
 # Parte del flujo: build (empaquetar el backend Go con tu Worker).
 
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/../.." && pwd)"
@@ -28,7 +38,7 @@ MODULO="github.com/zarz/bitly/go_backend"
 
 # El archivo es opcional; las variables de entorno ya seteadas mandan.
 if [ -f "$ARCHIVO" ]; then
-  for clave in QOBUZ_POOL_URL QOBUZ_KEYS_URL QOBUZ_API_BASE; do
+  for clave in QOBUZ_POOL_URL QOBUZ_KEYS_URL QOBUZ_API_BASE PREMIUM_REGISTRO_URL; do
     if [ -z "$(printenv "$clave" 2>/dev/null || true)" ]; then
       valor="$(grep -E "^${clave}=" "$ARCHIVO" | tail -1 | cut -d= -f2- | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
       if [ -n "$valor" ]; then
@@ -47,6 +57,11 @@ if [ -n "${QOBUZ_KEYS_URL:-}" ]; then
 fi
 if [ -n "${QOBUZ_API_BASE:-}" ]; then
   QOBUZ_LDFLAGS="$QOBUZ_LDFLAGS -X $MODULO/internal/provider/flacrescue.QobuzAPIBaseInyectada=$QOBUZ_API_BASE"
+fi
+# El registro premium va al mismo Worker: la llave de GitHub vive en su entorno,
+# nunca en el binario (ver go_backend/internal/premium/registro_worker.go).
+if [ -n "${PREMIUM_REGISTRO_URL:-}" ]; then
+  QOBUZ_LDFLAGS="$QOBUZ_LDFLAGS -X $MODULO/internal/premium.PremiumRegistroURLInyectada=$PREMIUM_REGISTRO_URL"
 fi
 
 export QOBUZ_LDFLAGS

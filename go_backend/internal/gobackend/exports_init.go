@@ -78,6 +78,13 @@ func InitGlobalState() string {
 	indiceLocal = library.NuevoIndiceLocal()
 	playbackTracker = playback.NewTracker(200)
 	premiumChecker = premium.NewChecker(nil)
+	// Reintento de los "marcar usado" que quedaron pendientes cuando el registro
+	// (tu Worker) no estaba disponible en el momento de activar el código. Solo
+	// se arranca el goroutine si hay algo pendiente: en el caso normal no se toca
+	// la red al iniciar, y una activación nunca espera al registro.
+	if premium.UsadosPendientesCuenta() > 0 {
+		go premium.ReintentarUsadosPendientes()
+	}
 	sessionMgr = extensions.NewSessionManager()
 	// Se reinician bajo el candado: InitGlobalState puede re-ejecutarse
 	// mientras otra goroutine lee estos mapas (tests y re-init en caliente).

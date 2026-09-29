@@ -152,7 +152,12 @@ class BackendEscritorio extends BackendService
       final dirExt = await _buscarDirExtensiones(rutaEjecutable);
       if (dirExt != null) await _initExtensiones(this, dirExt);
       if (!Platform.isMacOS) await _initCallback(this);
-      await setPremiumGithubToken(tokenGithub);
+      // La app publicada NO lleva token: el registro de códigos pasa por el
+      // Worker (ver go_backend/internal/premium/registro_worker.go). Esto queda
+      // solo para builds de diagnóstico con un token propio.
+      if (tokenGithub.isNotEmpty) {
+        await setPremiumGithubToken(tokenGithub);
+      }
       await _initPremiumCredenciales(this);
     } catch (e) {
       debugPrint('[backend] _initPostPing error: $e');

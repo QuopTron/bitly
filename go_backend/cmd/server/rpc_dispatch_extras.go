@@ -68,6 +68,8 @@ func dispatchExtra(method string, params map[string]interface{}) (interface{}, s
 		return backend.SetPremiumStatus(rpcBody(params)), "", true
 	case "setPremiumGithubToken":
 		return backend.SetPremiumGithubToken(rpcBody(params)), "", true
+	case "enviarReporte":
+		return backend.EnviarReporte(rpcBody(params)), "", true
 	case "checkDownloadAllowed":
 		return backend.CheckDownloadAllowed(), "", true
 

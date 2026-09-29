@@ -37,16 +37,12 @@ Future<bool> submitReport({
           ? 'macOS'
           : 'desktop'}',
     ].join('\n');
-    final resp = await http.post(
-      Uri.parse('https://api.github.com/repos/QuopTron/bitly/issues'),
-      headers: {
-        'Authorization': 'token $tokenGithub',
-        'Accept': 'application/vnd.github.v3+json',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({'title': '$prefix $title', 'body': issueBody}),
+    // El issue lo crea el WORKER, no la app: antes esta petición necesitaba el
+    // token de GitHub compilado adentro (que se sacaba del APK con unzip).
+    return sl<BackendService>().enviarReporte(
+      titulo: '$prefix $title',
+      cuerpo: issueBody,
     );
-    return resp.statusCode == 201 || resp.statusCode == 200;
   } catch (e) {
     debugPrint('[settings_sheet_report_submit] $e');
     return false;

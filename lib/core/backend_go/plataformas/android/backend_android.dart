@@ -84,7 +84,12 @@ class BackendAndroid extends BackendService
               'ytdlp_path': rutaYtDlp,
             })
             .timeout(const Duration(seconds: 125));
-        await setPremiumGithubToken(tokenGithub);
+        // La app publicada NO lleva token: el registro de códigos pasa por el
+        // Worker (ver go_backend/internal/premium/registro_worker.go). Esto
+        // queda solo para builds de diagnóstico con un token propio.
+        if (tokenGithub.isNotEmpty) {
+          await setPremiumGithubToken(tokenGithub);
+        }
         final dirExt = '${dir.path}/extensions';
         await _garantizarExtensiones(dirExt);
         await _canal

@@ -90,28 +90,101 @@ func generarFirmaApp(message string) string {
 	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 }
 
-// ValidateAppCode ejecuta el flujo completo de validación del formato legacy:
-// estructura → registro de GitHub (si hay token) → marcar como usado. Si todo
-// pasa, activa premium localmente por 365 días (igual que PremiumCache Dart).
+// ValidateAppCode ejecuta el flujo completo de validación. Acepta DOS formatos:
+//
+//  1. FIRMADO (BITLY2.…): firma Ed25519 verificada con la CLAVE PÚBLICA que
+//     lleva la app (ver firmados.go). Es el formato nuevo: nadie puede firmar
+//     códigos nuevos sin la clave privada, y no hace falta ningún servidor.
+//  2. LEGACY (dataB64.sigB64): la MISMA lógica de siempre — estructura con el
+//     secreto HMAC + registro + marcar usado — para que los códigos que ya
+//     repartiste sigan funcionando.
+//
+// En los dos casos pasa por el registro (si está configurado) para confirmar
+// que el código existe y marcarlo como usado.
 func (c *Checker) ValidateAppCode(code string) error {
+	code = strings.TrimSpace(code)
+
+	// El formato se decide ANTES de validar: si el código dice ser del formato
+	// nuevo, un error suyo es definitivo (una firma rota tiene que decir
+	// "firma inválida", no caer al validador legacy y confundir el motivo).
+	if EsCodigoFirmado(code) {
+		datos, err := ValidarFirmado(code)
+		if err != nil {
+			return err
+		}
+		if err := c.pasarPorRegistro(code); err != nil {
+			return err
+		}
+		expira := datos.Expira
+		if expira <= 0 {
+			expira = time.Now().Add(365 * 24 * time.Hour).Unix()
+		}
+		c.activarPremium(code, datos.Tier, expira)
+		return nil
+	}
+
 	if err := validarEstructuraApp(code); err != nil {
 		return err
 	}
-	token := c.githubTokenValue()
-	if token != "" {
-		if err := verificarEnRegistro(code, token); err != nil {
+	if err := c.pasarPorRegistro(code); err != nil {
+		return err
+	}
+	c.activarPremium(code, "premium", time.Now().Add(365*24*time.Hour).Unix())
+	return nil
+}
+
+// pasarPorRegistro confirma el código contra el registro (que existe y en qué
+// estado está) y lo marca como usado.
+//
+// El token YA NO viaja dentro de la app: el trabajo lo hace tu Worker, que lo
+// guarda en su propio entorno. Dos reglas que importan:
+//
+//	· si el registro NO responde, la activación NO se bloquea (la firma ya se
+//	  validó local y el Worker puede no estar siempre activo): el "usado" queda
+//	  anotado y se reintenta al arrancar;
+//	· si el registro responde que el código está usado/cancelado, se bloquea
+//	  (eso es lo que protege el reuso).
+func (c *Checker) pasarPorRegistro(code string) error {
+	if url := premiumRegistroURL(); url != "" {
+		firmado := EsCodigoFirmado(code)
+		estado, err := consultarRegistroWorker(url, code, "")
+		if err != nil {
+			encolarUsadoPendiente(code)
+			return nil
+		}
+		if err := estadoAError(estado, firmado); err != nil {
 			return err
 		}
-		// Marcar como usado es no-fatal (igual que en Dart).
-		_ = marcarComoUsado(code, token)
+		if err := marcarUsadoWorker(url, code, firmado); err != nil {
+			encolarUsadoPendiente(code)
+		}
+		return nil
+	}
+
+	// Camino directo: un token puesto a mano (builds de diagnóstico del dueño).
+	// La app publicada no lleva ninguno, así que en la práctica no entra acá.
+	token := c.githubTokenValue()
+	if token == "" {
+		return nil
+	}
+	if err := verificarEnRegistro(code, token); err != nil {
+		return err
+	}
+	_ = marcarComoUsado(code, token)
+	return nil
+}
+
+// activarPremium fija el estado premium.
+func (c *Checker) activarPremium(code, tier string, expira int64) {
+	if tier == "" {
+		tier = "premium"
 	}
 	c.mu.Lock()
 	c.status = Status{
 		IsPremium: true,
 		Code:      code,
-		Tier:      "premium",
-		ExpiresAt: time.Now().Add(365 * 24 * time.Hour).Unix(),
+		Tier:      tier,
+		ExpiresAt: expira,
 	}
 	c.mu.Unlock()
-	return nil
 }

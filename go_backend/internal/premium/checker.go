@@ -115,6 +115,26 @@ func (c *Checker) ValidateCode(code string) error {
 		return nil
 	}
 
+	// Código FIRMADO (formato nuevo): verificación local con la clave pública,
+	// sin secretos en el binario y sin depender de ningún servidor.
+	if EsCodigoFirmado(code) {
+		datos, err := ValidarFirmado(code)
+		if err != nil {
+			return err
+		}
+		expira := datos.Expira
+		if expira <= 0 {
+			expira = time.Now().Add(365 * 24 * time.Hour).Unix()
+		}
+		c.status = Status{
+			IsPremium: true,
+			Code:      code,
+			Tier:      datos.Tier,
+			ExpiresAt: expira,
+		}
+		return nil
+	}
+
 	// HMAC-based validation for generated codes
 	if strings.HasPrefix(code, "BITLY-") {
 		parts := strings.Split(code, "-")

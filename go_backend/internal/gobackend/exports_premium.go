@@ -2,6 +2,8 @@ package gobackend
 
 import (
 	"encoding/json"
+
+	"github.com/zarz/bitly/go_backend/internal/premium"
 )
 
 // =========================================================================
@@ -29,9 +31,30 @@ func ValidatePremiumCode(payload string) string {
 	return string(data)
 }
 
+// EnviarReporte manda un reporte (bug / sugerencia) al Worker, que crea el
+// issue con el token que vive en SU entorno. Payload: {"titulo", "cuerpo"}.
+// Antes esto lo hacía la app con el token compilado adentro.
+func EnviarReporte(payload string) string {
+	var params struct {
+		Titulo string `json:"titulo"`
+		Cuerpo string `json:"cuerpo"`
+	}
+	if err := json.Unmarshal([]byte(payload), &params); err != nil {
+		return `{"error":"payload inválido"}`
+	}
+	if err := premium.EnviarReporte(params.Titulo, params.Cuerpo); err != nil {
+		return jsonErrorPremium(err)
+	}
+	return `{"ok":true}`
+}
+
 // SetPremiumGithubToken guarda el token personal de GitHub que usa la
 // validación premium para consultar el registro de códigos. Payload:
-// {"token": "..."}. Lo manda Flutter al iniciar el backend.
+// {"token": "..."}.
+//
+// OJO: la app publicada YA NO MANDA NINGUNO — el registro pasa por el Worker
+// (ver internal/premium/registro_worker.go). Esto queda para builds de
+// diagnóstico del dueño, que sí pueden pasar un token a mano.
 func SetPremiumGithubToken(payload string) string {
 	var params struct {
 		Token string `json:"token"`

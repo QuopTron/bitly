@@ -12,6 +12,15 @@
 #   npx wrangler secret put QOBUZ_RELAY_SECRET  # protege /keys y /api.json/0.2/*
 #   npx wrangler secret put QOBUZ_USER_TOKEN    # opcional (suscripción: FLAC)
 #
+# Y para el registro de códigos premium (rutas /premium/*, ver worker.js):
+#   npx wrangler secret put GITHUB_TOKEN      # PAT con Contents: RW SOLO sobre
+#                                             # QuopTron/bitly_codes_premium (+ Issues: write si querés reportes)
+#   npx wrangler secret put PREMIUM_SECRET    # protege /premium/* (va en la ruta)
+#
+# La app NO lleva ninguna de esas llaves: las manda el Worker. El build inyecta
+# la URL con la ruta secreta: PREMIUM_REGISTRO_URL=https://<worker>/premium/<secreto>
+# (scripts/dev/qobuz_inyeccion.sh).
+#
 # Y los no sensibles, o bien como `var` acá (descomentá y poné el valor), o con
 # el mismo `secret put` (no importa: el Worker los lee igual):
 #   QOBUZ_APP_ID  (el app_id de tus claves)

@@ -17,6 +17,11 @@ func CheckDownloadAllowed() string {
 	return gobackend.CheckDownloadAllowed()
 }
 
+// EnviarReporte re-exportado desde internal/gobackend.
+func EnviarReporte(payload string) string {
+	return gobackend.EnviarReporte(payload)
+}
+
 // GetPlayCount re-exportado desde internal/gobackend.
 func GetPlayCount(trackID string) string {
 	return gobackend.GetPlayCount(trackID)
