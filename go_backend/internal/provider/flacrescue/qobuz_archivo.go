@@ -105,7 +105,9 @@ func validarFormato(r respuestaFileURL, exigirSinPerdida bool) error {
 	// cortar es peor que fallar y dejar que los espejos/la descarga real
 	// entreguen la canción completa.
 	if r.Sample || esURLDeMuestra(r.URL) {
-		return fmt.Errorf("qobuz-firmado: Qobuz devolvió una muestra corta, no la canción")
+		// Centinela (ver qobuz_estado.go): la cuenta no puede servir la canción
+		// entera, y eso no cambia de tema a tema.
+		return errQobuzMuestraCorta
 	}
 	if !exigirSinPerdida {
 		return nil
@@ -114,7 +116,7 @@ func validarFormato(r respuestaFileURL, exigirSinPerdida bool) error {
 		return nil
 	}
 	if r.autenticacionRequerida() {
-		return fmt.Errorf("qobuz-firmado: Qobuz pidió sesión (sin token de suscriptor solo entrega MP3)")
+		return errQobuzSinSesion
 	}
 	return fmt.Errorf("qobuz-firmado: Qobuz entregó %q en vez del FLAC pedido", r.MimeType)
 }

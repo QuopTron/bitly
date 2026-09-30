@@ -21,6 +21,7 @@ import (
 	"net/http/httptest"
 	"sync"
 	"testing"
+	"time"
 )
 
 const (
@@ -43,7 +44,11 @@ type relayPrueba struct {
 	clave   string
 	cfgHits int
 	mints   int
-	ultimo  cabecerasStash
+	// sinFirma cuenta los pedidos al MINT que llegan SIN `X-Stash-Auth`: son los
+	// de calentamiento (ver calentarMint), que no pueden gastar cupo. Se separan
+	// de [mints] para que los asserts de "no gastó un mint" sigan diciendo algo.
+	sinFirma int
+	ultimo   cabecerasStash
 	// mintFn permite a cada test desviar la respuesta (401, 404, URL rara…).
 	mintFn func(*relayPrueba, http.ResponseWriter, *http.Request)
 	// urlResp es la URL que devuelve el mint por defecto.
@@ -63,6 +68,16 @@ func nuevoRelayPrueba(t *testing.T, clave string) *relayPrueba {
 			w.Header().Set("content-type", "application/json")
 			fmt.Fprintf(w, `{"v":1,"relays":[{"base":%q,"priority":1}],"relay_key":%q}`, rp.srv.URL, clave)
 		case "/v1/qobuz/file":
+			if r.Header.Get("X-Stash-Auth") == "" {
+				// Calentamiento: se rechaza (como haría el relay de verdad) sin
+				// contarlo como mint.
+				rp.mu.Lock()
+				rp.sinFirma++
+				rp.mu.Unlock()
+				w.WriteHeader(http.StatusUnauthorized)
+				fmt.Fprint(w, `{"error":"unauthorized"}`)
+				return
+			}
 			rp.mu.Lock()
 			rp.mints++
 			rp.ultimo = cabecerasStash{
@@ -261,4 +276,51 @@ func TestAjusteStashEnciendeYApaga(t *testing.T) {
 	if cliente.stashConfigURL != "https://mi-relay.example/lossless.json" {
 		t.Fatalf("config mal aplicada: %q", cliente.stashConfigURL)
 	}
+}
+
+// TestPrecalentarRelayCalientaElMint: el precalentado tiene que despertar el
+// Worker del MINT, no solo traer la config. Son Workers DISTINTOS (la config en
+// el tipjar, el mint en el relay) y medido en el tap real el primer mint en
+// frío tardó 8 s —se comió su techo y perdió la carrera—, mientras que en
+// caliente tarda ~1 s. Con el relay como único canal sin pérdida vivo, eso es la
+// diferencia entre un FLAC en 1,6 s y un re-subido en 8,8 s.
+//
+// Y el calentamiento NO puede gastar un mint: el cupo es de un tercero y
+// limitado, así que va sin firma (el relay lo rechaza igual, pero el isolate
+// arranca).
+func TestPrecalentarRelayCalientaElMint(t *testing.T) {
+	rp := nuevoRelayPrueba(t, claveStashPrueba)
+	cliente := clienteStash(t, rp)
+
+	cliente.precalentarStashRelay() // sale en segundo plano
+
+	esperarHasta(t, 2*time.Second, func() bool {
+		rp.mu.Lock()
+		defer rp.mu.Unlock()
+		return rp.cfgHits >= 1 && rp.sinFirma >= 1
+	})
+
+	rp.mu.Lock()
+	mints, sinFirma := rp.mints, rp.sinFirma
+	rp.mu.Unlock()
+	if sinFirma == 0 {
+		t.Fatal("el precalentado no tocó la ruta del mint: en frío el mint se come su techo")
+	}
+	if mints != 0 {
+		t.Fatalf("el calentamiento no puede gastar un mint del cupo: %d", mints)
+	}
+}
+
+// esperarHasta espera (con tope) a que [cond] se cumpla. Existe porque el
+// precalentado sale en una goroutine y sin esto el test sería una carrera.
+func esperarHasta(t *testing.T, tope time.Duration, cond func() bool) {
+	t.Helper()
+	fin := time.Now().Add(tope)
+	for time.Now().Before(fin) {
+		if cond() {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatalf("la condición no se cumplió en %s", tope)
 }

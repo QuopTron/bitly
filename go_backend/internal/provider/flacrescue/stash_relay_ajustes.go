@@ -34,14 +34,25 @@ func (c *Client) aplicarAjusteStash(settings map[string]string) {
 	}
 	// La config se precalienta FUERA del candado: precalentarStashRelay pide el
 	// candado para leer y tomarlo adentro del bloqueo lo trabaría.
-	if c.fijarAjusteStash(valor) {
+	precalentar, cambio := c.fijarAjusteStash(valor)
+	if !cambio {
+		// Ajustes se vuelve a mandar entero en cada arranque, así que el valor
+		// suele llegar igual: no se toca nada para no levantar una pausa vigente.
+		return
+	}
+	// Un ajuste NUEVO levanta la pausa: puede ser un relay que ya no es el que
+	// contestó 503, o el mismo que el usuario acaba de volver a encender.
+	c.reiniciarPausaRelay()
+	if precalentar {
 		c.precalentarStashRelay()
 	}
 }
 
-// fijarAjusteStash aplica el valor y devuelve si conviene precalentar la config:
-// canal encendido y sin una config utilizable en la mano.
-func (c *Client) fijarAjusteStash(valor string) bool {
+// fijarAjusteStash aplica el valor y devuelve (precalentar, cambio): si conviene
+// pedir la config (canal encendido y sin una utilizable en la mano) y si el
+// ajuste es DISTINTO del que ya estaba. [cambio] existe para que un reenvío
+// idéntico de Ajustes no levante la pausa de un relay ocupado.
+func (c *Client) fijarAjusteStash(valor string) (precalentar, cambio bool) {
 	c.stashConfMu.Lock()
 	defer c.stashConfMu.Unlock()
 	if strings.HasPrefix(strings.ToLower(valor), "http") {
@@ -51,10 +62,15 @@ func (c *Client) fijarAjusteStash(valor string) bool {
 			// esta, así que se descarta (base y clave nuevas).
 			c.stashConfigURL = nueva
 			c.stashRelayCfg = relayStash{}
+			cambio = true
 		}
 		c.stashActivo = true
-		return c.stashRelayCfg.base == ""
+		return c.stashRelayCfg.base == "", cambio
 	}
-	c.stashActivo = !esApagado(valor)
-	return c.stashActivo && c.stashRelayCfg.base == ""
+	encendido := !esApagado(valor)
+	if encendido != c.stashActivo {
+		cambio = true
+	}
+	c.stashActivo = encendido
+	return c.stashActivo && c.stashRelayCfg.base == "", cambio
 }

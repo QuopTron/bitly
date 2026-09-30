@@ -119,6 +119,12 @@ type resultadoCanal struct {
 	grado   int
 	perdida bool
 	err     error
+	// ms es lo que TARDÓ el canal en contestar, aun cuando falló. Sin este
+	// número el log de la carrera dice QUIÉN falló pero no CUÁNTO costó: es la
+	// diferencia entre "los espejos están sin cuentas" (falla en 100ms) y "el
+	// relay se quedó colgado 5s antes de contestar 503" — y solo el segundo
+	// justifica recortar el presupuesto de la fase que lo espera.
+	ms int64
 }
 
 // seguimiento es lo que la carrera sabe de un canal que todavía no contestó.
@@ -206,6 +212,7 @@ func carreraDeCanales(canales []canalRescate, politica politicaEspera) (urlOut, 
 	for _, canal := range canales {
 		canal := canal
 		go func() {
+			inicioCanal := time.Now()
 			url, perdida, err := canal.correr()
 			resultados <- resultadoCanal{
 				nombre:  canal.nombre,
@@ -213,6 +220,7 @@ func carreraDeCanales(canales []canalRescate, politica politicaEspera) (urlOut, 
 				grado:   canal.grado,
 				perdida: perdida,
 				err:     err,
+				ms:      time.Since(inicioCanal).Milliseconds(),
 			}
 		}()
 	}
@@ -221,6 +229,10 @@ func carreraDeCanales(canales []canalRescate, politica politicaEspera) (urlOut, 
 		ultimoError error
 		retenido    *resultadoCanal
 		fallos      []string
+		// msGanador es lo que tardó el canal que entregó el audio: en el log de
+		// una app real es el número que dice si la canción salió del canal
+		// rápido o del que sobrevivió a los demás.
+		msGanador int64
 	)
 
 	// Latencia, ganador y motivo de cada canal en UNA línea. Sin esto, con el log
@@ -231,6 +243,8 @@ func carreraDeCanales(canales []canalRescate, politica politicaEspera) (urlOut, 
 		ganador := fuenteOut
 		if errOut != nil || ganador == "" {
 			ganador = "ninguno"
+		} else if msGanador > 0 {
+			ganador = fmt.Sprintf("%s(%dms)", ganador, msGanador)
 		}
 		log.Printf("[rescate] carrera %dms ganó=%s canales=%d fallos=[%s]",
 			time.Since(inicio).Milliseconds(), ganador, len(canales), strings.Join(fallos, " | "))
@@ -266,10 +280,11 @@ func carreraDeCanales(canales []canalRescate, politica politicaEspera) (urlOut, 
 
 			if r.err != nil {
 				ultimoError = r.err
-				fallos = append(fallos, resumirFallo(r.nombre, r.err))
+				fallos = append(fallos, resumirFallo(r.nombre, r.err, r.ms))
 			} else if espera, vale := esperaDe(r); !vale {
 				// Nadie puede entregar algo mejor (o el pedido no espera
-				// mejoras: con pérdida pedida, el primero que llegue gana).
+				// mejoras: con pérdida pedida, el primero que llega gana).
+				msGanador = r.ms
 				return r.url, r.nombre, nil
 			} else {
 				// Todavía puede salir uno mejor: se retiene. Si el que estaba
@@ -288,6 +303,7 @@ func carreraDeCanales(canales []canalRescate, politica politicaEspera) (urlOut, 
 			// devuelve YA: esperar la gracia entera por una fuente que ya dijo
 			// "no tengo nada" solo se siente como que el tap no respondió.
 			if retenido != nil && yaNoGanaNadieMas(*retenido) {
+				msGanador = retenido.ms
 				return retenido.url, retenido.nombre, nil
 			}
 			// Y si se quedaron todos sin resultado, se corta acá, sin esperar el
@@ -301,12 +317,14 @@ func carreraDeCanales(canales []canalRescate, politica politicaEspera) (urlOut, 
 
 		case <-canalGracia:
 			if retenido != nil {
+				msGanador = retenido.ms
 				return retenido.url, retenido.nombre, nil
 			}
 			canalGracia = nil
 
 		case <-techo.C:
 			if retenido != nil {
+				msGanador = retenido.ms
 				return retenido.url, retenido.nombre, nil
 			}
 			if ultimoError == nil {
@@ -325,15 +343,15 @@ const maxFalloEnLog = 160
 // resumirFallo arma "canal: motivo" para el log de la carrera, en una sola línea
 // y con el recorte en RUNAS (cortar bytes podría partir un acento). Los errores
 // de los canales ya suelen venir con su propio prefijo, así que no se repite.
-func resumirFallo(nombre string, err error) string {
+func resumirFallo(nombre string, err error, ms int64) string {
 	detalle := strings.Join(strings.Fields(err.Error()), " ")
 	if runas := []rune(detalle); len(runas) > maxFalloEnLog {
 		detalle = string(runas[:maxFalloEnLog]) + "…"
 	}
-	if strings.HasPrefix(detalle, nombre+":") {
-		return detalle
+	if !strings.HasPrefix(detalle, nombre+":") {
+		detalle = nombre + ": " + detalle
 	}
-	return nombre + ": " + detalle
+	return fmt.Sprintf("%s (%dms)", detalle, ms)
 }
 
 // mejorResultado reporta si [a] es un desempate mejor que [b]: primero por

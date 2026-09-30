@@ -25,7 +25,7 @@ func rescueProviderUnaVez(p provider.Provider, resolvedID string, quality string
 		if cooldown.IsCooled(p.Name()) {
 			break
 		}
-		if url, err := p.GetStreamURL(resolvedID, q); err != nil {
+		if url, err := PedirStreamURL(p, resolvedID, q); err != nil {
 			// Un verificado sesión es el solo thing standing entre el usuario y
 			// El canción — surface se immediately en su lugar de probing más
 			// qualities that will fail the same way. Deliberately do NOT cool

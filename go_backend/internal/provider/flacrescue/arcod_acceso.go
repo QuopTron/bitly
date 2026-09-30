@@ -63,27 +63,50 @@ func (c *Client) aplicarAjusteArcod(settings map[string]string) {
 	token := strings.TrimSpace(settings[claveTokenArcod])
 
 	c.arcodConfMu.Lock()
-	defer c.arcodConfMu.Unlock()
-	if token != "" {
+	cambio := false
+	if token != "" && token != c.arcodToken {
 		c.arcodToken = token
+		cambio = true
 	}
-	if valor == "" {
-		return
-	}
-	if esURLArcod(valor) {
+	switch {
+	case valor == "":
+		// "vacío" y "sin tocar" llegan igual: no se distingue, así que no cambia nada.
+	case esURLArcod(valor):
 		// Instancia propia: el canal se apunta ahí y queda encendido. Si la
 		// dirección cambió, la puerta memorizada era de la instancia anterior
 		// y no dice nada de esta (ver arcod_stream.go).
 		nueva := strings.TrimRight(valor, "/")
-		cambiada := nueva != c.arcodBase
-		c.arcodBase = nueva
-		c.arcodActivo = true
-		if cambiada {
+		if nueva != c.arcodBase {
+			c.arcodBase = nueva
 			c.olvidarPuertaArcod()
+			cambio = true
 		}
+		if !c.arcodActivo {
+			cambio = true
+		}
+		c.arcodActivo = true
+	default:
+		encendido := !esApagado(valor)
+		if encendido != c.arcodActivo {
+			cambio = true
+		}
+		c.arcodActivo = encendido
+	}
+	c.arcodConfMu.Unlock()
+
+	if !cambio {
 		return
 	}
-	c.arcodActivo = !esApagado(valor)
+	// Credenciales o instancia NUEVAS: el backoff que dejó el pool vacío era del
+	// canal anterior, y mantenerlo dejaría arcod apagado hasta una hora sin
+	// motivo — justo el día que el usuario acaba de pegar su token o de apuntarlo
+	// a su propia instancia. Es el mismo criterio que SetSettingsQobuz con su
+	// marca de "sin sesión".
+	c.marcarAciertoArcod()
+	// Y la resolución cacheada: ahí puede haber un fallo de arcod recordado 60 s.
+	c.cacheMu.Lock()
+	c.cache = map[string]cacheEntry{}
+	c.cacheMu.Unlock()
 }
 
 // esURLArcod dice si el ajuste es una dirección de instancia propia. Se exige

@@ -104,6 +104,18 @@ var stashRelayPorDefecto = true
 // errStashApagado lo devuelve el canal cuando un ajuste lo apagó.
 var errStashApagado = errors.New("stash-relay: canal apagado")
 
+// errStashOcupado es el 503 del relay (está ocupado) y también lo que devuelve
+// el canal mientras dura la pausa: el motivo que ve el log es el mismo, venga
+// de donde venga.
+var errStashOcupado = errors.New("stash-relay: relay ocupado (503)")
+
+// pausaRelayOcupado es cuánto se deja el relay en paz tras un 503/429. Corta a
+// propósito: es el mejor canal sin pérdida y un "ocupado" suele ser un pico de
+// carga, así que pasarse de pausa costaría el FLAC que casi siempre sí está.
+// Con la carrera durando segundos, 20s ya evita reintentar dentro de la misma
+// reproducción y del lote cercano.
+const pausaRelayOcupado = 20 * time.Second
+
 // errStashNoAutorizado marca el 401 del relay: la firma no validó, que es el
 // síntoma de que rotó la clave del relay. Se distingue del resto de los fallos
 // para poder recargar la config y reintentar UNA vez.
@@ -128,6 +140,30 @@ type relayStash struct {
 // CDN y del que el reproductor deriva el vencimiento.
 var etspStash = regexp.MustCompile(`[?&]etsp=(\d+)`)
 
+// relayPausado reporta si el relay pidió que lo dejemos en paz.
+func (c *Client) relayPausado() bool {
+	c.relayMu.Lock()
+	defer c.relayMu.Unlock()
+	return time.Now().Before(c.relayPausaHasta)
+}
+
+// pausarRelay deja el canal en pausa tras un 503/429 del relay.
+func (c *Client) pausarRelay() {
+	c.relayMu.Lock()
+	c.relayPausaHasta = time.Now().Add(pausaRelayOcupado)
+	c.relayMu.Unlock()
+}
+
+// reiniciarPausaRelay levanta la pausa del relay. La llama un ajuste NUEVO: si
+// el usuario apaga y vuelve a encender el canal —o lo repunta a otra config—,
+// la pausa que dejó el relay anterior no dice nada del nuevo, y mantenerla
+// dejaría el mejor canal sin pérdida apagado minutos sin motivo.
+func (c *Client) reiniciarPausaRelay() {
+	c.relayMu.Lock()
+	c.relayPausaHasta = time.Time{}
+	c.relayMu.Unlock()
+}
+
 // resolverStashRelay resuelve un id de pista de Qobuz (numérico) o un ISRC a la
 // URL de su FLAC por el relay. Un pedido CON pérdida devuelve error a
 // propósito: el relay es solo sin pérdida y los espejos siguen teniendo la
@@ -139,6 +175,12 @@ func (c *Client) resolverStashRelay(id, formatoPedido string) (string, error) {
 	formatID := formatoStash(formatoPedido)
 	if formatID == "" {
 		return "", fmt.Errorf("stash-relay: solo sirve sin pérdida")
+	}
+	// Un relay ocupado se deja en paz (ver pausarRelay): reintentar el mint en
+	// cada fase solo gasta turnos y suma un timeout al camino que ya está
+	// buscando audio por otro lado.
+	if c.relayPausado() {
+		return "", errStashOcupado
 	}
 	inicio := time.Now()
 
@@ -159,22 +201,24 @@ func (c *Client) resolverStashRelay(id, formatoPedido string) (string, error) {
 		encontrado, err := c.trackIDPorISRCCompartido(ctx, base, trackID)
 		cancel()
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("stash-relay: sin id de pista en %dms: %w", msDesde(inicio), err)
 		}
 		trackID = encontrado
 	}
+	msBusca := msDesde(inicio)
 
 	cfg, err := c.configStash(false)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("stash-relay: config en %dms: %w", msDesde(inicio)-msBusca, err)
 	}
+	msConfig := msDesde(inicio) - msBusca
 	enlace, err := c.mintearStash(cfg, trackID, formatID)
 	if err == nil {
 		// Una línea por resolución: sin esto no se puede distinguir en el log si
 		// el FLAC vino de este relay o de otra fuente (todas reportan
 		// "flac-rescue" como proveedor).
-		log.Printf("[stash-relay] %s -> FLAC del relay en %dms (id=%s)",
-			id, time.Since(inicio).Milliseconds(), trackID)
+		log.Printf("[stash-relay] %s -> FLAC del relay en %dms (id=%s, busca=%dms config=%dms mint=%dms)",
+			id, msDesde(inicio), trackID, msBusca, msConfig, msDesde(inicio)-msBusca-msConfig)
 		return enlace, nil
 	}
 	if esStashNoAutorizado(err) {
@@ -187,8 +231,21 @@ func (c *Client) resolverStashRelay(id, formatoPedido string) (string, error) {
 			}
 		}
 	}
-	log.Printf("[stash-relay] %s sin enlace: %v", id, err)
+	// El desglose va en la línea de FALLO: es la única forma de saber, con el
+	// log de una app real, si los segundos del canal se fueron traduciendo el
+	// ISRC (busca), pidiendo la config o esperando la respuesta del mint — y por
+	// lo tanto cuál de los tres techos hay que recortar. Medido: un arranque en
+	// frío del relay devolvió su 503 recién a los 9,5s, y ese era el número que
+	// estiraba la carrera de canales entera.
+	log.Printf("[stash-relay] %s sin enlace: %v (busca=%dms config=%dms mint=%dms total=%dms)",
+		id, err, msBusca, msConfig, msDesde(inicio)-msBusca-msConfig, msDesde(inicio))
 	return "", err
+}
+
+// msDesde son los milisegundos transcurridos desde [inicio]. Existe para que
+// las líneas de desglose del canal no repitan la cuenta en cada punto.
+func msDesde(inicio time.Time) int64 {
+	return time.Since(inicio).Milliseconds()
 }
 
 // formatoStash mapea la calidad pedida al format_id del relay, o "" cuando el
@@ -238,9 +295,11 @@ func (c *Client) mintearStash(cfg relayStash, trackID, formatID string) (string,
 	case resp.StatusCode == http.StatusNotFound:
 		return "", fmt.Errorf("stash-relay: la pista no está disponible")
 	case resp.StatusCode == http.StatusTooManyRequests:
+		c.pausarRelay()
 		return "", fmt.Errorf("stash-relay: cupo agotado (429)")
 	case resp.StatusCode == http.StatusServiceUnavailable:
-		return "", fmt.Errorf("stash-relay: relay ocupado (503)")
+		c.pausarRelay()
+		return "", errStashOcupado
 	default:
 		return "", fmt.Errorf("stash-relay: respuesta %d", resp.StatusCode)
 	}
@@ -367,11 +426,51 @@ func (c *Client) precalentarStashRelay() {
 		return
 	}
 	go func() {
-		if _, err := c.configStash(false); err != nil {
+		cfg, err := c.configStash(false)
+		if err != nil {
 			// Best-effort: si falla, el canal lo reintenta cuando le toque.
 			log.Printf("[stash-relay] config no precalentada: %v", err)
+			return
 		}
+		c.calentarMint(cfg)
 	}()
+}
+
+// calentarMint despierta el Worker que sirve el MINT.
+//
+// Por qué existe: la config y el mint viven en Workers DISTINTOS (la config en el
+// tipjar del proyecto, el mint en el relay), así que precalentar la config no
+// calienta nada del camino que de verdad importa. Medido en el tap real: un mint
+// en FRÍO tardó 8 s —se comió su propio techo y por eso perdió la carrera,
+// dejando el tap en 8,8 s con un re-subido— mientras que en caliente tarda ~1 s.
+// Con el relay como ÚNICO canal sin pérdida vivo, esa diferencia es la que
+// decide entre un FLAC en 1,6 s y un MP3 en 8,8 s.
+//
+// La petición va SIN firma a propósito: el relay la rechaza sin gastar un mint
+// del cupo (que es de un tercero y limitado), pero el isolate arranca igual. Es
+// best-effort: cualquier respuesta —incluido un 401 o un error de red— sirve.
+func (c *Client) calentarMint(cfg relayStash) {
+	if cfg.base == "" {
+		return
+	}
+	endpoint := cfg.base + "/v1/qobuz/file?" + url.Values{
+		"track_id":  {"0"},
+		"format_id": {stashFormatoFLAC},
+	}.Encode()
+	ctx, cancel := context.WithTimeout(context.Background(), timeoutStash)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return
+	}
+	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("X-Stash-Version", "1")
+	resp, err := c.httpStash(timeoutStash).Do(req)
+	if err != nil {
+		return
+	}
+	resp.Body.Close()
 }
 
 // stashEncendido reporta si el canal está habilitado.

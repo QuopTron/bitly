@@ -58,6 +58,19 @@ type politicaCarrera struct {
 	bloqueante func(string) bool
 	mejor      func(a, b string) bool
 	gracia     time.Duration
+
+	// corteSinMejoras habilita el CORTE TEMPRANO de la fase: cuando ya no queda
+	// ningún bloqueante en vuelo y no hay ningún candidato retenido, la carrera
+	// termina en vez de esperar a que venza el presupuesto. La usa SOLO la fase
+	// de identificadores (ver carreraIdentificadores): una vez que todas las
+	// fuentes que resuelven por ISRC/id contestaron "no tengo nada", los
+	// segundos que quedaban eran silencio puro delante del rescate por nombre,
+	// que es el que de verdad consigue el audio.
+	corteSinMejoras bool
+	// corteMinimo es la ventana que se le da a los re-subidos ANTES de permitir
+	// ese corte. Sin ella, un re-subido que iba a resolver un instante después se
+	// perdería por ahorrar milisegundos.
+	corteMinimo time.Duration
 }
 
 func (p politicaCarrera) activa() bool {
@@ -104,7 +117,8 @@ func carreraRescueConFiltro(reg *provider.Registry, names []string, budget time.
 	verifyCh := make(chan string, len(names))
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, workers)
-	deadline := time.Now().Add(budget)
+	inicio := time.Now()
+	deadline := inicio.Add(budget)
 	// [carreraViva] se cierra al volver de recogerResultados (la carrera ya tiene
 	// su ganador o se le acabó el presupuesto): los intentos ENCOLADOS que todavía
 	// no consiguieron turno se rinden ahí mismo en vez de arrancar una búsqueda
@@ -197,7 +211,7 @@ func carreraRescueConFiltro(reg *provider.Registry, names []string, budget time.
 	// stream" intermitente, que aparecía justo bajo carga).
 	go func() { wg.Wait(); close(results) }()
 
-	return recogerResultados(results, verifyCh, &deadline, &bloqueantes, pol)
+	return recogerResultados(results, verifyCh, &deadline, inicio, &bloqueantes, pol)
 }
 
 // esperaTurnoMax es el tope de la espera por un turno del pool. Más corto que
@@ -253,6 +267,37 @@ func carreraPorConfianza(reg *provider.Registry, names []string, budget time.Dur
 // match, suena la de FLAC.
 func carreraPorConfianzaCalidad(reg *provider.Registry, names []string, budget time.Duration, workers int, attempt func(string, provider.Provider) (string, bool), quality string) (string, string, bool) {
 	return carreraRescueConFiltro(reg, names, budget, workers, attempt, politicaConfianza(quality))
+}
+
+// ventanaIdentificadores es cuánto se les da a los re-subidos en la fase de
+// identificadores antes de poder cortarla.
+//
+// El valor sale de la MEDICIÓN del tap real (ver tap_canciones_nuevas_test.go),
+// no de una corazonada: las veces que un re-subido resolvió en ESTA fase lo hizo
+// en 1,4 s / 1,6 s / 2,0 s. Con 2,5 s se les deja un 25 % de margen sobre el
+// peor caso observado, así que ningún stream que ya estaba llegando se pierde,
+// y en cambio se devuelven los segundos que la fase pasaba esperando a una
+// búsqueda por ISRC que esas fuentes no saben hacer (medido: la fase terminaba
+// en 3,7 s cuando no había nada, y el presupuesto entero de 5 s cuando una
+// fuente se colgaba).
+var ventanaIdentificadores = 2500 * time.Millisecond
+
+// carreraIdentificadores es carreraPorConfianzaCalidad para la fase de
+// IDENTIFICADORES, con el corte temprano habilitado.
+//
+// Por qué: la fase corre ENTERA delante del rescate por nombre, así que sus
+// segundos son latencia del toque. Medido en el tap real (ver
+// tap_canciones_nuevas_test.go): en canciones donde ninguna fuente resuelve por
+// ISRC/id, la fase quemaba sus 5 s completos —sin stream— y recién después
+// arrancaba la búsqueda por nombre, que resolvía en ~3 s. Cortar cuando los
+// exactos ya contestaron devuelve esa mitad del tap sin tocar el matching: el
+// orden, la verificación y la resolución por identidad quedan intactos (ver
+// rescue_identidad.go), lo único que cambia es cuánto se espera de más.
+func carreraIdentificadores(reg *provider.Registry, names []string, budget time.Duration, workers int, attempt func(string, provider.Provider) (string, bool), quality string) (string, string, bool) {
+	pol := politicaConfianza(quality)
+	pol.corteSinMejoras = true
+	pol.corteMinimo = ventanaIdentificadores
+	return carreraRescueConFiltro(reg, names, budget, workers, attempt, pol)
 }
 
 // politicaConfianza arma la política de la carrera de rescate: identidad

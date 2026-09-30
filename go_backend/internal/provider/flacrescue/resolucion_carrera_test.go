@@ -207,7 +207,7 @@ func TestEspejosCorrenJuntoAlCanalLento(t *testing.T) {
 	c.SetSettings(map[string]string{"mirrors": espejo.URL, "format": "FLAC"})
 
 	inicio := time.Now()
-	url, fuente, err := c.resolverPorISRC("USUM72500857", []string{"FLAC"})
+	url, fuente, err := c.resolverPorISRC("USUM72500857", []string{"FLAC"}, "")
 	transcurrido := time.Since(inicio)
 
 	if err != nil {
@@ -263,7 +263,7 @@ func TestElFLACGanaAlMP3AunqueLlegueDespues(t *testing.T) {
 	c := clienteArcod(lento)
 	c.SetSettings(map[string]string{"mirrors": espejo.URL, "format": "FLAC"})
 
-	url, fuente, err := c.resolverPorISRC("QMFMF2447055", []string{"FLAC"})
+	url, fuente, err := c.resolverPorISRC("QMFMF2447055", []string{"FLAC"}, "")
 	if err != nil {
 		t.Fatalf("debía resolver: %v", err)
 	}

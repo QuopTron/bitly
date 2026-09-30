@@ -2,6 +2,8 @@ package gobackend
 
 import (
 	"encoding/json"
+
+	"github.com/zarz/bitly/go_backend/internal/streaming"
 )
 
 // =========================================================================
@@ -21,7 +23,7 @@ func GetStreamURL(payload string) string {
 	if p == nil {
 		return jsonErrorString("proveedor no encontrado")
 	}
-	url, err := p.GetStreamURL(params.TrackID, params.Quality)
+	url, err := streaming.PedirStreamURL(p, params.TrackID, params.Quality)
 	if err != nil {
 		return jsonError(err)
 	}

@@ -37,7 +37,7 @@ func nuevaSesionSitio() (*http.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &http.Client{Timeout: timeoutSitio, Jar: frasco, Transport: transporteRescate}, nil
+	return &http.Client{Timeout: timeoutSitio, Jar: frasco, Transport: transporteRescateContado}, nil
 }
 
 // pedirSitio hace un GET de navegador (el sitio responde una página completa o

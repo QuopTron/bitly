@@ -23,12 +23,17 @@ func rescuePorIdentificadores(reg *provider.Registry, quality, isrc, spotifyID, 
 	// fuentes que pueden darlo van primero y con un turno extra (ver
 	// ordenProvidersStreamingCalidad / workersRescate).
 	names := ordenProvidersStreamingCalidad(reg, quality)
-	// Presupuesto de 5s. Los proveedores de ESTA fase corren en paralelo entre sí
-	// (así que 5s es el tope del conjunto, no la suma), pero la fase ENTERA corre
-	// antes del rescate: su tiempo SÍ suma a la latencia percibida del toque. Es
-	// el mismo defecto de forma que se corrigió en play_package.go (una fase
-	// "de mejora" delante de la que consigue el audio), y se deja acá a
-	// propósito: ver la nota de latencia en RescueStreamURL.
+	// Presupuesto de 5s, pero con CORTE TEMPRANO: los proveedores de ESTA fase
+	// corren en paralelo entre sí (así que 5s es el tope del conjunto, no la
+	// suma), y la fase termina apenas todas las fuentes que resuelven por
+	// identidad contestaron "no tengo nada" — en vez de esperar el presupuesto
+	// entero delante del rescate por nombre (ver carreraIdentificadores).
+	// La fase ENTERA corre antes del rescate, así que su tiempo SÍ suma a la
+	// latencia percibida del toque: es el mismo defecto de forma que se corrigió
+	// en play_package.go (una fase "de mejora" delante de la que consigue el
+	// audio). Solapar las dos fases se evaluó y NO se hace (ver la nota de
+	// latencia en RescueStreamURL); lo que se hace es no esperar de más dentro de
+	// esta.
 	// La misma resolución por identidad que usa la fase exacta del rescate: una
 	// extensión traduce el ISRC/los ids a su propio id con checkAvailability y el
 	// resto cae a GetTrackByISRC (ver rescue_identidad.go).
@@ -37,11 +42,16 @@ func rescuePorIdentificadores(reg *provider.Registry, quality, isrc, spotifyID, 
 		tidalID: tidalID, qobuzID: qobuzID,
 		title: trackName, artist: artistName, durationMS: queryDurationMS,
 	}
-	url, prov, verified := carreraPorConfianzaCalidad(reg, names, 5*time.Second, workersRescate(quality), func(name string, p provider.Provider) (string, bool) {
+	url, prov, verified := carreraIdentificadores(reg, names, presupuestoIdentificadores, workersRescate(quality), func(name string, p provider.Provider) (string, bool) {
 		return resolverStreamPorIdentidad(p, quality, d)
 	}, quality)
 	return url, prov, verified
 }
+
+// presupuestoIdentificadores es el TECHO de la fase de identificadores: el corte
+// temprano la termina antes cuando ya no queda nadie que pueda resolver por
+// identidad (ver carreraIdentificadores). Es un tope y no una espera.
+const presupuestoIdentificadores = 5 * time.Second
 
 // RescueStreamURL probes every registered FULL-STREAM provider (deezer,
 // soundcloud, ytmusic, youtube) for a direct http stream of the exact track,

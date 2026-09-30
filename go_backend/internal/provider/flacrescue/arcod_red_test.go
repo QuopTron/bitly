@@ -40,7 +40,7 @@ func TestArcodRealEntregaUnFLACConRange(t *testing.T) {
 			// Los tests del paquete apagan el canal en TestMain (offline por
 			// contrato): el que lo prueba de verdad lo enciende a mano.
 			cliente.arcodActivo = true
-			enlace, origen, err := cliente.resolverPorISRC(cancion.isrc, []string{"FLAC"})
+			enlace, origen, err := cliente.resolverPorISRC(cancion.isrc, []string{"FLAC"}, "")
 			if err != nil {
 				// Un sitio caído no puede romper la batería: se informa.
 				t.Skipf("el canal no resolvió (%v)", err)

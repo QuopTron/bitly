@@ -27,6 +27,10 @@ const verifyGrace = 4 * time.Second
 // rinden) MIENTRAS el colector ya está leyendo: los intentos encolados esperan
 // un turno del pool después de que la carrera arrancó.
 //
+// [inicio] es cuándo arrancó la carrera: lo necesita el CORTE TEMPRANO de la
+// fase de identificadores (ver politicaCarrera.corteSinMejoras), que solo se
+// permite pasada su ventana mínima.
+//
 // [bloqueantesEnVuelo] y [pol] implementan la preferencia por la MEJOR fuente:
 // un resultado retenido (un re-subido como YouTube/YouTube Music/SoundCloud, o
 // —cuando la calidad pedida es sin pérdida— cualquier fuente que no pueda dar
@@ -36,12 +40,45 @@ const verifyGrace = 4 * time.Second
 // descarta lo bueno por haber respondido tarde. Se acepta igual si el
 // bloqueante llega a tiempo, si todos terminaron, o si la gracia expira (una
 // canción sonando es mejor que un fallo de reproducción).
-func recogerResultados(results <-chan rescueOut, verifyCh <-chan string, deadline *time.Time, bloqueantesEnVuelo *int32, pol politicaCarrera) (string, string, bool) {
+func recogerResultados(results <-chan rescueOut, verifyCh <-chan string, deadline *time.Time, inicio time.Time, bloqueantesEnVuelo *int32, pol politicaCarrera) (string, string, bool) {
 	var verifyName string
 	var graceCh <-chan time.Time
 	var graceTimer *time.Timer
+	// Corte temprano de la fase (ver politicaCarrera.corteSinMejoras): un solo
+	// temporizador que dispara al cumplirse la ventana mínima. Si para entonces
+	// todavía hay bloqueantes en vuelo, se apaga: a partir de ahí lo resuelve el
+	// ACUSE del último bloqueante, que es el otro punto donde se evalúa.
+	var corteCh <-chan time.Time
+	var corteTimer *time.Timer
+	if pol.corteSinMejoras && pol.corteMinimo > 0 {
+		restante := pol.corteMinimo - time.Since(inicio)
+		if restante < 0 {
+			restante = 0
+		}
+		corteTimer = time.NewTimer(restante)
+		corteCh = corteTimer.C
+	}
+	defer func() {
+		if corteTimer != nil {
+			corteTimer.Stop()
+		}
+	}()
 	// Resultado de re-subido retenido a la espera de una fuente exacta.
 	var pendiente *rescueOut
+	// puedeCortar es la condición del corte: no queda ninguna fuente que pueda
+	// resolver por identidad, no hay candidato retenido y tampoco una
+	// verificación en el aire. Cortar antes de eso perdería un stream real.
+	puedeCortar := func() bool {
+		return pol.corteSinMejoras && time.Since(inicio) >= pol.corteMinimo &&
+			atomic.LoadInt32(bloqueantesEnVuelo) == 0 && pendiente == nil && verifyName == ""
+	}
+	// Un SOLO temporizador de presupuesto para toda la recolección. Antes cada
+	// vuelta del select armaba un time.After nuevo con la misma fecha, así que
+	// por cada resultado recibido quedaba un temporizador vivo esperando hasta
+	// el deadline (los sostenía el runtime y los despertaba todos al vencer).
+	// Este se apaga al salir por cualquier camino.
+	techo := time.NewTimer(time.Until(*deadline))
+	defer techo.Stop()
 	for {
 		select {
 		case r, abierto := <-results:
@@ -77,6 +114,15 @@ func recogerResultados(results <-chan rescueOut, verifyCh <-chan string, deadlin
 						graceTimer.Stop()
 					}
 					return pendiente.url, pendiente.name, false
+				}
+				// Y si ya no puede resolver nadie por identidad, la fase TERMINA:
+				// seguir esperando solo atrasa el rescate por nombre, que es el que
+				// consigue el audio. Solo aplica a la fase de identificadores.
+				if puedeCortar() {
+					if graceTimer != nil {
+						graceTimer.Stop()
+					}
+					return "", "", false
 				}
 				continue
 			}
@@ -133,7 +179,21 @@ func recogerResultados(results <-chan rescueOut, verifyCh <-chan string, deadlin
 			// veredicto para que el cliente abra el modal en vez de que el
 			// llamador queme 10-30s en un walk de respaldo condenado.
 			return "", verifyName, true
-		case <-time.After(time.Until(*deadline)):
+		case <-corteCh:
+			// Se cumplió la ventana mínima: si los exactos ya contestaron todos y
+			// no hay nada retenido, no queda nadie que pueda aportar un stream por
+			// identidad. Se corta ya. Si todavía queda alguno en vuelo, el corte lo
+			// decide su propio acuse (ver finBloqueante), así que se apaga este
+			// temporizador para no volver a mirarlo.
+			if puedeCortar() {
+				if graceTimer != nil {
+					graceTimer.Stop()
+				}
+				return "", "", false
+			}
+			corteCh = nil
+
+		case <-techo.C:
 			if graceTimer != nil {
 				graceTimer.Stop()
 			}

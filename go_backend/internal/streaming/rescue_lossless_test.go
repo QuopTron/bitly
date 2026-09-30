@@ -133,7 +133,7 @@ func TestCarreraCerradaNoPierdeElStreamYaEncolado(t *testing.T) {
 
 	deadline := time.Now().Add(time.Second)
 	var sinBloqueantes int32
-	url, prov, verified := recogerResultados(ch, make(chan string, 1), &deadline, &sinBloqueantes, politicaCarrera{})
+	url, prov, verified := recogerResultados(ch, make(chan string, 1), &deadline, time.Now(), &sinBloqueantes, politicaCarrera{})
 	if url != "http://arcod/flac" || prov != "flac-rescue" || verified {
 		t.Fatalf("se perdió el stream ya encolado: url=%q prov=%q verified=%v", url, prov, verified)
 	}

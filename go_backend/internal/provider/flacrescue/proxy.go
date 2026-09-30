@@ -32,6 +32,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/zarz/bitly/go_backend/internal/httpclient"
 )
 
 // proxyMu protege proxyVivo: Ajustes lo cambia en caliente mientras
@@ -65,6 +67,16 @@ var transporteRescate = &http.Transport{
 	IdleConnTimeout:       90 * time.Second,
 	ForceAttemptHTTP2:     true,
 }
+
+// transporteRescateContado es transporteRescate envuelto para el diagnóstico
+// de red (httpclient.ContarTransporte): cada ida a la red del rescate queda
+// contada, y el envoltorio devuelve la respuesta tal cual.
+//
+// Todos los clientes del paquete pasan por este MISMO envoltorio (identidad
+// compartida = pool de conexiones compartido), así que envolver una sola vez
+// aquí cubre espejos, sitios raspables, arcod y Qobuz firmado sin repartir
+// wrappers distintos que romperían el reuso.
+var transporteRescateContado http.RoundTripper = httpclient.ContarTransporte(transporteRescate)
 
 // SetProxy aplica el ajuste "proxy" que llega de Ajustes:
 //

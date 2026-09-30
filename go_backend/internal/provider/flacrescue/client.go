@@ -84,6 +84,13 @@ type Client struct {
 	sinCuentasMu sync.Mutex
 	sinCuentas   map[string]time.Time
 
+	// relayPausaHasta deja el relay en paz cuando avisa que está ocupado (503)
+	// o que se le agotó el cupo (429). Sin esto, cada fase de cada carrera
+	// volvía a pedirle el mint —medido: un 503 por carrera— y cada intento
+	// ocupaba un turno de worker que necesitaban las fuentes sanas.
+	relayMu         sync.Mutex
+	relayPausaHasta time.Time
+
 	// sitios son los sitios RASPABLES de FLAC habilitados (ver sitios_flac.go).
 	// Van aparte de los espejos porque hablan otro protocolo y solo sirven para
 	// descargar, no para reproducir.
@@ -140,6 +147,13 @@ type Client struct {
 
 	clavesMu sync.Mutex
 	claves   clavesQobuz
+	// qobuzSinSesionHasta recuerda que la cuenta configurada NO puede servir la
+	// canción entera (Qobuz devolvió una muestra de 30s o degradó a MP3 por
+	// falta de suscriptor; ver qobuz_estado.go). Es una condición de CUENTA, no
+	// de red: no cambia canción a canción, así que sin esto el canal se pagaba
+	// en cada resolución para un fallo que ya se conocía.
+	qobuzSinSesionMu    sync.Mutex
+	qobuzSinSesionHasta time.Time
 
 	// Canal "stash-relay" (ver stash_relay.go): relay público que mintea una
 	// URL de CDN de Qobuz sin cuenta propia. Encendido de fábrica; el ajuste
@@ -167,7 +181,7 @@ func NewClient() *Client {
 		mirrors:       append([]string(nil), defaultMirrors...),
 		origin:        defaultOrigin,
 		formato:       "FLAC",
-		http:          &http.Client{Timeout: timeoutPorPedido, Transport: transporteRescate},
+		http:          &http.Client{Timeout: timeoutPorPedido, Transport: transporteRescateContado},
 		cache:         map[string]cacheEntry{},
 		sinCuentas:    map[string]time.Time{},
 		sitios:        append([]sitioFLAC(nil), sitiosConocidos...),
@@ -203,6 +217,36 @@ func (c *Client) marcarEspejoSinCuentas(base string) {
 	c.sinCuentas[base] = time.Now()
 }
 
+// mismosEspejos compara dos listas ya normalizadas por parseMirrors.
+func mismosEspejos(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// limpiarCacheEspejos vacía la caché de resoluciones: al cambiar la lista de
+// espejos (o apagarla/restaurarla), lo cacheado era de la lista anterior.
+func (c *Client) limpiarCacheEspejos() {
+	c.cacheMu.Lock()
+	c.cache = map[string]cacheEntry{}
+	c.cacheMu.Unlock()
+}
+
+// olvidarEspejosSinCuentas borra las marcas de pool sin cuentas: con una lista
+// de espejos nueva, lo que se sabía de la anterior (o de la misma URL antes de
+// que su maintainer recargara el pool) ya no vale.
+func (c *Client) olvidarEspejosSinCuentas() {
+	c.sinCuentasMu.Lock()
+	c.sinCuentas = map[string]time.Time{}
+	c.sinCuentasMu.Unlock()
+}
+
 // espejoSinCuentas reporta si [base] se marcó como sin cuentas hace poco.
 func (c *Client) espejoSinCuentas(base string) bool {
 	c.sinCuentasMu.Lock()
@@ -225,6 +269,9 @@ func (c *Client) Name() string { return "flac-rescue" }
 // (setExtensionSettings con extension_id "flac-rescue"):
 //
 //	mirrors → "https://a,https://b" o JSON ["https://a","https://b"]
+//	          off | 0 | no → se APAGAN (el rescate sigue con Qobuz firmado,
+//	          relay, arcod y sitios); es lo que se usa cuando el espejo de
+//	          fábrica murió (ARLs baneados) y no hay otro vivo que pegar
 //	origin  → cabecera Origin/Referer (por defecto la de monochrome)
 //	format  → FLAC | MP3_320 | MP3_128 (formato preferido)
 //	proxy   → salida de TODO el rescate (espejos, sitios, arcod, Qobuz);
@@ -250,12 +297,41 @@ func (c *Client) aplicarAjustesEspejos(settings map[string]string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if v := strings.TrimSpace(settings["mirrors"]); v != "" {
-		if espejos := parseMirrors(v); len(espejos) > 0 {
-			c.mirrors = espejos
-			c.cacheMu.Lock()
-			c.cache = map[string]cacheEntry{} // espejos nuevos, caché vieja fuera
-			c.cacheMu.Unlock()
+	if raw, presente := settings["mirrors"]; presente {
+		v := strings.TrimSpace(raw)
+		switch {
+		case esApagado(v):
+			// Apagado explícito: los espejos públicos basados en ARLs de Deezer están
+			// muertos ("All Deezer accounts are dead") y no hay otro vivo que pegar.
+			// Sin esto no había forma de sacarlos del rescate.
+			if len(c.mirrors) > 0 {
+				c.mirrors = nil
+				c.limpiarCacheEspejos()
+				c.olvidarEspejosSinCuentas()
+			}
+		case v == "":
+			// Vacío = "de fábrica". Solo se restauran si venían APAGADOS (así el
+			// switch puede volver a encenderlos); si ya había una lista, Ajustes
+			// reenviando el mapa entero no tiene por qué tocarla.
+			if len(c.mirrors) == 0 && len(defaultMirrors) > 0 {
+				c.mirrors = append([]string(nil), defaultMirrors...)
+				c.limpiarCacheEspejos()
+				c.olvidarEspejosSinCuentas()
+			}
+		default:
+			// Solo cuando la lista CAMBIA: Ajustes se reenvía entero en cada arranque
+			// y vaciar la caché en cada envío idéntico solo hacía pagar resoluciones
+			// que ya estaban hechas.
+			if espejos := parseMirrors(v); len(espejos) > 0 && !mismosEspejos(c.mirrors, espejos) {
+				c.mirrors = espejos
+				// espejos nuevos, caché vieja fuera
+				c.limpiarCacheEspejos()
+				// Y la marca de "sin cuentas": era del pool ANTERIOR. Sin esto, volver
+				// a pegar un espejo que el maintainer acaba de recargar seguía
+				// salteándose cinco minutos, que es justo el arreglo que el usuario
+				// vino a hacer a Ajustes.
+				c.olvidarEspejosSinCuentas()
+			}
 		}
 	}
 	if v := strings.TrimSpace(settings["origin"]); strings.HasPrefix(v, "http") {
@@ -282,6 +358,9 @@ func (c *Client) SetSettingsQobuz(settings map[string]string) {
 	// Y con ellas los ids y las búsquedas en vuelo: otro Worker/otras claves
 	// pueden apuntar a otro catálogo, así que un id memorizado ya no vale.
 	c.olvidarIDsQobuz()
+	// Y la marca de "sin sesión": pueden ser otras credenciales (una cuenta con
+	// suscriptor), así que el canal tiene que volver a intentarlo.
+	c.olvidarQobuzSinSesion()
 }
 
 // Mirrors devuelve una copia de la lista actual (estado/debug).
@@ -349,6 +428,6 @@ func (c *Client) GetStreamURL(id, quality string) (string, error) {
 	if clave == "" {
 		return "", errNoCatalogo("se requiere ISRC")
 	}
-	url, _, err := c.resolverPorISRC(clave, c.calidadAFormatos(quality))
+	url, _, err := c.resolverPorISRC(clave, c.calidadAFormatos(), quality)
 	return url, err
 }

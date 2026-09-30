@@ -108,7 +108,7 @@ func pedirSinPerdida(p provider.Provider, id string) (string, bool) {
 	if id == "" || cooldown.IsCooled(p.Name()) {
 		return "", false
 	}
-	url, err := p.GetStreamURL(id, "flac")
+	url, err := PedirStreamURL(p, id, "flac")
 	if err != nil || url == "" || !esURLReproducible(url) {
 		return "", false
 	}

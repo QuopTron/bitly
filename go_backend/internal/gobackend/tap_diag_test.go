@@ -3,9 +3,11 @@ package gobackend
 import (
 	"encoding/json"
 	"os"
+	"sort"
 	"testing"
 	"time"
 
+	"github.com/zarz/bitly/go_backend/internal/httpclient"
 	"github.com/zarz/bitly/go_backend/internal/streaming"
 )
 
@@ -36,6 +38,10 @@ func TestTapDiagE2E(t *testing.T) {
 	if os.Getenv("BITLY_STREAM_DIAG") == "" {
 		t.Skip("set BITLY_STREAM_DIAG=1 to run the real-network tap diagnostic")
 	}
+	// La suite apaga la caché de URLs de stream (streaming/main_test.go); acá
+	// se mide lo que corre el USUARIO, así que se vuelve a encender.
+	streaming.MemoStreamURL(true)
+	t.Cleanup(func() { streaming.MemoStreamURL(false) })
 	InitGlobalState()
 	InitExtensionSystem(`{"extensions_dir":"","data_dir":""}`)
 	LoadExtensionsFromDir(`{"dir_path":""}`)
@@ -74,19 +80,64 @@ func TestTapDiagE2E(t *testing.T) {
 	}
 }
 
-// correrCasoTap mide un payload contra los proveedores reales y registra el
-// tiempo total, el proveedor ganador y la URL.
-func correrCasoTap(t *testing.T, label, payload string) {
+// correrCasoTap mide un payload contra los proveedores reales, registra el
+// tiempo total, el proveedor ganador y la URL, y DEVUELVE esa resolución sin
+// recortar para que el llamador pueda hacer sus propias aserciones (ver
+// exigirFLACEnElTap en tap_canciones_nuevas_test.go).
+func correrCasoTap(t *testing.T, label, payload string) (string, string, error) {
 	t.Helper()
 	var p streamPackageParams
 	if err := json.Unmarshal([]byte(payload), &p); err != nil {
 		t.Fatalf("payload inválido (%s): %v", label, err)
 	}
+	// El contador de peticiones HTTP se reinicia ANTES de cada caso, así el
+	// total que sale en el log es exactamente lo que costó ESTE tap. Ver
+	// httpclient/conteo.go.
+	httpclient.ReiniciarConteo()
 	start := time.Now()
 	url, prov, err := streaming.RescueStreamURL(reg, p.Quality, p.ISRC, p.SpotifyID, p.DeezerID, p.TidalID, p.QobuzID, p.TrackName, p.ArtistName, p.AlbumName, p.DurationMS)
 	elapsed := time.Since(start).Round(time.Millisecond)
-	if len(url) > 90 {
-		url = url[:90] + "..."
+	recortada := url
+	if len(recortada) > 90 {
+		recortada = recortada[:90] + "..."
 	}
-	t.Logf("[%s] TOTAL=%s provider=%q url=%q error=%v", label, elapsed, prov, url, err)
+	t.Logf("[%s] TOTAL=%s provider=%q url=%q error=%v", label, elapsed, prov, recortada, err)
+	logRedTap(t, label, elapsed)
+	return url, prov, err
+}
+
+// logRedTap saca el desglose de peticiones HTTP por host de UN tap: es el
+// número que dice cuántas idas a la red cuesta el toque y contra qué hosts,
+// que es lo que decide por dónde atacar la optimización.
+func logRedTap(t *testing.T, label string, elapsed time.Duration) {
+	t.Helper()
+	estado := httpclient.EstadoConteo()
+	t.Logf("[%s] RED=%d peticiones en %v (ventana de %.2f s)",
+		label, estado.Total, elapsed.Round(time.Millisecond), estado.Segundos)
+	if estado.Otros > 0 {
+		t.Logf("[%s] RED=%d peticiones a hosts fuera del tope del mapa", label, estado.Otros)
+	}
+
+	type par struct {
+		host string
+		n    int64
+	}
+	pares := make([]par, 0, len(estado.PorHost))
+	for h, n := range estado.PorHost {
+		pares = append(pares, par{h, n})
+	}
+	sort.Slice(pares, func(i, j int) bool {
+		if pares[i].n != pares[j].n {
+			return pares[i].n > pares[j].n
+		}
+		return pares[i].host < pares[j].host
+	})
+	const tope = 10
+	for i, p := range pares {
+		if i >= tope {
+			t.Logf("[%s] RED=… y %d hosts más", label, len(pares)-tope)
+			break
+		}
+		t.Logf("[%s] RED   %5d  %s", label, p.n, p.host)
+	}
 }

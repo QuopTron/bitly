@@ -84,10 +84,10 @@ func TestProxyCubreSitiosRaspables(t *testing.T) {
 	if err != nil {
 		t.Fatalf("nuevaSesionSitio: %v", err)
 	}
-	if sesion.Transport != transporteRescate {
+	if sesion.Transport != transporteRescateContado {
 		t.Fatal("la sesión del sitio no usa el transporte compartido: el proxy no la cubriría")
 	}
-	if NewClient().http.Transport != transporteRescate {
+	if NewClient().http.Transport != transporteRescateContado {
 		t.Fatal("el cliente de espejos/arcod/Qobuz no usa el transporte compartido")
 	}
 }

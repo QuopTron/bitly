@@ -76,7 +76,7 @@ func enlaceArcodSirveAudio(enlace string, fin time.Time) error {
 	// ajuste de proxy por región dejaba al canal creyendo que el enlace no sirve.
 	// De paso reusa las conexiones ya abiertas en vez de armar un cliente nuevo
 	// por comprobación (una por canción).
-	resp, err := (&http.Client{Timeout: tope, Transport: transporteRescate}).Do(req)
+	resp, err := (&http.Client{Timeout: tope, Transport: transporteRescateContado}).Do(req)
 	if err != nil {
 		return nil
 	}

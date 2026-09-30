@@ -13,6 +13,11 @@ func intentarStream(reg *provider.Registry, name, trackID string, track *provide
 	if p == nil {
 		return "", fmt.Errorf("proveedor no encontrado: %s", name)
 	}
+	// Reloj del atajo: este camino tiene CUATRO bloques de calidades (id
+	// verificado, id sin título, id propio, ISRC) y ningún techo, así que un
+	// proveedor lento podía consumir minutos antes de que arrancara el rescate.
+	// Ver atajo_presupuesto.go.
+	techo := nuevoTechoAtajo(name)
 
 	candidates := calidadesDisponibles(quality)
 
@@ -20,6 +25,9 @@ func intentarStream(reg *provider.Registry, name, trackID string, track *provide
 	// streaming it. Some extensions' getDownloadUrl resolves a name-based
 	// lookup that can return a live version even when the ID looks correct.
 	if track != nil && track.Title != "" && trackID != "" {
+		if err := techo.comprobar("identificación"); err != nil {
+			return "", err
+		}
 		if vID := verificarMatchStream(p, trackID, track.Title, track.Artist, track.ISRC, true, track.Duration); vID == "" {
 			// trackID doesn't match the queried song — skip the direct path
 			// and let the ISRC path below find the correct version.
@@ -29,7 +37,10 @@ func intentarStream(reg *provider.Registry, name, trackID string, track *provide
 				if cooldown.IsCooled(name) {
 					break
 				}
-				url, err := p.GetStreamURL(trackID, q)
+				if err := techo.probar(); err != nil {
+					return "", err
+				}
+				url, err := PedirStreamURL(p, trackID, q)
 				if err != nil {
 					if abort, serr := clasificarErrorStream(name, err.Error()); abort {
 						return "", serr
@@ -47,6 +58,9 @@ func intentarStream(reg *provider.Registry, name, trackID string, track *provide
 		for _, q := range candidates {
 			if cooldown.IsCooled(name) {
 				break
+			}
+			if err := techo.probar(); err != nil {
+				return "", err
 			}
 			url, err := p.GetStreamURL(trackID, q)
 			if err != nil {
@@ -66,6 +80,9 @@ func intentarStream(reg *provider.Registry, name, trackID string, track *provide
 	if track != nil && track.ID != "" && track.ID != trackID {
 		verifiedID := track.ID
 		if track.Title != "" {
+			if err := techo.comprobar("identificación"); err != nil {
+				return "", err
+			}
 			if vID := verificarMatchStream(p, track.ID, track.Title, track.Artist, track.ISRC, false, track.Duration); vID != "" {
 				verifiedID = vID
 			} else {
@@ -77,7 +94,10 @@ func intentarStream(reg *provider.Registry, name, trackID string, track *provide
 				if cooldown.IsCooled(name) {
 					break
 				}
-				url, err := p.GetStreamURL(verifiedID, q)
+				if err := techo.probar(); err != nil {
+					return "", err
+				}
+				url, err := PedirStreamURL(p, verifiedID, q)
 				if err != nil {
 					if abort, serr := clasificarErrorStream(name, err.Error()); abort {
 						return "", serr
@@ -92,6 +112,9 @@ func intentarStream(reg *provider.Registry, name, trackID string, track *provide
 		}
 	}
 	if track != nil && track.ISRC != "" {
+		if err := techo.comprobar("resolución ISRC"); err != nil {
+			return "", err
+		}
 		if trackByISRC, err := p.GetTrackByISRC(track.ISRC); err == nil && trackByISRC != nil && trackByISRC.ID != "" {
 			// Nunca streamear un candidato ISRC sin verificar cuando conocemos el
 			// titulo/artista pedido: una extension cuya busqueda ISRC cae en una
@@ -99,6 +122,9 @@ func intentarStream(reg *provider.Registry, name, trackID string, track *provide
 			// serviria una cancion distinta. verificarMatchStream re-obtiene el id
 			// resuelto y lo rechaza ante ISRC distinto o fuerza titulo+artista debil.
 			if track.Title != "" {
+				if err := techo.comprobar("identificación"); err != nil {
+					return "", err
+				}
 				if verified := verificarMatchStream(p, trackByISRC.ID, track.Title, track.Artist, track.ISRC, true, track.Duration); verified == "" {
 					return "", fmt.Errorf("stream de %s no es la cancion solicitada", name)
 				}
@@ -107,7 +133,10 @@ func intentarStream(reg *provider.Registry, name, trackID string, track *provide
 				if cooldown.IsCooled(name) {
 					break
 				}
-				if url, err := p.GetStreamURL(trackByISRC.ID, q); err != nil {
+				if err := techo.probar(); err != nil {
+					return "", err
+				}
+				if url, err := PedirStreamURL(p, trackByISRC.ID, q); err != nil {
 					if abort, serr := clasificarErrorStream(name, err.Error()); abort {
 						return "", serr
 					}
