@@ -58,7 +58,10 @@ func NewMediaTransport() *http.Transport {
 // context si lo necesita.
 func NewMediaClient() *http.Client {
 	return &http.Client{
-		Transport: NewMediaTransport(),
+		// ContarTransporte: cada rango de stream y cada descarga quedan
+		// contados (conteo.go); el envoltorio solo suma y devuelve la
+		// respuesta tal cual.
+		Transport: ContarTransporte(NewMediaTransport()),
 		// Sin Timeout: la duración la decide el tamaño del tema.
 		Timeout: 0,
 		Jar:     nil,

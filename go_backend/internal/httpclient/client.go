@@ -96,8 +96,10 @@ func NewTransport(cfg Config, dialFn func(network, addr string) (net.Conn, error
 // NewClient creates a standard http.Client from the config with a plain TCP dialer.
 func NewClient(cfg Config) *http.Client {
 	return &http.Client{
-		Timeout:   cfg.Timeout,
-		Transport: NewTransport(cfg, nil),
+		Timeout: cfg.Timeout,
+		// ContarTransporte: toda petición de este cliente queda en el
+		// diagnóstico de red (conteo.go) sin tocar la respuesta.
+		Transport: ContarTransporte(NewTransport(cfg, nil)),
 	}
 }
 
@@ -108,6 +110,6 @@ func NewClientWithUTLS(cfg Config, fingerprint string) *http.Client {
 	transport.TLSClientConfig = nil // utls handles TLS, disable stdlib TLS
 	return &http.Client{
 		Timeout:   cfg.Timeout,
-		Transport: transport,
+		Transport: ContarTransporte(transport),
 	}
 }

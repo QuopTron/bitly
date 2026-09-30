@@ -23,6 +23,10 @@ func StreamQuick(
 	if p == nil {
 		return "", "", fmt.Errorf("proveedor no encontrado: %s", providerName)
 	}
+	// Reloj del atajo: sin techo, la identificación + la verificación + el
+	// bucle de calidades podían estirarse minutos en un proveedor colgado.
+	// Ver atajo_presupuesto.go.
+	techo := nuevoTechoAtajo(providerName)
 	// Authoritative identifiers resolve the EXACT track; a plain trackID (often
 	// another provider's native id) does not and must be verified later.
 	authoritative := isrc != "" || spotifyID != "" || deezerID != "" || tidalID != "" || qobuzID != ""
@@ -48,7 +52,13 @@ func StreamQuick(
 	// its title — even when the id came from an "authoritative" identifier (a
 	// wrong/misreported ISRC or a cross-provider id still produces a wrong song,
 	// which is worse than a moment's extra lookup). We never play a similar song.
+	// La única excepción es haberse quedado SIN PRESUPUESTO: verificar es otra
+	// ida a la red y de nada sirve si después el bucle ni siquiera va a
+	// intentar streamear (ver atajo_presupuesto.go).
 	if trackName != "" {
+		if err := techo.comprobar("identificación"); err != nil {
+			return "", "", err
+		}
 		id = verificarMatchStream(p, id, trackName, artistName, isrc, authoritative, queryDurationMS)
 		if id == "" {
 			return "", "", fmt.Errorf("no se pudo confirmar la cancion original en %s", providerName)
@@ -58,7 +68,12 @@ func StreamQuick(
 		if cooldown.IsCooled(providerName) {
 			break
 		}
-		url, err := p.GetStreamURL(id, q)
+		// Sin tiempo de sobra no se pide otra calidad: el llamador pasa al
+		// rescate, que corre el resto de fuentes en paralelo.
+		if err := techo.probar(); err != nil {
+			return "", "", err
+		}
+		url, err := PedirStreamURL(p, id, q)
 		if err != nil {
 			// El proveedor tiene la cancion exacta (resuelta por isrc / id
 			// cross-provider) pero necesita su sesion verificada para streamear:

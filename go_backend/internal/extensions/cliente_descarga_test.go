@@ -1,8 +1,9 @@
 package extensions
 
 import (
-	"net/http"
 	"testing"
+
+	"github.com/zarz/bitly/go_backend/internal/httpclient"
 )
 
 // TestClienteDescargaExtPara_EsUnico fija el arreglo del reuso de conexiones:
@@ -31,8 +32,8 @@ func TestClienteDescargaExtPara_ConfiguracionDeDescarga(t *testing.T) {
 		t.Errorf("sin timeout global (un FLAC de 100 MB tarda lo que tarde), tiene %v", cliente.Timeout)
 	}
 
-	tr, ok := cliente.Transport.(*http.Transport)
-	if !ok || tr == nil {
+	tr := httpclient.BaseDeConteo(cliente.Transport)
+	if tr == nil {
 		t.Fatal("el transporte debe ser *http.Transport")
 	}
 
@@ -62,8 +63,8 @@ func TestClienteDescargaExtPara_ConfiguracionDeDescarga(t *testing.T) {
 // extensiones sí comprime (HTML/JSON de los catálogos) y reusa conexiones.
 func TestClienteHTTPExtPara_ComprimeYReusa(t *testing.T) {
 	cliente := clienteHTTPExtPara()
-	tr, ok := cliente.Transport.(*http.Transport)
-	if !ok || tr == nil {
+	tr := httpclient.BaseDeConteo(cliente.Transport)
+	if tr == nil {
 		t.Fatal("el transporte debe ser *http.Transport")
 	}
 	if tr.DisableCompression {

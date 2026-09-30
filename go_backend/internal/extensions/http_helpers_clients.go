@@ -78,8 +78,10 @@ func clienteHTTPExtPara() *http.Client {
 			// content-length, así que tampoco se pierde progreso.
 		}
 		extHTTPClient = &http.Client{
-			Timeout:   30 * time.Second,
-			Transport: transport,
+			Timeout: 30 * time.Second,
+			// ContarTransporte: las idas a la red de las extensiones (catálogo,
+			// detalle, player) son el grueso del tráfico de una búsqueda.
+			Transport: httpclient.ContarTransporte(transport),
 			Jar:       jar,
 		}
 	})
@@ -118,7 +120,7 @@ func clienteDescargaExtPara() *http.Client {
 	descargaClienteOnce.Do(func() {
 		jar, _ := cookiejar.New(nil)
 		descargaCliente = &http.Client{
-			Transport: &http.Transport{
+			Transport: httpclient.ContarTransporte(&http.Transport{
 				DialContext:           httpclient.NewDoHDialContext(),
 				ForceAttemptHTTP2:     true,
 				MaxIdleConns:          64,
@@ -128,7 +130,7 @@ func clienteDescargaExtPara() *http.Client {
 				ResponseHeaderTimeout: 30 * time.Second,
 				ExpectContinueTimeout: time.Second,
 				DisableCompression:    true,
-			},
+			}),
 			Jar: jar,
 		}
 	})
@@ -159,8 +161,11 @@ func ytHTTPClientFor() *http.Client {
 			},
 		}
 		ytHTTPClient = &http.Client{
-			Timeout:   30 * time.Second,
-			Transport: tr,
+			Timeout: 30 * time.Second,
+			// ContarTransporte: también el tráfico de YouTube (InnerTube +
+			// googlevideo) entra en el diagnóstico; envolver el transporte
+			// http2 no cambia el handshake uTLS de adentro.
+			Transport: httpclient.ContarTransporte(tr),
 			Jar:       jar,
 		}
 	})

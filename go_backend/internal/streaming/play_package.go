@@ -180,21 +180,54 @@ func GetStreamPackage(
 
 	if track != nil {
 		pkg.Track = track
-	} else if trackName != "" && artistName != "" {
-		p := reg.Get(streamProvider)
-		if p != nil {
-			if results, _ := p.SearchTracks(trackName+" "+artistName, 8); len(results) > 0 {
-				if best := provider.BestOriginal(trackName, artistName, results); best != nil {
-					pkg.Track = best
-				}
-			}
-		}
 	}
 
+	// ── LA COMPLETACIÓN TAMBIÉN SALE ACOTADA ─────────────────────────────────
+	// El audio ya está resuelto: el track por nombre y las letras son MEJORA,
+	// nunca requisito, y sin embargo corrían EN SERIE y sin techo justo acá,
+	// al final de la recta. Una búsqueda por nombre se come medio segundo y
+	// GetLyrics uno o dos: el paquete salía tarde aunque el stream llevara
+	// segundos listo (mismo defecto de forma que el de la metadata serial de
+	// arriba, pero en la cola).
+	//
+	// Ahora los dos trabajos arrancan JUNTOS y el paquete espera por los dos
+	// como mucho [esperaCompletacionTardia]. Lo que no llega a tiempo no se
+	// pierde: el track queda en la caché de metadata (play_completacion.go) y
+	// las letras pueden pedirlas de nuevo por la RPC fetchLyrics — el
+	// reproductor ni las pide en línea, manda fetchLyrics=false.
+	limite := time.Now().Add(esperaCompletacionTardia)
+
+	var chTrack chan *provider.TrackResult
+	if pkg.Track == nil && trackName != "" && artistName != "" {
+		clave := claveCacheMetadata(isrc, spotifyID, deezerID, tidalID, qobuzID, trackID, trackName, artistName)
+		chTrack = make(chan *provider.TrackResult, 1)
+		go func() {
+			chTrack <- buscarTrackPorNombre(reg, streamProvider, clave, trackName, artistName)
+		}()
+	}
+
+	var chLetras chan *lyrics.Lyrics
 	if fetchLyrics && lyricsClient != nil && trackName != "" && artistName != "" {
-		lyr, err := lyricsClient.GetLyrics(trackName, artistName, 0)
-		if err == nil && lyr != nil {
-			pkg.Lyrics = lyr
+		chLetras = make(chan *lyrics.Lyrics, 1)
+		go func() {
+			chLetras <- pedirLetras(lyricsClient, trackName, artistName)
+		}()
+	}
+
+	if chTrack != nil {
+		select {
+		case t := <-chTrack:
+			pkg.Track = t
+		case <-time.After(time.Until(limite)):
+		}
+	}
+	if chLetras != nil {
+		select {
+		case lyr := <-chLetras:
+			if lyr != nil {
+				pkg.Lyrics = lyr
+			}
+		case <-time.After(time.Until(limite)):
 		}
 	}
 

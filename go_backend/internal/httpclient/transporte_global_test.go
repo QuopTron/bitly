@@ -1,7 +1,6 @@
 package httpclient
 
 import (
-	"net/http"
 	"testing"
 	"time"
 )
@@ -17,8 +16,11 @@ import (
 // sigue corriendo en segundo plano. Este test lo caza sin el detector: si la
 // función vuelve a escribir, pisa el valor que dejamos a mano.
 func TestTransporteGlobalSeAjustaUnaSolaVez(t *testing.T) {
-	tr, ok := http.DefaultTransport.(*http.Transport)
-	if !ok || tr == nil {
+	// baseDefecto mira por debajo del envoltorio de conteo (conteo.go): el
+	// transporte por defecto está envuelto para contar peticiones, y la
+	// aserción directa a *http.Transport saltaría este test entero.
+	tr := baseDefecto()
+	if tr == nil {
 		t.Skip("el transporte por defecto no es *http.Transport")
 	}
 
@@ -46,8 +48,8 @@ func TestTransporteGlobalSeAjustaUnaSolaVez(t *testing.T) {
 // límites que hacían lento el reuso de conexiones: con 2 ociosas por host cada
 // petición extra al mismo CDN reabría un handshake TLS.
 func TestTransporteGlobalAjustaIdleYTimeouts(t *testing.T) {
-	tr, ok := http.DefaultTransport.(*http.Transport)
-	if !ok || tr == nil {
+	tr := baseDefecto()
+	if tr == nil {
 		t.Skip("el transporte por defecto no es *http.Transport")
 	}
 	if tr.MaxIdleConns != 128 || tr.MaxIdleConnsPerHost != 16 {

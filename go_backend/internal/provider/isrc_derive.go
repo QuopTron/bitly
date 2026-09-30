@@ -81,7 +81,18 @@ type entradaISRC struct {
 var (
 	isrcDerivadoMu    sync.Mutex
 	isrcDerivadoCache = map[string]entradaISRC{}
+	// isrcEnVuelo son las derivaciones que todavía corren: dos llamadas
+	// idénticas comparten UN recorrido de catálogos (ver DerivarISRC).
+	isrcEnVueloMu sync.Mutex
+	isrcEnVuelo   = map[string]*vueloISRC{}
 )
+
+// vueloISRC es una derivación en curso; los que llegan con la misma clave
+// esperan su resultado en vez de repetir el recorrido.
+type vueloISRC struct {
+	done chan struct{}
+	isrc string
+}
 
 // DerivarISRC busca en los catálogos que publican ISRC la MISMA canción que
 // [title]/[artist] y devuelve su ISRC verificado, o "" si no se pudo confirmar.
@@ -102,7 +113,34 @@ func DerivarISRC(reg *Registry, title, artist string, durationMS int) string {
 	}
 	isrcDerivadoMu.Unlock()
 
-	isrc := buscarISRCEnCatalogos(reg, title, artist, durationMS)
+	// Single-flight: dentro de UN pedido la derivación se dispara desde dos
+	// lugares a la vez (el rescate y el canal sin pérdida, ver
+	// rescue_stream.go y stream_package_lossless.go), y una descarga del mismo
+	// track puede sumarse. Cada recorrido consulta todos los catálogos con ISRC
+	// en paralelo —una petición por servicio—, así que sin esto el mismo
+	// título pagaba dos veces la misma batería de búsquedas y sus 429.
+	isrcEnVueloMu.Lock()
+	if v, existe := isrcEnVuelo[clave]; existe {
+		isrcEnVueloMu.Unlock()
+		<-v.done
+		return v.isrc
+	}
+	vuelo := &vueloISRC{done: make(chan struct{})}
+	isrcEnVuelo[clave] = vuelo
+	isrcEnVueloMu.Unlock()
+
+	// El vuelo se cierra por defer: aunque el recorrido paniquea, los que
+	// esperan reciben "" y no quedan colgados para siempre.
+	isrc := ""
+	defer func() {
+		isrcEnVueloMu.Lock()
+		vuelo.isrc = isrc
+		delete(isrcEnVuelo, clave)
+		isrcEnVueloMu.Unlock()
+		close(vuelo.done)
+	}()
+
+	isrc = buscarISRCEnCatalogos(reg, title, artist, durationMS)
 	guardarISRCDerivado(clave, isrc)
 	return isrc
 }
@@ -170,6 +208,11 @@ func buscarISRCEnCatalogos(reg *Registry, title, artist string, durationMS int) 
 	// catálogos ya contestaron (aunque sea "no tengo"), no hay por qué esperar el
 	// presupuesto entero — el caso negativo (sin ISRC) es común y bloqueaba 4s.
 	recibidas := 0
+	// Un solo temporizador por bucle (ver play_metadata_limite.go): armar un
+	// time.After en cada vuelta dejaba un temporizador vivo por cada catálogo
+	// que contestó sin ISRC, todos con la misma fecha.
+	timerPresupuesto := time.NewTimer(time.Until(fin))
+	defer timerPresupuesto.Stop()
 	for mejor == nil && recibidas < lanzados && time.Now().Before(fin) {
 		select {
 		case r := <-ch:
@@ -178,7 +221,7 @@ func buscarISRCEnCatalogos(reg *Registry, title, artist string, durationMS int) 
 				copia := r
 				mejor = &copia
 			}
-		case <-time.After(time.Until(fin)):
+		case <-timerPresupuesto.C:
 		}
 	}
 	if mejor == nil {
@@ -190,6 +233,8 @@ func buscarISRCEnCatalogos(reg *Registry, title, artist string, durationMS int) 
 	if limite.After(fin) {
 		limite = fin
 	}
+	timerVentana := time.NewTimer(time.Until(limite))
+	defer timerVentana.Stop()
 	for time.Now().Before(limite) {
 		select {
 		case r := <-ch:
@@ -197,7 +242,7 @@ func buscarISRCEnCatalogos(reg *Registry, title, artist string, durationMS int) 
 				copia := r
 				mejor = &copia
 			}
-		case <-time.After(time.Until(limite)):
+		case <-timerVentana.C:
 		}
 	}
 	return mejor.isrc

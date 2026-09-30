@@ -140,6 +140,12 @@ func buscarEnParalelo(
 	}
 	fin := time.Now().Add(presupuesto)
 	var mejor *llegada
+	// Un solo temporizador para todo el primer bucle: con time.After dentro de
+	// la vuelta, cada resultado DESCARTADO (llegó sin track) dejaba un
+	// temporizador vivo con la misma fecha, que el runtime sostenía hasta que
+	// venciera. Se apaga al salir de la función.
+	timerPresupuesto := time.NewTimer(time.Until(fin))
+	defer timerPresupuesto.Stop()
 	// Espera del primer resultado con dato hasta agotar el presupuesto.
 	for mejor == nil && time.Now().Before(fin) {
 		select {
@@ -148,7 +154,7 @@ func buscarEnParalelo(
 				copia := l
 				mejor = &copia
 			}
-		case <-time.After(time.Until(fin)):
+		case <-timerPresupuesto.C:
 		}
 	}
 	if mejor == nil {
@@ -160,6 +166,9 @@ func buscarEnParalelo(
 	if limiteVentana.After(fin) {
 		limiteVentana = fin
 	}
+	// Mismo motivo que arriba: un temporizador por bucle, no por vuelta.
+	timerVentana := time.NewTimer(time.Until(limiteVentana))
+	defer timerVentana.Stop()
 	for time.Now().Before(limiteVentana) {
 		select {
 		case l := <-ch:
@@ -167,7 +176,7 @@ func buscarEnParalelo(
 				copia := l
 				mejor = &copia
 			}
-		case <-time.After(time.Until(limiteVentana)):
+		case <-timerVentana.C:
 		}
 	}
 	return mejor.track

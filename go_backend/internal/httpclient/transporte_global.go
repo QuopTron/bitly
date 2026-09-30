@@ -1,7 +1,6 @@
 package httpclient
 
 import (
-	"net/http"
 	"sync"
 	"time"
 )
@@ -22,8 +21,12 @@ import (
 // cuántas conexiones se reutilizan y ponen techo a las dos esperas que no lo
 // tenían (handshake TLS y cabeceras de respuesta).
 func optimizarTransportePorDefecto() {
-	tr, ok := http.DefaultTransport.(*http.Transport)
-	if !ok || tr == nil {
+	// baseDefecto mira POR DEBAJO del envoltorio de conteo: si el transporte
+	// por defecto ya está envuelto, la aserción directa a *http.Transport
+	// fallaría y el ajuste se caería en silencio (quedando con 2 conexiones
+	// ociosas por host).
+	tr := baseDefecto()
+	if tr == nil {
 		return
 	}
 	tr.MaxIdleConns = 128
@@ -45,6 +48,9 @@ var ajusteGlobal sync.Once
 // lo detecta (pasaba en CI).
 func init() {
 	ajusteGlobal.Do(optimizarTransportePorDefecto)
+	// Después del ajuste (que muta campos y NO debe correr sobre el
+	// envoltorio) se instala el conteo de peticiones. Ver conteo.go.
+	instalarConteoDefecto()
 }
 
 // OptimizarTransportePorDefecto asegura que el transporte global esté ajustado.

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/zarz/bitly/go_backend/internal/cooldown"
+	"github.com/zarz/bitly/go_backend/internal/streaming"
 )
 
 // TestStreamDiagE2E runs the REAL GetStreamPackage RPC against tracks whose
@@ -18,6 +19,10 @@ func TestStreamDiagE2E(t *testing.T) {
 	if os.Getenv("BITLY_STREAM_DIAG") == "" {
 		t.Skip("set BITLY_STREAM_DIAG=1 to run the real-network stream diagnostic")
 	}
+	// Igual que el arnés del tap: acá se mide lo que corre el usuario, así que
+	// la caché de URLs de stream vuelve a encenderse (ver streaming/main_test.go).
+	streaming.MemoStreamURL(true)
+	t.Cleanup(func() { streaming.MemoStreamURL(false) })
 	InitGlobalState()
 	InitExtensionSystem(`{"extensions_dir":"","data_dir":""}`)
 	LoadExtensionsFromDir(`{"dir_path":""}`)

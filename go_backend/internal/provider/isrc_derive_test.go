@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -198,6 +199,47 @@ func TestDerivarISRCClaveIncluyeDuracion(t *testing.T) {
 	}
 	if llamadas < 2 {
 		t.Fatalf("la segunda duración debía volver a buscar: hubo %d búsquedas", llamadas)
+	}
+}
+
+// TestDerivarISRCComparteElRecorridoEnVuelo: dos derivaciones idénticas que
+// corren a la vez — dentro de UN pedido el rescate y el canal sin pérdida
+// disparan la misma (ver streaming/rescue_stream.go y
+// gobackend/stream_package_lossless.go)— pagan UN solo recorrido de catálogos.
+// Cada recorrido consulta todos los catálogos con ISRC en paralelo, así que el
+// duplicado eran dos baterías de búsquedas (y dos veces los 429) por canción.
+func TestDerivarISRCComparteElRecorridoEnVuelo(t *testing.T) {
+	cooldown.MarkOk("deezer")
+
+	var llamadas int
+	r := NewRegistry()
+	r.Register(&isrcMockProvider{
+		name: "deezer",
+		results: []TrackResult{
+			{ID: "1", Title: "Tema Compartido", Artist: "Artista Compartido", Duration: 200000, ISRC: "COMP00000001"},
+		},
+		llamadas: &llamadas,
+		demora:   200 * time.Millisecond,
+	})
+
+	var wg sync.WaitGroup
+	isrcs := make([]string, 2)
+	for i := range isrcs {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			isrcs[i] = DerivarISRC(r, "Tema Compartido", "Artista Compartido", 201000)
+		}(i)
+	}
+	wg.Wait()
+
+	for i, got := range isrcs {
+		if got != "COMP00000001" {
+			t.Errorf("derivación %d = %q, quería el ISRC del original", i, got)
+		}
+	}
+	if llamadas != 1 {
+		t.Errorf("catálogo consultado %d veces con dos derivaciones idénticas en vuelo, se esperaba 1", llamadas)
 	}
 }
 
