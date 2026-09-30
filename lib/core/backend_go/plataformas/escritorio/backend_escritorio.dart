@@ -76,16 +76,28 @@ class BackendEscritorio extends BackendService
     // vigila ese PID y sale solo si la app se cierra (sin dejar huérfanos).
     // En móvil no hay proceso separado (gomobile embebido) — no aplica.
     final cwd = await _cwdEscribible();
-    _proceso = await Process.start(rutaEjecutable!, [
+    final proceso = await Process.start(rutaEjecutable!, [
       pid.toString(),
     ], workingDirectory: cwd);
-    _proceso!.stdout
+    _proceso = proceso;
+    proceso.stdout
         .transform(utf8.decoder)
         .listen((l) => debugPrint('[backend] $l'));
-    _proceso!.stderr
+    proceso.stderr
         .transform(utf8.decoder)
         .listen((l) => debugPrint('[backend:err] $l'));
-    _proceso!.exitCode.then((c) => debugPrint('[backend] salió con código $c'));
+    proceso.exitCode.then((c) {
+      debugPrint('[backend] salió con código $c');
+      // Si el binario muere, hay que permitir relanzarlo: `_iniciado` en true
+      // eterno dejaba la app SIN backend hasta reiniciar el programa, porque
+      // _garantizarEnMarcha ya no volvía a crear el proceso y el ping fallaba
+      // para siempre. Solo se resetea si sigue siendo el proceso vigente (no
+      // uno que ya reemplazamos).
+      if (identical(_proceso, proceso)) {
+        _proceso = null;
+        _iniciado = false;
+      }
+    });
     for (var i = 0; i < 60; i++) {
       try {
         await Future.delayed(const Duration(milliseconds: 200));
@@ -145,7 +157,8 @@ class BackendEscritorio extends BackendService
     }
   }
 
-  /// Init post-ping en background: extensiones, premium, callback, credenciales.
+  /// Init post-ping en background: extensiones, callback, config (ruta de
+  /// descargas, modo, perfil, prioridad), premium y credenciales.
   /// Lanzado desde healthCheck sin await para no bloquear el splash.
   Future<void> _initPostPing() async {
     try {
@@ -158,7 +171,7 @@ class BackendEscritorio extends BackendService
       if (tokenGithub.isNotEmpty) {
         await setPremiumGithubToken(tokenGithub);
       }
-      await _initPremiumCredenciales(this);
+      await _sincronizarArranqueGo(this);
     } catch (e) {
       debugPrint('[backend] _initPostPing error: $e');
     }

@@ -2,8 +2,8 @@
 // backend_escritorio_arranque.dart — PART de backend_escritorio.dart:
 // rutinas de arranque del backend Go en escritorio (CWD escribible en
 // macOS, carga del sistema de extensiones, alta del callback de
-// sesiones firmadas y empuje de premium/credenciales).
-// Se conecta con: backend_escritorio.dart (misma library).
+// sesiones firmadas y sincronización de config/premium/credenciales).
+// Se conecta con: backend_escritorio.dart (misma library) + caches.
 // Parte del flujo: arranque (healthCheck → init post-ping).
 // ─────────────────────────────────────────────────────────────
 
@@ -81,15 +81,41 @@ Future<void> _initCallback(BackendEscritorio backend) async {
   }
 }
 
-/// Empuja al backend el estado premium y las credenciales de proveedores.
-Future<void> _initPremiumCredenciales(BackendEscritorio backend) async {
+/// Sincroniza a la config en memoria de Go todo lo guardado en la app:
+/// ruta de descargas, modo, perfil de rendimiento, prioridad de proveedores,
+/// estado premium y credenciales de proveedores.
+///
+/// La config de Go SOLO vive en memoria (no hay persistencia en el binario),
+/// así que este empuje al arrancar es lo único que evita que tras reiniciar
+/// la app la PC pierda la carpeta de descargas elegida, el modo free/premium
+/// y el perfil de rendimiento hasta que el usuario toque Ajustes.
+Future<void> _sincronizarArranqueGo(BackendEscritorio backend) async {
   try {
+    final cache = sl<CacheAjustes>();
+    final rutaDesc = await cache.getRutaDescargas();
+    if (rutaDesc != null && rutaDesc.isNotEmpty) {
+      await backend.syncDownloadDir(rutaDesc);
+    }
+    final datosSetup = await cache.cargarDatosSetup();
+    if (datosSetup != null) {
+      await backend.syncBackendConfig(mode: datosSetup.mode);
+    }
+    // Sincroniza el estado premium (drift) a Go para que el gate de
+    // descargas respete códigos ya activados en una sesión previa.
     final premium = await sl<CachePremium>().getEstadoPremium();
     await backend.syncPremiumStatus(
       isPremium: premium.esPremium,
       tier: premium.tier,
       expiresAt: premium.premiumHasta,
     );
+    // Empuja el perfil de rendimiento (concurrencia/buffer/chunk) — en
+    // escritorio esto era el sync que faltaba y Go quedaba con los defaults.
+    await empujarPerfilRendimientoABackend();
+    // Sincroniza la prioridad de proveedores de descarga persistida.
+    final prioridad = await cache.getPrioridadProveedoresDescarga();
+    if (prioridad.isNotEmpty) {
+      await backend.syncDownloadProviderPriority(prioridad);
+    }
   } catch (e) {
     debugPrint("[Backend] $e");
   }
