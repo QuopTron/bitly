@@ -26,10 +26,19 @@ func (o *Orchestrator) warmResolveAndOrder(providersToTry []string, req Request,
 	{
 		var wg sync.WaitGroup
 		sem := make(chan struct{}, 3)
+		vistos := map[string]bool{}
 		for _, name := range providersToTry {
 			if name == req.Provider && req.Provider == "" {
 				continue
 			}
+			// providersToTry trae al proveedor preferido DOS veces (se prepende
+			// a fallbackOrder, que ya lo contiene): sin dedupe se lanzaban dos
+			// goroutines para la misma clave y el semáforo se gastaba en un
+			// duplicado.
+			if vistos[name] {
+				continue
+			}
+			vistos[name] = true
 			p := o.providers.Get(name)
 			if p == nil {
 				continue
@@ -41,9 +50,15 @@ func (o *Orchestrator) warmResolveAndOrder(providersToTry []string, req Request,
 				continue
 			}
 			wg.Add(1)
-			sem <- struct{}{}
 			go func(n string, pr provider.Provider) {
 				defer wg.Done()
+				// El turno se toma DENTRO de la goroutine: antes se tomaba en el
+				// hilo que lanzaba, así que con más candidatos que turnos la
+				// función no retornaba hasta que N-3 resoluciones terminaran y
+				// la descarga entera quedaba retenida por la fuente más lenta
+				// (el cliente de extensiones aguanta 30s) ANTES de que corriera
+				// la ventana de la carrera.
+				sem <- struct{}{}
 				defer func() { <-sem }()
 				warm(n, pr)
 			}(name, p)
@@ -63,6 +78,11 @@ func (o *Orchestrator) warmResolveAndOrder(providersToTry []string, req Request,
 	resolved := map[string]warmRes{}
 	raceDone := false
 	deadline := time.Now().Add(raceResolutionTimeout)
+	// Un solo temporizador para toda la carrera: con time.After dentro de la
+	// vuelta, cada fuente que llegaba dejaba un temporizador vivo con la misma
+	// fecha de vencimiento (los sostenía el runtime hasta que vencieran).
+	timerCarrera := time.NewTimer(time.Until(deadline))
+	defer timerCarrera.Stop()
 	for !raceDone {
 		left := time.Until(deadline)
 		if left <= 0 {
@@ -82,7 +102,7 @@ func (o *Orchestrator) warmResolveAndOrder(providersToTry []string, req Request,
 			if r.name == req.Provider && r.trackID != "" {
 				raceDone = true
 			}
-		case <-time.After(left):
+		case <-timerCarrera.C:
 			raceDone = true
 		}
 	}

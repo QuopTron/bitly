@@ -28,7 +28,10 @@ func resolverTrackIDProvider(p provider.Provider, name string, req Request) (str
 		if cid == "" || strings.HasPrefix(cid, "deezer:") || strings.HasPrefix(cid, "spotify:") {
 			continue
 		}
-		if t, err := p.GetTrack(cid); err == nil && t != nil {
+		// Vía memoDetalle: el mismo cross-id se resuelve acá, se re-verifica en
+		// confirmarMatchDescarga y lo vuelve a pedir enrich en la ruta de
+		// fallback; en proveedores nativos (sin caché propia) eran 3 RTT.
+		if t, err := memoDetalle(p, name, "getTrack", cid); err == nil && t != nil {
 			return t.ID, t.Title, t.Artist
 		}
 	}
@@ -68,7 +71,7 @@ func resolverTrackIDProvider(p provider.Provider, name string, req Request) (str
 	}
 
 	if req.ISRC != "" {
-		if t, err := p.GetTrackByISRC(req.ISRC); err == nil && t != nil {
+		if t, err := memoDetalle(p, name, "getTrackByISRC", req.ISRC); err == nil && t != nil {
 			return t.ID, t.Title, t.Artist
 		}
 	}

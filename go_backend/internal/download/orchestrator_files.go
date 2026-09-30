@@ -48,6 +48,34 @@ func finalizarArchivoDescarga(outDir, itemID, filePath string) string {
 	return filePath
 }
 
+// StreamCacheBorrar elimina TODOS los archivos cacheados de itemID dentro de
+// dir — el audio final y cualquier sidecar — usando el mismo prefijo con
+// frontera de punto que StreamCacheFile, así "abc" no borra "abcdef.flac".
+// Devuelve cuántos archivos borró.
+func StreamCacheBorrar(dir, itemID string) int {
+	if dir == "" || itemID == "" {
+		return 0
+	}
+	base := sanitizarNombreArchivo(itemID) + "."
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return 0
+	}
+	borrados := 0
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		if !strings.HasPrefix(e.Name(), base) {
+			continue
+		}
+		if err := os.Remove(filepath.Join(dir, e.Name())); err == nil {
+			borrados++
+		}
+	}
+	return borrados
+}
+
 // StreamCacheFile returns the path of an already-produced stream-cache file for
 // itemID (the same basename the download pipeline writes via sanitizeFilename),
 // or "" if none exists. Letting repeated plays reuse the previously downloaded

@@ -26,7 +26,9 @@ func duracionCoincide(queryDurationMS, got int) bool {
 // marked variants (remix/live/cover) are already filtered upstream by
 // RankOriginalCandidates.
 func confirmarMatchDescarga(p provider.Provider, trackID, isrc, queryTitle, queryArtist string, queryDurationMS int) bool {
-	t, err := p.GetTrack(trackID)
+	// Vía memoDetalle: el candidato que el feeder acaba de resolver vuelve a
+	// pedirse acá con el MISMO id (y de nuevo en cada intento del fallback).
+	t, err := memoDetalle(p, p.Name(), "getTrack", trackID)
 	if err != nil || t == nil {
 		return true
 	}
@@ -55,7 +57,7 @@ func confirmarMatchDescarga(p provider.Provider, trackID, isrc, queryTitle, quer
 		return true
 	}
 	if t.ISRC != "" {
-		if it, err := p.GetTrackByISRC(t.ISRC); err == nil && it != nil {
+		if it, err := memoDetalle(p, p.Name(), "getTrackByISRC", t.ISRC); err == nil && it != nil {
 			if _, ok := provider.OriginalStrength(queryTitle, queryArtist, *it); ok {
 				return true
 			}

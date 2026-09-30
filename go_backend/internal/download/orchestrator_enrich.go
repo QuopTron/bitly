@@ -25,7 +25,10 @@ func (o *Orchestrator) enrichISRC(req *Request) {
 			return
 		}
 		if sp := o.providers.Get(pn); sp != nil {
-			if t, err := sp.GetTrack(quitarPrefijoTrack(id)); err == nil && t != nil && t.ISRC != "" {
+			// Vía memoDetalle: enrich corre dos veces en la ruta de fallback
+			// (stream → descarga) y hasta 7 veces por intento; los proveedores
+			// NATIVOS no cachean su GetTrack como sí hacen las extensiones.
+			if t, err := memoDetalle(sp, pn, "getTrack", quitarPrefijoTrack(id)); err == nil && t != nil && t.ISRC != "" {
 				req.ISRC = t.ISRC
 			}
 		}
