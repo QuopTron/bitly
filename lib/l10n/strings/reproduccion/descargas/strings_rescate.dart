@@ -15,6 +15,14 @@ class StringsRescate {
   final String sitiosAyuda;
   final String relayLabel;
   final String relayAyuda;
+  final String espejosLabel;
+  final String espejosAyuda;
+  final String arcodLabel;
+  final String arcodAyuda;
+  final String canalesBoton;
+  final String canalesComprobando;
+  final String canalesTitulo;
+  final String canalesAgotado;
   final String avanzadoTitulo;
   final String avanzadoAyuda;
   final String instanciaLabel;
@@ -37,6 +45,14 @@ class StringsRescate {
     required this.sitiosAyuda,
     required this.relayLabel,
     required this.relayAyuda,
+    required this.espejosLabel,
+    required this.espejosAyuda,
+    required this.arcodLabel,
+    required this.arcodAyuda,
+    required this.canalesBoton,
+    required this.canalesComprobando,
+    required this.canalesTitulo,
+    required this.canalesAgotado,
     required this.avanzadoTitulo,
     required this.avanzadoAyuda,
     required this.instanciaLabel,
@@ -69,6 +85,22 @@ class StringsRescate {
         'y entrega el FLAC directo del CDN, sin cuenta tuya. Es infraestructura '
         'ajena y tiene cupos: si falla, el rescate sigue por los demás caminos. '
         'Apagado, no se le hace ni una petición.',
+    espejosLabel: 'Espejos por ISRC',
+    espejosAyuda:
+        'Los espejos públicos viven de pools de ARLs de Deezer y hoy están '
+        'muertos (cuentas baneadas). Apagados, el rescate sigue igual por el '
+        'relay, los sitios y las claves firmadas, sin pagar su espera.',
+    arcodLabel: 'Canal arcod',
+    arcodAyuda:
+        'La instancia pública de arcod se quedó sin tokens de Qobuz. Apagado '
+        'no se le hace ni una petición; para usarlo, apuntá la URL de TU '
+        'instancia propia (selfhost/arcod) en el ajuste arcod.',
+    canalesBoton: 'Comprobar canales',
+    canalesComprobando: 'Comprobando…',
+    canalesTitulo: 'Estado de los canales',
+    canalesAgotado:
+        'Ningún canal puede entregar audio ahora mismo; la descarga sigue por '
+        'lo demás.',
     avanzadoTitulo: 'Avanzado',
     avanzadoAyuda:
         'Instancia propia de cobalt: una segunda vía de descarga por si '
@@ -111,6 +143,23 @@ class StringsRescate {
         'account of yours. It is third-party infrastructure with quotas: if it '
         'fails, the rescue carries on through the other paths. Turned off, not '
         'a single request goes to it.',
+    espejosLabel: 'Mirrors by ISRC',
+    espejosAyuda:
+        'Public mirrors live off pools of Deezer ARLs and are dead today '
+        '(banned accounts). Turned off, the rescue carries on the same way '
+        'through the relay, the sites and the signed keys, without paying '
+        'their wait.',
+    arcodLabel: 'Arcod channel',
+    arcodAyuda:
+        'The public arcod instance ran out of Qobuz tokens. Turned off, not a '
+        'single request goes to it; to use it, point the URL of YOUR own '
+        'instance (selfhost/arcod) in the arcod setting.',
+    canalesBoton: 'Check channels',
+    canalesComprobando: 'Checking…',
+    canalesTitulo: 'Channel status',
+    canalesAgotado:
+        'No channel can deliver audio right now; the download carries on '
+        'through the rest.',
     avanzadoTitulo: 'Advanced',
     avanzadoAyuda:
         'Your own cobalt instance: a second download path in case YouTube '

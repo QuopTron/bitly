@@ -1,0 +1,22 @@
+# Levanta hifi-api (tu fuente Tidal propia) desde el repo clonado en ./app.
+#
+# Antes de `up`:
+#   1) git clone https://github.com/binimum/hifi-api app   (y fijá un commit)
+#   2) generá app/token.json (o los CATALOG_* en .env) — ver el README
+#   3) cp .env.example .env
+services:
+  hifi-api:
+    image: python:3.12-slim
+    working_dir: /app
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    volumes:
+      # El repo vive acá; token.json se monta aparte para no mezclarlo con el .git.
+      - ./app:/app
+      - ./app/token.json:/app/token.json:ro
+    command: >
+      sh -c "pip install --no-cache-dir -r requirements.txt &&
+             python main.py"
+    restart: unless-stopped

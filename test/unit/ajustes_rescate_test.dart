@@ -79,4 +79,61 @@ void main() {
       );
     });
   });
+
+  group('espejos y arcod (canales muertos)', () {
+    test('sin valor guardado están encendidos (de fábrica)', () {
+      expect(AjustesRescate.espejosActivos(null), isTrue);
+      expect(AjustesRescate.espejosActivos(''), isTrue);
+      expect(AjustesRescate.arcodActivo(null), isTrue);
+      expect(AjustesRescate.arcodActivo(''), isTrue);
+    });
+
+    test('reconocen los valores de apagado que entiende Go', () {
+      for (final valor in AjustesRescate.apagados) {
+        expect(AjustesRescate.espejosActivos(valor), isFalse);
+        expect(AjustesRescate.arcodActivo(valor), isFalse);
+      }
+      expect(AjustesRescate.espejosActivos(' OFF '), isFalse);
+      expect(AjustesRescate.arcodActivo(' OFF '), isFalse);
+    });
+
+    test('el switch guarda off al apagar y vacío al encender', () {
+      expect(AjustesRescate.valorEspejos(false), 'off');
+      expect(AjustesRescate.valorEspejos(true), '');
+      expect(AjustesRescate.valorArcod(false), 'off');
+      expect(AjustesRescate.valorArcod(true), '');
+    });
+  });
+
+  group('informe de canales (probarCanales)', () {
+    Map<String, dynamic> respuestaOk() => {
+      'ok': true,
+      'result': {
+        'canales': [
+          {'nombre': 'stash-relay', 'estado': 'ok', 'detalle': 'encendido'},
+          {'nombre': 'espejos', 'estado': 'sin_cuentas', 'detalle': 'ARLs muertos'},
+          {'nombre': 'sitios', 'estado': 123}, // inválido: se ignora
+        ],
+        'agotado': true,
+        'detalle': 'ninguno sano',
+      },
+    };
+
+    test('lee el informe y descarta las entradas inválidas', () {
+      final canales = DiagnosticoCanalesRescate.canalesDeRespuesta(respuestaOk());
+      expect(canales.length, 2);
+      expect(canales[0].nombre, 'stash-relay');
+      expect(canales[0].estado, DiagnosticoCanalesRescate.estadoOk);
+      expect(canales[1].estado, DiagnosticoCanalesRescate.estadoSinCuentas);
+      expect(DiagnosticoCanalesRescate.detalleDeRespuesta(respuestaOk()), 'ninguno sano');
+      expect(DiagnosticoCanalesRescate.agotadoDeRespuesta(respuestaOk()), isTrue);
+    });
+
+    test('una respuesta rota no miente con un ok', () {
+      expect(DiagnosticoCanalesRescate.canalesDeRespuesta(null), isEmpty);
+      expect(DiagnosticoCanalesRescate.canalesDeRespuesta({'ok': false}), isEmpty);
+      expect(DiagnosticoCanalesRescate.detalleDeRespuesta(null), '');
+      expect(DiagnosticoCanalesRescate.agotadoDeRespuesta(null), isFalse);
+    });
+  });
 }

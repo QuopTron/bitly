@@ -159,3 +159,139 @@ List<Widget> _cuerpoCobaltRescate({
     ),
   ];
 }
+
+/// El botón "Comprobar canales" y el informe que devuelve. El informe sale del
+/// estado que los canales YA publicaron (no toca la red), así que se puede pedir
+/// sin costo y sirve para saber si queda algo sano antes de esperar una canción.
+class _BotonCanales extends StatelessWidget {
+  final StringsRescate t;
+  final Color onBg;
+  final Responsive r;
+  final Color glowColor;
+  final bool consultando;
+  final List<CanalRescate> canales;
+  final String detalle;
+  final bool agotado;
+  final VoidCallback onProbar;
+
+  const _BotonCanales({
+    required this.t,
+    required this.onBg,
+    required this.r,
+    required this.glowColor,
+    required this.consultando,
+    required this.canales,
+    required this.detalle,
+    required this.agotado,
+    required this.onProbar,
+  });
+
+  /// Color del puntito según el veredicto (espejo de los estados de Go).
+  Color _color(String estado) {
+    switch (estado) {
+      case DiagnosticoCanalesRescate.estadoOk:
+        return Colors.green;
+      case DiagnosticoCanalesRescate.estadoSinCuentas:
+      case DiagnosticoCanalesRescate.estadoPausado:
+      case DiagnosticoCanalesRescate.estadoSinSesion:
+        return Colors.orange;
+      default:
+        return onBg.withValues(alpha: 0.3);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(height: r.spacingS),
+        OutlinedButton.icon(
+          onPressed: consultando ? null : onProbar,
+          icon: const Icon(Icons.monitor_heart_rounded, size: 18),
+          label: Text(consultando ? t.canalesComprobando : t.canalesBoton),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: glowColor,
+            side: BorderSide(color: glowColor.withValues(alpha: 0.5)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+        if (canales.isNotEmpty) ...[
+          SizedBox(height: r.spacingS),
+          Text(
+            t.canalesTitulo,
+            style: TextStyle(
+              fontSize: r.footerSize - 1,
+              color: onBg,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          SizedBox(height: r.spacingXS),
+          for (final canal in canales)
+            Padding(
+              padding: EdgeInsets.only(bottom: r.spacingXS / 2),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: EdgeInsets.only(top: 5, right: r.spacingXS),
+                    child: Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: _color(canal.estado),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${canal.nombre} · ${canal.estado}',
+                          style: TextStyle(
+                            fontSize: r.footerSize - 1,
+                            color: onBg,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        if (canal.detalle.isNotEmpty)
+                          Text(
+                            canal.detalle,
+                            style: TextStyle(
+                              fontSize: r.footerSize - 2,
+                              color: onBg.withValues(alpha: 0.4),
+                              height: 1.3,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          if (agotado)
+            Text(
+              t.canalesAgotado,
+              style: TextStyle(
+                fontSize: r.footerSize - 2,
+                color: Colors.orange,
+              ),
+            ),
+        ] else if (detalle.isNotEmpty) ...[
+          SizedBox(height: r.spacingXS),
+          Text(
+            detalle,
+            style: TextStyle(
+              fontSize: r.footerSize - 2,
+              color: onBg.withValues(alpha: 0.4),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}

@@ -24,6 +24,8 @@ class AjustesRescate {
 
   static const String claveSitios = 'sitios';
   static const String claveStashRelay = 'stash_relay';
+  static const String claveEspejos = 'mirrors';
+  static const String claveArcod = 'arcod';
   static const String claveInstancia = 'cobalt';
   static const String claveToken = 'cobalt_token';
   static const String claveProxy = 'proxy';
@@ -54,6 +56,25 @@ class AjustesRescate {
 
   /// El valor a guardar según el switch del relay.
   static String valorRelay(bool activo) => activo ? '' : valorApagado;
+
+  /// ¿Los espejos por ISRC están encendidos? De fábrica viene uno (hoy con su
+  /// pool de ARLs de Deezer muerto), así que el switch arranca encendido y el
+  /// ajuste solo se guarda cuando el usuario los apaga. Volver a encenderlos
+  /// manda vacío, que el backend interpreta como "los de fábrica".
+  static bool espejosActivos(String? valor) =>
+      !apagados.contains((valor ?? '').trim().toLowerCase());
+
+  /// El valor a guardar según el switch de espejos.
+  static String valorEspejos(bool activos) => activos ? '' : valorApagado;
+
+  /// ¿El canal arcod está encendido? Mismo criterio que los espejos: de fábrica
+  /// viene encendido (apuntando a la instancia pública), así que solo se guarda
+  /// el apagado.
+  static bool arcodActivo(String? valor) =>
+      !apagados.contains((valor ?? '').trim().toLowerCase());
+
+  /// El valor a guardar según el switch de arcod.
+  static String valorArcod(bool activo) => activo ? '' : valorApagado;
 
   /// La URL de la instancia sin barras finales: es como la espera Go al
   /// armar `base + "/"`.
@@ -96,4 +117,80 @@ class AjustesRescate {
         esquemasProxy.contains(uri.scheme.toLowerCase()) &&
         uri.host.isNotEmpty;
   }
+}
+
+/// El estado de UN canal del rescate, tal como lo reporta el backend (ver
+/// canales_diagnostico.go). Los valores son espejo de los de Go: si se agrega
+/// uno allá, se agrega acá.
+class CanalRescate {
+  final String nombre;
+  final String estado;
+  final String detalle;
+
+  const CanalRescate({
+    required this.nombre,
+    required this.estado,
+    required this.detalle,
+  });
+}
+
+/// Informe de TODOS los canales del rescate (acción `probarCanales` de
+/// flac-rescue). A diferencia del Qobuz firmado, no sale a la red: refleja el
+/// estado que cada canal ya publicó.
+class DiagnosticoCanalesRescate {
+  static const String accion = 'probarCanales';
+
+  // Estados posibles (espejo de canales_diagnostico.go).
+  static const String estadoOk = 'ok';
+  static const String estadoApagado = 'apagado';
+  static const String estadoSinConfigurar = 'sin_configurar';
+  static const String estadoSinCuentas = 'sin_cuentas';
+  static const String estadoPausado = 'pausado';
+  static const String estadoSinSesion = 'sin_sesion';
+
+  /// El `result` del informe dentro de la respuesta, o null si no trae uno
+  /// válido (nunca se miente con un "ok" cuando no se pudo confirmar).
+  static Map<String, dynamic>? resultadoDeRespuesta(
+    Map<String, dynamic>? respuesta,
+  ) {
+    if (respuesta == null || respuesta['ok'] != true) return null;
+    final result = respuesta['result'];
+    if (result is Map) return Map<String, dynamic>.from(result);
+    return null;
+  }
+
+  /// Los canales del informe, en el orden en que los mandó el backend.
+  static List<CanalRescate> canalesDeRespuesta(
+    Map<String, dynamic>? respuesta,
+  ) {
+    final result = resultadoDeRespuesta(respuesta);
+    final lista = result?['canales'];
+    if (lista is! List) return const [];
+    final salida = <CanalRescate>[];
+    for (final item in lista) {
+      if (item is! Map) continue;
+      final nombre = item['nombre'];
+      final estado = item['estado'];
+      if (nombre is! String || estado is! String) continue;
+      salida.add(
+        CanalRescate(
+          nombre: nombre,
+          estado: estado,
+          detalle: item['detalle'] is String ? item['detalle'] as String : '',
+        ),
+      );
+    }
+    return salida;
+  }
+
+  /// El detalle global que mandó el backend (texto ya en castellano).
+  static String detalleDeRespuesta(Map<String, dynamic>? respuesta) {
+    final result = resultadoDeRespuesta(respuesta);
+    final detalle = result?['detalle'];
+    return detalle is String ? detalle : '';
+  }
+
+  /// Si ningún canal puede entregar audio ahora mismo.
+  static bool agotadoDeRespuesta(Map<String, dynamic>? respuesta) =>
+      resultadoDeRespuesta(respuesta)?['agotado'] == true;
 }

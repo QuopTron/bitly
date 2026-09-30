@@ -9,10 +9,13 @@
 // responder. Acá se le da ese camino, igual que ya se hizo con sus
 // ajustes (SetExtensionSettings) y su reinicialización.
 //
-// Acciones: probarCanal → informe del canal Qobuz (ver qobuz_diagnostico.go).
+// Acciones:
+//
+//	probarCanal  → informe del canal Qobuz (ver qobuz_diagnostico.go)
+//	probarCanales → estado barato de TODOS los canales (ver canales_diagnostico.go)
 //
 // Se conecta con: extensions_actions.go (InvokeExtensionAction lo llama
-// primero) y provider/flacrescue (DiagnosticoQobuz).
+// primero) y provider/flacrescue (DiagnosticoQobuz / DiagnosticoCanales).
 // Parte del flujo: Ajustes → Credenciales → Rescate de audio.
 // ─────────────────────────────────────────────────────────────
 
@@ -40,6 +43,22 @@ func invocarAccionFlacRescue(providerName, action string) (respuesta string, man
 		out, err := json.Marshal(map[string]interface{}{
 			"ok":     true,
 			"result": cliente.DiagnosticoQobuz(),
+		})
+		if err != nil {
+			return jsonError(err), true
+		}
+		return string(out), true
+	case "probarCanales":
+		// A diferencia de probarCanal (que recorre Qobuz con red), este informe
+		// sale del estado que los canales ya publicaron: sirve para saber si
+		// queda algo sano antes de esperar una reproducción entera.
+		cliente := clienteFlacRescue()
+		if cliente == nil {
+			return jsonErrorString("flac-rescue no está cargado"), true
+		}
+		out, err := json.Marshal(map[string]interface{}{
+			"ok":     true,
+			"result": cliente.DiagnosticoCanales(),
 		})
 		if err != nil {
 			return jsonError(err), true

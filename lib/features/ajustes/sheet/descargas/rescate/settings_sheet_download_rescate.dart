@@ -37,9 +37,18 @@ class _DownloadRescateCardState extends State<_DownloadRescateCard> {
 
   bool _sitios = true;
   bool _relay = true;
+  bool _espejos = true;
+  bool _arcod = true;
   bool _cargado = false;
   bool _abierto = false;
   bool _guardado = false;
+
+  // Informe de canales (acción probarCanales). No sale a la red: refleja lo
+  // que cada canal ya publicó.
+  List<CanalRescate> _canales = const [];
+  String _detalleCanales = '';
+  bool _agotado = false;
+  bool _consultandoCanales = false;
 
   @override
   void initState() {
@@ -65,6 +74,12 @@ class _DownloadRescateCardState extends State<_DownloadRescateCard> {
     final relay = await cache.getAjuste(
       '${AjustesRescate.idRescate}_${AjustesRescate.claveStashRelay}',
     );
+    final espejos = await cache.getAjuste(
+      '${AjustesRescate.idRescate}_${AjustesRescate.claveEspejos}',
+    );
+    final arcod = await cache.getAjuste(
+      '${AjustesRescate.idRescate}_${AjustesRescate.claveArcod}',
+    );
     final url =
         await cache.getAjuste(
           '${AjustesRescate.idYoutube}_${AjustesRescate.claveInstancia}',
@@ -84,6 +99,8 @@ class _DownloadRescateCardState extends State<_DownloadRescateCard> {
     setState(() {
       _sitios = AjustesRescate.sitiosActivos(sitios);
       _relay = AjustesRescate.relayActivo(relay);
+      _espejos = AjustesRescate.espejosActivos(espejos);
+      _arcod = AjustesRescate.arcodActivo(arcod);
       _instancia.text = url;
       _clave.text = clave;
       _proxy.text = proxy;
@@ -108,6 +125,46 @@ class _DownloadRescateCardState extends State<_DownloadRescateCard> {
     setState(() => _relay = activo);
     await _servicio().guardarYReinicializar(AjustesRescate.idRescate, {
       AjustesRescate.claveStashRelay: AjustesRescate.valorRelay(activo),
+    });
+  }
+
+  /// Los espejos por ISRC: apagados no se les hace ni una petición. Es el
+  /// interruptor para los espejos públicos que quedaron sin ARLs vivos.
+  Future<void> _cambiarEspejos(bool activos) async {
+    setState(() => _espejos = activos);
+    await _servicio().guardarYReinicializar(AjustesRescate.idRescate, {
+      AjustesRescate.claveEspejos: AjustesRescate.valorEspejos(activos),
+    });
+  }
+
+  /// El canal arcod: apagado no se le hace ni una petición.
+  Future<void> _cambiarArcod(bool activo) async {
+    setState(() => _arcod = activo);
+    await _servicio().guardarYReinicializar(AjustesRescate.idRescate, {
+      AjustesRescate.claveArcod: AjustesRescate.valorArcod(activo),
+    });
+  }
+
+  /// Pide el informe de canales. Nunca lanza: una respuesta rota queda como
+  /// lista vacía (no miente con un "todo bien").
+  Future<void> _probarCanales() async {
+    if (!mounted) return;
+    setState(() => _consultandoCanales = true);
+    Map<String, dynamic>? respuesta;
+    try {
+      respuesta = await sl<BackendService>().invokeExtensionAction(
+        AjustesRescate.idRescate,
+        DiagnosticoCanalesRescate.accion,
+      );
+    } catch (_) {
+      respuesta = null;
+    }
+    if (!mounted) return;
+    setState(() {
+      _canales = DiagnosticoCanalesRescate.canalesDeRespuesta(respuesta);
+      _detalleCanales = DiagnosticoCanalesRescate.detalleDeRespuesta(respuesta);
+      _agotado = DiagnosticoCanalesRescate.agotadoDeRespuesta(respuesta);
+      _consultandoCanales = false;
     });
   }
 
@@ -142,11 +199,20 @@ class _DownloadRescateCardState extends State<_DownloadRescateCard> {
       proxy: _proxy,
       sitios: _sitios,
       relay: _relay,
+      espejos: _espejos,
+      arcod: _arcod,
+      canales: _canales,
+      detalleCanales: _detalleCanales,
+      agotado: _agotado,
+      consultandoCanales: _consultandoCanales,
       abierto: _abierto,
       guardado: _guardado,
       glowColor: widget.glowColor,
       onSitios: _cambiarSitios,
       onRelay: _cambiarRelay,
+      onEspejos: _cambiarEspejos,
+      onArcod: _cambiarArcod,
+      onProbarCanales: _probarCanales,
       onToggleAvanzado: () => setState(() => _abierto = !_abierto),
       onGuardar: _guardarAvanzado,
       onCampoCambiado: () => setState(() {}),
