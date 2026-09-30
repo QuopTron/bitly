@@ -465,62 +465,24 @@ class MainActivity : AudioServiceActivity() {
         }
     }
 
-    // ── Dispatch Go calls via reflection to flat exports.* functions ─────
+    // ── Dispatch Go calls through the generic RPC dispatcher ─────────────
+    //
+    // TODOS los métodos del canal pasan por Gobackend.invokeRPC, el MISMO
+    // dispatcher que usan escritorio (JSON-RPC en 127.0.0.1:55009) e iOS,
+    // sobre la tabla única internal/gobackend/rpc_tabla.go.
+    //
+    // Antes se usaba reflexión sobre los exports planos de bridge_*.go: eso
+    // era una TERCERA tabla a mano y fallaba en dos formas distintas —
+    // métodos sin export plano devolvían NOT_FOUND (descargarFuente /
+    // borrarFuentes) y los que esperaban un texto suelto recibían el objeto
+    // JSON completo (resolveISRC, cancelDownload, rutaLocalIsrc, ...).
 
     private fun dispatchGoCall(call: MethodCall, result: MethodChannel.Result) {
         val methodName = call.method
         logD("dispatchGoCall: method=$methodName")
+        val payload = jsonParams(call.arguments)
         executor.execute {
             try {
-                // Build argument list from call.arguments
-                val args = when (val a = call.arguments) {
-                    is List<*> -> a.map { it?.toString() ?: "" }.toTypedArray()
-                    is String -> if (a.isEmpty()) emptyArray<String>() else arrayOf(a)
-                    is Map<*, *> -> {
-                        val json = org.json.JSONObject(
-                            a.filterKeys { it is String }
-                                .mapKeys { it.key as String }
-                        ).toString()
-                        arrayOf(json)
-                    }
-                    else -> emptyArray<String>()
-                }
-
-                // Find the Go backend method by name via reflection.
-                // gomobile converts Go's PascalCase to Java camelCase,
-                // so the Flutter method name (also camelCase) maps directly.
-                val methods = Gobackend::class.java.methods
-                val goMethod = methods.find { it.name == methodName }
-
-                if (goMethod == null) {
-                    handler.post { result.error("NOT_FOUND", "Go method $methodName not found", null) }
-                    return@execute
-                }
-
-                val paramTypes = goMethod.parameterTypes
-                val numParams = paramTypes.size
-                val converted = if (numParams > 0) {
-                    Array<Any?>(numParams) { i ->
-                        val arg = args.getOrElse(i) { "" }
-                        val pt = paramTypes[i]
-                        when {
-                            pt == Long::class.javaPrimitiveType || pt == Long::class.java ->
-                                arg.toLongOrNull() ?: 0L
-                            pt == Int::class.javaPrimitiveType || pt == Int::class.java ->
-                                arg.toIntOrNull() ?: 0
-                            pt == Boolean::class.javaPrimitiveType || pt == Boolean::class.java ->
-                                arg.toBooleanStrictOrNull() ?: false
-                            pt == Double::class.javaPrimitiveType || pt == Double::class.java ->
-                                arg.toDoubleOrNull() ?: 0.0
-                            pt.isArray && pt.componentType == Byte::class.javaPrimitiveType ->
-                                arg.encodeToByteArray()
-                            else -> arg // String
-                        }
-                    }
-                } else {
-                    emptyArray<Any?>()
-                }
-
                 // Run the Go call on the pool with a hard timeout. If it never
                 // returns (a JS call stuck inside the extension runtime), the
                 // watcher answers Dart with an error after callTimeoutSeconds
@@ -530,12 +492,13 @@ class MainActivity : AudioServiceActivity() {
                 // guards release it eventually); other calls keep flowing on
                 // the remaining pool threads.
                 val future = executor.submit<String> {
-                    (goMethod.invoke(null, *converted)?.toString()) ?: "null"
+                    Gobackend.invokeRPC(methodName, payload)
                 }
                 callWatcher.execute {
                     try {
-                        val res = future.get(callTimeoutSeconds, java.util.concurrent.TimeUnit.SECONDS)
-                        handler.post { result.success(res) }
+                        val crudo = future.get(callTimeoutSeconds, java.util.concurrent.TimeUnit.SECONDS)
+                        val valor = desempaquetarRPC(crudo, methodName)
+                        handler.post { result.success(valor) }
                     } catch (e: java.util.concurrent.TimeoutException) {
                         logE("dispatchGoCall TIMEOUT: $methodName > ${callTimeoutSeconds}s")
                         try {
@@ -556,6 +519,52 @@ class MainActivity : AudioServiceActivity() {
                 handler.post { result.error("BACKEND_ERROR", e.message, null) }
             }
         }
+    }
+
+    // Arguments → payload JSON del RPC (mismo formato que jsonParams de
+    // AppDelegate.swift en iOS). Dart siempre manda un Map.
+    private fun jsonParams(args: Any?): String = when (args) {
+        is Map<*, *> -> org.json.JSONObject(
+            args.filterKeys { it is String }.mapKeys { it.key as String }
+        ).toString()
+        is String -> args
+        else -> "{}"
+    }
+
+    // InvokeRPC devuelve {"result": ...} o {"error": "..."}. Se desempaqueta
+    // a los tipos que StandardMessageCodec sabe serializar, para que Dart
+    // reciba exactamente lo mismo que recibe en escritorio (String para los
+    // payloads JSON, bool/num para los escasos métodos no-texto, Map/List
+    // para los resultados estructurados).
+    private fun desempaquetarRPC(crudo: String?, metodo: String): Any? {
+        val texto = crudo
+            ?: throw RuntimeException("$metodo: respuesta vacía del backend")
+        val obj = runCatching { org.json.JSONObject(texto) }.getOrNull()
+            ?: return texto
+        (obj.opt("error") as? String)?.let { err ->
+            if (err.isNotEmpty()) throw RuntimeException("$metodo: $err")
+        }
+        if (!obj.has("result") || obj.isNull("result")) return null
+        return aKotlin(obj.opt("result"))
+    }
+
+    private fun aKotlin(valor: Any?): Any? = when (valor) {
+        null, org.json.JSONObject.NULL -> null
+        is org.json.JSONObject -> {
+            val mapa = HashMap<String, Any?>(valor.length())
+            val claves = valor.keys()
+            while (claves.hasNext()) {
+                val clave = claves.next()
+                mapa[clave] = aKotlin(valor.opt(clave))
+            }
+            mapa
+        }
+        is org.json.JSONArray -> {
+            val lista = ArrayList<Any?>(valor.length())
+            for (i in 0 until valor.length()) lista.add(aKotlin(valor.opt(i)))
+            lista
+        }
+        else -> valor
     }
 
     // ── YouTube helpers ───────────────────────────────────────────────────

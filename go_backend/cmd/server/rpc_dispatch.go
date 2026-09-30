@@ -2,9 +2,10 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
+
+	backend "github.com/zarz/bitly/go_backend/internal/gobackend"
 )
 
 // rpcRequest is the JSON-RPC 2.0 request shape from DesktopBackend.
@@ -44,79 +45,10 @@ func registerRPCRoute(mux *http.ServeMux) {
 	})
 }
 
-// dispatchRPC routes a JSON-RPC method to the Go backend flat exports.
-// Each domain (core/media/extra) tiene su propio dispatcher; el primero que
-// reconoce el método responde y los demás se saltan.
+// dispatchRPC enruta un método JSON-RPC sobre la tabla única de métodos
+// (internal/gobackend/rpc_tabla.go), la misma que usan Android e iOS vía
+// InvokeRPC. Aquí NO hay lista de métodos propia: cualquier método nuevo se
+// agrega solo en esa tabla y vale para todas las plataformas.
 func dispatchRPC(method string, params map[string]interface{}) (interface{}, string) {
-	if res, errStr, handled := dispatchCore(method, params); handled {
-		return res, errStr
-	}
-	if res, errStr, handled := dispatchMedia(method, params); handled {
-		return res, errStr
-	}
-	if res, errStr, handled := dispatchFuentes(method, params); handled {
-		return res, errStr
-	}
-	if res, errStr, handled := dispatchExtra(method, params); handled {
-		return res, errStr
-	}
-	return nil, "método no encontrado: " + method
-}
-
-// rpcBody serializa todos los params como el payload JSON que esperan las
-// funciones planas del backend (casi todas reciben la cadena cruda).
-func rpcBody(params map[string]interface{}) string {
-	data, _ := json.Marshal(params)
-	return string(data)
-}
-
-// rpcGet extrae un param individual como string (o "" si falta/no es texto).
-func rpcGet(params map[string]interface{}, key string) string {
-	if v, ok := params[key]; ok && v != nil {
-		return toString(v)
-	}
-	return ""
-}
-
-// intDe extrae un param numérico con un valor por defecto.
-func intDe(params map[string]interface{}, key string, def int) int {
-	if v, ok := params[key]; ok && v != nil {
-		if f, ok := v.(float64); ok {
-			return int(f)
-		}
-		if s, ok := v.(string); ok {
-			var n int
-			if _, err := fmt.Sscanf(s, "%d", &n); err == nil {
-				return n
-			}
-		}
-	}
-	return def
-}
-
-// toString convierte un valor JSON a su representación de texto.
-func toString(v interface{}) string {
-	if s, ok := v.(string); ok {
-		return s
-	}
-	if f, ok := v.(float64); ok {
-		if f == float64(int64(f)) {
-			return jsonInt(int64(f))
-		}
-		data, _ := json.Marshal(f)
-		return string(data)
-	}
-	if b, ok := v.(bool); ok {
-		if b {
-			return "true"
-		}
-		return "false"
-	}
-	data, _ := json.Marshal(v)
-	return string(data)
-}
-
-func jsonInt(v int64) string {
-	data, _ := json.Marshal(v)
-	return string(data)
+	return backend.DispatchRPC(method, params)
 }

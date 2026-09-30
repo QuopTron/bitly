@@ -2,7 +2,7 @@
 // reproductor_limpieza.dart — PART de cubit_reproductor.dart:
 // limpieza y mantenimiento: borrado de archivos de descargas (con
 // sidecars .lrc/.jpg/.png y match por stems), limpieza del caché de
-// stream del backend (DELETE a Go) e ID normalizado del track
+// stream del backend (RPC deleteStreamCacheFile) e ID normalizado del track
 // actual. El autoplay (modo radio) vive en reproductor_autoplay.dart.
 // Se conecta con: reproductor_autoplay.dart (misma library).
 // Parte del flujo: reproducción (mantenimiento post-playback).
@@ -115,19 +115,22 @@ mixin ReproductorLimpieza on ReproductorAutoplay {
     return normalizarId(actual.id);
   }
 
-  /// Envía un DELETE al backend para eliminar el archivo cacheado del track
-  /// streameado en .stream_cache. No bloquea la reproducción (unawaited).
+  /// Borra del backend el archivo cacheado del track streameado en
+  /// .stream_cache. No bloquea la reproducción (se llama con unawaited).
+  ///
+  /// Va por RPC y no por `DELETE /cache/delete/<id>.flac`: esa ruta nunca
+  /// existió en el servidor (devolvía 404 y el catch la tragaba) y en
+  /// Android/iOS no hay servidor HTTP al que hablar, así que la limpieza no
+  /// funcionaba en ninguna plataforma.
   Future<void> _limpiarCacheStream(String idNormalizado) async {
     try {
-      final client = HttpClient();
-      try {
-        final url = 'http://127.0.0.1:55009/cache/delete/$idNormalizado.flac';
-        final request = await client.deleteUrl(Uri.parse(url));
-        final response = await request.close();
-        await response.drain();
-      } finally {
-        client.close();
-      }
+      await di
+          .sl<BackendService>()
+          .rpcCall(
+            'deleteStreamCacheFile',
+            {'id': idNormalizado},
+            const Duration(seconds: 10),
+          );
     } catch (e) {
       debugPrint('[ReproductorLimpieza] $e');
       // Fallo silencioso — la limpieza no debe interrumpir nada.

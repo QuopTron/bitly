@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 
 	backend "github.com/zarz/bitly/go_backend/internal/gobackend"
 )
@@ -11,7 +12,10 @@ import (
 func registerCoreRoutes(mux *http.ServeMux) {
 	// ─── SYSTEM ───────────────────────────────────────────────
 	mux.HandleFunc("/ping", func(w http.ResponseWriter, r *http.Request) {
-		jsonStr(w, backend.Ping())
+		// Ping() devuelve texto plano (`pong`) pero esta ruta declara
+		// application/json: sin comillas el cuerpo no era JSON válido y
+		// cualquier cliente que hiciera jsonDecode fallaba.
+		jsonStr(w, strconv.Quote(backend.Ping()))
 	})
 	mux.HandleFunc("/info", func(w http.ResponseWriter, r *http.Request) {
 		jsonStr(w, backend.GetBuildInfo())
@@ -21,6 +25,20 @@ func registerCoreRoutes(mux *http.ServeMux) {
 	})
 	mux.HandleFunc("/init", func(w http.ResponseWriter, r *http.Request) {
 		jsonStr(w, backend.InitGlobalState())
+	})
+	// /red        → peticiones HTTP salientes desde el último reinicio
+	// /red?reset=1 → reinicia el acumulado y devuelve el snapshot nuevo
+	//
+	// Para qué: medir el coste en idas a la red de UNA operación real (un
+	// toque de stream, una descarga) — el "antes/después" de las
+	// optimizaciones de streaming y descarga. Solo cuenta host, método y
+	// número de peticiones.
+	mux.HandleFunc("/red", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("reset") == "1" {
+			jsonStr(w, backend.RedReiniciar())
+			return
+		}
+		jsonStr(w, backend.RedEstado())
 	})
 
 	// ─── SEARCH ───────────────────────────────────────────────
