@@ -137,6 +137,9 @@ lib/config/secretos.dart
 
 # ── Debug / temp files ──────────────────────────────────────────────
 tmp_*
+# Carpetas de trabajo temporal en la raíz (.tmp-notas, .tmp-verif…): ahí van
+# notas de release y capturas/diagnósticos sueltos, nunca al repo.
+.tmp-*/
 probe_*
 dying_url.txt
 fresh_*

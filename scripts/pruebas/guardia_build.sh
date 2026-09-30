@@ -35,15 +35,31 @@ falla() {
 }
 
 echo
-echo "== 1) Ningún workflow compila Go con un -ldflags fijo =="
+echo "== 1) Ningún workflow ni script de build compila Go con un -ldflags fijo =="
 # Un -ldflags escrito a mano significa "este build no consulta al helper": es
 # exactamente la regresión que dejó a la 0.9.28 sin pool y sin registro.
 fijos=$(grep -rn 'ldflags="-s -w"\|ldflags="-s -w ' "$WORKFLOWS" 2>/dev/null || true)
 if [ -z "$fijos" ]; then
-  ok "todos los builds usan \$QOBUZ_LDFLAGS (o el helper), ninguno tiene el -ldflags a mano"
+  ok "todos los workflows usan \$QOBUZ_LDFLAGS (o el helper), ninguno tiene el -ldflags a mano"
 else
   echo "$fijos" | while IFS= read -r linea; do echo "         $linea"; done
   falla "hay un -ldflags fijo: usá -ldflags=\"\$QOBUZ_LDFLAGS\" y sourceá $HELPER antes"
+fi
+
+# Mismo criterio para los scripts locales: `build_windows_release.sh` (el que
+# arma el instalador) compilaba el backend con un `-ldflags="-s -w"` pelado, y
+# guardia_build.sh solo miraba los workflows, así que nadie lo veía.
+# El patrón exige que el ldflags vaya DENTRO de un `go build` / `gomobile bind`:
+# los propios chequeos de este archivo y de build.sh contienen ese literal en un
+# grep, y marcarlos sería un falso positivo.
+SCRIPTS_BUILD="go_backend/build.sh go_backend/build_all.sh scripts/build scripts/release"
+fijos_scripts=$(grep -rnE '(go build|gomobile bind).*ldflags="-s -w' $SCRIPTS_BUILD 2>/dev/null \
+  | grep -vE '^[^:]*:[0-9]+:[[:space:]]*#' || true)
+if [ -z "$fijos_scripts" ]; then
+  ok "los scripts de build (incluye el instalador de Windows) usan \$QOBUZ_LDFLAGS"
+else
+  echo "$fijos_scripts" | while IFS= read -r linea; do echo "         $linea"; done
+  falla "un script de build compila Go con -ldflags fijo: sourceá $HELPER y pasá \$QOBUZ_LDFLAGS"
 fi
 
 echo
@@ -56,7 +72,8 @@ for wf in "$WORKFLOWS"/*.yml; do
   while IFS= read -r -d $'\x1f' bloque; do
     # Se ignoran las líneas comentadas: los headers de los workflows nombran
     # `gomobile bind` para explicar qué hace el workflow, y eso no compila nada.
-    if echo "$bloque" | grep -vE '^[[:space:]]*#' | grep -qE 'go build .*cmd/server|gomobile bind'; then
+    if echo "$bloque" | grep -vE '^[[:space:]]*#' | grep -cE 'go build .*cmd/server|gomobile bind' \
+       | grep -qv '^0$'; then
       nombre=$(echo "$bloque" | grep -m1 -- '- name:' | sed 's/.*- name: *//')
       if echo "$bloque" | grep -q "source $HELPER"; then
         ok "$(basename "$wf"): $nombre"
@@ -65,6 +82,29 @@ for wf in "$WORKFLOWS"/*.yml; do
       fi
     fi
   done < <(awk '/^      - name:/{if (b != "") printf "%s%c", b, 31; b = ""} {b = b $0 "\n"} END {if (b != "") printf "%s%c", b, 31}' "$wf")
+done
+
+echo
+echo "== 2b) Todo script de build que compila Go sourcea el helper =="
+# Los workflows se cubren arriba; acá van los scripts locales. La lista es
+# finita a propósito: recorrer todo repo/ encontraría a este guardia (que
+# nombra el helper en sus comentarios) y a embed_xcode.sh, que solo ECHOEA el
+# comando de gomobile para que lo corra el usuario.
+for sh in go_backend/build.sh go_backend/build_all.sh scripts/build/*.sh scripts/release/*.sh; do
+  [ -f "$sh" ] || continue
+  # Ignoran comentarios y los echo/info/warn de ayuda.
+  # Se usa `grep -c` y no `grep -q`: con `set -o pipefail`, el -q corta el
+  # pipe en cuanto encuentra la 1ª coincidencia y el grep de la izquierda
+  # muere con SIGPIPE (141) → el pipe entero da "falso" y este chequeo se
+  # caía en silencio JUSTO para build_all.sh, que era uno de los que había
+  # que vigilar. Sin -q, ambos greps leen todo y el código es determinista.
+  if [ "$(grep -vE '^[[:space:]]*(#|echo|info|warn)' "$sh" | grep -cE '(go build|gomobile bind)')" -gt 0 ]; then
+    if grep -q 'qobuz_inyeccion' "$sh" && grep -q '\$QOBUZ_LDFLAGS' "$sh"; then
+      ok "$(basename "$sh") sourcea el helper y usa \$QOBUZ_LDFLAGS"
+    else
+      falla "$sh compila Go sin sourcear $HELPER ni usar \$QOBUZ_LDFLAGS"
+    fi
+  fi
 done
 
 echo
@@ -87,17 +127,21 @@ else
 fi
 
 echo
-echo "== 4) El build local (go_backend/build.sh) también inyecta =="
-if grep -q 'source "\$INYECCION"' go_backend/build.sh && grep -q '\$QOBUZ_LDFLAGS' go_backend/build.sh; then
-  ok "build.sh sourcea el helper y usa \$QOBUZ_LDFLAGS"
-else
-  falla "build.sh no sourcea el helper o no usa \$QOBUZ_LDFLAGS"
-fi
-if grep -q 'ldflags="-s -w \|ldflags="-s -w"' go_backend/build.sh; then
-  falla "build.sh todavía tiene un -ldflags fijo"
-else
-  ok "build.sh sin -ldflags fijo"
-fi
+echo "== 4) Los builds locales (build.sh y build_all.sh) también inyectan =="
+# build_all.sh compilaba AAR, EXE y los 6 targets desktop sin tocar el helper:
+# era la ruta de build "grande" y salía justamente la que no inyectaba.
+for sh in go_backend/build.sh go_backend/build_all.sh; do
+  if grep -q 'source "\$INYECCION"' "$sh" && grep -q '\$QOBUZ_LDFLAGS' "$sh"; then
+    ok "$(basename "$sh") sourcea el helper y usa \$QOBUZ_LDFLAGS"
+  else
+    falla "$(basename "$sh") no sourcea el helper o no usa \$QOBUZ_LDFLAGS"
+  fi
+  if grep -nE '(go build|gomobile bind).*ldflags="-s -w' "$sh" >/dev/null; then
+    falla "$(basename "$sh") todavía tiene un -ldflags fijo"
+  else
+    ok "$(basename "$sh") sin -ldflags fijo"
+  fi
+done
 
 echo
 echo "== 5) El helper no se cae cuando falta una clave =="
@@ -115,18 +159,21 @@ else
 fi
 
 echo
-echo "== 6) Cada -X del helper apunta a un símbolo que existe =="
+echo "== 6) Cada -X de los builds apunta a un símbolo que existe =="
 # `go build -ldflags="-X paquete.Var=valor"` NO falla si el símbolo no existe:
 # lo ignora. Sin esta comprobación, renombrar una variable se lleva puesta la
 # inyección sin que nadie se entere hasta ver un binario sin pool.
+# Se leen el helper y los scripts de build: build.sh/build_all.sh además
+# inyectan la versión (`-X internal/core.Version=…`), y ese -X también puede
+# romperse en silencio.
 # En el helper el target se escribe con la variable: -X $MODULO/pkg.Var=valor.
-mapfile -t objetivos < <(grep -oE '\-X [^ =]+=' "$HELPER" \
+mapfile -t objetivos < <(grep -hoE '\-X [^ =]+=' "$HELPER" go_backend/build.sh go_backend/build_all.sh 2>/dev/null \
   | sed 's/^-X //; s/=$//' \
   | sed 's#^\$MODULO/#RAIZ_MODULO/#' \
   | sed "s#^RAIZ_MODULO/#$MODULO/#" \
   | sort -u)
 if [ "${#objetivos[@]}" -eq 0 ]; then
-  falla "no encontré ni un -X en $HELPER (¿cambió de formato?)"
+  falla "no encontré ni un -X en $HELPER ni en los scripts de build (¿cambió de formato?)"
 fi
 for obj in "${objetivos[@]}"; do
   pkg="${obj%.*}"
@@ -137,7 +184,11 @@ for obj in "${objetivos[@]}"; do
     falla "-X $obj: no existe el paquete $dir"
     continue
   fi
-  if grep -rqE "^var $var = " "$dir"/*.go; then
+  # Dos formas: `var X = "…"` al paquete, o dentro de un bloque `var ( … )`
+  # (indented). La segunda acepta también una asignación dentro de una
+  # función con el mismo nombre: preferimos un falso positivo a dejar pasar
+  # un rename, que sería fallar en silencio.
+  if grep -rqE "^var $var[[:space:]]*=|^[[:space:]]+$var[[:space:]]*=" "$dir"/*.go; then
     ok "-X $pkg.$var → var $var encontrada"
   else
     falla "-X $pkg.$var no tiene 'var $var' en $dir: Go lo ignora en silencio y el binario sale SIN la URL"

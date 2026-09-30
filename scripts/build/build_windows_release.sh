@@ -41,6 +41,23 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
+# ── Inyección de las URLs del Worker ────────────────────────────────────────
+# El backend que se empaqueta en el instalador se compilaba con un
+# `-ldflags="-s -w"` pelado: salía sin pool de Qobuz y SIN registro de códigos
+# premium (un código filtrado serviría para siempre). Es la misma regresión de
+# la 0.9.28 que vigila scripts/pruebas/guardia_build.sh.
+QOBUZ_LDFLAGS="-s -w"
+INYECCION="scripts/dev/qobuz_inyeccion.sh"
+if [[ -f "$INYECCION" ]]; then
+  # shellcheck source=/dev/null
+  source "$INYECCION"
+fi
+if [[ "$QOBUZ_LDFLAGS" == "-s -w" ]]; then
+  echo "::warning::Sin URLs del Worker inyectadas (qobuz-worker.env): el backend del instalador saldría SIN pool y SIN registro premium" >&2
+else
+  echo "==> Inyectando config del Worker en el backend Go"
+fi
+
 # ── Arquitectura destino ────────────────────────────────────────────────────
 ARCH_IN="${1:-}"
 if [[ -z "$ARCH_IN" ]]; then
@@ -94,7 +111,7 @@ sleep 1
 
 echo "==> 2/6 Compilando backend Go (Windows $GOARCH)..."
 mkdir -p windows/backend
-(cd go_backend && GOOS=windows GOARCH="$GOARCH" go build -ldflags="-s -w" -o "../windows/backend/bitly-backend.exe" ./cmd/server)
+(cd go_backend && GOOS=windows GOARCH="$GOARCH" CGO_ENABLED=0 go build -ldflags="$QOBUZ_LDFLAGS" -o "../windows/backend/bitly-backend.exe" ./cmd/server)
 
 echo "==> 3/6 Compilando Windows release... ($ARCH)"
 flutter build windows --release

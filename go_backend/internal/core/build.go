@@ -5,12 +5,25 @@ import (
 	"runtime"
 )
 
+// Version y BuildDate se inyectan en el build con:
+//
+//	ldflags "-X github.com/zarz/bitly/go_backend/internal/core.Version=…"
+//
+// Antes los scripts pasaban `-X main.version=…`, pero package main no tenía
+// esas variables: Go las ignoraba en silencio y el binario siempre reportaba
+// "1.0.0". (OJO: si se cambia el path, cambia también build.sh/build_all.sh.)
+var (
+	Version   = "1.0.0"
+	BuildDate = ""
+)
+
 // BuildInfo holds details about the current build.
 type BuildInfo struct {
 	GoVersion  string `json:"goVersion"`
 	GOOS       string `json:"goos"`
 	GOARCH     string `json:"goarch"`
 	BackendVer string `json:"backendVersion"`
+	BuildDate  string `json:"buildDate,omitempty"`
 }
 
 // GetBuildInfo returns build metadata for Flutter.
@@ -19,7 +32,8 @@ func GetBuildInfo() BuildInfo {
 		GoVersion:  runtime.Version(),
 		GOOS:       runtime.GOOS,
 		GOARCH:     runtime.GOARCH,
-		BackendVer: "1.0.0",
+		BackendVer: Version,
+		BuildDate:  BuildDate,
 	}
 }
 

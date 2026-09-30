@@ -2,6 +2,7 @@ package youtube
 
 import (
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -53,8 +54,12 @@ func TestArgsBypassPersonalizadoYDesactivado(t *testing.T) {
 // Si yt-dlp rechaza los argumentos de bypass (cliente desconocido en esa
 // versión), el runner debe reintentar SIN ellos en vez de devolver error.
 func TestEjecutarYtDlpReintentaSinBypass(t *testing.T) {
-	if os.Getenv("GOOS") == "windows" {
-		t.Skip()
+	// `echo` es un builtin del shell en Windows (no un ejecutable en PATH),
+	// así que el comando no existe ahí. Se mira runtime.GOOS: la variable de
+	// entorno GOOS solo está al cruzar compilación, no al correr los tests
+	// localmente en Windows, y por eso el skip no llegó a aplicar.
+	if runtime.GOOS == "windows" {
+		t.Skip("echo no es un ejecutable en Windows")
 	}
 	os.Unsetenv("BITLY_YTDLP_SIN_PLAYER_CLIENT")
 	// `echo` ignora los flags, así que el camino feliz no aplica; lo que se

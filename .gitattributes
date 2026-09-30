@@ -4,3 +4,9 @@
 # descargado y el clonado sean iguales.
 web/drift_worker.js -text
 web/sqlite3.wasm -text
+
+# Los .sh SIEMPRE con LF. Con core.autocrlf=true git los entregaba en CRLF y
+# WSL/bash se caía apenas abría el script (`syntax error near unexpected token
+# `$'in\r'`): 8 scripts del repo estaban en ese estado, incluido
+# scripts/build/build_windows_release.sh, el que arma el instalador de Windows.
+*.sh text eol=lf

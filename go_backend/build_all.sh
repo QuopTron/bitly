@@ -46,6 +46,25 @@ step() {
     echo -e "${CYAN}══════════════════════════════════════════════════${NC}"
 }
 
+# ─── Inyección de las URLs del Worker ───────────────────────
+# Las URLs del Worker (pool de Qobuz, /keys, api base y el registro premium)
+# llevan el secreto EN LA RUTA y el repo es público: se inyectan con -ldflags
+# y los valores salen de `qobuz-worker.env` (raíz, gitignoreado) o del entorno.
+# build_all.sh NO lo hacía: compilaba AAR, EXE y los 6 targets desktop con un
+# `-ldflags="-s -w"` pelado, es decir sin pool y SIN registro de códigos
+# premium (un código filtrado serviría para siempre). vigila: guardia_build.sh.
+QOBUZ_LDFLAGS="-s -w"
+INYECCION="$ROOT/../scripts/dev/qobuz_inyeccion.sh"
+if [ -f "$INYECCION" ]; then
+    # shellcheck source=/dev/null
+    source "$INYECCION"
+fi
+if [ "$QOBUZ_LDFLAGS" = "-s -w" ]; then
+    warn "Sin URLs del Worker inyectadas (qobuz-worker.env o QOBUZ_* / PREMIUM_REGISTRO_URL): el binario sale sin pool de Qobuz y SIN registro de códigos premium."
+else
+    info "Inyectando config del Worker: $QOBUZ_LDFLAGS"
+fi
+
 # ─── 1. Tests ───────────────────────────────────────────────
 run_tests() {
     step "1/5" "Ejecutando tests..."
@@ -116,7 +135,7 @@ build_aar() {
     gomobile bind \
         -target="android" \
         -androidapi 24 \
-        -ldflags="-s -w -X main.version=$VERSION -X main.buildDate=$DATE" \
+        -ldflags="$QOBUZ_LDFLAGS -X github.com/zarz/bitly/go_backend/internal/core.Version=$VERSION -X github.com/zarz/bitly/go_backend/internal/core.BuildDate=$DATE" \
         -o "$AAR_OUTPUT" \
         .
 
@@ -149,7 +168,7 @@ build_exe() {
 
     info "go build — GOOS=windows GOARCH=amd64..."
     GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build \
-        -ldflags="-s -w -X main.version=$VERSION -X main.buildDate=$DATE" \
+        -ldflags="$QOBUZ_LDFLAGS -X github.com/zarz/bitly/go_backend/internal/core.Version=$VERSION -X github.com/zarz/bitly/go_backend/internal/core.BuildDate=$DATE" \
         -o "$EXE_OUTPUT" \
         ./cmd/server/
 
@@ -184,7 +203,7 @@ build_desktop_all() {
         info "  $os/$arch → $output"
 
         if GOOS="$os" GOARCH="$arch" CGO_ENABLED=0 go build \
-            -ldflags="-s -w -X main.version=$VERSION -X main.buildDate=$DATE" \
+            -ldflags="$QOBUZ_LDFLAGS -X github.com/zarz/bitly/go_backend/internal/core.Version=$VERSION -X github.com/zarz/bitly/go_backend/internal/core.BuildDate=$DATE" \
             -o "$output" ./cmd/server/ 2>/dev/null; then
             local size; size=$(du -h "$output" | cut -f1)
             ok "  $os/$arch ($size)"

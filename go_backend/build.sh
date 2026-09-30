@@ -53,7 +53,7 @@ build_desktop() {
     info "Building desktop: $os/$arch → $output"
 
     GOOS="$os" GOARCH="$arch" CGO_ENABLED=0 go build \
-        -ldflags="$QOBUZ_LDFLAGS -X main.version=$VERSION -X main.buildDate=$DATE" \
+        -ldflags="$QOBUZ_LDFLAGS -X github.com/zarz/bitly/go_backend/internal/core.Version=$VERSION -X github.com/zarz/bitly/go_backend/internal/core.BuildDate=$DATE" \
         -o "$output" ./cmd/server/
 
     if [ -f "$output" ]; then
