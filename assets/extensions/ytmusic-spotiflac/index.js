@@ -400,6 +400,24 @@ function cargarSaludClientes() {
       _clientHealth.size +
       " bloqueados recuperados del disco",
   );
+
+  // El GANADOR (el cliente que resolvió último) también se persiste. Sin esto
+  // cada relanzado arrancaba el orden de clientes desde cero —la app se relanza
+  // seguido— y la PRIMERA canción de cada arranque volvía a caminar la cadena
+  // entera. Medido en el ZTE real: resoluciones de 7-15s en la primera canción
+  // (YTMusic), contra ~1s cuando el ganador ya estaba al frente. Es la misma
+  // razón por la que se persiste el libro de salud.
+  //
+  // Nunca puede empeorar nada: si el ganador quedó marcado como bloqueado en el
+  // libro, `ponerGanadorPrimero` lo ignora y el orden queda como siempre.
+  var ganadorGuardado = leerJsonPersistido("lastClientOk", 0);
+  if (ganadorGuardado && typeof ganadorGuardado === "string") {
+    _lastClientOk = ganadorGuardado;
+    L(
+      "info",
+      "[InnerTube] ganador pegado recuperado del disco: " + ganadorGuardado,
+    );
+  }
 }
 
 // Escribe el libro, sin las entradas ya vencidas.
@@ -2155,6 +2173,7 @@ function proveedorPoTokenDisponible() {
 //      de PO Token que permita 251 opus. Primero la calidad, después el turno.
 //   3. Si el ganador es el primero (o ya no está en la lista), no se toca nada.
 function ponerGanadorPrimero(orden) {
+  cargarSaludClientes();
   if (!_lastClientOk || !orden || orden.length < 2) return orden;
   if (innerTubeClientBlocked(_lastClientOk)) return orden;
   var idx = -1;
@@ -2532,6 +2551,9 @@ function requestInnerTubeAudioDownload(videoID, forceVideo) {
           "bps",
       );
       _lastClientOk = client.name;
+      // Se guarda para el PRÓXIMO arranque: la app se relanza seguido y sin
+      // esto la primera canción de cada sesión pagaba la cadena completa.
+      persistirJson("lastClientOk", client.name);
       return result;
     }
 
