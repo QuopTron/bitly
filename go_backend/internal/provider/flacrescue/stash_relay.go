@@ -109,6 +109,23 @@ var errStashApagado = errors.New("stash-relay: canal apagado")
 // de donde venga.
 var errStashOcupado = errors.New("stash-relay: relay ocupado (503)")
 
+// errStashCupoAgotado es el 429 del relay (cupo por instalación/IP). Se
+// distingue del 503 a propósito: un 429 es una cuota y no se reintenta
+// (insistir solo empeora), mientras que un 503 es casi siempre el isolate en
+// frío o un pico de carga, y ahí un reintento corto SÍ cambia el resultado.
+var errStashCupoAgotado = errors.New("stash-relay: cupo agotado (429)")
+
+// reintentoRelayEspera es cuánto se espera antes del ÚNICO reintento de un 503.
+//
+// Por qué existe: medido en el ZTE real, el relay contestaba 503 a los ~1s y el
+// canal quedaba en pausa 20s —y con él el único canal sin pérdida vivo—, así que
+// la reproducción caía al respaldo (Internet Archive ~3,5s o YouTube ~11s)
+// teniendo el FLAC disponible un reintento después. Un 503 de un Worker es casi
+// siempre cold-start o pico: medio segundo después suele contestar bien.
+//
+// Es `var` para que los tests lo acorten; en producción nadie lo toca.
+var reintentoRelayEspera = 500 * time.Millisecond
+
 // pausaRelayOcupado es cuánto se deja el relay en paz tras un 503/429. Corta a
 // propósito: es el mejor canal sin pérdida y un "ocupado" suele ser un pico de
 // carga, así que pasarse de pausa costaría el FLAC que casi siempre sí está.
@@ -212,7 +229,7 @@ func (c *Client) resolverStashRelay(id, formatoPedido string) (string, error) {
 		return "", fmt.Errorf("stash-relay: config en %dms: %w", msDesde(inicio)-msBusca, err)
 	}
 	msConfig := msDesde(inicio) - msBusca
-	enlace, err := c.mintearStash(cfg, trackID, formatID)
+	enlace, err := c.mintearStashCompartido(cfg, trackID, formatID)
 	if err == nil {
 		// Una línea por resolución: sin esto no se puede distinguir en el log si
 		// el FLAC vino de este relay o de otra fuente (todas reportan
@@ -224,7 +241,7 @@ func (c *Client) resolverStashRelay(id, formatoPedido string) (string, error) {
 	if esStashNoAutorizado(err) {
 		// La clave rotó: se descarta la config cacheada y se reintenta una vez.
 		if cfg2, err2 := c.configStash(true); err2 == nil {
-			if enlace2, err3 := c.mintearStash(cfg2, trackID, formatID); err3 == nil {
+			if enlace2, err3 := c.mintearStashCompartido(cfg2, trackID, formatID); err3 == nil {
 				log.Printf("[stash-relay] %s -> FLAC del relay en %dms (id=%s, tras rotar la clave)",
 					id, time.Since(inicio).Milliseconds(), trackID)
 				return enlace2, nil
@@ -255,6 +272,72 @@ func formatoStash(formatoPedido string) string {
 		return stashFormatoFLAC
 	}
 	return ""
+}
+
+// vueloMintStash es un mint del relay EN CURSO. Los canales que llegan mientras
+// corre esperan su cierre y leen su resultado: es un BROADCAST, así que TODOS
+// los que esperan reciben el mismo enlace.
+type vueloMintStash struct {
+	listo chan struct{}
+	url   string
+	err   error
+}
+
+// mintearStashCompartido pide el enlace de [trackID] al relay pagando, como
+// mucho, UN mint por vuelo.
+//
+// Por qué existe: las DOS fases del rescate (la exacta por ISRC y la búsqueda
+// por nombre) resuelven el mismo id de Qobuz y llegan acá a la vez. Sin esto, el
+// relay recibía DOS mints del mismo track en paralelo —medido en el ZTE real:
+// el id 453591293 entregado en 5,0s y otra vez en 5,4s— y, como cada mint varía
+// con la carga del relay, la reproducción terminaba esperando al MÁS LENTO de
+// los dos (8,1s de tap cuando el mint más rápido fue 5,0s). Con el vuelo
+// compartido, la segunda fase se engancha a la primera y hereda su enlace en
+// cuanto llega.
+//
+// Comparte solo los ACIERTOS, igual que la memoria del id de Qobuz (ver
+// qobuz_memoria.go): si el mint compartido falló, el que esperaba lo hace por su
+// cuenta —un parpadeo de red del primero no puede condenar al otro—, y el
+// reintento tampoco puede heredar un fallo que no le pertenece.
+func (c *Client) mintearStashCompartido(cfg relayStash, trackID, formatID string) (string, error) {
+	clave := trackID + "@" + formatID
+
+	c.mintStashMu.Lock()
+	if enVuelo, ok := c.mintStashVuelo[clave]; ok {
+		c.mintStashMu.Unlock()
+		<-enVuelo.listo
+		if enVuelo.err == nil && enVuelo.url != "" {
+			return enVuelo.url, nil
+		}
+		return c.mintearStash(cfg, trackID, formatID)
+	}
+	enVuelo := &vueloMintStash{listo: make(chan struct{})}
+	c.mintStashVuelo[clave] = enVuelo
+	c.mintStashMu.Unlock()
+	inicioMint := time.Now()
+
+	url, err := c.mintearStash(cfg, trackID, formatID)
+	// Un 503 del relay se reintenta UNA vez y solo si llegó RÁPIDO: una respuesta
+	// veloz es el síntoma de "isolate en frío / pico", mientras que un 503 que
+	// tardó su techo entero es el relay realmente saturado y reintentarlo solo
+	// duplicaría la espera. Si el reintento tampoco sirve, ahí sí se pausa.
+	if errors.Is(err, errStashOcupado) && msDesde(inicioMint) < int64(timeoutStash/2/time.Millisecond) {
+		time.Sleep(reintentoRelayEspera)
+		url, err = c.mintearStash(cfg, trackID, formatID)
+	}
+	if errors.Is(err, errStashOcupado) || errors.Is(err, errStashCupoAgotado) {
+		c.pausarRelay()
+	}
+
+	c.mintStashMu.Lock()
+	// Se despublica ANTES de publicar el resultado: el que llegue a partir de
+	// acá hace su propio mint (nada que compartir).
+	delete(c.mintStashVuelo, clave)
+	c.mintStashMu.Unlock()
+
+	enVuelo.url, enVuelo.err = url, err
+	close(enVuelo.listo)
+	return url, err
 }
 
 // mintearStash hace UNA petición firmada al relay y devuelve la URL validada.
@@ -294,11 +377,12 @@ func (c *Client) mintearStash(cfg relayStash, trackID, formatID string) (string,
 		return "", errStashNoAutorizado("stash-relay: firma rechazada (401)")
 	case resp.StatusCode == http.StatusNotFound:
 		return "", fmt.Errorf("stash-relay: la pista no está disponible")
+	// OJO: acá NO se pausa el canal. La pausa la decide mintearStashCompartido,
+	// que es el único que sabe si esto fue el primer intento o el reintento
+	// (ver reintentoRelayEspera).
 	case resp.StatusCode == http.StatusTooManyRequests:
-		c.pausarRelay()
-		return "", fmt.Errorf("stash-relay: cupo agotado (429)")
+		return "", errStashCupoAgotado
 	case resp.StatusCode == http.StatusServiceUnavailable:
-		c.pausarRelay()
 		return "", errStashOcupado
 	default:
 		return "", fmt.Errorf("stash-relay: respuesta %d", resp.StatusCode)

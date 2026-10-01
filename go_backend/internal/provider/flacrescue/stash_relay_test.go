@@ -145,6 +145,79 @@ func TestStashRelayMinteaConLaFirmaDelContrato(t *testing.T) {
 	}
 }
 
+// TestStashRelayComparteElMintEnVuelo: las DOS fases del rescate (la exacta
+// por ISRC y la búsqueda por nombre) llegan al relay con el MISMO id a la vez.
+// Sin el vuelo compartido el relay recibía dos mints del mismo track y, como
+// cada mint varía con su carga, la reproducción esperaba al más lento —medido
+// en el ZTE real: el id entregado en 5,0s y otra vez en 5,4s, con 8,1s de tap—.
+// Acá se fija que, con el mismo track, solo sale UN mint y las dos
+// resoluciones reciben el enlace.
+func TestStashRelayComparteElMintEnVuelo(t *testing.T) {
+	rp := nuevoRelayPrueba(t, claveStashPrueba)
+	// El mint se queda colgado hasta que el test lo libera: así el segundo
+	// pedido llega mientras el primero sigue EN VUELO y puede engancharse.
+	liberar := make(chan struct{})
+	entro := make(chan struct{}, 2)
+	rp.mintFn = func(rp *relayPrueba, w http.ResponseWriter, r *http.Request) {
+		entro <- struct{}{}
+		<-liberar
+		w.Header().Set("content-type", "application/json")
+		fmt.Fprintf(w, `{"url":%q,"format_id":6,"bit_depth":16,"sample_rate":44100}`, urlStashPrueba)
+	}
+	cliente := clienteStash(t, rp)
+	cfg, err := cliente.configStash(false)
+	if err != nil {
+		t.Fatalf("config: %v", err)
+	}
+
+	type resultado struct {
+		enlace string
+		err    error
+	}
+	primero := make(chan resultado, 1)
+	go func() {
+		enlace, err := cliente.mintearStashCompartido(cfg, trackStashPrueba, stashFormatoFLAC)
+		primero <- resultado{enlace, err}
+	}()
+	select {
+	case <-entro:
+	case <-time.After(2 * time.Second):
+		t.Fatal("el primer mint nunca llegó al relay")
+	}
+	// El primero sigue colgado: el segundo pedido tiene que engancharse a él.
+	segundo := make(chan resultado, 1)
+	go func() {
+		enlace, err := cliente.mintearStashCompartido(cfg, trackStashPrueba, stashFormatoFLAC)
+		segundo <- resultado{enlace, err}
+	}()
+	// Margen para que el segundo llegue a la puerta del vuelo antes de liberar
+	// (el primero está colgado, así que no hay mint que se adelante).
+	time.Sleep(100 * time.Millisecond)
+
+	select {
+	case <-entro:
+		t.Fatal("el mismo track se minteó DOS veces en paralelo")
+	default:
+	}
+	close(liberar)
+
+	for i, ch := range []chan resultado{primero, segundo} {
+		r := <-ch
+		if r.err != nil {
+			t.Fatalf("resolución %d falló: %v", i, r.err)
+		}
+		if r.enlace != urlStashPrueba {
+			t.Fatalf("resolución %d: enlace inesperado %q", i, r.enlace)
+		}
+	}
+	rp.mu.Lock()
+	mints := rp.mints
+	rp.mu.Unlock()
+	if mints != 1 {
+		t.Fatalf("debe salir UN solo mint por track: %d", mints)
+	}
+}
+
 func TestStashRelayCacheaLaConfig(t *testing.T) {
 	rp := nuevoRelayPrueba(t, claveStashPrueba)
 	cliente := clienteStash(t, rp)

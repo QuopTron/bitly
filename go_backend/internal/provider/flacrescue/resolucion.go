@@ -269,22 +269,32 @@ func (c *Client) resolverPorISRC(isrc string, formatos []string, calidadPedida s
 
 	// 1) Qobuz firmado (credenciales propias). Sin credenciales contesta al
 	// instante sin hacer NI UNA petición, así que no retiene nada.
-	canales = append(canales, canalRescate{
-		nombre:     nombreQobuzFirmado,
-		grado:      gradoCredenciales,
-		sinPerdida: sinPerdida,
-		correr: func() (string, bool, error) {
-			audioURL, err := c.resolverQobuzFirmado(isrc, mejor)
-			// Una muestra de 30s o una degradación por falta de suscriptor NO es
-			// un fallo de red: la cuenta no puede servir la canción y va a seguir
-			// así tema tras tema (ver qobuz_estado.go). Se marca para que la
-			// próxima resolución no vuelva a pagar este canal.
-			if errors.Is(err, errQobuzMuestraCorta) || errors.Is(err, errQobuzSinSesion) {
-				c.marcarQobuzSinSesion()
-			}
-			return audioURL, !sinPerdida, err
-		},
-	})
+	//
+	// Si la cuenta YA avisó que no puede servir la canción entera (muestra corta
+	// o degradación por falta de suscriptor, ver qobuz_estado.go), el canal NI SE
+	// CORRE: no puede ganar la carrera y cada intento cuesta una búsqueda por
+	// ISRC contra la API de Qobuz. Medido en el ZTE real: 0,4-2,1s de trabajo en
+	// cada rescate compitiendo por CPU con el canal que sí trae el FLAC, y un
+	// teléfono de gama baja es justo donde eso se nota. La marca se borra sola a
+	// los 5 min y SetSettingsQobuz la limpia con credenciales nuevas.
+	if !c.qobuzSinSesion() {
+		canales = append(canales, canalRescate{
+			nombre:     nombreQobuzFirmado,
+			grado:      gradoCredenciales,
+			sinPerdida: sinPerdida,
+			correr: func() (string, bool, error) {
+				audioURL, err := c.resolverQobuzFirmado(isrc, mejor)
+				// Una muestra de 30s o una degradación por falta de suscriptor NO es
+				// un fallo de red: la cuenta no puede servir la canción y va a seguir
+				// así tema tras tema (ver qobuz_estado.go). Se marca para que la
+				// próxima resolución no vuelva a correr este canal.
+				if errors.Is(err, errQobuzMuestraCorta) || errors.Is(err, errQobuzSinSesion) {
+					c.marcarQobuzSinSesion()
+				}
+				return audioURL, !sinPerdida, err
+			},
+		})
+	}
 
 	// 2) stash-relay: relay público que mintea la URL del CDN de Qobuz. Solo
 	// sirve sin pérdida, así que se le pide SU formato (ver formatoRelay).

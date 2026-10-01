@@ -163,6 +163,14 @@ type Client struct {
 	stashConfigURL string
 	stashRelayCfg  relayStash
 	stashInstall   string
+	// mintStashVuelo lleva los MINT del relay EN VUELO por (trackID, formato).
+	// Las DOS fases de una misma reproducción (exacta por ISRC y búsqueda por
+	// nombre) llegan al relay con el MISMO id a la vez; sin esto el relay
+	// recibía dos mints del mismo track en paralelo y la reproducción esperaba
+	// al MÁS LENTO. Medido en el ZTE real: el mismo id entregado en 5,0s y 5,4s
+	// a la vez. Ver mintearStashCompartido en stash_relay.go.
+	mintStashMu    sync.Mutex
+	mintStashVuelo map[string]*vueloMintStash
 }
 
 type cacheEntry struct {
@@ -178,19 +186,20 @@ type cacheEntry struct {
 // NewClient crea el provider con la configuración por defecto.
 func NewClient() *Client {
 	c := &Client{
-		mirrors:       append([]string(nil), defaultMirrors...),
-		origin:        defaultOrigin,
-		formato:       "FLAC",
-		http:          &http.Client{Timeout: timeoutPorPedido, Transport: transporteRescateContado},
-		cache:         map[string]cacheEntry{},
-		sinCuentas:    map[string]time.Time{},
-		sitios:        append([]sitioFLAC(nil), sitiosConocidos...),
-		idsArcods:     map[string]string{},
-		idsQobuz:      map[string]string{},
-		idsQobuzVuelo: map[string]*vueloIDQobuz{},
-		arcodBase:     baseArcod,
-		arcodActivo:   arcodPorDefecto,
-		stashActivo:   stashRelayPorDefecto,
+		mirrors:        append([]string(nil), defaultMirrors...),
+		origin:         defaultOrigin,
+		formato:        "FLAC",
+		http:           &http.Client{Timeout: timeoutPorPedido, Transport: transporteRescateContado},
+		cache:          map[string]cacheEntry{},
+		sinCuentas:     map[string]time.Time{},
+		sitios:         append([]sitioFLAC(nil), sitiosConocidos...),
+		idsArcods:      map[string]string{},
+		idsQobuz:       map[string]string{},
+		idsQobuzVuelo:  map[string]*vueloIDQobuz{},
+		mintStashVuelo: map[string]*vueloMintStash{},
+		arcodBase:      baseArcod,
+		arcodActivo:    arcodPorDefecto,
+		stashActivo:    stashRelayPorDefecto,
 	}
 	// El precalentado sale en segundo plano (ver stash_relay.go) y no bloquea
 	// el registro del provider. En los tests del paquete el canal arranca

@@ -175,6 +175,12 @@ func TestRescateConAhorroDeDatosUsaElRelayComoRespaldo(t *testing.T) {
 // reintentaba el mint contra un relay ocupado (es lo que se midió en el tap del
 // emulador: un 503 por carrera, ocupando turnos de worker).
 func TestRelayOcupadoSePausaSolo(t *testing.T) {
+	// El reintento corto existe (ver reintentoRelayEspera): acá el relay sigue
+	// ocupado, así que el reintento también falla y la pausa tiene que quedar.
+	antes := reintentoRelayEspera
+	reintentoRelayEspera = time.Millisecond
+	t.Cleanup(func() { reintentoRelayEspera = antes })
+
 	rp := nuevoRelayPrueba(t, claveStashPrueba)
 	rp.mu.Lock()
 	rp.mintFn = func(_ *relayPrueba, w http.ResponseWriter, _ *http.Request) {
@@ -191,6 +197,13 @@ func TestRelayOcupadoSePausaSolo(t *testing.T) {
 		t.Fatal("un 503 debe dejar el canal en pausa")
 	}
 
+	rp.mu.Lock()
+	trasElIntento := rp.mints
+	rp.mu.Unlock()
+	if trasElIntento != 2 {
+		t.Fatalf("un 503 rápido se reintenta UNA vez: %d mints", trasElIntento)
+	}
+
 	// Aunque el relay se recupere, la pausa manda: no se toca la red.
 	rp.mu.Lock()
 	rp.mintFn = nil
@@ -200,8 +213,49 @@ func TestRelayOcupadoSePausaSolo(t *testing.T) {
 	}
 	rp.mu.Lock()
 	defer rp.mu.Unlock()
-	if rp.mints != 1 {
+	if rp.mints != trasElIntento {
 		t.Fatalf("en pausa no se puede volver a pedir el mint: %d mints", rp.mints)
+	}
+}
+
+// TestRelayOcupadoSeRecuperaConElReintento: el caso que se midió en el ZTE real
+// —el relay contestaba 503 a los ~1s y el canal quedaba 20s afuera, cayendo la
+// reproducción al respaldo (YouTube ~11s)— tiene que resolverse con UN reintento
+// corto, sin pausa y sin perder robustez: si el reintento también falla, la pausa
+// queda igual (ver TestRelayOcupadoSePausaSolo).
+func TestRelayOcupadoSeRecuperaConElReintento(t *testing.T) {
+	antes := reintentoRelayEspera
+	reintentoRelayEspera = time.Millisecond
+	t.Cleanup(func() { reintentoRelayEspera = antes })
+
+	rp := nuevoRelayPrueba(t, claveStashPrueba)
+	rp.mu.Lock()
+	primerIntento := true
+	rp.mintFn = func(_ *relayPrueba, w http.ResponseWriter, _ *http.Request) {
+		rp.mu.Lock()
+		primero := primerIntento
+		primerIntento = false
+		rp.mu.Unlock()
+		if primero {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = w.Write([]byte(`{"error":"busy"}`))
+			return
+		}
+		w.Header().Set("content-type", "application/json")
+		_, _ = w.Write([]byte(`{"url":"` + urlStashPrueba + `","format_id":6,"bit_depth":16,"sample_rate":44100}`))
+	}
+	rp.mu.Unlock()
+	c := clienteRescateOffline(t, rp)
+
+	enlace, err := c.resolverStashRelay(trackStashPrueba, "FLAC")
+	if err != nil {
+		t.Fatalf("un 503 transitorio debe recuperarse con el reintento: %v", err)
+	}
+	if enlace != urlStashPrueba {
+		t.Fatalf("enlace inesperado: %q", enlace)
+	}
+	if c.relayPausado() {
+		t.Fatal("si el reintento sirvió, el canal NO puede quedar en pausa")
 	}
 }
 
